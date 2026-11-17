@@ -14,7 +14,8 @@ import { triggerOf } from "../playbooks/triggers/notices";
 import { isOneOf } from "../../shared/unknown";
 import { clockAhead, clockDate, clockTime } from "../../shared/clock";
 import { plural } from "../../shared/words";
-import type { SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./dto";
+import type { SequenceMessageOffDto, SequencePeopleDto, SequenceRowDto, SequenceStepDto } from "./dto";
+import { MESSAGE_WAITS_WORDS, stepOffLine } from "./message-off";
 import { oneOffPeople } from "./one-off";
 import { SEQUENCE_WORDS, leadStepStand } from "./words/flow";
 import {
@@ -368,6 +369,16 @@ export interface ScheduleCtx {
   gone: boolean;
   /** The step's message is an offer though its moment is not, and whose word that is (stepAsOffer); unsaid is no. */
   offer?: StepOffer | null;
+  /**
+   * Nothing can carry the step's message here now (templates/carried-nowhere.ts, Campaigns, one tab, call C13): it waits,
+   * and goes by itself once a channel can. Unsaid is no.
+   */
+  waits?: boolean;
+  /**
+   * The step's message cannot go (message-off.ts sequenceMessageOff, call C3): WhatsApp refused it or paused it where the
+   * step goes by WhatsApp. Its row is in Needs you for it, and the step says so. Unsaid is no.
+   */
+  off?: SequenceMessageOffDto | null;
 }
 
 /** A sequence to leads' step going now: what the check held of it and what is for you to send, then when the rest go. */
@@ -413,6 +424,7 @@ function customerNext(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleC
  */
 export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ctx: ScheduleCtx): ScheduleState | null {
   if (ctx.gone) return { tone: "need", words: SCHEDULE_WORDS.pick };
+  if (ctx.off) return { tone: "need", words: stepOffLine(ctx.off, "box") };
   const batch = row.needs.waiting > 0 ? row.needs.batches.find((b) => b.step_id === step.id) : undefined;
   if (batch) {
     // An OK sends it at once; a customer's waits only until its day is gone (batchWaitsUntilTonight).
@@ -428,6 +440,8 @@ export function scheduleStepState(row: SequenceRowDto, step: SequenceStepDto, ct
   if (step.next_words?.status === "rejected")
     return { tone: "need", words: "New words turned down · it keeps sending these" };
   if (step.next_words) return { tone: "next", words: "New words in review · it keeps sending these" };
+  // Nothing can carry its message: whatever comes next would not go, so the step says it waits, quietly.
+  if (ctx.waits) return { tone: "next", words: MESSAGE_WAITS_WORDS.step };
   const next = customerNext(row, step, ctx);
   if (next) return next;
   const line = scheduleInLine(ctx.people, step.place);
@@ -482,8 +496,11 @@ export function scheduleStepFacts(
   const offer = ctx.offer && !step.hand ? offerSentence(ctx.offer) : null;
   if (by || offer)
     facts.push({ label: factWords.by, value: [by ? (offer ? `${by}.` : by) : null, offer].filter(Boolean).join(" ") });
-  // What it is doing now, without the offer's line its box falls back on: the By row above has said it, once.
-  const state = scheduleStepState(row, step, { ...ctx, offer: null });
+  // What it is doing now, without the offer's line its box falls back on: the By row above has said it, once. Where its
+  // message cannot go, what that holds back: the message the sheet opens on says WhatsApp's no itself.
+  const state: ScheduleState | null = ctx.off
+    ? { tone: "need", words: stepOffLine(ctx.off, "sheet") }
+    : scheduleStepState(row, step, { ...ctx, offer: null });
   if (state && state.tone !== "done")
     facts.push({
       label: factWords.now,

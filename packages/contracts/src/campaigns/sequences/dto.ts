@@ -89,6 +89,14 @@ export interface SequenceWaitingBatchDto {
   audience: { kind: string | null; trigger: string | null };
 }
 
+/** A step of a running sequence whose message cannot go, and why (message-off.ts): its row's `message_off`. */
+export interface SequenceMessageOffDto {
+  place: number;
+  why: "refused" | "paused" | "no_version" | "gone";
+  /** The language the step sends, which the message has no version in where that is why. */
+  language: string;
+}
+
 /** A sequence as the list reads it (`sequence_overview`). */
 export interface SequenceRowDto {
   id: string;
@@ -136,6 +144,20 @@ export interface SequenceRowDto {
    * which counts a lead only once both tries are spent. Absent from a server before it: none.
    */
   rechecking?: number;
+  /**
+   * The first step of a running sequence whose message cannot go (Campaigns, one tab, call C3, 17 Nov 2026): WhatsApp
+   * refused or paused it where the step goes by WhatsApp, it has no version in the language the step sends, or it is
+   * gone (message-off.ts). Null where every step's message can go; absent where the messages could not be read, for a
+   * sequence that is not running, and from a server before it.
+   */
+  message_off?: SequenceMessageOffDto | null;
+  /**
+   * The messages a customer sequence's steps send, by place, each in the language its step sends (Campaigns, one tab):
+   * what the list's search finds it by (list.ts sequenceMatches, call C7), and whether one waits for a channel to carry
+   * it (message-off.ts sequenceMessageWaits, call C13). Absent for a cold email and a one-off, where its messages could
+   * not be read, and from a server before it.
+   */
+  messages?: { place: number; name: string; language: string }[];
   /**
    * Why its first step's last run did nothing, where the sequence is on and no cold email or one-off, and the business
    * day of that step's last run (decision 0128, stage 2): what the record reads beside its row, read for every row.

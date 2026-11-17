@@ -20,7 +20,8 @@
  * or text alone is a row, and each starter is listed with its words to read (the Messages redesign's step 5): it is filed
  * the first time something uses it (a sequence, a send, Ask's card, or its words changed here: the clean list, 14 Nov
  * 2026), and no banner asks for the set. The number gates only what is WhatsApp's: a WhatsApp version's words, rename, hide and
- * delete, a WhatsApp language. WhatsApp's own list is asked quietly as the page opens (useQuietCheck): no sync button.
+ * delete, a WhatsApp language. WhatsApp's own list is asked quietly as Campaigns opens (parts/whatsapp-list.ts): no sync
+ * button.
  *
  * It is the Inbox's shape (parts/split.tsx): the list in a pane and, while something is open, that thing in a second
  * pane beside it -- a message, a reach-out's email, or New, which is one line to Ask (new-said.tsx: its step 4). On a phone what is open rises over
@@ -36,7 +37,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  HOUR_MS,
   BAR_LINE_WORDS,
   LIBRARY_WORDS,
   LIFECYCLE_WORDS,
@@ -77,7 +77,7 @@ import {
 import type { ListFolds, ListGroups } from "./page-parts";
 import { NewSaid } from "./new-said";
 import { TemplatePane } from "./template-pane";
-import { starters as library, syncTemplates } from "./verbs";
+import { starters as library } from "./verbs";
 import { brainOf } from "./words";
 
 /** No email or text rows read: one array for every draw, so nothing that takes it sees it change. */
@@ -300,30 +300,6 @@ function messageOpener(
   return { routed, shownKey, openOne, startNew, closeOpen, openMade };
 }
 
-/** How long WhatsApp's own list of messages is left before the page asks it again as it opens. */
-const QUIET_CHECK_MS = HOUR_MS;
-/** Asked once a visit at most: a page opened again in it reads what that asking brought. */
-let checkedThisVisit = false;
-
-/**
- * WhatsApp asked quietly as the page opens (the Messages redesign's step 5: no sync button): its answer on a message
- * written here comes by itself (waba-events), so this reads only what was made or changed in WhatsApp's own tools, where
- * the list was last read over an hour ago, for whoever may. Nothing is said: what changed is in the list once read again.
- */
-function useQuietCheck(may: boolean, templates: readonly TemplateDto[] | null | undefined) {
-  const synced = (templates ?? []).reduce<string | null>(
-    (m, t) => (t.synced_at && (!m || t.synced_at > m) ? t.synced_at : m),
-    null,
-  );
-  useEffect(() => {
-    if (!may || checkedThisVisit) return;
-    if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return;
-    checkedThisVisit = true;
-    // A check that did not answer leaves the list as it was read: the next visit asks again.
-    void syncTemplates();
-  }, [may, synced]);
-}
-
 /**
  * The view the list draws: a phone's pick, but every group on a desk (its search the bar's line) and while a search holds
  * words, since a search looks through every group (words in Going out were "not found" while Need you was picked).
@@ -366,7 +342,6 @@ function MessagesReal({ view, route }: { view?: CmView; route: string }) {
   // Messages' first part (client/page-speed.ts, contracts PRIMARY_PART): its list, drawn once the settings read is in, or
   // what could not be read. Shown beside Sequences under Campaigns' one mount, it is timed from the press that showed it.
   usePartShown("templates", "list", templates !== undefined && messages !== undefined);
-  useQuietCheck(hasWhatsApp && canAct && !!templates, templates);
 
   if (templates === undefined || messages === undefined) return readingNow(view);
   if (templates === null || messages === null) return couldntLoad(view);

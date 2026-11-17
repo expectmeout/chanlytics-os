@@ -6,6 +6,7 @@ import { owedOncePerMoment } from "../../playbooks/triggers/notices";
 import { clockDate } from "../../../shared/clock";
 import { capitalize, plural } from "../../../shared/words";
 import { CAMPAIGN_ROOMS, RUN_WAITING_SHORT, SLOW_REVIEW_WORDS } from "../../../shell/campaign-rooms";
+import { TEMPLATE_STATUS_WORDS } from "../../templates/templates";
 import { runWaitsOnYou, type RunDays } from "../../../waits/waits";
 import type { SequenceRowDto } from "../dto";
 import { SEQUENCE_MODE_WORDS, sequenceModeOf, type SequenceState } from "../sequence";
@@ -175,7 +176,8 @@ export function stepApprovalOf(
 ): { label: string; tone: "ok" | "warn" | "danger" } | null {
   if (status === "approved") return { label: "Approved", tone: "ok" };
   if (status === "pending") return { label: slow ? SLOW_REVIEW_WORDS.pill : "In review", tone: "warn" };
-  if (status === "rejected") return { label: "Not approved", tone: "danger" };
+  // WhatsApp's no in one word, the one the Inbox's picker, Reports and the bell say (Campaigns, one tab, call C3).
+  if (status === "rejected") return { label: TEMPLATE_STATUS_WORDS.rejected, tone: "danger" };
   if (status === "paused" || status === "disabled") return { label: "Paused by WhatsApp", tone: "danger" };
   return null;
 }
@@ -267,7 +269,8 @@ export function sequenceWaitsNow(row: SequenceRowDto, days: RunDays): SequenceRo
 export function sequenceGroupOf(row: SequenceRowDto, twin: SequenceTwin | null = null): SequenceGroup {
   // A draft stays in the list under Drafts until it is started: nothing of it goes, so nothing of it needs you.
   if (row.state === "draft") return "drafts";
-  if (needsCount(row.needs) > 0 || twin) return "needs";
+  // A step whose message cannot go (message-off.ts: refused, paused, no version in its language, gone) needs you too.
+  if (needsCount(row.needs) > 0 || twin || row.message_off) return "needs";
   if (row.starts === "date" && row.date?.state === "failed") return "needs";
   if (sequenceStuckOf(row)) return "needs";
   if (row.starts === "date") return "dates";

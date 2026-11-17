@@ -32,6 +32,7 @@ import { Icon } from "../../kit/icon/icon";
 import { useHeldList, type Arrival } from "../../kit/motion/held-list";
 import { canDo, gate, navigate, routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
+import { useEmailAllowance } from "../parts/head";
 import { CmSplit, cmGoing, useCmPhone, type CmView } from "../parts/split";
 import { SequencesList, sequencesList } from "./list";
 import { sayToNew } from "./new/first-line";
@@ -91,10 +92,19 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
  * sequence" where the row holds it, "+ New" where it does not, as People's Add people and the Inbox's New (Ruben, 20 Oct
  * 2026: a plus alone said nothing).
  */
-const newAct = () => (
-  <Button variant="primary" {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
-    <ActWords icon={<Icon name="plus" size={14} />} words={NEW_WORDS.act} />
-  </Button>
+const newAct = (month: string | null) => (
+  <>
+    {/* The month's emails on a desk (call C14): the frame keeps a desk's sentence for a reader alone, so the line stands on
+        the strip's row before New, as the canvas drew it, and a reader hears it once, in the head. A phone's head shows it. */}
+    {month ? (
+      <span className="sq-month" aria-hidden="true" data-testid="cm-month-desk">
+        {month}
+      </span>
+    ) : null}
+    <Button variant="primary" {...routeDoor(newSequenceRoute())} data-testid="sq-new-open" {...gate("approve")}>
+      <ActWords icon={<Icon name="plus" size={14} />} words={NEW_WORDS.act} />
+    </Button>
+  </>
 );
 
 /** The way back to the lead a trip came from: by the lead's name where Leads said it, else Leads. */
@@ -129,8 +139,16 @@ export function SequencesPage({ route, view }: { route: string; view?: CmView })
   const held = recordBackOf(place.view === "record" ? place.id : null, place.back ?? null);
   const back = place.view === "record" ? held : (place.back ?? null);
   // Campaigns' head, the view's name in the strip under it: no way back above it but the lead a trip came from, and New
-  // beside the strip until one is being made.
-  useStanding({ title: CAMPAIGN_ROOMS.home, back: backWayOf(back), act: place.view === "new" ? null : newAct() });
+  // beside the strip until one is being made. Its line is the month's emails once half are used, said where the emails
+  // go out from: Messages' head alone said it (Campaigns, one tab, call C14).
+  const allowance = useEmailAllowance();
+  const month = allowance.length > 0 ? allowance.join(" · ") : null;
+  useStanding({
+    title: CAMPAIGN_ROOMS.home,
+    back: backWayOf(back),
+    sentence: month ? <span data-testid="cm-month">{month}</span> : undefined,
+    act: place.view === "new" ? null : newAct(phone ? null : month),
+  });
   const open =
     place.view === "record" && place.run ? (
       <SequenceRun sequenceId={place.id} runId={place.run} />

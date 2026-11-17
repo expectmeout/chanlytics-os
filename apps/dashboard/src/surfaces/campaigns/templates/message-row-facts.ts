@@ -6,13 +6,11 @@
  * `__TEMPLATE_SENT` and `__PLAYBOOKS` with no surface argument.
  */
 import {
-  CHANNEL_WORDS,
-  channelChoices,
+  messageCarriedNowhere,
   messageHolds,
   messageStandingWords,
   messageWhyNot,
   NUMBERED_SLOT,
-  readyForMessage,
   reviewIsSlow,
   reviewSinceOf,
   SLOW_REVIEW_WORDS,
@@ -391,33 +389,12 @@ const STOPPED: ReadonlySet<string> = new Set(["rejected", "paused", "disabled"])
 const isAway = (r: TemplateRow): boolean => (r.message ? r.message.hidden : !!r.row?.hidden_at);
 
 /** Who a message is about, as the channel rules read it: an offer is the business's news, a note is theirs. */
-export const aboutOfMessage = (message: Pick<CampaignMessage, "purpose">): "ours" | "theirs" =>
-  message.purpose === "marketing" ? "ours" : "theirs";
-
 /**
- * Whether no channel can carry a message here now: every channel refused for it (contracts channelChoices over what the
- * message holds on each, readyForMessage: Meta's pause on offers to US numbers, email not set up for offers, no texting
- * line, a version not written or not approved). Never where the business's channels were not read (the sequences' read),
- * nor where it has an email and email could not be asked about just now: a question nobody answered is not a no, and
- * says nothing.
+ * Whether no channel can carry a message here now (contracts messageCarriedNowhere, the one reading a campaign's step and
+ * its row say too), over the business's channels the campaigns' read holds.
  */
-function nothingCarries(message: CampaignMessage | null): boolean {
-  const ready = surfaceValue("playbooks")?.ready ?? null;
-  if (!ready || !message) return false;
-  // A WhatsApp version WhatsApp is reviewing is read as the approved one it will be: what would hold it after (Meta's
-  // pause on offers) still holds it.
-  const whatsapp = message.versions.whatsapp;
-  const judged =
-    whatsapp && whatsapp.status === "pending"
-      ? { ...message, versions: { ...message.versions, whatsapp: { ...whatsapp, status: "approved" as const } } }
-      : message;
-  const choices = channelChoices(readyForMessage(ready, judged), message.purpose, aboutOfMessage(message));
-  if (choices.some((c) => c.ok)) return false;
-  const unasked =
-    !!message.versions.email &&
-    (!!ready.email.unchecked || choices.some((c) => c.channel === "email" && c.why === CHANNEL_WORDS.unchecked));
-  return !unasked;
-}
+const nothingCarries = (message: CampaignMessage | null): boolean =>
+  messageCarriedNowhere(surfaceValue("playbooks")?.ready ?? null, message);
 
 /** It has only a WhatsApp version this product cannot send whole (made in WhatsApp's own tools), in every language on file. */
 function onlyUnsendable(group: TemplateGroup): boolean {

@@ -12,6 +12,7 @@
  */
 import type { Workspace } from "@/bridge/surface-data";
 import { api } from "@/bridge/api";
+import { syncWhatsAppList } from "../parts/whatsapp-list";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,
@@ -92,7 +93,7 @@ export interface VersionDraft {
   message?: MessageBegins;
 }
 
-export const syncTemplates = () => api()("POST templates/sync");
+export const syncTemplates = syncWhatsAppList;
 
 export const templates = {
   sync: syncTemplates,

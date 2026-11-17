@@ -42,6 +42,7 @@ import type { CmView } from "../parts/split";
 import { surfaceValue } from "../../surface-values";
 import { waitForAdsFirstRead } from "../ads/first-read";
 import { useAdsShown } from "../ads/shown";
+import { useWhatsAppListAsked } from "../parts/whatsapp-list";
 import { MessagePaneProvider, sequencesPageNow, useMessagesView } from "./campaigns-code";
 import { CampaignsToast } from "./route-toast";
 
@@ -205,6 +206,8 @@ export function CampaignsRoute() {
   const [toastNode, flash] = useFrameToast();
   // One head over every view: what the view leaving said stands until the one arriving says its own (standing.ts).
   useHeadHeld();
+  // WhatsApp's own list, asked quietly as Campaigns opens, whichever view is on screen (parts/whatsapp-list.ts).
+  useWhatsAppListAsked();
   const adsShown = useAdsShown();
   const landing = retiredRouteOf(route);
   const view = viewOf(param, adsShown);

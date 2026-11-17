@@ -12,6 +12,7 @@ import { clockDate, clockNear, clockNearWhen, clockTime, clockWhen, zoneDayKey }
 import { plural } from "../../../shared/words";
 import type { SequenceDateDto, SequenceRowDto } from "../dto";
 import { okSendsNothing } from "../list";
+import { MESSAGE_WAITS_WORDS, messageOffLine } from "../message-off";
 import { runOffRowWords, sequenceStuckOf, type SequenceStuck, type StuckLeadsReason } from "../run-off";
 import { SEQUENCE_WORDS, sequenceStartWords, twinLineOf, type SequenceTwin } from "./flow";
 import { batchWaitsUntilTonight } from "./next";
@@ -204,7 +205,14 @@ function leadsIdleLine(row: SequenceRowDto): string {
 /** A row's line: the first of these that is true (decision 0128). */
 export function sequenceRowLine(
   row: SequenceRowDto,
-  at: { tz: string; nowMs: number; word: AppointmentWord; twin: SequenceTwin | null },
+  at: {
+    tz: string;
+    nowMs: number;
+    word: AppointmentWord;
+    twin: SequenceTwin | null;
+    /** A message it sends waits for a channel to carry it (message-off.ts sequenceMessageWaits): said before its next. */
+    waits?: boolean;
+  },
 ): string {
   const { tz, nowMs } = at;
   if (row.state === "draft") return draftLine(row, tz, nowMs);
@@ -212,7 +220,9 @@ export function sequenceRowLine(
   if (needs) return needs;
   const stuck = sequenceStuckOf(row);
   if (stuck) return stuckLine(stuck, tz, nowMs);
+  if (row.message_off) return messageOffLine(row.message_off);
   if (at.twin) return twinLineOf(row);
+  if (at.waits) return MESSAGE_WAITS_WORDS.row;
   if (row.starts === "date" && row.date) return oneOffLine(row, row.date, tz, nowMs);
   if (row.state === "ended") return lastLine(row, tz, nowMs) ?? "Sent nothing";
   if (row.state === "paused") return pausedLine(row, at.word);

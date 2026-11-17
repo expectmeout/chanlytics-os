@@ -44,6 +44,7 @@ export type {
   SequenceDateDto,
   SequenceFirstStepDto,
   SequenceHistoryDto,
+  SequenceMessageOffDto,
   SequenceNeedsDto,
   SequenceNextWordsDto,
   SequenceOneOffDto,
@@ -113,15 +114,21 @@ export {
   batchOkSendsNothing,
   byLongestWait,
   heldByCheckWords,
+  messageFoundLine,
   needsCount,
+  OTHER_MESSAGES_WORDS,
+  otherMessagesOf,
   SEQUENCE_LIST_WORDS,
   SEQUENCE_SORTS,
   SEQUENCE_TYPES,
   sequenceMatches,
+  sequenceMessageFound,
   sequenceTypeOf,
   sortedSequences,
 } from "./list";
-export type { SequenceSort, SequenceType } from "./list";
+export type { OtherMessage, SequenceSort, SequenceType } from "./list";
+export { MESSAGE_WAITS_WORDS, messageOffLine, sequenceMessageOff, sequenceMessageWaits } from "./message-off";
+export type { StepMessageRef } from "./message-off";
 export { NewDraftAnswerSchema } from "./new-draft-schema";
 export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
 export {

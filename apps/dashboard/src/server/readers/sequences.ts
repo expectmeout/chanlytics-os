@@ -3,15 +3,18 @@ import {
   AppError,
   BOOKING_DEFAULTS,
   addressOf,
+  campaignMessagesOf,
   evidenceOf,
   historyCovers,
   historyIn,
   historySince,
   parseTenantConfig,
   runDaysAt,
+  sequenceMessageOff,
   sequenceWaitsNow,
   type SequenceBatchDto,
   type SequenceHistoryDto,
+  type SequenceMessageOffDto,
   type SequenceRepliesDto,
   type SequencePeopleDto,
   type SequenceReachDto,
@@ -27,9 +30,12 @@ import {
   findSequenceOfPart,
   listSequenceOverview,
   getSequencePeople,
+  listStepMessages,
+  listTemplates,
   listSequenceSteps,
   findSequenceRecordFacts,
   listSequenceEvidence,
+  type StepMessageRow,
 } from "@chanlytics/db/campaigns";
 import { playbookCountKey, readingFor } from "@/lib/campaign-channels";
 import { listRepliedConversations } from "../campaigns/broadcasts/replied";
@@ -63,18 +69,62 @@ export const sequencesWaitingNow = (rows: readonly SequenceRowDto[], timezone: s
   return rows.map((r) => sequenceWaitsNow(r, days));
 };
 
+/**
+ * What the list says of each sequence's steps' messages, by the sequence's id (Campaigns, one tab, 17 Nov 2026): the
+ * messages its steps send, which a search finds it by (call C7), and its first running step whose message cannot go
+ * (contracts sequenceMessageOff, call C3: refused, paused, no version in its language, gone): what the Messages list
+ * said of a message, said on the campaign it stops. Two reads beside the list's, its steps' messages and the
+ * workspace's message rows, however many sequences there are. Null where either could not be read: the rows then say
+ * nothing of it, never that every message can go.
+ */
+async function stepMessagesOf(rc: ReaderContext): Promise<Map<string, StepMessagesOf>> {
+  const [steps, rows] = await Promise.all([
+    listStepMessages(rc.ctx.supabase, rc.tenantId),
+    listTemplates(rc.ctx.supabase, rc.tenantId, null),
+  ]);
+  const messages = campaignMessagesOf(rows);
+  return new Map(
+    [...steps].map(([id, ofIt]) => [
+      id,
+      {
+        steps: ofIt,
+        off: sequenceMessageOff(
+          ofIt.filter((step) => step.running),
+          messages,
+        ),
+      },
+    ]),
+  );
+}
+
+/** A sequence's steps' messages, and its first running step whose message cannot go. */
+interface StepMessagesOf {
+  steps: StepMessageRow[];
+  off: SequenceMessageOffDto | null;
+}
+
+/** A customer sequence's row with its steps' messages and, where it runs, what stops one; any other as it came. */
+function withStepMessages(row: SequenceRowDto, read: Map<string, StepMessagesOf> | null): SequenceRowDto {
+  if (!read || row.starts === "leads" || row.starts === "date") return row;
+  const own = read.get(row.id);
+  const messages = (own?.steps ?? []).map(({ place, name, language }) => ({ place, name, language }));
+  return row.state === "on" ? { ...row, messages, message_off: own?.off ?? null } : { ...row, messages };
+}
+
 /** GET sequences: every sequence of the workspace, newest first, with what needs you in each. */
 export const sequences: Reader<undefined, SequencesPageDto> = {
   name: "sequences",
   async read(rc) {
-    const [rows, facts, word] = await Promise.all([
+    const [rows, facts, word, off] = await Promise.all([
       listSequenceOverview(rc.ctx.supabase, rc.tenantId),
       load(rc, readers.facts, undefined).then((r) => r.data),
       // The word its steps are said in, the workspace's own (readers/facts.ts): nothing else of its shape is said here.
       load(rc, readers.appointmentWord, undefined).then((r) => r.data),
+      stepMessagesOf(rc).catch(logAndGoOn("stepMessagesOf", null)),
     ]);
+    const shown = rows.map((row) => withStepMessages(row, off));
     return {
-      data: { sequences: sequencesWaitingNow(rows, facts.timezone, rc.now), timezone: facts.timezone, word },
+      data: { sequences: sequencesWaitingNow(shown, facts.timezone, rc.now), timezone: facts.timezone, word },
       rows: rows.map(cited),
       stamp: readerStamp(),
     };

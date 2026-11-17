@@ -49,7 +49,7 @@ import { LeadSteps } from "./leads/lead-steps";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
-import { StepPreviewLine, StepWords, stepOfferOf, useStepMessageRead } from "./step-words";
+import { StepPreviewLine, StepWords, stepOfferOf, useStepMessageRead, useStepMessageSays } from "./step-words";
 import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 import type { CmOffered } from "../parts/channels";
@@ -173,7 +173,9 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const gone = customer && read && !message;
   // An offer under a moment that is not one (a ready-made follow-up WhatsApp filed as an offer): no text, and who gets it.
   const offer = customer ? stepOfferOf(rec, step, stepRead) : null;
-  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer });
+  // Its message cannot go (call C3), or nothing can carry it here now (call C13): it says so, as the Messages list did.
+  const says = useStepMessageSays(rec, customer ? step : null, message);
+  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer, ...says });
   const done = state?.tone === "done";
   const by = stepBy(step, offer);
   // A call or a note by its kind, as New's rail calls it: the name the database gave it is the sequence's.

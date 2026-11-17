@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   MESSAGE_CHANGE_WORDS,
+  aboutOfMessage,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   channelChoices,
@@ -35,7 +36,7 @@ import { surfaceValue } from "../../surface-values";
 import { CmPane } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
-import { aboutOfMessage, firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
+import { firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
 import { LanguageWord, addLanguageItem, openRow, paneName } from "./message-row-parts";
 import type { RowCtx, VersionActs } from "./message-row-parts";
 import { factsLine, standingTap } from "./sheet-head";

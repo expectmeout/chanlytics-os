@@ -49,7 +49,15 @@ import type { PaneStep } from "../templates/template-pane";
 import { AddStepChoices } from "./new/add-step";
 import { HandEditor, StepEditor } from "./step-editor";
 import type { StepsCtx } from "./steps";
-import { HandTask, StepMessageDoor, StepWords, stepOfferOf, useStepMessageRead } from "./step-words";
+import {
+  HandTask,
+  StepMessageDoor,
+  StepWords,
+  stepOfferOf,
+  useStepMessageRead,
+  useStepMessageSays,
+  type StepMessageSays,
+} from "./step-words";
 import { RecordFootContext } from "./record-foot";
 import { pressed } from "./verbs";
 import type { CmOffered } from "../parts/channels";
@@ -128,16 +136,20 @@ function StepFacts(p: {
   ctx: StepsCtx;
   gone: boolean;
   offer: StepOffer | null;
+  /** What its message says (step-words.tsx useStepMessageSays): its Now row says it cannot go, or that it waits. */
+  says: StepMessageSays;
 }) {
   const { rec, step } = p;
   return (
     <dl className="sq-facts" data-testid={`sq-step-facts-${step.place}`}>
-      {scheduleStepFacts(rec.sequence, step, rec.word, { ...p.ctx, gone: p.gone, offer: p.offer }).map((f) => (
-        <div key={f.label} className="sq-fact">
-          <dt>{f.label}</dt>
-          <dd className={f.tone === "warn" ? "sq-needs" : undefined}>{f.value}</dd>
-        </div>
-      ))}
+      {scheduleStepFacts(rec.sequence, step, rec.word, { ...p.ctx, gone: p.gone, offer: p.offer, ...p.says }).map(
+        (f) => (
+          <div key={f.label} className="sq-fact">
+            <dt>{f.label}</dt>
+            <dd className={f.tone === "warn" ? "sq-needs" : undefined}>{f.value}</dd>
+          </div>
+        ),
+      )}
     </dl>
   );
 }
@@ -312,6 +324,8 @@ function SheetBody(p: {
   ctx: StepsCtx;
   flash: Flash;
   message: ReturnType<typeof useStepMessageRead>;
+  /** What the step's message says (useStepMessageSays). */
+  says: StepMessageSays;
   onPick: (does: NewStepDoes) => void;
   onEdit: () => void;
   onDone: () => void;
@@ -369,6 +383,7 @@ function SheetBody(p: {
         ctx={p.ctx}
         gone={sendsMessage(face.step) && p.message.read && !p.message.message}
         offer={sendsMessage(face.step) ? stepOfferOf(rec, face.step, p.message) : null}
+        says={p.says}
       />
     </div>
   );
@@ -384,6 +399,7 @@ function paneStepOf(p: {
   step: SequenceStepDto;
   ctx: StepsCtx;
   offer: StepOffer | null;
+  says: StepMessageSays;
   take: { arm: () => void };
   onEdit: () => void;
 }): PaneStep {
@@ -415,7 +431,7 @@ function paneStepOf(p: {
     // Under the words as the step's view stands them (its gap over the rows).
     under: (
       <div className="sq-stepview">
-        <StepFacts rec={rec} step={step} ctx={p.ctx} gone={false} offer={offer} />
+        <StepFacts rec={rec} step={step} ctx={p.ctx} gone={false} offer={offer} says={p.says} />
       </div>
     ),
   };
@@ -443,6 +459,8 @@ export function StepSheet(p: StepSheetProps) {
   const footSlot = useMemo(() => ({ el: footEl, hold: () => undefined }), [footEl]);
   const step = target?.kind === "step" ? (rec.steps.find((s) => s.id === target.id) ?? null) : null;
   const { face, message, onMessage } = useStepFace(p, step);
+  // Its message cannot go (call C3), or nothing can carry it here now (call C13): its Now row says so.
+  const says = useStepMessageSays(rec, step && sendsMessage(step) ? step : null, message.message);
   const take = useTakeAway({ rec, step, open, flash, moved, onGone: p.onClose });
   const editing = face?.kind === "hand" || face?.kind === "message";
   const head = sheetHead(rec, step, message.message?.title ?? null, editing);
@@ -488,6 +506,7 @@ export function StepSheet(p: StepSheetProps) {
                 step: onMessage.step,
                 ctx: p.ctx,
                 offer: stepOfferOf(rec, onMessage.step, message),
+                says,
                 take,
                 onEdit: p.onEdit,
               })}
@@ -501,6 +520,7 @@ export function StepSheet(p: StepSheetProps) {
             ctx={p.ctx}
             flash={flash}
             message={message}
+            says={says}
             onPick={p.onPick}
             onEdit={p.onEdit}
             onDone={done}

@@ -270,7 +270,7 @@ test("a lead's step is done, going now or still to come; a message's WhatsApp st
   );
   assert.deepEqual(stepApprovalOf("approved"), { label: "Approved", tone: "ok" });
   assert.deepEqual(stepApprovalOf("pending"), { label: "In review", tone: "warn" });
-  assert.deepEqual(stepApprovalOf("rejected"), { label: "Not approved", tone: "danger" });
+  assert.deepEqual(stepApprovalOf("rejected"), { label: "Refused", tone: "danger" });
   assert.equal(stepApprovalOf(null), null);
 });
 

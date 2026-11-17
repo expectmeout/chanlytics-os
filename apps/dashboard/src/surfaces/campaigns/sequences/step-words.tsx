@@ -18,12 +18,15 @@ import {
   exampleParams,
   handTitleOf,
   inChatPurposeOfMessage,
+  messageCarriedNowhere,
   parseParamSpecs,
   replyInChatOf,
   reviewIsSlow,
+  sequenceMessageOff,
   stepApprovalOf,
   stepAsOffer,
   type HandKind,
+  type SequenceMessageOffDto,
   type SequenceRecordDto,
   type SequenceStepDto,
   type StepOffer,
@@ -70,6 +73,31 @@ export function stepOfferOf(
   const message = read.message?.message ?? null;
   const inChat = read.repliesInChat && inChatPurposeOfMessage(policyClass, message) !== null;
   return stepAsOffer({ kind: step.kind, hand: step.hand, policy_class: policyClass }, message, inChat);
+}
+
+/** What a running step's message says on its box and its sheet, as the Messages list said it of the message alone. */
+export interface StepMessageSays {
+  /** Nothing can carry it here now: it waits, quietly (call C13). No where the channels are not read yet. */
+  waits: boolean;
+  /** It cannot go, and why: WhatsApp refused it or paused it where the step goes by WhatsApp (call C3). */
+  off: SequenceMessageOffDto | null;
+}
+
+/**
+ * What a running step's message says (Campaigns, one tab): whether nothing can carry it here now (contracts
+ * messageCarriedNowhere), over the business's channels the campaigns' read holds, and whether it cannot go, by the one
+ * reading the list's row is put in Needs you by (contracts sequenceMessageOff). Neither where the campaign is not on.
+ */
+export function useStepMessageSays(
+  rec: SequenceRecordDto,
+  step: SequenceStepDto | null,
+  message: CmOffered | null,
+): StepMessageSays {
+  const ready = useSurface("playbooks")?.ready ?? null;
+  const m = message?.message ?? null;
+  if (rec.sequence.state !== "on" || !step?.template_name || !m) return { waits: false, off: null };
+  const ref = { place: step.place, name: step.template_name, language: m.language, channels: step.channels };
+  return { waits: messageCarriedNowhere(ready, m), off: sequenceMessageOff([ref], [m]) };
 }
 
 /**
