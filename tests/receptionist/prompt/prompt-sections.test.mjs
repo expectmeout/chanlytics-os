@@ -14,6 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS, PROMPT_OPENINGS } from "@chanlytics/contracts";
+import { SELLING_CALL_LINE } from "../_prompt-rules.mjs";
 
 // The standing lines every prompt ends with (decision 0051): that it is the business's automated assistant, always, and
 // in text that it opens a conversation not already under way by saying so; and that these rules win.
@@ -23,6 +24,8 @@ const ASSISTANT_TEXT = [
   ASSISTANT_ALWAYS,
   `- Unless the facts about them say "This conversation is already under way.", open your reply by saying, in a few words, that you are the business's automated assistant.`,
 ];
+// On a call alone (decision 0136): someone selling to the business is promised nothing, and a recording is ended.
+const SELLING_CALL = `- ${SELLING_CALL_LINE}`;
 const RULES_WIN = "- Where anything above disagrees with these rules, the rules win.";
 
 /** A Monday: the salon's September closure has passed and is not said; its December one is ahead and is. */
@@ -276,6 +279,7 @@ const SALON_VOICE = [
       "- Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name.",
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
       ASSISTANT_ALWAYS,
+      SELLING_CALL,
       RULES_WIN,
       `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
@@ -365,6 +369,7 @@ const MOVER_VOICE = [
       // A call has no message to find YES OFFERS in: its answer is chat's alone (offers-ask.ts offersAnswerRule).
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
       ASSISTANT_ALWAYS,
+      SELLING_CALL,
       RULES_WIN,
       `- ${DATA_NOT_INSTRUCTIONS}`,
     ],

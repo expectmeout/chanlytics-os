@@ -16,16 +16,16 @@ import {
   THREAD_PANE_WORDS,
 } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { Notice } from "../../kit/notice/notice";
 import { ixMoveOf } from "../rules";
-import { gate, navigate, useToast } from "../shell";
+import { gate, navigate } from "../shell";
 import type { Thread, TimelineEntry as TlEntry } from "../types";
 import { CallAfter, CallBackPress, callWaits } from "../call-back/call-after";
 import { ixDockDials } from "./band";
 import { hasVeto, SteerBox, VetoBar } from "./veto";
 import { IxWhy } from "./send-words";
 import { useDraftsMoved } from "../../today/need-you/drafts";
-import { notACustomerVerb, replyAnywayVerb, type VerbResult } from "../verbs";
+import { Dock, dockLine } from "../dock/dock";
+import { NotACustomerBar, SetAsideBar } from "../dock/set-aside";
 import { threadDraftNow } from "./kept-draft";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -69,24 +69,12 @@ interface HandBackAsk {
 
 type DockProps = Omit<StatusProps, "asking" | "setAsking"> & HandBackAsk;
 
-// What a real thread asks of you, said one way whatever the state: the dock over the reply box (the phone canvas, B1),
-// the kit's notice. The one line of what is owed, one fact the page does not already show after it in the dim ink (never
-// the bar's wait, never their last bubble, which is right above it), and at most two acts, the lead a capsule and the
-// other words. The state's name -- the pill its row wears, and its wait -- is the header's, under the name (who.tsx
-// whereItStands). It was a sentence at 600 over their last message quoted again over the acts: three blocks for what the
-// bar named.
-interface DockLine {
-  fact: ReactNode;
-  source?: ReactNode;
-  acts?: ReactNode;
-  line?: boolean;
-  label: string;
-  testid: string;
+/** A thread that is not a customer's, as a reading or a member said it (dock/set-aside.tsx), or null for any other. */
+function notACustomerBar(thread: Thread) {
+  if (!thread.real) return null;
+  if (thread.setAside) return <SetAsideBar thread={thread} />;
+  return thread.notACustomer ? <NotACustomerBar thread={thread} /> : null;
 }
-
-const Dock = ({ fact, source = null, acts = null, line = false, label, testid }: DockLine) => (
-  <Notice fact={fact} source={source} act={acts} line={line} label={label} className="ix-dock" testid={testid} />
-);
 
 // =============== THE THREAD'S STATUS — what it needs from you, one state at a time ===============
 // On a real thread it sits under the conversation, by the reply box (InboxThread). Over the timeline it was a stack
@@ -451,80 +439,6 @@ export function composerAside(p: StatusProps): ReactNode {
 }
 
 /**
- * A thread set aside as not a customer's (decision 0093): what its sender was read to want, under the page's own question,
- * and the two words on it. Its hold is resolved and it is archived, so nothing else in the dock speaks.
- */
-function SetAsideBar({ thread }: { thread: Thread }) {
-  const W = THREAD_PANE_WORDS;
-  const [toastNode, flash] = useToast();
-  const [busy, setBusy] = useState(false);
-  const id = thread.conversationId;
-  if (!id) return null;
-  const v = threadDraftNow(thread);
-  const rest = v.state === "pitch" && v.what ? v.what : null;
-  const act = async (go: () => Promise<VerbResult>, done?: () => void) => {
-    setBusy(true);
-    const r = await go();
-    setBusy(false);
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
-    done?.();
-  };
-  return (
-    <>
-      {toastNode}
-      <Dock
-        testid="ix-set-aside"
-        label={rest ? `${W.pitchLead} — ${rest}` : W.pitchLead}
-        fact={dockLine({ lead: W.pitchLead, rest })}
-        line
-        acts={
-          <>
-            <Button
-              variant="soft"
-              size="sm"
-              className="ix-press"
-              disabled={busy}
-              onClick={() =>
-                void act(
-                  () => notACustomerVerb(id),
-                  () => flash({ msg: <>{W.notACustomerDone}</>, undo: () => void notACustomerVerb(id, true) }),
-                )
-              }
-              data-testid="ix-dock-not-a-customer"
-              {...gate("approve", "say this is not a customer")}
-            >
-              {W.notACustomer}
-            </Button>
-            <Button
-              variant="quiet"
-              size="sm"
-              className="ix-press"
-              disabled={busy}
-              onClick={() => void act(() => replyAnywayVerb(id))}
-              data-testid="ix-dock-reply-anyway"
-              {...gate("approve", "reply to a conversation set aside")}
-            >
-              {W.replyAnyway}
-            </Button>
-          </>
-        }
-      />
-    </>
-  );
-}
-
-/** The dock's one line, as the canvas draws it: a dot in the coral, what is owed at 600, the clause after it muted. */
-function dockLine({ lead, rest }: { lead: string; rest: string | null }) {
-  return (
-    <span className="ix-dock-line">
-      <span className="ix-dock-dot" aria-hidden="true" />
-      <b>{lead}</b>
-      {rest ? <span className="ix-dock-rest"> · {rest}</span> : null}
-    </span>
-  );
-}
-
-/**
  * A real thread that needs you: the one line of what is owed (contracts reasonLineOf; "Draft ready" where the thread's draft
  * is), its whole why a press away where no draft says it, and what to do about it. Where the reply box under it answers the
  * hold, Hand back stands over the box (composerAside) and the dock is its line alone.
@@ -782,7 +696,7 @@ export const ThreadStatus = (props: StatusProps) => {
 
       <CallAfter thread={p.thread} onHandBack={p.onHandBack} />
       {escalatedBar(p)}
-      {p.thread.real && p.thread.setAside ? <SetAsideBar thread={p.thread} /> : handledBar(p)}
+      {notACustomerBar(p.thread) ?? handledBar(p)}
       {yoursBar(p)}
       {vetoStatus(p)}
       {steerStatus(p)}

@@ -107,6 +107,7 @@ export {
   vttOf,
 } from "./sound";
 export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
+export { VIDEO_TILE_WORDS } from "./tile-words";
 export {
   clockOf,
   isDigestStep,

@@ -34,6 +34,7 @@ import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
 import { appNavigate, askOnScreenKey, setAskOnScreen } from "../shell";
 import { emptyThreads, unreadEscalated } from "./list-empty";
+import { olderOne } from "./older-one";
 import type { InboxBucket, InboxView, Thread } from "../types";
 
 /** How much of a row the desk draws: the phone ignores it. */
@@ -49,6 +50,8 @@ interface NeedsYouDrawn {
   olderRows: readonly TodayQueueRowVM[];
   rows: readonly TodayQueueRowVM[];
   why: (t: Thread) => string | null;
+  /** The one count's row of a folded conversation: what one person past a week is drawn from (older-one.tsx). */
+  rowOf: (t: Thread) => TodayQueueRowVM | null;
 }
 
 /** No rows, and no conversations: what a list draws beside its own where the one count has given it none. */
@@ -398,7 +401,8 @@ function olderFold(list: ListCtx, shown: ShownRows) {
   const older = list.needsYou?.older ?? NO_THREADS;
   const away = list.needsYou?.olderRows ?? NONE_COUNTED;
   const count = older.length + away.length;
-  if (!count) return null;
+  // One person is their own row, as on Today (older-one.tsx): a fold of one hid who, what happened and Mark done.
+  if (count < 2) return count ? olderOne(list.needsYou, list) : null;
   // Its own list: one tab stop, on the open row or its first, and the arrows walk its rows alone (pick.tsx).
   const fold: ListCtx = {
     ...list,

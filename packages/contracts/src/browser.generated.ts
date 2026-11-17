@@ -268,7 +268,7 @@ export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./c
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./content/sources";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
-export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
+export { callEndedWords, saysUnansweredCall, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { countdownClock, theyWroteLast, toInboxThreadVM } from "./conversations/inbox-thread/thread-vm";
@@ -314,6 +314,7 @@ export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_PICTURE_KEEP_S, FILE_VIDEO_LOOK_SCHEMA, fileLookAsked, fileLookOf, fileVideoLookAsked, fileVideoLookOf, VIDEO_LOOK_EDITION } from "./files/look";
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postMomentWont, postPhotoWont, postPlanOf, postPlanTidied, postSentencesOf, postWordsIn } from "./files/post";
 export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
+export { VIDEO_TILE_WORDS } from "./files/tile-words";
 export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
 export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
@@ -529,6 +530,7 @@ export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/qu
 export { NO_REPLY_AFTER_MS } from "./today/rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today/runs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./today/to-do";
+export { callBackNotOwed, callerStandingOf, strangerCaller } from "./voice/call-back-owed";
 export { CALL_ENDING_OWNER_WORDS, CALL_ENDINGS_NEEDING_AN_EAR, isCallEndingReason } from "./voice/call-endings";
 export { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS, CALL_ENDINGS, callEndingOf } from "./voice/call-endings-platform";
 export { CALL_OUTCOME_WORDS, CALL_OUTCOMES, callNoteLines, callNotesOf, callOutcomeOf, callOutcomeWords, callTodoWords, tidyCallSummary } from "./voice/call-words";

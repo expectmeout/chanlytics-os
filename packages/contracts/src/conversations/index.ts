@@ -12,7 +12,7 @@ export {
   UNCONNECTED_DIAL_LINE,
 } from "./call-dto";
 export type { CallDto } from "./call-dto";
-export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
+export { callEndedWords, saysUnansweredCall, spokenDuration, toCallVM, unansweredCallTodo } from "./call-vm";
 export type { CallVM } from "./call-vm";
 export { DRAFT_DOOR, STEER_DOOR } from "./edge-doors";
 export {

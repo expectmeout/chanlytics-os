@@ -10,9 +10,16 @@ import { DRAFTED_TODO, waitsOnAPerson, type EscalationDto } from "../escalations
 import type { InboxThreadVM } from "../inbox-thread-vm";
 import { moveWaits, threadMoveNow, threadMoveOf } from "../../waits/thread-move";
 
-/** Archived, and set aside while it stays so: a new message that came in anyway reopens it, an ordinary thread again. */
-export const archivedOf = (dto: ConversationDto): Pick<InboxThreadVM, "archived" | "setAside"> =>
-  dto.state === "archived" ? { archived: true, ...(dto.set_aside_at ? { setAside: true } : {}) } : { archived: false };
+/**
+ * Archived, and set aside while it stays so: a new message that came in anyway reopens it, an ordinary thread again. A
+ * member's word that it is not a customer's (set aside, with its day gone: 00539) stands whatever its state, until
+ * Reply anyway clears it (decision 0136).
+ */
+export const archivedOf = (dto: ConversationDto): Pick<InboxThreadVM, "archived" | "setAside" | "notACustomer"> => ({
+  archived: dto.state === "archived",
+  ...(dto.state === "archived" && dto.set_aside_at ? { setAside: true } : {}),
+  ...(dto.set_aside_why && !dto.set_aside_at ? { notACustomer: true } : {}),
+});
 
 /**
  * Where a thread sits and who owes it work — the single implementation.
@@ -287,6 +294,13 @@ export const THREAD_PANE_WORDS = {
   receptionist: "AI",
   notACustomerAct: "Not a customer…",
   notACustomerMeta: "Moves them out of People. Their mail stays.",
+  /**
+   * The same word on a conversation that still asks for you and is no email's (decision 0136): a call back nobody
+   * should make. What it does, under it in the menu; what it did, in its toast; and what its dock says from then on.
+   */
+  notACustomerHeldMeta: "Off your list. Their calls stop asking for you.",
+  notACustomerHeldDone: "Set as not a customer. Their calls won't ask for you.",
+  notACustomerSaid: "you said so, and their calls don't ask for you",
   /** The group of acts on who the conversation is with: "Contact", never their name again under the head that says it. */
   groupContact: "Contact",
   groupDealFile: "Deal and file",

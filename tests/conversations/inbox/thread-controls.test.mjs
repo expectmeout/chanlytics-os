@@ -200,6 +200,9 @@ test("the thread's menu: the conversation, then Contact, then the file, each und
     // Theirs already, under the head that names them: their name again was a business's whole name over two lines.
     "[Contact]",
     "AI",
+    // A conversation that still asks for you can be said not to be a customer's (decision 0136): off the list, and
+    // their calls stop asking.
+    "Not a customer",
     "|",
     "[Deal and file]",
     "Export transcript",
@@ -1009,6 +1012,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       "|",
       "[Contact]",
       "AI",
+      "Not a customer",
       "|",
       "[Deal and file]",
       "Start a proposal",
@@ -1026,7 +1030,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
     assert.deepEqual(order, ["actions", "sheet"]);
     // A proposal out (with no link to send on People's row here): its moves, each on this deal.
     people({ id: "d1", stage: "proposed", proposal: null });
-    assert.deepEqual(shape(draw(vm)).slice(12, 15), ["Mark as client", "Mark as passed", "Edit proposal"]);
+    assert.deepEqual(shape(draw(vm)).slice(13, 16), ["Mark as client", "Mark as passed", "Edit proposal"]);
     for (const [label, mode] of [
       ["Mark as client", "won"],
       ["Mark as passed", "lost"],
@@ -1038,7 +1042,7 @@ test("Actions carry the deal's moves as a group of their own, by the stage of th
       assert.deepEqual(order, ["actions", "sheet"], label);
     }
     people({ id: "d1", stage: "won" });
-    assert.deepEqual(shape(draw(vm)).slice(12, 13), ["End the engagement"]);
+    assert.deepEqual(shape(draw(vm)).slice(13, 14), ["End the engagement"]);
     press("End the engagement");
     assert.deepEqual(opened.at(-1), { personId: "k1", mode: "ended", dealId: "d1" });
     people({ id: "d1", stage: "lost" });

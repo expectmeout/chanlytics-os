@@ -238,6 +238,8 @@ export async function openDoor() {
       conversations: [],
       messages: [],
       escalations: [],
+      // A member's words about a thread (not_a_customer, reply_anyway), which a call's plan reads (decision 0136).
+      decisions: [],
       events: [],
       notifications: [],
     };
