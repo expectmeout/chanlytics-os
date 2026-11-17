@@ -33,7 +33,7 @@ import { EmptyState, FailedRead } from "../../apps/dashboard/src/surfaces/kit/em
 import { Face } from "../../apps/dashboard/src/surfaces/kit/face/face.tsx";
 import { Figure } from "../../apps/dashboard/src/surfaces/kit/figure/figure.tsx";
 import { Icon } from "../../apps/dashboard/src/surfaces/kit/icon/icon.tsx";
-import { LineField, LinePress } from "../../apps/dashboard/src/surfaces/kit/line/line.tsx";
+import { LineBox, LineField, LinePress } from "../../apps/dashboard/src/surfaces/kit/line/line.tsx";
 import { LinkButton } from "../../apps/dashboard/src/surfaces/kit/link-button/link-button.tsx";
 import { ListRow } from "../../apps/dashboard/src/surfaces/kit/list-row/list-row.tsx";
 import { Meter } from "../../apps/dashboard/src/surfaces/kit/meter/meter.tsx";
@@ -1256,6 +1256,20 @@ const LINES = {
   "line-field": () => [
     h(LineField, { rows: 1, placeholder: "Ask anything" }),
     h(LineField, { rows: 1, placeholder: "Listening…", listening: true }),
+  ],
+  "line-box": () => [
+    h(
+      LineBox,
+      { mark: glyph() },
+      h(LineField, { rows: 1, placeholder: "How should it change?" }),
+      h(LinePress, { kind: "send", "aria-label": "Ask AI", disabled: true }, glyph()),
+    ),
+    h(
+      LineBox,
+      { mark: glyph(), busy: true },
+      h(LineField, { rows: 1, readOnly: true, value: "Writing new words…", onChange() {} }),
+      h(LinePress, { kind: "send", "aria-label": "Ask AI", disabled: true }, glyph()),
+    ),
   ],
 };
 

@@ -405,6 +405,7 @@ function paneStepOf(p: {
 }): PaneStep {
   const { rec, step, offer } = p;
   return {
+    id: step.id,
     before: [
       {
         label: SW.editStep(step.place),

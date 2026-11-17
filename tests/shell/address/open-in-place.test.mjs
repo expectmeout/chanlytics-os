@@ -114,7 +114,8 @@ test("a run's home and a message's drawer open in place, a retired address of a 
     assert.equal(seeRefOfRoute(route), null, route);
   // The sheet's door goes home: the address it was opened from, spelled as its page writes it.
   assert.equal(seeHomeOf({ kind: "run", id: "b-1", sequenceId: "q-1" }), runRoute("b-1", "q-1"));
-  assert.equal(seeHomeOf({ kind: "message", name: "come_back" }), messageRoute("come_back"));
+  // A message has no page of its own: home from its sheet is Campaigns' list, which its address opens it over.
+  assert.equal(seeHomeOf({ kind: "message", name: "come_back" }), "campaigns/sequences");
 });
 
 /* ---------------------------- the verbs ---------------------------- */

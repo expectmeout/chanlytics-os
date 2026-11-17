@@ -134,6 +134,7 @@ export type { NewDraftAnswer, NewDraftAnswerStep, NewDraftReply } from "./new-dr
 export {
   asDraftedFrom,
   asDraftedOf,
+  draftKeepsMessage,
   handStepsHold,
   NEW_DRAFT_JSON_SCHEMA,
   NEW_VALUES,
@@ -153,8 +154,10 @@ export {
 export type {
   AsDrafted,
   NewCheck,
+  NewDraftAnswered,
   NewDraftAsk,
   NewDraftDto,
+  NewDraftKeeps,
   NewMailbox,
   NewNobody,
   NewReach,

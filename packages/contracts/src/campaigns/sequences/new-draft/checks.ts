@@ -92,12 +92,23 @@ export interface NewDraftDto {
    * source `learned`); none where it learned none. Absent from a server before it, and from a draft built by hand.
    */
   voice?: string[];
-  /**
-   * What was said is a message to keep, not something to send (NEW_ANSWER_KINDS' `message`, Campaigns, one tab, call
-   * C12): New hands the line to AI's message card and draws no draft of it. Absent on every draft.
-   */
-  keeps?: "message";
 }
+
+/**
+ * What New is answered where the line is the words of a message to keep, not something to send (NEW_ANSWER_KINDS'
+ * `message`, Campaigns, one tab, call C12): the line, which New hands to AI's message card. No draft is made of it, so
+ * none is answered.
+ */
+export interface NewDraftKeeps {
+  keeps: "message";
+  said: string;
+}
+
+/** What a line said to New is answered with: a draft, or that it is a message to keep. */
+export type NewDraftAnswered = NewDraftDto | NewDraftKeeps;
+
+/** Whether an answer is a message to keep, and no draft. */
+export const draftKeepsMessage = (answered: NewDraftAnswered): answered is NewDraftKeeps => "keeps" in answered;
 
 /** What New asks Ask: the line, and any choice already made (a door's, or the owner's in the draft). */
 export interface NewDraftAsk {

@@ -42,37 +42,13 @@
   color: var(--ink-muted);
   overflow-wrap: anywhere;
 }
-/* One line to AI where no approved message can go yet (ask-line.tsx, Campaigns, one tab, call C10): a box typed in, as
-   Campaigns' own lines to AI stand, the AI's mark at its start and the send circle at its end; its note under it. */
+/* One line to AI where no approved message can go yet (ask-line.tsx, Campaigns, one tab, call C10): the kit's box
+   (kit.css .line-box), as a message's own line to AI stands, and its note under it. */
 .ix-new-ask {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
-}
-.ix-new-ask-line {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: 40px;
-  padding: 3px 4px 3px 12px;
-  border: 1px solid var(--surface-inset-edge);
-  border-radius: var(--radius-2xl);
-}
-.ix-new-ask-line:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--focus-field);
-}
-.ix-new-ask-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--ink);
-}
-.ix-new-ask-line .ix-new-ask-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-base);
 }
 /* The ways a message cannot go, folded under the way it goes: the question is a quiet link, the reasons under it. */
 .ix-new-held {

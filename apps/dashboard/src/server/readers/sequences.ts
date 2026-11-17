@@ -107,7 +107,13 @@ interface StepMessagesOf {
 function withStepMessages(row: SequenceRowDto, read: Map<string, StepMessagesOf> | null): SequenceRowDto {
   if (!read || row.starts === "leads" || row.starts === "date") return row;
   const own = read.get(row.id);
-  const messages = (own?.steps ?? []).map(({ place, name, language }) => ({ place, name, language }));
+  // Each with the channels its step goes by: whether it waits is judged by those (contracts sequenceMessageWaits).
+  const messages = (own?.steps ?? []).map(({ place, name, language, channels }) => ({
+    place,
+    name,
+    language,
+    channels: [...channels],
+  }));
   return row.state === "on" ? { ...row, messages, message_off: own?.off ?? null } : { ...row, messages };
 }
 

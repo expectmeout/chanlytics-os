@@ -105,9 +105,7 @@ export function retiredRouteOf(route: string): string | null {
   const query = at < 0 ? "" : route.slice(at);
   if (path === "admin/files") return filesLandingOf(query);
   const landed = retiredPathOf(path);
-  if (landed === null) return null;
-  // A landing that holds a query of its own (a message over Campaigns) keeps the one the route came with after it.
-  return landed.includes("?") && query ? `${landed}&${query.slice(1)}` : landed + query;
+  return landed === null ? null : landed + query;
 }
 
 /** retiredRouteOf for a route without its query. */

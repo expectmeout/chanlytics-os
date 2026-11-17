@@ -29,11 +29,15 @@ export function callTextWanted(inputs: AbilityInputs): boolean {
 /** Where the call's text stands on WhatsApp: none on file, WhatsApp checking it, or one to open (turned down, paused). */
 export type CallTextStand = "none" | "checking" | "open";
 
-/** The call's text's stand, of the workspace's WhatsApp rows (every status). */
+/**
+ * The call's text's stand, of the workspace's WhatsApp rows (every status), over every language it is on file in, so the
+ * answer is the same whatever order the rows come in: one to open where any of them is no longer WhatsApp's to check
+ * (turned down, paused), since that one needs its owner; else WhatsApp checking it.
+ */
 export function callTextStandOf(rows: readonly { name: string; meta_status?: string | null }[]): CallTextStand {
-  const row = rows.find((r) => r.name === CALL_TEXT_NAME);
-  if (!row) return "none";
-  return row.meta_status === "pending" ? "checking" : "open";
+  const own = rows.filter((r) => r.name === CALL_TEXT_NAME);
+  if (own.length === 0) return "none";
+  return own.every((r) => r.meta_status === "pending") ? "checking" : "open";
 }
 
 /** What the booking-link row says and presses for it. */

@@ -451,28 +451,34 @@ export interface VersionActs {
   onRemove: (() => void) | null;
 }
 
+/** Rename: the one act of a message that reaches nothing else that sends it, so a step's sheet offers it too (paneName). */
+function renameItem({ busy, setDraft, setRenaming, setArm }: RowCtx, row: TemplateDto): MenuItem {
+  return {
+    label: "Rename",
+    glyph: <Icon name="pencil" size={13} />,
+    title:
+      row.channel === "whatsapp"
+        ? "Call it something in your own words · WhatsApp keeps its name"
+        : "Call it something in your own words",
+    disabled: busy,
+    gate: { "data-testid": "template-rename" },
+    onSelect: () => {
+      setDraft(row.title || "");
+      setArm(false);
+      setRenaming(true);
+    },
+  };
+}
+
 /**
  * The message's own acts, on the row that names it (its WhatsApp version's, else its email's, else its text's): rename it,
  * put it away (or bring it back) and delete it, for the members who may, whichever channels it has.
  */
-function messageItems({ busy, setDraft, setRenaming, setArm, onHide }: RowCtx, row: TemplateDto): MenuItem[] {
+function messageItems(c: RowCtx, row: TemplateDto): MenuItem[] {
+  const { busy, onHide, setRenaming, setArm } = c;
   const away = !!row.hidden_at;
   return [
-    {
-      label: "Rename",
-      glyph: <Icon name="pencil" size={13} />,
-      title:
-        row.channel === "whatsapp"
-          ? "Call it something in your own words · WhatsApp keeps its name"
-          : "Call it something in your own words",
-      disabled: busy,
-      gate: { "data-testid": "template-rename" },
-      onSelect: () => {
-        setDraft(row.title || "");
-        setArm(false);
-        setRenaming(true);
-      },
-    },
+    renameItem(c, row),
     {
       label: away ? TPL_LIST_WORDS.bringBack : TPL_LIST_WORDS.putAway,
       glyph: <Icon name="eye" size={13} />,
@@ -532,11 +538,17 @@ export function addLanguageItem(onAdd: () => void): MenuItem {
  */
 export function paneName(
   c: RowCtx,
-  channel: VersionChannel,
-  version: VersionActs | null,
-  more: readonly MenuItem[],
-  step: { before: readonly MenuItem[]; after: readonly MenuItem[] } | null = null,
+  view: {
+    /** The channel in view, and its version's acts where it has one. */
+    channel: VersionChannel;
+    version: VersionActs | null;
+    /** What the pane adds to the menu (a language). */
+    more: readonly MenuItem[];
+    /** The step's own acts, where the pane is a step's sheet (template-pane.tsx PaneStep). */
+    step?: { before: readonly MenuItem[]; after: readonly MenuItem[] } | null;
+  },
 ) {
+  const { channel, version, more, step = null } = view;
   const { g, anchor, canChange } = c;
   // Rename and Put away, what the pane adds, a version's Remove, and Delete last, as the act that cannot be taken back. A
   // version that is the message's only one has no Remove: its Delete is the message's. Opened as a step's sheet, the
@@ -545,7 +557,7 @@ export function paneName(
   const own = anchor && canChange ? messageItems(c, anchor) : [];
   const removable = channel !== "whatsapp" && version && c.inView.length > 1;
   const items = step
-    ? [...step.before, ...own.slice(0, 1), ...step.after]
+    ? [...step.before, ...(anchor && canChange ? [renameItem(c, anchor)] : []), ...step.after]
     : [...own.slice(0, -1), ...more, ...(removable ? removeItem(c.busy, version) : []), ...own.slice(-1)];
   if (items.length === 0) return g.title;
   return (

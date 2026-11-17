@@ -20,6 +20,7 @@ import {
   waitingOffer,
   workspacePausedOf,
   LIFECYCLE_WORDS,
+  addressOf,
   lifecycleStateOf,
   messageRoute,
 } from "@chanlytics/contracts";
@@ -43,7 +44,7 @@ import type {
 } from "@chanlytics/contracts";
 
 /** Settings › Business, where the call's text is sent to WhatsApp (its booking-link row, Campaigns, one tab, call C9). */
-const BUSINESS_ROUTE = "admin/workspace";
+const BUSINESS_ROUTE = addressOf({ kind: "facts" });
 
 /** Campaigns before the tools: under seven, no tool line, tabs, heads, phone strip or search (decision 15, a judgment). */
 export const LEDGER_TOOLS_AT = 7;

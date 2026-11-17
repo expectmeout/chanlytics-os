@@ -109,6 +109,8 @@
     "input",
     "line-act",
     "line-attach",
+    "line-box",
+    "line-box-mark",
     "line-chip",
     "line-chip-meta",
     "line-clear",

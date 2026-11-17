@@ -5,8 +5,10 @@
  *    WhatsApp, it has no version in the step's language, or it is gone) puts the campaign in Needs you, its row naming the
  *    step and why. A step that does not go by WhatsApp is not stopped by WhatsApp's no.
  *  - C13: a running campaign sends a message nothing can carry here now: its row says it waits, quietly, never Needs you.
+ *    Judged by the channels the step goes by, as its sheet is: a message that could go by email does not carry a step
+ *    that goes by WhatsApp alone.
  *  - C7: a search finds a campaign by the titles of its steps' messages, naming the step.
- *  - C5: the messages nothing sends, one row a name, each saying what can use it.
+ *  - C5: the messages nothing sends, one row a name, each saying what can use it, and WhatsApp's no where it gave one.
  *
  * Run on rows as GET sequences answers them and messages as campaignMessagesOf makes them of the template rows.
  */
@@ -16,6 +18,7 @@ import {
   MESSAGE_WAITS_WORDS,
   OTHER_MESSAGES_WORDS,
   campaignMessagesOf,
+  messageCarriedNowhere,
   messageFoundLine,
   otherMessagesOf,
   sequenceGroupOf,
@@ -100,13 +103,38 @@ test("a campaign whose message nothing can carry here says it waits, quietly: ne
     email: { ready: false, why: "Email isn't set up." },
   };
   const messages = campaignMessagesOf([tpl("booking_follow_up")]);
-  const sends = row({ messages: [{ place: 1, name: "booking_follow_up", language: "en_US" }] });
+  const sends = row({
+    messages: [{ place: 1, name: "booking_follow_up", language: "en_US", channels: ["whatsapp", "email"] }],
+  });
   assert.equal(sequenceMessageWaits(sends, messages, ready), true);
   assert.equal(sequenceMessageWaits(sends, messages, null), false, "the channels not read: nothing is said");
   assert.equal(sequenceMessageWaits({ ...sends, state: "paused" }, messages, ready), false, "only a running one");
   const waiting = { ...sends, next: { id: "b", at: "2026-11-18T15:00:00Z", people: 3, state: "scheduled", place: 1 } };
   assert.equal(sequenceRowLine(waiting, { ...AT, waits: true }), MESSAGE_WAITS_WORDS.row);
   assert.equal(sequenceGroupOf(waiting), "customers", "it goes by itself once a channel can: nothing to press");
+});
+
+test("whether a step's message waits is judged by the channels the step goes by, not by every channel the message has", () => {
+  // Email can carry it; WhatsApp cannot (no number).
+  const ready = {
+    whatsapp: { ready: false, why: "No WhatsApp number is connected." },
+    sms: { ready: false, why: "No texting line yet." },
+    email: { ready: true, why: null },
+  };
+  const messages = campaignMessagesOf([
+    tpl("visit_thanks", { category: "utility" }),
+    tpl("visit_thanks", { channel: "email", category: "utility" }),
+  ]);
+  const by = (channels) => row({ messages: [{ place: 1, name: "visit_thanks", language: "en_US", channels }] });
+  assert.equal(sequenceMessageWaits(by(["whatsapp", "email"]), messages, ready), false, "email carries it");
+  assert.equal(sequenceMessageWaits(by(["whatsapp"]), messages, ready), true, "a step by WhatsApp alone waits");
+  assert.equal(sequenceMessageWaits(by(["email"]), messages, ready), false);
+  // A row from a server before the step's channels were read: judged by the message alone, as it was.
+  const before = row({ messages: [{ place: 1, name: "visit_thanks", language: "en_US" }] });
+  assert.equal(sequenceMessageWaits(before, messages, ready), false);
+  assert.equal(messageCarriedNowhere(ready, messages[0] ?? null), false, "by the message alone, email carries it");
+  assert.equal(messageCarriedNowhere(ready, messages[0] ?? null, ["whatsapp"]), true);
+  assert.equal(messageCarriedNowhere(ready, messages[0] ?? null, []), false, "no channels named: the message alone");
 });
 
 test("a search finds a campaign by its steps' messages' titles, and says which step, never by a word in none", () => {
@@ -134,16 +162,28 @@ test("the messages nothing sends are one row a name, by title, each saying what 
     tpl("old_welcome", { title: "Old welcome", hidden_at: "2026-10-01T00:00:00Z" }),
     tpl("new_hours", { title: "New hours", meta_status: "pending" }),
     tpl("holiday_hours", { channel: "email", title: "Holiday hours" }),
+    tpl("first_hello", { title: "First hello", meta_status: "rejected" }),
+    tpl("summer_note", { title: "Summer note", meta_status: "paused" }),
+    tpl("two_tongues", { title: "Two tongues" }),
+    tpl("two_tongues", { language: "es", title: "Two tongues", meta_status: "rejected" }),
     tpl("booking_follow_up", { title: "Booking follow-up" }),
   ]);
   const others = otherMessagesOf(messages, (name) => name === "booking_follow_up");
   assert.deepEqual(
     others.map((m) => [m.title, m.line]),
     [
+      ["First hello", OTHER_MESSAGES_WORDS.refused],
       ["Holiday hours", OTHER_MESSAGES_WORDS.nothing],
       ["New hours", OTHER_MESSAGES_WORDS.checking],
       ["Old welcome", OTHER_MESSAGES_WORDS.hidden],
       ["Price check-in", OTHER_MESSAGES_WORDS.inbox],
+      ["Summer note", OTHER_MESSAGES_WORDS.paused],
+      // One language approved: the Inbox can start a chat with it, which is what it is for; its other language's no is
+      // said on the message itself.
+      ["Two tongues", OTHER_MESSAGES_WORDS.inbox],
     ],
   );
+  // WhatsApp's no in the words a step's box says it in: one wording, wherever a refused message is listed.
+  assert.equal(OTHER_MESSAGES_WORDS.refused, "WhatsApp refused it · open it for AI’s new words");
+  assert.equal(OTHER_MESSAGES_WORDS.paused, "WhatsApp paused it · open it to see why");
 });

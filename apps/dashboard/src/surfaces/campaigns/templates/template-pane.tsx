@@ -86,6 +86,8 @@ interface PaneProps {
  * none other offered (a campaign sends each step in one); and what the step says of itself stands under the words.
  */
 export interface PaneStep {
+  /** The step, by its id: a pane is one step's, so two steps that send the same message each open their own. */
+  id: string;
   /** The step's acts on the name's menu: before Rename (changing the step), and after it (taking it away, last). */
   before: readonly MenuItem[];
   after: readonly MenuItem[];
@@ -586,9 +588,9 @@ export function TemplatePane(p: PaneProps) {
       testid="template-pane"
       className="tpl-pane"
       // What it is (the gift or the bell) leads the line of facts under its name, not a mark before it.
-      title={paneName(c, channel, versionActs, more, step ?? null)}
+      title={paneName(c, { channel, version: versionActs, more, step })}
       badge={standingTap(g, facts, setting)}
-      sub={factsLine(g, facts)}
+      sub={factsLine(g, facts, !step)}
       onClose={onClose}
       // What is answered stands here, docked as every drawer's acts are; nothing is drawn of it while nothing is asked.
       foot={<div className="tpl-foot" data-foot-pair="" ref={setDock} />}

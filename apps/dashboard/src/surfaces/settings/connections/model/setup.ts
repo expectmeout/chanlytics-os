@@ -454,7 +454,7 @@ const KEEP_APP_NOTE: ConnectionNote = {
  * The WhatsApp row's own verb: Campaigns, where every message the receptionist and the campaigns send on the number is,
  * each inside the campaign that sends it (Campaigns, one tab, 17 Nov 2026: Messages folded into Campaigns).
  */
-const LIBRARY: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: "operator" };
+const CAMPAIGNS: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: "operator" };
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a
@@ -466,7 +466,7 @@ const LIBRARY: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: 
  */
 function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: ChannelVM, nowMs: number): Draft {
   const row = { ...base, detail: wa.number };
-  if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
+  if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: CAMPAIGNS };
   const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
   const standing = wa.standing && { ...wa.standing, limit };
   if (standing) {
@@ -495,7 +495,7 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
     state: flagged ? "attention" : "connected",
     stateWords: flagged ? "Needs attention" : "On",
     sentence: `${wa.healthLabel}${health}`,
-    verb: LIBRARY,
+    verb: CAMPAIGNS,
     // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
     notes: [
       ...(flagged ? [] : tryItNotes(wa, nowMs)),

@@ -89,7 +89,8 @@ export function MessageInPlace({ name, flash, onClose, step }: MessageInPlacePro
   const acts = pageActs({ doingRef, setDoing, flash });
   return (
     <TemplatePane
-      key={g.key}
+      // The message's, and a step's own where it is one's sheet: the language and channel in view are that step's.
+      key={step ? `${g.key}:${step.id}` : g.key}
       g={g}
       langs={listing.langs}
       bizName={brainOf(settings?.settings).business_name || null}

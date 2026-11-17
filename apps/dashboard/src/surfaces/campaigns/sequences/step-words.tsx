@@ -81,8 +81,10 @@ export interface StepMessageSays {
 
 /**
  * What a running step's message says (Campaigns, one tab): whether nothing can carry it here now (contracts
- * messageCarriedNowhere), over the business's channels the campaigns' read holds, and whether it cannot go, by the one
- * reading the list's row is put in Needs you by (contracts sequenceMessageOff). Neither where the campaign is not on.
+ * messageCarriedNowhere), over the business's channels the campaigns' read holds and by the channels the step goes by, as
+ * its row is judged (a message that could go by email does not carry a step that goes by WhatsApp alone); and whether it
+ * cannot go, by the one reading the list's row is put in Needs you by (contracts sequenceMessageOff). Neither where the
+ * campaign is not on.
  */
 export function useStepMessageSays(
   rec: SequenceRecordDto,
@@ -93,7 +95,7 @@ export function useStepMessageSays(
   const m = message?.message ?? null;
   if (rec.sequence.state !== "on" || !step?.template_name || !m) return { waits: false, off: null };
   const ref = { place: step.place, name: step.template_name, language: m.language, channels: step.channels };
-  return { waits: messageCarriedNowhere(ready, m), off: sequenceMessageOff([ref], [m]) };
+  return { waits: messageCarriedNowhere(ready, m, step.channels), off: sequenceMessageOff([ref], [m]) };
 }
 
 /**

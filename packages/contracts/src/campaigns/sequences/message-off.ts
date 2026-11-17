@@ -10,6 +10,7 @@ import type { CampaignMessage } from "../templates/campaign-message";
 import { messageCarriedNowhere } from "../templates/carried-nowhere";
 import { languageName } from "../templates/languages";
 import type { SequenceMessageOffDto, SequenceRowDto } from "./dto";
+import { MESSAGE_OFF_WORDS } from "./words/stopped-message";
 
 /** A step that sends a message, as the list read hands it: its place, its message's name and language, its channels. */
 export interface StepMessageRef {
@@ -70,9 +71,9 @@ export function stepOffLine(off: SequenceMessageOffDto, where: "box" | "sheet"):
   const box = where === "box";
   switch (off.why) {
     case "refused":
-      return box ? "WhatsApp refused it · open it for AI’s new words" : "Not on WhatsApp until it approves new words";
+      return box ? MESSAGE_OFF_WORDS.refused : "Not on WhatsApp until it approves new words";
     case "paused":
-      return box ? "WhatsApp paused it · open it to see why" : "Not on WhatsApp while WhatsApp pauses it";
+      return box ? MESSAGE_OFF_WORDS.paused : "Not on WhatsApp while WhatsApp pauses it";
     case "no_version":
       return `It has no ${languageName(off.language)} version`;
     case "gone":
@@ -91,8 +92,9 @@ export const MESSAGE_WAITS_WORDS = {
 
 /**
  * Whether a running sequence sends a message that nothing can carry here now (templates/carried-nowhere.ts), by the
- * messages its steps send in their languages: what its row says quietly. False where the business's channels or its
- * messages were not read.
+ * messages its steps send in their languages, each judged by the channels its step goes by, as the step's own sheet
+ * judges it (a message that could go by email does not carry a step that goes by WhatsApp alone): what its row says
+ * quietly. False where the business's channels or its messages were not read.
  */
 export function sequenceMessageWaits(
   row: Pick<SequenceRowDto, "state" | "messages">,
@@ -101,6 +103,10 @@ export function sequenceMessageWaits(
 ): boolean {
   if (row.state !== "on" || !messages || !ready) return false;
   return (row.messages ?? []).some((step) =>
-    messageCarriedNowhere(ready, messages.find((m) => m.name === step.name && m.language === step.language) ?? null),
+    messageCarriedNowhere(
+      ready,
+      messages.find((m) => m.name === step.name && m.language === step.language) ?? null,
+      step.channels ?? null,
+    ),
   );
 }

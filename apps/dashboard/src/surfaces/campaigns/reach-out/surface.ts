@@ -10,6 +10,7 @@
  */
 import {
   asDraftedOf,
+  draftKeepsMessage,
   NEW_WORDS,
   HOLD_DOOR_WORDS,
   REACH_OUT_RUN_REREAD_MS,
@@ -166,18 +167,20 @@ export const reachOuts = {
       body: { words, kind: "sequence", audience: "leads", who },
       once: true,
     });
-    return r.ok
-      ? {
-          ...r,
-          data: {
-            steps: r.data.steps.map(leadChainStepOf),
-            as_drafted: asDraftedOf(
-              words,
-              r.data.steps.map((s) => s.email),
-            ),
-          },
-        }
-      : r;
+    if (!r.ok) return r;
+    // A sequence was asked for by its kind, so the answer is a draft: a message to keep is only ever answered to a line
+    // no kind was chosen for (contracts draftKeepsMessage), and has no steps.
+    const steps = draftKeepsMessage(r.data) ? [] : r.data.steps;
+    return {
+      ...r,
+      data: {
+        steps: steps.map(leadChainStepOf),
+        as_drafted: asDraftedOf(
+          words,
+          steps.map((s) => s.email),
+        ),
+      },
+    };
   },
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),
   /** A search's reach as this tab last read it, if it has: what a door or a sheet paints first. */

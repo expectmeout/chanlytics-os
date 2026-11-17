@@ -3301,7 +3301,8 @@ export const FAMILIES = [
     family: "Line",
     about:
       "What a conversation is pressed and typed through (surfaces/kit/line/line.tsx, Ask's Line): the circle at a field's " +
-      "end, an answer's small acts, the questions offered, its rows and figures, the doors in its words, and the field.",
+      "end, an answer's small acts, the questions offered, its rows and figures, the doors in its words, the field, and " +
+      "the box a line to AI is typed in on a page or a sheet.",
     entries: [
       {
         id: "line-send",
@@ -3380,6 +3381,16 @@ export const FAMILIES = [
         html:
           `<textarea class="line-field" rows="1" placeholder="Ask anything"></textarea>` +
           `<textarea class="line-field" rows="1" placeholder="Listening…" data-listening="true"></textarea>`,
+      },
+      {
+        id: "line-box",
+        html:
+          `<div class="line-box"><span class="line-box-mark" aria-hidden="true">${icon("note", 14)}</span>` +
+          `<textarea class="line-field" rows="1" placeholder="How should it change?"></textarea>` +
+          `<button type="button" class="line-send" aria-label="Ask AI" disabled>${icon("arrow-right", 14)}</button></div>` +
+          `<div class="line-box" data-busy="true"><span class="line-box-mark" aria-hidden="true">${icon("note", 14)}</span>` +
+          `<textarea class="line-field" rows="1" readonly>Writing new words…</textarea>` +
+          `<button type="button" class="line-send" aria-label="Ask AI" disabled>${icon("arrow-right", 14)}</button></div>`,
       },
     ],
   },

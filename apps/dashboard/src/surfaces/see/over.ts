@@ -10,7 +10,7 @@
  * Pure: the grammar of the param and which homes open in place. The frame reads it in the browser (the frame is one
  * prerender for every address), as it reads the lead sheet's `?lead=<id>`.
  */
-import { TO_SEND_ROUTE, messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "@chanlytics/contracts";
+import { SEQUENCES_ROUTE, TO_SEND_ROUTE, messageOfRoute, parseSequencesRoute, runRoute } from "@chanlytics/contracts";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";
@@ -66,11 +66,12 @@ export function seeRefOfRoute(route: string): SeeRef | null {
 /**
  * The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. To send has no
  * page of its own: its address opens it over the Inbox, and its sheet has no door home. Nor has a message's (Campaigns, one
- * tab, 17 Nov 2026): its sheet is the message, naming what sends it, and its address opens it over Campaigns' list.
+ * tab, 17 Nov 2026): its sheet is the message, naming what sends it, and its address opens it over Campaigns' list, so
+ * that list is where a move home from its sheet lands (a lead opened from it: leads/sheet/lead-over.ts).
  */
 export function seeHomeOf(ref: SeeRef): string {
   if (ref.kind === "to-send") return TO_SEND_ROUTE;
-  return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
+  return ref.kind === "message" ? SEQUENCES_ROUTE : runRoute(ref.id, ref.sequenceId);
 }
 
 /** The words of the sheet a thing opens in over the page. */

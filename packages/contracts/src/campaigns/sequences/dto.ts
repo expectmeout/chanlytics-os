@@ -152,12 +152,13 @@ export interface SequenceRowDto {
    */
   message_off?: SequenceMessageOffDto | null;
   /**
-   * The messages a customer sequence's steps send, by place, each in the language its step sends (Campaigns, one tab):
-   * what the list's search finds it by (list.ts sequenceMatches, call C7), and whether one waits for a channel to carry
-   * it (message-off.ts sequenceMessageWaits, call C13). Absent for a cold email and a one-off, where its messages could
-   * not be read, and from a server before it.
+   * The messages a customer sequence's steps send, by place, each in the language its step sends and with the channels
+   * that step goes by (Campaigns, one tab): what the list's search finds it by (list.ts sequenceMatches, call C7), and
+   * whether one waits for a channel to carry it (message-off.ts sequenceMessageWaits, call C13, judged by the step's
+   * channels; without them, from a server before they were read, by the message alone). Absent for a cold email and a
+   * one-off, where its messages could not be read, and from a server before it.
    */
-  messages?: { place: number; name: string; language: string }[];
+  messages?: { place: number; name: string; language: string; channels?: string[] }[];
   /**
    * Why its first step's last run did nothing, where the sequence is on and no cold email or one-off, and the business
    * day of that step's last run (decision 0128, stage 2): what the record reads beside its row, read for every row.

@@ -415,7 +415,7 @@ function HeldMessageDoor({ message }: { message: { template_id: string | null; s
   if (!name) return null;
   return (
     <Button {...routeDoor(messageRoute(name))} data-testid="sq-nw-words-library">
-      {W.sheets.openMessages}
+      {W.sheets.openMessage}
     </Button>
   );
 }

@@ -454,6 +454,15 @@ const AHEAD_IDLE_MS = 3000;
  */
 export function aheadWhenIdle(fn: () => void, waitMs: number = AHEAD_IDLE_MS): () => void {
   if (!warmsOnItsOwn()) return () => undefined;
+  return onceIdle(fn, waitMs);
+}
+
+/**
+ * A page's own quiet work (a check nobody waits for), once the boot is in and the page is idle, at most `waitMs` after
+ * that: never beside the reads the page opens on. On every line, a slow one too: it is the page's work, not a fetch
+ * ahead of need (aheadWhenIdle). Answers what cancels it.
+ */
+export function onceIdle(fn: () => void, waitMs: number = AHEAD_IDLE_MS): () => void {
   let stop: (() => void) | null = null;
   let cancelled = false;
   void boot.then(() => {

@@ -39,13 +39,15 @@ function sentWords(sent: Facts["usage"]["sent"]): string | null {
 
 /**
  * The one line under the name: what it is (an offer, a note), what sends it, a door to that sequence (else to the list of
- * them), and how many went out. A starter nothing sends says what it is for instead.
+ * them), and how many went out. A starter nothing sends says what it is for instead. Opened as a step's own sheet
+ * (`counted` false), how many went out is the step's to say, in its facts under the words (its last 30 days): the
+ * message's own count beside it read as a second answer to one question.
  */
-export function factsLine(g: TemplateGroup, facts: Facts) {
+export function factsLine(g: TemplateGroup, facts: Facts, counted = true) {
   const offer = facts.marks.offer;
   const { use, sent } = facts.usage;
   const sends = use && !use.unused ? use : null;
-  const went = sentWords(sent);
+  const went = counted ? sentWords(sent) : null;
   const purpose = !sends && g.starter ? g.purpose.charAt(0).toUpperCase() + g.purpose.slice(1) : null;
   return (
     <span className="tpl-facts-line" data-testid="template-pane-users">

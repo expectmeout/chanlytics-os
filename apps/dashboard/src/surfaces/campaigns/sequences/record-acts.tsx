@@ -74,8 +74,11 @@ export function useRecordActs(
   // A twin is the list's to know (sequenceTwinOf): another sequence on this visit moment, which the list beside it holds.
   const list = useSurface("sequences");
   const twin = list ? sequenceTwinOf(list.sequences, row) : null;
+  // Whether a step's message cannot go is the list read's to say (its row's `message_off`; the record's own read has none):
+  // a run that did nothing for a message WhatsApp has refused since then says refused, as its row and its step do.
+  const messageOff = list?.sequences.find((r) => r.id === row.id)?.message_off;
   // What needs you most, a run that did nothing among it (the loop review's item 8: its last run's reason, said until one goes).
-  const notice = sequenceNotice(row, rec.steps, twin, {
+  const notice = sequenceNotice(messageOff ? { ...row, message_off: messageOff } : row, rec.steps, twin, {
     off: rec.last_run_off,
     for: rec.last_run_for,
     tz: rec.timezone,

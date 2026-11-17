@@ -17,9 +17,15 @@ export const aboutOfMessage = (message: Pick<CampaignMessage, "purpose">): Messa
 /**
  * Whether nothing can carry the message here now. Never where the business's channels were not read (`ready` null, the
  * campaigns' read), nor where it has an email and email could not be asked about just now: a question nobody answered is
- * not a no, and says nothing.
+ * not a no, and says nothing. `by` is the channels a step goes by, where a step asks: only those are judged, since a
+ * channel the step does not name never carries it; none named, or none of them a channel a send goes by, is the message
+ * alone, over every channel it has.
  */
-export function messageCarriedNowhere(ready: ChannelsReady | null, message: CampaignMessage | null): boolean {
+export function messageCarriedNowhere(
+  ready: ChannelsReady | null,
+  message: CampaignMessage | null,
+  by: readonly string[] | null = null,
+): boolean {
   if (!ready || !message) return false;
   // A WhatsApp version WhatsApp is reviewing is read as the approved one it will be: what would hold it after (Meta's
   // pause on offers) still holds it.
@@ -28,10 +34,12 @@ export function messageCarriedNowhere(ready: ChannelsReady | null, message: Camp
     whatsapp && whatsapp.status === "pending"
       ? { ...message, versions: { ...message.versions, whatsapp: { ...whatsapp, status: "approved" as const } } }
       : message;
-  const choices = channelChoices(readyForMessage(ready, judged), message.purpose, aboutOfMessage(message));
+  const every = channelChoices(readyForMessage(ready, judged), message.purpose, aboutOfMessage(message));
+  const named = by ? every.filter((c) => by.includes(c.channel)) : [];
+  const choices = named.length > 0 ? named : every;
   if (choices.some((c) => c.ok)) return false;
+  const email = choices.find((c) => c.channel === "email");
   const unasked =
-    !!message.versions.email &&
-    (!!ready.email.unchecked || choices.some((c) => c.channel === "email" && c.why === CHANNEL_WORDS.unchecked));
+    !!message.versions.email && !!email && (!!ready.email.unchecked || email.why === CHANNEL_WORDS.unchecked);
   return !unasked;
 }

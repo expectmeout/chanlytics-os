@@ -41,8 +41,8 @@ import {
   zonedInputValue,
   type ConsentChannel,
   type NewDraftAnswer,
+  type NewDraftAnswered,
   type NewDraftAsk,
-  type NewDraftDto,
   type NewDraftReply,
   type TenantConfig,
 } from "@chanlytics/contracts";
@@ -320,34 +320,6 @@ function draftReplyOf(reply: NewDraftReply, ask: NewDraftAsk): NewDraftAnswer {
 }
 
 /**
- * What New is answered where the line is a message to keep (NewDraftDto `keeps`): the line, and an empty draft that is
- * never drawn, New handing the line to AI's message card instead.
- */
-function keepsMessage(ask: NewDraftAsk, known: DraftKnown): NewDraftDto {
-  return {
-    said: ask.words.trim(),
-    business: known.business,
-    kind: "once",
-    audience: "people",
-    name: "",
-    who: null,
-    run_hour: PLAYBOOK_DEFAULTS.runHour,
-    at: null,
-    channels: [],
-    mailbox: null,
-    adds_new: false,
-    steps: [],
-    policy_class: "",
-    mode: null,
-    reach: null,
-    checks: [],
-    twin: null,
-    cannot: null,
-    keeps: "message",
-  };
-}
-
-/**
  * The draft from what is known: one model call, and what is kept of its answer; and one call more where the judge cannot
  * keep a step's words, told which and why. Its answer is kept where it mends (`mends`): it keeps more steps, or as many
  * with fewer refused and none taken away. One that only leaves the refused step out mends nothing: the first answer says
@@ -358,7 +330,7 @@ export async function draftSequenceFrom(
   known: DraftKnown,
   ask: NewDraftAsk,
   personName: { tenantId: TenantId; userId: string },
-): Promise<NewDraftDto> {
+): Promise<NewDraftAnswered> {
   const prompt = draftAsked(known, ask);
   const answerTo = (messages: Array<{ role: "user" | "assistant"; content: string }>) =>
     askForJson(
@@ -379,7 +351,7 @@ export async function draftSequenceFrom(
   const reply = await answerTo([{ role: "user", content: prompt }]);
   // The words of a message to keep, not something to send (Campaigns, one tab, call C12): New hands the line to AI's
   // message card, and no draft is judged. Only a line no kind was chosen for: a change, or a kind the owner picked, drafts.
-  if (reply.kind === "message" && !ask.kind && !ask.stands) return keepsMessage(ask, known);
+  if (reply.kind === "message" && !ask.kind && !ask.stands) return { keeps: "message", said: ask.words.trim() };
   let answer = draftReplyOf(reply, ask);
   const first = stepsJudged(answer, known, ask);
   if (first.refused.length > 0) {
@@ -531,7 +503,7 @@ function momentsOf(
 }
 
 /** The route's handle: everything a draft is judged against, read at once, then the draft. */
-export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftDto> {
+export async function draftSequence(rc: ReaderContext, ask: NewDraftAsk): Promise<NewDraftAnswered> {
   return draftSequenceFrom(await readDraftKnown(rc), ask, { tenantId: rc.tenantId, userId: rc.userId });
 }
 

@@ -8326,6 +8326,43 @@ button.line-figure {
   color: var(--accent);
 }
 
+/* The box a line to AI is typed in where it stands in a page or a sheet, away from Ask's own band (a message's "ask for
+   new words", the Inbox's "what a first message should say"): AI's mark at its start, the field at the page's own size,
+   the send circle at its end, in one capsule of the inset ground. The mark is ink at rest and the accent only while the
+   line works (docs/words.md: AI's mark never glows at rest), which the box says with data-busy; its words go quiet then.
+   It stood in two pages' sheets, a copy each. */
+.line-box {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 40px;
+  padding: 3px 4px 3px 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-inset-fill);
+}
+.line-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-field);
+}
+.line-box-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--ink);
+}
+.line-box[data-busy] .line-box-mark {
+  color: var(--accent);
+}
+.line-box .line-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-base);
+}
+.line-box[data-busy] .line-field {
+  color: var(--ink-muted);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .line-send.line-talk[data-state="speaking"]::after {
     animation: none;

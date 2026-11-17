@@ -9,21 +9,25 @@
  */
 import type { ComponentProps, RefObject } from "react";
 import type { Exactly, Holds } from "@chanlytics/contracts";
-import type { LineFieldProps, LinePressProps } from "../index";
-import { LineField, LinePress } from "../index";
+import type { LineBoxProps, LineFieldProps, LinePressProps } from "../index";
+import { LineBox, LineField, LinePress } from "../index";
 
 /** Never called: the compiler reads it, and nothing runs it. */
 function _lineTakes(field: RefObject<HTMLTextAreaElement | null>, press: RefObject<HTMLButtonElement | null>): void {
   type _Its = [
     Holds<Exactly<ComponentProps<typeof LinePress>, LinePressProps>>,
     Holds<Exactly<ComponentProps<typeof LineField>, LineFieldProps>>,
+    Holds<Exactly<ComponentProps<typeof LineBox>, LineBoxProps>>,
   ];
 
   LinePress({ kind: "send", disabled: true, ref: press });
   LinePress({ kind: "chip", selected: true, className: "ask-next" });
   LinePress({ kind: "act", on: true, "aria-label": "Copy" });
   LineField({ listening: true, rows: 1, ref: field, value: "", onChange: () => undefined });
+  LineBox({ mark: null, busy: true, className: "tpl-ver-line" });
 
+  // @ts-expect-error a box says whose line it is: AI's mark stands at its start
+  LineBox({ busy: true });
   // @ts-expect-error a kind the map lacks
   LinePress({ kind: "primary" });
   // @ts-expect-error a press names its kind

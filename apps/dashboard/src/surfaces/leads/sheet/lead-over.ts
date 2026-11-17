@@ -5,7 +5,7 @@
  * sheet's own door into a record carries its way back, which opens it again.
  */
 import { useEffect, useState, type MouseEvent } from "react";
-import { SEQUENCES_ROUTE, UUID } from "@chanlytics/contracts";
+import { UUID } from "@chanlytics/contracts";
 import { seeHomeOf } from "@/surfaces/see/over";
 import { goToRoute } from "@/bridge/workspace";
 import { overQuery } from "../../see/over-query";
@@ -38,9 +38,7 @@ export function leadOverDoor(leadId: string): { href: string; onClick: (e: Mouse
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
       e.preventDefault();
       const seen = seeOverNow();
-      // A message has no home of its own (its address is a sheet over Campaigns' list): over the list it is drawn on.
-      if (seen)
-        goToRoute(`${seen.kind === "message" ? SEQUENCES_ROUTE : seeHomeOf(seen)}?${PARAM}=${leadId}`, { home: true });
+      if (seen) goToRoute(`${seeHomeOf(seen)}?${PARAM}=${leadId}`, { home: true });
       else OVER.open(leadId);
     },
   };

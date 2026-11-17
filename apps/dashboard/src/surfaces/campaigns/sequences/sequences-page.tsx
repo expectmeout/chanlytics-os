@@ -95,7 +95,8 @@ function SequencesListPane({ openId = null }: { openId?: string | null }) {
 const newAct = (month: string | null) => (
   <>
     {/* The month's emails on a desk (call C14): the frame keeps a desk's sentence for a reader alone, so the line stands on
-        the strip's row before New, as the canvas drew it, and a reader hears it once, in the head. A phone's head shows it. */}
+        the strip's row before New, as the canvas drew it, and a reader hears it once, in the head. A phone shows none: its
+        head is the page's name alone (kit.css, .pg-sentence), as the canvas's phone boards drew Campaigns. */}
     {month ? (
       <span className="sq-month" aria-hidden="true" data-testid="cm-month-desk">
         {month}

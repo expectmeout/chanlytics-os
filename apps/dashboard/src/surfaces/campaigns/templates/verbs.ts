@@ -13,6 +13,7 @@
 import type { Workspace } from "@/bridge/surface-data";
 import { api } from "@/bridge/api";
 import { syncWhatsAppList } from "../parts/whatsapp-list";
+import { fileStarters } from "./starter-door";
 import {
   LANGUAGE_GROUP_WORDS,
   PARAM_SOURCE_HINTS,
@@ -65,12 +66,6 @@ interface CreateBody {
   labels?: string[];
   button?: { text: string; url: string } | null;
 }
-interface StarterBody {
-  keys?: string[];
-  languages?: string[];
-  /** The channels its use goes by (a sequence's): the versions filed, WhatsApp's sent for review where WhatsApp is one. */
-  channels?: string[];
-}
 /**
  * What a message is, said with its first version when the workspace holds no row of its name: an offer or news (the
  * starters alone are about a visit or a proposal, so a message written here is never `utility`), the values it takes as
@@ -121,7 +116,7 @@ export const templates = {
    * A starter filed as a use of it asks (a step's editor, on Save): idempotent, its WhatsApp version submitted to Meta where
    * new. Asked for one, the answer names the version a step sends (`template_id`).
    */
-  fileStarters: (body: StarterBody) => api()("POST templates/starter", { body }),
+  fileStarters,
   /** An email or text version of a message, written or written again: refused in the server's words where it does not fit. */
   saveVersion: (body: VersionDraft) => api()("POST templates/versions", { body }),
   /** One email or text version gone; the message and its other versions stay. */

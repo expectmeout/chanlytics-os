@@ -56,6 +56,7 @@ const {
   VOICE_WORDS,
   asDraftedFrom,
   asDraftedOf,
+  draftKeepsMessage,
   leadChainStepOf,
   newListOf,
   whatsappOffersOpen,
@@ -641,7 +642,8 @@ test("a line that is only a message to keep is answered as one, which New hands 
   const keep = { words: "A message for when someone asks about prices: all our prices are on the booking page" };
   answerWith(answer({ kind: "message", who: "", name: "", steps: [] }));
   const out = await draftSequenceFrom(KNOWN, keep, { tenantId: "t1", userId: "u1" });
-  assert.deepEqual([out.keeps, out.said, out.steps], ["message", keep.words, []]);
+  assert.deepEqual(out, { keeps: "message", said: keep.words }, "the line and nothing else: no draft is made of it");
+  assert.equal(draftKeepsMessage(out), true);
   assert.equal(calls.length, 1, "asked once: no draft is judged of it");
   assert.match(
     JSON.stringify(calls[0].request.system),
@@ -652,7 +654,7 @@ test("a line that is only a message to keep is answered as one, which New hands 
   // A kind the owner chose is kept whatever Ask says: the draft is judged as that kind, never handed back.
   answerWith(answer({ kind: "message", steps: [step({ message: "k1" })] }));
   const chosen = await draftSequenceFrom(KNOWN, { ...keep, kind: "sequence" }, { tenantId: "t1", userId: "u1" });
-  assert.equal(chosen.keeps, undefined);
+  assert.equal(draftKeepsMessage(chosen), false);
   assert.equal(chosen.kind, "sequence");
   assert.equal(chosen.steps[0].message.template_id, ID(1));
 });

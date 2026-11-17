@@ -3,11 +3,14 @@
  * sync button). Its answer on a message written in Chanlytics comes by itself (edge waba-events), so this reads only what
  * was made or changed in WhatsApp's own tools, where the list was last read over an hour ago, for whoever may. Nothing is
  * said: what changed is in the reads once they come again. It was the Messages page's own, and ran only while that page
- * was open; with Messages folded into Campaigns, Campaigns' route asks it, whichever view is on screen (call C11).
+ * was open; with Messages folded into Campaigns, Campaigns' route asks it, whichever view is on screen (call C11), and
+ * only once the page is idle: Campaigns opens far more often than Messages did, and what the check moves (the settings
+ * read and three more, read again after it) must never stand beside the reads the list opens on.
  */
 import { useEffect } from "react";
 import { HOUR_MS } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
+import { onceIdle } from "@/bridge/workspace";
 import { canDo } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 
@@ -29,10 +32,14 @@ export function useWhatsAppListAsked(): void {
     null,
   );
   useEffect(() => {
-    if (!may || checkedThisVisit) return;
-    if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return;
-    checkedThisVisit = true;
-    // A check that did not answer leaves the rows as they were read: the next visit asks again.
-    void syncWhatsAppList();
+    if (!may || checkedThisVisit) return undefined;
+    if (synced && Date.now() - Date.parse(synced) < QUIET_CHECK_MS) return undefined;
+    // Once the boot is in and the page is idle; let go where Campaigns is left before then, and asked on the next visit.
+    return onceIdle(() => {
+      if (checkedThisVisit) return;
+      checkedThisVisit = true;
+      // A check that did not answer leaves the rows as they were read: the next visit asks again.
+      void syncWhatsAppList();
+    });
   }, [may, synced]);
 }

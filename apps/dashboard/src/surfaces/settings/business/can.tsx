@@ -29,8 +29,8 @@ import { BUSINESS_TAB } from "@/bridge/business-tab";
 import type { PoliciesSurface } from "@/bridge/policy-store";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { messageRoute } from "@chanlytics/contracts";
-import { api } from "@/bridge/api";
 import { gate, navigate, refusalToast, routeDoor, type FrameFlash } from "../../frame-verbs";
+import { fileStarters } from "../../campaigns/templates/starter-door";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { FailedRead } from "../../kit/empty/empty";
@@ -206,9 +206,7 @@ const BtcCallText = ({
   if (!canEdit || !flash) return null;
   const send = async () => {
     setSending(true);
-    const r = await api()("POST templates/starter", {
-      body: { keys: [BUSINESS_TAB.CALL_TEXT_NAME], channels: ["whatsapp"] },
-    });
+    const r = await fileStarters({ keys: [BUSINESS_TAB.CALL_TEXT_NAME], channels: ["whatsapp"] });
     setSending(false);
     flash(r.ok ? { msg: W.sent } : refusalToast(r));
   };

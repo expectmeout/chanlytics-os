@@ -21,6 +21,7 @@ import {
   SEQUENCES_ROUTE,
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
+  draftKeepsMessage,
   localHour,
   newMessageAsked,
   readyOrWhatsApp,
@@ -29,6 +30,7 @@ import {
   zoneDayKey,
   type ConsentChannel,
   type NewAudience,
+  type NewDraftAnswered,
   type NewDraftAsk,
   type NewDraftDto,
   type NewKind,
@@ -211,7 +213,7 @@ function useAsk(door: Fixed, flash: Flash) {
   const [refused, setRefused] = useState<string | null>(null);
   // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
   const asked = useRef(0);
-  const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
+  const answer = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftAnswered | null> => {
     const id = ++asked.current;
     setDrafting(again ? "again" : "fresh");
     setFailed(null);
@@ -229,6 +231,12 @@ function useAsk(door: Fixed, flash: Flash) {
     else setFailed(r.message || W.failed.words);
     return null;
   };
+  // A draft asked for as a kind, or as a change to one that stands: the server never answers such an ask as a message
+  // to keep (contracts draftKeepsMessage), and one that did is no draft.
+  const ask = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftDto | null> => {
+    const answered = await answer(words, fixed, again);
+    return answered && !draftKeepsMessage(answered) ? answered : null;
+  };
   const stop = () => {
     asked.current++;
     setDrafting(null);
@@ -237,7 +245,7 @@ function useAsk(door: Fixed, flash: Flash) {
     setFailed(null);
     setRefused(null);
   };
-  return { drafting, failed, refused, ask, stop, clear };
+  return { drafting, failed, refused, ask, answer, stop, clear };
 }
 
 type Asking = ReturnType<typeof useAsk>;
@@ -535,9 +543,10 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   };
   // A line, with its choices where a start made them, drafted by Ask: from New's own line, or one said before New opened.
   const draftWords = (words: string, fixed?: Omit<NewDraftAsk, "words">) =>
-    void asking.ask(words, fixed ?? {}, false).then((d) => {
-      if (d?.keeps === "message") keepAsMessage(words);
-      else if (d) took(d);
+    void asking.answer(words, fixed ?? {}, false).then((answered) => {
+      if (!answered) return;
+      if (draftKeepsMessage(answered)) keepAsMessage(answered.said);
+      else took(answered);
     });
   useDraftOnOpen(back, { reads, held }, draftWords);
   const tz = reads?.draft.timezone ?? "UTC";

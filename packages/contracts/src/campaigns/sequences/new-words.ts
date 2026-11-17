@@ -349,7 +349,7 @@ export const NEW_WORDS = {
     offerNote: "An offer, so no text version. WhatsApp’s goes to Meta when you start it.",
     heldSub: "One of your messages",
     heldWords: "Its words are the same on every step that sends it: a change reaches each one.",
-    openMessages: "Open the message",
+    openMessage: "Open the message",
     firstEmail: "The first email",
     firstEmailSub: "An opening is written for each business above these words",
     laterEmail: "A later email",

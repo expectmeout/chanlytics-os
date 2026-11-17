@@ -8,7 +8,7 @@
 import { useState, type KeyboardEvent } from "react";
 import { NEW_CONVERSATION_WORDS } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
-import { LineField, LinePress } from "../../kit/line/line";
+import { LineBox, LineField, LinePress } from "../../kit/line/line";
 import { gate } from "../shell";
 
 const W = NEW_CONVERSATION_WORDS.approved.ask;
@@ -26,12 +26,8 @@ export function AskForMessage({ onAsk }: { onAsk: (words: string) => void }) {
   };
   return (
     <div className="ix-new-ask" data-testid="ix-new-ask">
-      <div className="ix-new-ask-line">
-        <span className="ix-new-ask-mark" aria-hidden="true">
-          <Icon name="three" size={15} />
-        </span>
+      <LineBox mark={<Icon name="three" size={15} />}>
         <LineField
-          className="ix-new-ask-words"
           rows={1}
           value={said}
           onChange={(event) => setSaid(event.currentTarget.value)}
@@ -52,7 +48,7 @@ export function AskForMessage({ onAsk }: { onAsk: (words: string) => void }) {
         >
           <Icon name="arrow-up" size={15} />
         </LinePress>
-      </div>
+      </LineBox>
       <p className="ix-new-said">{W.note}</p>
     </div>
   );

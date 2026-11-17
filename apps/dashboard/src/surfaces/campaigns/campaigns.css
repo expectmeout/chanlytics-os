@@ -3832,38 +3832,9 @@ html.frame-on .cm-pane-sub .bc-run-link {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.tpl-ask-line {
-  display: flex;
+/* The line itself is the kit's box (kit.css .line-box); here, only that it takes the editor's width. */
+.tpl-ver-line {
   align-self: stretch;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: 40px;
-  padding: 3px 4px 3px 12px;
-  border: 1px solid var(--surface-inset-edge);
-  border-radius: var(--radius-2xl);
-  background: var(--surface-inset-fill);
-}
-.tpl-ask-line:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--focus-field);
-}
-.tpl-ask-line[data-busy] .tpl-ask-words {
-  color: var(--ink-muted);
-}
-/* The AI's mark, ink at rest and coral only while it works (docs/words.md): the busy line lends it the accent. */
-.tpl-ask-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--tpl-ask-tone, var(--ink));
-}
-.tpl-ask-line[data-busy] {
-  --tpl-ask-tone: var(--accent);
-}
-.tpl-ask-line .tpl-ask-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-base);
 }
 /* What sending WhatsApp's words back does, under its editor. */
 .tpl-ver-note {

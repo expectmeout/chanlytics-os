@@ -154,7 +154,7 @@ export function campaignReachable(
  * Where a message's versions are written and filed: the message itself, inside Campaigns, since Messages folded into
  * Campaigns (17 Nov 2026). "It is fixed under Campaigns, on the message."
  */
-const LIBRARY_PLACE = `${CAMPAIGN_ROOMS.home}, on the message`;
+const MESSAGE_PLACE = `${CAMPAIGN_ROOMS.home}, on the message`;
 
 /** What holds everyone who said yes, after "2 people said yes to offers": ", and none has a number to send to". */
 const YES_HELD_WORDS: Record<HeldOn, (one: boolean, ticks: readonly ConsentChannel[]) => string> = {
@@ -201,7 +201,7 @@ export function campaignBlockWords(
   const reason = channelsWhy(block, options);
   return {
     says: block.saidYes > 0 ? `${sentence}, but ${one ? "can't" : "none can"} be reached now. ${reason}` : reason,
-    fix: block.mend === "connections" ? "Settings › Connections" : block.mend === "library" ? LIBRARY_PLACE : null,
+    fix: block.mend === "connections" ? "Settings › Connections" : block.mend === "library" ? MESSAGE_PLACE : null,
   };
 }
 
