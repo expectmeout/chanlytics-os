@@ -196,6 +196,11 @@ export interface BroadcastBatchPorts {
   /** The broadcast, or null when it is gone; throws when it cannot be read. */
   broadcast(id: string): Promise<BroadcastRow | null>;
   workspacePaused(): Promise<boolean>;
+  /**
+   * Whether its owner stopped everything (Stop everything, `tenants.sending_stopped_at`): a run then waits as it was
+   * (broadcast/stops.ts holdForTheStop), where billing's pause fails it. Throws when it cannot be read.
+   */
+  sendingStopped(): Promise<boolean>;
   fail(id: string, failure: string): Promise<void>;
   /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
   startSending(id: string): Promise<boolean>;

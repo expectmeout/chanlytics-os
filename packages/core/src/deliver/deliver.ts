@@ -66,6 +66,7 @@ import { replyAnswersAt } from "@chanlytics/db/conversations";
 import type { Database, Json } from "@chanlytics/db/types";
 import { assertFrozenFor, offerFacts, offerRefusal, type OfferFacts } from "./email";
 import { heldByThread, lateDraft, liveHoldOf } from "./hold";
+import { heldRefusal, sendingHoldOf, sendingRefusal, stopOf, type Refused } from "./stop";
 import { textRefusal } from "./text";
 import { namedFailure, putOnWire, type BoundWire } from "./wire-senders";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
@@ -226,7 +227,7 @@ function kindOf(d: Delivery): SendKind {
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
-  | { outcome: "refused"; reason: DeliveryRefusal; messageId: string | null }
+  | Refused
   | {
       outcome: "failed";
       /** Ours: no wire for the channel, no credentials for it, the provider said no, or the facts could not be read. */
@@ -287,7 +288,7 @@ interface WireFacts {
     email: string | null;
     email_suppressed_at: string | null;
   };
-  tenantStatus: string | null;
+  sendingHold: ReturnType<typeof sendingHoldOf>; // why it sends nothing by itself: billing's pause, or a stop (stop.ts)
   /** The texting line a text leaves on (db findTextLineFacts); read for a text alone, null for every other send. */
   smsLine: Awaited<ReturnType<typeof findTextLineFacts>>;
   offers: OfferFacts; // what an offer by email asks of the deployment and the workspace (deliver/email.ts)
@@ -317,7 +318,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
     control_until?: string | null;
     contact_id?: ContactId | null;
     contacts: WireFacts["contact"] | null;
-    tenants: { status: string | null } | null;
+    tenants: { status: string | null; sending_stopped_at?: string | null } | null;
   };
   return {
     pausedUntil: row.paused_until ?? null,
@@ -336,7 +337,7 @@ async function wireFacts({ db, emailOffers }: DeliverPorts, delivery: Delivery):
       email: null,
       email_suppressed_at: null,
     },
-    tenantStatus: row.tenants?.status ?? null,
+    sendingHold: sendingHoldOf(row.tenants),
     smsLine: delivery.channel === "sms" ? await findTextLineFacts(db, delivery.tenantId) : null,
     offers: await offerFacts(delivery, emailOffers, () => pauseEmailOffersFor(db, delivery.tenantId)),
   };
@@ -488,8 +489,7 @@ function refusalFor(
   // A broadcast is a person's words too, but it is proactive and automated,
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
-  if (wireFacts.tenantStatus === "paused") return "paused";
-  return heldByThread(delivery, wireFacts, nowMs, kind);
+  return sendingRefusal(wireFacts.sendingHold, kind) ?? heldByThread(delivery, wireFacts, nowMs, kind);
 }
 
 /**
@@ -620,7 +620,8 @@ export async function deliver(ports: DeliverPorts, delivery: Delivery): Promise<
       ? await outreachFacts(ports.db, delivery, facts)
       : null;
 
-  const refusal = refusalFor(delivery, facts, nowMs, outreach);
+  const refusal = stopOf(delivery, kindOf(delivery), refusalFor(delivery, facts, nowMs, outreach), nowMs);
+  if (refusal === "held") return heldRefusal(delivery.messageId);
   const overtakenBy = !refusal && kindOf(delivery) === "draft" ? await overtakenByHuman(ports.db, delivery) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : await draftTooLate(ports.db, delivery, nowMs));
   // A queued row is canceled with its reason, so the thread shows why the

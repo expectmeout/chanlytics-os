@@ -70,10 +70,12 @@ export {
   findWorkspaceStanding,
   findWorkspaceZoneRow,
   findWorkspaceZoneStatus,
+  isSendingStopped,
   listWorkspaceRules,
   listWorkspaceStandings,
   listWorkspaceZones,
   patchConfigRow,
+  setSendingStopped,
 } from "./rows";
 export {
   findCallScope,

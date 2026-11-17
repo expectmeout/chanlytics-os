@@ -47,10 +47,26 @@ export function replyPosture(routingFacts: RoutingFacts): ReplyPosture {
  *
  * A person-level setting (People, their profile, "Receptionist for ...") wins
  * over the workspace policy. An absent setting changes nothing.
+ *
+ * `stopped`: the workspace's owner stopped all sending (Stop everything, the runtime's `stopped`). No mode then lets
+ * the receptionist speak without a person, the workspace's or a person's own: one that would reads as 'ask', so their
+ * message is drafted for a person, exactly as a workspace set to Asks you has it. A mode that already holds the
+ * receptionist (ask, never) stands.
  */
-export function effectiveReplyMode(posture: ReplyPosture, personMode: string | null | undefined): string {
-  return personMode || posture.replyMode;
+export function effectiveReplyMode(
+  posture: ReplyPosture,
+  personMode: string | null | undefined,
+  stopped: boolean,
+): string {
+  const mode = personMode || posture.replyMode;
+  return stopped && speaksUnattended(mode) ? "ask" : mode;
 }
+
+/**
+ * Whether the workspace's runtime says its owner stopped all sending. A runtime that was not read says no stop, and
+ * needs none: it already holds for a person (replyPosture).
+ */
+export const holdsForAStop = (rt: { stopped: boolean } | null | undefined): boolean => rt?.stopped === true;
 
 /**
  * Why an automated message may not go to a person now, or null when it may: one order for every sender that speaks

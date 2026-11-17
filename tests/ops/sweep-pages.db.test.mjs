@@ -405,6 +405,27 @@ test(
 );
 
 test(
+  "a workspace whose owner stopped all sending starts nothing: its playbooks are not due while the stop stands, on either page, and are due again, their day still open, once sending is resumed",
+  { skip },
+  async () => {
+    const AT = "2026-09-26T16:30:00.000Z"; // half past eleven in the morning in Chicago
+    const stopped = await workspace("stopped", "America/Chicago");
+    const sound = await workspace("sending", "America/Chicago");
+    ok(await db.from("tenants").update({ sending_stopped_at: AT }).eq("id", stopped.id));
+    const held = [await moment(stopped, "Held one"), await moment(stopped, "Held two")];
+    const runs = await moment(sound, "Goes");
+
+    assert.deepEqual(await page(stopped, AT), [], "none of the stopped workspace's moments is due");
+    const all = ok(await db.rpc("sequence_steps_due", { p_kind: "moment", p_at: AT, p_last_hour: 20, p_limit: 1000 }));
+    const mine = all.filter((r) => [stopped.id, sound.id].includes(r.step.tenant_id));
+    assert.deepEqual(ids(mine), [runs], "the other workspace's moment is due; no stopped one is");
+
+    ok(await db.from("tenants").update({ sending_stopped_at: null }).eq("id", stopped.id));
+    assert.deepEqual(ids(await page(stopped, AT)).sort(), [...held].sort(), "resumed, both are due: their day is open");
+  },
+);
+
+test(
   "the page is runDueNow's rule, hour by hour: eight zones (a daylight-saving change, half and three-quarter hours, both ends of the offsets, a POSIX string and a name nobody knows) over forty-eight hours, twelve moments each, and the page is exactly what contracts' rule says is due in the zone the page names",
   { skip },
   async () => {

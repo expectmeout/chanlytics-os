@@ -189,6 +189,8 @@ export const ON_INSTAGRAM = {
     disconnected: "Instagram is no longer connected. Connect Meta again, then post it again.",
     lineOff: "Instagram no longer allows posting. Connect Meta again and allow it.",
     removed: "The post was deleted.",
+    /** Its owner stopped everything (Stop everything): a post never goes up late by itself, so it is theirs to post again. */
+    stopped: "Everything is stopped, so this was not posted. Resume sending, then post it again.",
   },
   /** What a refusal says, by what Instagram answered (decision 0121): the sheet's line and the bell's. */
   refused: {
