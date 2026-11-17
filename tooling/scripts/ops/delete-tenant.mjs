@@ -139,6 +139,8 @@ const TABLES = [
   "mailbox_sender_reads",
   "mailbox_senders",
   "mailboxes",
+  // A folder the workspace has watched for its photos and videos (00639); its connection and its items are below.
+  "media_sources",
   "memberships",
   "messages",
   // A receptionist's turns as the model read them, and the prompts they read (00401, decision 0039).
@@ -187,6 +189,9 @@ const TABLES = [
   "sequences",
   // A workspace's setup choices, its own and not each member's (00513, decision 0091).
   "setup_choices",
+  // The provider account a watched folder is read through, and what each folder holds (00639).
+  "source_connections",
+  "source_items",
   "templates",
   "tenant_channels",
   "tenant_config",
@@ -367,6 +372,14 @@ async function main() {
     if (m.state !== "removed")
       orphans.push(
         `a connected mailbox, ${m.address}: its grant at ${m.provider === "microsoft" ? "Microsoft" : "Google"}, its watch there, and its mailbox-creds Vault secret. Remove it on Connections first, which hands the grant back and drops the secret.`,
+      );
+  }
+  // A footage source's connection (00639): its grant at Google, the push channels its watched folders opened there,
+  // and its Vault secret. One its organisation blocked was never granted and holds none of them.
+  for (const s of byTable.get("source_connections") ?? []) {
+    if (s.health !== "blocked_by_admin")
+      orphans.push(
+        `a connected footage account, ${s.email ?? "an account"}: its grant at Google, its watched folders' push channels there, and its Vault secret. Disconnect it on Connections first, which stops the channels and drops the secret.`,
       );
   }
   for (const c of byTable.get("tenant_channels") ?? []) {

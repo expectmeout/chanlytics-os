@@ -9,7 +9,9 @@ and the code disagree, the code wins. The status was read again at `e9d6325f0` (
 Amended 3 November 2026: item 12's trial is decision 0090's (one trial from every door, covering everything), and
 items 1 and 2 are decision 0091's (the choices are the workspace's, the server starts the number once the plan does,
 Not by phone). Amended 4 November 2026: the booking page Check offers (3c-4) is the website read's, kept with it, and the
-link reads no site of its own (decision 0095).
+link reads no site of its own (decision 0095). Amended 17 November 2026: item 18's mailbox sign-in no longer folds in
+what an earlier consent gave (`include_granted_scopes` is `false`, as the Business Profile's sign-in already had it), so
+each Google key opens one door (the footage sources plan's D17); the scopes are still filed once on the one app.
 
 ## Context
 
@@ -118,7 +120,8 @@ link reads no site of its own (decision 0095).
 
 18. **One consent, what was ticked.** Connecting Gmail or Outlook asks for the contacts and the calendar beside the
     mail; none is required, and only what the owner left ticked is read (channels `grantHolds`).
-    Google keeps one app: every consent adds to the grants already given (`include_granted_scopes`, R18).
+    Google keeps one app, and every scope is filed on it once (R18). Each sign-in asks for its own scopes alone
+    (`include_granted_scopes=false`), so a mailbox's key never holds what another connection was granted.
 19. **Six months of mail from people** are read a page at a time (Gmail's `after:`/`before:`, Graph's
     `receivedDateTime`), as parts of the `history_import` job (00478; a part reads 40 seconds, then hands on). Each
     message goes into its person's thread through `ingest_before`: the person resolved as a client list's would be

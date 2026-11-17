@@ -84,6 +84,7 @@ what the script writes.
 | [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts` | on, 1 policy |
+| [`media_sources`](#media_sources) | none | on, 1 policy |
 | [`memberships`](#memberships) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/channels/whatsapp.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/conversations/thread/messages.ts`, `packages/db/src/repositories/conversations/unfinished.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/email/sync.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/provider-events.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
@@ -130,6 +131,8 @@ what the script writes.
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/sequences/batches.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/campaigns/sequences/step-messages.ts`, `packages/db/src/repositories/campaigns/templates/doors.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | on, 2 policies |
 | [`setup_choices`](#setup_choices) | `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
+| [`source_connections`](#source_connections) | `packages/db/src/repositories/files/sources.ts` | on, 1 policy |
+| [`source_items`](#source_items) | none | on, 1 policy |
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/email/reconcile.ts` | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/templates/doors.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/campaigns/templates/templates.ts`, `packages/db/src/repositories/campaigns/templates/whatsapp.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
@@ -2356,6 +2359,45 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `mailboxes_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### media_sources
+
+One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder's id and name at its provider, the shared drive's id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel's id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `connection_id` | uuid | no |  |  |
+| `folder_id` | text | no |  |  |
+| `folder_name` | text | no |  |  |
+| `drive_id` | text | yes |  |  |
+| `include_subfolders` | boolean | no | `true` |  |
+| `state` | text | no | `'setting_up'::text` | setting_up: chosen, its first walk not done. watching: read as its provider signals and on the floor clock. paused: nothing is read until someone resumes it (the member who connected it left, or its connection needs a reconnect). frozen: the folder itself cannot be read, and nothing is reconciled until it can. stopped: no longer watched; what came in stays. |
+| `change_cursor` | text | yes |  |  |
+| `next_read_at` | timestamp with time zone | yes |  |  |
+| `read_gap_seconds` | integer | yes |  |  |
+| `channel_id` | text | yes |  |  |
+| `channel_token_hash` | text | yes |  | The sha256, in hex, of the token the provider sends back with each signal: the token itself is never kept. |
+| `channel_expires_at` | timestamp with time zone | yes |  |  |
+| `reconciled_at` | timestamp with time zone | yes |  |  |
+| `last_error` | text | yes |  |  |
+| `last_error_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `connection_id` → [`source_connections`](#source_connections) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `media_sources_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### memberships
 
 - Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`
@@ -3799,6 +3841,76 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `setup_choices_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### source_connections
+
+A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00639): the provider (google, for Google Drive), the account's stable id there (Google's sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.
+
+- Owned by: `packages/db/src/repositories/files/sources.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `provider` | text | no |  |  |
+| `provider_account` | text | yes |  |  |
+| `email` | text | yes |  |  |
+| `scopes` | text[] | no | `'{}'::text[]` |  |
+| `health` | text | no | `'ok'::text` | ok: its grant reads. needs_reconnect: the provider refused the grant (revoked or expired); its sources pause and nothing in the Library changes. blocked_by_admin: the account's organisation does not let the app read it, so no grant was given and the account's id and email may be unknown. |
+| `credentials_ref` | text | yes |  |  |
+| `connected_by` | uuid | yes |  |  |
+| `connected_at` | timestamp with time zone | no | `now()` |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `source_connections_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### source_items
+
+One item a provider holds under a watched folder, folders included, since they are the tree's index (the footage sources plan, 00639): the provider's id for it, its kind, its parent's id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `source_id` | uuid | no |  |  |
+| `provider_id` | text | no |  |  |
+| `kind` | text | no |  | folder: part of the tree. image, video: what the Library takes. other: seen and passed over (a document, a shortcut, a RAW photo). |
+| `parent_id` | text | yes |  |  |
+| `name` | text | no |  |  |
+| `modified_at` | timestamp with time zone | yes |  |  |
+| `checksum` | text | yes |  |  |
+| `bytes` | bigint | yes |  |  |
+| `seconds` | numeric | yes |  |  |
+| `added_by` | text | yes |  |  |
+| `state` | text | no | `'listed'::text` | listed: seen, not asked for. waiting: to be taken in. taking: on its way. in: a Library file (file_id). too_big: over a cap, never taken (why says which). not_media: not a photo or a video. let_go: its owner removed it from the Library, so the next read does not bring it back. failed: its taking failed for good. outside: moved out of the watched tree. gone: trashed or deleted at its provider (gone_at). no_access: the provider no longer lets it be read, which is never read as gone. |
+| `why` | text | yes |  |  |
+| `file_id` | uuid | yes |  |  |
+| `first_seen_at` | timestamp with time zone | no | `now()` |  |
+| `gone_at` | timestamp with time zone | yes |  |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `source_id` → [`media_sources`](#media_sources) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `source_items_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### support_reports
 

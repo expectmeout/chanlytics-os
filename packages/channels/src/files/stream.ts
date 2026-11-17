@@ -152,7 +152,8 @@ export type StreamTaken = { ok: true; mediaRef: string } | { ok: false; error: s
  * A video on the public web, fetched by Stream itself from its address (`POST /stream/copy`): what a business's website,
  * profile or Instagram plays, so its bytes never pass through us. `name` is our file's id, as an upload's is, and the
  * webhook says when it is ready. Asked once: a second ask would be a second video, so a lost answer is the caller's to
- * judge (the address is kept on the row, and found again is a twin).
+ * judge (the address is kept on the row, and found again is a twin). The address must answer HEAD and range GET requests
+ * (Cloudflare's rule for a copy), which a public page's video does.
  */
 export async function askStreamToFetch(
   account: StreamAccount,
@@ -165,7 +166,8 @@ export async function askStreamToFetch(
     {
       method: "POST",
       headers: { ...apiHeaders(account), "content-type": "application/json" },
-      body: JSON.stringify({ url: video.url, meta: { name: video.name }, requireSignedURLs: true }),
+      // `input` is the address's field: Cloudflare's reference prefers it and marks `url` deprecated in its favour.
+      body: JSON.stringify({ input: video.url, meta: { name: video.name }, requireSignedURLs: true }),
       timeoutMs: API_TRY_MS,
     },
     deps,

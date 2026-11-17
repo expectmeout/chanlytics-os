@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 77 | 0 |
-| the server's | 345 | 299 |
+| the server's | 347 | 299 |
 | computed column | 3 | 0 |
 | trigger | 103 | 73 |
-| all | 715 | 559 |
+| all | 717 | 559 |
 
 ## Called by nothing
 
@@ -196,6 +196,7 @@ being read is dropped by a migration.
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
 | `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), once the video platform is fetching it from its address: |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
+| `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
@@ -749,6 +750,7 @@ being read is dropped by a migration.
 | `trigger_registration_sweep` | the server's | the server | the clock, `registration-sweep` | Asks the edge to finish carrier registrations the carriers have answered. |
 | `trigger_sequences_clock` | the server's | the server | the clock, `sequences-clock` | The one clock every sequence runs on (0060, S2): |
 | `trigger_sweep_health` | the server's | the server | the clock, `sweep-health` | Asks the edge to judge the other sweeps and email the platform operator if any of them stopped reaching it. |
+| `video_seconds_toward_cap` | the server's | the server | SQL `file_video_begin`, `file_video_found` and 1 more | How many seconds of video count toward a workspace's video minutes (contracts FILE_VIDEO_MINUTES_MAX): |
 | `wake_stale_snoozes` | the server's | the server | the clock, `wake-stale-snoozes` | Reopens conversations whose snooze ran out, whoever set it and whatever became of the snooze_wake job. |
 | `wear_found_look` | the server's | the server | code `packages/db/src/repositories/look/look.ts` | The website read's door (00490): |
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |

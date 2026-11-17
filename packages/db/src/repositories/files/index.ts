@@ -100,4 +100,5 @@ export type {
   PostRow,
 } from "./posts";
 export { listFilesUnprinted } from "./prints";
+export { findGoogleSourceConnectionOfAccount } from "./sources";
 export { followPostCaption, movePostTime } from "./waiting-posts";
