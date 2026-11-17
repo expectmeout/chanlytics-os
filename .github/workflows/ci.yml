@@ -379,7 +379,9 @@ jobs:
       # GHSA-vfj7-8cjw-p6xm, a stack-exhaustion denial of service on deeply nested glob patterns, 3 Oct 2026, build
       # time only, never in the app or a server; zod 3 under the same CLI, GHSA-mrhx-c7xc-m3w5, memory exhausted
       # validating oversized collections, 23 Oct 2026: fixed only in zod 4.6.6, which the CLI's ^3.25.76 cannot take,
-      # and the dashboard and packages are on 4.6.7) is ignored by its GHSA in pnpm-workspace.yaml
+      # and the dashboard and packages are on 4.6.7; picomatch under the same CLI and its file map, GHSA-fc5q-39xc-vjpf,
+      # a ReDoS through single-branch repeated extglobs, 17 Nov 2026, no patched version, build time only, never in the
+      # app or a server) is ignored by its GHSA in pnpm-workspace.yaml
       # (`auditConfig.ignoreGhsas`), each named here with the day and why; drop it once a fix ships.
       - run: pnpm audit --prod --audit-level high
       - name: Production licences are ones we may ship
