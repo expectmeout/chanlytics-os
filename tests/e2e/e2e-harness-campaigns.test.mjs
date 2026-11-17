@@ -28,17 +28,14 @@ import {
   kitPages,
   fresh as freshTree,
   again as drawAgain,
-  all,
   find,
   byTestId,
   textOf,
-  press,
 } from "../_stub-react.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 import { scenario, WORKSPACE } from "../../tooling/scripts/e2e-harness/scenarios.mjs";
 import { answer } from "../../tooling/scripts/e2e-harness/server.mjs";
 import { templatesRead } from "../../tooling/scripts/e2e-harness/templates-read.mjs";
-import { libraryRows, messagesOf } from "../../e2e/campaigns/offered.ts";
 import { NOBODY_ONCE } from "../../e2e/campaigns/nobody-once.ts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -92,30 +89,8 @@ console.error = () => {};
 const { DraftView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-draft.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
-const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
-const { channelsOverride } = await import(`${SRC}/surfaces/channels/surface.ts`);
-const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-const { Picker } = await import(`${SRC}/surfaces/kit/picker/picker.tsx`);
-const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
 console.error = quiet;
 
-/** A part of the page, or of its head where the page says it to the frame (the page's one act, New, is the frame's). */
-const headed = (tree, id) =>
-  byTestId(tree, id) ??
-  byTestId({ props: { children: [standingSaid()?.sentence ?? null, standingSaid()?.act ?? null] } }, id);
-
-/* ---------------------------------- what the harness answers ---------------------------------- */
-
-/** The harness's wire: the browser's fetch, answered by the harness server's own function from a record. */
-const wire = (record) => {
-  globalThis.fetch = async (url, init) => {
-    const u = new URL(String(url), "http://localhost");
-    const got = answer((init?.method ?? "GET").toUpperCase(), u.pathname, u.searchParams, record);
-    const status = got ? got.status : 404;
-    const body = got ? got.body : { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } };
-    return { ok: status < 300, status, headers: { get: () => null }, json: async () => body };
-  };
-};
 /** A read of the harness for a record, as the spec makes it (the workspace named, as every read names it). */
 const read = (record, route, query = {}) =>
   answer("GET", route, new URLSearchParams({ workspace: WORKSPACE.slug, ...query }), record).body.data;

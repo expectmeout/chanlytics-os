@@ -31,7 +31,6 @@ import {
   SlotName,
   SubTabs,
   VISIT,
-  W,
   WINBACK,
   all,
   baseRow,
@@ -47,12 +46,9 @@ import {
   fillSlots,
   find,
   firstView,
-  headSaid,
-  headed,
   itemOf,
   itemsOf,
   library,
-  lineBox,
   listingOf,
   menuOf,
   messageFacts,
@@ -1115,12 +1111,12 @@ test("the language control lists a language the message holds on any channel und
 test("an own-only message's sheet writes and removes its versions with no WhatsApp number: its email reads as any message's, and its menu is a message's whole", async () => {
   const calls = stubbed();
   const own = [ownRow("email", HOURS, { category: "utility" })];
-  let tree = page({ rows: [], versions: own, channels: [] });
+  page({ rows: [], versions: own, channels: [] });
 
   // Opened, its email reads as any message's does, with its pencil, and its name's menu is a message's whole: Rename, Put
   // away and Delete, which need no number (the live demo, 12 Nov 2026: a message with no WhatsApp version had none of
   // them). Its email is its only version, so no Remove: its Delete is the message's.
-  tree = opened(redraw(), HOURS);
+  let tree = opened(redraw(), HOURS);
   assert.equal(
     byTestId(paneOf(tree), "template-version").props["data-channel"],
     "email",

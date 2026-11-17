@@ -335,4 +335,3 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
 const shellDoors = {};
 for (const k of ["gate", "canDo", "gateTitle", "mayAtLeast", "gatedProps", "ST_STORE", "__roleGate"])
   shellDoors[k] = globalThis.window[k];
-const SRC = "../../apps/dashboard/src";

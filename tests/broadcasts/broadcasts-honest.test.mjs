@@ -30,7 +30,6 @@ import {
   press,
   settle,
 } from "../_stub-react.mjs";
-import { lineBox } from "../shared/_line.mjs";
 
 const { toBroadcastVM, stateOf, numberHealth } = contracts;
 const TID = "t-studio";
@@ -228,62 +227,13 @@ const optionsOf = (p) => p.props.groups.flatMap((g) => g.options.map((o) => ({ .
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
 const { templates, starters } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { Menu } = await import(`${SRC}/surfaces/kit/menu/menu.tsx`);
-const { Popover } = await import(`${SRC}/surfaces/kit/popover/popover.tsx`);
-const { standingSaid } = await import(`${SRC}/surfaces/kit/head/standing.ts`);
-/** What the page last said to the frame's head (kit/head/standing.ts): its line and its act, which the frame draws, not the page. */
-const headSaid = () => {
-  const said = standingSaid();
-  return { props: { children: [said?.sentence ?? null, said?.act ?? null] } };
-};
-/** A part of the page, or of its head where the page says it to the frame. */
-const headed = (tree, id) => byTestId(tree, id) ?? byTestId(headSaid(), id);
-const { setSurfaceValue, surfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
+const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 const { SubTabs } = await import(`${SRC}/surfaces/kit/sub-tabs/sub-tabs.tsx`);
 const { Face } = await import(`${SRC}/surfaces/kit/face/face.tsx`);
 
 /** A run's name as its pane's head says it (CmPane's title, an h2's first child; its state is the second): where the page's h1 was. */
 const paneTitle = (tree) => textOf(find(byTestId(tree, "bc-run-solo"), (n) => n.type === "h2").props.children[0]);
 
-/**
- * The open message's language control is the kit's Picker (surfaces/kit/picker/), a quiet word: the name of the language in
- * view, no code, glyph or count (the message sheet's canvas, 12 Nov 2026).
- */
-const chipSays = (chip) => textOf(chip.props.face).trim();
-/**
- * Where the language in view stands on WhatsApp, as its tab's dot says it: "ok" approved and ready, "info" waiting on
- * WhatsApp (in review, refused, paused), "none" not on WhatsApp in that language.
- */
-const waState = (node) => {
-  const tab = find(node, (n) => n.type === SubTabs)?.props.tabs.find((t) => t.id === "whatsapp");
-  return tab?.need ? "info" : tab?.standing?.look === "ready" ? "ok" : "none";
-};
-/** The open message's name, as its head says it: the words of its menu's press, or its title where it has no menu. */
-const nameOf = (pane) => {
-  const menu = find(pane, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "template-menu");
-  return (menu ? textOf(menu.props.trigger) : textOf(find(pane, (n) => n.props?.className === "cm-pane-name"))).trim();
-};
-/**
- * The open message's language control in a node: drawn where the message has two languages or one is being added, else
- * asked for from the name's menu ("Add a language") and read again from the page.
- */
-const chipIn = (node) => {
-  const chip = pickerOf(node, "template-lang");
-  if (chip) return chip;
-  const add = find(node, (n) => n.type === Menu)
-    ?.props.groups.flatMap((g) => g.items)
-    .find((i) => i.label === "Add a language");
-  if (!add) return null;
-  add.onSelect();
-  return pickerOf(messagesAgain(), "template-lang");
-};
-/** A language option's group, by the key the contracts file it under ("on", "ready", "add"), from its heading. */
-const groupKey = (heading) =>
-  Object.entries(contracts.LANGUAGE_GROUP_WORDS).find(([, words]) => words === heading)?.[0];
-/** A language chip's options in a row, each with its group's key, and one of them by its code. */
-const optionsIn = (row) => optionsOf(chipIn(row)).map((o) => ({ ...o, group: groupKey(o.group) }));
-const optionOf = (row, lang) => optionsIn(row).find((o) => o.value === lang);
-/** A language picked from the chip in a row, as its Picker is told. */
-const pickLanguage = (row, lang) => chipIn(row).props.onValueChange(lang);
 /** A fresh mount: nothing kept from the last page, no listener left behind by it. */
 const fresh = () => {
   freshTree();
@@ -347,8 +297,6 @@ const settingsOf = (over = {}) => {
   });
   return held;
 };
-/** The settings surface read again with one thing changed, as its next read lands: the rest as it was. */
-const settingsChanged = (over) => settingsOf({ ...surfaceValue("settings"), messages: undefined, ...over });
 /**
  * A message's sheet (parts/message-in-place.tsx), the one a message opens in over any page since Messages folded into
  * Campaigns (Campaigns, one tab, 17 Nov 2026), on a workspace with a WhatsApp number: opened on the first message a test
@@ -364,12 +312,6 @@ const messagesOpen = ({ playbooks: held, ...over } = {}) => {
   openName = (over.templatesAll ?? [])[0]?.name ?? null;
   return sheet();
 };
-/** What sends the offer, as the settings read says it: a sequence running now, unless a test says otherwise. */
-const sentBy = (words, more = {}) => ({
-  offer: { words, note: null, unused: false, sequence: null, running: true, booking: false, ...more },
-});
-/** A row's second line: why it needs you, what sends it, or what it is for. */
-const rowLine = (t) => find(byTestId(t, "custom-row"), (n) => n.props?.className === "msg-row-words");
 /**
  * The message the surface stamps on a template it offers (surfaces/campaigns/parts/channels.ts cmOfferedMessages), made as the
  * reader makes it, of a row on each channel the template holds: what the Send by row reads a closed channel's words from.
@@ -1249,31 +1191,6 @@ test("a run's report: who it touched is filtered by the kit's sub-tabs, and a pe
   }
 });
 
-/* ------------------------------ Messages ------------------------------ */
-
-/**
- * A message's languages are what it opens into: they were a column of every closed row ("● EN ⌄" sixteen times) for a
- * choice that changes nothing about who a run reaches (23 Sep, Campaigns made compact). Opens the row `rowOf` finds
- * when it is closed, and returns the tree with it open.
- */
-const openedRow = (rowOf) => {
-  let tree = messagesAgain();
-  // Ready and Ready-made fold (the clean list, 13 Nov 2026): a folded one is pressed open first, as a person would.
-  for (const id of ["templates-fold-idle", "templates-fold-made"]) {
-    const head = rowOf(tree) ? null : byTestId(tree, id);
-    if (head?.props["aria-expanded"] !== false) continue;
-    press(head);
-    tree = messagesAgain();
-  }
-  // The row stands selected while its message is open in the pane beside the list (the layout is the Inbox's list +
-  // pane, Claude Video/docs/2026-10-02-campaigns-on-the-kit.md §3.1): the words are not under it any more.
-  if (!String(rowOf(tree).props.className).split(" ").includes("is-open")) {
-    press(byTestId(rowOf(tree), "template-open"));
-    tree = messagesAgain();
-  }
-  return tree;
-};
-const customRow = (t) => byTestId(t, "custom-row");
 /** The open message's pane: its words, its languages and its verbs, which were under its row. */
 const paneOf = (t) => byTestId(t, "template-pane");
 /** An item of the pane's menu, by its words: the kit's Menu draws nothing under this runner, so its groups are read. */
@@ -1281,23 +1198,6 @@ const menuItem = (t, words) =>
   find(t, (n) => n.type === Menu)
     .props.groups.flatMap((g) => g.items)
     .find((i) => i.label === words);
-const lastStarterRow = (t) => all(t, (n) => n.props?.["data-testid"] === "starter-row").at(-1);
-
-/* -------------------------- a message in one more language -------------------------- */
-
-/** The written-here offer, in English, with its first name slot filed as the create path files it. */
-const offerEn = (over = {}) =>
-  templateRow({
-    id: "t-en",
-    name: "offer",
-    language: "en_US",
-    meta_status: "approved",
-    category: "marketing",
-    body_preview: "Hi {{1}}, 20% off any service this week.",
-    variables: [{ position: 1, label: "First name", example: "Dani" }],
-    footer: "Reply STOP to opt out",
-    ...over,
-  });
 
 test("A new template may be written in any language WhatsApp takes, found by typing it -- the composer offered six", async () => {
   const drafts = [];

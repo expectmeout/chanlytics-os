@@ -8,7 +8,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   HOURS,
-  NOTHING_READY,
   Picker,
   TPL_VERSION_WORDS,
   TemplateComposer,
@@ -18,7 +17,6 @@ import {
   custom,
   fieldOf,
   find,
-  headed,
   itemOf,
   opened,
   ownRow,
@@ -26,11 +24,9 @@ import {
   paneOf,
   press,
   redraw,
-  rowOf,
   sendsIt,
   setSurfaceValue,
   settle,
-  standingSays,
   standingWord,
   stubbed,
   textOf,
