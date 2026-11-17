@@ -17,7 +17,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { listPeople, listEveryone } = await import(
+const { startPeoplePage, listEveryone } = await import(
   pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/people/people.ts")).href
 );
 
@@ -55,7 +55,7 @@ const ctxOf = () => {
 
 test("fifty people with one of their own among thousands: the page reads only the modes it draws", async () => {
   const { db, ctx } = ctxOf();
-  const rows = await listPeople(ctx, A, {});
+  const rows = await startPeoplePage(ctx, A, {}).rows;
   assert.equal(rows.length, ON_PAGE);
   assert.equal(
     db.seen.filter((q) => q.table === "policies").length,
@@ -69,7 +69,7 @@ test("fifty people with one of their own among thousands: the page reads only th
 });
 
 test("the page's modes are exactly what the read of everyone says of the same people", async () => {
-  const page = new Map((await listPeople(ctxOf().ctx, A, {})).map((p) => [p.id, p.effective_reply_mode]));
+  const page = new Map((await startPeoplePage(ctxOf().ctx, A, {}).rows).map((p) => [p.id, p.effective_reply_mode]));
   const everyone = new Map((await listEveryone(ctxOf().ctx, A)).map((p) => [p.id, p.effective_reply_mode]));
   assert.deepEqual(page, everyone, "the everyone read keeps the old way: one read of every policy, for all its pages");
   assert.equal(page.get(idOf(7)), "ask", "their own");
@@ -87,7 +87,7 @@ test("a page whose modes cannot be read says none, never a guessed one, and stil
       },
     },
   );
-  const rows = await listPeople({ supabase: db }, A, {});
+  const rows = await startPeoplePage({ supabase: db }, A, {}).rows;
   assert.equal(rows.length, ON_PAGE);
   assert.ok(rows.every((r) => r.effective_reply_mode === null));
 });

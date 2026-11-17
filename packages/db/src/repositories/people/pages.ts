@@ -181,19 +181,31 @@ export async function findPersonRow(db: Db, tenantId: TenantId, personOf: Person
  * Everyone, every page of them: whatever counts people counts everyone. One call is at most a thousand rows, and a
  * caller that does not loop gets a thousand with no error, no flag and no way to tell them from "that is everyone".
  * Each page after the first starts just past the last row's place (00276), so nobody is read twice when someone writes
- * between two pages; from a database before 00276, by offset, as it always was.
+ * between two pages; from a database before 00276, by offset, as it always was. `first`: the first page as the caller
+ * already reads it (listPeoplePage asked nothing past the workspace, as People's own first page is), taken in place of
+ * asking for it a second time.
  */
-export async function listEveryoneIn(db: Db, tenantId: TenantId): Promise<PersonRowDto[]> {
+export async function listEveryoneIn(
+  db: Db,
+  tenantId: TenantId,
+  first?: Promise<PersonRowDto[]>,
+): Promise<PersonRowDto[]> {
   const all: PersonRowDto[] = [];
-  for await (const page of everyonePages(db, tenantId)) all.push(...page);
+  for await (const page of everyonePages(db, tenantId, first)) all.push(...page);
   return all;
 }
 
 /** Every page of people in the kept order, each just past the last row's place; by offset before 00276. */
-async function* everyonePages(db: Db, tenantId: TenantId): AsyncGenerator<PersonRowDto[]> {
+async function* everyonePages(
+  db: Db,
+  tenantId: TenantId,
+  first?: Promise<PersonRowDto[]>,
+): AsyncGenerator<PersonRowDto[]> {
   let read = 0;
+  let given = first;
   for (let after: PeopleCursor | null = null; ;) {
-    const page = await listPeoplePage(db, tenantId, after ? { after } : { offset: read });
+    const page = given ? await given : await listPeoplePage(db, tenantId, after ? { after } : { offset: read });
+    given = undefined;
     read += page.length;
     yield page;
     if (page.length < PEOPLE_PAGE) return;
