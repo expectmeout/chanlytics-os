@@ -6,6 +6,7 @@ export {
   dropGoogleCredentials,
   findConnectionCard,
   findGoogleConnection,
+  findGoogleConnectionOfAccount,
   getGoogleCredentials,
   listGoogleConnectionsDue,
   patchGoogleConnection,
