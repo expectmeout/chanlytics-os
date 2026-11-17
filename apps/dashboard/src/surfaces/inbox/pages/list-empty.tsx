@@ -3,6 +3,7 @@
  * length): each empty bucket's words, a real workspace's or the mockup's, and the line that says a waiting customer's
  * conversation could not be read.
  */
+import { NEED_YOU_WORDS } from "@chanlytics/contracts";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
 import { surfaceState } from "../shell";
 import { inboxData } from "../store";
@@ -95,7 +96,12 @@ interface EmptyListOf {
   setQuery: (v: string) => void;
 }
 
-export function emptyThreads(list: EmptyListOf) {
+/**
+ * `older` is how many have waited past a week, folded under this card in Needs you: with any, the card says Today's own
+ * words over them, "Nothing needs you" and that the older ones may need nothing. "Nobody's waiting on you" stood over
+ * "1 waiting over a week" (17 Nov 2026).
+ */
+export function emptyThreads(list: EmptyListOf, older = 0) {
   const { threads, activeView, activeBucket, query, setQuery } = list;
   // "Is this a real workspace?" must come from the surface
   // classification, not from the array being inspected: an EMPTY
@@ -104,11 +110,15 @@ export function emptyThreads(list: EmptyListOf) {
   // empty Snoozed bucket reading "7 snoozed… Elena's win-back".
   const surface = surfaceState("inbox");
   const isReal = surface !== undefined ? surface === "real" : threads.some((t) => t.real);
-  const meta: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
+  const words: EmptyWords = emptyWords(isReal)[activeView ? "view" : activeBucket] || {
     icon: "filter",
     title: "Nothing in this view",
     body: "No conversations match this view right now.",
   };
+  const meta: EmptyWords =
+    older > 0 && !query
+      ? { ...words, title: NEED_YOU_WORDS.onlyOlder.title, body: NEED_YOU_WORDS.onlyOlder.says(older) }
+      : words;
   // Needs you with nobody in it and nothing typed is what the pane beside says, as "Inbox zero" (thread.tsx InboxEmpty):
   // where that pane stands (a desk), this card steps aside for it (inbox.css, .ix-zero-beside), so the page says it once.
   const saidBeside = activeBucket === "escalated" && !query && !activeView;

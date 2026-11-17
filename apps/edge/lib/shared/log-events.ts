@@ -133,6 +133,7 @@ export const LOG_EVENTS = [
   "call_activity_failed",
   "call_activity_refused",
   "call_activity_started",
+  "call_back_not_owed",
   "call_callback_needed",
   "call_notice_mark_failed",
   "call_notice_name_unreadable",

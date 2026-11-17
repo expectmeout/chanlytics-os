@@ -32,6 +32,7 @@ import { callSummaryLine } from "@chanlytics/channels/voice";
 import {
   addressOf,
   callAttemptWords,
+  callBackNotOwed,
   callEndingOf,
   callerName,
   callOutcomeWords,
@@ -45,7 +46,7 @@ import {
 import type { NotifyMessage } from "../shared/alerts/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
-import type { ContactId } from "@chanlytics/contracts";
+import type { CallerStanding, ContactId } from "@chanlytics/contracts";
 
 /** The delivery as the door read it: the event, the call as the provider shaped it, and the row's view of it. */
 interface CallEvent {
@@ -73,6 +74,13 @@ interface CallEventFacts {
    * a price, and a workspace it could not read is strict. Required, so the door says which.
    */
   allowed: ReadonlySet<string> | null;
+  /**
+   * What is known of the caller (contracts callerStandingOf, decision 0136): the workspace's own word about their thread,
+   * and whether the business talks with them. Read for a customer's call as it ends and as it is analysed; null where it
+   * was not read or the read failed, and then the call asks for a call back as it always did. Required, so the door
+   * says which.
+   */
+  caller: CallerStanding | null;
 }
 
 /** What the bell row is about: the call, or the thread when it needs a call back. */
@@ -87,7 +95,7 @@ export interface CallAbout {
  * correction through the provider, the copy of the audio) names what it needs.
  */
 export type CallStep =
-  | { kind: "log"; event: "retell_event_stale"; fields: Record<string, unknown> }
+  | { kind: "log"; event: "retell_event_stale" | "call_back_not_owed"; fields: Record<string, unknown> }
   | { kind: "forwarding_verified"; call: ForwardingCall }
   | { kind: "call_activity"; retellCallId: string; call: CallForActivity }
   | { kind: "delivery"; callId: string | null; data: Record<string, unknown> }
@@ -127,6 +135,12 @@ export type CallStep =
 export interface CallEventPlan {
   steps: CallStep[];
   about: CallAbout | null;
+  /**
+   * Nobody is told of this call (decision 0136): the workspace said the caller is not a customer, or it never connected
+   * from a toll-free number the business does not talk with, whose notice would ask for a call back nobody can make.
+   * The claim still stands, so no sweep settles the call again.
+   */
+  untold: boolean;
   /** The call's own row (calls.id), which the owner's notice of it opens; null where the delivery made none. */
   callId: string | null;
 }
@@ -323,22 +337,31 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
   // refreshes the one open escalation rather than opening a second. The
   // bell is then about the thread, which is where the work is.
   let about: CallAbout | null = res.call_id ? { type: "call", id: res.call_id } : null;
-  if (analyzed && res.conversation_id && n.analysis?.outcome === "callback_needed") {
+  const asked =
+    analyzed && res.conversation_id && n.analysis?.outcome === "callback_needed" ? res.conversation_id : null;
+  const silence = owedACallBack(event, n, res);
+  // A call that asks for nothing holds nobody (decision 0136): the workspace's word, the carrier's, or silence from a
+  // toll-free number the business does not talk with. It is still the call it was, on its page and in the thread.
+  const notOwed = callBackNotOwed(
+    { from: n.fromE164, silent: !!silence, disconnectionReason: n.disconnectionReason },
+    callEventFacts.caller,
+  );
+  if (notOwed && (asked || silence)) {
+    steps.push({ kind: "log", event: "call_back_not_owed", fields: { call_id: n.retellCallId, why: notOwed } });
+  } else if (asked) {
     steps.push({
       kind: "callback",
-      conversationId: res.conversation_id,
-      details: callbackTodo(n.analysis).slice(0, 400),
+      conversationId: asked,
+      details: callbackTodo(n.analysis ?? {}).slice(0, 400),
       callId: res.call_id,
       // When the call ended, so the pause is measured from the call and not from this delivery (G9).
       endedAtIso: n.endedAtIso,
       pause: true,
     });
-    about = { type: "conversation", id: res.conversation_id };
-  }
-  const owed = owedACallBack(event, n, res);
-  if (owed) {
-    steps.push(owed);
-    about = { type: "conversation", id: owed.conversationId };
+    about = { type: "conversation", id: asked };
+  } else if (silence) {
+    steps.push(silence);
+    about = { type: "conversation", id: silence.conversationId };
   }
 
   steps.push(...guardSteps(n, res, callEventFacts));
@@ -354,7 +377,8 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
 
   const copy = recordingCopy(n, res, analyzed);
   if (copy) steps.push(copy);
-  return { steps, about, callId: res.call_id ?? null };
+  const untold = notOwed === "not_a_customer" || (notOwed === "toll_free_silent" && isMissedCall(n));
+  return { steps, about, untold, callId: res.call_id ?? null };
 }
 
 /**
