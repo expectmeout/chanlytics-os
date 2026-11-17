@@ -75,20 +75,25 @@ const onDesk = (desk, run) => {
   }
 };
 
-test("the account menu draws no key: Settings, Profile and Notifications on any screen, and on a desk the Keyboard shortcuts row, a pointer's door to the sheet", () => {
+test("the account menu draws no key: your name is the door to your profile and Settings the one door to the rest on any screen, and on a desk the Keyboard shortcuts row, a pointer's door to the sheet", () => {
   // The row left the menu on 7 Oct 2026 (the sheet opens on ?) and a person who does not know to press ? could not find the list;
   // a phone needs no keys. The row's words name none (Ruben, 23 Sep 2026), and the sheet is the one place a key is drawn.
+  // Profile and Notifications were rows of their own beside Settings, all three one page (Ruben, 17 Nov 2026).
   onDesk(false, () => {
-    let tree = draw();
+    const went = [];
+    const props = { onNavigate: (to) => went.push(to) };
+    let tree = draw(props);
     press(byTestId(tree, "sb-account"));
-    tree = redraw();
+    tree = redraw(props);
     const menu = byTestId(tree, "sb-account-menu");
     assert.ok(menu, "the menu is open");
     assert.equal(byTestId(menu, "sb-me-shortcuts"), null, "a phone needs no keys");
     assert.deepEqual(keysDrawn(menu), []);
     assert.equal(textOf(byTestId(menu, "sb-me-settings")), "Settings");
-    assert.match(textOf(byTestId(menu, "sb-me-name")), /^Profile/);
-    assert.equal(textOf(byTestId(menu, "sb-me-notifications")), "Notifications");
+    assert.equal(byTestId(menu, "sb-me-name"), null, "no Profile row: the name at the head is its door");
+    assert.equal(byTestId(menu, "sb-me-notifications"), null, "no Notifications row while nothing says it is off");
+    press(byTestId(menu, "sb-me"));
+    assert.deepEqual(went, ["admin/profile"], "the name opens the profile");
   });
   onDesk(true, () => {
     let tree = draw();
