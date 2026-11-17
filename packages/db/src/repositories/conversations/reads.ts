@@ -4,6 +4,8 @@
  * and the holds waiting. Read on the member's own client. Each answer is the database's as it came.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DbFailure } from "@chanlytics/contracts";
+import { tenantDb } from "../../shared/tenant-db";
 import type { Database } from "../../types";
 
 import type { SchemaSet, TenantId, ContactId } from "@chanlytics/contracts";
@@ -158,6 +160,22 @@ export const resolveHold = async (db: Db, escalationId: string, userId: string) 
     .eq("id", escalationId)
     .eq("state", "open")
     .select("id");
+
+/**
+ * A hold let go by the platform: resolved with no member named and no decision, as a thread set aside resolves its own
+ * (00539 conversation_set_aside). True when it was still open, so two ticks let one hold go once. Its notices close with
+ * it (escalation_closes_its_notices), and the thread is left as it stands: a call that reached no answer paused nothing.
+ */
+export async function letHoldGo(db: Db, tenantId: TenantId, escalationId: string): Promise<boolean> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("escalations")
+    .update({ state: "resolved" })
+    .eq("id", escalationId)
+    .eq("state", "open")
+    .select("id");
+  if (error) throw new DbFailure(error, "letting a call back go");
+  return data.length > 0;
+}
 
 /** A hold linked to the decision that resolved it. */
 export const linkHoldDecision = async (db: Db, escalationId: string, decisionId: string) =>

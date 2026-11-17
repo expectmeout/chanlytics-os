@@ -3,6 +3,7 @@
 import type { FileDto, FileShelf, FilesTally } from "./views";
 import type { FileShows, FileSource, FileWhoInIt } from "./limits";
 import { FILE_VIDEO_MINUTES_MAX } from "./kinds";
+import { VIDEO_TILE_WORDS } from "./tile-words";
 
 /** The place in a shelf's order a page ends at, for the next to start from. */
 export const fileCursorOf = (file: Pick<FileDto, "created_at" | "id">): string => `${file.created_at}|${file.id}`;
@@ -223,8 +224,7 @@ export const FILE_WORDS = {
       "Add the ones that show your place and your work. AI looks at each one, and listens to each video, and names it for what it shows.",
     added: (n: number) =>
       n === 1 ? "Video added. It's being prepared." : `${n} videos added. They're being prepared.`,
-    gettingReady: "Getting it ready",
-    notPrepared: "Couldn't be prepared",
+    ...VIDEO_TILE_WORDS,
     notPreparedNote: "The video couldn't be read. Delete it, and add another copy.",
     whatIsSaid: "What is said",
     howItSounds: "How it sounds",

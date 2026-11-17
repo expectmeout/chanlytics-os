@@ -10,6 +10,7 @@ export {
   markRecordingOpened,
   pageCallRows,
 } from "./call-rows";
+export { findCallerFacts } from "./caller";
 export {
   callForReview,
   callSecondsSince,

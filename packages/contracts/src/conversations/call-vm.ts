@@ -152,6 +152,17 @@ export function spokenDuration(ms: number | null): string {
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
 }
 
+/** How each of the two to-dos below begins: what a hold's details are read by (saysUnansweredCall). */
+const MISSED_CALL_TODO = "Missed call: it rang and never connected.";
+const HUNG_UP_TODO = /^Hung up after .+ without a word\./;
+
+/**
+ * Whether a hold's details are a call that reached no answer, as unansweredCallTodo wrote them: the one thing that says
+ * a call back was asked by silence and not by anything the caller said (the hold keeps no other mark of it).
+ */
+export const saysUnansweredCall = (details: string | null | undefined): boolean =>
+  !!details && (details.startsWith(MISSED_CALL_TODO) || HUNG_UP_TODO.test(details));
+
 /**
  * What a person is asked to do about a customer's call that reached no answer, or null for any other call: one that
  * never connected (a missed call) and one they left without a word (abandonedCall) each open the thread's `callback`
@@ -164,7 +175,7 @@ export function unansweredCallTodo(
   },
 ): string | null {
   if (missedCall({ missed: neverConnected(dto), direction: dto.direction })) {
-    return `Missed call: it rang and never connected. ${HOLD_ACT_WORDS.call_back.notice}`;
+    return `${MISSED_CALL_TODO} ${HOLD_ACT_WORDS.call_back.notice}`;
   }
   if (abandonedCall(dto)) {
     return `Hung up after ${spokenDuration(dto.duration_ms)} without a word. ${HOLD_ACT_WORDS.call_back.notice}`;

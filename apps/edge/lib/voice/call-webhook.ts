@@ -71,11 +71,12 @@ import { claimControl, releaseControl, CALL_CONTROL_S } from "@chanlytics/db/con
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
 import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
+import { readCallerStanding, readPricesAllowed } from "./webhook/facts.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "./apns.js";
 import { wasErasedBeforeCall } from "../shared/erased.js";
 import { upsertEscalation } from "@chanlytics/jobs";
-import { frameGuardrail, pauseMsOf, MIN_MS, priceAllowance, spokenBreach, recordOrEmpty } from "@chanlytics/contracts";
+import { frameGuardrail, pauseMsOf, MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../shared/env.js";
 import { keptUrl, retellSigned } from "../shared/door-auth.js";
@@ -90,7 +91,7 @@ import {
   type CallStep,
 } from "./call-event.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
-import { logAndGoOn, logKeptGoing } from "@chanlytics/log";
+import { logAndGoOn } from "@chanlytics/log";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
@@ -492,25 +493,6 @@ async function correctReceptionist(
   });
 }
 
-/**
- * The prices the receptionist may say on this call (contracts priceAllowance), read only when the turns name one:
- * a strict check that finds nothing has nothing an allowance could change, and a warm runtime read still costs a stamp
- * round trip on every delivery. A workspace that cannot be read is strict, never a failed delivery (decision 0051).
- * Read at the call's start, where its prompt was composed (call-start.ts): a call that runs past midnight on an offer's
- * last day is judged by what the caller's receptionist was told, the offer's note and its price included.
- */
-async function allowedOnCall(db: Db, routed: RoutedChannel, call: NormalizedCall): Promise<ReadonlySet<string> | null> {
-  if (!spokenBreach(call.transcriptObject, null)) return null;
-  try {
-    const rt = await loadTenantRuntime(db, routed);
-    const composedAt = call.startedAtIso ? new Date(call.startedAtIso) : new Date();
-    return rt.loadFailed ? null : priceAllowance(rt.brain, rt.timezone, composedAt);
-  } catch (e) {
-    logKeptGoing("a call's allowance", e);
-    return null;
-  }
-}
-
 /** One step of the plan, made real. The claim is the door's own (applyPlan), because its answer decides the response. */
 async function applyStep(
   db: Db,
@@ -740,6 +722,8 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   let callId: string | null = null;
   // The person the ingest placed the call on, whose saved name the owner's notice leads with.
   let callerId: ContactId | null = null;
+  // Nobody is told of a call that asks for nothing (decision 0136).
+  let untold = false;
 
   try {
     if (!routed) await deadLetter(db, result);
@@ -755,12 +739,14 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
           ingest: res,
           alreadyCorrected: false,
           canCorrect: !!env.RETELL_API_KEY,
-          allowed: await allowedOnCall(db, routed, result),
+          allowed: await readPricesAllowed(db, routed, result),
+          caller: await readCallerStanding(db, routed, event, result, res),
         },
       );
       callAbout = plan.about;
       callId = plan.callId;
       callerId = res.contact_id;
+      untold = plan.untold;
       notifyClaim = await applyPlan(db, routed, plan);
     }
   } catch (error) {
@@ -781,6 +767,12 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
   // nobody.
   const missed = event !== "call_analyzed" && isMissedCall(result);
   if (event !== "call_analyzed" && !(missed && notifyClaim !== null)) return { kind: "settled", told: false };
+  // A call that asks for nothing tells nobody: its claim stands and its notice is marked told, so neither leg of the
+  // calls sweep settles it again (listCallsOwedAnAnalysis reads the claim, listCallsOwedANotice the mark).
+  if (untold) {
+    if (routed && callId && notifyClaim !== null) await markCallNoticeTold(db, routed.tenantId, callId);
+    return { kind: "settled", told: false };
+  }
   // A retry or a replay finds the claim taken: the notice is asked again under its name, and sends only a mail still
   // owed (notifyOnce); told already, it sends nothing and the delivery is a duplicate.
   const saved = await savedCallerName(db, routed, callerId, result.retellCallId);

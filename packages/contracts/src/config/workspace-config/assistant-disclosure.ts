@@ -45,3 +45,14 @@ export function disclosureFacts(
   const at = Date.parse(params.lastTurnAt);
   return Number.isFinite(at) && now.getTime() - at < CONVERSATION_GAP_MS ? [CONVERSATION_UNDER_WAY] : [];
 }
+
+/**
+ * A call from someone selling to the business, or from a recording (decision 0136). The receptionist treated a
+ * telemarketer as a customer: it took their message and said the team would follow up, the call's analysis asked for a
+ * call back, and the number sat in Needs you (17 Nov 2026). It is told what such a caller is, to promise them nothing,
+ * and to end the call; and, since a customer taken for a salesperson is the worse mistake, that anyone it is unsure of
+ * is a customer. On a call alone: a pitch in a chat is read by the sender's reader (decision 0080), not by the brain.
+ * Said here, beside the other standing line about who is on the other end, and placed by compose.ts standingRules.
+ */
+export const SELLING_CALL_RULE =
+  "Someone selling to the business (marketing, a listing, search rankings, card processing, any service they want the business to buy) is not a customer. Do not take a message for them, offer a call back or say the team will follow up: say the business does not take sales calls on this line, and use end_call. A recorded or automated message is nobody to answer: use end_call. If you are not sure they are selling, treat them as a customer.";

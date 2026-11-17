@@ -46,7 +46,7 @@ const ingest = (over = {}) => ({
 const plan = (event, c, facts = {}) =>
   planCallEvent(
     { event, call: c, n: normalizeCall(c), bodyKeys: [], callKeys: [] },
-    { ingest: ingest(), alreadyCorrected: false, canCorrect: true, allowed: null, ...facts },
+    { ingest: ingest(), alreadyCorrected: false, canCorrect: true, allowed: null, caller: null, ...facts },
   );
 
 test("a customer's call that never connected leaves its line in the thread as it ends, and is told once", () => {
@@ -130,7 +130,7 @@ test("a call that ended the platform's way pages the platform; an ordinary endin
       bodyKeys: [],
       callKeys: [],
     },
-    { ingest: ingest({ skipped: true }), alreadyCorrected: false, canCorrect: true, allowed: null },
+    { ingest: ingest({ skipped: true }), alreadyCorrected: false, canCorrect: true, allowed: null, caller: null },
   );
   assert.equal(
     stale.steps.some((s) => s.kind === "page_platform"),

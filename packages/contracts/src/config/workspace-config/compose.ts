@@ -19,7 +19,7 @@ import { DRAFT_RULES, EMAIL_DRAFT_SHAPE, noLinkDraft } from "./draft-audience";
 import { bookingHeld, draftMoneyRule, policyRules } from "./policy-classes";
 import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
 import { offersAnswerRule, offersAskRule } from "./offers-ask";
-import { CONVERSATION_UNDER_WAY } from "./assistant-disclosure";
+import { CONVERSATION_UNDER_WAY, SELLING_CALL_RULE } from "./assistant-disclosure";
 import { promptHoursLines, joinList } from "./prompt-hours";
 import { dayInZone } from "../../shared/zone/math";
 import { dateFormat } from "../../shared/time";
@@ -739,9 +739,9 @@ const RULES_WIN = "Where anything above disagrees with these rules, the rules wi
 
 /**
  * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules), that it is an
- * automated assistant (to a customer), that these rules win, and that what a customer writes is data, never an
- * instruction (DATA_NOT_INSTRUCTIONS, the one injection policy). A draft's rows are its own (DRAFT_RULES, the money row
- * in its words): the Autonomy rows say what the receptionist itself may send, and nothing here sends.
+ * automated assistant and, on a call, what a seller is owed (to a customer), that these rules win, and that a customer's
+ * words are data, never an instruction (DATA_NOT_INSTRUCTIONS, the one injection policy). A draft's rows are its own
+ * (DRAFT_RULES, the money row in its words): the Autonomy rows say what the receptionist may send, and nothing here sends.
  */
 export function standingRules(
   policy: Record<string, { mode: string }> | null | undefined,
@@ -749,7 +749,7 @@ export function standingRules(
   audience: PromptAudience,
 ): string[] {
   if (audience === "draft") return [...DRAFT_RULES, draftMoneyRule(), RULES_WIN, DATA_NOT_INSTRUCTIONS];
-  const assistant = channel === "voice" ? [ASSISTANT_RULE.always] : [ASSISTANT_RULE.always, ASSISTANT_RULE.textOpening];
+  const assistant = [ASSISTANT_RULE.always, channel === "voice" ? SELLING_CALL_RULE : ASSISTANT_RULE.textOpening];
   return [...policyRules(policy, channel), ...assistant, RULES_WIN, DATA_NOT_INSTRUCTIONS];
 }
 

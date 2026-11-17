@@ -30,6 +30,8 @@ export interface IxNeedsYou {
   olderRows: TodayQueueRowVM[];
   /** What a conversation Needs you holds by the count alone asks of you, its row's word ("Reply soon"); null for the rest. */
   why: (t: Thread) => string | null;
+  /** The one count's row of a conversation, its own or a folded one's: what one person past a week is drawn from. */
+  rowOf: (t: Thread) => TodayQueueRowVM | null;
   /** How many: the one count (contracts needYouCountOf), or null while Today has not been read, when the list counts itself. */
   count: number | null;
 }
@@ -51,7 +53,10 @@ export function ixNeedsYouOf(
   nowMs: number = Date.now(),
 ): IxNeedsYou {
   const own = (t: Thread) => ixBucketOf(t, nowMs) === "escalated";
-  if (!counted) return { listed: own, older: NONE_FOLDED, rows: [], olderRows: [], why: () => null, count: null };
+  if (!counted) {
+    const none = () => null;
+    return { listed: own, older: NONE_FOLDED, rows: [], olderRows: [], why: none, rowOf: none, count: null };
+  }
   const { groups, runs } = counted;
   const conversationOf = (t: Thread) => (t.real ? t.conversationId : null);
   const byConversation = (rows: readonly TodayQueueRowVM[]) =>
@@ -75,6 +80,7 @@ export function ixNeedsYouOf(
     rows: [...people.filter(away), ...groups.ok],
     olderRows: groups.old.filter(away),
     why: (t) => (own(t) ? null : (rowOf(t)?.status[0] ?? null)),
+    rowOf,
     count: needYouCountOf(groups, runs),
   };
 }

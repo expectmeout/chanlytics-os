@@ -50,6 +50,8 @@ const VIEW_KEEP_S = (6 * DAY_MS) / SECOND_MS;
 const POSTER_KEEP_S = HOUR_MS / SECOND_MS;
 /** How long the edge has to sign a player's address: one token, one signed poster. */
 const PLAY_MS = 8 * SECOND_MS;
+/** Storage's word, in its answer's body, for a file that is not in the bucket (decision 0099 reads the body's code the same way). */
+const STORAGE_MISSING = "404";
 /** The widths a picture is drawn at, so one picture is resized a few times and never once per asker. */
 const VIEW_WIDTHS = [480, 1280] as const;
 const VIEW_WIDEST = 2000;
@@ -198,6 +200,10 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
       ? { transform: { width: widthOf(requested), resize: "contain" as const } }
       : {};
   const link = await bucket().createSignedUrl(path, VIEW_LINK_S, opts);
+  // A video can be played a few seconds before its poster is cut (the digest's first step), and a page on screen asks at
+  // once: asked for between, it is getting ready, as its tile says, and nothing has failed (seen on production 11 Nov 2026).
+  if (file.kind === "video" && !download && link.error?.statusCode === STORAGE_MISSING)
+    throw new AppError("not_found", W.video.gettingReady, 404);
   if (link.error || !link.data) {
     log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error?.message ?? "no address" });
     throw new AppError("unavailable", W.failedRead);

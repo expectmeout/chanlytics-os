@@ -816,19 +816,58 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
     const search = all(tree, (n) => n.props?.testid === "queue-search");
     assert.equal(search.length, 1, "the search's question is a row of Needs you, as on Today");
     assert.equal(search[0].props.cta.label, "Answer");
-    const fold = all(tree, (n) => n.props?.testid === "inbox-older-row");
-    assert.equal(fold.length, 1, "one row folds whoever waited past a week");
-    assert.equal(fold[0].props.name, "1 waiting over a week", "in Today's words for them");
+    // One person past a week is their own row, as Today draws them: who, and Mark done beside. A fold of one hid both.
+    assert.equal(all(tree, (n) => n.props?.testid === "inbox-older-row").length, 0, "one person is no fold");
+    const one = all(tree, (n) => n.props?.testid === "inbox-older-one");
+    assert.equal(one.length, 1, "REGRESSION: one person past a week was a fold, '1 waiting over a week', to be opened");
+    assert.equal(one[0].props.name, "Olga Reyes", "who has waited, by name");
+    assert.equal(one[0].props.cta.label, "Mark done", "and the press that lets her go, as on Today");
     const option = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
-    assert.equal(option("Olga Reyes"), null, "folded: her conversation is not drawn until it is opened");
+    assert.equal(option("Olga Reyes"), null, "her conversation is not among the rows that count");
     assert.equal(
       textOf(byTestId(option("Sam Lee"), "thread-todo") ?? ""),
       "Reply soon",
       "a row Needs you holds by the count says why, as Today's row does",
     );
+    const opened = [];
+    const pressed = again(() => InboxList({ ...seen.list, onSelectThread: (id) => opened.push(id) }));
+    find(pressed, (n) => n.props?.testid === "inbox-older-one").props.onOpen();
+    assert.deepEqual(opened, [olgaNow.id], "a press on her row opens her conversation");
+  } finally {
+    setSurfaceValue("today", undefined);
+    setSurfaceValue("broadcasts", undefined);
+  }
+});
+
+test("several past a week fold into one row at Needs you's foot, which opens in place into their own rows", () => {
+  const w = ONE_NUMBER();
+  const ivy = [nowConv("n4", "Ivy Chen", 12 * DAY_MIN), nowHold("n4", 12 * DAY_MIN - 5)];
+  const pairs = [w.rosa, w.olga, ivy];
+  setSurfaceValue(
+    "today",
+    todayNow(
+      pairs,
+      pairs.map(([dto, esc]) => ({ ...esc, conversation_id: dto.id })),
+      [],
+    ),
+  );
+  try {
+    const { seen } = page(pairs.map(vmNow));
+    fresh();
+    const draw = () => again(() => InboxList({ ...seen.list }));
+    let tree = draw();
+    assert.equal(all(tree, (n) => n.props?.testid === "inbox-older-one").length, 0, "two are a fold, not a row each");
+    const fold = all(tree, (n) => n.props?.testid === "inbox-older-row");
+    assert.equal(fold.length, 1, "one row folds whoever waited past a week");
+    assert.equal(fold[0].props.name, "2 waiting over a week", "in Today's words for them");
+    const option = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
+    assert.equal(option("Olga Reyes"), null, "folded: her conversation is not drawn until it is opened");
     fold[0].props.onOpen();
     tree = draw();
-    assert.ok(option("Olga Reyes"), "opened in place: her conversation's own row, under the fold");
+    assert.ok(
+      option("Olga Reyes") && option("Ivy Chen"),
+      "opened in place: each conversation's own row, under the fold",
+    );
     assert.equal(
       find(tree, (n) => n.props?.role === "listbox" && n.props?.["aria-label"] === "Waiting over a week") !== null,
       true,
@@ -836,7 +875,29 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
     );
   } finally {
     setSurfaceValue("today", undefined);
-    setSurfaceValue("broadcasts", undefined);
+  }
+});
+
+test("Needs you with nobody but someone past a week says nothing needs you over their row, never that nobody is waiting", () => {
+  // 17 Nov 2026, on a phone: "Nobody's waiting on you" stood over "1 waiting over a week".
+  const w = ONE_NUMBER();
+  setSurfaceValue("today", todayNow([w.olga], [{ ...w.olga[1], conversation_id: w.olga[0].id }], []));
+  try {
+    const { seen } = page([vmNow(w.olga), answered]);
+    assert.equal(needsYouNow(), 0, "nobody past a week is counted");
+    fresh();
+    const tree = again(() => InboxList({ ...seen.list, activeBucket: "escalated", threads: [] }));
+    const said = textOf(tree);
+    assert.match(said, /Nothing needs you/, "Today's own words for it");
+    assert.match(said, /1 older one has waited over a week\. It may need nothing from you\./);
+    assert.doesNotMatch(
+      said,
+      /Nobody's waiting on you/,
+      "REGRESSION: the card said nobody waits, over someone who does",
+    );
+    assert.equal(all(tree, (n) => n.props?.testid === "inbox-older-one").length, 1, "and her row is under it");
+  } finally {
+    setSurfaceValue("today", undefined);
   }
 });
 

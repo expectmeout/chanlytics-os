@@ -7,13 +7,14 @@
  * stands over them.
  */
 import { useState } from "react";
-import { NEED_YOU_WORDS as W, phoneAsWritten, tollFreeNumber, type TodayQueueRowVM } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { gate } from "../shell";
-import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "./groups";
+import { NeedYouGroup } from "./groups";
+import { handBackAll, handedBackWords, type HandedBack } from "./sheet/hand-back";
 import { Done } from "./parts";
 import { needYouRows, type NeedYouRowsCtx } from "./people-rows";
-import { rowWords } from "./sheet/row-words";
+import { olderWords } from "./sheet/row-words";
 import { opensToWork } from "./rows";
 import { useRowState } from "./row-state";
 
@@ -50,16 +51,10 @@ function OlderPerson({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }
         ctx.unkeep(row);
       }
     : null;
-  const words = rowWords(row);
   const may = ctx.may && !!row.conversationId;
   return (
     <AttnRow
-      {...words}
-      trail={tollFreeNumber(row.phone ?? row.who) ? W.older.tollFree : words.trail}
-      // A number's face is already the phone: one glyph says it.
-      via={phoneAsWritten(row.who) ? null : words.via}
-      // How long, in the plain ink: past a week is what the row is, and the amber is for who waits now.
-      wait={words.wait ? { words: words.wait.words, long: false } : null}
+      {...olderWords(row)}
       testid="queue-older"
       ctaTestid="today-old-done"
       onOpen={handed ? undefined : () => (opensToWork(row) ? ctx.open(row.id) : ctx.nav(row.cta.to))}
