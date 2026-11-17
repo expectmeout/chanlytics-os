@@ -53,7 +53,7 @@ const unreadQueueWords = (es: boolean) =>
 /** The runs clause, in the words Today's head and the Inbox's band say (runsWaitingSentence), as a clause. */
 function runsClause(n: number, es: boolean): string {
   if (!n) return "";
-  if (es) return `${n === 1 ? "un envío de campaña espera" : `${n} envíos de campaña esperan`} tu decisión`;
+  if (es) return `${n === 1 ? "un envío espera" : `${n} envíos esperan`} tu decisión`;
   const sentence = runsWaitingSentence(n);
   return `${sentence.charAt(0).toLowerCase()}${sentence.slice(1, -1)}`;
 }
@@ -101,8 +101,8 @@ export function rightNowLine(askWaiting: AskWaiting | null, language: AskLanguag
     windowsClause(askWaiting, es),
   ].filter(Boolean);
   if (!clauses.length) return es ? "Nadie te espera ahora mismo." : "Nobody needs you right now.";
-  const text = clauses.join("; ");
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+  // Each population its own sentence: docs/words.md has no semicolons (Ruben, 17 Nov 2026, AI's home "feels messy").
+  return clauses.map((c) => `${c.charAt(0).toUpperCase()}${c.slice(1)}.`).join(" ");
 }
 
 /**

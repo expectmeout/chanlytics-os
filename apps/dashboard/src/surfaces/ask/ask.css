@@ -197,6 +197,13 @@ body.ask-open .tb-ask .tb-ask-face {
   gap: 8px;
   min-height: 56px;
 }
+/* The placeholder is one line, never a second under it (Ruben, 17 Nov 2026); words.ts keeps each short enough to fit a
+   360px phone, and one that still does not ends at the field's edge, where a browser draws its ellipsis. */
+.ask-line-input::placeholder {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .ask-line-right {
   flex: none;
   display: flex;
@@ -417,8 +424,12 @@ body.ask-open .tb-ask .tb-ask-face {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Brief me wears the chip's capsule at an answer's next questions' size (.ask-next-row .ask-next): one look for a press
+   in AI's middle, never the kit's bordered button beside chips (Ruben, 17 Nov 2026). */
 .ask-now-brief {
   flex: none;
+  height: 34px;
+  font-size: var(--text-aside);
 }
 /* The × is the kit's (kit.css, .line-remove): whether a row wears it is the row's. */
 .ask-row-del {
@@ -428,15 +439,28 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-row.thread.sel .ask-row-del {
   display: inline-flex;
 }
+/* Not now on what AI noticed is the same x, always drawn (a notice is its fact, its act and its x: docs/words.md), and
+   quiet when a pointer reaches it: it rests the notice a week, it deletes nothing. */
+.ask-row-rest {
+  display: inline-flex;
+}
+@media (hover: hover) {
+  .ask-row-rest:hover {
+    color: var(--ink);
+    background: var(--bg-hover);
+  }
+}
 /* Under a finger every conversation wears its ×: it waited for a pointer's hover or the keys' row, and a tap on the row
    opens it, so a phone could delete nothing (Ruben, 18 Oct 2026). Quiet in the faint ink, its press wider than its 24px
    box, and still asked about first (the Line's Confirm). */
 @media (pointer: coarse) {
-  .ask-row.thread .ask-row-del {
+  .ask-row.thread .ask-row-del,
+  .ask-row-rest {
     display: inline-flex;
     position: relative;
   }
-  .ask-row.thread .ask-row-del::after {
+  .ask-row.thread .ask-row-del::after,
+  .ask-row-rest::after {
     content: "";
     position: absolute;
     inset: -6px -10px;
@@ -1180,7 +1204,7 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-hero-stage {
   display: block;
   width: 100%;
-  height: min(232px, 34dvh, calc((100dvh - var(--ask-keys, 0px) - var(--vv-top, 0px)) * 0.45));
+  height: min(140px, 22dvh, calc((100dvh - var(--ask-keys, 0px) - var(--vv-top, 0px)) * 0.45));
   border: 0;
   padding: 0;
   background: transparent;
@@ -1316,11 +1340,51 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-row.now.sel {
   background: transparent;
 }
+/* What AI noticed stands centred under Right now, as Right now does, its x after its words (Ruben, 17 Nov 2026: a row
+   to the left with a link at the right, under a centred home, read as messy). */
+.ask-row.noticed {
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+}
+.ask-row.noticed .ask-row-main {
+  flex: 0 1 auto;
+  max-width: 34ch;
+}
 .ask-chips {
   justify-content: center;
 }
 .ask-rows-note {
   text-align: center;
+}
+/* On a phone the page's questions are one row that scrolls sideways, as an answer's next questions are (.ask-next-row),
+   never a stack of chips that wraps (Ruben, 17 Nov 2026: "should only be left and right"). It runs to the panel's
+   edges, centred while it fits and from its start once it does not (`safe`), and fades at its right edge; like the next
+   questions' row it holds each chip's wider press in its own room and gives it back to what is around it. */
+@media (max-width: 720px) {
+  .ask-rows-sec > .ask-chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    justify-content: safe center;
+    align-self: stretch;
+    max-width: none;
+    overflow: auto hidden;
+    margin: -8px -16px;
+    padding: 8px 24px 8px 16px;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+  .ask-rows-sec > .ask-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .ask-rows-sec > .ask-chips > .line-chip {
+    flex: none;
+    max-width: none;
+  }
+  .ask-rows-sec > .ask-chips > .line-chip > span:first-child {
+    overflow: visible;
+  }
 }
 .ask-turn {
   padding: 8px 16px 16px;
@@ -1699,14 +1763,17 @@ body.ask-open .tb-ask .tb-ask-face {
 }
 /* The newest answer's next questions over the field (D6): one row that scrolls sideways, never cut. It fades at its
    right edge, so it reads as a row that scrolls (D15), and keeps room at its end so the last question clears the
-   fade once scrolled to. */
+   fade once scrolled to. It moves only sideways: under a finger each chip's press reaches 8px past it (frame.css), which
+   a row scrolling on both axes took for content and let a thumb drag up and down (Ruben, 17 Nov 2026), so the row holds
+   that reach in its own room under the chips and gives it back to the field below. */
 .ask-next-row {
   order: 8;
   flex: none;
   display: flex;
   gap: 8px;
-  overflow-x: auto;
-  padding: 8px 12px 0;
+  overflow: auto hidden;
+  padding: 8px 12px;
+  margin-bottom: -8px;
   scrollbar-width: none;
   animation: wash-in 160ms var(--ease-out) both;
 }
@@ -1734,15 +1801,19 @@ body.ask-open .tb-ask .tb-ask-face {
 /* While an answer is on its way its next questions' room is held (`.hold`), so the thread does not jump up when they
    arrive. On a desk the row wraps: the panel is narrow and a row cut at its edge was missed, with no swipe to find it. */
 .ask-next-row.hold {
-  height: 42px;
+  height: 50px;
 }
 @media (min-width: 721px) {
   .ask-next-row {
     flex-wrap: wrap;
     overflow: visible;
     padding: 8px 16px 0;
+    margin-bottom: 0;
     -webkit-mask-image: none;
     mask-image: none;
+  }
+  .ask-next-row.hold {
+    height: 42px;
   }
   .ask-next-row::after {
     content: none;
@@ -1758,6 +1829,7 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-now > .ask-next-row {
   order: 0;
   padding: 0 16px 14px;
+  margin-bottom: 0;
 }
 /* The three come forward over the field to listen (D4); the thread dims under them and its own face hides. */
 .ask-listen {

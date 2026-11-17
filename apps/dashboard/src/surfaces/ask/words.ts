@@ -124,10 +124,11 @@ const ASK_TEXT = {
     chartWhen: "When",
     chartName: "Name",
     needsQ: "Who needs me right now?",
-    // On Leads (spec F3): the field's placeholder, the section's label and the consent rule under its chips.
-    describeLeads: "Describe the businesses you want",
+    // On Leads (spec F3): the field's placeholder, the section's label and the consent rule under its chips. A placeholder
+    // is one line at a 360px phone's width (Ruben, 17 Nov 2026: a two-line field "i do not like"; docs/words.md, 4 words).
+    describeLeads: "Which businesses to find?",
     // On Campaigns (the moment spec, A3): the field's placeholder.
-    describeCampaigns: "Describe what should go out, and when",
+    describeCampaigns: "What should go out?",
     /** On Campaigns › Content, where Ask makes posts and videos rather than sends. */
     describeContent: "Say what to make",
     findBusinesses: "Find businesses",
@@ -146,6 +147,10 @@ const ASK_TEXT = {
               reports: "Reports",
               settings: "Settings",
               start: "setting up",
+              // Every page AI is opened on says its name, never "this page" (Ruben, 17 Nov 2026, on Campaigns).
+              campaigns: "Campaigns",
+              calendar: "the Calendar",
+              pipeline: "the Pipeline",
             }[surface] || "this page"
           }`,
     earlier: "Earlier",
@@ -274,8 +279,8 @@ const ASK_TEXT = {
     chartWhen: "Cuándo",
     chartName: "Nombre",
     needsQ: "¿Quién me necesita ahora?",
-    describeLeads: "Describe los negocios que quieres",
-    describeCampaigns: "Describe qué debe salir, y cuándo",
+    describeLeads: "¿Qué negocios buscar?",
+    describeCampaigns: "¿Qué debe salir?",
     describeContent: "Di qué hacer",
     findBusinesses: "Encontrar negocios",
     leadsConsent: "Puedes escribir y llamar a los leads. Los SMS y las ofertas esperan su sí.",
@@ -292,6 +297,9 @@ const ASK_TEXT = {
               reports: "Informes",
               settings: "Ajustes",
               start: "la configuración",
+              campaigns: "Campañas",
+              calendar: "el Calendario",
+              pipeline: "el Pipeline",
             }[surface] || "esta página"
           }`,
     earlier: "Anteriores",

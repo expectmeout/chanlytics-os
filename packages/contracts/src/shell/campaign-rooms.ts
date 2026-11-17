@@ -210,9 +210,8 @@ export const RUN_UNNAMED_WORDS = "Run";
  * for your approval, or for your say on the emails its check holds (waits.ts runWaitsOnYou): one word covers both.
  */
 export function runsWaitingSentence(count: number): string {
-  return count === 1
-    ? "A campaign run is waiting for your approval."
-    : `${count} campaign runs are waiting for your approval.`;
+  // One time a campaign goes out is a send (docs/words.md), as AI's pill says it beside this sentence.
+  return count === 1 ? "A send is waiting for your approval." : `${count} sends are waiting for your approval.`;
 }
 
 /** A reach-out's going run whose emails the check holds for the owner's say: "2 emails wait for your say". */

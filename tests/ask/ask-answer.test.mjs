@@ -245,13 +245,13 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
   assert.equal(rightNowLine(waiting(["Ana"]), "en"), "Ana needs you.");
   assert.equal(
     rightNowLine(waiting(["Ana", "Sam"], 1), "en"),
-    "Ana and Sam need you; a campaign run is waiting for your approval.",
+    "Ana and Sam need you. A send is waiting for your approval.",
   );
   assert.equal(rightNowLine(waiting(["Ana", "Sam", "Lee", "Kai"]), "en"), "Ana, Sam and 2 others need you.");
-  // A person reads "campaign", never "playbook" (the moment spec, D19), in both languages.
-  assert.equal(rightNowLine(waiting([], 2), "en"), "2 campaign runs are waiting for your approval.");
-  assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío de campaña espera tu decisión.");
-  assert.equal(rightNowLine(waiting([], 2), "es"), "2 envíos de campaña esperan tu decisión.");
+  // One time a campaign goes out is a send (docs/words.md), never a run or a playbook (the moment spec, D19), in both languages.
+  assert.equal(rightNowLine(waiting([], 2), "en"), "2 sends are waiting for your approval.");
+  assert.equal(rightNowLine(waiting([], 1), "es"), "Un envío espera tu decisión.");
+  assert.equal(rightNowLine(waiting([], 2), "es"), "2 envíos esperan tu decisión.");
   assert.equal(rightNowLine(waiting([]), "es"), "Nadie te espera ahora mismo.");
   assert.equal(rightNowLine(waiting(["Ana", "Sam"]), "es"), "Ana y Sam te esperan.");
   assert.equal(
@@ -270,7 +270,7 @@ test("Right now is Today's queue in a sentence: the people waiting, then the run
 test("Right now names the one search waiting for an answer, counts several, after the people and the runs", () => {
   assert.equal(
     rightNowLine(waiting(["Ana"], 0, 0, [SEARCH]), "en"),
-    "Ana needs you; your search for personal trainers is waiting for your answer.",
+    "Ana needs you. Your search for personal trainers is waiting for your answer.",
   );
   assert.equal(
     rightNowLine(waiting([], 0, 0, [SEARCH, { ...SEARCH, id: "q-s-s2", name: "yoga studios" }]), "en"),
@@ -278,8 +278,8 @@ test("Right now names the one search waiting for an answer, counts several, afte
   );
   assert.equal(
     rightNowLine(waiting(["Ana"], 1, 0, [SEARCH]), "en"),
-    "Ana needs you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
-    "three populations, three clauses, in this order",
+    "Ana needs you. A send is waiting for your approval. Your search for personal trainers is waiting for your answer.",
+    "three populations, three sentences, in this order (docs/words.md: no semicolons)",
   );
   assert.equal(
     rightNowLine(waiting([], 0, 0, [SEARCH]), "es"),
@@ -306,7 +306,7 @@ test("rightNowCounts: the people, the runs and the searches the sentence counts;
   assert.deepEqual(rightNowCounts(w), { people: 3, runs: 1, searches: 1, windows: 1 });
   assert.equal(
     rightNowLine(w, "en"),
-    "Nora, Emily and 1 other need you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer; Eve's reply window is closing.",
+    "Nora, Emily and 1 other need you. A send is waiting for your approval. Your search for personal trainers is waiting for your answer. Eve's reply window is closing.",
   );
 });
 
@@ -319,8 +319,8 @@ test("Right now says a reply window closing as a window, never as someone who ne
   );
   assert.equal(rightNowLine(one, "es"), "La ventana de respuesta de Eve se está cerrando.");
   const two = { ...waiting(["Ana"]), windows: [closing("Eve"), closing("Bo", 1)] };
-  assert.equal(rightNowLine(two, "en"), "Ana needs you; 2 reply windows are closing.");
-  assert.equal(rightNowLine(two, "es"), "Ana te espera; 2 ventanas de respuesta se están cerrando.");
+  assert.equal(rightNowLine(two, "en"), "Ana needs you. 2 reply windows are closing.");
+  assert.equal(rightNowLine(two, "es"), "Ana te espera. 2 ventanas de respuesta se están cerrando.");
   assert.deepEqual(rightNowCounts(two), { people: 1, runs: 0, searches: 0, windows: 2 });
 });
 
@@ -329,7 +329,7 @@ test("who needs me: the sentence, then the people, the searches and the runs as 
   assert.equal(a.form, "structured");
   assert.equal(
     a.say.headline,
-    "Ana and Sam need you; a campaign run is waiting for your approval; your search for personal trainers is waiting for your answer.",
+    "Ana and Sam need you. A send is waiting for your approval. Your search for personal trainers is waiting for your answer.",
   );
   assert.deepEqual(
     a.show.items.map((i) => [i.title, i.meta, i.line, i.source.to]),
