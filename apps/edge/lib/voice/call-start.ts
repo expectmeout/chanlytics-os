@@ -108,7 +108,7 @@ interface CallStart {
   /**
    * A member said this caller's thread is not a customer's (contracts saidNotACustomer, read with their memory): the
    * door turns the call away before the receptionist answers (decision 0137). False for anyone else, and wherever the
-   * memory could not be read or the plan ran late: a call is never refused on a read that did not answer.
+   * memory could not be read whole or the plan ran late: a call is never refused on a read that did not answer.
    */
   refused: boolean;
   /**
@@ -347,6 +347,10 @@ export async function planRehearsalStart(
   };
 }
 
+/** The caller's thread, as the plan hands it on: which it is, and whether a member said it is not a customer's. */
+type CallerThread = Pick<CallStart, "conversationId" | "refused">;
+const NO_THREAD: CallerThread = { conversationId: null, refused: false };
+
 async function planCallStart(callStartInput: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = callStartInput.now ?? new Date();
   const phone = normalizePhone(callStartInput.from);
@@ -358,8 +362,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
   let businessFacts = "";
   let context = "";
   let line: SpokenLine = NO_LINE;
-  let conversationId: string | null = null;
-  let refused = false;
+  let thread: CallerThread = NO_THREAD;
   let configVersion: number | null = null;
   let tenantId: TenantId | null = null;
   const fail = (e: unknown) => {
@@ -446,8 +449,6 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
           fail(leadR.reason);
         } else if (leadR.value) {
           const lead = leadR.value;
-          // Said first: the word was read with them, whatever the calendar below makes of their visits.
-          refused = lead.notACustomer === true;
           const parts = [describeLead(lead, now, rt?.timezone ?? "UTC", "voice")];
           // The caller's appointments ride with who they are: "when am I booked?" is answered from the calendar.
           const visits = settledOrThrow(visitsR);
@@ -460,7 +461,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
             parts.push(lines.join("\n"));
           }
           context = parts.join("\n");
-          conversationId = lead.conversationId;
+          thread = { conversationId: lead.conversationId, refused: lead.notACustomer === true };
           // Said last, once the whole of it is built: a memory that threw
           // halfway is told as none, never as half.
           memory = lead.contactId ? "known" : "new";
@@ -482,8 +483,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
     memory,
     alert,
     error,
-    conversationId,
-    refused,
+    ...thread,
     voiceId: line.voiceId,
     voiceSpeed: line.voiceSpeed,
     configVersion,

@@ -96,7 +96,7 @@ export async function readPgThread(
       textedBefore: s.textedBefore,
       control: liveHoldOf(hold ?? {}),
       // A member's word that the thread is not a customer's, off the same row (decision 0137).
-      notACustomer: saidNotACustomer(hold ?? {}),
+      notACustomer: saidNotACustomer(hold),
     };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });

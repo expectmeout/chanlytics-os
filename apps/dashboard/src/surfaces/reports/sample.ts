@@ -426,13 +426,6 @@ function sampleMissed(calls: number): ReceptionistSeries["missed"] {
   return { now: at(0.2), before: at(0.25) };
 }
 
-/** The calls kept off the owner's list: about one for every twelve that came in, most of them silent diallers. */
-function sampleScreened(calls: number): NonNullable<ReceptionistDto["screened"]> {
-  const total = Math.round(calls / 12);
-  const [silent = 0, selling = 0, refused = 0] = sharedOver(total, [50, 30, 20]);
-  return { total, by_reason: { toll_free_silent: silent, selling, refused } };
-}
-
 /** The quarter hours the sample's customers write at: through the morning, the afternoon, and at nine in the evening. */
 const MORNING_Q = 44;
 const AFTERNOON_Q = 64;
@@ -500,7 +493,6 @@ function receptionistDto(vm: ReportVM, win: ReportWindowVM, today: string): Rece
     days: win.days,
     series,
     profile: SAMPLE_PROFILE,
-    screened: sampleScreened(vm.calls.total),
   };
 }
 

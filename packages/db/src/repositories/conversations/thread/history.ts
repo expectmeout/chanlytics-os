@@ -370,7 +370,7 @@ export async function readLeadContext(
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
-    notACustomer: !!conv && saidNotACustomer(conv),
+    notACustomer: saidNotACustomer(conv),
     // display_name is what a human typed; wa_profile_name is what WhatsApp
     // reports. The human's version wins, and neither is invented.
     name: contact.display_name || contact.wa_profile_name || null,
