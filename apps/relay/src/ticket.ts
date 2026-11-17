@@ -37,15 +37,15 @@ function bytesOfBase64Url(text: string): Uint8Array<ArrayBuffer> | null {
   }
 }
 
-const hmacKeyOf = (secret: string, use: "sign" | "verify"): Promise<CryptoKey> =>
-  crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [use]);
+const hmacKeyOf = (signingKey: string, use: "sign" | "verify"): Promise<CryptoKey> =>
+  crypto.subtle.importKey("raw", encoder.encode(signingKey), { name: "HMAC", hash: "SHA-256" }, false, [use]);
 
 /** A ticket for one item, good until `expiresAt` (unix seconds). Throws on a name no item has, or an empty key. */
-export async function signTicket(secret: string, claim: { item: string; expiresAt: number }): Promise<string> {
-  if (!secret) throw new Error("a ticket is signed with the ticket's key");
+export async function signTicket(signingKey: string, claim: { item: string; expiresAt: number }): Promise<string> {
+  if (!signingKey) throw new Error("a ticket is signed with the ticket's key");
   if (!ITEM.test(claim.item)) throw new Error("a ticket names an item by its id");
   const body = `${TICKET_VERSION}.${base64UrlOf(encoder.encode(JSON.stringify({ item: claim.item, exp: Math.floor(claim.expiresAt) })))}`;
-  const signature = await crypto.subtle.sign("HMAC", await hmacKeyOf(secret, "sign"), encoder.encode(body));
+  const signature = await crypto.subtle.sign("HMAC", await hmacKeyOf(signingKey, "sign"), encoder.encode(body));
   return `${body}.${base64UrlOf(new Uint8Array(signature))}`;
 }
 
@@ -74,14 +74,14 @@ function ticketClaimOf(text: string): { item: string; exp: number } | null {
  * What a ticket says, once its signature holds and its time has not come: the item it names. The signature is checked
  * before anything it signs is believed, and by Web Crypto's own compare, which takes the same time for any wrong one.
  */
-export async function readTicket(secret: string, ticket: string | null, nowMs: number): Promise<TicketRead> {
+export async function readTicket(signingKey: string, ticket: string | null, nowMs: number): Promise<TicketRead> {
   const [version, claimText, signatureText, ...rest] = (ticket ?? "").split(".");
   if (version !== TICKET_VERSION || !claimText || !signatureText || rest.length)
     return { ok: false, reason: "malformed" };
   const signature = bytesOfBase64Url(signatureText);
-  if (!signature || !secret) return { ok: false, reason: signature ? "signature" : "malformed" };
+  if (!signature || !signingKey) return { ok: false, reason: signature ? "signature" : "malformed" };
   const signed = encoder.encode(`${version}.${claimText}`);
-  if (!(await crypto.subtle.verify("HMAC", await hmacKeyOf(secret, "verify"), signature, signed)))
+  if (!(await crypto.subtle.verify("HMAC", await hmacKeyOf(signingKey, "verify"), signature, signed)))
     return { ok: false, reason: "signature" };
   const claim = ticketClaimOf(claimText);
   if (!claim) return { ok: false, reason: "malformed" };

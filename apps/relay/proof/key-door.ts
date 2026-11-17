@@ -52,7 +52,7 @@ interface ProofRun {
 const ITEM = /^[A-Za-z0-9_-]{1,128}$/;
 const RUN_PATH = /^\/runs\/([A-Za-z0-9_-]{1,128})$/;
 /** A key this close to its end is not handed out: a download begun with it could outlive it. */
-const KEY_MARGIN_MS = 60_000;
+const KEY_MARGIN_SECONDS = 60;
 /** A download smaller than this is a fetcher's probe, and is not the one to break. */
 const BREAK_BYTES_MIN = 1_048_576;
 /** How many keys a Durable Object deletes in one call. */
@@ -104,7 +104,8 @@ async function answerKnock(request: Request, secrets: DoorSecrets, store: RunSto
   if (!read.ok) return jsonAnswer(403, { error: "ticket", reason: read.reason });
   const run = keptRunOf(await store.get(runKey(read.item)));
   if (!run) return jsonAnswer(404, { error: "no_run" });
-  if (nowMs >= run.keyExpiresAt - KEY_MARGIN_MS) return jsonAnswer(503, { error: "key_ended" }, { "retry-after": "5" });
+  if (nowMs >= run.keyExpiresAt - KEY_MARGIN_SECONDS * 1000)
+    return jsonAnswer(503, { error: "key_ended" }, { "retry-after": "5" });
 
   const method = isJsonObject(body) && body.method === "HEAD" ? "HEAD" : "GET";
   const range = isJsonObject(body) && typeof body.range === "string" ? body.range : null;
@@ -178,11 +179,11 @@ async function forgetRun(item: string, store: RunStore): Promise<Response> {
   return jsonAnswer(200, { ok: true });
 }
 
-/** Whether two secrets are one, in the same time for any two: both are hashed, and every byte is compared. */
-async function isSameSecret(given: string, held: string): Promise<boolean> {
+/** Whether two keys are one, in the same time for any two: both are hashed, and every byte is compared. */
+async function isSameKey(given: string, held: string): Promise<boolean> {
   const [a, b] = await Promise.all(
     [given, held].map(
-      async (secret) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret))),
+      async (text) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))),
     ),
   );
   if (!a || !b || !held) return false;
@@ -199,7 +200,7 @@ export async function answerKeyDoor(
   nowMs: number,
 ): Promise<Response> {
   const given = /^Bearer (.+)$/.exec(request.headers.get("authorization") ?? "")?.[1] ?? "";
-  if (!(await isSameSecret(given, secrets.KEY_DOOR_SECRET))) return jsonAnswer(401, { error: "unauthorized" });
+  if (!(await isSameKey(given, secrets.KEY_DOOR_SECRET))) return jsonAnswer(401, { error: "unauthorized" });
   const path = new URL(request.url).pathname;
   if (path === "/key" && request.method === "POST") return answerKnock(request, secrets, store, nowMs);
   const item = RUN_PATH.exec(path)?.[1];

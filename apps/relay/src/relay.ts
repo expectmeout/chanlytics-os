@@ -67,7 +67,7 @@ async function askWithin(deps: RelayDeps, url: string, init: RequestInit, ms: nu
 }
 
 /** A refusal: its status, whose it is and why in one word, and no body where the question was a HEAD. */
-function refusalOf(
+function relayRefusal(
   head: boolean,
   status: number,
   refusal: { error: "request" | "ticket" | "key_door" | "drive"; reason: string },
@@ -99,7 +99,7 @@ async function driveReasonOf(reply: Response): Promise<string> {
 /** Drive said no: its status as it is, its reason in one word, and how long to rest where it says. */
 async function refuseAsDrive(head: boolean, reply: Response): Promise<Response> {
   const rest = reply.headers.get("retry-after");
-  return refusalOf(
+  return relayRefusal(
     head,
     reply.status,
     { error: "drive", reason: await driveReasonOf(reply) },
@@ -120,7 +120,7 @@ async function askKeyDoor(
 ): Promise<Key> {
   const no = (status: number, reason: string, headers?: Record<string, string>): Key => ({
     ok: false,
-    refusal: refusalOf(ask.head, status, { error: "key_door", reason }, headers),
+    refusal: relayRefusal(ask.head, status, { error: "key_door", reason }, headers),
   });
   const reply = await askWithin(
     deps,
@@ -171,13 +171,13 @@ function askDrive(
 /** A HEAD: the file's size and type, from its record (5 of Google's units, where a download is 200). */
 async function answerHead(env: RelayEnv, key: DriveKey, deps: RelayDeps): Promise<Response> {
   const reply = await askDrive(env, key, { query: "fields=size,mimeType", range: null }, deps);
-  if (!reply) return refusalOf(true, 502, { error: "drive", reason: "unreachable" });
+  if (!reply) return relayRefusal(true, 502, { error: "drive", reason: "unreachable" });
   if (!reply.ok) return refuseAsDrive(true, reply);
   const record: unknown = await reply.json().catch(() => null);
   const size =
     isJsonObject(record) && typeof record.size === "string" && /^\d+$/.test(record.size) ? record.size : null;
   // A record with no size is a Google document, not a file with bytes: nothing here can be fetched.
-  if (!size) return refusalOf(true, 502, { error: "drive", reason: "no_size" });
+  if (!size) return relayRefusal(true, 502, { error: "drive", reason: "no_size" });
   const type =
     isJsonObject(record) && typeof record.mimeType === "string" ? record.mimeType : "application/octet-stream";
   return new Response(null, {
@@ -189,7 +189,7 @@ async function answerHead(env: RelayEnv, key: DriveKey, deps: RelayDeps): Promis
 /** A GET: Drive's bytes for the range asked, its status and its lengths as Drive gave them, the body never held. */
 async function answerGet(env: RelayEnv, key: DriveKey, range: string | null, deps: RelayDeps): Promise<Response> {
   const reply = await askDrive(env, key, { query: "alt=media", range }, deps);
-  if (!reply) return refusalOf(false, 502, { error: "drive", reason: "unreachable" });
+  if (!reply) return relayRefusal(false, 502, { error: "drive", reason: "unreachable" });
   if (reply.status !== 200 && reply.status !== 206) return refuseAsDrive(false, reply);
   const headers = new Headers({ "accept-ranges": "bytes", "cache-control": "no-store" });
   for (const name of ["content-type", "content-length", "content-range"]) {
@@ -203,17 +203,17 @@ async function answerGet(env: RelayEnv, key: DriveKey, range: string | null, dep
 export async function answerRelay(request: Request, env: RelayEnv, deps: RelayDeps = DEPS): Promise<Response> {
   const head = request.method === "HEAD";
   if (request.method !== "GET" && !head)
-    return refusalOf(false, 405, { error: "request", reason: "method" }, { allow: "GET, HEAD" });
+    return relayRefusal(false, 405, { error: "request", reason: "method" }, { allow: "GET, HEAD" });
   const url = new URL(request.url);
   const item = CLIP_PATH.exec(url.pathname)?.[1];
-  if (!item) return refusalOf(head, 404, { error: "request", reason: "path" });
+  if (!item) return relayRefusal(head, 404, { error: "request", reason: "path" });
   const ticket = url.searchParams.get("ticket");
   const read = await readTicket(env.TICKET_KEY, ticket, deps.nowMs());
   if (!read.ok || !ticket)
-    return refusalOf(head, 403, { error: "ticket", reason: read.ok ? "malformed" : read.reason });
-  if (read.item !== item) return refusalOf(head, 403, { error: "ticket", reason: "other_file" });
+    return relayRefusal(head, 403, { error: "ticket", reason: read.ok ? "malformed" : read.reason });
+  if (read.item !== item) return relayRefusal(head, 403, { error: "ticket", reason: "other_file" });
   const range = head ? null : request.headers.get("range");
-  if (range !== null && !ONE_RANGE.test(range)) return refusalOf(false, 416, { error: "request", reason: "range" });
+  if (range !== null && !ONE_RANGE.test(range)) return relayRefusal(false, 416, { error: "request", reason: "range" });
   const key = await askKeyDoor(env, { ticket, method: request.method, range, head }, deps);
   if (!key.ok) return key.refusal;
   return head ? answerHead(env, key, deps) : answerGet(env, key, range, deps);
