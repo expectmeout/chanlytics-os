@@ -41,7 +41,7 @@ import {
   type NotificationsConfig,
   type ServerNotificationKind,
   type WabaEventKind,
-  MESSAGES_ROUTE,
+  SEQUENCES_ROUTE,
   textOrEmpty,
   DbFailure,
 } from "@chanlytics/contracts";
@@ -156,14 +156,14 @@ interface WabaWords {
 /** The number's own health: Connections, under a shield. Read by what tells an owner of a number's standing too (number-standing.ts). */
 export const NUM = { kind: "number" as const, route: "admin/integrations" };
 /** A template can be sent now. */
-const READY = { kind: "template_ready" as const, route: MESSAGES_ROUTE };
+const READY = { kind: "template_ready" as const, route: SEQUENCES_ROUTE };
 /** A message cannot be sent as it stands: WhatsApp asked for a change, holds it for a few hours, or turned it off. */
-const BLOCKED = { kind: "template_blocked" as const, route: MESSAGES_ROUTE };
+const BLOCKED = { kind: "template_blocked" as const, route: SEQUENCES_ROUTE };
 
 /**
- * A template notice opens the message it is about, at its home in the Library (campaigns/messages/<name>), and says what
- * it is about (D1-template-marks): it opened the bare Library, at its top, though a message has its own address now. Without
- * a name (an event that carries none) it keeps the Library's door. What it is about is the version, by its name and its
+ * A template notice opens the message it is about, over the page it is pressed on (its address, the message over
+ * Campaigns: contracts messageRoute), and says what it is about (D1-template-marks). Without a name (an event that carries
+ * none) it opens Campaigns, where every message is since Messages folded into it (17 Nov 2026). What it is about is the version, by its name and its
  * language where the event says it (a row per both, 00004): a version approved in one language mends no refusal of
  * another (contracts NOTICE_MENDS; the wiring's second audit, W-channel-team-plus-4).
  */
@@ -254,7 +254,7 @@ function templateStatusWords(record: Record<string, unknown>, number: string | n
       ...BLOCKED,
       ...door,
       subject: TEMPLATE_NOTICE_TITLES.rejected(title),
-      body: `${reason ?? "WhatsApp asked for a change to its words. AI writes new words for you to send back."} Open “${title}” in Messages to send them.`,
+      body: `${reason ?? "WhatsApp asked for a change to its words. AI writes new words for you to send back."} Open “${title}” to send them.`,
       alert: true,
     };
   }

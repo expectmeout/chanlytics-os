@@ -141,23 +141,38 @@ function OpenRecord(p: {
   const phone = useCmPhone();
   // The step open to be changed, held here so the dock's Edit step N opens it (on Steps, where it stands).
   const [editingStep, setEditingStep] = useState<string | null>(null);
+  // Each ask below is answered on Steps, where its sheet stands: a record on another tab goes there first.
+  const onSteps = useCallback(() => {
+    if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
+  }, [tab, phone, row.id]);
   const editStep = useCallback(
     (id: string) => {
       setEditingStep(id);
-      if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
+      onSteps();
     },
-    [tab, phone, row.id],
+    [onSteps],
+  );
+  // A step's own sheet, asked open by the notice of a run that did nothing for its message (Campaigns, one tab: "Open it"
+  // opens the step on its message, where AI writes the fix): on Steps, where the step stands, which lets the ask go once
+  // its sheet is open, so a Steps drawn again never opens it twice.
+  const [viewAsked, setViewAsked] = useState<string | null>(null);
+  const viewStep = useCallback(
+    (id: string) => {
+      setViewAsked(id);
+      onSteps();
+    },
+    [onSteps],
   );
   // How it runs, asked open from the head's More (Who approves, decision 0064): on Steps, where its sheet stands. A count,
   // so each ask opens it again.
   const [howAsked, setHowAsked] = useState(0);
   const openHow = useCallback(() => {
     setHowAsked((n) => n + 1);
-    if (tab !== "steps") (phone ? replaceRoute : navigate)(sequenceRoute(row.id));
-  }, [tab, phone, row.id]);
+    onSteps();
+  }, [onSteps]);
   // Who is in it, read while a batch to leads waits: its Approve waits for an opening still being written (use-record.ts).
   const { writing } = usePeopleRead(row.starts === "leads" && row.needs.waiting > 0 ? row.id : null, again);
-  const a = useRecordActs(rec, flash, moved, { step: editStep, how: openHow, writing });
+  const a = useRecordActs(rec, flash, moved, { step: editStep, view: viewStep, how: openHow, writing });
   // On a phone the record is the screen and its Back the only way out: a record Leads opened goes back there (every trip
   // comes back, and a pile's end says "Back brings you here"); a desk says that way in the head, and Close is the list.
   const wayBack = phone ? recordBackNow(row.id) : null;
@@ -217,6 +232,8 @@ function OpenRecord(p: {
                 editing={editingStep}
                 onEditing={setEditingStep}
                 howAsked={howAsked}
+                viewAsked={viewAsked}
+                onViewed={() => setViewAsked(null)}
                 onCancelSend={() => a.setAsking("cancel")}
               />
             ) : null}

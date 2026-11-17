@@ -5,8 +5,6 @@
 export {
   appLink,
   canonicalRoute,
-  isMessagesParam,
-  MESSAGES_ROUTE,
   movedAddress,
   retiredRouteOf,
   ROUTE_WORDS,

@@ -3,14 +3,7 @@
  * few typed words matched against them and against the people, threads and calls the browser already holds (askJump).
  * A question is not a jump.
  */
-import {
-  CONTENT_LIBRARY_ROUTE,
-  REPORT_LENSES,
-  lensRoute,
-  type LensRow,
-  SEQUENCES_ROUTE,
-  MESSAGES_ROUTE,
-} from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, REPORT_LENSES, lensRoute, type LensRow, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 
 /* ------------------------------------------------------------------- jump */
 
@@ -69,16 +62,21 @@ export const ASK_PAGES: JumpEntry[] = [
     to: SEQUENCES_ROUTE,
     kind: "page",
     sub: "everything that sends on its own, and what you send yourself",
-    also: ["sequences", "playbooks", "moments", "automations", "follow-ups", "drip", "sent", "broadcasts"],
-  },
-  // Campaigns' Messages (D4: it was the Library), its other view, found too by the names it went by, which people learned
-  // and still type.
-  {
-    label: "Messages",
-    to: MESSAGES_ROUTE,
-    kind: "page",
-    sub: "the wording AI and the campaigns send",
-    also: ["templates", "library", "wording"],
+    // Messages folded into Campaigns (17 Nov 2026): each message is inside the campaign that sends it, so the names
+    // Messages went by find Campaigns. Not "library": Content's Library is found by it.
+    also: [
+      "sequences",
+      "playbooks",
+      "moments",
+      "automations",
+      "follow-ups",
+      "drip",
+      "sent",
+      "broadcasts",
+      "messages",
+      "templates",
+      "wording",
+    ],
   },
   { label: "Reports", to: "reports", kind: "page" },
   ...LENS_JUMPS,

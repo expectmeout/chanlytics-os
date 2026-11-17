@@ -5,7 +5,7 @@
  * All of it is pure but for the two reads of the settings surface (`brainOf` of what it is given, `tplOwn` of what the
  * surface holds now).
  */
-import { CAMPAIGN_ROOMS, DAY_MS, HOUR_MS, MIN_MS, WHATSAPP_REVIEW_TAKES, stateOf } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, MIN_MS, WHATSAPP_REVIEW_TAKES, stateOf } from "@chanlytics/contracts";
 import type { SettingsRecord, WorkspaceSettings } from "@/bridge/surfaces/settings";
 import { surfaceValue } from "../../surface-values";
 import { starters } from "./verbs";
@@ -103,22 +103,6 @@ export const tplSampleWord = (value: string | undefined, kind: string | undefine
  * comes.
  */
 const lower = (channel: string): string => channel.toLowerCase();
-/** New, said (new-said.tsx): one line to Ask, which writes the message for every channel and files it on one press. */
-export const TPL_NEW_WORDS = {
-  title: "New message",
-  sub: "Say what it is for. AI writes it for WhatsApp, email and text.",
-  label: "What the message is for",
-  hint: "What should it say, and to whom?",
-  send: "Ask",
-  note: `You read it before anything is saved. WhatsApp looks at its version first (${WHATSAPP_REVIEW_TAKES}).`,
-  /**
-   * What Ask is asked, the owner's words inside it: a new message for Messages with a version on every channel its kind
-   * may go by (an offer never by text), the email kept even where email is not set up yet (the door keeps it).
-   */
-  asked: (words: string): string =>
-    `New message, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): ${words}`,
-} as const;
-
 export const TPL_VERSION_WORDS = {
   /** The switch's name to a screen reader. */
   switchName: (title: string): string => `Channel for ${title}`,
@@ -204,7 +188,7 @@ export const TPL_VERSION_WORDS = {
     `${title}: the ${lower(channel)} version in ${language} is removed`,
   /** A message begun here: it is in Messages, with the version it began as. */
   began: (title: string, channel: string, language: string): string =>
-    `${title} is in ${CAMPAIGN_ROOMS.library}: the ${lower(channel)} version in ${language} is saved`,
+    `${title}: the ${lower(channel)} version in ${language} is saved`,
 };
 
 /**

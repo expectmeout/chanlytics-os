@@ -1,6 +1,5 @@
 import "server-only";
 import {
-  CAMPAIGN_ROOMS,
   CONSENT_CHANNELS,
   PLAN_WORDS,
   exampleParams,
@@ -46,7 +45,7 @@ export function cardSays(
   const row = rows.find((r) => r.id === message.versions.whatsapp?.id);
   const whatsapp = row ? renderTemplate(row.body_preview, values) : null;
   const missing = (reason: string) => ({
-    refusal: `${reason} Say so: write it under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} first, or leave that channel out`,
+    refusal: `${reason} Say so: write that version on the message first, or leave that channel out`,
   });
   if (!by.named) return whatsapp === null ? missing(noVersionWords("whatsapp")) : { says: clipQuote(whatsapp, limit) };
   if (whatsapp === null && by.channels.includes("whatsapp")) return missing(noVersionWords("whatsapp"));

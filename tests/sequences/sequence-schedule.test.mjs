@@ -222,6 +222,18 @@ test("what a step is doing now: a batch waiting for your OK, a message gone and 
     tone: "need",
     words: "Pick a message for it",
   });
+  // Its message cannot go (Campaigns, one tab, call C3): its box says it as its row does, and where the fix is; its sheet,
+  // which opens on the message saying WhatsApp's no, says what that holds back.
+  const off = (why) => ctx({ off: { place: 1, why, language: "en_US" } });
+  assert.deepEqual(scheduleStepState(row(), STEPS[0], off("refused")), {
+    tone: "need",
+    words: "WhatsApp refused it · open it for AI’s new words",
+  });
+  assert.equal(scheduleStepState(row(), STEPS[0], off("paused")).words, "WhatsApp paused it · open it to see why");
+  assert.deepEqual(
+    scheduleStepFacts(row(), STEPS[0], "visit", off("refused")).find((f) => f.label === "Now"),
+    { label: "Now", value: "Not on WhatsApp until it approves new words", tone: "warn" },
+  );
   const refused = step(2, {
     next_words: { template_id: null, name: "promo", language: "en_US", status: "rejected", rejected_reason: null },
   });

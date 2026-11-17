@@ -38,7 +38,6 @@ test("a page citation is a listed page, or a shape its page parses", () => {
     "inbox",
     "calendar",
     "campaigns/sequences",
-    "campaigns/messages",
     "segments",
     "start",
     "admin/team",
@@ -73,8 +72,9 @@ test("a page citation is a listed page, or a shape its page parses", () => {
   ];
   assert.deepEqual(kept(moved), ["campaigns/sequences"]);
   assert.deepEqual(kept(["campaigns/sequences", ...moved]), ["campaigns/sequences"], "one place, one citation");
-  // The Library's old route is Messages, Campaigns' other view (19 Oct 2026).
-  assert.deepEqual(kept(["messages"]), ["campaigns/messages"]);
+  // Messages, and the Library's old route, are Campaigns' list since Messages folded into Campaigns (17 Nov 2026).
+  assert.deepEqual(kept(["messages"]), ["campaigns/sequences"]);
+  assert.deepEqual(kept(["campaigns/messages"]), ["campaigns/sequences"]);
   // Sent's views, in an older card, are where they went: To send the Inbox's, Get their yes People's.
   assert.deepEqual(kept(["broadcasts/to-send", "broadcasts/get-yes"]), ["inbox/to-send", "clients/get-yes"]);
 });

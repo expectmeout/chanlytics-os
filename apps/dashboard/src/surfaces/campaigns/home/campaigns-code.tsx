@@ -2,10 +2,8 @@
  * Campaigns' code that no page's first load carries, each a chunk of its own, fetched once for the tab by whichever asks
  * first:
  *   - Sequences, the page Campaigns lands on (route.tsx);
- *   - a message's own pane, the Library's (parts/message-in-place.tsx), which the sheet over a page (surfaces/see) and
- *     Sequences' step editor draw;
- *   - Messages, the Library's page as the view of Campaigns it is beside Sequences (templates/templates-page.tsx), which
- *     Campaigns draws ahead, hidden, once the frame is idle on it (route.tsx), so a switch to it shows a view already drawn.
+ *   - a message's own pane (parts/message-in-place.tsx), which the sheet over a page (surfaces/see), a step's own sheet and
+ *     Sequences' step editor draw.
  * Each is asked for ahead of the press: as a pointer or a thumb reaches a door to the page that draws it (FrameApp's reach,
  * warmCampaignsCode), and Sequences once the frame is idle (warmCampaignsSoon, which reaches for Campaigns itself: its page,
  * its read and its code). The Inbox's code comes with the boot and its rows are read at boot, so its page arrives drawn;
@@ -24,7 +22,6 @@ import { HomeReading } from "./failed";
 
 const sequences = codeOnce(() => import("../sequences/sequences-page"));
 const pane = codeOnce(() => import("../parts/message-in-place"));
-const messages = codeOnce(() => import("../templates/templates-page"));
 
 const PageWhenRead = lazy(() => sequences().then((m) => ({ default: m.SequencesPage })));
 
@@ -45,12 +42,7 @@ function useChunkPart<M, K extends keyof M>(of: CodeOnce<M>, name: K, wanted: bo
   return { part: loaded ? loaded[name] : null, failed, retry };
 }
 
-/** Messages' view (the Library's page) while `wanted`: null until its chunk is in. */
-export function useMessagesView(wanted: boolean) {
-  return useChunkPart(messages, "TemplatesPage", wanted).part;
-}
-
-/** A message's pane, the Library's, where its chunk is out: the shell's quiet words after their beat, then the pane. */
+/** A message's pane, where its chunk is out: the shell's quiet words after their beat, then the pane. */
 export function MessageInPlaceWhenRead(p: MessageInPlaceProps) {
   const { part: Pane, failed, retry } = useChunkPart(pane, "MessageInPlace", true);
   if (Pane) return <Pane {...p} />;
@@ -62,7 +54,7 @@ export function MessageInPlaceWhenRead(p: MessageInPlaceProps) {
  * The pane handed down to a view of Campaigns that draws it inside itself (the Sequences view's step editor;
  * parts/message-pane.ts), from the route, as the drawer draws it: the route reaching for the pane itself regrouped the
  * chunks the Campaigns page loads, and it carried the kit's icons a second time (+7 KB gzipped, #1644). What it hands down
- * fetches the pane as it is drawn, so neither the route nor Sequences carries the Library's code.
+ * fetches the pane as it is drawn, so neither the route nor Sequences carries the pane's code.
  */
 export function MessagePaneProvider({ children }: { children: ReactNode }) {
   const Pane = messagePaneContext();
@@ -74,13 +66,12 @@ export const warmMessagePane = pane.warm;
 
 /** The routes that draw Sequences' code: Campaigns but its Ads view, and Sent. */
 const DRAWS_SEQUENCES = /^(campaigns(?!\/ads)|broadcasts)(\/|$)/;
-/** The routes that open a message: its home, the Library open on it (`campaigns/messages/<name>`), and its old drawer's. */
+/** The routes that open a message: its address (`campaigns/messages/<name>`, which opens it over the list), and its old drawer's. */
 const OPENS_A_MESSAGE = /^campaigns\/(messages\/[^/]+|message:)/;
 
 /** A route somebody is reaching for: the code it draws, fetched now. A fetch that fails is the page's to ask again. */
 export function warmCampaignsCode(route: string): void {
   if (DRAWS_SEQUENCES.test(route)) sequences.warm();
-  if (/^campaigns\/messages(\/|$)/.test(route)) messages.warm();
   if (OPENS_A_MESSAGE.test(route)) pane.warm();
 }
 

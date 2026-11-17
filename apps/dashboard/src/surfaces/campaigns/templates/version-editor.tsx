@@ -47,7 +47,7 @@ import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { FieldError } from "../../kit/field-error/field-error";
 import { Icon } from "../../kit/icon/icon";
-import { LineField, LinePress } from "../../kit/line/line";
+import { LineBox, LineField, LinePress } from "../../kit/line/line";
 import { UnsavedAsk, tabDraft, useUnsavedWork } from "../../kit/record/work";
 import { useSlotSeats } from "./slots/slot-seats";
 import type { BoxName } from "./slots/slot-seats";
@@ -560,12 +560,8 @@ function AskLine({
   };
   return (
     <div className="tpl-ver-ask" data-testid="template-version-ask">
-      <div className="tpl-ask-line" data-busy={ask.asking !== null || undefined}>
-        <span className="tpl-ask-mark" aria-hidden="true">
-          <Icon name="three" size={14} />
-        </span>
+      <LineBox className="tpl-ver-line" mark={<Icon name="three" size={14} />} busy={ask.asking !== null}>
         <LineField
-          className="tpl-ask-words"
           rows={1}
           value={ask.asking !== null ? (fixing ? WORDS.fixing : ask.asking) : said}
           readOnly={ask.asking !== null}
@@ -587,7 +583,7 @@ function AskLine({
         >
           <Icon name="arrow-up" size={14} />
         </LinePress>
-      </div>
+      </LineBox>
       {undoBeside && ask.canUndo ? (
         <LinkButton onClick={ask.undo} data-testid="template-version-undo">
           {WORDS.undo}

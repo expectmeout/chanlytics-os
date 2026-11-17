@@ -6462,7 +6462,7 @@ begin
     end if;
   end if;
   -- contracts FILES_MAX.
-  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(p_tenant_id) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
   -- An upload's look starts now, as someone is watching. An import's are paced, so 200 photos are not 200 due rows.
@@ -6698,7 +6698,7 @@ begin
     return jsonb_build_object('fate', 'here', 'file_id', v_twin);
   end if;
   -- contracts FILES_MAX.
-  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(p_tenant_id) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
   insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, width, height,
@@ -7079,7 +7079,7 @@ begin
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
   -- contracts FILES_MAX: the fair word before anything travels. file_found holds it for certain.
-  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(p_tenant_id) >= 1000 then
     raise exception 'This workspace holds as many files as it can. Remove some first.' using errcode = '22023';
   end if;
   -- Bytes that never become a file hold nothing but their folder: this empties it a day on, and leaves a file alone.
@@ -7244,12 +7244,11 @@ begin
     values (p_tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_twin, 'why', 'remove'));
   end if;
   -- contracts FILES_MAX.
-  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(p_tenant_id) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
   -- contracts FILE_VIDEO_MINUTES_MAX: what is kept and what is on its way, together.
-  select coalesce(sum(f.seconds), 0) into v_used from public.files f
-   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  v_used := public.video_seconds_toward_cap(p_tenant_id);
   if v_used + coalesce(p_seconds, 0) > 60 * 60 then
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
@@ -7305,12 +7304,11 @@ begin
     return jsonb_build_object('fate', 'here', 'file_id', null);
   end if;
   -- contracts FILES_MAX.
-  if (select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(p_tenant_id) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
   -- contracts FILE_VIDEO_MINUTES_MAX: a found video's length is the platform's to say, so what is known is counted.
-  select coalesce(sum(f.seconds), 0) into v_used from public.files f
-   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  v_used := public.video_seconds_toward_cap(p_tenant_id);
   if v_used >= 60 * 60 then
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
@@ -7392,6 +7390,25 @@ $$;
 --
 
 COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. At most 1,000 a page. Under the caller''s row security.';
+
+
+--
+-- Name: files_toward_cap(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.files_toward_cap(p_tenant_id uuid) RETURNS bigint
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select count(*) from public.files f where f.tenant_id = p_tenant_id and f.removed_at is null
+$$;
+
+
+--
+-- Name: FUNCTION files_toward_cap(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.files_toward_cap(p_tenant_id uuid) IS 'How many of a workspace''s files count toward the Library''s cap (contracts FILES_MAX): every file not removed (00638). The one place that count is written: each door that adds a file asks it, and keeps the cap''s number. The service role''s.';
 
 
 --
@@ -21910,12 +21927,11 @@ begin
     return jsonb_build_object('fate', 'here', 'file_id', v_twin, 'twin', v_status);
   end if;
   -- contracts FILES_MAX.
-  if (select count(*) from public.files f where f.tenant_id = v_piece.tenant_id and f.removed_at is null) >= 1000 then
+  if public.files_toward_cap(v_piece.tenant_id) >= 1000 then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
   -- contracts FILE_VIDEO_MINUTES_MAX: what is kept and what is on its way, together.
-  select coalesce(sum(f.seconds), 0) into v_used from public.files f
-   where f.tenant_id = v_piece.tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed';
+  v_used := public.video_seconds_toward_cap(v_piece.tenant_id);
   if v_used + coalesce(p_seconds, 0) > 60 * 60 then
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
@@ -37380,6 +37396,26 @@ COMMENT ON FUNCTION public.trigger_sweep_health() IS 'Asks the edge to judge the
 
 
 --
+-- Name: video_seconds_toward_cap(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) RETURNS numeric
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(sum(f.seconds), 0) from public.files f
+   where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed'
+$$;
+
+
+--
+-- Name: FUNCTION video_seconds_toward_cap(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) IS 'How many seconds of video count toward a workspace''s video minutes (contracts FILE_VIDEO_MINUTES_MAX): every video not removed whose copy did not fail, what is kept and what is on its way together (00638). The one place that sum is written: each door that adds a video asks it, and keeps the cap''s number. The service role''s.';
+
+
+--
 -- Name: wake_stale_snoozes(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -41115,6 +41151,64 @@ COMMENT ON COLUMN public.mailboxes.forward_confirm_code IS 'Gmail''s confirmatio
 
 
 --
+-- Name: media_sources; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.media_sources (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    connection_id uuid NOT NULL,
+    folder_id text NOT NULL,
+    folder_name text NOT NULL,
+    drive_id text,
+    include_subfolders boolean DEFAULT true NOT NULL,
+    state text DEFAULT 'setting_up'::text NOT NULL,
+    change_cursor text,
+    next_read_at timestamp with time zone,
+    read_gap_seconds integer,
+    channel_id text,
+    channel_token_hash text,
+    channel_expires_at timestamp with time zone,
+    reconciled_at timestamp with time zone,
+    last_error text,
+    last_error_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT media_sources_change_cursor_check CHECK (((change_cursor IS NULL) OR (char_length(change_cursor) <= 4000))),
+    CONSTRAINT media_sources_channel_id_check CHECK (((char_length(channel_id) >= 1) AND (char_length(channel_id) <= 200))),
+    CONSTRAINT media_sources_channel_is_whole CHECK ((((channel_id IS NULL) = (channel_token_hash IS NULL)) AND ((channel_id IS NULL) = (channel_expires_at IS NULL)))),
+    CONSTRAINT media_sources_channel_token_hash_check CHECK ((channel_token_hash ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT media_sources_drive_id_check CHECK (((char_length(drive_id) >= 1) AND (char_length(drive_id) <= 200))),
+    CONSTRAINT media_sources_folder_id_check CHECK (((char_length(folder_id) >= 1) AND (char_length(folder_id) <= 200))),
+    CONSTRAINT media_sources_folder_name_check CHECK (((char_length(folder_name) >= 1) AND (char_length(folder_name) <= 500))),
+    CONSTRAINT media_sources_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 300))),
+    CONSTRAINT media_sources_read_gap_seconds_check CHECK ((read_gap_seconds > 0)),
+    CONSTRAINT media_sources_state_check CHECK ((state = ANY (ARRAY['setting_up'::text, 'watching'::text, 'paused'::text, 'frozen'::text, 'stopped'::text])))
+);
+
+
+--
+-- Name: TABLE media_sources; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.media_sources IS 'One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder''s id and name at its provider, the shared drive''s id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel''s id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.';
+
+
+--
+-- Name: COLUMN media_sources.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.state IS 'setting_up: chosen, its first walk not done. watching: read as its provider signals and on the floor clock. paused: nothing is read until someone resumes it (the member who connected it left, or its connection needs a reconnect). frozen: the folder itself cannot be read, and nothing is reconciled until it can. stopped: no longer watched; what came in stays.';
+
+
+--
+-- Name: COLUMN media_sources.channel_token_hash; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.channel_token_hash IS 'The sha256, in hex, of the token the provider sends back with each signal: the token itself is never kept.';
+
+
+--
 -- Name: memberships; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -42812,6 +42906,102 @@ COMMENT ON TABLE public.setup_choices IS 'What the first run chose for the works
 
 
 --
+-- Name: source_connections; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.source_connections (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    provider text NOT NULL,
+    provider_account text,
+    email text,
+    scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    health text DEFAULT 'ok'::text NOT NULL,
+    credentials_ref text,
+    connected_by uuid,
+    connected_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT source_connections_email_check CHECK ((((char_length(email) >= 6) AND (char_length(email) <= 254)) AND (email = lower(btrim(email))))),
+    CONSTRAINT source_connections_health_check CHECK ((health = ANY (ARRAY['ok'::text, 'needs_reconnect'::text, 'blocked_by_admin'::text]))),
+    CONSTRAINT source_connections_known_unless_blocked CHECK (((health = 'blocked_by_admin'::text) OR ((provider_account IS NOT NULL) AND (email IS NOT NULL)))),
+    CONSTRAINT source_connections_provider_account_check CHECK (((char_length(provider_account) >= 1) AND (char_length(provider_account) <= 200))),
+    CONSTRAINT source_connections_provider_check CHECK ((provider = ANY (ARRAY['google'::text])))
+);
+
+
+--
+-- Name: TABLE source_connections; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.source_connections IS 'A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00639): the provider (google, for Google Drive), the account''s stable id there (Google''s sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.';
+
+
+--
+-- Name: COLUMN source_connections.health; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_connections.health IS 'ok: its grant reads. needs_reconnect: the provider refused the grant (revoked or expired); its sources pause and nothing in the Library changes. blocked_by_admin: the account''s organisation does not let the app read it, so no grant was given and the account''s id and email may be unknown.';
+
+
+--
+-- Name: source_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.source_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    source_id uuid NOT NULL,
+    provider_id text NOT NULL,
+    kind text NOT NULL,
+    parent_id text,
+    name text NOT NULL,
+    modified_at timestamp with time zone,
+    checksum text,
+    bytes bigint,
+    seconds numeric,
+    added_by text,
+    state text DEFAULT 'listed'::text NOT NULL,
+    why text,
+    file_id uuid,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    gone_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT source_items_added_by_check CHECK (((added_by IS NULL) OR (char_length(added_by) <= 200))),
+    CONSTRAINT source_items_bytes_check CHECK ((bytes >= 0)),
+    CONSTRAINT source_items_checksum_check CHECK (((checksum IS NULL) OR (char_length(checksum) <= 200))),
+    CONSTRAINT source_items_kind_check CHECK ((kind = ANY (ARRAY['folder'::text, 'image'::text, 'video'::text, 'other'::text]))),
+    CONSTRAINT source_items_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 1000))),
+    CONSTRAINT source_items_parent_id_check CHECK (((char_length(parent_id) >= 1) AND (char_length(parent_id) <= 200))),
+    CONSTRAINT source_items_provider_id_check CHECK (((char_length(provider_id) >= 1) AND (char_length(provider_id) <= 200))),
+    CONSTRAINT source_items_seconds_check CHECK ((seconds >= (0)::numeric)),
+    CONSTRAINT source_items_state_check CHECK ((state = ANY (ARRAY['listed'::text, 'waiting'::text, 'taking'::text, 'in'::text, 'too_big'::text, 'not_media'::text, 'let_go'::text, 'failed'::text, 'outside'::text, 'gone'::text, 'no_access'::text]))),
+    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (char_length(why) <= 300)))
+);
+
+
+--
+-- Name: TABLE source_items; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.source_items IS 'One item a provider holds under a watched folder, folders included, since they are the tree''s index (the footage sources plan, 00639): the provider''s id for it, its kind, its parent''s id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.';
+
+
+--
+-- Name: COLUMN source_items.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.kind IS 'folder: part of the tree. image, video: what the Library takes. other: seen and passed over (a document, a shortcut, a RAW photo).';
+
+
+--
+-- Name: COLUMN source_items.state; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.state IS 'listed: seen, not asked for. waiting: to be taken in. taking: on its way. in: a Library file (file_id). too_big: over a cap, never taken (why says which). not_media: not a photo or a video. let_go: its owner removed it from the Library, so the next read does not bring it back. failed: its taking failed for good. outside: moved out of the watched tree. gone: trashed or deleted at its provider (gone_at). no_access: the provider no longer lets it be read, which is never read as gone.';
+
+
+--
 -- Name: support_reports; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -44150,6 +44340,22 @@ ALTER TABLE ONLY public.mailboxes
 
 
 --
+-- Name: media_sources media_sources_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_sources
+    ADD CONSTRAINT media_sources_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: media_sources media_sources_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_sources
+    ADD CONSTRAINT media_sources_tenant_id_id UNIQUE (tenant_id, id);
+
+
+--
 -- Name: memberships memberships_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -44691,6 +44897,30 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.setup_choices
     ADD CONSTRAINT setup_choices_pkey PRIMARY KEY (tenant_id);
+
+
+--
+-- Name: source_connections source_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_connections
+    ADD CONSTRAINT source_connections_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: source_connections source_connections_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_connections
+    ADD CONSTRAINT source_connections_tenant_id_id UNIQUE (tenant_id, id);
+
+
+--
+-- Name: source_items source_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_items
+    ADD CONSTRAINT source_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -46127,6 +46357,13 @@ CREATE UNIQUE INDEX mailboxes_tenant_uq ON public.mailboxes USING btree (tenant_
 
 
 --
+-- Name: media_sources_one_a_folder; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX media_sources_one_a_folder ON public.media_sources USING btree (connection_id, folder_id);
+
+
+--
 -- Name: memberships_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -47198,6 +47435,48 @@ CREATE INDEX sequences_created_by ON public.sequences USING btree (created_by) W
 
 
 --
+-- Name: source_connections_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_connections_account ON public.source_connections USING btree (provider, provider_account);
+
+
+--
+-- Name: source_connections_one_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX source_connections_one_account ON public.source_connections USING btree (tenant_id, provider, provider_account);
+
+
+--
+-- Name: source_items_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_file ON public.source_items USING btree (tenant_id, file_id) WHERE (file_id IS NOT NULL);
+
+
+--
+-- Name: source_items_once; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX source_items_once ON public.source_items USING btree (source_id, provider_id);
+
+
+--
+-- Name: source_items_parent; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_parent ON public.source_items USING btree (source_id, parent_id);
+
+
+--
+-- Name: source_items_tenant; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_tenant ON public.source_items USING btree (tenant_id, source_id, state);
+
+
+--
 -- Name: support_reports_created; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -47891,6 +48170,13 @@ CREATE TRIGGER mailboxes_set_updated_at BEFORE UPDATE ON public.mailboxes FOR EA
 
 
 --
+-- Name: media_sources media_sources_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER media_sources_set_updated_at BEFORE UPDATE ON public.media_sources FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: memberships memberships_clear_control; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -48231,6 +48517,20 @@ CREATE TRIGGER sequence_steps_words_changed BEFORE UPDATE OF template_id, templa
 --
 
 CREATE TRIGGER sequences_set_updated_at BEFORE UPDATE ON public.sequences FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: source_connections source_connections_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_connections_set_updated_at BEFORE UPDATE ON public.source_connections FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: source_items source_items_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_items_set_updated_at BEFORE UPDATE ON public.source_items FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -50116,6 +50416,22 @@ ALTER TABLE ONLY public.mailboxes
 
 
 --
+-- Name: media_sources media_sources_connection_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_sources
+    ADD CONSTRAINT media_sources_connection_id_same_workspace FOREIGN KEY (tenant_id, connection_id) REFERENCES public.source_connections(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: media_sources media_sources_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.media_sources
+    ADD CONSTRAINT media_sources_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: memberships memberships_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -51089,6 +51405,38 @@ ALTER TABLE ONLY public.sequences
 
 ALTER TABLE ONLY public.setup_choices
     ADD CONSTRAINT setup_choices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: source_connections source_connections_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_connections
+    ADD CONSTRAINT source_connections_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: source_items source_items_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_items
+    ADD CONSTRAINT source_items_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE SET NULL (file_id);
+
+
+--
+-- Name: source_items source_items_source_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_items
+    ADD CONSTRAINT source_items_source_id_same_workspace FOREIGN KEY (tenant_id, source_id) REFERENCES public.media_sources(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: source_items source_items_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_items
+    ADD CONSTRAINT source_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -52205,6 +52553,21 @@ CREATE POLICY mailboxes_member_select ON public.mailboxes FOR SELECT TO authenti
 
 
 --
+-- Name: media_sources; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.media_sources ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: media_sources media_sources_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY media_sources_member_select ON public.media_sources FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: memberships; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -52890,6 +53253,36 @@ ALTER TABLE public.setup_choices ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY setup_choices_member_select ON public.setup_choices FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: source_connections; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.source_connections ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: source_connections source_connections_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY source_connections_member_select ON public.source_connections FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: source_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.source_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: source_items source_items_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY source_items_member_select ON public.source_items FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -54322,6 +54715,14 @@ GRANT ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_med
 REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO authenticated;
 GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION files_toward_cap(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.files_toward_cap(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_toward_cap(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -59140,6 +59541,14 @@ GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
 
 
 --
+-- Name: FUNCTION video_seconds_toward_cap(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION wake_stale_snoozes(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -60553,6 +60962,14 @@ GRANT ALL ON TABLE public.mailboxes TO service_role;
 
 
 --
+-- Name: TABLE media_sources; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.media_sources TO authenticated;
+GRANT ALL ON TABLE public.media_sources TO service_role;
+
+
+--
 -- Name: TABLE memberships; Type: ACL; Schema: public; Owner: -
 --
 
@@ -61366,6 +61783,22 @@ GRANT UPDATE(mode) ON TABLE public.sequences TO authenticated;
 
 GRANT SELECT ON TABLE public.setup_choices TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
+
+
+--
+-- Name: TABLE source_connections; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.source_connections TO authenticated;
+GRANT ALL ON TABLE public.source_connections TO service_role;
+
+
+--
+-- Name: TABLE source_items; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.source_items TO authenticated;
+GRANT ALL ON TABLE public.source_items TO service_role;
 
 
 --

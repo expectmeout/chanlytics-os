@@ -233,7 +233,7 @@ function StepPreview(p: {
   );
 }
 
-/** Under the message's box: its name in Messages and its WhatsApp standing. Its words are written in place, beside it. */
+/** Under the message's box: its name, one of your messages, and its WhatsApp standing. Its words are written in place, beside it. */
 function MessageFrom({ picked }: { picked: CmOffered }) {
   const approval = approvalOf(picked.message);
   return (

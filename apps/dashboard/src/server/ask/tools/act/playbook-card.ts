@@ -182,7 +182,8 @@ export async function readReachNow(
   toolContext: ToolContext,
   trig: Trigger,
   listRef: ListRef | null,
-  message: PlaybookMessage,
+  /** Its name where the caller knows it: a card of what stops it opens the message by it (new-campaign-plan.ts). */
+  message: PlaybookMessage & { name?: string },
   how: CampaignHow,
   cap: number,
 ) {

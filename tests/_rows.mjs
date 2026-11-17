@@ -1,8 +1,8 @@
 /**
- * Rows as the database holds them, for the fourteen tables the suite's fixtures seed most (messages, tenants, tenant_config,
+ * Rows as the database holds them, for the fifteen tables the suite's fixtures seed most (messages, tenants, tenant_config,
  * conversations, events, contacts, tenant_channels, lines, memberships, billing_accounts, Google's listing, connection
- * and reviews, and a connected mailbox): every column the table has, each the database's own default or a made-up value, so a fixture names only
- * what its test is about.
+ * and reviews, a connected mailbox, and a footage source's connection): every column the table has, each the database's
+ * own default or a made-up value, so a fixture names only what its test is about.
  *
  *   const t = rows.tenant({ timezone: "America/Chicago" });
  *   const k = rows.contact({ tenant_id: t.id, phone_e164: "+13055550101" });
@@ -181,6 +181,20 @@ const DEFAULTS = {
     created_at: AT,
     updated_at: AT,
   }),
+  // A Google account the business connected at the made-up instant so its footage is read where it lives (00639): its
+  // grant reads, and no folder is watched through it yet.
+  source_connections: () => ({
+    id: uuid(),
+    tenant_id: TENANT,
+    provider: "google",
+    provider_account: "100000000000000000001",
+    email: "sam@getharbor.example",
+    scopes: [],
+    health: "ok",
+    connected_at: AT,
+    created_at: AT,
+    updated_at: AT,
+  }),
 };
 
 /** One row of `table`: the factory's defaults under the test's own values, every other column null. */
@@ -203,7 +217,7 @@ function rowOf(table, overrides) {
   return row;
 }
 
-/** A row for each of the fourteen tables, the test's own values over the database's. */
+/** A row for each of the fifteen tables, the test's own values over the database's. */
 export const rows = {
   tenant: (o = {}) => rowOf("tenants", o),
   config: (o = {}) => rowOf("tenant_config", o),
@@ -219,4 +233,5 @@ export const rows = {
   googleConnection: (o = {}) => rowOf("google_connections", o),
   googleReview: (o = {}) => rowOf("google_reviews", o),
   mailboxConnection: (o = {}) => rowOf("mailbox_connections", o),
+  sourceConnection: (o = {}) => rowOf("source_connections", o),
 };

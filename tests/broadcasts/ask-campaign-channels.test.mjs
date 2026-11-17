@@ -1076,7 +1076,7 @@ test("a moment's starter is found among the messages the composers offer: one wh
   // Said as hidden, not as having no version: it has one, and adding the starter set would leave it hidden.
   assert.match(
     said(hidden),
-    /starter is hidden in this workspace: show it again under Campaigns › Messages, or name another message\./,
+    /starter is hidden here: show it again under “Not in a campaign”, or name another message\./,
   );
   assert.doesNotMatch(said(hidden), /no version|starter set/);
 });

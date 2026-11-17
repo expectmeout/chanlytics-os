@@ -1,6 +1,6 @@
 /**
- * Campaigns is Sequences (decision 0060; the home that stood here went in S6), with Messages beside it and Sent's sheets
- * under it: what the frame says around each address (src/surfaces/campaigns/routes.ts), the routes the registry hands the
+ * Campaigns is Sequences (decision 0060; the home that stood here went in S6), with Content beside it and Sent's sheets
+ * under it, and Messages folded in (Campaigns, one tab, 17 Nov 2026): what the frame says around each address (src/surfaces/campaigns/routes.ts), the routes the registry hands the
  * frame, and the old addresses, which land in one move on the page that replaced them (contracts retiredRouteOf, the one
  * table of them, applied where a route is written, where the app moves, where an address is moved on load, and by the page).
  *
@@ -8,13 +8,13 @@
  *   campaigns/sequences/<id>         a sequence open beside it     crumbs: Campaigns › <its name>
  *   campaigns/sequences/<id>/runs/<run>  a run's home, its one screen   crumbs: Campaigns › <its sequence> › <the run>
  *   campaigns/sequences/new[:once[:to:<list>]|:leads|:moment:<trigger>]  the one New   crumbs: Campaigns › New
- *   campaigns/messages/<name>        a message at its home, in Messages   crumbs: Campaigns › Messages › <its title>
+ *   campaigns/messages/<name>        a message, open over the list      crumbs: Campaigns
  *   campaigns, campaigns/moment:<id>, campaigns/in:<group>  retired: Sequences, or the campaign's sequence
  *   campaigns/new[:to:<list>|:leads|:every|:moment:<trigger>|:edit:<id>]  retired: the one New, or the sequence's record
  *   broadcasts[/run:<id>[/sheet]|/to-send|/get-yes|/<list>]  retired: Sequences, the run's home, the Inbox's To send,
  *                                                             People's Get their yes, New's Send once on that list
- *   campaigns/messages               Messages, its other view      crumbs: Campaigns › Messages
- *   messages (the path's templates)          retired: campaigns/messages
+ *   campaigns/messages               retired: campaigns/sequences (Messages folded into Campaigns)
+ *   messages (the path's templates)          retired: campaigns/sequences
  *   outbound[/<id>] (the path's playbooks)   retired: campaigns/sequences, campaigns/sequences/<id>
  */
 import { test, afterEach } from "node:test";
@@ -131,13 +131,14 @@ test("the home's addresses, Sent's, and the composer's land in one move on the p
     sendOnceRoute("s1"),
     newForLeadsRoute(),
     "campaigns/messages/spring_offer",
-    "campaigns/messages",
     TO_SEND_ROUTE,
     GET_YES_ROUTE,
   ])
     assert.equal(retiredRouteOf(kept), null, kept);
-  // A message's drawer over Sequences went into its home, the Library open on it (the framework's rating, 19 Oct 2026).
+  // A message's drawer over Sequences went into its address, which opens it over Campaigns' list (Campaigns, one tab).
   assert.equal(retiredRouteOf("campaigns/message:spring_offer"), "campaigns/messages/spring_offer");
+  // Messages' list folded into Campaigns' (17 Nov 2026): its address lands on it.
+  assert.equal(retiredRouteOf("campaigns/messages"), "campaigns/sequences");
 });
 
 test("a run's home is under its sequence, one screen whatever the run is (the Campaigns wiring review's lane 2)", () => {
@@ -201,21 +202,22 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   assert.equal(c("sequences").crumbs.at(-1), "Run");
   rememberRun({ id: "b-old", name: "Win-back · 2026-08-01", run_for: "2026-08-01", state: "sent" });
   assert.equal(c("sequences").crumbs.at(-1), "Win-back · 2026-08-01");
-  // The strip: Sequences, Messages and Content (every workspace's, decision 0125), and Ads only where it is drawn.
+  // The strip: Campaigns and Content (every workspace's, decision 0125), and Ads only where it is drawn. Messages folded into
+  // Campaigns (Campaigns, one tab, 17 Nov 2026): each message is inside the campaign that sends it.
   assert.deepEqual(
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
     [
       ["sequences", "Campaigns", "campaigns/sequences"],
-      ["messages", "Messages", "campaigns/messages"],
       ["content", "Content", "campaigns/content"],
     ],
   );
-  // Messages is the strip's other view on the same mount (19 Oct 2026): its own tab lit, the same one head, the pane.
+  // Messages' addresses are Campaigns' list's: a message's opens the message over it, Campaigns' tab lit, one head.
   for (const p of ["messages", "messages/x"]) {
+    globalThis.window = { location: { pathname: `/w/acme/campaigns/${p}` } };
     const at = c(p);
-    assert.deepEqual(at.crumbs, [HOME, "Messages"], p);
-    assert.equal(at.mount, "campaigns", `${p}: one mount with Campaigns, so a switch keeps both drawn`);
-    assert.equal(at.views?.picked, "messages", p);
+    assert.deepEqual(at.crumbs, ["Campaigns"], p);
+    assert.equal(at.mount, "campaigns", `${p}: one mount with Campaigns`);
+    assert.equal(at.views?.picked, "sequences", p);
     assert.equal(at.pane, true, p);
     assert.equal(at.act, null, p);
   }
@@ -256,15 +258,11 @@ test("Sent draws nothing of its own: every address of it lands, and while it doe
   }
 });
 
-test("Messages' crumbs go back to Campaigns, whose first view is Sequences, and the routes' own crumbs say the same", () => {
-  assert.deepEqual(SURFACE_ROUTES.messages.crumbs, [HOME, "Messages"]);
+test("Messages' old route is Campaigns', whose first view is Sequences, and the routes' own crumbs say the same", () => {
+  assert.deepEqual(SURFACE_ROUTES.messages.crumbs, ["Campaigns"]);
   assert.deepEqual(SURFACE_ROUTES.broadcasts.crumbs, ["Campaigns"]);
   assert.deepEqual(SURFACE_ROUTES.campaigns.crumbs, ["Campaigns"]);
-  assert.equal(
-    SURFACE_ROUTES.messages.activeNav,
-    "messages",
-    "the sidebar lights Campaigns for each (frame/sidebar/sidebar.tsx GROUP_MAP)",
-  );
+  assert.equal(SURFACE_ROUTES.messages.activeNav, "campaigns", "the sidebar lights Campaigns for it");
 });
 
 /* ------------------------------------------------ what the frame draws ------------------------------------------------ */
@@ -323,10 +321,10 @@ test("a move between two addresses of Campaigns is the page's own: opening a seq
   assert.ok(onOnePage("campaigns/new", "campaigns/sequences"));
   assert.ok(
     onOnePage("campaigns/sequences/q-1", "campaigns/messages/spring_offer"),
-    "a message at its home is a view of the same mount",
+    "a message's address is the same mount, which opens it over the list",
   );
   assert.ok(onOnePage("campaigns/new:to:s1", "campaigns"));
-  assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Campaigns and Messages are one mount's two views");
+  assert.ok(onOnePage("campaigns/sequences", "campaigns/messages"), "Messages' old address is the same mount");
   assert.ok(onOnePage("campaigns/sequences/q-1", "campaigns/messages"));
   assert.ok(!onOnePage("campaigns", "broadcasts/get-yes"), "a room is its own page");
   assert.ok(!onOnePage("broadcasts/run:b-1", "campaigns"));
@@ -347,7 +345,7 @@ test("the old Playbooks addresses land on Sequences in one move: outbound on the
     "campaigns/sequences/pb-1",
     "campaigns/sequences/pb-1/people",
     "campaigns/sequences/pb-1/runs/b-1",
-    "campaigns/messages",
+    "campaigns/messages/spring_offer",
     "clients/c-1",
     "today",
   ]) {
@@ -360,9 +358,10 @@ test("the old Playbooks addresses land on Sequences in one move: outbound on the
   assert.equal(workspacePath("acme", "campaigns/moment:pb-1"), "/w/acme/campaigns/sequences/pb-1");
   assert.equal(workspacePath("acme", "campaigns/new"), "/w/acme/campaigns/sequences/new:once");
   assert.equal(workspacePath("acme", "broadcasts/run:b-1"), "/w/acme/campaigns/sequences/b-1/runs/b-1");
-  // Messages is Campaigns' other view (19 Oct 2026): its old route is a door to it.
-  assert.equal(retiredRouteOf("messages"), "campaigns/messages");
-  assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/messages");
+  // Messages folded into Campaigns (17 Nov 2026): its old route, and its list's, land on Campaigns' list.
+  assert.equal(retiredRouteOf("messages"), "campaigns/sequences");
+  assert.equal(workspacePath("acme", "messages"), "/w/acme/campaigns/sequences");
+  assert.equal(workspacePath("acme", "campaigns/messages"), "/w/acme/campaigns/sequences");
 });
 
 test("broadcasts/<audience>, which People and a list wrote to message these people, is New's Send once on that audience", () => {
@@ -416,14 +415,14 @@ test("a bookmark, a bell row or an email link that says the old route moves to t
     moved({ pathname: "/w/acme", hash: "#/campaigns/moment:pb-1:people" }),
     "/w/acme/campaigns/sequences/pb-1/people",
   );
-  // Sequences is where it is, a run's sheet moves to the run's home; Messages' old names move to Campaigns' view.
+  // Sequences is where it is, a run's sheet moves to the run's home; Messages' old names move to Campaigns' list.
   assert.equal(moved({ pathname: "/w/acme/campaigns/sequences/pb-1" }), null);
   assert.equal(
     moved({ pathname: "/w/acme", hash: "#/broadcasts/run:b-1" }),
     "/w/acme/campaigns/sequences/b-1/runs/b-1",
   );
-  assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/messages");
-  assert.equal(moved({ pathname: "/w/acme/templates" }), "/w/acme/campaigns/messages");
+  assert.equal(moved({ pathname: "/w/acme", hash: "#/messages" }), "/w/acme/campaigns/sequences");
+  assert.equal(moved({ pathname: "/w/acme/templates" }), "/w/acme/campaigns/sequences");
   assert.equal(routeOfPath("/w/acme/campaigns/moment:pb-1"), "campaigns/moment:pb-1");
   assert.equal(routeOfHash("#/campaigns"), "campaigns");
 });

@@ -378,6 +378,45 @@ test("a call on the record reads as its task on Today, with Take away and Edit i
   assert.ok(byTestId(foot2, "sq-step-remove-2-yes"), "its Take away, in the foot");
 });
 
+test("a step that sends a message opens on the message's own pane (Campaigns, one tab, C2): the step a kicker with its test, its acts on the name's menu beside Rename, its channels and language, its facts under the words, and no door to a second sheet", async () => {
+  const { messagePaneContext } = await import(`${S}/campaigns/parts/message-pane.ts`);
+  // The pane the route hands down (home/campaigns-code.tsx), stood in for: what the sheet hands it is what is proved.
+  const Pane = () => null;
+  const handed = messagePaneContext();
+  handed._currentValue = Pane;
+  try {
+    const rec = recOf(step(2, { channels: ["whatsapp", "email"] }));
+    const sheet = sheetOf(drawSheet({ kind: "step", id: "st-1" }, { rec }));
+    assert.equal(sheet.kicker, true, "the step is the kicker over the message's own head");
+    assert.equal(sheet.title, contracts.scheduleStepSub(ROW, { place: 1 }, 1));
+    assert.ok(byTestId(sheet.tools, "sq-step-test-1"), "Send me a test beside it");
+    assert.equal(sheet.foot, null, "nothing asked: the pane docks its own acts");
+    assert.equal(byTestId(sheet.children, "sq-step-words-1-from"), null, "no door to the message in Messages");
+    const first = find(byTestId(sheet.children, "sq-step-message"), (n) => n.type === Pane).props;
+    assert.equal(first.name, "come_back");
+    assert.deepEqual(
+      first.step.before.map((item) => item.label),
+      [SW.editStep(1)],
+      "Edit step 1 before Rename, which is the pane's",
+    );
+    assert.deepEqual(first.step.after, [], "a first step is never taken away alone");
+    assert.deepEqual([first.step.channels, first.step.language], [["whatsapp"], "en_US"]);
+    assert.ok(byTestId(first.step.under, "sq-step-facts-1"), "what the step is, row by row, under the words");
+    // A later step: its channels, and Take away last, asked in the sheet's foot.
+    const second = find(sheetOf(drawSheet({ kind: "step", id: "st-2" }, { rec })).children, (n) => n.type === Pane);
+    assert.deepEqual(second.props.step.channels, ["whatsapp", "email"]);
+    assert.deepEqual(
+      second.props.step.after.map((item) => item.label),
+      [F.takeAway],
+    );
+    second.props.step.after[0].onSelect();
+    const asked = find(sheetOf(drawSheet({ kind: "step", id: "st-2" }, { rec })).foot, (n) => n.type === Confirm);
+    assert.deepEqual([asked.props.question, asked.props.detail], [F.takeAwayAsk(2), F.takeAwayDetail]);
+  } finally {
+    handed._currentValue = null;
+  }
+});
+
 test("a call changed opens on its words and sends only what changed: its new words, never the wait it kept", async () => {
   const target = { kind: "step", id: "st-2" };
   const sheet = sheetOf(drawSheet(target, { edit: true }));

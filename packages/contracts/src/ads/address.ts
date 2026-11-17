@@ -124,7 +124,6 @@ export function adsScopeOfKey(key: string): AdsScope | null {
 /** The strip's and the crumbs' words for the two views. */
 export const ADS_WORDS = {
   viewsLabel: "Which campaigns",
-  messagesTab: "Messages",
   adsTab: "Ads",
   newAd: "New ad",
 } as const;

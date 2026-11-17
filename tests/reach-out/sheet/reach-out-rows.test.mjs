@@ -82,31 +82,6 @@ const chainOf = (over = {}, next = {}) => ({
   next: { run_hour: 9, last_run_for: null, mode: "ask", may_spend: true, waiting_run_id: null, ...next },
   ...over,
 });
-const REPORT = (over = {}) => ({
-  steps: [
-    {
-      id: ROOT,
-      n: 0,
-      written: 44,
-      delivered: 42,
-      wrote_back: 5,
-      interested: 2,
-      booked: 1,
-      said_no: 3,
-      bounced: 2,
-      waiting: 0,
-      held: 0,
-    },
-    // A report read before 00241 says nothing of interested or booked: the row says it does not know, never a zero.
-    { id: "n1", n: 1, written: 28, delivered: 28, wrote_back: 3, said_no: 1, bounced: 0, waiting: 5, held: 2 },
-  ],
-  runs: [
-    { id: "b2", step_id: "n1", run_for: "2026-09-25", state: "sending", planned: 7, written: 5, held: 2 },
-    { id: "b1", step_id: ROOT, run_for: "2026-09-24", state: "sent", planned: 30, written: 30, held: 0 },
-  ],
-  can_remove: false,
-  ...over,
-});
 const REACH = { ready: 0, with_unconfirmed: 0, phone_only: 72, of: 160, chain: ROOT };
 
 /* ------------------------------ an older change ------------------------------ */
@@ -119,7 +94,7 @@ test("a reach-out's change (`campaigns/new:edit:<id>`, an older link) lands on i
 
 /* ------------------------------ the bridge ------------------------------ */
 
-test("the bridge's verbs press the doors they name: the report, the chain's removal, the record's chain, an add's check", async () => {
+test("the bridge's verbs press the doors they name: the chain's removal, the record's chain, an add's check", async () => {
   realVerbs();
   const calls = [];
   W.__apiForTest = null;
@@ -131,14 +106,13 @@ test("the bridge's verbs press the doors they name: the report, the chain's remo
       new URL(String(url), "https://app.example").pathname,
       init.body ? JSON.parse(init.body) : null,
     ]);
-    return new Response(JSON.stringify({ ok: true, data: { report: REPORT(), reach: REACH } }), {
+    return new Response(JSON.stringify({ ok: true, data: { reach: REACH } }), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
   };
   try {
     assert.ok(api.api, "the typed client");
-    await bridge.reachOuts.report(ROOT);
     await bridge.reachOuts.remove(ROOT);
     await bridge.reachOuts.saveChain(ROOT, { signed_by: "Sam" });
     await bridge.reachOuts.checkAdd(ROOT, ["l1", "l2"]);
@@ -148,7 +122,6 @@ test("the bridge's verbs press the doors they name: the report, the chain's remo
   assert.deepEqual(
     calls.map(([m, p, b]) => [m, p.replace(/^.*\/api\/v1\//, ""), b]),
     [
-      ["GET", `reach-outs/${ROOT}`, null],
       ["DELETE", `reach-outs/${ROOT}`, null],
       // A sequence to leads is written on its record (00459): its chain by the sequence's id, its adds checked dry first.
       ["PUT", `sequences/${ROOT}/chain`, { signed_by: "Sam" }],

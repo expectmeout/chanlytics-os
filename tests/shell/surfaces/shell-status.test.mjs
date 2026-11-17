@@ -1740,13 +1740,9 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   delete globalThis.LiveMonitorPage;
 });
 
-test("Campaigns › Messages is the room on the route that is still `messages`, named as Campaigns' strip names it (decision 0060, D4: it was the Library)", () => {
+test("the route that is still `messages` is Campaigns' (decision 0060, D4: it was the Library, and Messages folded into Campaigns on 17 Nov 2026)", () => {
   const { tree, title } = mount("#/messages");
-  assert.equal(
-    title,
-    "Messages · Campaigns · Chanlytics",
-    "under Campaigns in the trail, as the strip beside Sequences says it, never a page of the Inbox's",
-  );
+  assert.equal(title, "Campaigns · Chanlytics", "Campaigns, where every message is now, never a page of the Inbox's");
   const strip = find(tree, (n) => n.type === "SurfaceTabs");
   assert.equal(strip.props.page, "messages", "the route is untouched: every deep link still works");
   assert.ok(

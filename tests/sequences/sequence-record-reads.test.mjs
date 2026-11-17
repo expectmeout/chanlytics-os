@@ -22,7 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache, load, readerContext } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
-const { sequence, sequenceReach } = await import(at("apps/dashboard/src/server/readers/sequences.ts"));
+const { sequence, sequenceReach, sequences } = await import(at("apps/dashboard/src/server/readers/sequences.ts"));
 
 beforeEach(() => readerCache.clear());
 
@@ -287,4 +287,61 @@ test("the count is read where the card reads it: its own where its message is st
 
 test("a sequence whose first step is no campaign's card has no reach to read", async () => {
   await assert.rejects(reachOf(LEADS, { playbooks: [card(MOMENT)] }), (e) => e.status === 404);
+});
+
+test("the list says each running customer campaign's steps' messages, and its first step whose message cannot go (Campaigns, one tab, C3 and C7): one read of the steps and one of the messages, nothing said where either fails", async () => {
+  const stepRow = (place, name, over = {}) => ({
+    id: `77777777-7777-4777-8777-00000000000${place}`,
+    tenant_id: TID,
+    sequence_id: MOMENT,
+    place,
+    kind: "moment",
+    state: "running",
+    hand: null,
+    template_name: name,
+    template_language: "en_US",
+    channels: ["whatsapp", "email"],
+    ...over,
+  });
+  const template = (name, status) => ({
+    id: `88888888-8888-4888-8888-${name.padEnd(12, "0").slice(0, 12)}`,
+    tenant_id: TID,
+    channel: "whatsapp",
+    name,
+    language: "en_US",
+    category: "marketing",
+    meta_status: status,
+    body_preview: "Hi {{1}}",
+    title: null,
+    variables: [],
+  });
+  const tables = world({
+    sequence_steps: [
+      stepRow(1, "come_back"),
+      stepRow(2, "short_nudge"),
+      stepRow(3, "a_call", { hand: { kind: "call", words: "ring" } }),
+    ],
+    templates: [template("come_back", "approved"), template("short_nudge", "rejected")],
+  });
+  const listOf = async (t, faults = {}) =>
+    Object.fromEntries((await load(contextOf(t, faults), sequences, undefined)).data.sequences.map((r) => [r.id, r]));
+  const rows = await listOf(tables);
+  assert.deepEqual(rows[MOMENT].message_off, { place: 2, why: "refused", language: "en_US" });
+  assert.deepEqual(
+    rows[MOMENT].messages.map((m) => [m.place, m.name]),
+    [
+      [1, "come_back"],
+      [2, "short_nudge"],
+    ],
+    "a call sends no message",
+  );
+  assert.equal("message_off" in rows[LEADS], false, "a cold email's steps are written in their own sheet");
+  assert.equal("message_off" in rows[ONE_OFF], false, "a one-off is no campaign of steps");
+  const failed = await listOf(tables, { "sequence_steps.select": { message: "boom" } });
+  assert.equal(
+    "message_off" in failed[MOMENT],
+    false,
+    "a read that failed says nothing, never that every message can go",
+  );
+  assert.equal(failed[MOMENT].name, "Win-back", "the list itself is read as before");
 });

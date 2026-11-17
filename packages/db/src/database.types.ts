@@ -4893,6 +4893,87 @@ export type Database = {
           },
         ]
       }
+      media_sources: {
+        Row: {
+          change_cursor: string | null
+          channel_expires_at: string | null
+          channel_id: string | null
+          channel_token_hash: string | null
+          connection_id: string
+          created_at: string
+          drive_id: string | null
+          folder_id: string
+          folder_name: string
+          id: string
+          include_subfolders: boolean
+          last_error: string | null
+          last_error_at: string | null
+          next_read_at: string | null
+          read_gap_seconds: number | null
+          reconciled_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          change_cursor?: string | null
+          channel_expires_at?: string | null
+          channel_id?: string | null
+          channel_token_hash?: string | null
+          connection_id: string
+          created_at?: string
+          drive_id?: string | null
+          folder_id: string
+          folder_name: string
+          id?: string
+          include_subfolders?: boolean
+          last_error?: string | null
+          last_error_at?: string | null
+          next_read_at?: string | null
+          read_gap_seconds?: number | null
+          reconciled_at?: string | null
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          change_cursor?: string | null
+          channel_expires_at?: string | null
+          channel_id?: string | null
+          channel_token_hash?: string | null
+          connection_id?: string
+          created_at?: string
+          drive_id?: string | null
+          folder_id?: string
+          folder_name?: string
+          id?: string
+          include_subfolders?: boolean
+          last_error?: string | null
+          last_error_at?: string | null
+          next_read_at?: string | null
+          read_gap_seconds?: number | null
+          reconciled_at?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_sources_connection_id_same_workspace"
+            columns: ["tenant_id", "connection_id"]
+            isOneToOne: false
+            referencedRelation: "source_connections"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "media_sources_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       memberships: {
         Row: {
           created_at: string
@@ -7694,6 +7775,144 @@ export type Database = {
           },
         ]
       }
+      source_connections: {
+        Row: {
+          connected_at: string
+          connected_by: string | null
+          created_at: string
+          credentials_ref: string | null
+          email: string | null
+          health: string
+          id: string
+          provider: string
+          provider_account: string | null
+          scopes: string[]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          credentials_ref?: string | null
+          email?: string | null
+          health?: string
+          id?: string
+          provider: string
+          provider_account?: string | null
+          scopes?: string[]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          connected_at?: string
+          connected_by?: string | null
+          created_at?: string
+          credentials_ref?: string | null
+          email?: string | null
+          health?: string
+          id?: string
+          provider?: string
+          provider_account?: string | null
+          scopes?: string[]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      source_items: {
+        Row: {
+          added_by: string | null
+          bytes: number | null
+          checksum: string | null
+          file_id: string | null
+          first_seen_at: string
+          gone_at: string | null
+          id: string
+          kind: string
+          modified_at: string | null
+          name: string
+          parent_id: string | null
+          provider_id: string
+          seconds: number | null
+          source_id: string
+          state: string
+          tenant_id: string
+          updated_at: string
+          why: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          bytes?: number | null
+          checksum?: string | null
+          file_id?: string | null
+          first_seen_at?: string
+          gone_at?: string | null
+          id?: string
+          kind: string
+          modified_at?: string | null
+          name: string
+          parent_id?: string | null
+          provider_id: string
+          seconds?: number | null
+          source_id: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+          why?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          bytes?: number | null
+          checksum?: string | null
+          file_id?: string | null
+          first_seen_at?: string
+          gone_at?: string | null
+          id?: string
+          kind?: string
+          modified_at?: string | null
+          name?: string
+          parent_id?: string | null
+          provider_id?: string
+          seconds?: number | null
+          source_id?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          why?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_items_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "source_items_source_id_same_workspace"
+            columns: ["tenant_id", "source_id"]
+            isOneToOne: false
+            referencedRelation: "media_sources"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "source_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       support_reports: {
         Row: {
           created_at: string
@@ -9100,6 +9319,7 @@ export type Database = {
         }
         Returns: Json
       }
+      files_toward_cap: { Args: { p_tenant_id: string }; Returns: number }
       finish_broadcast: {
         Args: { p_event: Json; p_id: string; p_tenant_id: string }
         Returns: boolean
@@ -12498,6 +12718,10 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      video_seconds_toward_cap: {
+        Args: { p_tenant_id: string }
+        Returns: number
+      }
       wake_stale_snoozes: { Args: never; Returns: number }
       wear_found_look: {
         Args: { p_accent: string; p_logo_path: string; p_tenant_id: string }

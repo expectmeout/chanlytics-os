@@ -127,14 +127,15 @@ export const onceDraftRoute = (id: string): string => `${SEQUENCES_ROUTE}/new:on
 export const newForLeadsRoute = (): string => `${SEQUENCES_ROUTE}/new:leads`;
 
 /**
- * A message's home: the Library, Campaigns' Messages view, open on it by its name (`campaigns/messages/<name>`, the
- * Campaigns wiring review's rule A for a message, as a run's is under its sequence). A template's notice, an Activity line
- * about it, the call's text, a step's message: the one writer. A press on one anywhere but the Library opens it over the
- * page it was pressed on (shell/see-over.ts); its drawer over Sequences (`campaigns/message:<name>`) went, and lands here.
+ * A message's address (`campaigns/messages/<name>`, the Campaigns wiring review's rule A for a message, as a run's is under
+ * its sequence): a template's notice, an Activity line about it, the call's text, a step's message, the one writer. A press
+ * on one anywhere opens it over the page it was pressed on (see-over.ts), and the address itself opens it over Campaigns'
+ * list (Campaigns, one tab, call C8, 17 Nov 2026: it opened the Library on it until Messages folded into Campaigns). Its
+ * drawer over Sequences (`campaigns/message:<name>`) went, and lands here.
  */
 export const messageRoute = (name: string): string => `campaigns/messages/${encodeURIComponent(name)}`;
 
-/** The message a route opens in the Library (`campaigns/messages/<name>`, messageRoute's), or null for any other route. */
+/** The message a route opens (`campaigns/messages/<name>`, messageRoute's), or null for any other route. */
 export function messageOfRoute(route: string): string | null {
   const [path = ""] = route.split("?");
   const match = /^campaigns\/messages\/([^/#]+)$/.exec(path);

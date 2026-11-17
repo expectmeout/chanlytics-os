@@ -120,7 +120,8 @@ test("a found video is fetched by Stream from its address and kept once, at its 
   assert.equal(await keep(w), "kept");
   const copy = calls.find((c) => c.url === `${STREAM_API}/copy`);
   assert.equal(copy.method, "POST");
-  assert.equal(copy.body.url, CLIP);
+  assert.equal(copy.body.input, CLIP, "the address goes in Cloudflare's `input`");
+  assert.equal("url" in copy.body, false, "and never in the deprecated `url` beside it");
   assert.equal(copy.body.requireSignedURLs, true);
   assert.equal(copy.body.meta.name, w.asked[0].p_id, "the webhook finds the row by our id, as an upload's");
   assert.deepEqual(

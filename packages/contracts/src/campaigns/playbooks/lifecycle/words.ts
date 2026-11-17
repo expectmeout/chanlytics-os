@@ -93,7 +93,7 @@ export const LIFECYCLE_WORDS = {
   /** A message opened by its name (over a page, or in the Library) whose name leads to no message any more. */
   messageGone: {
     title: "That message isn't here any more.",
-    body: "Every message you keep is in Messages.",
+    body: "Every message you keep is in Campaigns, inside the campaign that sends it.",
   },
   compose: {
     /**

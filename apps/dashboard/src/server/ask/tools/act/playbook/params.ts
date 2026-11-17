@@ -441,7 +441,9 @@ export async function proposeOnStarter(
     cadence_days: PLAYBOOK_DEFAULTS.cadenceDays,
   };
   const how = { channels, ready: read.ready, about: read.about };
-  const reach = await readReachNow(toolContext, trig, listRef, judged.message, how, clock.cap_per_run);
+  // The starter by its name, so a card of what stops it opens the message itself (Campaigns, one tab: new-campaign-plan.ts).
+  const message = { ...judged.message, name: starter.name };
+  const reach = await readReachNow(toolContext, trig, listRef, message, how, clock.cap_per_run);
   if ("refusal" in reach) return refuse(reach.refusal);
   if (reach.blocked) return getBlockedOutcome(toolContext, trig, reach.blocked, playbookNameAsked(input.name) || null);
   const { drawn, reading, policies, listLabel, usable } = reach;
