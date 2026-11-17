@@ -378,13 +378,15 @@ export const useAskWarm = ({ A, open, query }: { A: AskApi | undefined; open: bo
 };
 
 // The Line's field grows with what is written, a line at a time, before it is painted; ask.css caps it at six lines, and
-// past them it scrolls. Measured again as the words change and as the Line opens (a seeded question, a kept draft).
+// past them it scrolls. Measured again as the words change and as the Line opens (a seeded question, a kept draft). An
+// empty field is one line: a browser counts a placeholder that wraps in its height (Ruben, 17 Nov 2026: Campaigns' stood two
+// lines high with nothing written).
 export const useAskGrow = (ref: RefObject<HTMLTextAreaElement | null>, value: string, open: boolean) => {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!open || !el || !el.style || el.value !== value) return; // measured once the open field holds these words
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    if (value) el.style.height = `${el.scrollHeight}px`;
   }, [ref, value, open]);
 };
 

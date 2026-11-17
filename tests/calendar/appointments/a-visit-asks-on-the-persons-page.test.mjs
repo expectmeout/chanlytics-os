@@ -150,7 +150,8 @@ test("History: a visit nobody has marked asks 'Did they come?' beside its door, 
 test("Coming up: each visit is its door and asks nothing (canvas A: whether they came is Up next's to ask); a visit under way and nobody has marked is Up next's question, with the same two presses; a guess says so in the one set of words", () => {
   const p = person([visit("u", -0.25, { via: "name" }), visit("f", 30)]);
   fresh();
-  const section = comingUpSection(p.comingUp);
+  // Coming up is a part of the one page (17 Nov 2026), drawn from the page's context: here, the person alone.
+  const section = comingUpSection({ p, canRecord: false });
   const items = all(section, hasClass("cl-prof-up-item"));
   assert.equal(items.length, 2);
   const [under, ahead] = items;
@@ -159,7 +160,10 @@ test("Coming up: each visit is its door and asks nothing (canvas A: whether they
   assert.equal(byTestId(ahead, "person-visit-ask"), null, "ahead: nothing to say yet");
   assert.ok(textOf(under).includes("matched by name"), textOf(under));
   assert.ok(!textOf(ahead).includes("matched"), "an exact match is not a guess to say");
-  assert.equal(comingUpSection([]), false, "nothing coming up, no section");
+  // Nothing coming up is still the part, saying so in one line (the one page: no part is ever blank).
+  const none = comingUpSection({ p: { ...p, comingUp: [], inSequences: [] }, canRecord: false });
+  assert.equal(all(none, hasClass("cl-prof-up-item")).length, 0, "nothing ahead, no visit");
+  assert.ok(textOf(byTestId(none, "person-coming-up-none")).includes("Nothing booked."), "and it says so");
   // Up next asks the one under way, today's, in plain words ("come today", never "come on Today"), with Kept and Missed.
   const asked = p.next.rows.find((r) => r.act.kind === "visit");
   assert.equal(asked?.title, "Did Maria come today?");

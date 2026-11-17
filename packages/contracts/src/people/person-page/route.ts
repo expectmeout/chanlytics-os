@@ -29,10 +29,6 @@ export function personTabWord(id: PersonTab, word: AppointmentWord): string {
   return id === "visits" ? appointmentWords(word).Many : PERSON_TAB_WORDS[id];
 }
 
-/** What the strip of tabs and the figures are, to a screen reader. */
-export const PERSON_TABS_LABEL = "Their page";
-export const PERSON_FIGURES_LABEL = "At a glance";
-
 /**
  * The person and the tab an address under `clients` names: "<id>" is Overview, "<id>/<tab>" that tab; a tab word this
  * page does not know is Overview, so an old or mistyped address still opens the person.

@@ -555,12 +555,12 @@ const pageFor = (id, tab) => {
   frames.begin();
   return ClientProfile(tab ? { id, tab } : { id });
 };
-/** A loaded profile, on the tab asked for (the Overview when none is): the load effect run, then drawn again. */
+/** A loaded profile at the address asked for (the page, else a view of its own): the load run, then drawn again. */
 const profile = async (vm, tab) => {
   await newTree();
   serve(vm);
   const draw = () => pageFor(vm.id, tab);
-  await until(() => byTestId(draw(), "person-now"), "the person's page is drawn");
+  await until(() => byTestId(draw(), "person-page"), "the person's page is drawn");
   await settle(2);
   return draw;
 };
@@ -976,8 +976,8 @@ test("REGRESSION: a person's page says who they are once -- the header held two 
     byTestId(actions, "person-open-thread") &&
       more &&
       more.props.trigger.props["data-testid"] === "person-more" &&
-      /^More/.test(textOf(more.props.trigger).trim()),
-    "the conversation beside who they are, and the rest behind More, in words: a ⋯ was too quiet to find",
+      /^More for /.test(more.props.trigger.props["aria-label"]),
+    "the conversation beside who they are, and the rest behind its caret, named More (the one page: a menu rides its act)",
   );
   assert.ok(
     itemsIn(more).some((i) => i.label === "Send booking link"),
@@ -1158,12 +1158,14 @@ test("Right now says the state once: the pill wears the standing's word, the sen
     vm.stateLabel,
     "REGRESSION: the pill carried the whole title -- Escalated · asked for a person -- and spilled past the card between 901 and 990px: it says the state's word alone",
   );
-  // The pill is the state's word; the sentence under the name gives the reason, and both are read together.
-  const why = byTestId(tree, "person-now-why");
-  assert.equal(textOf(why), vm.rightNow.detail, "the sentence gives the reason");
+  // The pill is the state's word; why is Now's first row (the one page, D6), and both are read together.
+  assert.equal(byTestId(tree, "person-now-why"), null, "the head says the state alone");
+  const why = byTestId(tree, "person-now-needs");
+  const sub = find(why, (n) => String(n.props?.className || "") === "cl-prof-rung-sub");
+  assert.equal(textOf(sub), vm.rightNow.detail, "Now's first row gives the reason");
   const words = `${textOf(card)} ${textOf(why)}`;
   assert.ok((words.match(/eceptionist/g) || []).length <= 1, `AI is named once at most: ${words}`);
-  assert.ok(!words.includes("Escalated"), `the state is the pill's word, not said again in the sentence: ${words}`);
+  assert.ok(!textOf(card).includes("Escalated"), `the state is the pill's word, not said again by the head: ${words}`);
 });
 
 test("a viewer reads the role once, at the top of the rail -- it was said under every locked control", async () => {
@@ -1237,10 +1239,14 @@ test("a frame with nobody to draw has no rail column; their calls are a figure; 
 
   const vm = toPersonVM(detail({ row: row({ visits: VISITS, call_count: 1, call_seconds: 12 }) }), ZONE, new Date(NOW));
   const tree = (await profile(vm))();
-  // Their calls are a figure at the top of the work (canvas A), with how long they ran: no About card says them again.
-  const calls = find(tree, (n) => n.props?.["data-figure"] === "calls");
-  assert.ok(calls, "the calls figure");
-  assert.match(textOf(calls), /12 s/, textOf(calls));
+  // Their calls are counted on History's line (the one page: no number tiles), once: no About card says them again.
+  assert.equal(
+    find(tree, (n) => n.props?.["data-figure"] === "calls"),
+    null,
+    "no number tiles",
+  );
+  const line = find(tree, (n) => n.props?.className === "cl-prof-history-line");
+  assert.match(textOf(line), /\b1 call\b/, textOf(line));
 });
 
 test("each smart list on a profile says why it has them, in its rule's words (decision 0009)", async () => {
@@ -2463,12 +2469,17 @@ const cardOf = (t) => byTestId(t, "person-deal-card");
  * The Deals tab with each deal's row folded open (canvas A: a deal is a row, its name the press that folds the rest
  * open under it), drawn again after the press.
  */
-const openedRow = async (vm, tab = "deals") => {
+const openedRow = async (vm, tab) => {
   const draw = await profile(vm, tab);
   for (const title of all(draw(), (n) => n.props?.["data-testid"] === "person-deal-title")) press(title);
   return draw();
 };
 
+/** A deal's next act where the one page draws it: Now's rung for the deal, else the card's own (the card keeps its other moves). */
+const nextActOf = (t) => {
+  const rung = find(t, (n) => n.props?.["data-testid"] === "person-up-next-row" && n.props["data-kind"] === "deal");
+  return rung ? byTestId(rung, "person-up-next-act") : byTestId(t, "person-deal-next");
+};
 const movesOf = (t) => all(t, (n) => n.type === "button" && n.props?.["data-testid"] === "person-deal-move");
 
 test("the Deal section stands on the Overview above Coming up for someone a deal is true of; with nothing on file it is no line on the page, the proposal started from More (0008, amended 18 Oct 2026); the card's settings have no Deal row", async () => {
@@ -2480,12 +2491,12 @@ test("the Deal section stands on the Overview above Coming up for someone a deal
     const tree = (await profile(withDeals([dealRow()])))();
     const section = byTestId(tree, "person-deal");
     assert.equal(textOf(find(section, (n) => n.type === "h2")), "Deals");
-    // On the Overview (0052), its next act on Up next's rung, then Coming up (VISITS has a visit ahead).
-    const overview = find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview");
-    const kids = overview.rendered.props.children.filter((k) => k && typeof k === "object");
+    // In their story (the one page), its next act on Now's rung, then Notes and what is coming (VISITS has a visit ahead).
+    const story = find(tree, (n) => typeof n.type === "function" && n.type.name === "StoryParts");
+    const kids = story.rendered.props.children.filter((k) => k && typeof k === "object");
     const at = kids.findIndex((k) => k.type === PersonDealCard);
-    assert.ok(at >= 0 && kids[at].props.rung, "the deal, on the Overview, its next act Up next's");
-    assert.equal(kids[at + 1].props["data-testid"], "person-coming-up", "then what is coming");
+    assert.ok(at >= 0 && kids[at].props.rung, "the deal, in their story, its next act Now's");
+    assert.ok(kids.findIndex((k) => k.props?.["data-testid"] === "person-coming-up") > at, "then what is coming");
     // Nothing recorded: the proposal starts from More, in the one sheet.
     const more = find(none, (n) => n.type === Menu && n.props.trigger?.props?.["data-testid"] === "person-more");
     const start = itemsIn(more).find((i) => /^Start a proposal/.test(i.label));
@@ -2498,7 +2509,7 @@ test("the Deal section stands on the Overview above Coming up for someone a deal
       all(byTestId(tree, "person-settings"), (n) => cls(n).split(" ").includes("rec-row")).map((r) =>
         textOf(find(r, (n) => cls(n) === "rec-row-key")),
       ),
-      ["Messages", "Offers & news", "AI"],
+      ["AI", "Messages", "Offers & news"],
       "REGRESSION: the deal was a row of the card and a fold under it (canvas A's order: the answers, then who answers)",
     );
     assert.equal(byTestId(tree, "rec-row-person-deal"), null);
@@ -2537,8 +2548,9 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.equal(textOf(link), "quotes.example.com", "the deal's link, not the one left on the person");
     assert.deepEqual(all(card, (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), ["Not sent yet"]);
     // Not sent, and it can go: the next act is the send, an outline button; the page's one filled button is the thread.
-    const next = byTestId(card, "person-deal-next");
-    assert.deepEqual([textOf(next), next.props.className], ["Send proposal", "btn btn-sm"]);
+    const next = nextActOf(tree);
+    assert.equal(textOf(next), "Send proposal");
+    assert.notEqual(next.props.variant, "primary", "an outline button: the page's one filled button is the thread");
     assert.deepEqual(movesOf(card).map(textOf), ["Mark as client", "Mark as passed", "Edit proposal"]);
     // The card leads with the send, so the More menu does not say it again.
     const more = find(tree, (n) => n.type === Menu);
@@ -2566,7 +2578,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     assert.deepEqual(all(cardOf(tree), (n) => n.props?.["data-testid"] === "person-deal-fact").map(textOf), [
       "No link yet",
     ]);
-    assert.equal(textOf(byTestId(tree, "person-deal-next")), "Edit proposal");
+    assert.equal(textOf(nextActOf(tree)), "Edit proposal");
     assert.deepEqual(movesOf(tree).map(textOf), ["Mark as client", "Mark as passed"], "the edit is said once");
     assert.equal(byTestId(tree, "person-deal-flag"), null, "they wrote since: nothing waiting");
     // Nothing back in a week: a state in the warn tone, the house's one pill. A proposal recorded without a link went
@@ -2583,7 +2595,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     );
     assert.equal(textOf(byTestId(cardOf(tree), "person-deal-value")), "$2,500 a month");
     assert.equal(byTestId(tree, "person-deal-link"), null, "a client's proposal is history");
-    assert.equal(byTestId(tree, "person-deal-next"), null);
+    assert.equal(nextActOf(tree), null);
     assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement"]);
     const current = find(cardOf(tree), (n) => n.props?.["aria-current"] === "step");
     assert.deepEqual(
@@ -2593,9 +2605,7 @@ test("a proposal out is a card: its service and value, its steps, its link and w
 
     // Passed: no card, one line with the reason, and proposing again moves that row.
     asked.length = 0;
-    tree = (
-      await profile(withDeals([dealRow({ stage: "lost", decided_at: iso(2 * D), lost_reason: "price" })]), "deals")
-    )();
+    tree = (await profile(withDeals([dealRow({ stage: "lost", decided_at: iso(2 * D), lost_reason: "price" })])))();
     assert.equal(cardOf(tree), null);
     assert.match(textOf(byTestId(tree, "person-deal-said")), /^Ad management · Passed \w{3} \d+ · Price$/);
     press(byTestId(tree, "person-deal-start"));
@@ -2604,9 +2614,9 @@ test("a proposal out is a card: its service and value, its steps, its link and w
     // A viewer reads the card and presses nothing.
     globalThis.window.__ME = { role: "viewer" };
     try {
-      tree = (await profile(vm, "deals"))();
+      tree = (await profile(vm))();
       assert.ok(cardOf(tree));
-      assert.equal(byTestId(tree, "person-deal-next"), null);
+      assert.equal(nextActOf(tree), null);
       assert.deepEqual(movesOf(tree), []);
     } finally {
       globalThis.window.__ME = { role: "owner" };
@@ -2656,27 +2666,27 @@ test("where only an approved message can reach them, the card's follow-up opens 
   try {
     const vm = quiet();
     const tree = await openedRow(vm);
-    const next = byTestId(tree, "person-deal-next");
+    const next = nextActOf(tree);
     assert.deepEqual([textOf(next), next.props.title], ["Follow up", contracts.DEAL_ACT_HINTS.approved]);
     press(next);
     assert.deepEqual(went, [vm.openThread], "their conversation, which offers the approved messages");
     assert.deepEqual(carried, [], "and nothing written for them: no free text can go");
     for (const rowOver of [{ consent: "opted_out" }, { dnc: true }]) {
       const stopped = await openedRow(quiet(rowOver));
-      assert.equal(textOf(byTestId(stopped, "person-deal-next")), "Mark as client", JSON.stringify(rowOver));
+      assert.equal(textOf(nextActOf(stopped)), "Mark as client", JSON.stringify(rowOver));
     }
     // Where their People row says the proposal follow-up has them (0006): the day its run goes, and the card leads
     // with no nudge of its own.
     const keep = surfaceValue("people");
     try {
-      const draw = await profile(quiet(), "deals");
+      const draw = await profile(quiet());
       setSurfaceValue("people", {
         ...(keep || {}),
         rows: [{ id: vm.id, followUp: { kind: "will", atMs: NOW, asks: true } }],
       });
       for (const title of all(draw(), (n) => n.props?.["data-testid"] === "person-deal-title")) press(title);
       const inHand = draw();
-      assert.equal(textOf(byTestId(inHand, "person-deal-next")), "Mark as client");
+      assert.equal(textOf(nextActOf(inHand)), "Mark as client");
       const flag = find(inHand, (n) => n.type === StatePill && n.props.testid === "person-deal-flag");
       assert.deepEqual([flag.props.value, flag.props.label], ["info", "Follow-up to approve today"]);
     } finally {
@@ -2757,7 +2767,7 @@ test("the card's settings are one line each, and Change opens the editor under i
   const rows = all(settings, (n) => cls(n).split(" ").includes("rec-row"));
   assert.deepEqual(
     rows.map((r) => textOf(find(r, (n) => cls(n) === "rec-row-key"))),
-    ["Messages", "Offers & news", "AI"],
+    ["AI", "Messages", "Offers & news"],
     "REGRESSION: three stacked controls with a paragraph under each were 1,249px of rail (canvas A: the key over its answer)",
   );
   assert.ok(
@@ -2765,7 +2775,7 @@ test("the card's settings are one line each, and Change opens the editor under i
     "each row stacks its key over its answer: the rail's width squeezed them a letter a line",
   );
   assert.deepEqual(
-    rows.slice(0, 2).map((r) => textOf(find(r, (n) => cls(n) === "rec-row-value"))),
+    rows.slice(1, 3).map((r) => textOf(find(r, (n) => cls(n) === "rec-row-value"))),
     [vm.consent.answerLabel, vm.consent.marketingLabel],
     "each answer in its control's own words, from contracts",
   );
@@ -2810,7 +2820,7 @@ test("REGRESSION: on a phone a deal's row folds open as a desk's does -- its pre
     assert.deepEqual(movesOf(tree).map(textOf), ["End the engagement"], "a client's one move, under its row");
     tree = await openedRow(withDeals([dealRow()]));
     assert.deepEqual(asked, []);
-    const acts = [byTestId(tree, "person-deal-next"), ...movesOf(tree)].filter(Boolean).map(textOf);
+    const acts = movesOf(tree).map(textOf);
     assert.deepEqual(
       acts,
       ["Mark as client", "Mark as passed"],
@@ -3008,8 +3018,8 @@ test("a person not read yet is nothing of theirs until their whole page is in: n
     "their name",
   );
   assert.ok(
-    find(tree, (n) => typeof n.type === "function" && n.type.name === "Overview"),
-    "and their Overview, together",
+    find(tree, (n) => typeof n.type === "function" && n.type.name === "StoryParts"),
+    "and their story, together",
   );
   assert.equal(byTestId(tree, "person-reading"), null);
 });

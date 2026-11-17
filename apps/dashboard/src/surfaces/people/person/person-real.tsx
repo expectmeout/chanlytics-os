@@ -1,11 +1,14 @@
 /**
  * One person, in full (moved from legacy/pages/client-profile.jsx `ClientProfileReal`, decision 0015, step 5): fetched on
  * open through the profile's courier (people-detail.ts: every message, call, escalation and operator decision for this
- * contact, mapped in contracts where the rule is tested). It is one quiet record, canvas A "The Person Record" (decision
- * 0052): one scroll, never two panes. On a desk the identity rail (who they are, where they stand, the page's acts, then
- * how to reach them, where they work, what they may be sent and their lists: hero.tsx, sections.tsx, business.tsx,
- * settings-card.tsx, lists.tsx) stands beside the work column (the figures, the tabs as addresses and what the tab holds:
- * work.tsx, overview.tsx). On a phone it is one column, and what the rail knows is the About tab.
+ * contact, mapped in contracts where the rule is tested). It is ONE page for every person (Ruben, 17 Nov 2026: "we should
+ * have just ONE shared person page"; the One person page canvas): the head (who they are, where they stand, the one act
+ * and its caret: hero.tsx), then their story (Now, Latest, Deals for someone with a deal, Notes, Coming up, History:
+ * overview.tsx, sections.tsx) and their record (Reach them, where they came from, where they work, their appointments,
+ * lists and campaigns, and what they get: sections.tsx, business.tsx, lists.tsx, settings-card.tsx). The same parts in
+ * the same order whatever the person holds, a part with nothing in it saying so in one line: no tabs, no number tiles, no
+ * thin layout. On a desk the story and the record stand side by side under the head; on a phone, one after the other.
+ * History and their appointments open in full as views of their own, at the addresses their tabs had.
  *
  * Opening a person is as quick as the tab can make it, and a person's page is never drawn in parts: the tab keeps the
  * people it read, and a person the tab does not hold yet is nothing of theirs until their whole page is in, `Reading…` after
@@ -13,14 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import {
-  NOTE_WORDS,
-  PERSON_PEEK_WORDS,
-  isIdentifierName,
-  personTabRoute,
-  shortName,
-  stateOf,
-} from "@chanlytics/contracts";
+import { PERSON_PEEK_WORDS, isIdentifierName, personTabRoute, shortName, stateOf } from "@chanlytics/contracts";
 import { newSinceOf } from "./model/new-since";
 import type { PersonRowVM, PersonTab, PersonVM } from "@chanlytics/contracts";
 import type { LookedAt } from "./model/new-since";
@@ -43,14 +39,14 @@ import { ListsSheet } from "./sheets/lists-sheet";
 import { useArrivalToast } from "./sheets/combine";
 import { CallSheet, usePersonCall } from "./call";
 import { PersonWalkNav, PhoneDock, hero, openWith, useNameAway } from "./hero";
-import { NotesSection } from "./overview";
+import { StoryParts } from "./overview";
 import { useStanding } from "../../kit/head/standing";
 import { ListsGroup } from "./lists";
 import { PersonProfileFrame } from "./frame";
-import { aboutGroups } from "./sections";
-import { Figures, PersonTabs, TabBody, TabView, tabPages } from "./work";
+import { aboutGroups, campaignsGroup, historySection, visitsGroup } from "./sections";
+import { VisitsTab } from "./tabs/visits";
 import { holdTabRoom, useTabScroll } from "./tabs/tab-scroll";
-import { messagesGroup, phoneFolds } from "./settings-card";
+import { whatTheyGet } from "./settings-card";
 import { heldPerson, readPerson } from "./read";
 import { hearTheirThread } from "./their-thread";
 import { usePeopleSeam } from "./use-people";
@@ -161,20 +157,22 @@ function usePhone(): boolean {
 }
 
 /**
- * The tab the address names, as this width draws it (0052): a desk's Deals and Campaigns are inside a phone's Overview,
- * a phone's About is a desk's rail, and a tab this person does not have (a History with nothing in it) is Overview. A
- * press shows its tab at once and replaces the address, so the page is not mounted again and Back leaves the person; the
- * page's scroll is held across it (tabs/tab-scroll.ts), noted as the press leaves the tab on screen.
+ * The views the address names (the one page, D1): the page itself, or History and their appointments each in full, a
+ * view of its own over the page that Back puts away. Every other word a person's address held (Overview, Deals,
+ * Campaigns, About: the tabs that were) is the page, where each of those is a part. A press shows its view at once and
+ * replaces the address, so the page is not mounted again and Back leaves the person; the page's scroll is held across
+ * it (tabs/tab-scroll.ts), noted as the press leaves the page.
  */
+const VIEWS: readonly PersonTab[] = ["history", "visits"];
+
 function useTab(
   id: string,
   asked: PersonTab,
-  tabs: PersonVM["tabs"]["desk"],
   scroller: RefObject<HTMLDivElement | null>,
 ): [PersonTab, (t: PersonTab) => void] {
   const [picked, setPicked] = useState<PersonTab>(asked);
   useEffect(() => setPicked(asked), [asked]);
-  const tab = tabs.some((t) => t.id === picked) ? picked : "overview";
+  const tab = VIEWS.includes(picked) ? picked : "overview";
   const leaveTab = useTabScroll(scroller, tab);
   const goTab = useCallback(
     (t: PersonTab) => {
@@ -188,12 +186,13 @@ function useTab(
 }
 
 /**
- * What the rail knows of them, its groups in canvas A's order: the role once, how to reach them, where they came from,
- * where they work, what they may be sent and who answers them, their lists.
+ * Their record, the one page's last parts in their order: the role once, how to reach them, where they came from, where
+ * they work, their appointments, their lists, what campaigns sent them, and what they get (AI's setting and their
+ * answers), each a group of one pane: beside the story on a desk, under it on a phone.
  */
-function railGroups(c: PageCtx) {
+function recordGroups(c: PageCtx) {
   const { canRecord } = c;
-  // The role, said once for the rail: every locked control used to say it again under itself.
+  // The role, said once for the record: every locked control used to say it again under itself.
   const roleNote = !canRecord ? "You can read this page · an owner or operator changes it." : null;
   return (
     <>
@@ -204,14 +203,18 @@ function railGroups(c: PageCtx) {
       )}
       {aboutGroups(c)}
       <WorksAtCard c={c} />
-      {messagesGroup(c)}
-      {/* At a wide window their lists stand under their notes, in the third column. */}
-      {c.wide ? null : listsGroup(c)}
+      {visitsGroup(c)}
+      {listsGroup(c)}
+      {campaignsGroup(c.p)}
+      {whatTheyGet(c)}
     </>
   );
 }
 
-/** Their lists, as a group of the rail: chips on a desk, one row on a phone (canvas A). */
+/**
+ * Their lists, as a group of the record: chips on a desk, each a door with why it has them and a × for a list kept by
+ * hand; one row on a phone, opening the lists sheet (canvas A).
+ */
 function listsGroup(c: PageCtx) {
   const { p, canRecord, flash, first } = c;
   return (
@@ -228,24 +231,34 @@ function listsGroup(c: PageCtx) {
 }
 
 /**
- * The page of a person who is here (canvas A): on a desk the identity rail beside the work column, on a phone one column
- * with the rail's groups under About; the business sheet over it when it is open.
+ * A view of its own over the page (History, their appointments): the part in full, under the page's head as the bar says
+ * it (‹ and their name). The page's acts and sheets stay drawn under it.
+ */
+function personView(c: PageCtx, past: PersonVM["timeline"]) {
+  return (
+    <div className="cl-prof-work cl-prof-view" data-testid={`person-view-${c.tab}`}>
+      {c.tab === "visits" ? <VisitsTab c={c} /> : historySection(c, past)}
+    </div>
+  );
+}
+
+/**
+ * The page of a person who is here (the one page, 17 Nov 2026): the head across the top, then their story (Now, Latest,
+ * Deals, Notes, Coming up, History) and their record (Reach them to What they get), side by side on a desk and one after
+ * the other on a phone, the same parts in the same order for every person; or a view of its own where the address names
+ * one. The business, call and lists sheets over it when they are open.
  */
 function personPage(
   c: PageCtx,
   toastNode: ReactNode,
-  refs: { scroller: (el: HTMLDivElement | null) => void; record: (el: HTMLDivElement | null) => void },
+  refs: { scroller: (el: HTMLDivElement | null) => void },
   enter: { arrive: "next" | "prev" | undefined; over: boolean },
 ) {
   const { p, who } = c;
   // Their visits ahead are Coming up, above what has happened.
   const past = p.timeline.filter((t) => !t.ahead);
   const label = `About ${who === "This person" ? "this person" : who}`;
-  const about = (
-    <aside className="cl-prof-rail" aria-label={label}>
-      {railGroups(c)}
-    </aside>
-  );
+  const view = c.tab !== "overview";
   return (
     <div
       className="cl-profile"
@@ -258,40 +271,29 @@ function personPage(
       {...pageSwipe(c)}
     >
       <div className="cl-prof-page">
-        <div className="cl-prof-record" ref={refs.record} data-thin={p.thin || undefined}>
-          <div className="cl-prof-side">
-            {hero(c)}
-            {c.phone ? null : about}
-          </div>
-          <div className="cl-prof-work">
-            {/* The figures stand over every tab, About too: a phone's About once took them away, and the strip under them
-                jumped 200px up the screen as it was pressed (Ruben, 13 Oct 2026). The head and the figures hold still. */}
-            <Figures c={c} />
-            <PersonTabs c={c} />
-            <TabView c={c}>
-              <TabBody c={c} past={past} about={about} />
-            </TabView>
-          </div>
-          {/* A wide window (canvas A, D7): their notes and lists in a third column that holds still. */}
-          {c.wide && !c.phone ? (
-            <aside className="cl-prof-notes-rail" aria-label={NOTE_WORDS.title}>
-              <NotesSection c={c} />
-              {listsGroup(c)}
+        {view ? (
+          personView(c, past)
+        ) : (
+          <div className="cl-prof-record" data-one>
+            <div className="cl-prof-side">{hero(c)}</div>
+            <div className="cl-prof-work" data-testid="person-story">
+              <StoryParts c={c} past={past} />
+            </div>
+            <aside className="cl-prof-work cl-prof-keep" aria-label={label} data-testid="person-record">
+              <div className="cl-prof-rail">{recordGroups(c)}</div>
             </aside>
-          ) : null}
-        </div>
+          </div>
+        )}
       </div>
-      <PhoneDock c={c} />
+      {view ? null : <PhoneDock c={c} />}
       <AskedFromTheThread c={c} />
       <BusinessSheet c={c} />
       <CallSheet c={c} />
       <ListsSheet c={c} />
-      {phoneFolds(c)}
       {toastNode}
     </div>
   );
 }
-
 /**
  * One person: read, drawn whole, and read again when what they are made of moves. `over`: opened over the list it was
  * opened from, held under it (people-route.tsx), which the page comes in over, as an open thread does (clients.css).
@@ -327,7 +329,7 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
   const [missing, loading] = [st.missing && !moving, st.loading || moving];
   const phone = usePhone();
   const scrollerEl = useRef<HTMLDivElement | null>(null);
-  const [tab, goTab] = useTab(id, asked, vm ? (phone ? vm.tabs.phone : vm.tabs.desk) : [], scrollerEl);
+  const [tab, goTab] = useTab(id, asked, scrollerEl);
   // The business sheet (0052): one at a time, closed when the person changes.
   const [sheet, setSheet] = useState(false);
   // Note was pressed: the Notes pane is drawn for someone with none yet (canvas A). Let go when the person changes.
@@ -352,23 +354,8 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
   const looked = useLookedAt(id, reading);
   const [walk, step] = useWalk(id, tab, phone);
   const scroller = useRailHeld(scrollerEl);
-  const [record, wide] = useWide();
   const call = usePersonCall(vm, phone);
-  // The page draws its own head (canvas A), so it says a null title to the frame: its way back to People stands where the
-  // date does, and where they stand in the list they were opened from stands with it ("‹ 4 of 24 ›": beside it on a desk,
-  // in the bell's place on a phone, components.css). On a phone, once the head has scrolled away, the top bar's centre says
-  // their name and the dot of their state.
-  const away = useNameAway(phone, !!vm, scrollerEl);
-  const said = vm ? stateOf("person", vm.state) : null;
-  useStanding({
-    title: null,
-    back: {
-      label: "People",
-      go: backToPeople,
-      after: walk ? <PersonWalkNav walk={walk} step={step} /> : null,
-    },
-    bar: away && vm && said ? { name: vm.name, tone: said.tone, word: vm.stateLabel } : null,
-  });
+  usePageStanding({ vm, tab, goTab, walk, step, away: useNameAway(phone, !!vm, scrollerEl) });
   if (missing)
     return (
       <PersonProfileFrame onBack={backToPeople}>
@@ -438,35 +425,39 @@ function ClientProfileReal({ id, tab: asked, over }: { id: string; tab: PersonTa
     call,
     composing,
     setComposing,
-    wide,
     listsOpen,
     setListsOpen,
   };
   // Every send the page offers opens their thread through one path (the More menu's, the deal card's, Up next's).
   c.compose = openWith(c);
-  return personPage(c, toastNode, { scroller, record }, { arrive, over: cameOver });
+  return personPage(c, toastNode, { scroller }, { arrive, over: cameOver });
 }
 
-/** The width from which the record takes a third column (clients.css's container query on the record; canvas A, D7). */
-const WIDE_PX = 1240;
-
 /**
- * Whether the record holds three columns: its own width, measured as it changes (the stylesheet's container query says
- * the same, at the same width).
+ * What the page says to the frame's top bar. It draws its own head (canvas A), so its title is null: its way back to People
+ * stands where the date does, and where they stand in the list they were opened from stands with it ("‹ 4 of 24 ›": beside
+ * it on a desk, in the bell's place on a phone, components.css). On a phone, once the head has scrolled away (`away`), the
+ * bar's centre says their name and the dot of their state. A view of its own (History, their appointments) is put away
+ * to their page: its way back says their name.
  */
-function useWide(): [(el: HTMLDivElement | null) => void, boolean] {
-  const [wide, setWide] = useState(false);
-  const watch = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((el: HTMLDivElement | null) => {
-    watch.current?.disconnect();
-    watch.current = null;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const judge = () => setWide(el.clientWidth >= WIDE_PX);
-    judge();
-    watch.current = new ResizeObserver(judge);
-    watch.current.observe(el);
-  }, []);
-  return [ref, wide];
+function usePageStanding(standing: {
+  vm: PersonVM | null;
+  tab: PersonTab;
+  goTab: (t: PersonTab) => void;
+  walk: PersonWalk | null;
+  step: (to: string) => void;
+  away: boolean;
+}): void {
+  const { vm, walk, step, goTab } = standing;
+  const said = vm ? stateOf("person", vm.state) : null;
+  useStanding({
+    title: null,
+    back:
+      standing.tab !== "overview" && vm
+        ? { label: vm.name, go: () => goTab("overview"), after: null }
+        : { label: "People", go: backToPeople, after: walk ? <PersonWalkNav walk={walk} step={step} /> : null },
+    bar: standing.away && vm && said ? { name: vm.name, tone: said.tone, word: vm.stateLabel } : null,
+  });
 }
 
 /**
@@ -499,17 +490,16 @@ function useRailHeld(held: RefObject<HTMLDivElement | null>): (scroller: HTMLDiv
 }
 
 /**
- * A phone's thumb on the page (kit/motion/swipe.ts touchSwipe): across the tab's panes it walks the strip (work.tsx tabPages), and
- * right of the first tab, or from the head at any tab, it carries the page back to People, the page following the finger
- * with its ‹ People and ‹ › and the list it was opened from coming in under it, at the rows it was left on, its head and
- * strip of views over it as they stood (kit/motion/held-list.ts); the foot's dock steps aside while it moves. Never from 24px of either edge, the phone's own back, nor from a field or a row that
- * scrolls across. None on a desk.
+ * A phone's thumb on the page (kit/motion/swipe.ts touchSwipe): a swipe right carries the page back to People (the one
+ * page, D9: no tabs are left to walk), the page following the finger with its ‹ People and ‹ › and the list it was opened
+ * from coming in under it, at the rows it was left on, its head and strip of views over it as they stood
+ * (kit/motion/held-list.ts); the foot's dock steps aside while it moves. Never from 24px of either edge, the phone's own
+ * back, nor from a field or a row that scrolls across. None on a desk.
  */
 function pageSwipe(c: PageCtx) {
   if (!c.phone) return {};
   return touchSwipe({
     onBack: c.onBack,
-    pages: tabPages,
     when: () => c.phone,
     onGrab: carriedOver,
     under: heldUnder,

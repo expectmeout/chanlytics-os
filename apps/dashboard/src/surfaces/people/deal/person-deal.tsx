@@ -367,8 +367,9 @@ function PersonDealRow({
       {open ? (
         <div className="cl-prof-deal-open" id={bodyId}>
           {c.link || c.facts.length || c.pace ? dealLine(c, W, true) : null}
-          {/* What wants a look is Up next's on the Overview (its rung says it), said here only on the Deals tab. */}
-          {!rung && c.flags.length ? (
+          {/* What wants a look, under the deal's row: the one page has no Deals tab, so the card is the one place it is
+              said (a lapsed day, nothing back in a week, a follow-up to approve). */}
+          {c.flags.length ? (
             <div className="cl-prof-deal-flags">
               {c.flags.map((f) => (
                 <StatePill key={f.words} kind="tone" value={f.tone} label={f.words} testid="person-deal-flag" />
