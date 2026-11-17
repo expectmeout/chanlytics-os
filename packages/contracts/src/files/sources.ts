@@ -2,7 +2,8 @@
  * Footage sources: the places a business's photos and videos already live, watched (the footage sources plan of 17
  * November 2026; its tables are 00638's). Here are the closed sets those tables hold and the contract each provider
  * fills. Types and sets only: nothing connects, reads or takes a file yet, so the folder's barrel names none of it
- * until a tree imports it (the sets are held to the schema by their path, in shared/schema-sets.ts).
+ * until a tree imports it. The sets are held to the schema by their path (shared/schema-sets.ts), the contract's shape
+ * by the type test beside this, and a set's own type (`(typeof SET)[number]`) arrives with its first reader.
  */
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
@@ -15,12 +16,8 @@ export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
 /** How a connected account stands (source_connections.health): its column comment says each. */
 export const SOURCE_CONNECTION_HEALTHS = ["ok", "needs_reconnect", "blocked_by_admin"] as const;
 
-export type SourceConnectionHealth = (typeof SOURCE_CONNECTION_HEALTHS)[number];
-
 /** Where a watched folder stands (media_sources.state): its column comment says each. */
 export const MEDIA_SOURCE_STATES = ["setting_up", "watching", "paused", "frozen", "stopped"] as const;
-
-export type MediaSourceState = (typeof MEDIA_SOURCE_STATES)[number];
 
 /** What an item under a watched folder is (source_items.kind): `other` is seen and passed over. */
 export const SOURCE_ITEM_KINDS = ["folder", "image", "video", "other"] as const;
@@ -41,8 +38,6 @@ export const SOURCE_ITEM_STATES = [
   "gone",
   "no_access",
 ] as const;
-
-export type SourceItemState = (typeof SOURCE_ITEM_STATES)[number];
 
 /**
  * What a provider's reply means to the read that asked. `pace` is "rest, then go on" (the provider's own limit, never
