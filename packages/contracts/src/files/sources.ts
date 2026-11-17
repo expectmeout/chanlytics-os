@@ -1,7 +1,8 @@
 /**
  * Footage sources: the places a business's photos and videos already live, watched (the footage sources plan of 17
  * November 2026; its tables are 00638's). Here are the closed sets those tables hold and the contract each provider
- * fills. Types and sets only: nothing connects, reads or takes a file yet.
+ * fills. Types and sets only: nothing connects, reads or takes a file yet, so the folder's barrel names none of it
+ * until a tree imports it (the sets are held to the schema by their path, in shared/schema-sets.ts).
  */
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
@@ -47,9 +48,7 @@ export type SourceItemState = (typeof SOURCE_ITEM_STATES)[number];
  * What a provider's reply means to the read that asked. `pace` is "rest, then go on" (the provider's own limit, never
  * a refusal); `no_access` is a grant or an item the provider no longer lets be read, which is never read as `gone`.
  */
-export const SOURCE_VERDICTS = ["ok", "pace", "no_access", "gone"] as const;
-
-export type SourceVerdict = (typeof SOURCE_VERDICTS)[number];
+export type SourceVerdict = "ok" | "pace" | "no_access" | "gone";
 
 /* ------------------------------------------------------------------------------------------- what a provider says */
 
