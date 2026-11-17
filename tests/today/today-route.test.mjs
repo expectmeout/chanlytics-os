@@ -98,7 +98,7 @@ test("the day's read comes back whole, and the page makes the day from it in its
     "each named on the wire's way",
   );
   assert.equal(read.done_today, 0);
-  assert.equal("since" in read, false, "what happened since the member looked is the bell's, not this read's (0136)");
+  assert.equal("since" in read, false, "what happened since the member looked is the bell's, not this read's (0137)");
   assert.ok(vm.standing.headline, "a headline");
   assert.equal(vm.standing.lines.down, false);
   assert.deepEqual(

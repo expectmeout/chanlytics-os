@@ -191,7 +191,7 @@ nothing stands under the list. How many were done today moves to the head's sent
 everything for today", waits until nobody does. An old call's sheet leads with Mark done, as its note says to, with Call the quiet
 press beside it and no Not now. Ask found's glyph and a desk's See all capsule go with it, overriding the boards that drew them.
 
-## Amended 17 November 2026 · The head is the greeting, one sentence and Listen (decision 0136)
+## Amended 17 November 2026 · The head is the greeting, one sentence and Listen (decision 0137)
 
 Since you looked no longer stands under the sentence, on a phone or a desk: on Ruben's phone it was a card narrower
 than every card under it, saying Sunday's sends on a Tuesday. Item 10 stands as it was written, whole: what happened

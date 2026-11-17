@@ -852,7 +852,7 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     assert.equal(bellOf(read).props["data-tip"], undefined);
     unmount();
 
-    // The closed bell is for news (decision 0136): a note about what Need you counts wears its dot in the list and is
+    // The closed bell is for news (decision 0137): a note about what Need you counts wears its dot in the list and is
     // no part of the sign, since the one count says it on the Inbox's badge.
     const counted = { id: "needs:th-1", kind: "needs_you", title: "Ana needs you", message: "", at: 0, actions: [] };
     W.__notifs = bellWith([{ ...counted, unread: true, in_need_you: true }]);
@@ -898,7 +898,7 @@ test("the bell's foot is the door to Settings › Notifications, where this brow
     assert.equal(
       "alerts" in open.props || "onAlerts" in open.props,
       false,
-      "REGRESSION: a second switch for this browser's alerts stood in the bell's foot (decision 0136)",
+      "REGRESSION: a second switch for this browser's alerts stood in the bell's foot (decision 0137)",
     );
     open.props.onSettings();
     assert.deepEqual(went, ["admin/notifications"], "the foot opens the page the one switch is on");

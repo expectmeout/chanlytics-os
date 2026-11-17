@@ -99,7 +99,7 @@ test.describe("The bell on a real workspace", () => {
     };
     expect(Array.isArray(data.notifications)).toBe(true);
     for (const n of data.notifications) expect(typeof n.title).toBe("string");
-    // The bell's foot is the door to Settings › Notifications, where this browser's one alert switch is (decision 0136).
+    // The bell's foot is the door to Settings › Notifications, where this browser's one alert switch is (decision 0137).
     await expect(page.getByTestId("notif-settings")).toBeVisible();
     await page.screenshot({ path: "test-results/bell.png" });
   });

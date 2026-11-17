@@ -119,7 +119,7 @@ const tbOlderOf = (real: Bell | null) => (real && real.older ? real.older() : 0)
 /**
  * The notes that wear a dot, and the older unread ones the bell does not list: what is still unread after a look. A note
  * about what Need you counts wears its dot in the list and is no part of this: the closed bell is for news, and the one
- * count says the rest on the Inbox's badge (decision 0136).
+ * count says the rest on the Inbox's badge (decision 0137).
  */
 const tbDotsOf = (real: Bell | null, shown: readonly BellNote[]) =>
   shown.filter((n) => n.unread && !n.in_need_you).length + tbOlderOf(real);
@@ -205,7 +205,7 @@ function bellActs({ real, realRows, flash, closeBell }: BellActsAt) {
     closeBell();
     if (to) window.CHANLY?.nav?.(to);
   };
-  // The foot's door: what reaches you, this browser's alerts among it, is chosen on its page (decision 0136).
+  // The foot's door: what reaches you, this browser's alerts among it, is chosen on its page (decision 0137).
   const settings = () => {
     closeBell();
     window.CHANLY?.nav?.("admin/notifications");

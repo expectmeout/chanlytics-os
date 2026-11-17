@@ -454,7 +454,7 @@ export const ALERT_PANE_WORDS = {
   phoneHint: "Signing out on a phone stops its alerts.",
   browser: "This browser",
   /**
-   * What reaches this browser and when, by how it gets there (decision 0136, the one switch): the server tells the
+   * What reaches this browser and when, by how it gets there (decision 0137, the one switch): the server tells the
    * browser itself, Chanlytics open or closed (`push`), or this page alerts while it is open in a tab (`tab`), where the
    * browser or the deployment has no push.
    */

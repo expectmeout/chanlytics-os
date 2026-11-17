@@ -258,7 +258,7 @@ function bellLine(d: BellDraw, l: BellLine) {
 
 /**
  * The bell's foot: the door to Settings › Notifications, where what reaches you is chosen, this browser's alerts among
- * it. The foot held that switch itself, a second one beside the page's (decision 0136: one switch, on its page).
+ * it. The foot held that switch itself, a second one beside the page's (decision 0137: one switch, on its page).
  */
 function bellFoot(onSettings: () => void) {
   return (

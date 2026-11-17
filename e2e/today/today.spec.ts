@@ -243,7 +243,7 @@ test.describe("Today on a real workspace", () => {
     page,
   }) => {
     await expect(page.getByTestId("today-zones")).toBeVisible();
-    // While you were away went (Today in three zones), and Since you looked after it (decision 0136): news is the bell's.
+    // While you were away went (Today in three zones), and Since you looked after it (decision 0137): news is the bell's.
     await expect(page.getByTestId("today-away")).toHaveCount(0);
     await expect(page.getByTestId("today-since")).toHaveCount(0);
     if (await page.getByTestId("today-queue").count()) await expectNoQueueRepeat(page);

@@ -1,5 +1,5 @@
 /**
- * This browser's alerts: one switch (Settings › Notifications, decision 0136), this browser's by definition.
+ * This browser's alerts: one switch (Settings › Notifications, decision 0137), this browser's by definition.
  *
  * Two things can alert a browser. The server can tell the browser itself, Chanlytics open or closed (Web Push,
  * ../ask/web-push.ts), where the browser and the deployment can take it; and this page can raise an alert of its own

@@ -7,7 +7,7 @@
  *   in the evening in New York is today's;
  * - each subject once, the members' own decisions of the counted verbs only, and none taken back, nor the Undo itself.
  *
- * What happened since the member last looked was read here too until 17 Nov 2026 (decision 0136): it is the bell's alone.
+ * What happened since the member last looked was read here too until 17 Nov 2026 (decision 0137): it is the bell's alone.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

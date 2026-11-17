@@ -1,4 +1,4 @@
-# 0136 · Today says a thing once: no Since you looked, a card that leaves approvals to Need you, a bell for news, one switch for this browser
+# 0137 · Today says a thing once: no Since you looked, a card that leaves approvals to Need you, a bell for news, one switch for this browser
 
 **Status:** Decided by Ruben, 17 November 2026 ("Build everything in one pr", after the review of his phone's Today), and built. No migration. Written against main at `c3bd898424`. Amends 0040, 0048, 0071, 0076, 0113, 0120 and 0124.
 

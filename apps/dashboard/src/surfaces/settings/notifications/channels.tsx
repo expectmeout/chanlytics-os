@@ -211,7 +211,7 @@ function PhonesRow({ phones, now }: { phones: PhoneDto[]; now: number }) {
 }
 
 /**
- * This browser: the one switch for its alerts (decision 0136; bridge/notifications.ts BrowserAlerts), which the account
+ * This browser: the one switch for its alerts (decision 0137; bridge/notifications.ts BrowserAlerts), which the account
  * menu says beside Notifications. On, the server tells the browser itself where it can, Chanlytics open or closed, and
  * this page alerts while it is open where it cannot; the row says which. It stood three times: here, in the bell's
  * foot, and as a second line under the grid for the server's push alone. Drawn only where a browser can alert (never

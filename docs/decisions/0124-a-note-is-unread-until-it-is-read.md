@@ -50,7 +50,7 @@ The migration before the build. The build selects the new column, so it fails on
 
 `tests/today/record/a-note-is-unread-until-it-is-read.test.mjs` (the rule, the bell's rows, the bridge's look and Mark all read), `tests/today/notifications.db.test.mjs` (the door on a database), `tests/partners/second-factor-catalog.db.test.mjs` (the door named), `tests/routes/reads-routes.test.mjs` (the read and the write), `tests/today/record/one-row-for-one-hold.test.mjs` (a kept hold), `tests/today/bell-rows.test.mjs` (the top bar, drawn, and its Mark all read pressed; the check on a note and a group; the quiet sign; a failed save said), and for the amendment the same files, with `tests/database/tenancy.db.test.mjs` (a seat's row made with the seat).
 
-## Amended, 17 November 2026: the number is for news (decision 0136)
+## Amended, 17 November 2026: the number is for news (decision 0137)
 
 Item 1's number no longer counts a note about what Need you counts: it keeps its dot in the list and adds nothing to
 the closed bell's number or its quiet dot (contracts `noticeInNeedYou`, read off Today's rows). The phone's icon and a

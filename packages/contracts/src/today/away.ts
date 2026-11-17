@@ -2,7 +2,7 @@
  * While you were away: the bell's unread rows as Today read them (what the page already draws above dropped, like rows
  * grouped, warnings first), and the bell itself read the same way, new above earlier. The rows are notifications.ts's.
  * Since Today in three zones (2 Nov 2026) no page draws the away card, and since 17 Nov 2026 none says what happened
- * since the bell was last closed either (decision 0136): news is the bell's alone, which groups through bellSections;
+ * since the bell was last closed either (decision 0137): news is the bell's alone, which groups through bellSections;
  * todayAwayGrouped is kept by its tests until a tidy takes it.
  *
  * ONE GROUPING. The away card is the bell's "Unread" section less what Today draws elsewhere, in the order a warning asks:
@@ -389,7 +389,7 @@ export const BELL_READ_WORDS = {
   readFailed: "Mark all read didn't save, so your notes are unread again. Press it once more.",
   /** Its Undo was not taken: the notes stay read. */
   undoFailed: "Undo didn't save, so those notes stay read.",
-  /** The bell's foot: the door to Settings › Notifications, where what reaches you is chosen (decision 0136). */
+  /** The bell's foot: the door to Settings › Notifications, where what reaches you is chosen (decision 0137). */
   settings: "Notification settings",
 } as const;
 

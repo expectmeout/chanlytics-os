@@ -430,7 +430,7 @@ const COLD_EMAIL_ROUTE = "admin/outreach";
  * Never a batch that waits for its OK: that is a row of Need you (decision 0120, D8: each run's own, or Cold email's one
  * row where two or more wait), counted in the one count, and a card under it said it again. The two counted apart, too:
  * the row every waiting run's emails, the card the newest campaign's alone, so one phone read "8 emails wait for your
- * approval" over "Your next 5 emails are ready for your approval" (17 Nov 2026, decision 0136). The card is for what Need
+ * approval" over "Your next 5 emails are ready for your approval" (17 Nov 2026, decision 0137). The card is for what Need
  * you cannot hold: a mailbox to fix, a step left before a first email, nobody new to write to.
  */
 export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | null {

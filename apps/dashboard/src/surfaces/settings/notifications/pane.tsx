@@ -3,7 +3,7 @@
  * who else is emailed. Every control is one the code reads: the business's addresses and what it is emailed are the
  * config's `notifications` section (escalation_emails, email_off), which the edge's notify() reads before every mail;
  * what reaches the member's phones is their own membership row (`useSurface("alerts")`, me/alerts), which the push job
- * reads; this browser is one switch, the bell's own (channels.tsx BrowserRow, decision 0136). The topics, their groups and every sentence are contracts'
+ * reads; this browser is one switch, the bell's own (channels.tsx BrowserRow, decision 0137). The topics, their groups and every sentence are contracts'
  * (notification-kinds.ts: ALERT_TOPICS, alertGrid, ALERT_PANE_WORDS); the acts are acts.tsx's.
  */
 import { useRef, useState } from "react";

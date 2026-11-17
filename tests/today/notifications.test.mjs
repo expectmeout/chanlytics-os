@@ -493,7 +493,7 @@ test("the top bar shows the real feed", () => {
   assert.ok(tb.includes("const shown: BellNote[] = real ? realRows : [];"));
   assert.ok(tb.includes("real.onChange("), "repaints when a surface refreshes or a mark changes");
   // What a press in the bell does is run, not read: tests/today/bell-rows.test.mjs draws the bar and presses, its
-  // foot's door to Settings › Notifications among them (this browser's one alert switch is that page's, decision 0136).
+  // foot's door to Settings › Notifications among them (this browser's one alert switch is that page's, decision 0137).
   assert.ok(
     readCode("apps/dashboard/src/bridge/FrameApp.tsx").includes("installNotifications();"),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
@@ -501,7 +501,7 @@ test("the top bar shows the real feed", () => {
   assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications/feed";'));
 });
 
-/* ------------------------------------------- one switch for this browser (decision 0136) ------------------------------------------- */
+/* ------------------------------------------- one switch for this browser (decision 0137) ------------------------------------------- */
 
 /**
  * A browser the server can tell itself (Web Push): its service worker, its push manager, and the door the subscription is

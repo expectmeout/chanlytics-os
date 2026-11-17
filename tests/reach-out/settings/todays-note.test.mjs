@@ -141,7 +141,7 @@ test("with cold email set up and going, Today says nothing", async () => {
   assert.deepEqual(await noteOf(ctx), { note: null });
 });
 
-test("a run waiting for an OK is Need you's row, and Today's card says nothing of it (decision 0136)", async () => {
+test("a run waiting for an OK is Need you's row, and Today's card says nothing of it (decision 0137)", async () => {
   const ctx = contextOf({
     mailbox_connections: [connected],
     sequence_steps: [root()],

@@ -14,7 +14,7 @@
  * a thread's media, the attention row, the agenda's rows, and the record kit: the row, the fields, the fold, the inline
  * editor, the sheet, the registry that keeps one fold open and the unsaved-work rule) is imported by the TSX that draws it,
  * and was published for pages that moved long ago: eighty names nothing read were taken down in one sweep (O4b, 11 October
- * 2026), and `RecordSwitch` with the bell's alert switch, the last page to read it by name (decision 0136).
+ * 2026), and `RecordSwitch` with the bell's alert switch, the last page to read it by name (decision 0137).
  *
  * Nothing here is behaviour: it is the kit's own components, and a page draws them exactly as it drew the old ones.
  *

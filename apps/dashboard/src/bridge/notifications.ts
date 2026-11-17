@@ -25,9 +25,9 @@
  *     the number the edge counts before a push;
  *   - a note about what Need you already counts (a thread that needs you, a reply counting down, a run or a search
  *     waiting for a word) stays on the bell with its dot and adds nothing to the closed bell's number or dot: the one
- *     count says it, on the Inbox's badge (decision 0136, contracts noticeInNeedYou). The phone's icon, the one mark
+ *     count says it, on the Inbox's badge (decision 0137, contracts noticeInNeedYou). The phone's icon, the one mark
  *     outside the app, still counts it;
- *   - this browser's alerts are one switch (Settings › Notifications, decision 0136), this browser's by definition:
+ *   - this browser's alerts are one switch (Settings › Notifications, decision 0137), this browser's by definition:
  *     surfaces/browser-alerts.ts, which this keeps the page's own alert's answer for.
  *
  * Published to the mockup's top bar as window.__notifs.
@@ -161,7 +161,7 @@ export interface BellRow {
   about: { type: string; id: string } | null;
   /**
    * It says what Need you already counts (contracts noticeInNeedYou): listed with its dot, and no part of the closed
-   * bell's number or dot, which are for news (decision 0136).
+   * bell's number or dot, which are for news (decision 0137).
    */
   in_need_you: boolean;
   actions: Array<{ label: string; to: string; primary: boolean }>;
@@ -296,7 +296,7 @@ function needYouCounted(): NeedYouCounted | null {
 /**
  * The bell's rows, each saying whether Need you already counts it (contracts noticeInNeedYou): the one count says such
  * a wait, on the Inbox's badge, so its note keeps its dot on the bell and adds nothing to the closed bell (decision
- * 0136). Read off Today's rows, which are what the count is made of: before Today is read, or where its read failed,
+ * 0137). Read off Today's rows, which are what the count is made of: before Today is read, or where its read failed,
  * nothing is known to be counted and a person waiting still lights the bell, so no wait is left with no mark at all.
  */
 function withNeedYou<T extends NotificationRow>(rows: T[], waits: WhatWaits): Array<T & { in_need_you: boolean }> {
@@ -530,7 +530,7 @@ export function installNotifications(
   // One row for one hold (contracts bellFeed): the row the browser derives carries the marks of the notice the edge kept.
   // A kept row whose subject no longer waits (a run approved, a booking email dismissed, a review answered) reads as read, from what
   // the surfaces hold (whatWaits).
-  // Each says whether Need you already counts it (withNeedYou, decision 0136).
+  // Each says whether Need you already counts it (withNeedYou, decision 0137).
   const rows = () => {
     const waits = whatWaits();
     const feed = bellFeed({
@@ -569,7 +569,7 @@ export function installNotifications(
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
     // The bell's number: the news that is new since the member last looked and is not read. A dot alone is no part of
-    // it, and nor is a note about what Need you counts (decision 0136).
+    // it, and nor is a note about what Need you counts (decision 0137).
     unread: () => {
       const seen = seenAt();
       return rows().filter((r) => r.unread && r.at > seen && !r.in_need_you).length + older();

@@ -330,7 +330,7 @@ const saysAPersonWaits = (kind: string, end: NoticeEnd | null): boolean =>
   end?.ends === "send";
 
 /**
- * Whether a bell row says what Need you already counts (decision 0136): a person whose thread is one of the count's, a
+ * Whether a bell row says what Need you already counts (decision 0137): a person whose thread is one of the count's, a
  * search's question the count holds, or a run that waits for a word or holds emails for a look. Such a row stays on the
  * bell, wearing its dot, and adds nothing to the closed bell's number or its dot: the one count says it, on the Inbox's
  * badge, and a phone showed the two marks for one approval (17 Nov 2026). The closed bell is for news.
