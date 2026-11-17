@@ -19,8 +19,8 @@ export function NewWho({ s }: { s: SheetState }) {
     <PersonPick
       label={W.who.sub}
       placeholder={W.who.search}
-      q={q}
-      onQ={setQ}
+      query={q}
+      onQuery={setQ}
       people={rows}
       onPick={s.choose}
       // Never "no one" while nobody has been read: what is shown is not yet the answer to what was typed.

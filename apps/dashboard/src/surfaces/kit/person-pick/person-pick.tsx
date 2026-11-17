@@ -37,8 +37,8 @@ export interface PersonPickProps {
   /** What the empty search says. */
   placeholder: string;
   /** What was typed. */
-  q: string;
-  onQ: (q: string) => void;
+  query: string;
+  onQuery: (query: string) => void;
   /** Who was found, in the page's order: each a press. */
   people: readonly PersonPickRow[];
   onPick: (id: string) => void;
@@ -52,34 +52,34 @@ export interface PersonPickProps {
   className?: string;
 }
 
-/** Where their deal stands, or when they were last heard: the row's own words. */
-const saidOf = (p: PersonPickRow): string => (p.deal ? p.deal.line : p.lastContact.label);
+/** The line under their name: where their deal stands, or when they were last heard, in the row's own words. */
+const lineUnderName = (person: PersonPickRow): string => (person.deal ? person.deal.line : person.lastContact.label);
 
 /** Who was found, each a press that picks them; or the words for nobody. */
-function found(p: PersonPickProps) {
-  if (!p.people.length)
+function found({ people, onPick, none, reading, testid }: PersonPickProps) {
+  if (!people.length)
     return (
-      <p className="person-pick-none" role={p.reading ? "status" : undefined} data-testid={`${p.testid}-none`}>
-        {p.none}
+      <p className="person-pick-none" role={reading ? "status" : undefined} data-testid={`${testid}-none`}>
+        {none}
       </p>
     );
   return (
-    <ul className="person-pick-list" data-testid={`${p.testid}-list`}>
-      {p.people.map((person) => (
+    <ul className="person-pick-list" data-testid={`${testid}-list`}>
+      {people.map((person) => (
         <li key={person.id}>
           <button
             type="button"
             className="person-pick-row"
-            onClick={() => p.onPick(person.id)}
-            data-testid={`${p.testid}-pick`}
+            onClick={() => onPick(person.id)}
+            data-testid={`${testid}-pick`}
           >
             <Face person={{ name: person.name, initials: person.initials }} size="sm" className="person-pick-face" />
             <span className="person-pick-name">
               {person.name}
               {/* They asked to stop: what the sheet does next is a message, so the pick says it before they are chosen. */}
-              {person.stopped && <StoppedMark className="person-pick-stopped" testid={`${p.testid}-stopped`} />}
+              {person.stopped && <StoppedMark className="person-pick-stopped" testid={`${testid}-stopped`} />}
             </span>
-            <span className="person-pick-said">{saidOf(person)}</span>
+            <span className="person-pick-said">{lineUnderName(person)}</span>
           </button>
         </li>
       ))}
@@ -88,8 +88,19 @@ function found(p: PersonPickProps) {
 }
 
 /** The question and its search, over who it found. */
-export function PersonPick(p: PersonPickProps) {
-  const { label, placeholder, q, onQ, people, onPick, reading = false, autoFocus = false, testid, className } = p;
+export function PersonPick(props: PersonPickProps) {
+  const {
+    label,
+    placeholder,
+    query,
+    onQuery,
+    people,
+    onPick,
+    reading = false,
+    autoFocus = false,
+    testid,
+    className,
+  } = props;
   // Enter takes the first found, once what is shown answers what was typed: a search is a pick in two keys.
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const first = people[0];
@@ -107,14 +118,14 @@ export function PersonPick(p: PersonPickProps) {
           // eslint-disable-next-line jsx-a11y-x/no-autofocus -- the page says when: never on a touch screen (focusAsDrawn)
           autoFocus={autoFocus}
           autoComplete="off"
-          value={q}
+          value={query}
           placeholder={placeholder}
-          onChange={(e) => onQ(e.target.value)}
+          onChange={(e) => onQuery(e.target.value)}
           onKeyDown={onKeyDown}
           data-testid={`${testid}-search`}
         />
       </label>
-      {found(p)}
+      {found(props)}
     </div>
   );
 }

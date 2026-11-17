@@ -21,7 +21,7 @@ function _personPickTakes(rows: readonly PersonRowVM[], row: PersonPickRow): voi
     Holds<Exactly<PersonPickProps["onPick"], (id: string) => void>>,
     Holds<Exactly<PersonPickProps["people"], readonly PersonPickRow[]>>,
   ];
-  const asked = { label: "Who is it for?", placeholder: "Search people", q: "", onQ: () => undefined };
+  const asked = { label: "Who is it for?", placeholder: "Search people", query: "", onQuery: () => undefined };
   PersonPick({ ...asked, people: rows, onPick: () => undefined, none: "No one matches.", testid: "pick" });
   PersonPick({
     ...asked,

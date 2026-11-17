@@ -47,8 +47,8 @@ const PipelineNewBody = (b: BodyProps) => {
     <PersonPick
       label={W.sub}
       placeholder={W.search}
-      q={q}
-      onQ={onQ}
+      query={q}
+      onQuery={onQ}
       people={pipeNewMatches(rows, q)}
       onPick={onPick}
       none={W.none}

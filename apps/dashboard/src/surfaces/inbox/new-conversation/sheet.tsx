@@ -160,7 +160,7 @@ function planStep(s: SheetState) {
  * `discard`), which a sheet's foot lays out as the question over an equal pair, and a phone's job as its panel (`block`).
  * Its Yes is red words and never the red fill: nothing kept is destroyed.
  */
-function leaveAsked(s: SheetState, block = false) {
+function leaveAsked(state: SheetState, block = false) {
   return (
     <Confirm
       question={W.leave.question}
@@ -169,8 +169,8 @@ function leaveAsked(s: SheetState, block = false) {
       no={W.leave.no}
       discard
       block={block}
-      onYes={s.work.discard}
-      onNo={s.work.stay}
+      onYes={state.work.discard}
+      onNo={state.work.stay}
       testid="ix-new-leave"
     />
   );

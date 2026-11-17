@@ -43,8 +43,8 @@ function pickOf({ people = FOUND, reading = false, className } = {}, seen = { pi
   return h(PersonPick, {
     label: "Who is it for?",
     placeholder: "Search people",
-    q: "",
-    onQ: (q) => seen.typed.push(q),
+    query: "",
+    onQuery: (query) => seen.typed.push(query),
     people,
     onPick: (id) => seen.picked.push(id),
     none: reading ? "Reading…" : "No one matches.",
