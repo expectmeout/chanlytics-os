@@ -113,6 +113,22 @@ test("what the day says of now says so too: each cell's word for where it stands
   assert.notEqual(bar.props["data-when"], undefined, "now would stand where it stood an hour ago");
 });
 
+test("the day's bar is green only where a time is open, as the Calendar shows it: Rosa's freed hour, never the hours that have gone", () => {
+  const tree = dayOver(busyEvening());
+  const [bar] = all(tree, (n) => typeof n.type === "string" && classes(n).includes("tpd-bar"));
+  const tones = all(bar, (n) => n.type === "span").map((n) => classes(n).find((c) => c !== "meter-part"));
+  const now = tones.indexOf("meter-mark");
+  assert.ok(now > 0, "the fixture's bar has the day's gone hours before now");
+  assert.deepEqual(
+    [...new Set(tones.slice(0, now))],
+    ["meter-ground"],
+    "REGRESSION: the hours that have gone were drawn in the green of open time",
+  );
+  assert.equal(tones.filter((tone) => tone === "meter-free").length, 1, "one open time: Rosa's");
+  assert.equal(tones.indexOf("meter-free"), tones.lastIndexOf("meter-ahead") + 1, "after the last visit, where it is");
+  assert.equal(tones.at(-1), "meter-ground", "and the quarter hour after it, which nobody can book, is not open");
+});
+
 test("no calendar linked: the one row that links one, and the day says so", () => {
   const vm = busyEvening();
   const tree = dayOver({ ...vm, feed: { ...vm.feed, state: "none" } });

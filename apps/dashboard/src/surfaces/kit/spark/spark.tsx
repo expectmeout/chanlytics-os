@@ -1,6 +1,7 @@
 /**
- * The kit's spark (kit.css, "Spark"; Today with colour, 17 Nov 2026): a run of small columns, a day each, each its value's
- * share of the tallest. The last is the day still counting where `today` says so, drawn in the accent (live, right now); a
+ * The kit's spark (kit.css, "Spark"; Today with colour, 17 Nov 2026): a run of small columns, a day each, each as tall as
+ * the square root of its value's share of the tallest (columnHeight says why). The last is the day still counting where
+ * `today` says so, drawn in the accent (live, right now); a
  * column of two parts draws its lower part in the ok tone (what AI answered, the ok tone's own word) and the rest of it in
  * the strong hairline's colour. It draws no words: what it says is its `aria-label`, as the Meter does. The heights are
  * data no class can hold, so they are the one style it writes in a prop, as the Meter's shares are (docs/debt.md, "Rises").
@@ -31,10 +32,19 @@ export interface SparkColumn {
   part?: number;
 }
 
-/** The lowest a column of something is drawn, as a share of the tallest: a day of one beside a day of forty still shows. */
+/** The lowest a column of something is drawn, as a share of the tallest: a day of one beside a day of a thousand still shows. */
 const LEAST_SHARE = 4;
 
-/** A share of a whole as the height a column is drawn at. */
+/**
+ * How tall a column of something is drawn, as a share of the spark's height: the square root of its value's share of the
+ * tallest. A month of messages is quiet days beside a busy one, and on a straight scale a day of two beside a day of forty
+ * is a hairline, so thirty columns read as one (the canvas check of 17 Nov 2026). The root keeps the days' order and lets
+ * each be seen. No number is read off a column, which has no axis: the numbers are the page's words beside it.
+ */
+const columnHeight = (value: number, tallest: number): string =>
+  `${Math.max(LEAST_SHARE, Math.round(Math.sqrt(value / tallest) * 10_000) / 100)}%`;
+
+/** A share of a whole as the height a column's part is drawn at. */
 const heightOf = (value: number, whole: number): string => `${whole > 0 ? (value / whole) * 100 : 0}%`;
 
 /** A spark: its columns in order, the last today's where `today`, its height, and what it says to a screen reader. */
@@ -56,9 +66,7 @@ export function Spark({ columns, today = false, size, className, ...span }: Spar
         <span
           key={index}
           className={columnClasses({ now: today && index === columns.length - 1 ? "yes" : "no" })}
-          style={{
-            height: column.value > 0 ? `${Math.max(LEAST_SHARE, (column.value / tallest) * 100)}%` : undefined,
-          }}
+          style={{ height: column.value > 0 ? columnHeight(column.value, tallest) : undefined }}
         >
           {column.part !== undefined && column.value > 0 ? (
             <span

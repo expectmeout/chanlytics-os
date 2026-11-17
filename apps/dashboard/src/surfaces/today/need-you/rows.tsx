@@ -49,6 +49,15 @@ export function answersInThread(row: TodayQueueRowVM): boolean {
   return row.kind === "callback" || !!row.request || REPLY_KINDS.has(row.kind);
 }
 
+/**
+ * Whether a row is a step of the phone's walk (sheet/walk-sheet.tsx): one worked on Today. A row answered in its
+ * conversation is none (D8): its draft and its Send are the thread's, so the walk passes over it, whichever row it was
+ * opened on, and its end says who still waits.
+ */
+export function walkedOnToday(row: TodayQueueRowVM): boolean {
+  return worksInPlace(row) && !answersInThread(row);
+}
+
 /** Whether a row drawn short opens in place to be worked (a send is never made on words not seen); else it acts. */
 export function opensToWork(r: TodayQueueRowVM): boolean {
   return (

@@ -111,10 +111,11 @@ const offeredHours = (): ReadonlySet<string> =>
 
 /**
  * A part of the bar, in the Calendar's own looks (the kit's Meter's day tones; Today with colour, 17 Nov 2026): a visit
- * that went, the one under way (the accent, live), the visits still to come, and the free time between them, which the
- * Calendar calls open.
+ * that went, the one under way (the accent, live), the visits still to come, and the time the Calendar draws as Open:
+ * what AI would offer, still to come (contracts todayDayBar). Any other stretch with no visit in it, an hour that has gone
+ * or one nobody can book, is the ground: green there said a time was open that is not.
  */
-const BAR_TONE = { past: "went", now: "now", next: "ahead", later: "ahead", gap: "free" } as const;
+const BAR_TONE = { past: "went", now: "now", next: "ahead", later: "ahead", open: "free", gap: "ground" } as const;
 
 const barParts = (bar: TodayDayBarVM) => bar.parts.map((p) => ({ share: p.share, tone: BAR_TONE[p.phase] }));
 
