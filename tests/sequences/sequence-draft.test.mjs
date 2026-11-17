@@ -642,19 +642,13 @@ test("a line that is only a message to keep is answered as one, which New hands 
   const keep = { words: "A message for when someone asks about prices: all our prices are on the booking page" };
   answerWith(answer({ kind: "message", who: "", name: "", steps: [] }));
   const out = await draftSequenceFrom(KNOWN, keep, { tenantId: "t1", userId: "u1" });
-  assert.deepEqual([out, draftKeepsMessage(out)], [{ keeps: "message", said: keep.words }, true], "no draft of it");
-  assert.equal(calls.length, 1, "asked once: no draft is judged of it");
-  assert.match(
-    JSON.stringify(calls[0].request.system),
-    /choose message/,
-    "AI is told when a line is a message to keep",
-  );
-  assert.ok(NEW_DRAFT_JSON_SCHEMA.properties.kind.enum.includes("message"));
-  // A kind the owner chose is kept whatever Ask says: the draft is judged as that kind, never handed back.
+  assert.deepEqual([out, calls.length], [{ keeps: "message", said: keep.words }, 1], "the line alone, asked once");
+  assert.ok(NEW_DRAFT_JSON_SCHEMA.properties.kind.enum.includes("message") && draftKeepsMessage(out));
+  assert.match(JSON.stringify(calls[0].request.system), /choose message/, "AI is told when a line is one");
   answerWith(answer({ kind: "message", steps: [step({ message: "k1" })] }));
   const chosen = await draftSequenceFrom(KNOWN, { ...keep, kind: "sequence" }, { tenantId: "t1", userId: "u1" });
-  const sent = [draftKeepsMessage(chosen), chosen.kind, chosen.steps[0].message.template_id];
-  assert.deepEqual(sent, [false, "sequence", ID(1)]);
+  const judgedAs = [draftKeepsMessage(chosen), chosen.kind, chosen.steps[0].message.template_id];
+  assert.deepEqual(judgedAs, [false, "sequence", ID(1)], "a chosen kind is kept whatever AI says");
 });
 
 test("REGRESSION (the live run of 14 Nov 2026): leads picked on Leads are who a draft goes to, so AI never says no search is ready", async () => {

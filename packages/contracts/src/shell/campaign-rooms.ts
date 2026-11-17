@@ -103,7 +103,7 @@ export const LIBRARY_STARTER_WORDS = {
    * again or to go by another message, never the starter set, which leaves a hidden one hidden.
    */
   hiddenInLibrary: (title: string): string =>
-    `The “${title}” starter is hidden in this workspace: show it again from its row under ${CAMPAIGN_ROOMS.home}, “Not in a campaign”, or name another message.`,
+    `The “${title}” starter is hidden here: show it again under “Not in a campaign”, or name another message.`,
   /** What a new campaign's card does first where the workspace does not hold its moment's starter (A0). */
   addsFirst: (title: string): string => `adds the “${title}” starter first`,
   /**

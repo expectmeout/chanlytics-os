@@ -4607,7 +4607,6 @@ test("a page is found by the name it goes by AND by the one it used to: 'templat
   assert.equal(byName[0]?.to, "campaigns/sequences", "Messages' name finds Campaigns");
   assert.equal(byName[0]?.label, "Campaigns");
   assert.equal(askJump("templates", ASK_PAGES)[0]?.to, "campaigns/sequences", "the name it went by");
-  // "library" is Content's Library's own name now, never Campaigns'.
   assert.ok(
     !askJump("library", ASK_PAGES).some((j) => j.to === "campaigns/sequences"),
     "Content's Library keeps its name",

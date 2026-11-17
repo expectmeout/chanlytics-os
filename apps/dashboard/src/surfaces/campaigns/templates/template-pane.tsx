@@ -107,7 +107,7 @@ const languagesOf = <T,>(step: PaneStep | undefined, choice: () => T): T | typeo
   step ? ONE_LANGUAGE : choice();
 
 /** The only tabs a step's sheet draws, its channels; null where the pane is the message's own. */
-const channelsOf = (step: PaneStep | undefined): readonly string[] | null => step?.channels ?? null;
+const stepTabsOf = (step: PaneStep | undefined): readonly string[] | null => step?.channels ?? null;
 
 /** Where the pane opens: on the language a step sends, where it holds that one, else on the message's first. */
 function openingView(g: TemplateGroup, langs: readonly TplLang[], step: PaneStep | undefined) {
@@ -588,7 +588,7 @@ export function TemplatePane(p: PaneProps) {
       ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
     }),
   );
-  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord, only: channelsOf(step) });
+  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord, only: stepTabsOf(step) });
   const { version, versionActs } = paneVersion(p, { facts, channel, heldOf, dock });
   return (
     <CmPane

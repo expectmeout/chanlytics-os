@@ -23,6 +23,19 @@ import { navigate, refusalToast, type FrameFlash } from "../../../frame-verbs";
 export type Fixed = Omit<NewDraftAsk, "words">;
 
 /**
+ * What New does with what a line is answered with: a draft it takes, or the words of a message to keep, which it hands to
+ * AI's message card (contracts draftKeepsMessage, decision 0140's C12). Nothing where the ask came to nothing.
+ */
+export function takeAnswer(
+  answered: NewDraftAnswered | null,
+  on: { took: (draft: NewDraftDto) => void; keep: (words: string) => void },
+): void {
+  if (!answered) return;
+  if (draftKeepsMessage(answered)) on.keep(answered.said);
+  else on.took(answered);
+}
+
+/**
  * What New keeps in the tab while it holds a draft: the draft, the line, and the draft as Ask answered it (decision 0078
  * step 2: what a make keeps beside the owner's words), under the address it was opened on.
  */
@@ -82,23 +95,23 @@ export function useAsk(door: Fixed, flash: (flash: FrameFlash) => void) {
   const [failed, setFailed] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   // Each ask counted, so an answer that arrives after Stop, or after a later ask, is let go.
-  const asked = useRef(0);
+  const askCount = useRef(0);
   const answer = async (words: string, fixed: Fixed, again: boolean): Promise<NewDraftAnswered | null> => {
-    const id = ++asked.current;
+    const id = ++askCount.current;
     setDrafting(again ? "again" : "fresh");
     setFailed(null);
     setRefused(null);
     // A change is asked of the draft as it stands: the door's choices opened New, and the owner may have changed them since.
-    const r = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
-    if (id !== asked.current) return null;
+    const result = await commitVerb("sequence_draft", { words, ...(fixed.stands ? {} : door), ...fixed });
+    if (id !== askCount.current) return null;
     setDrafting(null);
-    if (r.ok) return r.data as Output<"POST sequences/draft">;
+    if (result.ok) return result.data as Output<"POST sequences/draft">;
     // Drafting it again, or changing it, the draft stays as it was and what Ask said is a toast over it, whatever it was.
-    if (again) flash(refusalToast(r));
+    if (again) flash(refusalToast(result));
     // A draft nothing here can hold is said in Ask's words; anything else is Ask that could not answer, in the server's
     // words where it said why (a day's budget spent, a paused workspace, an answer that ran long), as a change's toast is.
-    else if (r.code === "validation") setRefused(r.message);
-    else setFailed(r.message || NEW_WORDS.failed.words);
+    else if (result.code === "validation") setRefused(result.message);
+    else setFailed(result.message || NEW_WORDS.failed.words);
     return null;
   };
   // A draft asked for as a kind, or as a change to one that stands: the server never answers such an ask as a message
@@ -108,7 +121,7 @@ export function useAsk(door: Fixed, flash: (flash: FrameFlash) => void) {
     return answered && !draftKeepsMessage(answered) ? answered : null;
   };
   const stop = () => {
-    asked.current++;
+    askCount.current++;
     setDrafting(null);
   };
   const clear = () => {

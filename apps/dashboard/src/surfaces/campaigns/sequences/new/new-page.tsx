@@ -21,7 +21,6 @@ import {
   SEQUENCES_ROUTE,
   UNKNOWN_AUDIENCE_WORDS,
   clockWhen,
-  draftKeepsMessage,
   localHour,
   readyOrWhatsApp,
   sequenceRoute,
@@ -50,7 +49,7 @@ import { useCampaignsToast } from "../../home/route-toast";
 import { reachOuts } from "../../reach-out/surface";
 import { CHANGE_WORDS, changedFrom, changesOf, draftedAfter, leftNothing, placesByAsk, standsOf } from "./change";
 import { DraftView, type DraftReads } from "./new-draft";
-import { newKeptKeyOf, useAsk, useDraftOnOpen, type Fixed, type KeptHere } from "./first-line";
+import { newKeptKeyOf, takeAnswer, useAsk, useDraftOnOpen, type Fixed, type KeptHere } from "./first-line";
 import type { KeptSend } from "./kept-send";
 import * as M from "./new-model";
 import { StartView, type StartReads } from "./new-start";
@@ -496,11 +495,9 @@ export function NewSequence({ moment = null, who = null, to = null, kept = null 
   };
   // A line, with its choices where a start made them, drafted by Ask: from New's own line, or one said before New opened.
   const draftWords = (words: string, fixed?: Omit<NewDraftAsk, "words">) =>
-    void asking.answer(words, fixed ?? {}, false).then((answered) => {
-      if (!answered) return;
-      if (draftKeepsMessage(answered)) keepAsMessage(answered.said);
-      else took(answered);
-    });
+    void asking
+      .answer(words, fixed ?? {}, false)
+      .then((answered) => takeAnswer(answered, { took, keep: keepAsMessage }));
   useDraftOnOpen(back, { reads, held }, draftWords);
   const tz = reads?.draft.timezone ?? "UTC";
   const made = useMake({ keptId: kept, flash, letGo, tz, onNoMailbox: () => setDraft(withoutMailbox) });
