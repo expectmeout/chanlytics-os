@@ -20,7 +20,8 @@
  *   node --import tsx tooling/scripts/ops/files/footage-proof.mjs return --env <settings> --file <Drive file id> --uid <Stream id> [--apply]
  *   node --import tsx tooling/scripts/ops/files/footage-proof.mjs forget --env <settings> --file <Drive file id> [--uid <Stream id> --apply]
  *
- * --env may be given more than once (the proof's own settings, then the edge's env for Stream's values); a later file wins.
+ * --env names the settings file `keys` wrote, and may be given more than once (one more file for another Google account's
+ * grant); a later file wins. Stream's sharpest copy is looked at under a signing key made for the run and deleted after it.
  * No key, grant or ticket is ever printed. Every run ends by wiping its key from the proof's key door.
  */
 import fs from "node:fs";
@@ -113,6 +114,9 @@ function makeKeys() {
       "# The proof's Google sign-in client (the run sheet, step 2):",
       "GOOGLE_PROOF_CLIENT_ID=",
       "GOOGLE_PROOF_CLIENT_SECRET=",
+      "# Cloudflare: the account's id, and an API token made for the proof with Stream: Edit and nothing else (step 3):",
+      "CLOUDFLARE_ACCOUNT_ID=",
+      "CLOUDFLARE_STREAM_API_TOKEN=",
       "# Where sign-in keeps the Google grant:",
       `GOOGLE_PROOF_GRANT_FILE=${path.join(out, "google-grant.json")}`,
       "",
@@ -360,13 +364,29 @@ async function tryRelay(address, clip) {
   say("The relay answers a HEAD and a range as Stream needs.");
 }
 
+/**
+ * What signs a look at a video's copies: the playback host's customer code (the settings', or read off the video's own
+ * playback address) and a signing key (the settings', or one made for this run and deleted after it, so production's key
+ * is never needed on this PC). Null where Stream gives neither.
+ */
+async function signingFor(video) {
+  const customerCode =
+    settings.CLOUDFLARE_STREAM_CUSTOMER_CODE?.trim() ||
+    /customer-([a-z0-9]+)\.cloudflarestream\.com/.exec(video.playback?.hls ?? "")?.[1];
+  if (!customerCode) return null;
+  const keyId = settings.CLOUDFLARE_STREAM_KEY_ID?.trim();
+  const jwk = settings.CLOUDFLARE_STREAM_KEY_JWK?.trim();
+  if (keyId && jwk) return { customerCode, keyId, jwk, madeHere: false };
+  const made = await askStream("POST", "/keys");
+  return made.ok && typeof made.result?.id === "string" && typeof made.result?.jwk === "string"
+    ? { customerCode, keyId: made.result.id, jwk: made.result.jwk, madeHere: true }
+    : null;
+}
+
 /** Stream's sharpest copy, asked for as the app asks before it cuts a video: null while it is still being made. */
-async function readSharpest(uid, video) {
-  const token = streamTokenOf(
-    { keyId: need("CLOUDFLARE_STREAM_KEY_ID"), jwk: need("CLOUDFLARE_STREAM_KEY_JWK") },
-    { uid, seconds: 60 * 60 },
-  );
-  const read = await readStreamCopy(need("CLOUDFLARE_STREAM_CUSTOMER_CODE"), token, {
+async function readSharpest(signing, uid, video) {
+  const token = streamTokenOf({ keyId: signing.keyId, jwk: signing.jwk }, { uid, seconds: 60 * 60 });
+  const read = await readStreamCopy(signing.customerCode, token, {
     width: video.input?.width > 0 ? video.input.width : null,
     height: video.input?.height > 0 ? video.input.height : null,
   });
@@ -374,18 +394,20 @@ async function readSharpest(uid, video) {
 }
 
 async function waitForSharpest(uid, video, startedMs) {
-  const hasKeys = ["CLOUDFLARE_STREAM_KEY_ID", "CLOUDFLARE_STREAM_KEY_JWK", "CLOUDFLARE_STREAM_CUSTOMER_CODE"].every(
-    (name) => settings[name]?.trim(),
-  );
-  if (!hasKeys) return { ms: null, why: "not checked: Stream's signing key and customer code are not in the settings" };
+  const signing = await signingFor(video);
+  if (!signing) return { ms: null, why: "not checked: Stream gave no signing key or playback address for it" };
   const until = startedMs + Number(flag("--sharpest-minutes") ?? 40) * MINUTE_MS;
   say("Waiting for Stream's sharpest copy (the one a made video is cut from) ...");
-  for (;;) {
-    const sharpest = await readSharpest(uid, video);
-    if (sharpest) return { ms: Date.now() - startedMs, ...sharpest };
-    if (Date.now() >= until)
-      return { ms: null, why: `not there ${durationWords(Date.now() - startedMs)} after Stream was asked` };
-    await pause(SHARPEST_EVERY_MS);
+  try {
+    for (;;) {
+      const sharpest = await readSharpest(signing, uid, video);
+      if (sharpest) return { ms: Date.now() - startedMs, ...sharpest };
+      if (Date.now() >= until)
+        return { ms: null, why: `not there ${durationWords(Date.now() - startedMs)} after Stream was asked` };
+      await pause(SHARPEST_EVERY_MS);
+    }
+  } finally {
+    if (signing.madeHere) await askStream("DELETE", `/keys/${signing.keyId}`);
   }
 }
 
