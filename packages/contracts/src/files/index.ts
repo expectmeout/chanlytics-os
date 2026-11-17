@@ -107,6 +107,32 @@ export {
   vttOf,
 } from "./sound";
 export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
+export {
+  MEDIA_SOURCE_STATES,
+  SOURCE_CONNECTION_HEALTHS,
+  SOURCE_ITEM_KINDS,
+  SOURCE_ITEM_STATES,
+  SOURCE_PROVIDERS,
+  SOURCE_VERDICTS,
+} from "./sources";
+export type {
+  MediaSourceState,
+  SourceBytesAddress,
+  SourceChange,
+  SourceChanges,
+  SourceChannel,
+  SourceChannelAsk,
+  SourceChildren,
+  SourceConnectionHealth,
+  SourceFolder,
+  SourceItemKind,
+  SourceItemRecord,
+  SourceItemState,
+  SourceProvider,
+  SourceProviderContract,
+  SourceReply,
+  SourceVerdict,
+} from "./sources";
 export { VIDEO_TILE_WORDS } from "./tile-words";
 export {
   clockOf,

@@ -139,6 +139,8 @@ const TABLES = [
   "mailbox_sender_reads",
   "mailbox_senders",
   "mailboxes",
+  // A folder the workspace has watched for its photos and videos (00638); its connection and its items are below.
+  "media_sources",
   "memberships",
   "messages",
   // A receptionist's turns as the model read them, and the prompts they read (00401, decision 0039).
@@ -187,6 +189,9 @@ const TABLES = [
   "sequences",
   // A workspace's setup choices, its own and not each member's (00513, decision 0091).
   "setup_choices",
+  // The provider account a watched folder is read through, and what each folder holds (00638).
+  "source_connections",
+  "source_items",
   "templates",
   "tenant_channels",
   "tenant_config",

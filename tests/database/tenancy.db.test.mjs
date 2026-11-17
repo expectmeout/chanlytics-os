@@ -373,6 +373,27 @@ before(async () => {
     host: `tenancy-mail-${stamp}.example`,
     from_name: "Tenancy",
   });
+  // A business's footage sources (00638), in dependency order: the provider account, a folder watched through it, and
+  // one item the folder holds.
+  ctx.sourceConnection = await seed("source_connections", {
+    tenant_id: A,
+    provider: "google",
+    provider_account: `tenancy-${stamp}`,
+    email: `sam@tenancy-drive-${stamp}.example`,
+  });
+  ctx.mediaSource = await seed("media_sources", {
+    tenant_id: A,
+    connection_id: ctx.sourceConnection,
+    folder_id: `tenancy-folder-${stamp}`,
+    folder_name: "Tenancy footage",
+  });
+  await seed("source_items", {
+    tenant_id: A,
+    source_id: ctx.mediaSource,
+    provider_id: `tenancy-item-${stamp}`,
+    kind: "video",
+    name: "tenancy-clip.mp4",
+  });
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -970,6 +991,36 @@ const TENANT_TABLES = {
       address: `sam@stranger-mail-${Date.now().toString(36)}.example`,
       host: `stranger-mail-${Date.now().toString(36)}.example`,
       from_name: "Stranger",
+    }),
+  ],
+  // A business's footage sources (00638): a provider account it connected, a folder watched through it, and what the
+  // folder holds. Members read their workspace's; only the service role writes (the connect and the reads to come).
+  source_connections: [
+    "member",
+    () => ({
+      tenant_id: A,
+      provider: "google",
+      provider_account: `stranger-${Date.now().toString(36)}`,
+      email: "sam@stranger-drive.example",
+    }),
+  ],
+  media_sources: [
+    "member",
+    () => ({
+      tenant_id: A,
+      connection_id: ctx.sourceConnection,
+      folder_id: `stranger-folder-${Date.now().toString(36)}`,
+      folder_name: "Stranger footage",
+    }),
+  ],
+  source_items: [
+    "member",
+    () => ({
+      tenant_id: A,
+      source_id: ctx.mediaSource,
+      provider_id: `stranger-item-${Date.now().toString(36)}`,
+      kind: "image",
+      name: "stranger.jpg",
     }),
   ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],

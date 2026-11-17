@@ -1955,6 +1955,48 @@
       }
     },
     {
+      "table": "media_sources",
+      "name": "media_sources_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "media_sources",
+      "name": "media_sources_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "media_sources",
+      "name": "media_sources_one_a_folder",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "connection_id"
+        },
+        {
+          "column": "folder_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "memberships",
       "name": "memberships_pkey",
       "primary": true,
@@ -3347,6 +3389,78 @@
       "keys": [
         {
           "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "source_connections",
+      "name": "source_connections_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "source_connections",
+      "name": "source_connections_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "source_connections",
+      "name": "source_connections_one_account",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "provider"
+        },
+        {
+          "column": "provider_account"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "source_items",
+      "name": "source_items_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "source_items",
+      "name": "source_items_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "source_id"
+        },
+        {
+          "column": "provider_id"
         }
       ],
       "where": null

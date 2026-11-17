@@ -82,6 +82,13 @@ import type { VOICE_END_REASONS } from "../ask/limits";
 import type { MAILBOX_CONNECTION_STATES, MAILBOX_PROVIDERS } from "../email/mailbox-connections/states";
 import type { MAILBOX_HOLDS } from "../email/mailbox-standing";
 import type {
+  MEDIA_SOURCE_STATES,
+  SOURCE_CONNECTION_HEALTHS,
+  SOURCE_ITEM_KINDS,
+  SOURCE_ITEM_STATES,
+  SOURCE_PROVIDERS,
+} from "../files/sources";
+import type {
   LEAD_CLOSED_REASONS,
   LEAD_COUNTER_KINDS,
   LEAD_EMAIL_STATES,
@@ -303,4 +310,11 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof REQUEST_KINDS>, SchemaSet<"privacy_requests.kind">>>,
   // What a member needs, picked on Get help (00468, decision 0067): Support's three, and Health's bug.
   Holds<Exactly<Of<typeof REPORT_KINDS>, SchemaSet<"support_reports.kind">>>,
+  // A business's footage sources (00638): whose account, how it stands, where a watched folder stands, and what an
+  // item under it is and where it stands.
+  Holds<Exactly<Of<typeof SOURCE_PROVIDERS>, SchemaSet<"source_connections.provider">>>,
+  Holds<Exactly<Of<typeof SOURCE_CONNECTION_HEALTHS>, SchemaSet<"source_connections.health">>>,
+  Holds<Exactly<Of<typeof MEDIA_SOURCE_STATES>, SchemaSet<"media_sources.state">>>,
+  Holds<Exactly<Of<typeof SOURCE_ITEM_KINDS>, SchemaSet<"source_items.kind">>>,
+  Holds<Exactly<Of<typeof SOURCE_ITEM_STATES>, SchemaSet<"source_items.state">>>,
 ];
