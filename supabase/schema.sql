@@ -14626,14 +14626,6 @@ $$;
 
 
 --
--- Name: FUNCTION lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]); Type: ACL; Schema: public; Owner: -
---
-
-REVOKE ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) TO service_role;
-
-
---
 -- Name: FUNCTION lead_view_counts(p_tenant_id uuid, p_search_id uuid, p_class text, p_list text, p_filters jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -55448,6 +55440,14 @@ GRANT ALL ON FUNCTION public.lead_tried_notes_forget() TO service_role;
 REVOKE ALL ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) TO authenticated;
 GRANT ALL ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) TO service_role;
+
+
+--
+-- Name: FUNCTION lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) TO service_role;
 
 
 --
