@@ -1587,7 +1587,8 @@ export const FAMILIES = [
         html:
           `<button type="button" class="btn btn-primary">Reply</button> ` +
           `<button type="button" class="btn btn-lead">Set up forwarding</button> ` +
-          `<button type="button" class="btn btn-sm btn-lead">Offer it</button>`,
+          `<button type="button" class="btn btn-sm btn-lead">Offer it</button> ` +
+          `<button type="button" class="btn btn-sm btn-lead">See who${icon("chevron", 11)}</button>`,
       },
       {
         // A left chevron is the right one turned (kit.css .icon-turned): a walk's ‹ › between two people.

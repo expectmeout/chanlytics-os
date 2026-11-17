@@ -228,6 +228,7 @@ const BUTTONS = {
     h(Button, { variant: "primary" }, "Reply"),
     h(Button, { variant: "lead" }, "Set up forwarding"),
     h(Button, { size: "sm", variant: "lead" }, "Offer it"),
+    h(Button, { size: "sm", variant: "lead" }, "See who", glyph()),
   ],
   // A walk's ‹ ›: the chevron, the first one turned (kit.css .icon-turned).
   "btn-icon-turned": () => [
