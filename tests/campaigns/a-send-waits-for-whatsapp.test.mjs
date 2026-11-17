@@ -91,6 +91,7 @@ function world({ people, whatsapp = "pending", now = FRI_NOON, run = {} }) {
     random: () => 0,
     broadcast: async () => ({ ...w.run }),
     workspacePaused: async () => false,
+    sendingStopped: async () => false,
     facts: async () => ({ businessName: "Marisa's", bookingLink: null, timezone: "UTC" }),
     // As the database reads it (db listQueuedRecipients): in the order of their ids, `not` leaving WhatsApp's people out.
     batch: async (_id, limit, only) =>

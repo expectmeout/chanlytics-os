@@ -92,6 +92,12 @@ export interface TenantRuntime {
    */
   paused: boolean;
   /**
+   * tenants.sending_stopped_at is set: the workspace's owner stopped all sending (Stop everything). Nothing goes by
+   * itself until it is resumed: no mode lets the receptionist speak without a person (core effectiveReplyMode), and the
+   * send door holds what was going out (core deliver/stop.ts).
+   */
+  stopped: boolean;
+  /**
    * tenants.status = 'preview': a lead's own receptionist nobody has made theirs (decision 0079). It answers its preview
    * page alone, and only while previews are switched on (LEAD_PREVIEWS).
    */
@@ -202,17 +208,21 @@ async function resolveWaCredentials(
   };
 }
 
+/** The workspace's own row as the runtime reads it (db findWorkspaceRuntimeRow), and what the runtime takes from it. */
+type WorkspaceRow = { slug: string | null; timezone: string | null; status: string; sending_stopped_at: string | null };
+type WorkspaceRowFacts = Pick<TenantRuntime, "slug" | "timezone" | "paused" | "stopped" | "preview">;
+
 /**
  * What the runtime takes from the workspace's own row: its address word (an alert mail's link), its clock, whether billing
- * paused it, and whether it is a lead's preview. A row that could not be read says none of them.
+ * paused it, whether its owner stopped all sending, and whether it is a lead's preview. A row that could not be read says
+ * none of them.
  */
-function workspaceRowFacts(
-  t: { slug: string | null; timezone: string | null; status: string } | null | undefined,
-): Pick<TenantRuntime, "slug" | "timezone" | "paused" | "preview"> {
+function workspaceRowFacts(t: WorkspaceRow | null | undefined): WorkspaceRowFacts {
   return {
     slug: t?.slug ?? null,
     timezone: t?.timezone ?? null,
     paused: t?.status === "paused",
+    stopped: !!t?.sending_stopped_at,
     preview: t?.status === "preview",
   };
 }
@@ -356,6 +366,7 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
       timezone: null,
       known: { workspace: null, channels: [], listing: null },
       paused: false,
+      stopped: false,
       preview: false,
       loadFailed: true,
     };

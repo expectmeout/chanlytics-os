@@ -4102,6 +4102,7 @@ Foreign keys:
 | `appointment_word` | text | yes |  | What this workspace calls a booking (0041 J4): appointment, visit, meeting, session or lesson. Words only: it changes no moment, run, list or send. Null where never picked, read as appointment (contracts appointmentWordOf). Owner-settable through PATCH workspaces, like the timezone (00084). |
 | `ours` | boolean | no | `false` | A workspace of ours (00469, decision 0068): the nightly suite's, the smoke test, a trial we run by hand. Counted apart from customers on the Console's Health, and left out of the pager. Every status test workspace is ours; ours does not take public pages away, as test does. |
 | `accent` | text | yes |  | The workspace's own colour (00490): one lower-case #rrggbb its emails to customers and their pages draw the button and links in; null when it has none and ink stands in. Written by set_workspace_accent (a member) and wear_found_look (the website read, only where no person set it). |
+| `sending_stopped_at` | timestamp with time zone | yes |  | When the workspace's owner stopped all sending (Stop everything); null while nothing is stopped. Read beside status wherever a paused workspace is refused (core sendingHoldOf): nothing goes out by itself, a person's own reply and the words the rules require still go, and what was going out is held for the day sending is resumed. Written by Stop everything and lifted by Resume, on the service role; no session writes it. |
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |

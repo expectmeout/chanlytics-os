@@ -1,8 +1,11 @@
 /**
- * Stop everything (server/ask/act/stop.ts, D22 of the answers canvas) says what it could not stop, and a second press tries
- * again; Resume keeps what did not come back. Each sequence is paused through its own door, a request of the member's own,
- * so `fetch` is stood in for, as the door would answer: a pause that is refused leaves that sequence running. What is
- * proved is what the answer says, what the record keeps for Resume, and what is logged.
+ * Stop everything (server/ask/act/stop.ts, D22 of the answers canvas). The stop itself is written first, on the
+ * workspace's own row (tenants.sending_stopped_at), and from then the send door holds whatever goes out on its own; the
+ * pauses after it are clean-up. So a pause that fails no longer means something still sends: the answer says stopped. On
+ * a database the stop's column has not reached, or a write of it that fails, the stop is what the pauses make it, as
+ * before: it says what it could not stop, and a second press tries again. Resume puts back what the stop paused, then
+ * lifts the stop, and keeps what did not come back. Each sequence is paused through its own door, a request of the
+ * member's own, so `fetch` is stood in for, as the door would answer: a pause that is refused leaves that sequence running.
  */
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { linesOf } from "../../_log-lines.mjs";
+import { withoutColumns } from "../../_schema.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -30,9 +34,13 @@ const req = () =>
     headers: { cookie: "sb=session" },
   });
 
-/** A workspace with two sequences sending and replies going out on their own. */
-const world = () => {
+/**
+ * A workspace with two sequences sending and replies going out on their own. `faults` makes a write fail the way
+ * PostgREST fails (_fake-db.mjs), read when the write is made, so a test may lift it between two presses.
+ */
+const world = (faults = {}) => {
   const tables = {
+    tenants: [{ id: TENANT, slug: "harbor", name: "Harbor Studio", status: "active", sending_stopped_at: null }],
     tenant_config: [{ tenant_id: TENANT, config: {}, version: 1 }],
     sequence_steps: [WIN_BACK, REMINDER].map((id) => ({
       id,
@@ -53,13 +61,15 @@ const world = () => {
       },
     ],
   };
-  setServiceClient(fakeDb(tables));
+  setServiceClient(fakeDb(tables, faults));
   return { tables, ctx: { supabase: fakeDb(tables), userId: USER, params: {} } };
 };
 
 /** What the stop keeps for Resume. */
 const recordOf = (tables) => tables.tenant_config[0].config.ask?.stopped ?? null;
 const stateOf = (tables, id) => tables.sequence_steps.find((s) => s.id === id).state;
+/** The stop itself, as the workspace's row keeps it: when it was written, or null. */
+const stopOf = (tables) => tables.tenants[0].sending_stopped_at;
 
 /**
  * Each door as it answers: a sequence's PUT moves its row (or is refused, for the ids in `refuse`), the reply row's PUT
@@ -67,13 +77,17 @@ const stateOf = (tables, id) => tables.sequence_steps.find((s) => s.id === id).s
  */
 let refuse;
 let tables;
+/** The stop as the workspace's row held it at each door's press, in order: what was written before each pause and put back. */
+let stopAtEachDoor;
 const realFetch = globalThis.fetch;
 beforeEach(() => {
   refuse = new Set();
+  stopAtEachDoor = [];
   globalThis.fetch = async (url, init) => {
     const where = new URL(String(url)).pathname.replace("/api/v1/", "");
     const body = JSON.parse(init.body);
     const [door, id] = where.split("/");
+    stopAtEachDoor.push(tables.tenants?.[0]?.sending_stopped_at ?? null);
     if (refuse.has(id ?? door))
       return new Response(JSON.stringify({ ok: false, error: { code: "internal", message: "no" } }), { status: 500 });
     if (door === "playbooks") tables.sequence_steps.find((s) => s.id === id).state = body.state;
@@ -86,23 +100,78 @@ afterEach(() => {
   setServiceClient(null);
 });
 
-test("a pause that fails: the answer never says stopped, it names what still sends, and it is logged", async () => {
+test("the stop is written first: before any sequence is paused, the send door already holds what goes out on its own", async () => {
+  const w = world();
+  tables = w.tables;
+  const a = await stopEverything(w.ctx, req(), member);
+  assert.ok(stopOf(tables), "the workspace's row says sending is stopped");
+  assert.equal(stopOf(tables), recordOf(tables).at, "from the moment the record keeps");
+  assert.ok(stopAtEachDoor.length > 0 && stopAtEachDoor.every(Boolean), "written before the first pause");
+  assert.equal(a.stopped, true);
+});
+
+test("a press that dies in the clean-up leaves a stop the page shows: its record is kept the moment the stop is written", async () => {
+  const w = world();
+  tables = w.tables;
+  // The sequences cannot be listed, so the press fails after the stop is written and before anything is paused.
+  const dying = {
+    ...w.ctx,
+    supabase: fakeDb(tables, { "sequence_steps.select": { message: "the database is busy" } }),
+  };
+  await assert.rejects(() => stopEverything(dying, req(), member));
+  assert.ok(stopOf(tables), "the stop stands: the send door holds what goes out on its own");
+  assert.deepEqual(
+    recordOf(tables),
+    { at: stopOf(tables), playbooks: [], reply: null },
+    "and the page and Ask say so, with Resume there to lift it",
+  );
+  const a = await resumeEverything(w.ctx, req(), member);
+  assert.equal(a.stopped, false);
+  assert.equal(stopOf(tables), null, "Resume lifts it");
+  assert.equal(recordOf(tables), null);
+});
+
+test("a pause that fails: the stop holds it all the same, so the answer says stopped, and the leftover is logged", async () => {
   const w = world();
   tables = w.tables;
   refuse.add(REMINDER);
   const { result: a, lines } = await linesOf(() => stopEverything(w.ctx, req(), member));
-  assert.equal(a.stopped, false, "something it tried to pause still sends");
-  assert.equal(a.left, 1, "one sequence still sending");
+  assert.equal(a.stopped, true, "nothing it sends leaves: the door holds it");
+  assert.equal(a.left, 1, "one sequence still shows as running");
   assert.equal(a.paused, 1);
-  assert.equal(a.replies, true, "replies wait for a person");
   assert.equal(stateOf(tables, REMINDER), "running");
-  assert.deepEqual(recordOf(tables).playbooks, [WIN_BACK], "the record holds only what the stop paused");
-  assert.deepEqual(recordOf(tables).left, [REMINDER], "and what it could not, for the page to say");
-  assert.equal(recordOf(tables).reply, "auto", "what replies go back to");
+  assert.deepEqual(recordOf(tables).playbooks, [WIN_BACK], "the record holds only what the stop paused, for Resume");
+  assert.equal(recordOf(tables).left, undefined, "and nothing the page would say still sends");
   const said = lines.find((l) => l.event === "ask_stop_left");
-  assert.ok(said, "a stop that could not stop everything is logged");
+  assert.ok(said, "the clean-up that could not finish is logged");
   assert.equal(said.left, 1);
   assert.equal(said.tenant_id, TENANT);
+});
+
+test("on a database the stop's column has not reached, a pause that fails: never stopped, what still sends is named, and logged", async () => {
+  await withoutColumns({ tenants: ["sending_stopped_at"] }, async () => {
+    const w = world();
+    tables = w.tables;
+    delete tables.tenants[0].sending_stopped_at;
+    refuse.add(REMINDER);
+    const { result: a, lines } = await linesOf(() => stopEverything(w.ctx, req(), member));
+    assert.equal(a.stopped, false, "something it tried to pause still sends");
+    assert.equal(a.left, 1, "one sequence still sending");
+    assert.equal(a.replies, true, "replies wait for a person");
+    assert.deepEqual(recordOf(tables).left, [REMINDER], "what it could not, for the page to say");
+    assert.equal(recordOf(tables).reply, "auto", "what replies go back to");
+    assert.ok(lines.some((l) => l.event === "ask_stop_left" && l.left === 1));
+  });
+});
+
+test("a stop that cannot be written: logged, and the stop is what the pauses make it, as before the column", async () => {
+  const w = world({ "tenants.update": { message: "the database is busy" } });
+  tables = w.tables;
+  const { result: a } = await linesOf(() => stopEverything(w.ctx, req(), member));
+  assert.equal(stopOf(tables), null, "the row is as it was");
+  assert.equal(a.stopped, true, "every sequence paused and replies held: stopped, as Stop everything always meant");
+  assert.equal(stateOf(tables, WIN_BACK), "paused");
+  assert.equal(stateOf(tables, REMINDER), "paused");
 });
 
 test("pressed again, it looks again: what still sends is paused, added to the record, and then it says stopped", async () => {
@@ -122,15 +191,15 @@ test("pressed again, it looks again: what still sends is paused, added to the re
   assert.equal(recordOf(tables).reply, "auto", "replies still go back to what they were before the stop");
 });
 
-test("replies that could not be held: not stopped, and a second press holds them", async () => {
+test("replies whose row could not be set: stopped all the same, since the receptionist asks a person while it stands; a second press sets the row", async () => {
   const w = world();
   tables = w.tables;
   refuse.add("policies");
   const { result: a } = await linesOf(() => stopEverything(w.ctx, req(), member));
-  assert.equal(a.stopped, false);
-  assert.equal(a.replies, false, "replies still go out on their own");
+  assert.equal(a.stopped, true);
+  assert.equal(a.replies, false, "the Replies row still says what it said");
   assert.equal(a.left, 0);
-  assert.equal(recordOf(tables).replies_left, true);
+  assert.notEqual(recordOf(tables).replies_left, true, "nothing the page would say goes out on its own");
   refuse.clear();
   const b = await stopEverything(w.ctx, req(), member);
   assert.equal(b.stopped, true);
@@ -154,7 +223,14 @@ test("a resume that fails for one: the record keeps it, the answer says it is st
   tables = w.tables;
   await stopEverything(w.ctx, req(), member);
   refuse.add(REMINDER);
+  stopAtEachDoor = [];
   const { result: a, lines } = await linesOf(() => resumeEverything(w.ctx, req(), member));
+  assert.ok(stopAtEachDoor.every(Boolean), "what the stop paused is put back while the stop still stands");
+  assert.equal(
+    stopOf(tables),
+    null,
+    "then the stop is lifted, whatever did not come back: that one is paused by its own row",
+  );
   assert.equal(stateOf(tables, WIN_BACK), "running", "what came back came back");
   assert.equal(stateOf(tables, REMINDER), "paused");
   assert.equal(tables.policies[0].mode, "auto", "replies are back as they were");
@@ -189,6 +265,32 @@ test("replies that could not be put back: the record keeps them, and a second re
   assert.equal(recordOf(tables), null);
 });
 
+test("a Resume lifts the stop even where its record was never written (the press that wrote the stop failed after it)", async () => {
+  const w = world();
+  tables = w.tables;
+  tables.tenants[0].sending_stopped_at = "2026-11-13T10:00:00.000Z";
+  const a = await resumeEverything(w.ctx, req(), member);
+  assert.equal(a.stopped, false);
+  assert.equal(stopOf(tables), null);
+});
+
+test("a stop that cannot be lifted fails the Resume, never says it is back, keeps the record, and a second Resume lifts it", async () => {
+  const faults = {};
+  const w = world(faults);
+  tables = w.tables;
+  await stopEverything(w.ctx, req(), member);
+  const kept = recordOf(tables);
+  faults["tenants.update"] = { message: "the database is busy" };
+  await assert.rejects(resumeEverything(w.ctx, req(), member));
+  assert.ok(stopOf(tables), "still stopped");
+  assert.deepEqual(recordOf(tables), kept, "the record as it was, so the next Resume puts the same back");
+  delete faults["tenants.update"];
+  const b = await resumeEverything(w.ctx, req(), member);
+  assert.equal(b.stopped, false);
+  assert.equal(stopOf(tables), null);
+  assert.equal(recordOf(tables), null);
+});
+
 const { stopLineOf, stopSaid } = await import(at("apps/dashboard/src/surfaces/settings/autonomy/stop-words.ts"));
 
 test("Settings › Autonomy never says paused while something still goes out: what, that pressing again tries again, and the other way", () => {
@@ -200,7 +302,7 @@ test("Settings › Autonomy never says paused while something still goes out: wh
   });
   assert.deepEqual(stopLineOf(stopped), {
     label: "Everything is paused",
-    hint: "1 paused, and replies wait for you.",
+    hint: "Nothing goes out on its own until you resume. Your own replies still send.",
     press: "resume",
   });
   assert.deepEqual(stopLineOf({ ...stopped, left: [REMINDER] }), {
@@ -222,7 +324,7 @@ test("Settings › Autonomy never says paused while something still goes out: wh
 
 test("what a press says, from its answer: done, or what it could not do and the way to it", () => {
   assert.deepEqual(stopSaid("stop", { stopped: true, paused: 2, replies: true, left: 0 }), {
-    words: "Everything is paused. Nothing goes out.",
+    words: "Everything is paused. Nothing goes out on its own.",
     warn: false,
   });
   assert.deepEqual(stopSaid("stop", { stopped: false, paused: 0, replies: false, left: 0 }), {

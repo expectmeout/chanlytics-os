@@ -4,7 +4,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
-import type { TenantId } from "@chanlytics/contracts";
+import { saysMissing } from "../../shared/missing-door";
+import { DbFailure, type TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
@@ -67,9 +68,59 @@ export const patchConfigRow = async (
 export const listWorkspaceRules = async (db: Db, tenantId: TenantId) =>
   db.from("policies").select("class, mode, limits").eq("tenant_id", tenantId).is("subject_type", null);
 
-/** What the receptionist's runtime reads of the workspace: its name, address, clock and status. */
-export const findWorkspaceRuntimeRow = async (db: Db, tenantId: TenantId) =>
-  db.from("tenants").select("name, slug, timezone, status").eq("id", tenantId).maybeSingle();
+/**
+ * What the receptionist's runtime reads of the workspace: its name, address, clock and status, and when its owner stopped
+ * all sending (Stop everything), null while nothing is stopped.
+ */
+export const findWorkspaceRuntimeRow = async (db: Db, tenantId: TenantId) => {
+  const withStop = await db
+    .from("tenants")
+    .select("name, slug, timezone, status, sending_stopped_at")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (!noStopColumn(withStop.error)) return withStop;
+  // A database the stop's column has not reached is read without it, and no stop stands there: every message is still
+  // answered by code that shipped before its migration.
+  const older = await db.from("tenants").select("name, slug, timezone, status").eq("id", tenantId).maybeSingle();
+  return { ...older, data: older.data ? { ...older.data, sending_stopped_at: null } : null };
+};
+
+/**
+ * Whether a read or a write failed because the database has not reached the migration that adds
+ * `tenants.sending_stopped_at` (Stop everything): the one way every reader and the writer of the column ask it, of the
+ * row itself or of a row that reads the workspace beside it (channels findWireRow). No stop stands on such a database,
+ * so either may ship first.
+ */
+export const noStopColumn = (error: { message: string } | null | undefined): boolean =>
+  !!error && /\bsending_stopped_at\b/.test(error.message) && saysMissing(error.message);
+
+/**
+ * Whether the workspace's owner stopped everything (`tenants.sending_stopped_at`, Stop everything): THE one reading of it
+ * for whatever goes out by itself and asks before it starts. A campaign's run then waits as it was (core holdForTheStop),
+ * a post due stays down in words (the edge's recheck), and nothing is said in public under the business's name
+ * (doesWorkspaceAnswerOnItsOwn). A read that fails throws: "we could not check" is not "nothing is stopped".
+ */
+export async function isSendingStopped(db: Db, tenantId: TenantId): Promise<boolean> {
+  const { data, error } = await db.from("tenants").select("sending_stopped_at").eq("id", tenantId).maybeSingle();
+  if (noStopColumn(error)) return false;
+  if (error) throw new DbFailure(error, "cannot read whether sending is stopped");
+  return !!data?.sending_stopped_at;
+}
+
+/**
+ * Stop everything, on the workspace's own row (`tenants.sending_stopped_at`): `at` writes it, null lifts it. From the
+ * write on, the send door holds whatever goes out on its own (core deliver/stop.ts). On the service client: a stop may be
+ * pressed below settings' own role, and no session writes the column. True once the row says it; false on a database the
+ * column has not reached, where there is no stop to write. A write that fails, or finds no workspace, throws: "it could
+ * not be written" is never "it is written".
+ */
+export async function setSendingStopped(db: Db, tenantId: TenantId, at: string | null): Promise<boolean> {
+  const { data, error } = await db.from("tenants").update({ sending_stopped_at: at }).eq("id", tenantId).select("id");
+  if (noStopColumn(error)) return false;
+  if (error) throw new DbFailure(error, "cannot write whether sending is stopped");
+  if (!data.length) throw new Error(`setSendingStopped: no workspace ${tenantId}`);
+  return true;
+}
 
 /** A new workspace as its sign-up is told: its id, name, address, clock and when it was made. */
 export const findNewWorkspace = async (db: Db, tenantId: TenantId) =>

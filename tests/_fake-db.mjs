@@ -1859,6 +1859,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             (p.kind ?? "moment") === p_kind &&
             sequenceOn(p) &&
             tenantOf(p.tenant_id)?.status !== "paused" &&
+            // Nor a workspace whose owner stopped all sending (Stop everything): nothing new starts while it stands.
+            !tenantOf(p.tenant_id)?.sending_stopped_at &&
             (p_tenant_id == null || p.tenant_id === p_tenant_id),
         )
         // runDueNow's rule, as the SQL restates it; the SQL is held to it on a stack (ops/sweep-pages.db.test.mjs).

@@ -30,6 +30,7 @@ import {
   openPostAttempt,
   type PostRow,
 } from "@chanlytics/db/files";
+import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { CertainFailure } from "@chanlytics/core";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
@@ -65,6 +66,8 @@ async function recheck(db: Db, post: PostRow): Promise<string | null> {
     return ON_INSTAGRAM.held.approver;
   const file = await findFileForWork(db, post.tenant_id, post.file_id);
   if (!file || file.removed_at) return ON_INSTAGRAM.held.removed;
+  // Stop everything: it stays down, and is its owner's to post again once they resume (as Instagram's recheck has it).
+  if (await isSendingStopped(db, post.tenant_id)) return ON_INSTAGRAM.held.stopped;
   return null;
 }
 

@@ -57,6 +57,7 @@ import {
   queuePostAgain,
   type PostRow,
 } from "@chanlytics/db/files";
+import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
@@ -338,6 +339,8 @@ export async function preparePost(
   const kind = instagramKindOf(post);
   const file = await findFileForWork(db, job.tenant_id, post.file_id);
   if (!file || file.removed_at) return holdPost(db, post, ON_INSTAGRAM.held.removed);
+  // Stop everything: nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
+  if (await isSendingStopped(db, job.tenant_id)) return holdPost(db, post, ON_INSTAGRAM.held.stopped);
   const posting = await findPoster(db, job.tenant_id);
   if ("held" in posting) return holdPost(db, post, posting.held);
   const at: Preparing = { post, attempt, kind, poster: posting.poster };

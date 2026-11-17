@@ -427,6 +427,18 @@ test("what is due is answered soonest first, with its step, and whether that ste
     (await due(now)).map((r) => r.runs),
     [true],
   );
+  // Its owner stopped all sending (Stop everything): not handed at all, so nothing settles it, and it waits as it is.
+  wrote(
+    await db.from("tenants").update({ sending_stopped_at: new Date().toISOString() }).eq("id", tenantId),
+    "stopping all sending",
+  );
+  assert.deepEqual(await due(now), [], "a stopped workspace's occasion is not handed");
+  wrote(await db.from("tenants").update({ sending_stopped_at: null }).eq("id", tenantId), "resuming sending");
+  assert.deepEqual(
+    (await due(now)).map((r) => [r.occasion, r.runs]),
+    [["visit:t7a:1", true]],
+    "resumed, it is due again as it was",
+  );
 });
 
 test("the clock hands a workspace with someone due one job, and no second while it waits", { skip }, async () => {
