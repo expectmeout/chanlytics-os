@@ -5,7 +5,8 @@ import { threadPorts } from "@/server/conversations/ports";
 
 /**
  * Reply anyway, on a thread set aside (decision 0093): a customer's after all. Open again, its sender a person, its hold back
- * with its first reason, and so a draft owed. A member who acts, as a hand-back is.
+ * with its first reason, and so a draft owed. On one a member said is not a customer's (decision 0136), that word is
+ * undone first. A member who acts, as a hand-back is.
  */
 export const POST = write({
   scope: conversationScope,

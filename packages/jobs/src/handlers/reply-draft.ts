@@ -3,7 +3,7 @@
  * injects. payload: { conversation_id, draft_kind, rules, message_id? }: the once-only key's parts (job_kinds), a thread,
  * kind, message and edition while one waits. The edge's door and sweep build the same ports (`replyDraftPortsOf`).
  */
-import { REPLY_DRAFT_RULES, senderVerdictOf, setsAside } from "@chanlytics/contracts";
+import { REPLY_DRAFT_RULES, callerStandingOf, senderVerdictOf, setsAside } from "@chanlytics/contracts";
 import { askReplyDraft, writeReplyDraft, type AskReplyDraftOutcome, type ReplyDraftPorts } from "@chanlytics/core";
 import {
   claimConversationDraft,
@@ -13,7 +13,8 @@ import {
   replyDraftThreadOf,
 } from "@chanlytics/db/ask";
 import { getMailboxSenderVerdicts, noteMailboxLeft, findSenderReading, getTalksWith } from "@chanlytics/db/email";
-import { logger } from "@chanlytics/log";
+import { findCallerFacts } from "@chanlytics/db/voice";
+import { logAndGoOn, logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext, ReplyDraftEdge } from "../runner/context";
 import type { Db } from "../runner/ledger";
 import { scheduleJobOnce } from "../runner/schedule";
@@ -42,6 +43,11 @@ export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts
       // The reader keeps what it read (edge mailbox/reader.ts), so a sender is read once.
       read: (tenantId, email, until) => edge.readSender(tenantId, email, until),
     },
+    // A caller who could not be read is set aside by nothing: the note says what they sell, and the call back stays.
+    caller: (tenantId, conversationId) =>
+      findCallerFacts(db, tenantId, conversationId)
+        .then(callerStandingOf)
+        .catch(logAndGoOn("reading what is known of a call back's caller", null)),
     setAside: (tenantId, conversationId, reason) => setConversationAside(db, { tenantId, conversationId, why: reason }),
     write: edge.write,
   };

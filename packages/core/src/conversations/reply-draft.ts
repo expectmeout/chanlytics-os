@@ -9,16 +9,20 @@
  *   writeReplyDraft  the job: asked again (a hold answered meanwhile drafts nothing), the sender judged (a sender read as
  *                    selling to the business, or as a program, is set aside with no words written), the words written and
  *                    kept. A slow run never writes over a newer message's claim: the row says which message it is for.
+ *                    A call back read as someone selling is set aside too (decision 0136), where the business does not
+ *                    talk with the caller and no member said they are a person.
  *   rewriteReplyDraft  the member waiting (the edge's door): their change to the kept words, or a Try again.
  *
  * What it writes is text: nothing leaves by any of this, and the reply's own door sends it on a press.
  */
 import {
   REPLY_DRAFT_RULES,
+  strangerCaller,
   replyDraftOwed,
   setAsideSentence,
   setsAside,
   type CallBrief,
+  type CallerStanding,
   type MailboxSenderVerdict,
   type ReplyDraftKind,
   type ReplyDraftSource,
@@ -107,6 +111,11 @@ export interface ReplyDraftPorts {
       until: number,
     ): Promise<SenderReading | null>;
   };
+  /**
+   * What is known of a call back's caller (contracts callerStandingOf, decision 0136): the workspace's own word about
+   * their thread, and whether the business talks with them. Null where it could not be read, and then nothing is set aside.
+   */
+  caller(tenantId: TenantId, conversationId: string): Promise<CallerStanding | null>;
   /** The thread set aside (00539): its hold resolved, nothing counted, nothing warned of. */
   setAside(tenantId: TenantId, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
   /** The writer, which the edge holds: the brain and the workspace's whole runtime. */
@@ -296,6 +305,14 @@ export async function writeReplyDraft(
   const result = keptOf(kind, written);
   const row = await ports.keep({ ...base, ...result });
   if (!row) return "older";
+  // A call back read as someone selling to the business is no customer's, so nobody is asked to ring them (decision
+  // 0136): kept first, as an email's pitch is, then set aside. Never someone the business talks with, nor one a member
+  // answered anyway, nor one who could not be read: the note says what they sell, and the call back stays theirs.
+  if (kind === "brief" && result.state === "pitch") {
+    const standing = await ports.caller(tenantId, conversationId);
+    if (standing && strangerCaller(standing) && (await ports.setAside(tenantId, conversationId, "pitch")))
+      return "set_aside";
+  }
   return result.state === "failed" ? "failed" : "kept";
 }
 

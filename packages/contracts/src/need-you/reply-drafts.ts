@@ -28,9 +28,11 @@ export type KeptDraftKind = (typeof KEPT_DRAFT_KINDS)[number];
  * The edition of what a draft is written by (the draft audience's rules in compose.ts, and the code's checks: edge
  * drafts/writer.ts). Kept on every draft: a draft from an earlier edition is no draft, and the sweep writes it again
  * within minutes. Moved with any change to them: #2081 changed the pitch's rule and left the edition alone, so the
- * sentences written before it stood. 5: the receptionist's brain writes every reply (decision 0093).
+ * sentences written before it stood. 5: the receptionist's brain writes every reply (decision 0093). 6: a call back read
+ * as someone selling is set aside, a recorded message that sells among them (decision 0136), so every call back waiting
+ * is read again.
  */
-export const REPLY_DRAFT_RULES = 5;
+export const REPLY_DRAFT_RULES = 6;
 
 /**
  * The edition a step's note is kept under (kind `step`, decision 0120): its own, so a page a deploy behind, which reads

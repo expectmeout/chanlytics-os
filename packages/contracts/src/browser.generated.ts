@@ -268,7 +268,7 @@ export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./c
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./content/sources";
 export { ABANDONED_MS, abandonedCall, CALL_TRANSCRIPT, callAttemptWords, DISCONNECTION_LABELS, MISSED_CALL_LINE, missedCall, neverConnected, reachedVoicemail, UNCONNECTED_DIAL_LINE } from "./conversations/call-dto";
-export { callEndedWords, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
+export { callEndedWords, saysUnansweredCall, spokenDuration, toCallVM, unansweredCallTodo } from "./conversations/call-vm";
 export { dockLineOf, DRAFTED_TODO, ESCALATION_ACTS, ESCALATION_REASON_LABELS, ESCALATION_REASON_SHORT, ESCALATION_SUMMARIES, HAND_BACK_REASONS, HOLD_ACT_WORDS, holdActOf, holdToDoOf, holdWaits, OPEN_HOLDS_READ_MAX, PITCH_TODO, reasonLabelOf, reasonShort, reasonSummaryOf, WAITING_REASONS, waitsOnAPerson } from "./conversations/escalations";
 export { HANDLED_OUTCOMES } from "./conversations/handled";
 export { countdownClock, theyWroteLast, toInboxThreadVM } from "./conversations/inbox-thread/thread-vm";
@@ -530,6 +530,7 @@ export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./today/qu
 export { NO_REPLY_AFTER_MS } from "./today/rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./today/runs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./today/to-do";
+export { callBackNotOwed, callerStandingOf, strangerCaller } from "./voice/call-back-owed";
 export { CALL_ENDING_OWNER_WORDS, CALL_ENDINGS_NEEDING_AN_EAR, isCallEndingReason } from "./voice/call-endings";
 export { CALL_ENDING_MENDS, CALL_ENDING_PLATFORM_WORDS, CALL_ENDINGS, callEndingOf } from "./voice/call-endings-platform";
 export { CALL_OUTCOME_WORDS, CALL_OUTCOMES, callNoteLines, callNotesOf, callOutcomeOf, callOutcomeWords, callTodoWords, tidyCallSummary } from "./voice/call-words";

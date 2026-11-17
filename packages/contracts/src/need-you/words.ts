@@ -35,6 +35,12 @@ export const NOT_A_PERSON_WORDS = {
   actHint: "Moves them out of People. Their mail stays.",
 } as const;
 
+/** Whoever has waited past a week, said over them where nothing else needs you: a phone's walk, and the Inbox's empty Needs you. */
+const olderSays = (n: number): string =>
+  n === 1
+    ? "1 older one has waited over a week. It may need nothing from you."
+    : `${n} older ones have waited over a week. Most need nothing from you.`;
+
 /**
  * What the section says, row by row. What Ask prepared is headed by what it is, then whose (the refined canvas, 31 Oct
  * 2026): "Reply · Ask's draft" over words that go to them, which the member types in where they stand; "Call notes ·
@@ -150,6 +156,12 @@ export const NEED_YOU_WORDS = {
     wait: "over a week",
     tollFree: "toll-free",
   },
+  /**
+   * The Inbox's Needs you with nobody in it but whoever has waited past a week (17 Nov 2026): "Nobody's waiting on you"
+   * stood over "1 waiting over a week", two sentences that could not both be true. Today's own words for it: nothing needs
+   * you, and the older ones may need nothing.
+   */
+  onlyOlder: { title: "Nothing needs you", says: olderSays },
   /**
    * Every row past a week marked done at once, with one Undo: they leave Need you until they write again. The words name
    * no list: "They leave Need you" named a head a phone never draws, and read as the Inbox's "Needs you" misspelt
@@ -350,13 +362,7 @@ export const NEED_YOU_WORDS = {
     doneCount: (n: number) => (n === 1 ? "1 done" : `${n} done`),
     back: "Back to Today",
     todos: (n: number) => `${n} to-do${n === 1 ? "" : "s"} left`,
-    older: {
-      go: "Go through them",
-      says: (n: number) =>
-        n === 1
-          ? "1 older one has waited over a week. It may need nothing from you."
-          : `${n} older ones have waited over a week. Most need nothing from you.`,
-    },
+    older: { go: "Go through them", says: olderSays },
   },
 } as const;
 

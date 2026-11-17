@@ -169,6 +169,8 @@ export interface InboxThreadVM {
   escalatedAtMs?: number;
   /** Set aside as not a customer's (decision 0093): under Set aside, with Not a customer and Reply anyway on its dock. */
   setAside?: boolean;
+  /** A member said it is not a customer's (decision 0136): its dock says so, with Reply anyway, and their calls ask for nobody. */
+  notACustomer?: boolean;
   /**
    * New to the reader: the customer wrote or called after they last opened the thread, or they put it back as unread
    * (standing.ts isUnseen, over the reader's own marks, 00349). It meant needsYou until the marks were kept, since

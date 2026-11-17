@@ -11,6 +11,8 @@ import {
   namesAPerson,
   needYouVerbOf,
   needYouWaitOf,
+  phoneAsWritten,
+  tollFreeNumber,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
 import { AttnRow } from "../../../kit/attention/attn-row";
@@ -77,6 +79,21 @@ export function rowWords(row: TodayQueueRowVM) {
     note: "",
     tone: row.tone,
     testid: `queue-${row.kind}`,
+  };
+}
+
+/**
+ * Someone past a week, as their own row says them on Today and in the Inbox's Needs you: a toll-free number says so
+ * beside it, a number's face is already the phone so no wire is said twice, and how long is in the plain ink, since
+ * past a week is what the row is and the amber is for who waits now.
+ */
+export function olderWords(row: TodayQueueRowVM) {
+  const words = rowWords(row);
+  return {
+    ...words,
+    trail: tollFreeNumber(row.phone ?? row.who) ? W.older.tollFree : words.trail,
+    via: phoneAsWritten(row.who) ? null : words.via,
+    wait: words.wait ? { words: words.wait.words, long: false } : null,
   };
 }
 

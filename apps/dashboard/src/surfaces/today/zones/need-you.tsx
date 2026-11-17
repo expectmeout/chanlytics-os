@@ -38,7 +38,8 @@ import { usePartShown } from "../../use-surface";
 import { broadcastsRead, runsPending, useRunsActing } from "../../waits/run-acts";
 import { waitRows, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
-import { NeedYouGroup, handBackAll, handedBackWords, type HandedBack } from "../need-you/groups";
+import { NeedYouGroup } from "../need-you/groups";
+import { handBackAll, handedBackWords, type HandedBack } from "../need-you/sheet/hand-back";
 import { OlderGroup } from "../need-you/older";
 import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { worksInPlace } from "../need-you/rows";
@@ -252,7 +253,8 @@ function SetAsideLine({ nav }: { nav: (to: string) => void }) {
   const held = surfaceValue("reply_drafts");
   const first = held?.setAside?.[0];
   if (!first) return null;
-  const words = held.drafts.find((d) => d.conversation_id === first && d.kind === "reply")?.words.pitch ?? null;
+  // What it was read as: an email's reply draft says it, and a call back's brief (decision 0136).
+  const words = held.drafts.find((d) => d.conversation_id === first && d.words.pitch)?.words.pitch ?? null;
   return (
     <div className="tq-foot" data-testid="today-set-aside">
       <span>{W.setAside(held.setAside.length, words)}</span>

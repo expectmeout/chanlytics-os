@@ -478,7 +478,13 @@ const inboxPage = (
         fromLine={replies ? <SequenceRepliesLine read={replies} held={threads} /> : null}
         toSendOpen={toSendOpen}
         flash={ppFlash}
-        needsYou={{ older, rows: needsYou.rows, olderRows: needsYou.olderRows, why: needsYou.why }}
+        needsYou={{
+          older,
+          rows: needsYou.rows,
+          olderRows: needsYou.olderRows,
+          why: needsYou.why,
+          rowOf: needsYou.rowOf,
+        }}
       />
       {ixOnPhone() && !phoneThreadOpen
         ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
