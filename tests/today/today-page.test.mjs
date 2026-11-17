@@ -713,17 +713,17 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   set({ today: busy(), headline: headline() });
   const tree = draw(PhoneSoFar);
   const line = byTestId(tree, "today-period");
-  assert.equal(textOf(line), todayPeriodLine(headline()).text);
-  assert.match(textOf(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by AI, 4 calls\.$/);
+  const said = (door) => textOf(find(door, (n) => classes(n).includes("tz-week-line"))); // the sentence, not its key
+  assert.equal(said(line), todayPeriodLine(headline()).text);
+  assert.match(said(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by AI, 4 calls\.$/);
   // The line is the one door (the redesign of 1 Nov 2026): the period card had two, then the card's head had one.
   assert.equal(line.type, "a");
   press(line);
   assert.equal(went.at(-1), "reports");
   assert.equal(buttons(tree, "Reports").length, 0, "no second door to Reports on the card");
-  // A desk says it once, in the strip at the page's foot (Today in three zones, 2 Nov 2026), once People's book is in: the
-  // strip stands under Ask found, which draws with the book.
+  // A desk says it once, in the strip at the page's foot (2 Nov 2026), once People's book is in, as Ask found draws.
   set({ __PEOPLE: people() });
-  assert.equal(textOf(byTestId(draw(DeskFoot), "today-period")), todayPeriodLine(headline()).text);
+  assert.equal(said(byTestId(draw(DeskFoot), "today-period")), todayPeriodLine(headline()).text);
   set({ __PEOPLE: undefined });
   set({ headline: undefined });
   const loading = draw(PhoneSoFar);

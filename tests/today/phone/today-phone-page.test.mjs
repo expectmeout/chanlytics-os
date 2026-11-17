@@ -642,53 +642,121 @@ test("on a phone the page is one column in the canvas's order: AI found leads wh
   setSurfaceValue("reports_headline", undefined);
 });
 
-test("on a phone the walk steps into To do's rows after the people (the Parts board: 'To do's rows join the walk'), Done there is To do's, and its end offers only the to-dos it does not walk", () => {
+test("the period's days carry their key, what the green and the coral are, and a period with nothing in it draws neither", () => {
   phone = true;
   set(twoWaiting());
-  const queue = draw(NeedYou);
-  press(find(rowsOf(queue, "handoff")[1], (n) => n.type === "button" && textOf(n) === "Reply"));
-  const walk = find(
-    again(() => W.React.createElement(NeedYou, {})),
-    (n) => typeof n.type === "function" && n.type.name === "WalkSheet",
-  );
+  try {
+    setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 7, you: 1, none: 1 }));
+    const key = byTestId(draw(PhoneSoFar), "today-period-key");
+    assert.ok(key, "REGRESSION: the days were drawn green and coral with nothing to say what either meant");
+    assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Today"], "the chart's key");
+    assert.notEqual(key.props["data-when"], undefined, "Today is a time the page says");
+    setSurfaceValue("reports_headline", headline({ days: 30 }));
+    assert.equal(byTestId(draw(PhoneSoFar), "today-period-key"), null, "no days drawn, no key to them");
+  } finally {
+    setSurfaceValue("reports_headline", undefined);
+  }
+});
+
+/** A row of the queue as contracts makes it, by hand: a person waiting on a thread of their own. */
+const queueRow = (id, who, over = {}) => ({
+  id,
+  kind: "handoff",
+  conversationId: `cv-${id}`,
+  callId: null,
+  person_id: `p-${id}`,
+  who,
+  initials: who.slice(0, 2).toUpperCase(),
+  channel: "WhatsApp",
+  when: "waited 2h",
+  sentence: "Can I move my appointment?",
+  quoted: true,
+  status: [],
+  tone: "escalated",
+  warn: false,
+  cta: { label: "Open and reply", to: `inbox/th-cv-${id}` },
+  also: null,
+  writes: { for_message_id: `m-${id}`, wire: "WhatsApp", window_open: true, window_closes: null },
+  waitedMs: 2 * 3_600_000,
+  ...over,
+});
+/** Lea's reply, which AI sends on its own in ten minutes unless someone stops it: still worked on Today (its press is Stop). */
+const leaGoing = () =>
+  queueRow("lea", "Lea Park", {
+    kind: "held",
+    held: { message_id: "m-held", text: "Yes, 3 PM is free.", sends_at_ms: NOW.getTime() + 10 * 60_000 },
+    clock_ms: 10 * 60_000,
+  });
+/** A day whose queue is these rows, over Today's own read. */
+const dayOf = (rows) => {
+  const vm = nobodyWaiting();
+  return { ...vm, queue: { ...vm.queue, rows } };
+};
+const walkOf = (tree) => find(tree, (n) => typeof n.type === "function" && n.type.name === "WalkSheet");
+
+test("on a phone the walk holds what is worked on Today alone: a reply is no step of it (D8), To do's rows are, and its end says who still waits in the Inbox", () => {
+  phone = true;
+  set(dayOf([leaGoing(), ...twoWaiting().queue.rows]));
+  const walk = walkOf(draw(NeedYou));
   assert.deepEqual(
     walk.props.rows.map((r) => [r.kind, r.who]),
     [
-      ["handoff", "Sofia Reyes"],
-      ["handoff", "Ana Reyes"],
+      ["held", "Lea Park"],
       ["step", "Ben"],
     ],
-    "REGRESSION: the walk ended at the people and sent the member out of the sheet for Ben's step",
+    "REGRESSION: a to-do's walk stepped on to a reply, its draft and Send in a sheet over Today; or it ended before Ben's step",
   );
+  assert.deepEqual(walk.props.more, { count: 2, to: "inbox" }, "the two who are answered in their conversations");
   assert.equal(typeof walk.props.stepDone, "function", "a step's Done in the sheet is To do's own");
   assert.equal(walk.props.todos, 0, "nothing of To do's is left outside the walk");
+  // The walk's end, with the two replies still waiting: it says so, and where.
+  const end = again(() => W.React.createElement(walk.type, { ...walk.props, at: "end" }));
+  assert.ok(textOf(byTestId(end, "walk-clear")).includes("2 more waiting"), textOf(end));
 });
 
-test("Done on a step in the walk goes on to the next one still open: the step leaves the rows at once, and the sheet never says the walk's end while rows follow", () => {
+test("Done on a step in the walk goes on to the next one still open on Today, never to a reply: with none left it is the walk's end", () => {
   phone = true;
-  set(twoWaiting());
-  const queue = draw(NeedYou);
-  press(find(rowsOf(queue, "handoff")[1], (n) => n.type === "button" && textOf(n) === "Reply"));
-  const walk = find(
-    again(() => W.React.createElement(NeedYou, {})),
-    (n) => typeof n.type === "function" && n.type.name === "WalkSheet",
-  );
-  const [first, , ben] = walk.props.rows;
-  const at = [];
-  const done = [];
-  const sheet = again(() =>
-    W.React.createElement(walk.type, {
-      ...walk.props,
-      at: ben.id,
-      onAt: (to) => at.push(to),
-      stepDone: (r) => done.push(r.id),
-    }),
-  );
-  press(find(sheet, (n) => n.type === "button" && n.props?.["aria-label"] === NOTE_WORDS.markDone(ben.sentence)));
+  /** The walk at Ben's step, Done pressed: where the sheet went, and what was marked done. */
+  const doneOnBen = (rows) => {
+    set(dayOf(rows));
+    const walk = walkOf(draw(NeedYou));
+    const ben = walk.props.rows.find((r) => r.kind === "step");
+    const at = [];
+    const done = [];
+    const sheet = again(() =>
+      W.React.createElement(walk.type, {
+        ...walk.props,
+        at: ben.id,
+        onAt: (to) => at.push(to),
+        stepDone: (r) => done.push(r.id),
+      }),
+    );
+    press(find(sheet, (n) => n.type === "button" && n.props?.["aria-label"] === NOTE_WORDS.markDone(ben.sentence)));
+    assert.deepEqual(done, [ben.id], "the step is To do's to mark done");
+    return at;
+  };
   assert.deepEqual(
-    at,
-    [first.id],
-    "REGRESSION: Done hid the step, and the sheet said 'That's everyone' over the people still open",
+    doneOnBen([leaGoing(), ...twoWaiting().queue.rows]),
+    ["lea"],
+    "REGRESSION: Done hid the step, and the sheet said the walk's end over a row still open",
   );
-  assert.deepEqual(done, [ben.id], "and the step is To do's to mark done");
+  assert.deepEqual(
+    doneOnBen(twoWaiting().queue.rows),
+    ["end"],
+    "REGRESSION: after a to-do the sheet opened Sofia's reply, to be written and sent on Today (D8)",
+  );
+});
+
+test("the walk's end offers the older ones: one answered in its conversation opens there, never in the sheet (D8)", () => {
+  phone = true;
+  went.length = 0;
+  const old = (id, who) => queueRow(id, who, { waitedMs: 9 * 86_400_000 });
+  set(dayOf([leaGoing(), old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
+  const walk = walkOf(draw(NeedYou));
+  assert.equal(walk.props.older.count, 2, "the end says the two who waited past a week");
+  walk.props.older.go();
+  const after = walkOf(again(() => W.React.createElement(NeedYou, {})));
+  assert.equal(after.props.at, null, "REGRESSION: Dana's reply opened in the sheet, with its Send");
+  assert.deepEqual(went, ["inbox/th-cv-o1"], "her conversation, as her row's press opens it");
+  went.length = 0;
 });

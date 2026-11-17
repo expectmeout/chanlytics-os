@@ -28,7 +28,7 @@ function handedWork(handed: HandedBack, undo: (() => void) | null, busy: boolean
  * What a press on an old row opens: their conversation where its answer is written there (D8), else the row in place or
  * its own door.
  */
-function openOlder(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): void {
+export function openOlder(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): void {
   if (answersInThread(row) && row.conversationId) return openInThread(row, row.conversationId, ctx.nav);
   if (opensToWork(row)) return ctx.open(row.id);
   ctx.nav(row.cta.to);

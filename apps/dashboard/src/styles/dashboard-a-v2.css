@@ -1233,8 +1233,11 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   position: relative;
   z-index: 3;
 }
+/* Four cells of one width, the widest's, so the hairlines between them stand evenly: sized each by its own word they
+   were 80, 92, 64 and 60px (the spacing review of 17 Nov 2026). */
 .today-head-figs > .tc-figs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(max-content, 1fr));
   gap: 0;
   padding: 0 6px;
   border-radius: var(--radius-2xl);
@@ -1346,6 +1349,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .dash-a-v2 .today-setup { gap: 4px; padding: 12px 18px; }
   .dash-a-v2 .today-setup [data-testid="today-setup-hide"] { font-size: var(--text-sm); }
   .dash-a-v2 .today-setup .tq-list > * { grid-template-columns: 8px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; border-top: 0; }
+  /* A holder of one of Setup's rows adds nothing round it: the row's own 11px stands over and under its words, where the
+     holder's 6 made it 11 over and 17 under, a row 74px tall beside Need you's 48 (the spacing review of 17 Nov 2026). */
+  .dash-a-v2 .today-setup .tq-list > :has(> [data-testid^="setup-row-"], > [data-testid="today-setup-remind"]) { padding-block: 0; }
+  /* A row's act the height of the menu beside it and of every other capsule on the page (See who, Connect Google): 34px
+     beside Skip's 28 read as two sizes of one thing. A phone keeps its own, a thumb's. */
+  .dash-a-v2 .today-setup .tq-list :is([data-testid="setup-verb"], [data-testid="today-setup-go"], [data-testid="today-setup-remind-go"]) { height: var(--control-h-sm); padding: 0 12px; font-size: var(--text-sm); }
   /* The words of the one row that opens the first run, which is the card's own list's child (setup-card.tsx startRow):
      reached by place from the card, never from any list in it. Setup's optional rows each stand in a holder with the
      form they open (setup/rows/rows.tsx), and there the second child is that form: these rules stacked its fields,
