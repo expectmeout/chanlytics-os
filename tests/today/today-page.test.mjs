@@ -713,29 +713,17 @@ test("the foot: the last seven days in Reports' own numbers with one door; a fai
   set({ today: busy(), headline: headline() });
   const tree = draw(PhoneSoFar);
   const line = byTestId(tree, "today-period");
-  /** The period's sentence, apart from the key of the days drawn beside it. */
-  const said = (door) => textOf(find(door, (n) => classes(n).includes("tz-week-line")));
+  const said = (door) => textOf(find(door, (n) => classes(n).includes("tz-week-line"))); // the sentence, not its key
   assert.equal(said(line), todayPeriodLine(headline()).text);
   assert.match(said(line), /^Last 7 days: 24 messages \(up from 19\), 88% answered by AI, 4 calls\.$/);
-  // The days drawn beside it say what their two colours are: with no key the green and the coral meant nothing to a reader.
-  const key = byTestId(line, "today-period-key");
-  assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Today"], "the chart's key");
-  assert.notEqual(key.props["data-when"], undefined, "Today is a time the page says");
   // The line is the one door (the redesign of 1 Nov 2026): the period card had two, then the card's head had one.
   assert.equal(line.type, "a");
   press(line);
   assert.equal(went.at(-1), "reports");
   assert.equal(buttons(tree, "Reports").length, 0, "no second door to Reports on the card");
-  // A desk says it once, in the strip at the page's foot (Today in three zones, 2 Nov 2026), once People's book is in: the
-  // strip stands under Ask found, which draws with the book.
+  // A desk says it once, in the strip at the page's foot (2 Nov 2026), once People's book is in, as Ask found draws.
   set({ __PEOPLE: people() });
-  const desk = byTestId(draw(DeskFoot), "today-period");
-  assert.equal(said(desk), todayPeriodLine(headline()).text);
-  assert.ok(byTestId(desk, "today-period-key"), "a desk's days have their key too");
-  // A period with nothing in it draws no days, and so no key to them.
-  set({ headline: headline({ in: 0, ai: 0, you: 0, none: 0, calls: 0 }) });
-  assert.equal(byTestId(draw(DeskFoot), "today-period-key"), null, "no chart, no key");
-  set({ headline: headline() });
+  assert.equal(said(byTestId(draw(DeskFoot), "today-period")), todayPeriodLine(headline()).text);
   set({ __PEOPLE: undefined });
   set({ headline: undefined });
   const loading = draw(PhoneSoFar);

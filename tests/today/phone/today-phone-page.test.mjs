@@ -642,6 +642,22 @@ test("on a phone the page is one column in the canvas's order: AI found leads wh
   setSurfaceValue("reports_headline", undefined);
 });
 
+test("the period's days carry their key, what the green and the coral are, and a period with nothing in it draws neither", () => {
+  phone = true;
+  set(twoWaiting());
+  try {
+    setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 7, you: 1, none: 1 }));
+    const key = byTestId(draw(PhoneSoFar), "today-period-key");
+    assert.ok(key, "REGRESSION: the days were drawn green and coral with nothing to say what either meant");
+    assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Today"], "the chart's key");
+    assert.notEqual(key.props["data-when"], undefined, "Today is a time the page says");
+    setSurfaceValue("reports_headline", headline({ days: 30 }));
+    assert.equal(byTestId(draw(PhoneSoFar), "today-period-key"), null, "no days drawn, no key to them");
+  } finally {
+    setSurfaceValue("reports_headline", undefined);
+  }
+});
+
 /** A row of the queue as contracts makes it, by hand: a person waiting on a thread of their own. */
 const queueRow = (id, who, over = {}) => ({
   id,
