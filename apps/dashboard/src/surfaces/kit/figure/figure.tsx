@@ -53,10 +53,11 @@ export type FigureProps = {
    */
   washed?: boolean;
   /**
-   * An inset tile of its own (a person's figures on a phone, canvas A); the one number a view is for, at the decision's
+   * An inset tile of its own (the console's numbers); one of a line of them with no ground, its line beside the number and
+   * the whole figure its door (`compact`: a person's figures on a phone); the one number a view is for, at the decision's
    * size with its label beside it (`hero`: a sequence's History, the run-to-leads canvas); none is the plain figure of a strip.
    */
-  look?: "tile" | "hero";
+  look?: "tile" | "compact" | "hero";
   className?: string;
   /** The id a test finds the figure by; the label's stop, where it has one, is `<id>-term`. */
   "data-testid"?: string;
@@ -123,6 +124,7 @@ export function Figure({
       className={cx(
         "figure",
         look === "tile" && "figure-tile",
+        look === "compact" && "figure-compact",
         look === "hero" && "figure-hero",
         thin && "is-thin",
         tone && `is-${tone}`,

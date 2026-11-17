@@ -34,7 +34,8 @@ function figureDoor(c: PageCtx, f: PersonFigureVM) {
 /** One figure, washed when someone else moves it while the page is open (canvas A's wash). */
 function WatchedFigure({ c, f }: { c: PageCtx; f: PersonFigureVM }) {
   const washed = useWash(c.p.id, f.value, PERSON_WASH_WORDS.figure(f.label, f.value));
-  // On a phone each figure is a tile of its own, two to a line (canvas A, P1); on a desk a share of one pane's line.
+  // On a phone one of a line of figures under the head, with no ground of its own (Ruben, 17 Nov 2026: a tile each was
+  // bulky); on a desk a share of one pane's line.
   return (
     <Figure
       id={f.id}
@@ -42,7 +43,7 @@ function WatchedFigure({ c, f }: { c: PageCtx; f: PersonFigureVM }) {
       value={f.value}
       meta={f.sub}
       washed={washed}
-      look={c.phone ? "tile" : undefined}
+      look={c.phone ? "compact" : undefined}
       {...figureDoor(c, f)}
     />
   );
