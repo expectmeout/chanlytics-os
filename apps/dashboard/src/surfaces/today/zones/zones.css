@@ -958,6 +958,21 @@
   width: 100%;
   height: 100%;
 }
+/* A video whose picture is not there yet says so on its ground, as Files' tile does (files.css .files-unseen), in the light
+   ink the stage takes whatever the page's light, quieter than the length under it. */
+.tz-content-waits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  overflow: hidden;
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  color: var(--media-ink);
+  text-align: center;
+  overflow-wrap: anywhere;
+  opacity: 0.72;
+}
 /* A video being made: its first picture dim, and Ask's three over it in the colour they are while Ask works, still. */
 .tz-content-making img {
   opacity: 0.42;
