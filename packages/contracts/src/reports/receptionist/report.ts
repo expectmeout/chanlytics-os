@@ -41,6 +41,7 @@ import {
   languagesLine,
   linkLine,
   missedMeta,
+  screenedLine,
   topicEntries,
   topicsEmpty,
   topicsLine,
@@ -58,6 +59,18 @@ export interface ReceptionistReportVM {
   /** Null unless the receptionist wrote in two or more languages: one is no mix. */
   languages: MixPartVM | null;
   callEndings: MixPartVM;
+  /**
+   * The calls kept off the owner's list (decision 0137): how many, how many of them were turned away before AI answered
+   * (the provider keeps no call for those, so no other figure counts them), and the sentence. Null where they could not
+   * be read, or the server is a deploy behind.
+   */
+  screened: { total: number; refused: number; line: string } | null;
+  /**
+   * What the Calls card says where it has no call to draw: nobody phoned, or, where a call was kept off the owner's
+   * list, that none connected. The card counts the calls the provider kept, and one turned away before AI answered is
+   * none of them.
+   */
+  noCalls: string;
   /** The people sent the booking link, how many have booked since where the calendar could say, and the sentence. */
   link: { sent: number; booked: number | null; line: string };
   /** [your first reply after a handover, the time to settle one] */
@@ -87,13 +100,21 @@ function languagesPart({ languages }: Series): MixPartVM | null {
   return entries.length < 2 ? null : mixOf(entries, languagesLine(languages.stamped, languages.of));
 }
 
-function callEndingsPart({ call_endings, missed }: Series): MixPartVM {
+function callEndingsPart({ call_endings, missed }: Series, screened: number): MixPartVM {
   if (call_endings.total > 0)
     return mixOf(callEndingEntries(call_endings.by_reason), callEndingsLine(call_endings.total));
   // The endings are of calls that connected. A missed call, one under the hour old and one with no caller on record are
-  // calls too: with any of them, "nobody phoned" is untrue beside the missed-calls figure.
-  const rang = missed.now.n + missed.now.pending + missed.now.unknown > 0;
+  // calls too: with any of them, "nobody phoned" is untrue beside the missed-calls figure. So is a call kept off the
+  // owner's list (decision 0137), said in the line under this: one turned away before AI answered is no row of the
+  // series at all.
+  const rang = missed.now.n + missed.now.pending + missed.now.unknown + screened > 0;
   return noMix(rang ? CALLS_NONE_CONNECTED : CALLS_EMPTY);
+}
+
+/** The calls kept off the owner's list, in words; null where the route answered none. */
+function screenedPart(screened: ReceptionistDto["screened"]): ReceptionistReportVM["screened"] {
+  if (!screened) return null;
+  return { total: screened.total, refused: screened.by_reason.refused ?? 0, line: screenedLine(screened) };
 }
 
 /** The period before's middle beside this one's, where both have one: a time is not set against a dash. */
@@ -218,6 +239,8 @@ function unavailableVM(): ReceptionistReportVM {
     topics: noMix(null),
     languages: null,
     callEndings: noMix(null),
+    screened: null,
+    noCalls: CALLS_EMPTY,
     link: { sent: 0, booked: null, line: "" },
     handover: [],
     missed: {
@@ -239,12 +262,15 @@ export function toReceptionistReportVM(dto: ReceptionistDto, opts: { nowMs: numb
   const { series } = dto;
   if (series === null) return unavailableVM();
   const { links } = series;
+  const screened = screenedPart(dto.screened);
   return {
     available: true,
     hold: holdPart(series),
     topics: topicsPart(series),
     languages: languagesPart(series),
-    callEndings: callEndingsPart(series),
+    callEndings: callEndingsPart(series, screened?.total ?? 0),
+    screened,
+    noCalls: screened?.total ? CALLS_NONE_CONNECTED : CALLS_EMPTY,
     link: { sent: links.sent, booked: links.booked, line: linkLine(links.sent, links.booked, links.calendar) },
     handover: handoverFigures(series, dto.days),
     missed: missedFigure(series, dto.days),

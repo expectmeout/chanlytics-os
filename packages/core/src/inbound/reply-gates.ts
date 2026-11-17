@@ -40,7 +40,7 @@ import {
   YES_WHILE_PAUSED,
 } from "@chanlytics/contracts";
 import type { SendPurpose } from "@chanlytics/contracts";
-import { ageVerdict, holdCopy } from "./steps";
+import { ageVerdict, holdCopy, yesOwedConfirmation } from "./steps";
 import { GO, type Answering } from "./context";
 
 /** When the message was sent, in the seconds the staleness check reads; nothing when its wire did not say. */
@@ -166,7 +166,7 @@ export async function hasConfirmedYes(at: Answering, bodyText: string): Promise<
   // registration is informational, so a YES OFFERS that arrives by text is
   // recorded (ingest keeps the answer; it is honoured on WhatsApp) and answered
   // like any other words, not confirmed as a subscription on this number.
-  if (n.consent.optIn || (n.consent.optInMarketing && channel === "whatsapp")) {
+  if (yesOwedConfirmation(n.consent, channel)) {
     const purpose: SendPurpose = n.consent.optInMarketing ? "marketing" : "conversational";
     // A YES OFFERS taken in again after the person said no more offers is held by that no, as a START taken in again
     // after a STOP is (resolveConsent): the door would refuse the confirmation, and a person would be told the customer

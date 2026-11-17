@@ -38,6 +38,15 @@ export interface StandingInput {
 export type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
 
 /**
+ * A member said this thread is not a customer's (00539, decisions 0093 and 0136): set aside with its day gone
+ * (`set_aside_why` kept, `set_aside_at` null), which stands whatever the thread's state until Reply anyway clears both.
+ * The one reading of the two columns: a caller's standing, the Inbox's dock, the two words' verb, the call refused before
+ * it is answered and the message nobody answers (decision 0137).
+ */
+export const saidNotACustomer = (thread: { set_aside_at?: string | null; set_aside_why?: string | null }): boolean =>
+  !!thread.set_aside_why && !thread.set_aside_at;
+
+/**
  * What the Inbox says of a thread somebody has, once: the pill's words and the pane's sentence, for the thread you have
  * and for one a teammate has. The Inbox's pills (shell/tone.ts), its pane (inbox-thread.ts) and a person's page
  * (people/person-receptionist.ts) all read these, so a thread is not "yours" in one place and "a person's" in another.

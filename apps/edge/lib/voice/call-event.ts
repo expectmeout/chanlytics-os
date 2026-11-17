@@ -46,7 +46,7 @@ import {
 import type { NotifyMessage } from "../shared/alerts/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
 import type { CallForActivity } from "./call-activity.js";
-import type { CallerStanding, ContactId } from "@chanlytics/contracts";
+import type { CallBackNotOwed, CallerStanding, ContactId, NumberCheck } from "@chanlytics/contracts";
 
 /** The delivery as the door read it: the event, the call as the provider shaped it, and the row's view of it. */
 interface CallEvent {
@@ -81,6 +81,11 @@ interface CallEventFacts {
    * says which.
    */
   caller: CallerStanding | null;
+  /**
+   * What the caller's carrier said of the number shown (contracts numberCheckOf), as the inbound door handed it on in
+   * the call's metadata (decision 0137); null or absent where it said nothing, and then nothing is decided on it.
+   */
+  numberCheck?: NumberCheck | null;
 }
 
 /** What the bell row is about: the call, or the thread when it needs a call back. */
@@ -95,7 +100,9 @@ export interface CallAbout {
  * correction through the provider, the copy of the audio) names what it needs.
  */
 export type CallStep =
-  | { kind: "log"; event: "retell_event_stale" | "call_back_not_owed"; fields: Record<string, unknown> }
+  | { kind: "log"; event: "retell_event_stale"; fields: Record<string, unknown> }
+  /** A call that would have asked for a call back and asks nobody: said in the log and kept on the ledger (0137). */
+  | { kind: "screened"; conversationId: string | null; retellCallId: string; reason: CallBackNotOwed }
   | { kind: "forwarding_verified"; call: ForwardingCall }
   | { kind: "call_activity"; retellCallId: string; call: CallForActivity }
   | { kind: "delivery"; callId: string | null; data: Record<string, unknown> }
@@ -137,8 +144,8 @@ export interface CallEventPlan {
   about: CallAbout | null;
   /**
    * Nobody is told of this call (decision 0136): the workspace said the caller is not a customer, or it never connected
-   * from a toll-free number the business does not talk with, whose notice would ask for a call back nobody can make.
-   * The claim still stands, so no sweep settles the call again.
+   * from a toll-free number, or one that failed its carrier's check (0137), the business does not talk with, whose
+   * notice would ask for a call back nobody can make. The claim still stands, so no sweep settles the call again.
    */
   untold: boolean;
   /** The call's own row (calls.id), which the owner's notice of it opens; null where the delivery made none. */
@@ -279,7 +286,8 @@ function owedACallBack(
  * WhatsApp handoff does; a replay refreshes the one open escalation rather than opening a second), and a call that
  * reached no answer (owedACallBack, which pauses nothing). A call that asks for nothing holds nobody (decision 0136):
  * the workspace's word, the carrier's, or silence from a toll-free number the business does not talk with. Then the
- * step is a log line that says why, and the call is still the call it was, on its page and in the thread.
+ * step says why, in the log and on the ledger (0137), and the call is still the call it was, on its page and in the
+ * thread.
  */
 function callBackStep(
   { event, n }: CallEvent,
@@ -292,13 +300,23 @@ function callBackStep(
       : null;
   const silence = owedACallBack(event, n, res);
   const notOwed = callBackNotOwed(
-    { from: n.fromE164, silent: !!silence, disconnectionReason: n.disconnectionReason },
+    {
+      from: n.fromE164,
+      silent: !!silence,
+      disconnectionReason: n.disconnectionReason,
+      numberCheck: callEventFacts.numberCheck ?? null,
+    },
     callEventFacts.caller,
   );
   if (!spoken && !silence) return { step: null, notOwed };
   if (notOwed)
     return {
-      step: { kind: "log", event: "call_back_not_owed", fields: { call_id: n.retellCallId, why: notOwed } },
+      step: {
+        kind: "screened",
+        conversationId: res.conversation_id ?? null,
+        retellCallId: n.retellCallId,
+        reason: notOwed,
+      },
       notOwed,
     };
   if (!spoken) return { step: silence, notOwed };
@@ -396,7 +414,8 @@ export function planCallEvent(callEvent: CallEvent, callEventFacts: CallEventFac
 
   const copy = recordingCopy(n, res, analyzed);
   if (copy) steps.push(copy);
-  const untold = notOwed === "not_a_customer" || (notOwed === "toll_free_silent" && isMissedCall(n));
+  const dialler = notOwed === "toll_free_silent" || notOwed === "unverified_silent";
+  const untold = notOwed === "not_a_customer" || (dialler && isMissedCall(n));
   return { steps, about, untold, callId: res.call_id ?? null };
 }
 

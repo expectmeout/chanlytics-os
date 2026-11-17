@@ -13,7 +13,7 @@
  */
 import { useMemo } from "react";
 import { plural, type ReportStripTile, type ReportVM } from "@chanlytics/contracts";
-import { toReceptionistReportVM, type ReceptionistReportVM } from "@chanlytics/contracts/report-lens";
+import { CALLS_EMPTY, toReceptionistReportVM, type ReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { BarChart, BarList } from "../../kit/charts/bar";
 import { ChartCard, SegmentBar } from "../../kit/charts/card";
 import { EmptyState, FailedRead } from "../../kit/empty/empty";
@@ -97,8 +97,11 @@ function reasonsCard(vm: ReportVM) {
   );
 }
 
-/** Calls, a day at a time, and the mood the voice provider read. */
-function callsCard(vm: ReportVM, days: number) {
+/**
+ * Calls, a day at a time, and the mood the voice provider read. With none to draw it says nobody phoned, in the frame's
+ * own words until the lens's read says otherwise: a call turned away before AI answered is none of these (decision 0137).
+ */
+function callsCard(vm: ReportVM, days: number, more: ReceptionistReportVM | null) {
   return (
     <ChartCard
       className="rpt-span-4"
@@ -133,7 +136,7 @@ function callsCard(vm: ReportVM, days: number) {
           />
         </>
       ) : (
-        <EmptyState kind="line" title="Nobody phoned in this period." />
+        <EmptyState kind="line" title={more?.noCalls ?? CALLS_EMPTY} />
       )}
     </ChartCard>
   );
@@ -195,7 +198,7 @@ function receptionistSection(
         </div>
         {ownRow(more, own.state === "failed")}
         <div className="rpt-grid">
-          {callsCard(vm, days)}
+          {callsCard(vm, days, more)}
           {more && callEndingsCard(more, "rpt-span-4")}
           <ChartCard className="rpt-span-4" title="Asked, then booked" testid="chart-booking">
             <RptBooked bk={R.booking || null} phone={phone} />

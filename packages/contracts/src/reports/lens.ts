@@ -17,6 +17,7 @@
  */
 export { metricWordsOf } from "./metrics";
 export { toReceptionistReportVM } from "./receptionist/report";
+export { CALLS_EMPTY } from "./receptionist/words";
 export { toPeopleReportVM } from "./people/report";
 export {
   FIRST_CAME_NOBODY,

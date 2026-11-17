@@ -57,6 +57,7 @@ import {
   type Handled,
   type SendPurpose,
   DbFailure,
+  saidNotACustomer,
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
 import { noteEmailTheyGave } from "@chanlytics/db/people";
@@ -94,6 +95,8 @@ export async function readPgThread(
       // campaign on another wire as something we texted.
       textedBefore: s.textedBefore,
       control: liveHoldOf(hold ?? {}),
+      // A member's word that the thread is not a customer's, off the same row (decision 0137).
+      notACustomer: saidNotACustomer(hold ?? {}),
     };
   } catch (e) {
     logger({ tenant_id: tenantId }).error("pg_thread_read_failed", { error: errField(e) });

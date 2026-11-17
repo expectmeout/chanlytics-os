@@ -10,6 +10,8 @@
  * reads; this stays in the root barrel for the server. Pure.
  */
 import { standingOfThread } from "../../conversations/standing";
+import { shiftKey, zoneMidnight } from "../../shared/zone/day-keys";
+import type { ScreenedCallsDto } from "../../voice/screened";
 import type { BookingReportDto } from "../booking-report";
 import type { ReportProfile } from "../closed";
 
@@ -120,6 +122,11 @@ export interface ReceptionistDto {
       })
     | null;
   profile: ReportProfile | null;
+  /**
+   * The calls kept off the owner's list in the window (decision 0137): counted by the reader from the ledger's
+   * `call.screened` rows, a call once. Null where they could not be read; absent from a server a deploy behind.
+   */
+  screened?: ScreenedCallsDto | null;
 }
 
 const isObjectAnswer = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
@@ -192,9 +199,12 @@ export function receptionistDtoOf(
     /** The window as the route asked it, which the DTO echoes (used when `series` is null). */
     head: { timezone: string; today: string; end?: string; days: number };
     nowMs: number;
+    /** The calls kept off the owner's list, as the reader counted them; null where it could not. */
+    screened: ScreenedCallsDto | null;
   },
 ): ReceptionistDto {
-  if (series === null) return { ...windowEcho(parts.head), series: null, profile: parts.profile };
+  const { screened } = parts;
+  if (series === null) return { ...windowEcho(parts.head), series: null, profile: parts.profile, screened };
   const { links, stuck, ...rest } = series;
   return {
     ...windowEcho(series),
@@ -204,5 +214,21 @@ export function receptionistDtoOf(
       stuck: stuckOf(stuck.open, parts.nowMs),
     },
     profile: parts.profile,
+    screened,
   };
+}
+
+/**
+ * The window a receptionist read is of, as two instants: its first day's start and the start of the day after its last,
+ * in the workspace's zone (the head the database answered, or the one the route asked). What the reader counts the
+ * ledger's rows between, so they are the same days the series counts.
+ */
+export function receptionistWindowOf(head: { timezone: string; today: string; end?: string; days: number }): {
+  fromIso: string;
+  toIso: string;
+} {
+  const lastDay = head.end ?? head.today;
+  const untilMs = zoneMidnight(head.timezone, shiftKey(lastDay, 1));
+  const fromMs = zoneMidnight(head.timezone, shiftKey(lastDay, 1 - head.days));
+  return { fromIso: new Date(fromMs).toISOString(), toIso: new Date(untilMs).toISOString() };
 }

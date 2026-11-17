@@ -2048,6 +2048,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       },
       languages: ["English: 30", "Spanish: 8"],
       call_endings: ["Customer hung up: 11", "AI ended the call: 5", "Not recorded: 2"],
+      calls_kept_off_your_list: "No calls were kept off your list in this period.",
       link: "7 people were sent the booking link; 1 has booked since.",
       handover: [
         {
@@ -2155,6 +2156,7 @@ test("report says the Receptionist lens as the page does (Reports C2, the Recept
       topics: { empty: "Topics are read from texts and WhatsApp messages. None came in this period." },
       languages: null,
       call_endings: { empty: "Nobody phoned in this period." },
+      calls_kept_off_your_list: "No calls were kept off your list in this period.",
       link: "Nobody was sent the booking link in this period.",
       handover: [
         {

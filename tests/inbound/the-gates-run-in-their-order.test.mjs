@@ -52,6 +52,7 @@ const CONDITION = {
       }),
     },
   },
+  not_a_customer: { over: { notACustomer: true } },
   carriers: {
     over: {
       carrier: {
@@ -193,14 +194,28 @@ const CHAINS = [
     "one_time_code",
     "thread_unknown",
     "opt_out",
+    "not_a_customer",
     "stale",
     "human_has_it",
     "daily_cap",
     "workspace_paused",
     "mode_holds",
   ],
-  // A texting line the carriers have not approved.
-  ["thread_unknown", "opt_out", "carriers", "stale", "human_has_it", "daily_cap", "workspace_paused", "mode_holds"],
+  // A texting line the carriers have not approved; and before it, a person a member said is not a customer.
+  [
+    "thread_unknown",
+    "opt_out",
+    "not_a_customer",
+    "carriers",
+    "stale",
+    "human_has_it",
+    "daily_cap",
+    "workspace_paused",
+    "mode_holds",
+  ],
+  // What such a person sends is nothing to hold either: a pin drop, a voice note.
+  ["not_a_customer", "readable_non_text"],
+  ["not_a_customer", "unreadable"],
   // A message's own shape, before the gates that hold whatever it is.
   ["no_request", "stale", "human_has_it", "daily_cap", "workspace_paused", "mode_holds"],
   ["readable_non_text", "stale", "human_has_it", "daily_cap", "workspace_paused", "mode_holds"],
@@ -224,4 +239,17 @@ test("the gates run in their order: with every later gate's condition on as well
       assert.equal(gates[0], g.log, `${keys.join(" + ")}: ${g.key} is asked first (saw ${gates.join(", ") || "none"})`);
     }
   }
+});
+
+test("a person a member said is not a customer: what they write is kept, not answered, and nobody is asked; a START is still confirmed", async () => {
+  const gate = byKey.get("not_a_customer");
+  const { gates, w } = await stopAt(["not_a_customer"], "wamid.not-a-customer");
+  assert.deepEqual(gates, [gate.log], "the message stops at the gate, and at no other");
+  assert.equal(w.seen.sent.length, 0, "nothing is said back");
+  assert.equal(w.seen.escalations.length + w.seen.underHold.length, 0, "nobody is asked");
+  assert.equal(w.seen.processed, 1, "the message is marked, so no sweep takes it for one nobody finished");
+
+  // Their yes is theirs to give: a START goes on to its confirmation, and the gate says nothing of it.
+  const yes = await stopAt(["not_a_customer", "confirmed_yes"], "wamid.not-a-customer-start");
+  assert.deepEqual(yes.gates, [byKey.get("confirmed_yes").log], "the START is confirmed");
 });

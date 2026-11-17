@@ -85,6 +85,14 @@ export const INBOUND_GATES: readonly InboundGate[] = [
     log: "wa_skip_opt_out",
   },
   {
+    key: "not_a_customer",
+    kind: "gate",
+    when: "A member said this person is not a customer (their thread's own word, decision 0137), and the message is not a START or a YES OFFERS that is owed its confirmation",
+    then: "Recorded and not answered, and nobody is asked: Reply anyway on the thread takes the word back",
+    hold: null,
+    log: "wa_skip_not_a_customer",
+  },
+  {
     key: "carriers",
     kind: "gate",
     when: "A text on a line the carriers have not approved for texting yet",

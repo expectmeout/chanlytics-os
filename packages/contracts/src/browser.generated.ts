@@ -278,7 +278,7 @@ export { emailLeftOutOf, emailPartsOf, emailPreviewOf, emailSignatureLine, email
 export { mediaKind, mediaVM } from "./conversations/message-media";
 export { draftSendsAtMs, failedWayOf, failureWordsOf, heldDraftOf, isHeldDraft, messageStatusLabel, messageText, messageWords, providerCodeOf, reachedCustomer, sendFailureWords, lastExchanged, sentFactsOf } from "./conversations/message-words";
 export { CONVERSATION_MOVES, conversationMoveAllowed, conversationPatch } from "./conversations/moves";
-export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_LIST_END, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, seenBy, standingOf, standingOfThread } from "./conversations/standing";
+export { HELD_WORDS, heldPill, INBOX_BUCKET_WORDS, inboxBucketWord, isUnseen, NEEDS_YOU_LIST_END, NEEDS_YOU_WORD, readingOf, replyWaitsOnYou, saidNotACustomer, seenBy, standingOf, standingOfThread } from "./conversations/standing";
 export { agentFor, answerWireOf, isChatMessage, isFromTheirSide, isTheirOwnWords, lastWroteOn, THREAD_CHANNEL_WORDS, threadChannelOf, threadChannelWords, writtenChannelOf } from "./conversations/thread-channel";
 export { formatWaited, inboxThreadClock, shortTime, waitedSaid, waitedSince, bubbleTime } from "./conversations/thread-clock";
 export { contactMeta, contactName, emailStoppedWords, initialsOf, isEmailStopped, isIdentifierName, personFaceOf, shortName } from "./conversations/thread-contact";
@@ -459,7 +459,7 @@ export { peopleNowOf } from "./reports/people/now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/record";
 export { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf, isReportDays, isReportPeriod, monthDaysAt, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange } from "./reports/periods";
 export { chainTotalsFromReport, chainTotalsOf, reachOutDayWords } from "./reports/reach-out-report";
-export { isReceptionistSeriesDto, MISSED_CALL_TOUCH_WORDS, receptionistDtoOf } from "./reports/receptionist/record";
+export { isReceptionistSeriesDto, MISSED_CALL_TOUCH_WORDS, receptionistDtoOf, receptionistWindowOf } from "./reports/receptionist/record";
 export { headlineOf, runningTotal, speedOf, toReportVM, periodWords } from "./reports/reports";
 export { isReviewsLedgerDto, reviewsAreOnRecord, reviewsWindowOf, weekTotals } from "./reports/review-record";
 export { REVIEWS_WAITING_SHOWN, toReviewsReportVM } from "./reports/review-report";
@@ -538,8 +538,10 @@ export { CARRIER_WORDS, CARRIERS, divertedNumbers, FORWARDING_MODE_WORDS, FORWAR
 export { GREETING_DEFAULT, greetingFor, pausedGreetingFor } from "./voice/greeting";
 export { deniesAutomated, GREETING_TEMPLATE, greetingNotes, greetingOf, spokenNameOf, statesAutomated } from "./voice/greeting-owner";
 export { ANALYSIS_GRACE_MS, callsStillUp, fmtClock, LIVE_OVERLONG_MS, LIVE_STALE_MS, liveBar, liveStillUp, missedCallIsNews, RECENT_MAX, toLiveCallVM, toLiveVM } from "./voice/live";
+export { NUMBER_CHECKS, numberCheckFrom, numberCheckOf } from "./voice/number-check";
 export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSpeed } from "./voice/phone-pace";
 export { PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_VOICES, PHONE_VOICES_NATIVE_TO, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
+export { SCREENED_REASONS } from "./voice/screened";
 export { frameDraftChange, frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./voice/whisper";
 export { GOING_TODAY_WORDS, goingTodayOf } from "./waits/going-today";
 export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, RUN_START_ENDS, settledNoticeIds } from "./waits/notice-closes";

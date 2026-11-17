@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { shiftKey } from "@chanlytics/contracts";
 import { toReceptionistReportVM } from "@chanlytics/contracts/report-lens";
 import { installStubReact, fresh, all, byTestId, textOf, classes, find, press } from "../../_stub-react.mjs";
-import { quiet, rday, surface } from "../_report-world.mjs";
+import { quiet, rday, reportDto, surface } from "../_report-world.mjs";
 import { FACTS, NO_FUNCTION, QUIET, READ_AT, dtoWith, ownHeld } from "./_receptionist-world.mjs";
 
 const navigated = [];
@@ -558,4 +558,43 @@ test("a database with no function yet draws none of the new parts and no failure
     KEPT_IDS.map(() => true),
   );
   assert.deepEqual(dimmed(tree), []);
+});
+
+test("the calls kept off your list are said under how calls ended, in the fold's sentence; a count that was not read draws no line; and with one, a card with no call to draw never says nobody phoned (decision 0137)", () => {
+  const screened = { total: 3, by_reason: { refused: 2, selling: 1 } };
+  const counted = { ...dtoWith(), screened };
+  const tree = draw({ own: ownHeld(counted) });
+  const line = byTestId(tree, "receptionist-screened");
+  assert.equal(textOf(line), foldOf(counted).screened.line);
+  assert.equal(
+    textOf(line),
+    "3 calls were kept off your list: 2 from people you said aren't customers, 1 set aside as selling.",
+  );
+  assert.ok(
+    find(byTestId(tree, "chart-call-endings"), (n) => n.props?.["data-testid"] === "receptionist-screened"),
+    "under how the calls that connected ended",
+  );
+  // A zero that was read is said; a count that was not (the reader's null, a server a deploy behind) is no line.
+  const none = draw({ own: ownHeld({ ...dtoWith(), screened: { total: 0, by_reason: {} } }) });
+  assert.equal(textOf(byTestId(none, "receptionist-screened")), "No calls were kept off your list in this period.");
+  assert.equal(byTestId(draw({ own: ownHeld({ ...dtoWith(), screened: null }) }), "receptionist-screened"), null);
+  assert.equal(byTestId(draw(), "receptionist-screened"), null);
+
+  // REGRESSION GUARD: two sentences that cannot both be true. A period in which the only calls were turned away
+  // before AI answered has no call the provider kept, and each card that would say "Nobody phoned" says none connected.
+  // The week's messages as they came, and no call the provider kept: the lens is drawn, and its Calls card is empty.
+  const noCalls = () =>
+    surface({
+      report: { series: reportDto().series.map((d) => ({ ...d, calls: 0, call_seconds: 0 })), sentiments: {} },
+    });
+  const quiet = draw({ R: noCalls(), own: ownHeld({ ...dtoWith(QUIET), screened }) });
+  for (const id of ["chart-calls", "chart-call-endings"]) {
+    const said = textOf(byTestId(quiet, id));
+    assert.ok(said.includes("No call connected in this period."), `${id}: ${said}`);
+    assert.equal(said.includes("Nobody phoned"), false, `${id}: ${said}`);
+  }
+  // With no call kept off the list, nobody phoned, as before; and while the lens's own read is out, the frame's words.
+  const empty = draw({ R: noCalls(), own: ownHeld(dtoWith(QUIET)) });
+  assert.ok(textOf(byTestId(empty, "chart-calls")).includes("Nobody phoned in this period."));
+  assert.ok(textOf(byTestId(empty, "chart-call-endings")).includes("Nobody phoned in this period."));
 });

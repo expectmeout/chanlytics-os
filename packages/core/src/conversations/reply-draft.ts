@@ -118,6 +118,11 @@ export interface ReplyDraftPorts {
   caller(tenantId: TenantId, conversationId: string): Promise<CallerStanding | null>;
   /** The thread set aside (00539): its hold resolved, nothing counted, nothing warned of. */
   setAside(tenantId: TenantId, conversationId: string, why: "pitch" | "notice"): Promise<boolean>;
+  /**
+   * A call back set aside as someone selling, kept on the ledger as a call screened (contracts voice/screened.ts,
+   * decision 0137), which Reports counts. Best effort: the thread is set aside whether or not the row was written.
+   */
+  noteScreened(tenantId: TenantId, conversationId: string): Promise<unknown>;
   /** The writer, which the edge holds: the brain and the workspace's whole runtime. */
   write: {
     reply(tenantId: TenantId, ask: ReplyDraftAsk): Promise<ReplyWritten>;
@@ -310,8 +315,10 @@ export async function writeReplyDraft(
   // answered anyway, nor one who could not be read: the note says what they sell, and the call back stays theirs.
   if (kind === "brief" && result.state === "pitch") {
     const standing = await ports.caller(tenantId, conversationId);
-    if (standing && strangerCaller(standing) && (await ports.setAside(tenantId, conversationId, "pitch")))
+    if (standing && strangerCaller(standing) && (await ports.setAside(tenantId, conversationId, "pitch"))) {
+      await ports.noteScreened(tenantId, conversationId);
       return "set_aside";
+    }
   }
   return result.state === "failed" ? "failed" : "kept";
 }

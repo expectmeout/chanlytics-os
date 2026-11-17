@@ -95,6 +95,7 @@ export {
   NEEDS_YOU_WORD,
   readingOf,
   replyWaitsOnYou,
+  saidNotACustomer,
   seenBy,
   standingOf,
   standingOfThread,

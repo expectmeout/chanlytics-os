@@ -733,7 +733,7 @@ test("a call back nobody should make: Not a customer is in the thread's menu, a 
     const held = vmOf(chat(), { ...asked(), reason: "callback", details: "Call them back about a listing." });
     const said = itemsOf(paneOf(held)).find((it) => it.label === "Not a customer");
     assert.ok(said, "REGRESSION: a held call back had no way to be said not a customer's");
-    assert.equal(said.meta, "Off your list. Their calls stop asking for you.");
+    assert.equal(said.meta, "Off your list. AI stops answering their calls and messages.");
     said.onSelect();
     await until(() => posted.includes("POST /api/v1/conversations/c1/not-a-customer"), "Not a customer's door");
     // A thread that asks nothing of you has no such act: there is nothing to take off a list.
@@ -769,7 +769,7 @@ test("a call back nobody should make: Not a customer is in the thread's menu, a 
     const pane = paneOf(saidNot);
     assert.equal(find(pane, byTestId("ix-set-aside")), undefined);
     const dock = find(pane, byTestId("ix-not-a-customer"));
-    assert.match(textOf(dock), /^Not a customer · you said so, and their calls don't ask for you/);
+    assert.match(textOf(dock), /^Not a customer · you said so, and AI doesn't answer their calls or messages/);
     find(pane, byTestId("ix-dock-reply-anyway")).props.onClick();
     await until(() => posted.includes("POST /api/v1/conversations/c1/reply-anyway"), "Reply anyway's door");
     // A thread nobody set aside says none of it.

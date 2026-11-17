@@ -106,6 +106,12 @@ interface CallStart {
    */
   conversationId: string | null;
   /**
+   * A member said this caller's thread is not a customer's (contracts saidNotACustomer, read with their memory): the
+   * door turns the call away before the receptionist answers (decision 0137). False for anyone else, and wherever the
+   * memory could not be read or the plan ran late: a call is never refused on a read that did not answer.
+   */
+  refused: boolean;
+  /**
    * The voice the workspace chose for its calls (contracts PHONE_VOICES), sent as the call's own override; null where
    * none is chosen, or the stored id is not on the list, and the line speaks in its own. Retell refuses a call whose
    * override it cannot honour, so nothing off the list is ever sent.
@@ -202,6 +208,7 @@ export async function planCallStartWithin(callStartInput: CallStartInput): Promi
     alert: false,
     error: `the plan took longer than ${budget} ms`,
     conversationId: null,
+    refused: false,
     voiceId: null,
     voiceSpeed: null,
     configVersion: null,
@@ -352,6 +359,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
   let context = "";
   let line: SpokenLine = NO_LINE;
   let conversationId: string | null = null;
+  let refused = false;
   let configVersion: number | null = null;
   let tenantId: TenantId | null = null;
   const fail = (e: unknown) => {
@@ -438,6 +446,8 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
           fail(leadR.reason);
         } else if (leadR.value) {
           const lead = leadR.value;
+          // Said first: the word was read with them, whatever the calendar below makes of their visits.
+          refused = lead.notACustomer === true;
           const parts = [describeLead(lead, now, rt?.timezone ?? "UTC", "voice")];
           // The caller's appointments ride with who they are: "when am I booked?" is answered from the calendar.
           const visits = settledOrThrow(visitsR);
@@ -473,6 +483,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
     alert,
     error,
     conversationId,
+    refused,
     voiceId: line.voiceId,
     voiceSpeed: line.voiceSpeed,
     configVersion,

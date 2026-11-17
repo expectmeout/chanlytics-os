@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, saidNotACustomer } from "@chanlytics/contracts";
 import type { Thread, ThreadPorts } from "./ports";
 
 type SetAsidePorts = Pick<ThreadPorts, "notACustomer" | "replyAnyway" | "setAside">;
@@ -49,8 +49,7 @@ export async function replyAnyway(
   cmd: { conv: SetAsideThread },
 ): Promise<{ reopened: true; decision_id: string }> {
   const { conv } = cmd;
-  const saidNot = conv.set_aside_at === null && !!conv.set_aside_why;
-  if (saidNot && !(await ports.notACustomer(conv.tenant_id, conv.id, true))) throw threadMoved();
+  if (saidNotACustomer(conv) && !(await ports.notACustomer(conv.tenant_id, conv.id, true))) throw threadMoved();
   const done = await ports.replyAnyway(conv.tenant_id, conv.id);
   if (!done) throw threadMoved();
   return { reopened: true, decision_id: done.decision_id };

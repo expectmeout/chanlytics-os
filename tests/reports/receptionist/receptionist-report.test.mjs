@@ -15,6 +15,7 @@ import {
   isReceptionistSeriesDto,
   metricWordsOf,
   receptionistDtoOf,
+  receptionistWindowOf,
   toReceptionistReportVM,
 } from "@chanlytics/contracts";
 
@@ -219,6 +220,67 @@ test("how calls ended, in the owner's words, the unrecorded ones said so", () =>
     });
   // Calls that connected are drawn whether or not some were missed.
   assert.equal(vm({ missed: { now: FACTS.missed.now, before: NO_MISSED } }).callEndings.empty, null);
+});
+
+test("the calls kept off your list (decision 0137): one sentence, by whose word kept them there; none is said; unread is no line", () => {
+  const screenedOf = (screened, over) => toReceptionistReportVM({ ...dto(over), screened }, { nowMs: NOW });
+  assert.deepEqual(
+    screenedOf({
+      total: 9,
+      by_reason: {
+        refused: 2,
+        not_a_customer: 1,
+        selling: 2,
+        toll_free_silent: 2,
+        unverified_silent: 1,
+        carrier_spam: 1,
+      },
+    }).screened,
+    {
+      total: 9,
+      refused: 2,
+      line: "9 calls were kept off your list: 3 from people you said aren't customers, 2 set aside as selling, 4 silent or flagged as spam.",
+    },
+  );
+  assert.equal(
+    screenedOf({ total: 1, by_reason: { selling: 1 } }).screened.line,
+    "1 call was kept off your list: 1 set aside as selling.",
+    "a group of none has no clause",
+  );
+  assert.deepEqual(screenedOf({ total: 0, by_reason: {} }).screened, {
+    total: 0,
+    refused: 0,
+    line: "No calls were kept off your list in this period.",
+  });
+  // Unread (the reader's null), or a server a deploy behind (no key): no line, never a zero nobody counted.
+  assert.equal(screenedOf(null).screened, null);
+  assert.equal(vm().screened, null);
+
+  // A call turned away before AI answered is no call the provider kept, so no other figure counts it: with one, and
+  // no call that connected, "Nobody phoned" would be untrue beside the sentence that says two were turned away.
+  const nobodySpoke = { call_endings: { total: 0, by_reason: {} }, missed: { now: NO_MISSED, before: NO_MISSED } };
+  const turnedAway = screenedOf({ total: 2, by_reason: { refused: 2 } }, nobodySpoke);
+  assert.equal(turnedAway.callEndings.empty, "No call connected in this period.");
+  assert.equal(turnedAway.noCalls, "No call connected in this period.");
+  assert.equal(screenedOf({ total: 0, by_reason: {} }, nobodySpoke).noCalls, "Nobody phoned in this period.");
+  assert.equal(vm(nobodySpoke).noCalls, "Nobody phoned in this period.");
+  assert.equal(vm(nobodySpoke).callEndings.empty, "Nobody phoned in this period.");
+});
+
+test("the window a read is of, as the two midnights the ledger's rows are counted between, in the workspace's zone", () => {
+  assert.deepEqual(receptionistWindowOf({ timezone: "UTC", today: "2026-09-21", days: 30 }), {
+    fromIso: "2026-08-23T00:00:00.000Z",
+    toIso: "2026-09-22T00:00:00.000Z",
+  });
+  // Days a member picked end on their own last day; and a zone's midnight is its own, a clock change included.
+  assert.deepEqual(receptionistWindowOf({ timezone: "UTC", today: "2026-09-21", end: "2026-09-10", days: 7 }), {
+    fromIso: "2026-09-04T00:00:00.000Z",
+    toIso: "2026-09-11T00:00:00.000Z",
+  });
+  assert.deepEqual(receptionistWindowOf({ timezone: "America/New_York", today: "2026-11-02", days: 2 }), {
+    fromIso: "2026-11-01T04:00:00.000Z",
+    toIso: "2026-11-03T05:00:00.000Z",
+  });
 });
 
 test("the link and what came of it, said by what the calendar could say", () => {
@@ -529,7 +591,7 @@ const open = (reason, created_at, state, over = {}) => ({
   ...over,
 });
 const HEAD = { timezone: "UTC", today: "2026-09-21", days: 30 };
-const parts = (over = {}) => ({ booked: null, profile: PROFILE, head: HEAD, nowMs: NOW, ...over });
+const parts = (over = {}) => ({ booked: null, profile: PROFILE, head: HEAD, nowMs: NOW, screened: null, ...over });
 
 test("the route's DTO: who waits on you is counted by the one rule, and the links by what the calendar could say", () => {
   const rows = [
@@ -583,7 +645,12 @@ test("the route's DTO: who waits on you is counted by the one rule, and the link
     end: "2026-09-10",
     series: null,
     profile: null,
+    screened: null,
   });
+  // The calls kept off the owner's list ride beside the series, as the reader counted them (decision 0137).
+  const counted = { total: 3, by_reason: { refused: 2, selling: 1 } };
+  assert.deepEqual(receptionistDtoOf(SQL, parts({ screened: counted })).screened, counted);
+  assert.deepEqual(receptionistDtoOf(null, parts({ screened: counted })).screened, counted);
   assert.equal("end" in receptionistDtoOf(null, parts()), false, "an end that was not asked is not carried");
 
   // It is pure: asking twice, or in another order, gives the same answer, and does not change what it was given.

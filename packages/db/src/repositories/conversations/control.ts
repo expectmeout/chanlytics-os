@@ -120,15 +120,24 @@ export async function holdsReplyTurn(db: Db, conversationId: string, messageId: 
  * the send door's question can be asked before the model is asked; the columns are read into a hold by one function,
  * core's liveHoldOf, off this row and off the wire's own (findWireRow). A read that fails throws: a thread the database
  * could not produce is unknown, never one nobody holds.
+ *
+ * With them, off the same row and for the same reader, the two columns a member's word that the thread is not a
+ * customer's is kept in (00539; contracts saidNotACustomer reads them): the message nobody answers (decision 0137).
  */
 export async function readLiveHold(
   db: Db,
   tenantId: TenantId,
   conversationId: string,
-): Promise<{ control_kind: string | null; control_ref: string | null; control_until: string | null } | null> {
+): Promise<{
+  control_kind: string | null;
+  control_ref: string | null;
+  control_until: string | null;
+  set_aside_at: string | null;
+  set_aside_why: string | null;
+} | null> {
   const { data, error } = await db
     .from("conversations")
-    .select("control_kind, control_ref, control_until")
+    .select("control_kind, control_ref, control_until, set_aside_at, set_aside_why")
     .eq("tenant_id", tenantId)
     .eq("id", conversationId)
     .maybeSingle();

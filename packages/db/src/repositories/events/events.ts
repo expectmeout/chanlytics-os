@@ -8,6 +8,7 @@ import {
   type ContactAddedData,
   type ContactConsentChangedData,
   type PlatformActedData,
+  type ScreenedReason,
   type WabaEventKind,
   recordOrEmpty,
   DbFailure,
@@ -63,6 +64,8 @@ interface TableData {
   // `changed`: the columns a save moved, never their values (contracts changedRecordFields); null on the first save.
   "business.recorded": { legal_name: string | null; path: string; by?: string | null; changed?: string[] | null };
   /** The owner switched what the workspace answers on or off: which (voice, whatsapp, sms), and who. */
+  /** A call that asked nobody (decision 0137, contracts voice/screened.ts): why, and the provider's id where it kept a call. */
+  "call.screened": { reason: ScreenedReason; call_id: string | null };
   "capability.activated": { capability: string; by: string };
   "capability.deactivated": { capability: string; by: string };
   /** A channel connected: a WhatsApp number (its ids and what Meta calls it), or an Instagram account (decision 0001, step 8). */
@@ -221,6 +224,7 @@ const WRITES: { readonly [K in keyof TableData]: { category: string; version: nu
   "broadcast.sent": { category: "message", version: 1 },
   "broadcast.stopped": { category: "message", version: 1 },
   "business.recorded": { category: "setup", version: 1 },
+  "call.screened": { category: "call", version: 1 },
   "capability.activated": { category: "setup", version: 1 },
   "capability.deactivated": { category: "setup", version: 1 },
   "channel.connected": { category: "system", version: 1 },

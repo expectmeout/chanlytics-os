@@ -2842,7 +2842,7 @@ const quietSeries = (a, over = {}) => ({
 });
 /** calendar-feed's Harbor (New York, its hours) with the calendar `url` names (none when null), receptionist_series answering `over` and People holding Ana, Bo, Cy and Dee. */
 const receptionistWorld = (url, over = {}, rpcs = {}) => ({
-  tables: calTables(url),
+  tables: { ...calTables(url), events: over.events ?? [] },
   rpcs: {
     receptionist_series: (a) => quietSeries(a, over),
     people_list: () => [ANA, BO, CY, DEE],
@@ -2864,7 +2864,12 @@ test("the Receptionist lens, for Ask and for the page: GET reports/receptionist 
       const page = await receptionistRoute.GET.run(req(`?period=${period}&workspace=${A}`), worldCtx(w));
       const r = await kernel.load(calIn(worldCtx(w)), receptionistReport, { days, end: null });
       assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${period}: the route's payload, byte for byte`);
-      assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "profile"]);
+      assert.deepEqual(Object.keys(page), ["timezone", "today", "end", "days", "series", "profile", "screened"]);
+      assert.deepEqual(
+        page.screened,
+        { total: 0, by_reason: {} },
+        "no call was kept off the list: a zero that was read",
+      );
       assert.deepEqual([page.timezone, page.today, page.days], ["America/New_York", "2026-09-08", days]);
       assert.deepEqual(page.series.links, { sent: 3, booked: 1, calendar: "ok" });
       assert.deepEqual(r.rows, [], "drawn on the Reports page, whose row the report names");
@@ -2907,8 +2912,9 @@ test("the Receptionist lens on a database that does not have its function yet (0
   const { result: page, lines } = await logged("receptionist_series_missing", () =>
     receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(absent)),
   );
-  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "profile"]);
+  assert.deepEqual(Object.keys(page), ["timezone", "today", "days", "series", "profile", "screened"]);
   assert.equal(page.series, null);
+  assert.deepEqual(page.screened, { total: 0, by_reason: {} }, "counted from the ledger, which needs no function");
   assert.deepEqual([page.timezone, page.days], ["America/New_York", 30]);
   assert.match(page.today, /^\d{4}-\d{2}-\d{2}$/, "the workspace's day, from the turn's clock and zone");
   assert.deepEqual(
@@ -2948,6 +2954,18 @@ test("the Receptionist lens on a database that does not have its function yet (0
     await assert.rejects(receptionistRoute.GET.run(req(`?workspace=${A}`), worldCtx(denied)), /permission denied/);
   });
   assert.deepEqual(unsaid.lines, [], "and the log does not call it the missing function");
+});
+
+test("the Receptionist lens carries the calls kept off the owner's list as the ledger counts them (decision 0137; the count itself is reports/receptionist/screened-calls.test.mjs), and a ledger that cannot be read is null, said in the log, never the route's failure", async () => {
+  const row = (id, data) => ({ id, tenant_id: A, kind: "call.screened", data, created_at: "2026-09-08T15:00:00Z" });
+  const events = [row("e1", { reason: "refused", call_id: "call_a" }), row("e2", { reason: "selling", call_id: null })];
+  const r = await kernel.load(calIn(worldCtx(receptionistWorld(null, { events }))), receptionistReport, LENS);
+  assert.deepEqual(r.data.screened, { total: 2, by_reason: { refused: 1, selling: 1 } });
+  const down = worldCtx(receptionistWorld(null), { "events.select": { message: "connection refused" } });
+  const { result, lines } = await logged("screened_calls_failed", () =>
+    kernel.load(calIn(down), receptionistReport, LENS),
+  );
+  assert.deepEqual([result.data.screened, !!result.data.series, lines.map((l) => l.tenant_id)], [null, true, [A]]);
 });
 
 test("the Receptionist lens: a function with no workspace is the route's 404 in its words, and a read that fails is its failure -- not found and could not read are two answers", async () => {

@@ -71,12 +71,12 @@ import { claimControl, releaseControl, CALL_CONTROL_S } from "@chanlytics/db/con
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "./call-recording.js";
 import { isRehearsalCall, settleRehearsalEvent } from "./rehearsal-call.js";
 import { markForwardingVerified } from "./forwarding.js";
-import { readCallerStanding, readPricesAllowed } from "./webhook/facts.js";
+import { noteScreened, readCallerStanding, readPricesAllowed } from "./webhook/facts.js";
 import { tellPhonesCallStarted } from "./call-activity.js";
 import { apns, apnsKeys } from "./apns.js";
 import { wasErasedBeforeCall } from "../shared/erased.js";
 import { upsertEscalation } from "@chanlytics/jobs";
-import { frameGuardrail, pauseMsOf, MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
+import { frameGuardrail, numberCheckFrom, pauseMsOf, MIN_MS, recordOrEmpty } from "@chanlytics/contracts";
 import { linkOfferedOn } from "../calendar/availability.js";
 import { env } from "../shared/env.js";
 import { keptUrl, retellSigned } from "../shared/door-auth.js";
@@ -504,6 +504,8 @@ async function applyStep(
     case "log":
       log.info(callStep.event, callStep.fields);
       return;
+    case "screened":
+      return noteScreened(db, routed, callStep);
     case "forwarding_verified":
       await markForwardingVerified(db, routed.tenantId, callStep.call);
       return;
@@ -741,6 +743,7 @@ export async function settleCall(db: Db, routed: RoutedChannel | null, delivery:
           canCorrect: !!env.RETELL_API_KEY,
           allowed: await readPricesAllowed(db, routed, result),
           caller: await readCallerStanding(db, routed, event, result, res),
+          numberCheck: numberCheckFrom(call.metadata?.number_check),
         },
       );
       callAbout = plan.about;
