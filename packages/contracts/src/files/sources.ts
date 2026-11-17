@@ -58,7 +58,11 @@ export interface SourceFolder {
   driveId: string | null;
 }
 
-/** One item as its provider records it: all the take reads before any bytes move. Never a photo's place or camera. */
+/**
+ * One item as its provider records it: all the take reads before any bytes move. Never a photo's place or camera.
+ * What a provider gives is cut to what the table holds before it is written (00638's checks): an id and a checksum
+ * 200 characters, a name 1,000, who added it 200. A longer one refused whole would lose its row, and its page with it.
+ */
 export interface SourceItemRecord {
   id: string;
   kind: SourceItemKind;

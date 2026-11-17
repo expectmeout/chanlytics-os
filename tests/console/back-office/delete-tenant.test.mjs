@@ -120,6 +120,7 @@ test("it refuses to strand what the cascade cannot reach", () => {
     ["the phone line and its Twilio estate", 'byTable.get("lines")'],
     ["a Stripe customer or subscription", 'byTable.get("billing_accounts")'],
     ["a Google grant", 'byTable.get("google_connections")'],
+    ["a footage account's grant, its push channels and its secret (00638)", 'byTable.get("source_connections")'],
     ["an active provider binding", 'byTable.get("tenant_channels")'],
     ["a Retell agent made before any number (00476)", 'byTable.get("voice_agents")'],
   ]) {

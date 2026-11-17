@@ -25,6 +25,7 @@ const TABLES = {
   googleConnection: "google_connections",
   googleReview: "google_reviews",
   mailboxConnection: "mailbox_connections",
+  sourceConnection: "source_connections",
 };
 
 test("each factory makes a row with every column its table has, and the double takes it as an insert", async () => {

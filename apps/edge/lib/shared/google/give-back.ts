@@ -14,16 +14,19 @@
  * whose holders could not be read, is kept. A grant left with Google costs its owner nothing they cannot undo from
  * their Google account; one taken back costs them a connection that was working.
  *
- * A new kind of Google connection (a Drive folder of footage) joins as one line in HOLDERS.
+ * A footage source's connection (a Drive folder watched, 00638) is the third kind, counted from the day its table
+ * exists so no connect is ever written that this rule does not know. A new kind of Google connection joins as one line
+ * in HOLDERS.
  */
 import { DbFailure, type TenantId } from "@chanlytics/contracts";
 import { findLiveGoogleMailboxOfAccount } from "@chanlytics/db/email";
+import { findGoogleSourceConnectionOfAccount } from "@chanlytics/db/files";
 import { findGoogleConnectionOfAccount } from "@chanlytics/db/google";
 import { logAndGoOn } from "@chanlytics/log";
 import type { Db } from "./rows.js";
 
 /** The connection that is leaving: it does not count among those that hold its own grant. */
-type Leaving = { profile: TenantId } | { mailbox: string };
+type Leaving = { profile: TenantId } | { mailbox: string } | { source: string };
 
 /** One kind of connection: whether a live one, the one leaving aside, was made with this Google account. */
 type Holder = (db: Db, account: string, leaving: Leaving | null) => Promise<boolean>;
@@ -44,8 +47,13 @@ const mailboxHolds: Holder = async (db, account, leaving) =>
   (await findLiveGoogleMailboxOfAccount(db, account, leaving && "mailbox" in leaving ? leaving.mailbox : null)) !==
   null;
 
+/** A footage source's connection, in any workspace: its row is there while it is connected, working or signed out. */
+const sourceHolds: Holder = async (db, account, leaving) =>
+  (await findGoogleSourceConnectionOfAccount(db, account, leaving && "source" in leaving ? leaving.source : null)) !==
+  null;
+
 /** Every kind of connection that rides a Google account's grant to this project. */
-const HOLDERS: readonly Holder[] = [profileHolds, mailboxHolds];
+const HOLDERS: readonly Holder[] = [profileHolds, mailboxHolds, sourceHolds];
 
 /** Whether any live connection, the one leaving aside, was made with this Google account. */
 async function isHeldElsewhere(db: Db, account: string, leaving: Leaving | null): Promise<boolean> {

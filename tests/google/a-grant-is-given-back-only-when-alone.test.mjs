@@ -104,6 +104,9 @@ const profile = (tenantId, account, over = {}) =>
 /** A workspace's Gmail mailbox, connected with this Google account. */
 const mailbox = (tenantId, account, over = {}) =>
   rows.mailboxConnection({ tenant_id: tenantId, provider: "google", provider_account: account, ...over });
+/** A workspace's footage connection (a Drive folder watched through it), made with this Google account. */
+const source = (tenantId, account, over = {}) =>
+  rows.sourceConnection({ tenant_id: tenantId, provider_account: account, ...over });
 
 /** An id token as the token endpoint answers it (unsigned here: it came over TLS from the endpoint itself). */
 const idToken = (claims) => `${b64url('{"alg":"none"}')}.${b64url(JSON.stringify(claims))}.`;
@@ -265,6 +268,79 @@ test("a grant whose Google account is not known, or whose holders could not be r
     "unknown",
   );
   assert.deepEqual(asked, [], "could not check is not a yes");
+});
+
+test("a grant a footage source rides is kept, in any workspace, working or signed out; one an admin blocked was never granted", async () => {
+  for (const health of ["ok", "needs_reconnect"])
+    assert.deepEqual(
+      await ruled({ source_connections: [source(B, SAM, { health })] }, { account: SAM }),
+      ["held", []],
+      health,
+    );
+  assert.deepEqual(
+    await ruled({ source_connections: [source(B, ADA)] }, { account: SAM }),
+    ["given", ["rt"]],
+    "another Google account's folder shares nothing with this one",
+  );
+  assert.deepEqual(
+    await ruled(
+      { source_connections: [source(A, null, { health: "blocked_by_admin", email: null })] },
+      { account: SAM },
+    ),
+    ["given", ["rt"]],
+    "a connection its organisation blocked names no account, and holds no grant",
+  );
+});
+
+test("a footage source leaving does not hold its own grant, and a mailbox leaving does not sign out the folder beside it", async () => {
+  const watched = source(A, SAM);
+  const box = mailbox(A, SAM);
+  assert.deepEqual(await ruled({ source_connections: [watched] }, { account: SAM, leaving: { source: watched.id } }), [
+    "given",
+    ["rt"],
+  ]);
+  assert.deepEqual(
+    await ruled({ source_connections: [watched, source(B, SAM)] }, { account: SAM, leaving: { source: watched.id } }),
+    ["held", []],
+    "the other workspace's folder",
+  );
+  assert.deepEqual(
+    await ruled(
+      { mailbox_connections: [box], source_connections: [watched] },
+      { account: SAM, leaving: { mailbox: box.id } },
+    ),
+    ["held", []],
+    "the mailbox's token goes; the grant stays for the folder",
+  );
+  assert.deepEqual(
+    await ruled(
+      { google_connections: [profile(A, SAM)], source_connections: [watched] },
+      { account: SAM, leaving: { profile: A } },
+    ),
+    ["held", []],
+    "and a profile disconnected leaves the folder reading",
+  );
+  assert.deepEqual(
+    await ruled(
+      { mailbox_connections: [box], source_connections: [watched] },
+      { account: SAM, leaving: { source: watched.id } },
+    ),
+    ["held", []],
+    "a folder leaving does not sign out the mailbox either",
+  );
+});
+
+test("footage connections that could not be read keep the grant: a table not there yet is not an empty one", async () => {
+  const asked = [];
+  const down = fakeDb({}, { "source_connections.select": { message: 'relation "source_connections" does not exist' } });
+  assert.equal(
+    await giveGoogleGrantBack(down, { account: SAM, token: "rt" }, async (t) => {
+      asked.push(t);
+      return { status: 200 };
+    }),
+    "unknown",
+  );
+  assert.deepEqual(asked, [], "Google is not asked");
 });
 
 /* --------------------------------------------------------------------------------- the profile, disconnected */

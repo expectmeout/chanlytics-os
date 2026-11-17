@@ -131,7 +131,7 @@ what the script writes.
 | [`sequence_steps`](#sequence_steps) | `packages/db/src/repositories/campaigns/calendar-runs.ts`, `packages/db/src/repositories/campaigns/channels.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/sequences/batches.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/campaigns/templates/doors.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/jobs/sweeps.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 4 policies |
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | on, 2 policies |
 | [`setup_choices`](#setup_choices) | `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
-| [`source_connections`](#source_connections) | none | on, 1 policy |
+| [`source_connections`](#source_connections) | `packages/db/src/repositories/files/sources.ts` | on, 1 policy |
 | [`source_items`](#source_items) | none | on, 1 policy |
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/email/reconcile.ts` | on, no policy, so only the service role reaches it |
@@ -3846,7 +3846,7 @@ Foreign keys:
 
 A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00638): the provider (google, for Google Drive), the account's stable id there (Google's sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/sources.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

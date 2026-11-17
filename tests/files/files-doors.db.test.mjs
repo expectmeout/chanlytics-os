@@ -914,3 +914,74 @@ test("a print is the service role's to keep, and only a print", { skip }, async 
   const bad = await printed(id, "not-a-print");
   assert.equal(bad.error?.code, "22023");
 });
+
+test(
+  "the videos' minutes are one sum (00637): what is on its way counts, a failed one does not, and each door refuses at the hour",
+  { skip },
+  async () => {
+    // A workspace of its own, so no other test's videos are counted.
+    const [made] = ok(
+      await db
+        .from("tenants")
+        .insert({ name: `Files minutes ${stamp}`, slug: `files-minutes-${stamp}` })
+        .select("id"),
+      "a workspace of its own",
+    );
+    const T = made.id;
+    const begin = (seconds, ref) =>
+      db.rpc("file_video_begin", {
+        p_tenant_id: T,
+        p_id: randomUUID(),
+        p_media_ref: `${ref}-${stamp}`,
+        p_name: ref,
+        p_mime: "video/mp4",
+        p_bytes: 1000,
+        p_fingerprint: `fp-${ref}-${stamp}`,
+        p_seconds: seconds,
+      });
+    const counted = async () => ({
+      files: Number(ok(await db.rpc("files_toward_cap", { p_tenant_id: T }), "the files counted")),
+      seconds: Number(ok(await db.rpc("video_seconds_toward_cap", { p_tenant_id: T }), "the seconds counted")),
+    });
+    try {
+      assert.deepEqual(await counted(), { files: 0, seconds: 0 }, "an empty workspace counts nothing");
+      assert.equal(ok(await begin(1800, "half"), "half an hour").fate, "kept");
+      assert.equal(ok(await begin(1800, "other-half"), "the other half").fate, "kept", "the hour itself fits");
+      assert.deepEqual(await counted(), { files: 2, seconds: 3600 }, "on their way, they count already");
+      assert.deepEqual(ok(await begin(1, "one-more"), "a second more"), { fate: "minutes", file_id: null });
+      assert.deepEqual(
+        ok(
+          await db.rpc("file_video_found", {
+            p_tenant_id: T,
+            p_id: randomUUID(),
+            p_media_ref: `found-${stamp}`,
+            p_status: "inbox",
+            p_source: "website",
+            p_source_ref: "https://example.com/clip.mp4",
+            p_name: "found",
+            p_mime: "video/mp4",
+            p_fingerprint: `fp-found-${stamp}`,
+          }),
+          "a found video",
+        ),
+        { fate: "minutes", file_id: null },
+        "a found video is refused at the hour too",
+      );
+      // One the platform could not read gives its minutes back: its row stays a file, and counts no seconds.
+      const failed = ok(
+        await db.rpc("file_media_failed", { p_media_ref: `other-half-${stamp}`, p_error: "ERR_TEST" }),
+        "the platform could not read one",
+      );
+      assert.equal(failed.fate, "failed");
+      assert.deepEqual(await counted(), { files: 2, seconds: 1800 });
+      assert.equal(ok(await begin(1800, "again"), "the room it left").fate, "kept");
+      const member = await as.owner.client.rpc("video_seconds_toward_cap", { p_tenant_id: T });
+      assert.ok(member.error, "the counts are the doors' own: a member's session is refused them");
+    } finally {
+      await db.from("jobs").delete().eq("tenant_id", T);
+      await db.from("events").delete().eq("tenant_id", T);
+      await db.from("files").delete().eq("tenant_id", T);
+      await db.from("tenants").delete().eq("id", T);
+    }
+  },
+);
