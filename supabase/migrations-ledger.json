@@ -79,7 +79,10 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00637": "claimed by cm-stop-fence (the AI's stop, #2404), not landed when 00640 (cm-why-not-once) was numbered above it (17 Nov 2026)",
+    "00638": "claimed by cm-footage-p0 (footage sources, P0), not landed when 00640 (cm-why-not-once) was numbered above it (17 Nov 2026)",
+    "00639": "claimed by cm-footage-p0 (footage sources, P0), not landed when 00640 (cm-why-not-once) was numbered above it (17 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -638,6 +641,7 @@
     "00633_the_database_s_own_sentences_say_today_s_words.sql": "256d3e008b6621d75bef65029d7cea68569090584990aef36b97d6cc14690faf",
     "00634_the_database_calls_cold_email_cold_email.sql": "5fbfc4f0b6d0c81e2198767d2ce1591280b66e09d4cf905d1b73103173c982fe",
     "00635_a_search_reaches_its_count_or_says_why.sql": "80bdda332ec11d9972f164dc537fc72913a7b336d608cb9dbd35a17d4c013404",
-    "00636_how_many_legs_a_search_may_read_is_the_server_s_to_ask.sql": "e596a2a4d069c3ff84fe580fcf0d1528e3f8f79128e24f34a8f8657cac229d17"
+    "00636_how_many_legs_a_search_may_read_is_the_server_s_to_ask.sql": "e596a2a4d069c3ff84fe580fcf0d1528e3f8f79128e24f34a8f8657cac229d17",
+    "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e"
   }
 }

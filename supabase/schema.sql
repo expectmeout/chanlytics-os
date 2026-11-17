@@ -5424,17 +5424,11 @@ CREATE FUNCTION public.erasure_digest(p_tenant_id uuid, p_value text) RETURNS te
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-declare
-  v_legacy text;
 begin
   if p_value is null then
     return null;
   end if;
-  v_legacy := public.erasure_digest_legacy(p_tenant_id, p_value);
-  if (select k.keyed_at from public.erasure_keying k where k.id) is null then
-    return v_legacy;
-  end if;
-  return public.erasure_key(v_legacy);
+  return (public.erasure_digests(p_tenant_id, array[p_value]))[1];
 end $$;
 
 
@@ -5468,7 +5462,7 @@ CREATE FUNCTION public.erasure_digest_legacy(p_tenant_id uuid, p_value text) RET
     LANGUAGE sql IMMUTABLE
     SET search_path TO 'public'
     AS $$
-  select encode(sha256(convert_to(p_tenant_id::text || ':' || p_value, 'UTF8')), 'hex')
+  select (public.erasure_digests_legacy(p_tenant_id, array[p_value]))[1]
 $$;
 
 
@@ -5477,12 +5471,39 @@ $$;
 --
 
 CREATE FUNCTION public.erasure_digests(p_tenant_id uuid, p_values text[]) RETURNS text[]
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select coalesce(array_agg(public.erasure_digest(p_tenant_id, v) order by n), '{}')
-    from unnest(p_values) with ordinality as u(v, n)
+declare
+  v_legacy text[] := public.erasure_digests_legacy(p_tenant_id, p_values);
+begin
+  if (select k.keyed_at from public.erasure_keying k where k.id) is null then
+    return v_legacy;
+  end if;
+  return public.erasure_keys(v_legacy);
+end $$;
+
+
+--
+-- Name: erasure_digests_legacy(uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.erasure_digests_legacy(p_tenant_id uuid, p_values text[]) RETURNS text[]
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select array(
+    select encode(sha256(convert_to(p_tenant_id::text || ':' || u.value, 'UTF8')), 'hex')
+      from unnest(p_values) with ordinality as u(value, n)
+     order by u.n)
 $$;
+
+
+--
+-- Name: FUNCTION erasure_digests_legacy(p_tenant_id uuid, p_values text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.erasure_digests_legacy(p_tenant_id uuid, p_values text[]) IS 'The legacy digest of many values, one for each, in their order: sha256 of "<tenant_id>:<value>". The one place the formula is written (00640); erasure_digest_legacy asks it for one. Service role only.';
 
 
 --
@@ -5493,18 +5514,42 @@ CREATE FUNCTION public.erasure_key(p_digest text) RETURNS text
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
+begin
+  return (public.erasure_keys(array[p_digest]))[1];
+end $$;
+
+
+--
+-- Name: erasure_keys(text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.erasure_keys(p_digests text[]) RETURNS text[]
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    SET plan_cache_mode TO 'force_generic_plan'
+    AS $$
 declare
   v_pepper text;
 begin
-  if p_digest is null or p_digest like 'h1:%' then
-    return p_digest;
+  if exists (select 1 from unnest(p_digests) d where d not like 'h1:%') then
+    select decrypted_secret into v_pepper from vault.decrypted_secrets where name = 'erasure_pepper';
+    if v_pepper is null then
+      raise exception 'erasure_key: no pepper in Vault' using errcode = 'P0001';
+    end if;
   end if;
-  select decrypted_secret into v_pepper from vault.decrypted_secrets where name = 'erasure_pepper';
-  if v_pepper is null then
-    raise exception 'erasure_key: no pepper in Vault' using errcode = 'P0001';
-  end if;
-  return 'h1:' || encode(extensions.hmac(p_digest, v_pepper, 'sha256'), 'hex');
+  return array(
+    select case when u.digest is null or u.digest like 'h1:%' then u.digest
+                else 'h1:' || encode(extensions.hmac(u.digest, v_pepper, 'sha256'), 'hex') end
+      from unnest(p_digests) with ordinality as u(digest, n)
+     order by u.n);
 end $$;
+
+
+--
+-- Name: FUNCTION erasure_keys(p_digests text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.erasure_keys(p_digests text[]) IS 'Many digests keyed with Vault''s pepper, read once, one for each, in their order; a null or one already keyed stays as it is, and the pepper is not read for those alone. The one place the formula is written (00640); erasure_key asks it for one. Service role only.';
 
 
 --
@@ -9327,22 +9372,28 @@ COMMENT ON FUNCTION public.lead_addressee_choose(p_lead_id uuid, p_person intege
 --
 
 CREATE FUNCTION public.lead_addresses_suppressed(p_tenant_id uuid, p_addresses text[]) RETURNS SETOF text
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
+    SET plan_cache_mode TO 'force_generic_plan'
     AS $$
-  with asked as (
-    select distinct lower(btrim(a)) as address
-      from unnest(coalesce(p_addresses, '{}'::text[])) as a
-     where nullif(btrim(a), '') is not null
-  )
-  select q.address from asked q
-   where exists (
-     select 1 from public.lead_suppressions s
-      where s.tenant_id = p_tenant_id
-        and ((s.kind = 'email' and s.hash = public.lead_suppression_hash(p_tenant_id, q.address))
-          or (s.kind = 'domain' and position('@' in q.address) > 0 and split_part(q.address, '@', -1) <> ''
-              and s.hash = public.lead_suppression_hash(p_tenant_id, split_part(q.address, '@', -1)))))
-$$;
+begin
+  return query
+    with asked as (
+      select distinct lower(btrim(a)) as address
+        from unnest(coalesce(p_addresses, '{}'::text[])) as a
+       where nullif(btrim(a), '') is not null
+    ),
+    parts as (
+      select q.address,
+             case when position('@' in q.address) > 0 then nullif(split_part(q.address, '@', -1), '') end as domain
+        from asked q
+    )
+    select p.address from parts p
+     where p.address in (select s from public.lead_values_suppressed(p_tenant_id, 'email',
+                           array(select x.address from parts x)) s)
+        or p.domain in (select s from public.lead_values_suppressed(p_tenant_id, 'domain',
+                          array(select distinct x.domain from parts x where x.domain is not null)) s);
+end $$;
 
 
 --
@@ -14513,6 +14564,33 @@ COMMENT ON FUNCTION public.lead_undo(p_op_id uuid, p_version integer) IS 'Undoes
 
 
 --
+-- Name: lead_values_suppressed(uuid, text, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) RETURNS SETOF text
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    SET plan_cache_mode TO 'force_generic_plan'
+    AS $$
+declare
+  v_digests text[] := public.erasure_digests(p_tenant_id, p_values);
+begin
+  return query
+    select u.value
+      from unnest(p_values, v_digests) as u(value, digest)
+     where exists (select 1 from public.lead_suppressions s
+                    where s.tenant_id = p_tenant_id and s.kind = p_kind and s.hash = u.digest);
+end $$;
+
+
+--
+-- Name: FUNCTION lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) IS 'Which of these values a row of this kind on the workspace''s never-again list holds, each digest made in one read (00640). lead_addresses_suppressed and reach_out_why_not ask it. Service role only.';
+
+
+--
 -- Name: lead_view_counts(uuid, uuid, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -14545,6 +14623,14 @@ CREATE FUNCTION public.lead_view_counts(p_tenant_id uuid, p_search_id uuid DEFAU
                  count(*) filter (where r.hit and r.phone_ok) as with_phone
             from r) a
 $$;
+
+
+--
+-- Name: FUNCTION lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.lead_values_suppressed(p_tenant_id uuid, p_kind text, p_values text[]) TO service_role;
 
 
 --
@@ -28656,28 +28742,34 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
-  select x.id,
+  with asked as (
+    select x.id as asked_id, l.id, l.tenant_id, l.erased_at, l.blanked_at, l.stage, l.closed_reason, l.place_id, l.phone_e164, l.email_state,
+           lower(nullif(btrim(l.email), '')) as address
+      from unnest(coalesce(p_lead_ids, '{}'::uuid[])) as x(id)
+      left join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id
+  )
+  select l.asked_id,
     case
       when l.id is null or l.erased_at is not null or l.blanked_at is not null then 'gone'
       when l.stage <> 'ready' or l.closed_reason is not null then 'closed'
       -- Never a customer's: nobody in People shares the address (as theirs, or one they wrote from) or the number.
       when exists (select 1 from public.contacts c
                     where c.tenant_id = l.tenant_id and c.erased_at is null
-                      and ((nullif(btrim(l.email), '') is not null and c.email = lower(btrim(l.email)))
+                      and ((l.address is not null and c.email = l.address)
                            or (l.phone_e164 is not null and c.phone_e164 = l.phone_e164)))
-        or (nullif(btrim(l.email), '') is not null and exists (
+        or (l.address is not null and exists (
               select 1 from public.contact_identities i
                 join public.contacts c on c.id = i.contact_id and c.erased_at is null
-               where i.tenant_id = l.tenant_id and i.channel = 'email' and i.external_id = lower(btrim(l.email))))
+               where i.tenant_id = l.tenant_id and i.channel = 'email' and i.external_id = l.address))
         then 'customer'
       -- Never the never-again list: the address (an opt-out, a customer, an erasure, a no, its business's domain), and
-      -- the place or the number (a customer's or an erased person's).
-      when (nullif(btrim(l.email), '') is not null and public.lead_address_suppressed(l.tenant_id, lower(btrim(l.email))))
-        or exists (select 1 from public.lead_suppressions s where s.tenant_id = l.tenant_id and (
-                     (s.kind = 'place' and l.place_id is not null
-                      and s.hash = public.lead_suppression_hash(l.tenant_id, l.place_id))
-                  or (s.kind = 'phone' and l.phone_e164 is not null
-                      and s.hash = public.lead_suppression_hash(l.tenant_id, l.phone_e164))))
+      -- the place or the number (a customer's or an erased person's). Each asked once, of everyone asked about (00640).
+      when l.address in (select s from public.lead_addresses_suppressed(p_tenant_id,
+                           array(select a.address from asked a where a.address is not null)) s)
+        or l.place_id in (select s from public.lead_values_suppressed(p_tenant_id, 'place',
+                            array(select a.place_id from asked a where a.place_id is not null)) s)
+        or l.phone_e164 in (select s from public.lead_values_suppressed(p_tenant_id, 'phone',
+                              array(select a.phone_e164 from asked a where a.phone_e164 is not null)) s)
         then 'suppressed'
       -- Never twice by the workspace: a send of any reach-out, bar one in a run its owner skipped or one taken back.
       when exists (select 1 from public.sequence_sends ro
@@ -28689,15 +28781,14 @@ CREATE FUNCTION public.reach_out_why_not(p_tenant_id uuid, p_lead_ids uuid[], p_
                     where m.tenant_id = l.tenant_id and m.lead_id = l.id and m.blanked_at is null
                       and coalesce(jsonb_array_length(m.judgment->'shares'), 0) <> 0)
         then 'shared'
-      when nullif(btrim(l.email), '') is null then 'no_email'
+      when l.address is null then 'no_email'
       when l.email_state = 'ok' then null
       when l.email_state = 'checking' then 'checking'
       when l.email_state = 'catch_all' then case when coalesce(p_include_unconfirmed, false) then null else 'unconfirmed' end
       when l.email_state = 'invalid' then 'invalid'
       else 'unchecked'
     end
-    from unnest(coalesce(p_lead_ids, '{}'::uuid[])) as x(id)
-    left join public.leads l on l.id = x.id and l.tenant_id = p_tenant_id
+    from asked l
 $$;
 
 
@@ -53844,11 +53935,27 @@ GRANT ALL ON FUNCTION public.erasure_digests(p_tenant_id uuid, p_values text[]) 
 
 
 --
+-- Name: FUNCTION erasure_digests_legacy(p_tenant_id uuid, p_values text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.erasure_digests_legacy(p_tenant_id uuid, p_values text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.erasure_digests_legacy(p_tenant_id uuid, p_values text[]) TO service_role;
+
+
+--
 -- Name: FUNCTION erasure_key(p_digest text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.erasure_key(p_digest text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.erasure_key(p_digest text) TO service_role;
+
+
+--
+-- Name: FUNCTION erasure_keys(p_digests text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.erasure_keys(p_digests text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.erasure_keys(p_digests text[]) TO service_role;
 
 
 --

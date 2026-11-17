@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 77 | 0 |
-| the server's | 345 | 299 |
+| the server's | 348 | 301 |
 | computed column | 3 | 0 |
 | trigger | 103 | 73 |
-| all | 715 | 559 |
+| all | 718 | 561 |
 
 ## Called by nothing
 
@@ -35,6 +35,7 @@ being read is dropped by a migration.
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
+| `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -148,11 +149,13 @@ being read is dropped by a migration.
 | `ensure_events_partition` | the server's | the server | the clock, `events-partition-precreate` |  |
 | `erase_contact` | door | a signed-in person, the server | code `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/erasure/registry.ts` | Erase one customer: delete their calls and messages explicitly (the call FKs are SET NULL and the message FK is NO ACTION), cascade the conversation, cancel every scheduled job that names them, scrub |
 | `erase_marketing_consent` | the server's | the server | SQL `marketing_consent_on_erase` | Clears the marketing answer as part of an erasure. |
-| `erasure_digest` | the server's | the server | SQL `erasure_digests`, `lead_suppression_hash` and 2 more |  |
+| `erasure_digest` | the server's | the server | SQL `lead_suppression_hash`, `people_erase_begin` and 1 more |  |
 | `erasure_digest_keyed_on_write` | trigger | the server | trigger `contacts_erasure_digest_keyed on contacts`, `lead_suppressions_erasure_digest_keyed on lead_suppressions` |  |
-| `erasure_digest_legacy` | the server's | the server | SQL `erasure_digest` |  |
-| `erasure_digests` | the server's | the server | code `packages/db/src/repositories/people/pages.ts` |  |
-| `erasure_key` | the server's | the server | SQL `erasure_digest`, `erasure_digest_keyed_on_write` and 2 more |  |
+| `erasure_digest_legacy` | the server's | the server | nothing at run time |  |
+| `erasure_digests` | the server's | the server | code `packages/db/src/repositories/people/pages.ts`; SQL `erasure_digest`, `lead_values_suppressed` |  |
+| `erasure_digests_legacy` | the server's | the server | SQL `erasure_digest_legacy`, `erasure_digests` | The legacy digest of many values, one for each, in their order: |
+| `erasure_key` | the server's | the server | SQL `erasure_digest_keyed_on_write`, `erasure_rekey` and 1 more |  |
+| `erasure_keys` | the server's | the server | SQL `erasure_digests`, `erasure_key` | Many digests keyed with Vault's pepper, read once, one for each, in their order; |
 | `erasure_rekey` | the server's | the server | script `tooling/scripts/ops/erasure-rekey.mjs` |  |
 | `erasure_rekey_hashes` | the server's | the server | SQL `erasure_rekey` |  |
 | `escalation_closes_its_notices` | trigger | the server | trigger `escalation_closes_its_notices on escalations` | Closes the open handoff, deadman and call rows about a hold's thread when the hold goes open -> resolved, whoever resolves it (00421, through notifications_close_about); |
@@ -232,9 +235,9 @@ being read is dropped by a migration.
 | `last_inbound_on_instagram` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/contracts/src/conversations/thread-dto.ts` and 5 more | When a thread's person last wrote by Instagram DM (decision 0001, step 8): |
 | `last_inbound_on_whatsapp` | computed column | a signed-in person, the server | code `apps/dashboard/src/server/conversations/dto.ts`, `packages/db/src/repositories/campaigns/occasions.ts` and 3 more; SQL `people_list` | When a thread's person last wrote on WhatsApp (decision 0001, step 5): |
 | `lead_address_in_people` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 2 more | Whether a person in People holds the address (lower-cased and trimmed), as theirs or as one they wrote from (00429): |
-| `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 5 more | Whether one address is on the never-again list: |
+| `lead_address_suppressed` | the server's | the server | SQL `lead_addressee_choose`, `lead_company_upsert` and 4 more | Whether one address is on the never-again list: |
 | `lead_addressee_choose` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | The owner's choice (permission find) of who a company lead's reach-out writes to (00430, 0057's call 8): |
-| `lead_addresses_suppressed` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts`; SQL `lead_address_suppressed` | The never-again list for addresses (Reach out Part 5, G9): |
+| `lead_addresses_suppressed` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/outreach.ts`; SQL `lead_address_suppressed`, `reach_out_why_not` | The never-again list for addresses (Reach out Part 5, G9): |
 | `lead_allowance` | door | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts`; SQL `lead_check_commit`, `lead_member_move` and 2 more | The leads a workspace may count this month (00512, decision 0090): |
 | `lead_blank` | the server's | the server | SQL `lead_erase`, `leads_erase_on_contact` and 1 more | Removes everything that names or reaches a place, and its memberships' judgments, a reach-out's opening, angle and note written from it, and a preference's example copied from it (00391), a reach-out' |
 | `lead_bulk` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/lead-searches/chosen/route.ts`, `apps/dashboard/app/api/v1/leads/bulk/route.ts` and 2 more | Operator for contacted and not_a_fit; |
@@ -317,10 +320,11 @@ being read is dropped by a migration.
 | `lead_status_groups` | reader | a signed-in person, the server | SQL `lead_view_rows` | Where each lead stands in the queue Leads works from (00552, 00554): |
 | `lead_suggest_history` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | What a workspace's finder searches of the last 180 days asked for and found, and what came of the leads each kept (contacted and when last, interested, booked, customers, said no, not a fit and why, r |
 | `lead_suggestions_write` | the server's | the server | code `packages/db/src/repositories/leads/leads.ts` | The one writer of lead_suggestions (00400, 00470, 00473), by act: |
-| `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_addresses_suppressed` and 12 more | The erasure digest (00263 erasure_digest): |
+| `lead_suppression_hash` | the server's | the server | SQL `email_marketing_on_erase`, `lead_collect_commit` and 10 more | The erasure digest (00263 erasure_digest): |
 | `lead_tells_its_person` | trigger | the server | trigger `leads_tell_their_person on leads` | Decision 0052: a lead that names a person (leads.contact_id: |
 | `lead_tried_notes_forget` | trigger | the server | trigger `lead_tried_notes_forget on leads` | A lead blanked or erased leaves the bell's lines about its preview without its name and its number, and closed (00632): |
 | `lead_undo` | door | a signed-in person, the server | code `packages/contracts/src/ask/proposals/lead-work.ts`, `packages/db/src/repositories/leads/search-acts.ts` | Undoes one operation by its id and the version the client saw: |
+| `lead_values_suppressed` | the server's | the server | SQL `lead_addresses_suppressed`, `reach_out_why_not` | Which of these values a row of this kind on the workspace's never-again list holds, each digest made in one read (00640). |
 | `lead_view_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/leads/leads.ts` | What a view of Leads holds (lead_view_rows, each lead once as the page draws it and lead_bulk acts on it): |
 | `lead_view_rows` | reader | a signed-in person, the server | code `packages/contracts/src/leads/plan-schema.ts`; SQL `lead_bulk`, `lead_view_counts` and 1 more | Which leads a view of Leads holds, the one door leads_page, lead_view_counts and lead_bulk read it through (00554): |
 | `leads_back_today` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/reach-out/leads.ts` | Leads' Back today (00426, decision 9 of the lead workbench), for a member: |
