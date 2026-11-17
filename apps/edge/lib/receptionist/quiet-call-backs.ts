@@ -48,7 +48,7 @@ export const quietPassDue = (nowMs: number): boolean => nowMs % HOUR_MS < PASS_W
 
 /** How many call backs gone quiet were let go this pass. */
 export async function sweepQuietCallBacks(quietPorts: QuietPorts): Promise<{ letGo: number }> {
-  const { db, L, deadline } = quietPorts;
+  const { db, deadline } = quietPorts;
   const clock = quietPorts.now ?? Date.now;
   const asked = {
     beforeIso: new Date(clock() - NEED_YOU_OLD_MS).toISOString(),
@@ -66,13 +66,13 @@ export async function sweepQuietCallBacks(quietPorts: QuietPorts): Promise<{ let
       const standing = callerStandingOf(await findCallerFacts(db, hold.tenant_id, hold.conversation_id));
       if (!strangerCaller(standing) || !(await letHoldGo(db, hold.tenant_id, hold.id))) continue;
       letGo += 1;
-      L.info("call_back_let_go", {
+      quietPorts.L.info("call_back_let_go", {
         tenant_id: hold.tenant_id,
         escalation: hold.id,
         conversation: hold.conversation_id,
       });
     } catch (e) {
-      L.error("quiet_call_back_sweep_failed", {
+      quietPorts.L.error("quiet_call_back_sweep_failed", {
         tenant_id: hold.tenant_id,
         escalation: hold.id,
         error: e instanceof Error ? e.message : String(e),

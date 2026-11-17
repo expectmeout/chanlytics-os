@@ -41,7 +41,7 @@ function endingOf(hold, nowMs) {
  * stranger) with how those ended. `threads` and `people` are by id.
  */
 export function measureCallBacks(holds, threads, people, nowMs) {
-  const tally = (key) => (acc, k) => ((acc[k] = (acc[k] ?? 0) + 1), acc);
+  const tally = (acc, k) => ((acc[k] = (acc[k] ?? 0) + 1), acc);
   const rows = holds.map((hold) => {
     const thread = threads.get(hold.conversation_id);
     const person = thread?.contact_id ? people.get(thread.contact_id) : null;
@@ -62,7 +62,7 @@ export function measureCallBacks(holds, threads, people, nowMs) {
       ending: endingOf(hold, nowMs),
     };
   });
-  const by = (key) => rows.map((r) => r[key]).reduce(tally(key), {});
+  const by = (key) => rows.map((r) => r[key]).reduce(tally, {});
   const ruled = rows.filter((r) => r.asked === "silence" && r.number === "toll_free" && r.who === "only_rang");
   const quiet = rows.filter((r) => r.asked === "silence" && r.who === "only_rang");
   return {
@@ -71,8 +71,8 @@ export function measureCallBacks(holds, threads, people, nowMs) {
     number: by("number"),
     who: by("who"),
     ending: by("ending"),
-    silent_toll_free_stranger: { holds: ruled.length, ending: ruled.map((r) => r.ending).reduce(tally(), {}) },
-    silent_stranger: { holds: quiet.length, ending: quiet.map((r) => r.ending).reduce(tally(), {}) },
+    silent_toll_free_stranger: { holds: ruled.length, ending: ruled.map((r) => r.ending).reduce(tally, {}) },
+    silent_stranger: { holds: quiet.length, ending: quiet.map((r) => r.ending).reduce(tally, {}) },
   };
 }
 

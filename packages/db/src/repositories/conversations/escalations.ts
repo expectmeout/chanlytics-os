@@ -44,11 +44,10 @@ export async function listCallBacksGoneQuiet(
   };
   const after = await page("after", asked.limit);
   if (after.error) throw new DbFailure(after.error, "reading the call backs gone quiet");
-  const rows = after.data ?? [];
-  if (rows.length >= asked.limit) return rows;
-  const wrapped = await page("upTo", asked.limit - rows.length);
+  if (after.data.length >= asked.limit) return after.data;
+  const wrapped = await page("upTo", asked.limit - after.data.length);
   if (wrapped.error) throw new DbFailure(wrapped.error, "reading the call backs gone quiet");
-  return [...rows, ...(wrapped.data ?? [])];
+  return [...after.data, ...wrapped.data];
 }
 
 /**
@@ -64,5 +63,5 @@ export async function letHoldGo(db: Db, tenantId: TenantId, escalationId: string
     .eq("state", "open")
     .select("id");
   if (error) throw new DbFailure(error, "letting a call back go");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }

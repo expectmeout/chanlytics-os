@@ -43,7 +43,7 @@ async function wroteWith(db: Db, tenantId: TenantId, conversationId: string): Pr
     .or("direction.eq.outbound,sender.eq.customer")
     .limit(1);
   if (error) throw new DbFailure(error, "reading whether the business writes with a caller");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** Whether the business has phoned them. */
@@ -55,7 +55,7 @@ async function phonedThem(db: Db, tenantId: TenantId, contactId: ContactId): Pro
     .eq("direction", "outbound")
     .limit(1);
   if (error) throw new DbFailure(error, "reading whether the business phoned a caller");
-  return (data ?? []).length > 0;
+  return data.length > 0;
 }
 
 /** A caller's record, as contracts' callerStandingOf reads it: their thread first, which names the person. */
