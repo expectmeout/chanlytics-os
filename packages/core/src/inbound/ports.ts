@@ -112,6 +112,8 @@ export interface InboundRuntime {
   policy: Record<string, { mode: string; limits: PolicyLimits }>;
   /** Per-tenant WhatsApp credentials from Vault; null = the channel carries none, or the vault did not answer. */
   waCreds: { accessToken: string; phoneId: string } | null;
+  /** tenants.sending_stopped_at is set: its owner stopped all sending (Stop everything), and nothing goes by itself. */
+  stopped: boolean;
   /** IANA zone from `tenants.timezone`; null only when the row could not be read. */
   timezone: string | null;
   /** tenants.status = 'paused', written by billing for a workspace whose subscription stopped. */

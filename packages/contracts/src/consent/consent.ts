@@ -287,6 +287,8 @@ export const DELIVERY_REFUSALS = [
   "no_marketing_consent",
   "erased",
   "paused",
+  // The owner pressed Stop everything (core deliver/stop.ts): nothing goes by itself until sending is resumed.
+  "stopped",
   "human_has_it",
   "superseded_by_human",
   // The receptionist's held reply would reach them past the reply horizon after the message it answers: a person's now.
@@ -342,6 +344,8 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   // The door's own, said the way a person reads them in a thread.
   erased: "This person asked to be forgotten. Nothing is sent to them.",
   paused: "The workspace is paused, so nothing automatic was sent.",
+  stopped:
+    "Everything is stopped, so this was not sent by itself. Its words are kept in the thread, for you to send or answer in your own.",
   human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
   superseded_by_human: "Someone on your team answered first, so this was not sent.",
   too_late:

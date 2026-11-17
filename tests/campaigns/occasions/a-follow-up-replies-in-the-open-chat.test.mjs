@@ -40,6 +40,7 @@ function fakes({ inChat = true, wroteHoursAgo = 20 } = {}) {
   const answers = {
     broadcast: batchRow,
     workspacePaused: false,
+    sendingStopped: false,
     facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "America/New_York" },
     batch: [{ contact_id: "k1", channel: "whatsapp", facts: { occasion: ASK, ...(inChat ? { in_chat: "yes" } : {}) } }],
     wireUnavailable: null,

@@ -75,10 +75,26 @@ const connection = {
   reviews_complete: false,
 };
 
-function world({ status = "queued", may = true, removed = false, connected = true, waited = true } = {}) {
+function world({
+  status = "queued",
+  may = true,
+  removed = false,
+  connected = true,
+  waited = true,
+  stopped = false,
+} = {}) {
   const now = Date.now();
   const tables = {
-    tenants: [{ id: T, name: "Harbor Moving", slug: "harbor-moving", timezone: "UTC", status: "active" }],
+    tenants: [
+      {
+        id: T,
+        name: "Harbor Moving",
+        slug: "harbor-moving",
+        timezone: "UTC",
+        status: "active",
+        sending_stopped_at: stopped ? new Date(now).toISOString() : null,
+      },
+    ],
     files: [
       {
         id: FILE,
@@ -233,10 +249,11 @@ test("one set at its press for now says nothing on the bell: it is seen where it
   assert.equal(w.tables.notifications.length, 0);
 });
 
-test("the recheck holds it in words and asks Google nothing: deleted since, or whoever set it may no longer post", async () => {
+test("the recheck holds it in words and asks Google nothing: deleted since, whoever set it may no longer post, or everything is stopped", async () => {
   for (const [over, why] of [
     [{ removed: true }, ON_INSTAGRAM.held.removed],
     [{ may: false }, ON_INSTAGRAM.held.approver],
+    [{ stopped: true }, ON_INSTAGRAM.held.stopped],
   ]) {
     const w = world(over);
     asking();

@@ -482,6 +482,24 @@ test("the recheck holds the post, sending nothing, when its approver can no long
   assert.equal(row.spoke_at, null, "nothing was about to speak");
 });
 
+test("Stop everything holds a post in words: nothing is made ready and nothing is sent while it stands", async () => {
+  const stoppedAt = new Date(NOW).toISOString();
+  const queued = world();
+  queued.tables.tenants[0].sending_stopped_at = stoppedAt;
+  assert.deepEqual(await postJobs(queued.db, quick).prepare(job("post_prepare"), SOON()), { skipped: "held" });
+  assert.equal(queued.post().status, "held");
+  assert.equal(queued.post().held_reason, ON_INSTAGRAM.held.stopped);
+  assert.equal(calls.length, 0, "Instagram was asked nothing");
+  // One already made ready when the stop was pressed: the recheck right before the send holds it too.
+  const ready = world({ status: "preparing", attempts: [...READY] });
+  ready.tables.tenants[0].sending_stopped_at = stoppedAt;
+  const row = fired(ready, "post_publish");
+  assert.deepEqual(await postJobs(ready.db, quick).publish(row), { skipped: "held" });
+  assert.equal(ready.post().held_reason, ON_INSTAGRAM.held.stopped);
+  assert.equal(sent(`POST /${ACCOUNT}/media_publish`).length, 0);
+  assert.equal(row.spoke_at, null, "nothing was about to speak");
+});
+
 test("the send says it is about to speak first, and the post keeps its id and address", async () => {
   const w = world({ status: "preparing", attempts: [...READY] });
   const row = fired(w, "post_publish");

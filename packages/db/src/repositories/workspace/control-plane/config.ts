@@ -13,6 +13,7 @@ import {
 import type { Database, Json } from "../../../types";
 import { isMissingDoor } from "../../../shared/missing-door";
 import { jsonCopyOf } from "../../../shared/json";
+import { isSendingStopped } from "../rows";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
@@ -404,10 +405,13 @@ export async function isWorkspaceOpenToCustomers(db: Db, tenantId: TenantId): Pr
 
 /**
  * Whether the receptionist may speak under the business's name on its own right now, with nobody reading it first (a
- * public reply): only while the workspace is open to its customers (isWorkspaceOpenToCustomers). A read that fails throws.
+ * public reply): only while the workspace is open to its customers (isWorkspaceOpenToCustomers), and its owner has not
+ * stopped everything (isSendingStopped: a reply written and held before the stop waits too, and goes once sending is
+ * resumed). A read that fails throws.
  */
 export async function doesWorkspaceAnswerOnItsOwn(db: Db, tenantId: TenantId): Promise<boolean> {
-  return (await isWorkspaceOpenToCustomers(db, tenantId)).open === "open";
+  const [open, stopped] = await Promise.all([isWorkspaceOpenToCustomers(db, tenantId), isSendingStopped(db, tenantId)]);
+  return open.open === "open" && !stopped;
 }
 
 /** The business on record as a public page may show it: never the EIN, the contact's own phone or their names. */

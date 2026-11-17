@@ -23,7 +23,7 @@ import {
 import { carriedBy, nextBatch } from "../runner/batch-carry";
 import type { Database } from "@chanlytics/db/types";
 import { getAppointmentStates } from "@chanlytics/db/calendar";
-import { findConfigRow, findWorkspaceNameZone } from "@chanlytics/db/workspace";
+import { findConfigRow, findWorkspaceNameZone, isSendingStopped } from "@chanlytics/db/workspace";
 import {
   recordCampaignMonthSent,
   cancelBroadcastFrom,
@@ -377,6 +377,8 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       // is not a workspace that is paying. The one reading of it (packages/db workspacePaused), as the composers and the
       // approval ask.
       workspacePaused: () => isWorkspacePaused(db, job.tenant_id),
+      // Stop everything, read as closed too: a row that cannot be read is not a workspace that is sending.
+      sendingStopped: () => isSendingStopped(db, job.tenant_id),
       fail: async (id, failure) => {
         // Not over a run already failed: two chains of one run (settle.ts names the case) each meeting a stop would write
         // its reason twice and its event twice. The first stop is the run's.
