@@ -25,8 +25,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   CONTENT_ROUTE,
   CONTENT_TODAY_WORDS as W,
-  FILE_WORDS,
   MIN_MS,
+  VIDEO_TILE_WORDS,
   clockOf,
   contentMakingSaid,
   contentRouteOf,
@@ -80,7 +80,7 @@ function WeekPicture({ fileId, asked, unseen = null }: { fileId: string; asked: 
 
 /** What a video says while its picture is not there, in Files' words: being made ready, or not to be. */
 const videoWaitsOf = (failed: boolean): string =>
-  failed ? FILE_WORDS.video.notPrepared : FILE_WORDS.video.gettingReady;
+  failed ? VIDEO_TILE_WORDS.notPrepared : VIDEO_TILE_WORDS.gettingReady;
 
 /** A video's ground while its picture is not there, saying so. */
 function VideoWaits({ failed }: { failed: boolean }) {
