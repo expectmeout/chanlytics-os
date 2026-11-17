@@ -22,7 +22,8 @@ import { calls } from "./calls";
 import { searches } from "./searches";
 import { previewsTried } from "./leads";
 import * as facts from "./facts";
-import { people } from "./people";
+import { people, peopleCount } from "./people";
+import { PEOPLE_PAGE } from "../people/people";
 import { log } from "@/server/shared/log";
 
 interface TodayRead {
@@ -131,14 +132,26 @@ export const today: Reader<undefined, TodayRead> = {
  * People's first page, read as GET contacts reads it, with the same arguments: a turn that answers both (GET open, which
  * opens Today) reads People once. For the member asking, at the turn's moment, in the business's zone. A workspace-wide
  * read of People, so no row of its own: the people it names are People's rows, cited where People is read.
+ *
+ * Where People holds more than a page, all it says is how many there are (`whole: false`), which the page's own count
+ * says (readers/people.ts peopleCount, the turn's one count, which the page reads beside its rows): it answers once the
+ * count is in, and waits for none of the page's thousand rows, their appointments or what the member has seen of them,
+ * which it would not say (16 Nov 2026). The page is started with the count all the same, so where People holds one page
+ * it waits for nothing more than it did, and a turn that answers GET contacts too (GET open) still reads People once.
  */
 export const todayPeople: Reader<undefined, TodayPeopleDto> = {
   name: "todayPeople",
   async read(rc) {
-    const [first, zone] = await Promise.all([
-      load(rc, people, { q: null, offset: 0, after: null, thread: null }).then((r) => r.data),
+    const page = load(rc, people, { q: null, offset: 0, after: null, thread: null }).then((r) => r.data);
+    // Held from now: a page that fails while the count answers on its own is no unhandled refusal.
+    page.catch(() => {});
+    const [total, zone] = await Promise.all([
+      load(rc, peopleCount, { q: null }).then((r) => r.data),
       load(rc, facts.facts, undefined).then((r) => r.data.timezone),
     ]);
+    // More than a page, as the page's own read tells it (has_more: a full page with more counted than it holds).
+    if (total > PEOPLE_PAGE) return { data: { whole: false, total }, rows: [], stamp: readerStamp() };
+    const first = await page;
     return {
       data: todayPeopleOf(
         first,

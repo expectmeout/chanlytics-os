@@ -4295,13 +4295,13 @@ const PEOPLE_ASKED_NOW = [
   ["deals.select", "id"],
   ["deals.select", "id, stage, proposed_at, decided_at"],
   ["contacts.select", "id"],
+  ["rpc:contact_seen", null], // once the page's reply modes name its people, before its rows (16 Nov 2026)
   [
     "sequence_steps.select",
     "id, sequence_id, state, run_hour, last_run_for, until, template_name, template_language, words_ok_at",
   ],
   ["tenants.select", "status"],
   ["tenant_channels.select", "config, number_e164"],
-  ["rpc:contact_seen", null],
   ["deals.select", "id, contact_id, proposed_at"],
   ["rpc:team_roster", null],
   ["sequence_steps.select", "channels"],
@@ -4403,13 +4403,13 @@ test("GET contacts through its reader asks what it asked at origin/main -- the p
           !(k === "tenants.select" && /appointment_word|name/.test(cols)) &&
           !(k === "deals.select" && cols === "id"),
       );
-    // With a deal on file already the turn's, the proposals out are asked before what the member has seen of each.
-    const out = heldWant.findIndex(([k, cols]) => k === "deals.select" && cols === "id, contact_id, proposed_at");
-    heldWant.splice(
-      heldWant.findIndex(([k]) => k === "rpc:contact_seen"),
-      0,
-      ...heldWant.splice(out, 1),
-    );
+    // A deal on file already the turn's: the follow-up's first reads come before what was seen, and the team after them.
+    const after = { "rpc:contact_seen": "id, contact_id, proposed_at", "rpc:team_roster": "id, mode" };
+    for (const [key, cols] of Object.entries(after)) {
+      const q = heldWant.find((x) => x[0] === key);
+      heldWant.splice(heldWant.indexOf(q), 1);
+      heldWant.splice(heldWant.findIndex((x) => x[1] === cols) + 1, 0, q);
+    }
     // The follow-up's reads wait on the business's zone (its last day is judged by it: S1-3), which the turn holds but hands
     // over a moment later: they reach the database after who each step is for, in the order the page asks them.
     assert.deepEqual(

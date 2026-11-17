@@ -595,24 +595,32 @@ const SPARKS = {
     h(Spark, {
       columns: [
         { value: 1, part: 1 },
-        { value: 2, part: 1 },
-        { value: 4, part: 3 },
-        { value: 3, part: 3 },
+        { value: 4, part: 2 },
+        { value: 16, part: 12 },
+        { value: 9, part: 9 },
       ],
       today: true,
-      "aria-label": "Last 30 days: 10 messages, 8 answered by AI",
+      "aria-label": "Last 30 days: 30 messages, 24 answered by AI",
     }),
   "spark-sm": () =>
     h(Spark, {
-      columns: [{ value: 2 }, { value: 4 }, { value: 0 }, { value: 3 }],
+      columns: [{ value: 4 }, { value: 16 }, { value: 0 }, { value: 9 }],
       today: true,
       size: "sm",
-      "aria-label": "Last 7 days of calls, today 3",
+      "aria-label": "Last 7 days of calls, today 9",
     }),
 };
 
-test("Spark draws the gallery's Spark family: an image of its columns, each its share of the tallest, today's the accent", () => {
+test("Spark draws the gallery's Spark family: an image of its columns, each on the square root of its share of the tallest, today's the accent", () => {
   assert.deepEqual(parting(FAMILIES, "Spark", SPARKS), HELD);
+  // One busy day never flattens the rest: a day of one beside a day of a hundred is a tenth of its height, and a day of
+  // nothing keeps the stylesheet's stub.
+  const month = drawn(h(Spark, { columns: [{ value: 1 }, { value: 100 }, { value: 0 }], "aria-label": "A month" }));
+  assert.deepEqual(
+    month.props.children.map((column) => column.props.style.height),
+    ["10%", "100%", undefined],
+    "REGRESSION: on a straight scale a day of one beside a day of a hundred was a hairline, and the month read as one bar",
+  );
 });
 
 test("Meter draws the gallery's Meter family: an image of its parts, each share its flex-grow, and no part of nothing", () => {

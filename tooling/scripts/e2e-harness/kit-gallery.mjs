@@ -2955,14 +2955,15 @@ export const FAMILIES = [
   {
     family: "Spark",
     about:
-      "kit.css's spark (Today with colour, 17 Nov 2026): a run of small columns, a day each, each its value's share of " +
-      "the tallest. A column of two parts is what AI answered in the ok tone and the rest in the strong hairline; the day " +
-      "still counting is the accent. Small, the week behind a figure; at its height, the month under a period's line.",
+      "kit.css's spark (Today with colour, 17 Nov 2026): a run of small columns, a day each, each as tall as the square " +
+      "root of its value's share of the tallest, so one busy day leaves the quiet ones readable. A column of two parts is " +
+      "what AI answered in the ok tone and the rest in the strong hairline; the day still counting is the accent. Small, " +
+      "the week behind a figure; at its height, the month under a period's line.",
     entries: [
       {
         id: "spark",
         html:
-          `<span class="spark" role="img" aria-label="Last 30 days: 10 messages, 8 answered by AI">` +
+          `<span class="spark" role="img" aria-label="Last 30 days: 30 messages, 24 answered by AI">` +
           `<span class="spark-col" style="height: 25%"><span class="spark-part" style="height: 100%"></span></span>` +
           `<span class="spark-col" style="height: 50%"><span class="spark-part" style="height: 50%"></span></span>` +
           `<span class="spark-col" style="height: 100%"><span class="spark-part" style="height: 75%"></span></span>` +
@@ -2971,7 +2972,7 @@ export const FAMILIES = [
       {
         id: "spark-sm",
         html:
-          `<span class="spark spark-sm" role="img" aria-label="Last 7 days of calls, today 3">` +
+          `<span class="spark spark-sm" role="img" aria-label="Last 7 days of calls, today 9">` +
           `<span class="spark-col" style="height: 50%"></span>` +
           `<span class="spark-col" style="height: 100%"></span>` +
           `<span class="spark-col"></span>` +

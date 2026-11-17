@@ -821,10 +821,10 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
       lib.includes("dropGoogleCredentials("),
     "secrets through the vault doors",
   );
-  assert.equal(
-    (lib.match(/await (?:http|net)\(revokeRequest\(/g) ?? []).length,
-    7,
-    "a grant that cannot be kept is given back: no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved, and disconnect — the first six are RUN below, `net` being connectProfile's injected transport",
+  assert.deepEqual(
+    [(lib.match(/revokeRequest\(/g) ?? []).length, (lib.match(/giveGoogleGrantBack\(/g) ?? []).length],
+    [2, 2],
+    "a grant that cannot be kept is handed back from two places, a connect's refusals (no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved) and a disconnect, and each asks the one rule first (shared/google/give-back.ts): a revoke ends every connection the Google account made. The refusals are RUN below, `net` being connectProfile's injected transport; the rule and both places in a-grant-is-given-back-only-when-alone.test.mjs",
   );
   assert.ok(
     lib.includes('return { ok: false, error: "scope_missing" };') &&
@@ -1110,7 +1110,10 @@ test("every refusal on the way to a connection hands the grant back, and writes 
     const { connectProfile } = await import("../../apps/edge/lib/google/profile-connection.ts");
     // Each refusal, driven through the injected transport. A grant we cannot
     // keep and do not give back is a workspace's Google account left
-    // authorised to an app that has no record of it.
+    // authorised to an app that has no record of it. Nothing else here was
+    // connected with the account its id token names, so each is given back
+    // (a-grant-is-given-back-only-when-alone runs them beside a mailbox).
+    const grantBut = (over) => JSON.stringify({ ...JSON.parse(grantBody("sub-1", "ada@example.com")), ...over });
     const cases = [
       {
         why: "exchange_failed",
@@ -1120,33 +1123,12 @@ test("every refusal on the way to a connection hands the grant back, and writes 
       {
         why: "scope_missing",
         revokes: 1,
-        at: (u) =>
-          u.includes("/token")
-            ? {
-                status: 200,
-                body: JSON.stringify({
-                  access_token: "at",
-                  refresh_token: "rt",
-                  expires_in: 3600,
-                  scope: "openid email",
-                }),
-              }
-            : null,
+        at: (u) => (u.includes("/token") ? { status: 200, body: grantBut({ scope: "openid email" }) } : null),
       },
       {
         why: "no_refresh_token",
         revokes: 1,
-        at: (u) =>
-          u.includes("/token")
-            ? {
-                status: 200,
-                body: JSON.stringify({
-                  access_token: "at",
-                  expires_in: 3600,
-                  scope: "https://www.googleapis.com/auth/business.manage",
-                }),
-              }
-            : null,
+        at: (u) => (u.includes("/token") ? { status: 200, body: grantBut({ refresh_token: undefined }) } : null),
       },
       {
         why: "accounts_unreadable",

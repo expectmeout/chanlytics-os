@@ -43,6 +43,7 @@ import { getParsedFeed, type ParsedRead } from "../parsed-feed";
 import { getBoardVisits, findPoolRecord } from "../people-visits";
 import { recordBusy } from "../record-busy";
 import { log } from "@/server/shared/log";
+import { loadLazily, type Lazy } from "@/server/shared/lazy";
 import {
   itemsToDays,
   noticesHealth,
@@ -123,6 +124,12 @@ export async function getCalendarSources(
     config?: unknown;
     feedOnly?: boolean;
     mailbox?: () => Promise<MailboxRow | null>;
+    /**
+     * Everyone in People, as the caller's turn reads them (readers/everyone.ts), so the board's matcher asks People for
+     * nobody a second time: a Today load read People's first page three times at once, this the third (16 Nov 2026).
+     * Else read here.
+     */
+    people?: Lazy<PersonRowDto[]>;
   } = {},
 ): Promise<CalendarSources> {
   // The zone and the settings: handed in by a caller that read them this turn (readers/calendar.ts), else read here.
@@ -170,6 +177,7 @@ export async function getCalendarSources(
     withFeedAndPeople(ctx, tenantId, read, url, profile, now, {
       fresh: !!opts.fresh,
       feedOnly: !!opts.feedOnly,
+      people: opts.people,
     }),
     originsOf(ctx, tenantId, leads),
     findMissedFollowed(ctx, tenantId, missed),
@@ -243,15 +251,21 @@ async function withFeedAndPeople(
   url: string | null,
   profile: BusinessProfile | null,
   now: Date,
-  { fresh, feedOnly }: { fresh: boolean; feedOnly: boolean },
+  { fresh, feedOnly, people: everyoneOf }: { fresh: boolean; feedOnly: boolean; people?: Lazy<PersonRowDto[]> },
 ): Promise<Omit<CalendarSources, "taken">> {
   const { timezone, rows } = read;
   // Everyone in People is read beside the feed, not after it: the two are independent, and a board whose feed is in the
   // few minutes' cache waited on this read alone. Begun only once there is something to match against (a workspace
   // with no calendar and no rows reads nobody), and its failure is an empty list, as it was, so a read nobody awaits
   // settles quietly.
+  // Everyone as the caller's turn holds them where it hands them in, inside an async function, so one that throws as it
+  // is asked is a failed read like any other.
   const everyoneRead: Promise<PersonRowDto[]> =
-    !feedOnly && (url || rows.length) ? listEveryone(ctx, tenantId).catch(() => []) : Promise.resolve([]);
+    !feedOnly && (url || rows.length)
+      ? (async () => (everyoneOf === undefined ? listEveryone(ctx, tenantId) : loadLazily(everyoneOf)))().catch(
+          () => [],
+        )
+      : Promise.resolve([]);
   // The record over the season beside them, where a feed is read: each person's visits join it (findPoolRecord, which
   // logs a failure and answers null), so the board says when someone was last in.
   const recordRead = !feedOnly && url ? findPoolRecord(ctx, tenantId, now) : Promise.resolve(null);

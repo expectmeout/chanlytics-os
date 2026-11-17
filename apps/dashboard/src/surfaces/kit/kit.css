@@ -4526,8 +4526,9 @@ a.list-row {
 
 /* ---------- Spark: a run of small columns, a day each ----------
    Today with colour (17 Nov 2026): the month under Today's period line and the week behind each of the day's figures. A
-   column's height is its share of the tallest, its top rounded; a column of two parts is the ok tone below (what AI
-   answered) and the strong hairline above; the day still counting is the accent, whole. The words are the page's. */
+   column's height is the square root of its share of the tallest (spark.tsx columnHeight: one busy day leaves the quiet
+   ones readable), its top rounded; a column of two parts is the ok tone below (what AI answered) and the strong hairline
+   above; the day still counting is the accent, whole. The words are the page's, its key among them. */
 .spark {
   display: flex;
   align-items: flex-end;
