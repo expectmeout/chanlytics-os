@@ -11,8 +11,10 @@
  *
  * Asked beside them, never required (decision 0073, R18 to R20): the owner's contacts and the people they wrote to, and
  * their calendars, read-only, so what the mailbox connects brings its people and its visits too. The owner may untick
- * either on Google's screen; the mailbox still connects, and what it holds is asked of the grant (grantHolds). Google's
- * screen keeps what an earlier consent gave (include_granted_scopes), so one app files every scope once.
+ * either on Google's screen; the mailbox still connects, and what it holds is asked of the grant (grantHolds). One app
+ * files every scope once (R18), and each key opens its own door alone: this sign-in asks for the mailbox's scopes and
+ * folds in nothing an earlier consent gave another sign-in (include_granted_scopes=false, as the Business Profile's
+ * sign-in has it), so a mailbox's key never reads what a later connection was granted.
  */
 import type { MailboxProvider } from "@chanlytics/contracts";
 import { parseTokenResponse, type TokenGrant } from "../../google/oauth";
@@ -130,8 +132,9 @@ export function mailboxAuthorizeUrl(
   if (provider === "google") {
     query.set("access_type", "offline");
     query.set("prompt", "consent");
-    // What an earlier consent to this app gave stays given (decision 0073, R18): one app, every scope filed once.
-    query.set("include_granted_scopes", "true");
+    // This key holds the mailbox's scopes alone (decision 0073, R18, as amended 17 November 2026): the scopes are
+    // filed once on the one app, and what an earlier consent gave another sign-in is not folded into this grant.
+    query.set("include_granted_scopes", "false");
     if (opts.challenge) {
       query.set("code_challenge", opts.challenge);
       query.set("code_challenge_method", "S256");
