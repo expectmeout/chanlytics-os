@@ -73,8 +73,9 @@ drop policy if exists source_connections_member_select on public.source_connecti
 create policy source_connections_member_select on public.source_connections
   for select to authenticated
   using (tenant_id in (select m.tenant_id from public.memberships m where m.user_id = (select auth.uid())));
--- Members read; nothing of a session writes: every write is the edge's, as the service role.
-revoke insert, update, delete on public.source_connections from anon, authenticated;
+-- Members read; nothing of a session writes: every write is the edge's, as the service role. Every right is taken
+-- from a visitor and a member first, so the one given back is all they hold, whatever a database grants by default.
+revoke all on public.source_connections from anon, authenticated;
 grant select on public.source_connections to authenticated;
 grant all on public.source_connections to service_role;
 
@@ -130,7 +131,7 @@ drop policy if exists media_sources_member_select on public.media_sources;
 create policy media_sources_member_select on public.media_sources
   for select to authenticated
   using (tenant_id in (select m.tenant_id from public.memberships m where m.user_id = (select auth.uid())));
-revoke insert, update, delete on public.media_sources from anon, authenticated;
+revoke all on public.media_sources from anon, authenticated;
 grant select on public.media_sources to authenticated;
 grant all on public.media_sources to service_role;
 
@@ -191,7 +192,7 @@ drop policy if exists source_items_member_select on public.source_items;
 create policy source_items_member_select on public.source_items
   for select to authenticated
   using (tenant_id in (select m.tenant_id from public.memberships m where m.user_id = (select auth.uid())));
-revoke insert, update, delete on public.source_items from anon, authenticated;
+revoke all on public.source_items from anon, authenticated;
 grant select on public.source_items to authenticated;
 grant all on public.source_items to service_role;
 

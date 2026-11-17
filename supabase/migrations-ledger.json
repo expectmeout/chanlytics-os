@@ -640,6 +640,6 @@
     "00635_a_search_reaches_its_count_or_says_why.sql": "80bdda332ec11d9972f164dc537fc72913a7b336d608cb9dbd35a17d4c013404",
     "00636_how_many_legs_a_search_may_read_is_the_server_s_to_ask.sql": "e596a2a4d069c3ff84fe580fcf0d1528e3f8f79128e24f34a8f8657cac229d17",
     "00637_each_library_cap_is_counted_in_one_place.sql": "7bdad2bdd1147f5b8282c310bb0bdf731cd0e4ec9665d257b737b625447979fe",
-    "00638_a_business_s_footage_has_its_sources.sql": "b6e364670fa4f9f2946bb0c5e2728f426709b206cb1fe2aa67402428cc0e88bf"
+    "00638_a_business_s_footage_has_its_sources.sql": "0ea2a8c9059bb3ef678fef83bbc260c143330130c6ab9e62c11241d1c5495223"
   }
 }
