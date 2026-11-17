@@ -4324,6 +4324,86 @@ a.list-row {
   }
 }
 
+/* ---------- Person pick: who a sheet is for ----------
+   New proposal's and New conversation's first step (kit/person-pick/person-pick.tsx), which the Pipeline's stylesheet
+   drew for its own picker (clients.css, .pipe-new*) and the Inbox's sheet drew otherwise: the field's question and its
+   box, then who it found, each a quiet row of a face and two lines, the name and where their deal stands. The rows run
+   8px into the sheet's gutter, so their words stand under the box's; a row lifts as a menu's item does, a lozenge in the
+   accent's soft tint. On a phone it sits closer under the job's head, and each row is a thumb tall. */
+.person-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 0 20px;
+}
+.person-pick-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+.person-pick-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.person-pick-row:is(:hover, :active) {
+  background: var(--accent-soft);
+}
+.person-pick-row:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.person-pick-face {
+  grid-row: 1 / span 2;
+}
+.person-pick-name {
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-pick-stopped {
+  margin-left: 8px;
+}
+.person-pick-said {
+  min-width: 0;
+  font-size: var(--text-label);
+  color: var(--ink-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-pick-none {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+@media (max-width: 900px) {
+  .person-pick {
+    padding: 4px 0 12px;
+  }
+  .person-pick-row {
+    padding: 10px 8px;
+  }
+}
+
 /* ---------- Meter: a whole in its parts ----------
    Step 2.2. The charts kit's SegmentBar (charts.css:150-155): the parts in a row with 2px of ground between them, the
    ends rounded; at 8px, as three of its four sites draw it, 10px large, 4px small (the reach bar's,

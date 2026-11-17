@@ -338,6 +338,27 @@ const listRow = ({ said = true, note = false, door = false, mark = false, bare =
   (note ? `<div class="list-row-note">Next step: call back on Monday</div>` : "") +
   (door ? `</a>` : `</div>`);
 
+/**
+ * Who a sheet is for, as the kit's person pick draws it (kit/person-pick/): the question over its search, then who it
+ * found, someone named and someone known by a number who asked to stop; or the words for nobody, a status while what is
+ * shown is still being read.
+ */
+const personPick = ({ found = true, reading = false } = {}) =>
+  `<div class="person-pick"><label class="rec-field" data-rec-row="search">` +
+  `<span class="rec-field-label">Who is it for?</span>` +
+  `<input class="rec-input" type="search" autocomplete="off" placeholder="Search people"></label>` +
+  (found
+    ? `<ul class="person-pick-list"><li><button type="button" class="person-pick-row">` +
+      `<span class="face face-sm person-pick-face" aria-hidden="true"><span>AR</span></span>` +
+      `<span class="person-pick-name">Aisha Rahman</span>` +
+      `<span class="person-pick-said">Proposal sent · 2d</span></button></li>` +
+      `<li><button type="button" class="person-pick-row">` +
+      `<span class="face face-glyph face-sm person-pick-face" title="No name yet" aria-hidden="true">${icon("phone", 12)}</span>` +
+      `<span class="person-pick-name">+1 (212) 555-0143<span class="pill person-pick-stopped">Stopped</span></span>` +
+      `<span class="person-pick-said">Phoned · Oct 31</span></button></li></ul>`
+    : `<p class="person-pick-none"${reading ? ` role="status"` : ""}>${reading ? "Reading…" : "No one matches."}</p>`) +
+  `</div>`;
+
 /* ---- the table (surfaces/kit/table/, decision 0083) ---- */
 
 /** The table's rows, made up: who they are, how many visits, what they last said. A long list numbers them. */
@@ -2840,6 +2861,20 @@ export const FAMILIES = [
       { id: "list-row-bare", html: listRow({ bare: true }) },
       { id: "list-row-list", html: listRow() + listRow({ said: false }) },
       { id: "list-row-bare-list", html: listRow({ bare: true }) + listRow({ bare: true }) },
+    ],
+  },
+  {
+    family: "Person pick",
+    about:
+      "kit.css's person pick: who a sheet is for, before it does anything for them, as New proposal on the Pipeline " +
+      "and New conversation on the Inbox ask it, in a job's sheet on a phone and the pane beside the page on a desk. " +
+      "The question over the record kit's search box, then who it found, each a quiet row a menu's item's lozenge " +
+      "lifts: their face, their name with the stopped mark where they asked to stop, and where their deal stands or " +
+      "when they were last heard. Nobody found is said in a line, and said as a status while it is still being read.",
+    entries: [
+      { id: "person-pick", html: personPick() },
+      { id: "person-pick-none", html: personPick({ found: false }) },
+      { id: "person-pick-reading", html: personPick({ found: false, reading: true }) },
     ],
   },
   {
