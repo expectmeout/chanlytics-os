@@ -54,6 +54,12 @@ export interface ThreadState {
    * not a text: a person a WhatsApp or email campaign had reached got their first text reply without the disclosure.
    */
   textedBefore?: boolean;
+  /**
+   * A member said this thread is not a customer's (contracts saidNotACustomer, off the thread's own row): what they
+   * write is kept and not answered, and nobody is asked (decision 0138, ./gates.ts). Absent on a thread that could not
+   * be read, which is unknown before it is anything else, and from a reader that never learned it.
+   */
+  notACustomer?: boolean;
 }
 
 /**

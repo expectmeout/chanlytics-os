@@ -113,7 +113,8 @@ export function SetAsideBar({ thread }: { thread: Thread }) {
 
 /**
  * A thread a member said is not a customer's (decision 0136): said plainly, with what it does, and Reply anyway beside
- * it. Their calls ask nobody for a call back until that is pressed.
+ * it. Until that is pressed their calls are turned away before AI answers, and what they write is kept and not
+ * answered (decision 0138).
  */
 export function NotACustomerBar({ thread }: { thread: Thread }) {
   const [toastNode, flash] = useToast();
@@ -162,7 +163,7 @@ export function notACustomerItems(
 ): MenuItem[] {
   const { clientId } = thread;
   return [
-    // A call back nobody should make: said here, it is off the list, and their calls stop asking.
+    // A call back nobody should make: said here, it is off the list, and AI stops answering them.
     ...(heldNotACustomer(thread)
       ? [
           {

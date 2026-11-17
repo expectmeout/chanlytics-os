@@ -707,6 +707,8 @@ const QUIET_FOLD = toReceptionistReportVM(
     },
     // This world keeps hours on Monday and Saturday: a message that came while it was closed is counted, and none did.
     profile: { hours: { mon: { open: "09:00", close: "17:00" }, sat: { open: "09:00", close: "17:00" } } },
+    // 17 Nov 2026 (decision 0138): the calls kept off the owner's list, counted from the ledger: none in this world.
+    screened: { total: 0, by_reason: {} },
   },
   { nowMs: NOW.getTime() },
 );
@@ -716,6 +718,7 @@ const QUIET_RECEPTIONIST_SAID = {
   languages: null,
   // A mix with nothing in it says the page's own empty words, as hold and topics do.
   call_endings: { empty: QUIET_FOLD.callEndings.empty },
+  calls_kept_off_your_list: QUIET_FOLD.screened.line,
   link: QUIET_FOLD.link.line,
   handover: [
     {
@@ -744,7 +747,7 @@ function withReceptionist(result) {
   const said = JSON.parse(result);
   return said.error ? result : JSON.stringify({ ...said, receptionist: QUIET_RECEPTIONIST_SAID });
 }
-const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series"];
+const withReceptionistReads = (reads) => [...reads, "rpc:receptionist_series", "events.select"];
 
 /**
  * 10 Oct 2026 (Reports, the People lens, C3 T13): the report says the People lens after the Receptionist lens, from the

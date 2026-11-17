@@ -10,6 +10,7 @@ import { NEEDS_YOU_WORD } from "../../conversations/standing";
 import { BOOKED_NEEDS_A_LINK } from "../../setup/calendar-source";
 import { durationWords } from "../../shared/clock";
 import { capitalize, plural } from "../../shared/words";
+import type { ScreenedCallsDto, ScreenedReason } from "../../voice/screened";
 import { BOOKED_NEEDS_TODAY } from "../booking-report";
 import { ownWord, rankedEntries, type MixEntry } from "../mix";
 import { MISSED_CALL_TOUCH_WORDS, type ReceptionistDto, type ReceptionistSeriesDto } from "./record";
@@ -81,6 +82,31 @@ const callEndingWords = (key: string): string =>
 export const callEndingEntries = (byReason: Counts): MixEntry[] => rankedEntries(byReason, callEndingWords);
 
 export const callEndingsLine = (total: number): string => `${plural(total, "call")} that connected.`;
+
+/* ------------------------------------------------- the calls kept off your list */
+
+/**
+ * The calls kept off the owner's list (decision 0138), by whose word kept them there: the workspace's own (a caller a
+ * member said is not a customer, turned away or let pass), a reading's (a call back set aside as someone selling), and
+ * silence or the carrier's flag (nothing said, from nobody the business talks with). In the order the sentence says them.
+ */
+const SCREENED_GROUPS: readonly (readonly [readonly ScreenedReason[], (count: number) => string])[] = [
+  [["refused", "not_a_customer"], (count) => `${count} from people you said aren't customers`],
+  [["selling"], (count) => `${count} set aside as selling`],
+  [["toll_free_silent", "unverified_silent", "carrier_spam"], (count) => `${count} silent or flagged as spam`],
+];
+
+/** Under how calls ended: how many calls asked nobody, and why. None is said too. */
+export function screenedLine(screened: ScreenedCallsDto): string {
+  if (screened.total === 0) return "No calls were kept off your list in this period.";
+  const parts = SCREENED_GROUPS.map(
+    ([reasons, words]) => [reasons.reduce((sum, r) => sum + (screened.by_reason[r] ?? 0), 0), words] as const,
+  )
+    .filter(([count]) => count > 0)
+    .map(([count, words]) => words(count));
+  const were = `${plural(screened.total, "call")} ${screened.total === 1 ? "was" : "were"} kept off your list`;
+  return parts.length ? `${were}: ${parts.join(", ")}.` : `${were}.`;
+}
 
 /* ---------------------------------------------------------------- the booking link */
 

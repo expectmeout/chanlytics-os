@@ -118,7 +118,12 @@ export type {
   ReachOutReportMailboxDto,
   ReachOutReportStepDto,
 } from "./reach-out-report";
-export { isReceptionistSeriesDto, MISSED_CALL_TOUCH_WORDS, receptionistDtoOf } from "./receptionist/record";
+export {
+  isReceptionistSeriesDto,
+  MISSED_CALL_TOUCH_WORDS,
+  receptionistDtoOf,
+  receptionistWindowOf,
+} from "./receptionist/record";
 export type { ReceptionistDto, ReceptionistSeriesDto } from "./receptionist/record";
 export { toReceptionistReportVM } from "./receptionist/report";
 export type { ReceptionistReportVM } from "./receptionist/report";

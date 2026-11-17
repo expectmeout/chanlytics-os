@@ -165,6 +165,7 @@ export const WORDS: Record<string, string> = {
   "escalation.opened": "A conversation was handed to the team",
   "call.recorded": "A call was recorded",
   "call.transferred": "A call was passed to a person",
+  "call.screened": "A call asked for nobody",
   "booking_link.sent": "The booking link was sent",
   "broadcast.sent": "A run finished",
   "broadcast.stopped": "A run stopped",

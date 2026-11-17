@@ -31,6 +31,14 @@ export function modeSaid(mode: string): string {
 
 export { ageVerdict, pastReplyHorizon, STALE_MS, STALE_REPLY_MS };
 
+/**
+ * Whether a message is a yes that is owed its confirmation: a START on any wire, or YES OFFERS on WhatsApp, where offers
+ * go (a YES OFFERS by text is recorded and answered like any other words: reply-gates.ts hasConfirmedYes). Asked there,
+ * and by the gate that leaves a person a member said is not a customer unanswered, which still lets the yes through.
+ */
+export const yesOwedConfirmation = (consent: { optIn: boolean; optInMarketing: boolean }, channel: string): boolean =>
+  consent.optIn || (consent.optInMarketing && channel === "whatsapp");
+
 export const MAX_REPLIES_PER_DAY = 20; // per thread
 /**
  * The longest a reply turn may take from its start to the model's answer: the job's function stops at sixty seconds

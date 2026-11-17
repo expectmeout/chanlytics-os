@@ -410,6 +410,7 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
           hold: "claimed",
           late: false,
           greeting: "standard",
+          number_check: null,
         },
       ],
       "one line: the caller's tail, the agent, the call, and what the agent was handed",
@@ -796,4 +797,81 @@ test("a caller from abroad is recognised and their thread held: the door hands t
     );
   });
   assert.equal(db.held.length, 1, "and the call holds their thread");
+});
+
+/* ------------------------------------------------- decision 0138: the call turned away, and the carrier's word */
+
+test("a caller a member said is not a customer is turned away before the receptionist answers: the provider's own refusal and nothing beside it, no hold on their thread, and the ledger keeps the call's only record", async () => {
+  const w = world();
+  // A member's word (00539): set aside, with its day gone.
+  Object.assign(w.tables.conversations[0], { set_aside_why: "pitch", set_aside_at: null });
+  w.tables.events = [];
+  const db = w.open();
+  await listening(async (log) => {
+    const [status, , body] = await heard(await knock(w.call()));
+    assert.equal(status, 200, "past the key the answer is always 200");
+    assert.deepEqual(
+      body,
+      { call_inbound: { reject: true } },
+      "the refusal alone: no variable, no override, no metadata",
+    );
+    assert.deepEqual(db.held, [], "nothing is held for a call nobody takes");
+    assert.deepEqual(
+      w.tables.events.map((e) => [e.kind, e.category, e.subject_type, e.subject_id, e.data]),
+      [
+        [
+          "call.screened",
+          "call",
+          "conversation",
+          w.tables.conversations[0].id,
+          { reason: "refused", call_id: w.CALL_ID },
+        ],
+      ],
+      "the provider keeps no call for it, so this row is its record",
+    );
+    assert.equal(log.said("inbound_call_refused").length, 1, "said once, in its own line");
+    assert.deepEqual(log.said("retell_inbound"), [], "and never as a call the receptionist took");
+  });
+  assert.deepEqual(w.mail(), [], "nobody is told");
+});
+
+test("only a member's word turns a call away: a thread a reading set aside, and one never set aside, are answered as any caller is", async () => {
+  for (const [what, thread] of [
+    ["set aside by a reading, which no member has said", { set_aside_why: "pitch", set_aside_at: ago(3_600_000) }],
+    ["never set aside", { set_aside_why: null, set_aside_at: null }],
+  ]) {
+    const w = world();
+    Object.assign(w.tables.conversations[0], thread);
+    w.tables.events = [];
+    const db = w.open();
+    const [status, , body] = await heard(await knock(w.call()));
+    assert.equal(status, 200, what);
+    assert.equal(body.call_inbound.reject, undefined, what);
+    assert.ok(body.call_inbound.dynamic_variables.business_facts.length > 0, `${what}: the receptionist answers`);
+    assert.equal(db.held.length, 1, `${what}: their thread is held for the call`);
+    assert.deepEqual(w.tables.events, [], `${what}: nothing was screened`);
+  }
+});
+
+test("what the carrier said of the number rides the call: read off the headers, said on the call's line, and handed on as its metadata; a header that says nothing hands on nothing", async () => {
+  for (const [headers, check] of [
+    [{ "x-twilio-verstat": "TN-Validation-Failed-C" }, "failed"],
+    [{ "p-asserted-identity": "<sip:+16465550123;verstat=TN-Validation-Passed@carrier.example>" }, "passed"],
+    [{ "x-twilio-verstat": "No-TN-Validation" }, "unsigned"],
+    [{ "x-twilio-verstat": "something-new" }, null],
+    [undefined, null],
+  ]) {
+    const w = world();
+    w.open();
+    await listening(async (log) => {
+      const [, , body] = await heard(await knock(w.call(headers ? { custom_sip_headers: headers } : {})));
+      const [line] = log.said("retell_inbound");
+      assert.equal(line.number_check, check, JSON.stringify(headers));
+      assert.deepEqual(
+        body.call_inbound.metadata,
+        check ? { number_check: check } : undefined,
+        `${JSON.stringify(headers)}: the webhook reads it from the call's metadata`,
+      );
+    });
+  }
 });

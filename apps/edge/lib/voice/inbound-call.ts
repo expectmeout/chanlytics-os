@@ -39,16 +39,27 @@
  *     taken is logged (retell_inbound_hold_failed).
  *   - A test of "keep my number" is proven as the call arrives (markForwardingVerified), with the one thing the call
  *     webhook never sees: the diversion headers (custom_sip_headers).
+ *
+ * ONE CALLER IS TURNED AWAY (decision 0138): one whose thread a member said is not a customer's (planCallStart's
+ * `refused`, the word read with their memory). The answer is then the provider's own refusal, `reject: true` and
+ * nothing beside it, so the call ends before any agent or voice is set up and the provider keeps no call: the ledger's
+ * `call.screened` row written here is its only record, and the line inbound_call_refused. Anyone else is answered, and
+ * so is that caller wherever the word could not be read or the plan ran late.
+ *
+ * WHAT THE CARRIER SAID OF THE NUMBER rides the same headers (contracts numberCheckOf): logged on every call's line
+ * (`number_check`), and handed on as the call's metadata where it said anything, so the call webhook reads it
+ * (decision 0138).
  * Lines carry the caller's last four digits (from_tail), never the number, with the agent and the call id; the call ends
  * in one retell_inbound with how the facts and the memory were arrived at.
  */
-import { phoneTail, divertedNumbers } from "@chanlytics/contracts";
+import { phoneTail, divertedNumbers, numberCheckOf, type NumberCheck } from "@chanlytics/contracts";
 import { markForwardingVerified } from "./forwarding.js";
 import { json } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
 import { keepDelivery, signatureHeaders } from "../shared/keep-event.js";
 import { planCallStartWithin } from "./call-start.js";
 import { claimControl, CALL_CONTROL_S } from "@chanlytics/db/conversations";
+import { emitEvent } from "@chanlytics/db/events";
 import { alertUnroutable } from "../inbound/alerts.js";
 import { logger } from "../shared/log.js";
 import { keptUrl, keepKnock, voiceDoorAuth } from "../shared/door-auth.js";
@@ -66,6 +77,52 @@ async function alertWithin(agentId: string | undefined): Promise<void> {
       timer = setTimeout(r, ALERT_BUDGET_MS);
     }),
   ]).finally(() => clearTimeout(timer));
+}
+
+/** What the plan made of a call, as the door reads it. */
+type CallStartPlan = Awaited<ReturnType<typeof planCallStartWithin>>;
+
+/**
+ * The provider's own refusal, and nothing beside it: it reads the answer whole, and a variable or an override it could
+ * not take would cost the refusal (its inbound webhook's page, read 17 Nov 2026). Only `true` itself refuses.
+ */
+const CALL_REFUSAL = { call_inbound: { reject: true } } as const;
+
+/**
+ * A call turned away, on the ledger (contracts voice/screened.ts): the provider keeps nothing of it, so this row is its
+ * only record. Best effort, as every event is: a row that could not be written is logged, and the call is refused all
+ * the same.
+ */
+async function noteRefused(db: ReturnType<typeof pg>, start: CallStartPlan, callId: string | null): Promise<void> {
+  if (!db || !start.tenantId) return;
+  await emitEvent(db, start.tenantId, "call.screened", "conversation", start.conversationId, {
+    reason: "refused",
+    call_id: callId,
+  });
+}
+
+/**
+ * What a call the receptionist takes is answered with: the shell's variables; the workspace's voice, for this call alone
+ * (Retell's agent_override: the saved agent is never changed for it); and the call's metadata, which every later
+ * delivery carries: the settings version the facts were composed from, which the call webhook writes on the row
+ * (decision 0069, R6), and what the carrier said of the number, where it said anything (decision 0138).
+ */
+function callAnswer(start: CallStartPlan, numberCheck: NumberCheck | null) {
+  const agent = {
+    ...(start.voiceId ? { voice_id: start.voiceId } : {}),
+    ...(start.voiceSpeed !== null ? { voice_speed: start.voiceSpeed } : {}),
+  };
+  const metadata = {
+    ...(start.configVersion !== null ? { config_version: start.configVersion } : {}),
+    ...(numberCheck ? { number_check: numberCheck } : {}),
+  };
+  return {
+    call_inbound: {
+      dynamic_variables: start.variables,
+      ...(Object.keys(agent).length ? { agent_override: { agent } } : {}),
+      ...(Object.keys(metadata).length ? { metadata } : {}),
+    },
+  };
 }
 
 export async function receiveInboundCall(request: Request): Promise<Response> {
@@ -109,13 +166,13 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
   else if (start.facts === "unrouted") log.warn("inbound_ctx_unrouted");
   else if (start.facts === "missing") log.warn("inbound_facts_missing");
 
-  // The four things the answer waits for, each never fatal and none needing another, so they run together (they ran
-  // one after another inside Retell's ten seconds, behind the plan): the delivery kept, the platform told, the
-  // caller's thread held, a test of "keep my number" proven.
+  // What the carrier said of the number the call shows, where its headers said (contracts numberCheckOf).
+  const numberCheck = numberCheckOf(inbound.custom_sip_headers);
+
   const db = pg();
-  const [, , held] = await Promise.all([
-    // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay. Kept
-    // without the ?key= it may have come in on (keptUrl): a ledger row is no place for the secret to every voice door.
+  // Kept under the call's id, before the answer (decision 0032, 00336); a call with no id is nothing to replay. Kept
+  // without the ?key= it may have come in on (keptUrl): a ledger row is no place for the secret to every voice door.
+  const kept =
     db && inbound.call_id
       ? keepDelivery(db, {
           provider: "retell",
@@ -126,7 +183,20 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
           headers: signatureHeaders(request, ["x-retell-signature"]),
           body: raw,
         })
-      : null,
+      : null;
+
+  // A caller a member said is not a customer is turned away: nothing is held or proven for a call nobody takes.
+  if (start.refused) {
+    await Promise.all([kept, noteRefused(db, start, inbound.call_id ?? null)]);
+    log.info("inbound_call_refused", { number_check: numberCheck, plan_ms: planMs, ms: Date.now() - t0 });
+    return json(200, CALL_REFUSAL);
+  }
+
+  // The four things the answer waits for, each never fatal and none needing another, so they run together (they ran
+  // one after another inside Retell's ten seconds, behind the plan): the delivery kept, the platform told, the
+  // caller's thread held, a test of "keep my number" proven.
+  const [, , held] = await Promise.all([
+    kept,
     // The platform is told, as it is for a text: a call answered with no facts is a customer nobody knows about.
     // Suppressed per agent for fifteen minutes inside alertUnroutable, which is why the judgement says whether they are
     // told rather than telling them. WAITED FOR, up to three seconds: a serverless invocation is frozen the moment it
@@ -172,25 +242,9 @@ export async function receiveInboundCall(request: Request): Promise<Response> {
     // Which greeting the caller heard: the standard, the business's own (with the AI clause added or not), paused, or the
     // standard because its own denied being automated (decision 0051). Which words, the version table says.
     greeting: start.greetingSource,
+    // What the carrier said of the number shown (passed, failed, unsigned), or null where the headers said nothing.
+    number_check: numberCheck,
     ms: Date.now() - t0,
   });
-  // The workspace's voice, for this call alone (Retell's agent_override): the saved agent is never changed for it. And
-  // the settings version the facts were composed from, as the call's metadata, which every later delivery carries: the
-  // call webhook writes it on the row (decision 0069, R6).
-  return json(200, {
-    call_inbound: {
-      dynamic_variables: start.variables,
-      ...(start.voiceId || start.voiceSpeed !== null
-        ? {
-            agent_override: {
-              agent: {
-                ...(start.voiceId ? { voice_id: start.voiceId } : {}),
-                ...(start.voiceSpeed !== null ? { voice_speed: start.voiceSpeed } : {}),
-              },
-            },
-          }
-        : {}),
-      ...(start.configVersion !== null ? { metadata: { config_version: start.configVersion } } : {}),
-    },
-  });
+  return json(200, callAnswer(start, numberCheck));
 }

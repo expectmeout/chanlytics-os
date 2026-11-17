@@ -337,6 +337,19 @@ test("a message a rule set aside is answered by nobody, however new", () => {
   assert.equal(threadMoveOf(dto({ messages: [inb(1, { meta: { handled: "ai" } })] }), null, NOW).move, "replying");
 });
 
+test("a thread a member said is not a customer's stays filed away when they write again: the message reopens it, and it asks nobody (decision 0138)", () => {
+  // 00539's word: set aside, with its day gone. Their text reopened the thread (ingest_inbound), and the gate left it
+  // unanswered: left to who had the last word, it stood in Needs you as unanswered, the list their word took it off.
+  const said = { set_aside_at: null, set_aside_why: "pitch" };
+  const wrote = [inb(1, { meta: { handled: "blocked" } })];
+  const got = threadMoveOf(dto({ ...said, state: "open", messages: wrote }), null, NOW);
+  assert.deepEqual([got.move, got.list], ["archived", "out"]);
+  assert.equal(moveWaits(got).needsYou, false, "REGRESSION GUARD: no count of what waits on you holds them");
+  // Without the word the same thread is unanswered, as before; and a hold someone opened on it is still asked for.
+  assert.equal(threadMoveOf(dto({ state: "open", messages: wrote }), null, NOW).move, "unanswered");
+  assert.equal(threadMoveOf(dto({ ...said, state: "open", messages: wrote }), esc("manual"), NOW).list, "escalated");
+});
+
 test("a draft goes at zero, is on its way for the reply's three minutes, then stands as the thread does", () => {
   const wire = dto({ messages: [inb(3), m({ status: "queued", created_at: ago(1), meta: { delay_ms: 180000 } })] });
   const move = threadMoveOf(wire, null, NOW);

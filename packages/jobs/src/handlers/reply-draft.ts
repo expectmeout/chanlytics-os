@@ -13,6 +13,7 @@ import {
   replyDraftThreadOf,
 } from "@chanlytics/db/ask";
 import { getMailboxSenderVerdicts, noteMailboxLeft, findSenderReading, getTalksWith } from "@chanlytics/db/email";
+import { emitEvent } from "@chanlytics/db/events";
 import { findCallerFacts } from "@chanlytics/db/voice";
 import { logAndGoOn, logger } from "@chanlytics/log";
 import type { ClaimedJob, JobContext, ReplyDraftEdge } from "../runner/context";
@@ -49,6 +50,9 @@ export function replyDraftPortsOf(db: Db, edge: ReplyDraftEdge): ReplyDraftPorts
         .then(callerStandingOf)
         .catch(logAndGoOn("reading what is known of a call back's caller", null)),
     setAside: (tenantId, conversationId, reason) => setConversationAside(db, { tenantId, conversationId, why: reason }),
+    // The brief names no call (it reads the thread's newest), so the row names the thread alone.
+    noteScreened: (tenantId, conversationId) =>
+      emitEvent(db, tenantId, "call.screened", "conversation", conversationId, { reason: "selling", call_id: null }),
     write: edge.write,
   };
 }

@@ -1,6 +1,6 @@
 /**
  * The Receptionist lens's mix, from its own read: what became of the replies it held, what customers asked about, the language it
- * wrote in, how calls ended, and the booking link with what came of it. Every row, line and sentence is the fold's (contracts
+ * wrote in, how calls ended and which were kept off the owner's list, and the booking link with what came of it. Every row, line and sentence is the fold's (contracts
  * `toReceptionistReportVM`, page-only): a card draws a bar a row, the line under its title, and, for a part with nothing in it,
  * the fold's words for why, never a bar of nothing.
  */
@@ -38,13 +38,18 @@ export function languagesCard(v: ReceptionistReportVM, className: string) {
   });
 }
 
-/** How the calls that connected ended. */
+/** How the calls that connected ended; and under them, the calls kept off the owner's list (decision 0138). */
 export function callEndingsCard(v: ReceptionistReportVM, className: string) {
   return mixCard(v.callEndings, {
     title: "How calls ended",
     testid: "chart-call-endings",
     className,
     columns: ["How it ended", "Calls"],
+    foot: v.screened ? (
+      <p className="rpt-booked-copy" data-testid="receptionist-screened">
+        {v.screened.line}
+      </p>
+    ) : null,
   });
 }
 

@@ -99,6 +99,8 @@ export function world(over = {}) {
     pausedUntil: over.pausedUntil ?? 0,
     textedBefore: false,
     control: over.control ?? null,
+    // A member said the thread is not a customer's (decision 0138), as the edge's pgThread reads it off the row.
+    notACustomer: over.notACustomer ?? false,
   };
   const delivered = new Set();
   const seen = {
@@ -148,6 +150,7 @@ export function world(over = {}) {
               replies: memory.replies,
               textedBefore: memory.textedBefore,
               control: memory.control,
+              notACustomer: memory.notACustomer,
             })
           : { history: [], pausedUntil: -1, replies: [], control: null, unknown: true };
       },

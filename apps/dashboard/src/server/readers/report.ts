@@ -15,6 +15,7 @@ import {
   peopleNowOf,
   plural,
   receptionistDtoOf,
+  receptionistWindowOf,
   REPORT_PERIOD_IDS,
   reportDaysCount,
   reportDaysRefusal,
@@ -36,11 +37,13 @@ import {
   type ReportPeriodId,
   type ReportProfile,
   type ReviewsReportDto,
+  type ScreenedCallsDto,
   shaped,
   causedBy,
 } from "@chanlytics/contracts";
 import {
   ReportWindowNotReadable,
+  countScreenedCalls,
   findPeopleSeries,
   findReceptionistSeries,
   reportSeries,
@@ -362,6 +365,26 @@ async function linksOf(
 }
 
 /**
+ * The calls kept off the owner's list in the window (decision 0138): the ledger's `call.screened` rows between the
+ * window's two midnights in the workspace's zone, a call once (db countScreenedCalls). Never fatal: a count that could
+ * not be read is null, the lens draws no line of it, and the log says `screened_calls_failed`.
+ */
+async function screenedOf(
+  rc: ReaderContext,
+  head: { timezone: string; today: string; end?: string; days: number },
+): Promise<ScreenedCallsDto | null> {
+  try {
+    return await countScreenedCalls(rc.ctx.supabase, rc.tenantId, receptionistWindowOf(head));
+  } catch (e) {
+    log.error("screened_calls_failed", {
+      tenant_id: rc.tenantId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+/**
  * GET reports/receptionist, as the route answers it: what the receptionist did over `days`, which one SECURITY INVOKER
  * function counts in the workspace's own zone (findReceptionistSeries: the held replies, the topics and languages, the
  * calls, the handovers, when people write, the booking links sent and what is open now), and beside it the hours the
@@ -396,12 +419,19 @@ export const receptionistReport: Reader<ReportWindow, ReceptionistDto> = {
         ...(window.end !== null && { end: window.end }),
         days: window.days,
       };
-      return { data: receptionistDtoOf(null, { booked: null, profile, head, nowMs }), rows: [], stamp: readerStamp() };
+      const screened = await screenedOf(rc, head);
+      return {
+        data: receptionistDtoOf(null, { booked: null, profile, head, nowMs, screened }),
+        rows: [],
+        stamp: readerStamp(),
+      };
     }
     if (!isReceptionistSeriesDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
-    const booked = await linksOf(rc, window, answer.links);
+    // The two reads the series' answer leads to, made together: who booked of the people sent the link, and the calls
+    // kept off the owner's list, counted over the days the series counted.
+    const [booked, screened] = await Promise.all([linksOf(rc, window, answer.links), screenedOf(rc, answer)]);
     return {
-      data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs }),
+      data: receptionistDtoOf(answer, { booked, profile, head: answer, nowMs, screened }),
       rows: [],
       stamp: readerStamp(),
     };

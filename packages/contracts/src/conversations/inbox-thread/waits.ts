@@ -1,7 +1,7 @@
 /** Inbox thread: waits. */
 
 import { needsYouCount, threadWait, threadWaits, type WaitingThread, type Waits } from "../../waits/waits";
-import { replyWaitsOnYou, standingOfThread } from "../standing";
+import { replyWaitsOnYou, saidNotACustomer, standingOfThread } from "../standing";
 import { isOptedOut, type ConversationDto } from "../thread-dto";
 import { mayRing } from "../../consent/consent";
 import { REPLY_DRAFT_WORDS } from "../../need-you/reply-drafts";
@@ -18,7 +18,7 @@ import { moveWaits, threadMoveNow, threadMoveOf } from "../../waits/thread-move"
 export const archivedOf = (dto: ConversationDto): Pick<InboxThreadVM, "archived" | "setAside" | "notACustomer"> => ({
   archived: dto.state === "archived",
   ...(dto.state === "archived" && dto.set_aside_at ? { setAside: true } : {}),
-  ...(dto.set_aside_why && !dto.set_aside_at ? { notACustomer: true } : {}),
+  ...(saidNotACustomer(dto) ? { notACustomer: true } : {}),
 });
 
 /**
@@ -297,10 +297,12 @@ export const THREAD_PANE_WORDS = {
   /**
    * The same word on a conversation that still asks for you and is no email's (decision 0136): a call back nobody
    * should make. What it does, under it in the menu; what it did, in its toast; and what its dock says from then on.
+   * Since 0138 it does more than keep them off the list: a call from them is turned away before AI answers, and what
+   * they write is kept and not answered, so each of the three says that.
    */
-  notACustomerHeldMeta: "Off your list. Their calls stop asking for you.",
-  notACustomerHeldDone: "Set as not a customer. Their calls won't ask for you.",
-  notACustomerSaid: "you said so, and their calls don't ask for you",
+  notACustomerHeldMeta: "Off your list. AI stops answering their calls and messages.",
+  notACustomerHeldDone: "Set as not a customer. AI won't answer their calls or messages.",
+  notACustomerSaid: "you said so, and AI doesn't answer their calls or messages",
   /** The group of acts on who the conversation is with: "Contact", never their name again under the head that says it. */
   groupContact: "Contact",
   groupDealFile: "Deal and file",

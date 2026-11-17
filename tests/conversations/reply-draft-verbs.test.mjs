@@ -52,6 +52,7 @@ function world(over = {}) {
       letGo: say("letGo", undefined),
       scheduleDraft: say("scheduleDraft", "scheduled"),
       setAside: say("setAside", given("setAside", true)),
+      noteScreened: say("noteScreened", undefined),
       caller: say("caller", given("caller", { said: null, talks: false })),
       sender: {
         said: say("said", over.said ?? null),
@@ -230,6 +231,14 @@ test("REGRESSION: a call back read as someone selling is kept as what it is, the
     w.log.findIndex((c) => c[0] === "keep") < w.log.findIndex((c) => c[0] === "setAside"),
     "kept first: a set-aside that failed leaves the row saying what it is",
   );
+  // 0138: the call is kept on the ledger as one screened, once it is set aside. An email's pitch is no call.
+  assert.deepEqual(
+    w.calls("noteScreened").map((c) => c.slice(1)),
+    [[T, C]],
+  );
+  const email = world({ said: null, read: { kind: "pitch", about: "search rankings" } });
+  assert.equal(await write(email), "set_aside");
+  assert.equal(email.calls("noteScreened").length, 0, "an email set aside is counted by nothing a call is");
 });
 
 test("a selling call is never set aside for someone the business talks with, one a member answered anyway, or one unread", async () => {
@@ -241,6 +250,7 @@ test("a selling call is never set aside for someone the business talks with, one
     const w = world({ thread: callBack(), brief: SELLING, caller });
     assert.equal(await write(w, { kind: "brief" }), "kept", who);
     assert.equal(w.calls("setAside").length, 0, who);
+    assert.equal(w.calls("noteScreened").length, 0, `${who}: a call back that stays is not one screened`);
     assert.equal(w.calls("keep")[0][1].state, "pitch", `${who}: the note still says what they sell`);
   }
 });
@@ -253,6 +263,7 @@ test("a call back nobody is selling on asks nothing of the caller's record; a th
   // conversation_set_aside answers false where a member has the thread (00539): theirs, and left alone.
   const theirs = world({ thread: callBack(), brief: SELLING, setAside: false });
   assert.equal(await write(theirs, { kind: "brief" }), "kept");
+  assert.equal(theirs.calls("noteScreened").length, 0);
 });
 
 const rewrite = (w, over = {}) =>

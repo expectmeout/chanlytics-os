@@ -1,11 +1,12 @@
 /**
  * The first gates, in order: the person's own mode, looked up before any branch that can speak; then a thread
- * that could not be read, consent, the carriers' hold, and what kind of message arrived. A gate that stops the
- * message returns; a message that passes them all returns GO.
+ * that could not be read, consent, a member's word that the person is not a customer, the carriers' hold, and what
+ * kind of message arrived. A gate that stops the message returns; a message that passes them all returns GO.
  */
 import { isOptedOutContact } from "@chanlytics/contracts";
 import type { IngestResult } from "@chanlytics/db/channels";
 import { effectiveReplyMode } from "./reply-posture";
+import { yesOwedConfirmation } from "./steps";
 import { resolveConsent } from "./consent";
 import { isThreadUnknown } from "./thread";
 import { handledOf, handToAPerson, getProcessedAfter, SET_ASIDE } from "./handled";
@@ -37,7 +38,7 @@ export async function readModeInForce(cx: InboundContext, ing: IngestResult): Pr
   return { replyMode, personMode };
 }
 
-/** A thread that could not be read, consent, the carriers' hold and what kind of message arrived, in that order. */
+/** A thread that could not be read, consent, not a customer, the carriers' hold and the message's kind, in that order. */
 export async function runFirstGates(at: Answering): Promise<typeof GO | undefined> {
   const { thread, L, sink, n, ing, carrier } = at;
   // The memory could not be read, and there is no second copy to ask. We do
@@ -92,6 +93,17 @@ export async function runFirstGates(at: Answering): Promise<typeof GO | undefine
       on_record: ing.consent,
       decided_by: consent.source,
     });
+    return;
+  }
+
+  // NOT A CUSTOMER (decision 0138). A member said this person's thread is not a customer's: a seller, a notice, a
+  // wrong number that keeps writing. Their message is kept above, on the thread, and that is all: nothing is said back
+  // and nobody is asked, as their calls ask nobody (0136). After consent, so a STOP is still a STOP; before every branch
+  // that can speak or hold, so a photo from them opens nothing either. A START, or a YES OFFERS owed its confirmation,
+  // goes on: the yes is theirs to give whoever they are, and its confirmation is owed. Reply anyway takes the word back.
+  if (thread.notACustomer && !yesOwedConfirmation(n.consent, at.channel)) {
+    L.info("wa_skip_not_a_customer");
+    await sink.processed(handledOf(SET_ASIDE));
     return;
   }
 

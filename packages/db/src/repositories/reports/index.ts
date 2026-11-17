@@ -10,6 +10,7 @@ export {
 } from "./activity";
 export { listFirstReplies } from "./first-replies";
 export { notePageVitals, readPageSpeed, readPageSpots, readPageVitalsP75 } from "./page-vitals";
+export { countScreenedCalls } from "./screened";
 export {
   findCampaignLedger,
   findCampaignStuck,

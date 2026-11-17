@@ -2,7 +2,7 @@
 
 **Status:** Decided by Ruben, 17 November 2026 ("All approved as you suggest best end to end do all in one pr and merge
 main", on the analysis of the same day). Built in one pull request: the eight rules under Decision. What is not built
-is listed apart, each with why.
+is listed apart, each with why; [0138](0138-a-caller-said-no-customer-is-turned-away.md) builds four of the five.
 Written against main at `c3bd898`. It amends [0048](0048-one-list-of-what-needs-you.md) (who folds past a week, and how
 one of them is drawn in the Inbox) and [0093](0093-a-reply-is-drafted-once-by-the-receptionist-when-it-is-owed.md) (a
 call back is set aside as an email is, and Not a customer is said of a thread still held).
@@ -76,6 +76,10 @@ nothing about the next call from the same number.
    ones may need nothing.
 
 ## What is not built
+
+Four of these five are built since, by [0138](0138-a-caller-said-no-customer-is-turned-away.md), the same day: the
+figure on Reports (from the ledger, with no migration), the marked caller refused, texts, and the carrier's
+verification. The first is not, and 0138 says why.
 
 - **A caller's kind in the call's own analysis** (a field the provider fills, for every call). The analysis fields are
   kept on each agent at the provider; a new one reaches a live agent only through `voice-converge.mjs`, run by hand

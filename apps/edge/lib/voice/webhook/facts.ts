@@ -2,13 +2,17 @@
  * The facts the call webhook's plan is handed that only the door can read (call-event.ts planCallEvent is pure): the
  * prices the receptionist may say on the call, and what is known of the caller. Moved out of call-webhook.ts, which is
  * the wire, as that module reached its length (17 Nov 2026). Neither read fails a delivery: each has an answer that
- * leaves the plan as strict, or as generous, as it was without it.
+ * leaves the plan as strict, or as generous, as it was without it. With them, the one step of the plan that keeps a
+ * call on the ledger (noteScreened, decision 0138).
  */
 import type { NormalizedCall } from "@chanlytics/channels/voice";
 import { callerStandingOf, priceAllowance, spokenBreach, type CallerStanding } from "@chanlytics/contracts";
 import type { RoutedChannel } from "@chanlytics/db/channels";
+import { emitEvent } from "@chanlytics/db/events";
 import { findCallerFacts, type IngestCallResult } from "@chanlytics/db/voice";
 import { logAndGoOn, logKeptGoing } from "@chanlytics/log";
+import type { CallStep } from "../call-event.js";
+import { logger } from "../../shared/log.js";
 import type { pg } from "../../shared/pg.js";
 import { loadTenantRuntime } from "../../shared/tenant-runtime.js";
 
@@ -55,4 +59,21 @@ export async function readCallerStanding(
   return findCallerFacts(db, routed.tenantId, res.conversation_id)
     .then(callerStandingOf)
     .catch(logAndGoOn("reading what is known of a caller", null));
+}
+
+/**
+ * A call that would have asked a person for a call back and asks nobody (the plan's `screened` step), said in the log
+ * as it always was (call_back_not_owed) and kept on the ledger as `call.screened` (contracts voice/screened.ts), which
+ * Reports counts. The event is best effort, as every event is: a row that could not be written is logged.
+ */
+export async function noteScreened(
+  db: Db,
+  routed: RoutedChannel,
+  screened: Extract<CallStep, { kind: "screened" }>,
+): Promise<void> {
+  logger().info("call_back_not_owed", { call_id: screened.retellCallId, why: screened.reason });
+  await emitEvent(db, routed.tenantId, "call.screened", "conversation", screened.conversationId, {
+    reason: screened.reason,
+    call_id: screened.retellCallId,
+  });
 }

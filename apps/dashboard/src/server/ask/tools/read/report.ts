@@ -267,6 +267,8 @@ function receptionistSaid(rc: ReceptionistReportVM) {
     languages: rc.languages ? rc.languages.rows.map(mixRow) : null,
     // The page's own empty words where no call connected, as hold and topics say theirs; else the rows.
     call_endings: rc.callEndings.empty === null ? rc.callEndings.rows.map(mixRow) : { empty: rc.callEndings.empty },
+    // The calls kept off the owner's list, in the page's own sentence; null where they could not be read.
+    calls_kept_off_your_list: rc.screened ? rc.screened.line : null,
     link: rc.link.line,
     handover: rc.handover.map(figure),
     missed: figure(rc.missed),

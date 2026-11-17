@@ -106,6 +106,12 @@ interface CallStart {
    */
   conversationId: string | null;
   /**
+   * A member said this caller's thread is not a customer's (contracts saidNotACustomer, read with their memory): the
+   * door turns the call away before the receptionist answers (decision 0138). False for anyone else, and wherever the
+   * memory could not be read whole or the plan ran late: a call is never refused on a read that did not answer.
+   */
+  refused: boolean;
+  /**
    * The voice the workspace chose for its calls (contracts PHONE_VOICES), sent as the call's own override; null where
    * none is chosen, or the stored id is not on the list, and the line speaks in its own. Retell refuses a call whose
    * override it cannot honour, so nothing off the list is ever sent.
@@ -202,6 +208,7 @@ export async function planCallStartWithin(callStartInput: CallStartInput): Promi
     alert: false,
     error: `the plan took longer than ${budget} ms`,
     conversationId: null,
+    refused: false,
     voiceId: null,
     voiceSpeed: null,
     configVersion: null,
@@ -340,6 +347,10 @@ export async function planRehearsalStart(
   };
 }
 
+/** The caller's thread, as the plan hands it on: which it is, and whether a member said it is not a customer's. */
+type CallerThread = Pick<CallStart, "conversationId" | "refused">;
+const NO_THREAD: CallerThread = { conversationId: null, refused: false };
+
 async function planCallStart(callStartInput: CallStartInput, calendar: Calendar): Promise<CallStart> {
   const now = callStartInput.now ?? new Date();
   const phone = normalizePhone(callStartInput.from);
@@ -351,7 +362,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
   let businessFacts = "";
   let context = "";
   let line: SpokenLine = NO_LINE;
-  let conversationId: string | null = null;
+  let thread: CallerThread = NO_THREAD;
   let configVersion: number | null = null;
   let tenantId: TenantId | null = null;
   const fail = (e: unknown) => {
@@ -450,7 +461,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
             parts.push(lines.join("\n"));
           }
           context = parts.join("\n");
-          conversationId = lead.conversationId;
+          thread = { conversationId: lead.conversationId, refused: lead.notACustomer === true };
           // Said last, once the whole of it is built: a memory that threw
           // halfway is told as none, never as half.
           memory = lead.contactId ? "known" : "new";
@@ -472,7 +483,7 @@ async function planCallStart(callStartInput: CallStartInput, calendar: Calendar)
     memory,
     alert,
     error,
-    conversationId,
+    ...thread,
     voiceId: line.voiceId,
     voiceSpeed: line.voiceSpeed,
     configVersion,

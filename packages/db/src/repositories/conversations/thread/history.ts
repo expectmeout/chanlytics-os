@@ -8,6 +8,7 @@ import {
   isOneOf,
   pickCurrentDeal,
   proposalLinkOf,
+  saidNotACustomer,
   type SchemaSet,
   recordOrEmpty,
   DbFailure,
@@ -199,6 +200,11 @@ export interface LeadContext {
   /** Whether an email address is on file for them: the receptionist asks for one only when there is none (the booking rule ask_email). Undefined for a reader that never learned it, which says nothing. */
   hasEmail?: boolean;
   /**
+   * A member said their thread is not a customer's (contracts saidNotACustomer, off the thread's own row): a call from
+   * them is refused before it is answered (decision 0138). Optional so every fake still compiles; absent is no word.
+   */
+  notACustomer?: boolean;
+  /**
    * Their answer about offers (contacts.marketing_consent: unknown, opted_in or opted_out), and when the receptionist
    * first asked for the yes (contacts.offers_asked_at: null = never asked). `offersAskedAt` is undefined where the
    * database has not got the column yet: the receptionist then says nothing that lets it ask (contracts offersFacts).
@@ -325,7 +331,7 @@ export async function readLeadContext(
 
   const { data: conv, error: vErr } = await db
     .from("conversations")
-    .select("id")
+    .select("id, set_aside_at, set_aside_why")
     .eq("tenant_id", tenantId)
     .eq("contact_id", contact.id)
     .maybeSingle();
@@ -364,6 +370,7 @@ export async function readLeadContext(
   return {
     contactId: contact.id,
     conversationId: conv?.id ?? null,
+    notACustomer: saidNotACustomer(conv),
     // display_name is what a human typed; wa_profile_name is what WhatsApp
     // reports. The human's version wins, and neither is invented.
     name: contact.display_name || contact.wa_profile_name || null,
