@@ -17,7 +17,9 @@
  *   canvases keep their pictures and nothing is copied), inert and nameless, until it has left.
  *
  * A view is an element that is replaced when the view changes: the frame's `main`, a lens's body, a section's pane. It
- * registers with `view(owner)`, a callback ref, and says which side it arrives from with `data-slide`. `leave` is the
+ * registers with `view(owner)`, a callback ref, and says which side it arrives from with `data-slide`; one that says no
+ * side draws at once, unless it lands where a view still arriving stood (a page swapped in for the box that said it was
+ * reading): then it takes that arrival over, joining the timeline where the box had got to. `leave` is the
  * press (the strip's, kit/view-tabs), `drag` and `settle` the finger's (kit/motion/swipe.ts `touchSwipe`, through the strip's
  * pager). How far a page travels is the token `--view-travel`: its own width where the page is one column, a short
  * length on a desk, where the page leaving dims and waits and the two cross-fade, and `none` for a view that holds still:
@@ -393,8 +395,7 @@ function restAfter(table: Table, el: HTMLElement, mine: Held, lead: Animation | 
 
 /** The finger's own styles, off. */
 function clearFinger(el: HTMLElement): void {
-  el.style.transform = "";
-  el.style.opacity = "";
+  Object.assign(el.style, { transform: "", opacity: "" });
 }
 
 /** Remember where each thing inside a view is scrolled to: a node taken off the page forgets. */
@@ -474,11 +475,8 @@ function adopt(table: Table, gone: HTMLElement, next: HTMLElement, move: Timelin
       boxSizing: "border-box",
     });
   }
-  for (const [node, [top, left]] of table.scrolled.get(gone) ?? []) {
-    if (!gone.contains(node)) continue;
-    node.scrollTop = top;
-    node.scrollLeft = left;
-  }
+  for (const [node, [top, left]] of table.scrolled.get(gone) ?? [])
+    if (gone.contains(node)) Object.assign(node, { scrollTop: top, scrollLeft: left });
   const anims = leavingAnims(gone, move, was, table.env.now());
   // A page that travels its whole width is gone when it has travelled; any other, when it has faded.
   after(was?.role !== "in" && move.whole ? anims[0] : anims.at(-1), () => gone.remove());
@@ -537,7 +535,13 @@ function enter(table: Table, el: HTMLElement, move: Timeline): void {
   restAfter(table, el, { move, role: "in", spot: null, anims, onLayer }, travelLast ? anims[0] : anims.at(-1));
 }
 
-/** A view has mounted: where it says a side, it arrives by the deck, and what it replaced leaves by it. */
+/**
+ * A view has mounted: where it says a side, it arrives by the deck, and what it replaced leaves by it. One that says no
+ * side draws at once, unless what it replaced was itself still arriving (a page landing where the box that said it was
+ * reading stood, drawn on the view's seat: campaigns/home/route.tsx ViewReading): then it takes that arrival over, joining
+ * the timeline where the box had got to and fading in there as the box fades out, so a view that was not drawn yet
+ * comes in as one that was, with no cut between the two.
+ */
 function arrive(table: Table, el: HTMLElement, prev: HTMLElement | null): void {
   // One that holds still is there at once, where its page puts it.
   if (holdsStill(table, el)) {
@@ -552,13 +556,23 @@ function arrive(table: Table, el: HTMLElement, prev: HTMLElement | null): void {
   // is an effect (people/hooks/use-place.ts), a person's tabs a layout effect of the page around them (tab-scroll.ts).
   const nested = table.env.toTop ? nestedIn(table, el) : false;
   if (table.env.toTop && (prev || !nested)) table.env.toTop(el, nested);
-  if (side !== "next" && side !== "prev") {
+  // What it replaced was itself still on its way in, and this says no side of its own: that arrival, taken over.
+  const taken = side !== "next" && side !== "prev" && was?.role === "in" ? was.move : null;
+  if (!taken && side !== "next" && side !== "prev") {
     if (prev) stop(table, prev);
     return;
   }
-  const dir: Side = side === "next" ? 1 : -1;
-  const under = was?.move && was.move.dir === dir ? was.move : null;
+  const dir: Side = taken?.dir ?? (side === "next" ? 1 : -1);
+  const under = taken ?? (was?.move && was.move.dir === dir ? was.move : null);
   const move = under ?? timelineOf(table.env, el, { dir, from: 0, speed: 0, width: el.getBoundingClientRect().width });
+  changeOn(table, el, prev, move);
+}
+
+/**
+ * The change on `move`: what the view replaced leaves by a copy of itself (the node React took away, or a copy of one it
+ * kept hidden), and the view enters.
+ */
+function changeOn(table: Table, el: HTMLElement, prev: HTMLElement | null, move: Timeline): void {
   if (prev && !prev.isConnected) adopt(table, prev, el, move);
   else if (prev && hiddenInPlace(prev)) adopt(table, keptCopy(table, prev), el, move);
   else if (prev) stop(table, prev);
