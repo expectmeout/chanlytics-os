@@ -17,7 +17,7 @@ import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
 import { SAYS_WHEN } from "../says-when";
 import { PageHead } from "./page-head";
-import { crumbLabel, useCrumbsShown, useStandingSaid } from "./standing";
+import { crumbLabel, useCrumbsShown, useHeadHeldNow, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
 import { navigate } from "../../frame-verbs";
 
@@ -191,9 +191,17 @@ function GlassHead() {
   );
 }
 
-/** The page's own act, where it named one; the frame's act stands in the same place otherwise (frame/app-shell.tsx). */
-function PageAct() {
+/**
+ * The page's own act, where it named one; the frame's act stands in the same place otherwise (frame/app-shell.tsx). One a
+ * held head keeps from a view that has gone (standing.ts useHeadHeld) stands where it stood and takes no press or focus
+ * until the view arriving says its own: its place is inert meanwhile.
+ */
+function PageAct({ place }: { place: Element }) {
   const said = useStandingSaid();
+  const held = useHeadHeldNow();
+  useLayoutEffect(() => {
+    place.toggleAttribute("inert", held);
+  }, [place, held]);
   return said?.act ? <>{said.act}</> : null;
 }
 
@@ -287,7 +295,7 @@ export function FrameHead({ look }: { look: string }) {
     <>
       {places.dateline && createPortal(<PageDateline />, places.dateline)}
       {createPortal(<GlassHead />, places.head)}
-      {places.act && createPortal(<PageAct />, places.act)}
+      {places.act && createPortal(<PageAct place={places.act} />, places.act)}
       {places.under && createPortal(<PageUnder />, places.under)}
       {column && createPortal(<BarTitleSaid />, column)}
     </>
