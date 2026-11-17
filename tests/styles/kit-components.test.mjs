@@ -684,8 +684,11 @@ const FIGURES = {
   // Someone else changed it while the page is open (0052's wash): the page's hook says it washes, the figure wears it.
   "figure-washed": () =>
     h(Figure, { label: "Customer messages", value: "Today", meta: "on 6 of 7 days", washed: true }),
-  // A phone's figure (canvas A, P1): a tile of its own, two to a line.
+  // A figure as a tile of its own (the console's numbers).
   "figure-tile": () => h(Figure, { label: "Last contact", value: "Sep 24", meta: "You replied", look: "tile" }),
+  // A person's figures on a phone: one of a line of them, no ground, the whole figure its door.
+  "figure-compact": () =>
+    h(Figure, { label: "Emails", value: "2 out", meta: "0 back", look: "compact", door: { onClick } }),
   // The one number a view is for (a sequence's History): at the decision's size, its label beside it.
   "figure-hero": () => h(Figure, { label: "sent", value: "19", look: "hero" }),
   // The same, with its line under it and too few to read: each on a line of its own under the number.

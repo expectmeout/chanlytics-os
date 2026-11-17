@@ -434,9 +434,23 @@ function mergeAsk(c: PageCtx): SheetAsk {
 function headLineOf(c: PageCtx, row: "line" | "notice"): ReactNode {
   const line = c.p.head.line;
   const notices = c.p.notices.some((n) => n.home === "name");
-  if (row === "notice") return notices ? <NameNotices c={c} /> : line?.kind === "origin" ? <HeadLine c={c} /> : null;
+  // A phone says a stand-in's story on the state's line (phoneStoryOf), not on a row of its own under the face.
+  if (row === "notice")
+    return notices ? <NameNotices c={c} /> : line?.kind === "origin" && !c.phone ? <HeadLine c={c} /> : null;
   if (!line || line.kind === "origin" || (line.kind === "gone" && !c.phone)) return null;
   return <HeadLine c={c} />;
+}
+
+/**
+ * A stand-in's story ("We wrote first · Nov 5") on a phone, where no notice takes its row: said on the state's line beside
+ * the face, as a sentence is ("● Not heard from · We wrote first · Nov 5"), where a row of its own under the face stood the
+ * head 30px taller for six words (Ruben, 17 Nov 2026). The head's state says no sentence where the story is told
+ * (personHeadStateOf), so the line says one or the other.
+ */
+function phoneStoryOf(c: PageCtx): string | null {
+  const line = c.p.head.line;
+  if (!c.phone || line?.kind !== "origin" || c.p.notices.some((n) => n.home === "name")) return null;
+  return line.text;
 }
 
 /**
@@ -448,6 +462,7 @@ function headLineOf(c: PageCtx, row: "line" | "notice"): ReactNode {
 function heroId(c: PageCtx) {
   const { p, flash, canRecord, load, error } = c;
   const head = personHeadStateOf(p);
+  const story = phoneStoryOf(c);
   return (
     <div className="cl-prof-id">
       {p.head.face.kind === "tile" ? (
@@ -474,6 +489,10 @@ function heroId(c: PageCtx) {
         {c.phone && head.sentence ? (
           <span className="cl-prof-now-said" data-testid="person-now-why">
             {head.sentence.replace(/\.$/, "")}
+          </span>
+        ) : story ? (
+          <span className="cl-prof-now-said" data-testid="person-origin">
+            {story}
           </span>
         ) : null}
       </span>

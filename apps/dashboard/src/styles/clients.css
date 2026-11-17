@@ -4553,18 +4553,25 @@ a.cl-prof-word:focus-visible > .cl-prof-word-text {
   box-shadow: var(--focus-ring);
 }
 @media (max-width: 900px) {
-  /* On a phone the figures are the kit's tiles on the page itself, no pane round them (canvas A, P1): one row, each an
-     equal share, three at most, the most telling first (contracts personFiguresOf). Two by two left a third alone on its
-     line and one tile half a row (the phone pass, 3 Nov 2026). */
+  /* On a phone the figures are one line of the kit's compact figures on the page itself, no pane round them, at the
+     words' 16px edge: each as wide as what it says, a hairline between two, three at most, the most telling first
+     (contracts personFiguresOf). A tile each stood 96px tall for a number and its line (Ruben, 17 Nov 2026). */
   .main-scroll .cl-prof-work > .cl-prof-figures {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    gap: 8px;
-    padding: 0;
+    display: flex;
+    gap: 0;
+    padding: 0 4px;
     border-radius: 0;
     background: none;
     box-shadow: none;
+  }
+  .cl-prof-figures > div {
+    flex: 0 1 auto;
+    padding: 2px 14px;
+    border-left: 1px solid var(--line);
+  }
+  .cl-prof-figures > div:first-child {
+    padding-left: 0;
+    border-left: 0;
   }
   .main-scroll .cl-prof-work > .cl-prof-figures > :nth-child(n + 4) {
     display: none;
