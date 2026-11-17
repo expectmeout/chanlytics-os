@@ -1756,6 +1756,12 @@ test("a cold email is a broadcast whoever the row says wrote it: every pause hol
     held.conversations[0].paused_until = pausedUntil;
     const b = await deliver(ports(held, emailWire()), cold({ sender, proactive, ...(kind ? { kind } : {}) }));
     assert.deepEqual([b.outcome, b.reason], ["refused", "human_has_it"], `${sender}/${proactive}: a paused thread`);
+    // Stop everything cancels a cold email as billing's pause does, never holds it: its clock plans a canceled wait again.
+    const stopped = coldWorld();
+    stopped.conversations[0].tenants = { status: "active", sending_stopped_at: "2026-09-10T09:00:00.000Z" };
+    const c = await deliver(ports(stopped, emailWire()), cold({ sender, proactive, ...(kind ? { kind } : {}) }));
+    assert.deepEqual([c.outcome, c.reason, c.held ?? false], ["refused", "stopped", false], `${sender}: stopped`);
+    assert.equal(isWaitRefusal(c.reason), true, "a wait: the clock plans it again once sending is resumed");
   }
 });
 
@@ -2423,6 +2429,7 @@ async function broadcastBatchByEmail({ who, facts, trigger = null }) {
         audience: trigger ? { kind: "playbook", id: "p1", label: "A moment", trigger } : null,
       }),
       workspacePaused: async () => false,
+      sendingStopped: async () => false,
       fail: async () => {},
       startSending: async () => true,
       // The message as the jobs adapter reads it: Meta's row for it and the email version, the one the person is sent.

@@ -35,6 +35,7 @@ import {
   openPostAttempt,
   type PostRow,
 } from "@chanlytics/db/files";
+import { isSendingStopped } from "@chanlytics/db/workspace";
 import { CertainFailure, isCertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
 import { markSpoke, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
@@ -63,6 +64,8 @@ async function recheck(db: Db, post: PostRow): Promise<{ poster: MetaPoster } | 
     return { held: ON_INSTAGRAM.held.approver };
   const file = await findFileForWork(db, post.tenant_id, post.file_id);
   if (!file || file.removed_at) return { held: ON_INSTAGRAM.held.removed };
+  // Stop everything, pressed since it was made ready: it stays down, and is its owner's to post again once they resume.
+  if (await isSendingStopped(db, post.tenant_id)) return { held: ON_INSTAGRAM.held.stopped };
   return findPoster(db, post.tenant_id);
 }
 

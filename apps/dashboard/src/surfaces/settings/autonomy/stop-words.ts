@@ -2,7 +2,8 @@
  * Stop everything's words on Settings › Autonomy (D22 of the answers canvas): its row, read from what the stop keeps, and
  * what a press says, read from its answer (server/ask/act/stop.ts). Never "paused" while something it reached still goes out
  * on its own: what still goes, that pressing again tries again, and the one other way to do it by hand (a sequence's own
- * pause on Campaigns, the Replies row above).
+ * pause on Campaigns, the Replies row above). Once the stop is written nothing goes out on its own, and a person's own
+ * reply still does, so it says both.
  */
 import type { AskStopped } from "@chanlytics/contracts";
 
@@ -70,7 +71,7 @@ export function stopLineOf(kept: AskStopped | null): StopLine {
     };
   return {
     label: "Everything is paused",
-    hint: `${kept.playbooks.length} paused, and replies wait for you.`,
+    hint: "Nothing goes out on its own until you resume. Your own replies still send.",
     press: "resume",
   };
 }
@@ -79,7 +80,7 @@ export function stopLineOf(kept: AskStopped | null): StopLine {
 export function stopSaid(press: StopLine["press"], answer: StopPressed): { words: string; warn: boolean } {
   if (press === "stop")
     return answer.stopped
-      ? { words: "Everything is paused. Nothing goes out.", warn: false }
+      ? { words: "Everything is paused. Nothing goes out on its own.", warn: false }
       : { words: `Not everything stopped. ${stillGoing(answer.left, !answer.replies)}`, warn: true };
   return answer.stopped
     ? { words: `Not everything came back. ${stillHeld(answer.paused, answer.replies)}`, warn: true }

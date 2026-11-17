@@ -14,10 +14,10 @@ import { GO, type Answering, type InboundContext, type ModeInForce } from "./con
 
 /** The mode in force for this one message: the workspace's posture, or this person's own setting where one is set. */
 export async function readModeInForce(cx: InboundContext, ing: IngestResult): Promise<ModeInForce> {
-  const { db, tenantId, ports, posture, L } = cx;
+  const { db, tenantId, ports, posture, stopped, L } = cx;
   // Reassigned once THIS person's own setting is known, just before the
-  // policy is consulted below.
-  let replyMode = posture.replyMode;
+  // policy is consulted below. Stop everything holds either way (reply-posture.ts effectiveReplyMode).
+  let replyMode = effectiveReplyMode(posture, null, stopped);
   let personMode: string | null = null;
   // The person's own receptionist mode (People → profile → "Receptionist
   // for …") wins over the workspace policy. Looked up per message and never
@@ -31,7 +31,7 @@ export async function readModeInForce(cx: InboundContext, ing: IngestResult): Pr
   // attachments" text from the receptionist that was told to stay out.
   try {
     personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
-    replyMode = effectiveReplyMode(posture, personMode);
+    replyMode = effectiveReplyMode(posture, personMode, stopped);
   } catch (e) {
     L.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
   }

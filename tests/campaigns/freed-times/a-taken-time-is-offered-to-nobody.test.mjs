@@ -49,6 +49,7 @@ function fakes(over = {}) {
   const answers = {
     broadcast: batchRow(),
     workspacePaused: false,
+    sendingStopped: false,
     facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "UTC" },
     batch: [{ contact_id: "k1", facts: { freed_when: "on Tuesday at 3:00 PM", appointment: "appt-1" } }],
     wireUnavailable: null,

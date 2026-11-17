@@ -83,6 +83,7 @@ function fakes(over = {}) {
   const answers = {
     broadcast: broadcast(),
     workspacePaused: false,
+    sendingStopped: false,
     message: rowsOf({ whatsapp: approved }),
     // UTC, where noon is inside the day's sending hours on any machine the suite runs on.
     facts: { businessName: "Marisa's", bookingLink: "https://book.example/m", timezone: "UTC" },

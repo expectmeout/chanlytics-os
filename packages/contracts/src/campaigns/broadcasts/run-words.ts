@@ -269,6 +269,7 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   no_thread: "no conversation for that number",
   human_has_it: "a person had the conversation",
   paused: "the workspace was paused",
+  stopped: "everything was stopped",
   superseded_by_human: "a person answered first",
   // The receptionist's held reply, past the reply horizon after the message it answers: a person answers instead.
   too_late: "too late to send automatically",

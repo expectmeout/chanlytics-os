@@ -13,7 +13,7 @@ import type { InboundMessage } from "@chanlytics/channels/inbound";
 import type { IngestResult } from "@chanlytics/db/channels";
 import type { Json } from "@chanlytics/db/types";
 import type { Delivered } from "../deliver/deliver";
-import { replyPosture } from "./reply-posture";
+import { holdsForAStop, replyPosture } from "./reply-posture";
 import {
   IngestFailed,
   type EscalateOutcome,
@@ -104,6 +104,8 @@ export async function openInbound(input: InboundInput, ports: InboundPorts) {
     L: log,
     rt,
     posture,
+    // Its owner stopped all sending (Stop everything): no mode lets the receptionist speak without a person while it stands.
+    stopped: holdsForAStop(rt),
     brainCfg,
     fallbacks,
     notifyTarget,

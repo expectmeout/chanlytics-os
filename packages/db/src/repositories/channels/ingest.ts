@@ -21,6 +21,7 @@ import type { Database, Json } from "../../types";
 import { emitEvent } from "../events/events";
 import { dbLog } from "../../shared/observe";
 import { noChannelColumns, noRelationshipColumn } from "../campaigns/channels";
+import { noStopColumn } from "../workspace/rows";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -442,7 +443,9 @@ export async function resolveOutboundTargetForContact(
  * `{ data, error }`: the door words a failed read itself, because "we could not check" is not "yes". A database 00299
  * has not reached has no `has_relationship`, and one 00297 has not reached has no channel arrays either: it is read
  * again without them, a yes then covers WhatsApp alone and no relationship is on record, as before them: code that ships
- * before its migration must keep every reply, answer and booking link going.
+ * before its migration must keep every reply, answer and booking link going. The same holds for the workspace's
+ * `sending_stopped_at` (Stop everything, core sendingHoldOf): a database its migration has not reached is read
+ * again without it, and no stop stands there.
  */
 export async function findWireRow(
   db: Db,
@@ -450,18 +453,23 @@ export async function findWireRow(
 ) {
   const head =
     "paused_until, control_kind, control_ref, control_until, contact_id, contacts (consent, dnc, marketing_consent, ";
-  const tail = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), tenants (status)";
-  const read = (columns: string) =>
-    db
-      .from("conversations")
-      .select(`${head}${columns}${tail}`)
-      .eq("id", params.conversationId)
-      .eq("tenant_id", params.tenantId)
-      .maybeSingle();
-  const full = await read(`consent_channels, marketing_channels, ${params.relationship ? "has_relationship, " : ""}`);
-  if (!noRelationshipColumn(full.error) && !noChannelColumns(full.error)) return full;
-  const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
-  return noChannelColumns(withChannels.error) ? read("") : withChannels;
+  const person = "email_marketing, erased_at, erasing_since, email, email_suppressed_at), ";
+  // The read with the workspace's columns as asked, down the person's columns a database may not have yet.
+  const readDown = async (workspace: string) => {
+    const read = (columns: string) =>
+      db
+        .from("conversations")
+        .select(`${head}${columns}${person}tenants (${workspace})`)
+        .eq("id", params.conversationId)
+        .eq("tenant_id", params.tenantId)
+        .maybeSingle();
+    const full = await read(`consent_channels, marketing_channels, ${params.relationship ? "has_relationship, " : ""}`);
+    if (!noRelationshipColumn(full.error) && !noChannelColumns(full.error)) return full;
+    const withChannels = noRelationshipColumn(full.error) ? await read("consent_channels, marketing_channels, ") : full;
+    return noChannelColumns(withChannels.error) ? read("") : withChannels;
+  };
+  const withStop = await readDown("status, sending_stopped_at");
+  return noStopColumn(withStop.error) ? readDown("status") : withStop;
 }
 
 /**

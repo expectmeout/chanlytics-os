@@ -1,6 +1,6 @@
 /** Broadcast: stops. */
 
-import { addressOf, finishedRunHeldWhy, type JobNews, jittered, wireFailure } from "@chanlytics/contracts";
+import { addressOf, finishedRunHeldWhy, type JobNews, jittered, MIN_MS, wireFailure } from "@chanlytics/contracts";
 import { errField, logger, logAndGoOn } from "@chanlytics/log";
 import type { Delivered } from "../../deliver/deliver";
 import type { BroadcastChannel as Channel } from "../broadcast-channels";
@@ -252,8 +252,57 @@ export async function giveBack(
   return { back: reached ? "throttled" : "unreachable", channel };
 }
 
-/** What the door's refusal to take a send becomes here: its status, 0 when the provider was never reached. */
-export type NotTaken = { outcome: "not_taken"; status: number };
+/**
+ * What the door's refusal to take a send becomes here: its status, 0 when the provider was never reached. `held`: Stop
+ * everything holds it (heldAsNotTaken): nothing left either, and the run waits for the stop, not for the provider.
+ */
+export type NotTaken = { outcome: "not_taken"; status: number; held?: true };
+
+/**
+ * How long a run Stop everything holds waits before it looks again: the longest it waits to go on once sending is
+ * resumed. One look a run, never one a person, so a stopped workspace costs the ledger a job per run every few minutes.
+ */
+const STOP_WAIT_MS = 5 * MIN_MS;
+
+const scheduleAfterTheStop = (ports: BroadcastBatchPorts, id: string): Promise<void> =>
+  ports.scheduleNext(id, new Date(ports.now() + jittered(STOP_WAIT_MS, ports.random)));
+
+/**
+ * Whether the owner stopped everything (deliver/stop.ts sendingHoldOf), asked at the head of every batch, before anyone
+ * is claimed; when they did, the run has already been placed to look again. A stopped workspace's run WAITS as it was:
+ * its people still queued, nothing failed and nobody told, where billing's pause fails it (stoppedByBilling), so it goes
+ * on by itself once sending is resumed. Nothing is carried to the next look: a stop is none of the run's own troubles.
+ * Asked after the day's hours on purpose: a run made for a day (a visit's moment) still held when that day's hours end
+ * is ended by them, as it always was, never sent a day late.
+ */
+export async function holdForTheStop(ports: BroadcastBatchPorts, run: Pick<BroadcastRow, "id">): Promise<boolean> {
+  if (!(await ports.sendingStopped())) return false;
+  await scheduleAfterTheStop(ports, run.id);
+  return true;
+}
+
+/**
+ * The door's answer for a person Stop everything holds (deliver/stop.ts stopOf: nothing left, nothing canceled), said as
+ * a send not taken, which is what it is to a batch: an email's queued row is withdrawn and the person is given back.
+ */
+export const heldAsNotTaken = (out: Delivered): Delivered | NotTaken =>
+  out.outcome === "refused" && out.held ? { outcome: "not_taken", status: 0, held: true } : out;
+
+/**
+ * A send the door did not take, given back (giveBack). Where a stop that landed mid-batch held it, the run waits as
+ * holdForTheStop has it wait, the person in the queue with everyone after them; else it backs off for the provider.
+ */
+export async function giveBackFromTheDoor(
+  ports: BroadcastBatchPorts,
+  personName: { broadcastId: string; contactId: ContactId },
+  out: NotTaken,
+  channel: Channel,
+): Promise<Verdict> {
+  if (!out.held) return giveBack(ports, personName, out.status !== 0, channel);
+  await release(ports, personName.broadcastId, personName.contactId, "not_taken");
+  await scheduleAfterTheStop(ports, personName.broadcastId);
+  return "stop";
+}
 
 /**
  * A batch that reached nobody because a read failed (the number's credentials, or its people) waits a minute and tries

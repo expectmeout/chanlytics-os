@@ -8009,6 +8009,7 @@ export type Database = {
           logo_path: string | null
           name: string
           ours: boolean
+          sending_stopped_at: string | null
           slug: string
           status: string
           timezone: string
@@ -8024,6 +8025,7 @@ export type Database = {
           logo_path?: string | null
           name: string
           ours?: boolean
+          sending_stopped_at?: string | null
           slug: string
           status?: string
           timezone?: string
@@ -8039,6 +8041,7 @@ export type Database = {
           logo_path?: string | null
           name?: string
           ours?: boolean
+          sending_stopped_at?: string | null
           slug?: string
           status?: string
           timezone?: string

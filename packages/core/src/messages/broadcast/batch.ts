@@ -45,6 +45,9 @@ import {
   afterTheBatch,
   broadcastLog,
   giveBack,
+  giveBackFromTheDoor,
+  heldAsNotTaken,
+  holdForTheStop,
   offersAtTheHead,
   readPeople,
   recipientAddressOf,
@@ -167,7 +170,8 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
   // queued, and the door finalizes it. A door that throws before the wire leaves that row queued, so it is withdrawn
   // here (a row the door settled is not touched): none is left to count against the month. A wire that could not be
   // bound at the send (the number this person wrote to, of a workspace's two) left nothing either, as one not taken.
-  const out = await ports.deliver(created.delivery).catch(async (e: unknown): Promise<NotTaken> => {
+  const taken = ports.deliver(created.delivery).then(heldAsNotTaken); // held by Stop everything is not taken either
+  const out = await taken.catch(async (e: unknown): Promise<NotTaken> => {
     if (isNotTakenError(e)) return { outcome: "not_taken", status: e.status };
     if (isWireUnavailableError(e)) return { outcome: "not_taken", status: 0 };
     await withdrawQueued(ports, b, created.delivery);
@@ -176,7 +180,7 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
   if (out.outcome === "not_taken") {
     // Nothing left: an email's queued row is withdrawn so nothing stays queued, and the next try writes its own.
     await withdrawQueued(ports, b, created.delivery);
-    return giveBack(ports, { broadcastId: b.id, contactId: recipient.contact_id }, out.status !== 0, channel);
+    return giveBackFromTheDoor(ports, { broadcastId: b.id, contactId: recipient.contact_id }, out, channel);
   }
   if (out.outcome === "sent") {
     // The claim's "nobody knows" is settled: a sent row carries no reason.
@@ -227,6 +231,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // Who is next, before the wires are asked about: the channels this batch goes by are its people's.
   const queued = await ports.batch(broadcast.id, BROADCAST_CHUNK);
   const held = [
+    // Stop everything first, and after the day's hours (stops.ts holdForTheStop): a stopped run waits, and asks no wire.
+    () => holdForTheStop(ports, broadcast),
     () => wireIsUnbound(ports, broadcast, cmd, queued),
     () => isTakenBeforeItWent(ports, broadcast, facts.timezone),
   ];

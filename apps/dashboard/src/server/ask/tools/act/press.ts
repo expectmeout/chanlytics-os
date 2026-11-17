@@ -124,7 +124,7 @@ const sequenceCount = (n: number): string => (n === 1 ? "1 sequence" : `${n} seq
 /** What Ask is to say of a stop: done, or what still goes out, that asking again tries again, and the one other way. */
 function stopNote(answer: StopAnswer): string {
   if (answer.stopped)
-    return "It is done. Say so in one sentence: how many sends it paused, and that replies now wait for a person.";
+    return "It is done: nothing goes out on its own until they resume, and their own replies still send. Say so in one sentence.";
   const still = [
     answer.left > 0 ? `${sequenceCount(answer.left)} it tried to pause still sending` : "",
     answer.replies ? "" : "replies still going out on their own",
