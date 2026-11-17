@@ -81,23 +81,32 @@ function searchNeedle(q: string | null | undefined): string {
   return (q ?? "").trim().replace(/[,()"'\\%*_]/g, "");
 }
 
-export async function listPeople(
+/**
+ * A page of People (`rows`), each with the reply mode in force, and, before its rows are in, who is on it (`listed`): the
+ * page's reply modes name each of its people (people_reply_modes, 00625, the page people_page lists, as people_list's
+ * is), and land well before the rows do, so a read of what is beside each person can start then (readers/people.ts: what
+ * the member has seen of them). `listed` is null where the modes could not be read. `first`: the rows of the first page
+ * as the turn already reads them (listFirstPeople), for a page that is that one.
+ */
+export function startPeoplePage(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: TenantId,
-  page: PeoplePage = {},
-): Promise<PersonRowDto[]> {
+  page: PeoplePage,
+  first?: Promise<PersonRowDto[]>,
+): { rows: Promise<PersonRowDto[]>; listed: Promise<string[] | null> } {
   // The page's reply modes with its rows, not after them, and its own people's alone (people_reply_modes, 00625): it
   // read every reply policy of the workspace beside each page, however many people had a mode of their own.
   const thisPage = { ...page, q: searchNeedle(page.q) || null };
-  const [rows, modes] = await Promise.all([
-    listPeoplePage(ctx.supabase, tenantId, thisPage),
-    listPeopleReplyModes(ctx.supabase, tenantId, thisPage).catch((e: unknown) => {
-      log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
-      return null;
-    }),
-  ]);
-  // None said where they cannot be read, as before: the page says no mode rather than a guessed one.
-  return rows.map((r) => ({ ...r, effective_reply_mode: modes?.get(r.id) ?? null }));
+  const found = first ?? listPeoplePage(ctx.supabase, tenantId, thisPage);
+  const modes = listPeopleReplyModes(ctx.supabase, tenantId, thisPage).catch((e: unknown) => {
+    log.error("people_policies_read_failed", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
+  const rows = Promise.all([found, modes]).then(([read, kept]) =>
+    // None said where they cannot be read, as before: the page says no mode rather than a guessed one.
+    read.map((r) => ({ ...r, effective_reply_mode: kept?.get(r.id) ?? null })),
+  );
+  return { rows, listed: modes.then((kept) => (kept ? [...kept.keys()] : null)) };
 }
 
 /**
@@ -141,9 +150,22 @@ function withReplyModes(rows: PersonRowDto[], pols: Awaited<ReturnType<typeof re
  * them from "that is everyone". Every read that means all of them goes through
  * here, or, for a copy that has no next pass, through listEveryoneOnce.
  */
-export async function listEveryone(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<PersonRowDto[]> {
-  const [rows, pols] = await Promise.all([listEveryoneIn(ctx.supabase, tenantId), replyPolicies(ctx, tenantId)]);
+export async function listEveryone(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  first?: Promise<PersonRowDto[]>,
+): Promise<PersonRowDto[]> {
+  const [rows, pols] = await Promise.all([listEveryoneIn(ctx.supabase, tenantId, first), replyPolicies(ctx, tenantId)]);
   return withReplyModes(rows, pols);
+}
+
+/**
+ * People's first page as the database answers it, every column people_list says and no reply mode yet: the read the
+ * first page of People (startPeoplePage) and everyone (listEveryone) both begin with, which a turn makes once for both
+ * (readers/everyone.ts peopleFirstRows). Asked nothing past the workspace, as each of them asks it.
+ */
+export function listFirstPeople(ctx: Pick<RouteContext, "supabase">, tenantId: TenantId): Promise<PersonRowDto[]> {
+  return listPeoplePage(ctx.supabase, tenantId, {});
 }
 
 /**

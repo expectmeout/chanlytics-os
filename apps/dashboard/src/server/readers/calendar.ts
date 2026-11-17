@@ -26,6 +26,7 @@ import { getCalendarSources, weekFrom } from "../calendar/week/week";
 import type { CalendarSources } from "../calendar/week/items";
 import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
+import { everyone } from "./everyone";
 
 /**
  * The calendar's one read for a span (server/calendar/week/week.ts calendarSources) with the zone and the settings the turn
@@ -50,6 +51,8 @@ export const sources: Reader<
       fresh,
       timezone,
       config: settings?.config ?? null,
+      // Everyone in People as the turn reads them, which its other reads of People share (readers/everyone.ts).
+      people: () => load(rc, everyone, undefined).then((r) => r.data),
     });
     return { data, rows: [], stamp: readerStamp() };
   },
