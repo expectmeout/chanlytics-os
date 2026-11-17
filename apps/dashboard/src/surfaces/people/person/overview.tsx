@@ -1,22 +1,23 @@
 /**
- * A person's Overview (canvas A §4): Up next, their last words, their notes with the composer, their deals and what is
- * coming. Up next is one ladder of what is true for them now, each row a fact and its one act, four at most and the rest
- * folded (contracts personNextFor over the deal cards the page draws); a deal's next act is its rung's alone, so the deal
- * card under it keeps its other moves. Their last words are the doors to the thread, so the page never says "Open the
- * thread" twice. Every sentence is contracts'; the acts are the page's verbs (pdRun, markStepDone, the visit line's
- * presses, the record kit's fold for a yes).
+ * A person's story, the one page's first parts (Ruben, 17 Nov 2026: "ONE shared person page"; the One person page canvas):
+ * Now, Latest, Deals for someone with a deal, Notes, Coming up and History, in that order for every person, each drawn
+ * whether or not it holds anything, so no part is ever blank. Now is one ladder of what is true for them now, each row a
+ * fact and its one act, four at most and the rest folded (contracts personNextFor over the deal cards the page draws); a
+ * deal's next act is its rung's alone, so the deal card under it keeps its other moves; a person who needs you says why
+ * there, once, the head's act its answer; with nothing waiting it says what AI does for them. Latest is the newest thing
+ * of any kind: their last words where it was a message, else the call, the form or the visit it was. Every sentence is
+ * contracts'; the acts are the page's verbs (pdRun, markStepDone, the visit line's presses, the record kit's fold for a yes).
  */
 import { useState } from "react";
 import {
-  LAST_WORDS_TITLE,
   NOTE_REFUSALS,
   NOTE_WORDS,
+  PERSON_PART_WORDS,
   PERSON_WASH_WORDS,
-  UP_NEXT_WORDS,
   personNextFor,
   personTabRoute,
 } from "@chanlytics/contracts";
-import type { UpNextRowVM } from "@chanlytics/contracts";
+import type { PersonVM, UpNextRowVM } from "@chanlytics/contracts";
 import { pageClock } from "@/bridge/zone";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -28,8 +29,9 @@ import { PersonDealCard, pdRun } from "../deal/person-deal";
 import { markStepDone, seePersonNote } from "../people-detail";
 import { completeStep } from "../../step-done";
 import { PersonNotes } from "./notes";
-import { FactNotices, hasFactNotices } from "./notices/fact-notices";
-import { NOTES_FILTER, campaignsFold, comingUpSection } from "./sections";
+import { FactNotices } from "./notices/fact-notices";
+import { NOTES_FILTER, comingUpSection, historyPart } from "./sections";
+import { PersonTimeline } from "./timeline";
 import type { NoticeCtx, PageCtx, UpNextCtx } from "./ctx";
 
 /** A rung's one act, as the page's verbs run it; answered when the door takes it, and the page read again. */
@@ -122,14 +124,38 @@ function Rung({
   );
 }
 
-/** Up next: the ladder, four rungs, the rest under "N more". Nothing when nothing is true. */
+/** Whether the head's state asks someone (People's Needs you, or a conversation a member holds): Now says why, once. */
+const waitsOnYou = (p: PersonVM): boolean => p.state === "needs_you" || p.state === "waiting_on_you";
+
+/** What AI does for them while nothing waits: their own setting, else the workspace's, or that they asked to stop. */
+const aiLine = (p: PersonVM): string =>
+  PERSON_PART_WORDS.aiDoes(p.receptionistMode.person ?? p.receptionistMode.workspace, p.consent.state === "opted_out");
+
+/**
+ * Why they need you, Now's first row (the one page, D6): Right now's reason and its sentence, said here and not under the
+ * name. No press of its own: the head's act, their conversation, is the answer.
+ */
+function NeedsRow({ p }: { p: PersonVM }) {
+  return (
+    <li className="cl-prof-rung" data-kind="needs" data-testid="person-now-needs">
+      <div className="cl-prof-rung-words">
+        <span className="cl-prof-rung-title">{p.rightNow.title}</span>
+        <span className="cl-prof-rung-sub">{p.rightNow.detail || PERSON_PART_WORDS.answerIt}</span>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * Now: why they need you where they do, then the ladder, four rungs, the rest under "N more". Drawn for everyone: with
+ * nothing waiting it says so, and what AI does for them (the one page: no part is ever blank).
+ */
 export function UpNext({ c }: { c: UpNextCtx }) {
   const vm = personNextFor(c.p, c.dealP, pageClock().zone(), Date.now());
   const [all, setAll] = useState(false);
   const { busy, run } = useRungActs(c);
-  // A next step a call left is Up next's too (a notice under the rungs): the pane draws for it alone.
-  if (!vm.rows.length && !hasFactNotices(c, "next")) return null;
   const rows = all && vm.more ? [...vm.rows, ...vm.more.rows] : vm.rows;
+  const needs = waitsOnYou(c.p);
   return (
     <section
       className="cl-prof-section cl-prof-next"
@@ -139,16 +165,22 @@ export function UpNext({ c }: { c: UpNextCtx }) {
       <h2 className="cl-prof-section-title" id="person-up-next-title">
         {/* The ladder someone else changed while the page is open: its name washes (canvas A's wash), never a row's place. */}
         <Wash scope={c.p.id} value={vm.rows.map((r) => r.id).join(" ")} said={PERSON_WASH_WORDS.upNext}>
-          {UP_NEXT_WORDS.title}
+          {PERSON_PART_WORDS.now}
         </Wash>
       </h2>
-      {rows.length ? (
+      {needs || rows.length ? (
         <ol className="cl-prof-rungs">
+          {needs ? <NeedsRow p={c.p} /> : null}
           {rows.map((row) => (
             <Rung key={row.id} c={c} row={row} busy={busy} run={(r) => void run(r)} />
           ))}
         </ol>
-      ) : null}
+      ) : (
+        <p className="cl-prof-rest" data-testid="person-now-rest">
+          <span className="cl-prof-rest-title">{PERSON_PART_WORDS.nothingWaits}</span>
+          <span className="cl-prof-rest-sub">{aiLine(c.p)}</span>
+        </p>
+      )}
       <FactNotices c={c} home="next" />
       {/* More than four rungs: the rest under one fold, "2 more" (canvas A, M1's fold with a summary). */}
       {vm.more ? (
@@ -167,10 +199,51 @@ export function UpNext({ c }: { c: UpNextCtx }) {
   );
 }
 
-/** Their last words: their newest message and our newest, each a door to the thread. */
-export function LastWords({ c }: { c: NoticeCtx }) {
-  const words = c.p.lastWords;
-  if (!words.length && !hasFactNotices(c, "last-words")) return null;
+/** The kinds that are the conversation itself: their words and ours, and the hand-overs in it. */
+const SPOKEN = new Set(["customer", "receptionist", "team", "escalation", "decision"]);
+
+/** Their words and ours, each a door to the conversation (canvas A's two bubbles). */
+function wordsList(ctx: NoticeCtx) {
+  const to = ctx.p.openThread;
+  return (
+    <div className="cl-prof-word-list">
+      {ctx.p.lastWords.map((w) => {
+        // Theirs and ours keep their place, so newer words of theirs wash where the last ones were (canvas A's wash).
+        const body = (
+          <>
+            <span className="cl-prof-word-meta">
+              {w.who} · {w.when}
+            </span>
+            <span className="cl-prof-word-text">
+              <Wash scope={ctx.p.id} value={w.id} said={w.mine ? null : PERSON_WASH_WORDS.lastWords}>
+                {w.text}
+              </Wash>
+            </span>
+          </>
+        );
+        const place = w.mine ? "ours" : "theirs";
+        return to ? (
+          <a key={place} className="cl-prof-word" data-mine={w.mine || undefined} {...routeDoor(to)}>
+            {body}
+          </a>
+        ) : (
+          <div key={place} className="cl-prof-word" data-mine={w.mine || undefined}>
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Latest: the newest thing of any kind (the one page, D4). Where it was the conversation, their words and ours, each a
+ * door to it; else the call, the form, the visit or the step it was, as History says it, with the door to their
+ * conversation where they have one. A reply AI holds before it sends is said under it, one row (canvas A).
+ */
+export function Latest({ c }: { c: NoticeCtx }) {
+  const newest = c.p.timeline.find((t) => !t.ahead) ?? null;
+  const spoken = c.p.lastWords.length > 0 && (!newest || SPOKEN.has(newest.kind));
   const to = c.p.openThread;
   return (
     <section
@@ -178,47 +251,35 @@ export function LastWords({ c }: { c: NoticeCtx }) {
       aria-labelledby="person-words-title"
       data-testid="person-last-words"
     >
-      <h2 className="cl-prof-section-title" id="person-words-title">
-        {LAST_WORDS_TITLE}
-      </h2>
-      <div className="cl-prof-word-list">
-        {words.map((w) => {
-          // Theirs and ours keep their place, so newer words of theirs wash where the last ones were (canvas A's wash).
-          const body = (
-            <>
-              <span className="cl-prof-word-meta">
-                {w.who} · {w.when}
-              </span>
-              <span className="cl-prof-word-text">
-                <Wash scope={c.p.id} value={w.id} said={w.mine ? null : PERSON_WASH_WORDS.lastWords}>
-                  {w.text}
-                </Wash>
-              </span>
-            </>
-          );
-          const place = w.mine ? "ours" : "theirs";
-          return to ? (
-            <a key={place} className="cl-prof-word" data-mine={w.mine || undefined} {...routeDoor(to)}>
-              {body}
-            </a>
-          ) : (
-            <div key={place} className="cl-prof-word" data-mine={w.mine || undefined}>
-              {body}
-            </div>
-          );
-        })}
+      <div className="cl-prof-section-head">
+        <h2 className="cl-prof-section-title" id="person-words-title">
+          {PERSON_PART_WORDS.latest}
+        </h2>
+        {to && !spoken ? (
+          <LinkButton {...routeDoor(to)} className="cl-prof-door" data-testid="person-latest-open">
+            {PERSON_PART_WORDS.openConversation} <Icon name="chevron" size={10} />
+          </LinkButton>
+        ) : null}
       </div>
-      {/* A reply the receptionist holds before it sends: said under the words, one row, its door the thread (canvas A). */}
+      {spoken ? (
+        wordsList(c)
+      ) : newest ? (
+        <PersonTimeline items={[newest]} initials={c.p.initials} name={c.p.name} showAll word={c.p.word} />
+      ) : (
+        <p className="cl-prof-rest">
+          <span className="cl-prof-rest-title">{PERSON_PART_WORDS.nothingYet}</span>
+        </p>
+      )}
       <FactNotices c={c} home="last-words" line />
     </section>
   );
 }
 
 /**
- * Their notes, as the Overview draws them (canvas A): the newest kept note, the receptionist's suggestion and the
- * composer, the page's one place to write one; "All notes ›" at the head opens History's Notes, where every note is.
+ * Their notes (canvas A): AI's suggestions, the newest kept notes and the composer, the page's one place to write one;
+ * "All notes ›" at the head opens History's Notes, where every note is. Drawn for everyone (the one page).
  */
-export function NotesSection({ c }: { c: PageCtx }) {
+function NotesSection({ c }: { c: PageCtx }) {
   const kept = c.p.noteList.filter((n) => !n.suggested).length;
   const toAll = () => {
     c.setTlFilter(NOTES_FILTER);
@@ -244,39 +305,32 @@ export function NotesSection({ c }: { c: PageCtx }) {
           </LinkButton>
         ) : null}
       </div>
-      <PersonNotes p={c.p} canEdit={c.canRecord} isOwner={c.isOwner} flash={c.flash} onChanged={c.load} compact />
+      {c.canRecord || c.p.noteList.length > 0 ? (
+        <PersonNotes p={c.p} canEdit={c.canRecord} isOwner={c.isOwner} flash={c.flash} onChanged={c.load} compact />
+      ) : (
+        <p className="cl-prof-rest">
+          <span className="cl-prof-rest-sub">{PERSON_PART_WORDS.noNotes}</span>
+        </p>
+      )}
     </section>
   );
 }
 
 /**
- * The Overview, in its order: Up next, their last words, Notes, Deals (each deal's next act on its rung), Coming up; on
- * a phone, where Campaigns has no tab, what a campaign sent them last.
+ * Their story, the one page's first parts in their one order: Now, Latest, Deals for someone with a deal (each deal's
+ * next act on its rung), Notes, Coming up, and History's newest rows. The same for every person, on a phone and a desk.
  */
-export function Overview({ c }: { c: PageCtx }) {
-  // Notes is drawn where there is a note or a suggestion, or once Note was pressed (canvas A): a thin record's page ends
-  // with what happened, not an empty composer.
-  // At a wide window their notes are the third column's (person-real.tsx), not the Overview's.
-  const notes = !c.wide && (c.composing || c.p.noteList.length > 0);
-  // A thin record (canvas A, P3: no thread, no deal, little history) is Up next, Coming up and its notes; History follows.
-  // A sequence they are in (0060) is what comes to them next, so it is said here too, where it has no tab of its own.
-  if (c.p.thin)
-    return (
-      <>
-        <UpNext c={c} />
-        {comingUpSection(c.p.comingUp || [])}
-        {c.p.inSequences.length > 0 ? campaignsFold(c.p) : null}
-        {notes ? <NotesSection c={c} /> : null}
-      </>
-    );
+export function StoryParts({ c, past }: { c: PageCtx; past: PersonVM["timeline"] }) {
   return (
     <>
       <UpNext c={c} />
-      <LastWords c={c} />
-      {notes ? <NotesSection c={c} /> : null}
-      <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} rung />
-      {comingUpSection(c.p.comingUp || [])}
-      {c.phone ? campaignsFold(c.p) : null}
+      <Latest c={c} />
+      {c.p.deals.length > 0 ? (
+        <PersonDealCard p={c.dealP} canRecord={c.canRecord} onCompose={c.compose} flash={c.flash} rung />
+      ) : null}
+      <NotesSection c={c} />
+      {comingUpSection(c)}
+      {historyPart(c, past)}
     </>
   );
 }

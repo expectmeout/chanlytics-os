@@ -15,14 +15,13 @@ export async function openPersonPage(page: Page, row: Locator): Promise<void> {
 }
 
 /**
- * Messages and receptionist, open: the card's fold of what they may be sent and who answers them (canvas A, P9.4), which
- * starts folded and is then left as the member left it. Its rows' controls (`rec-row-act-person-visit`, `-receptionist`)
- * are inside it.
+ * What they get, in view: who answers them and what they may be sent (the one page, 17 Nov 2026: never folded, the last
+ * group of their record). Its rows' controls (`rec-row-act-person-visit`, `-receptionist`) are in it.
  */
-export async function openMessagesFold(page: Page): Promise<void> {
-  const press = page.getByTestId("person-messages-fold-press");
-  if ((await press.getAttribute("aria-expanded")) !== "true") await press.click();
-  await expect(press).toHaveAttribute("aria-expanded", "true");
+export async function showWhatTheyGet(page: Page): Promise<void> {
+  const group = page.getByTestId("person-messages");
+  await group.scrollIntoViewIfNeeded();
+  await expect(group).toBeVisible();
 }
 
 /** The page, from wherever a row's press or Enter left it: through the peek's door on a desk, already open on a phone. */

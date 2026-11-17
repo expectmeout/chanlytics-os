@@ -37,15 +37,7 @@ export { personNextOf, UP_NEXT_WORDS } from "./next";
 export type { UpNextAct, UpNextFacts, UpNextRowVM, UpNextVM } from "./next";
 export { personNoticesOf } from "./notices";
 export type { CombineAct, NoticeAct, NoticeFacts, NoticeHome, NoticeVM } from "./notices";
-export {
-  PERSON_FIGURES_LABEL,
-  PERSON_TAB_WORDS,
-  PERSON_TABS_LABEL,
-  personRouteOf,
-  personTabRoute,
-  personTabsOf,
-  personTabWord,
-} from "./route";
+export { PERSON_TAB_WORDS, personRouteOf, personTabRoute, personTabsOf, personTabWord } from "./route";
 export type { PersonTab, PersonTabFacts, PersonTabVM } from "./route";
 export { PersonCallSchema, PersonNameActSchema, PersonWorksAtSchema } from "./schemas";
 export type { PersonCallBody, PersonNameAct } from "./schemas";
@@ -62,6 +54,7 @@ export {
   PERSON_ABOUT_WORDS,
   PERSON_LISTS_SHEET_WORDS,
   PERSON_NAME_WORDS,
+  PERSON_PART_WORDS,
   PERSON_PEEK_WORDS,
   PERSON_WALK_WORDS,
   PERSON_WASH_WORDS,

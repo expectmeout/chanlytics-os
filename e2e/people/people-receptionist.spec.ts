@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "../session";
-import { openMessagesFold, openPersonPage } from "./open-person";
+import { openPersonPage, showWhatTheyGet } from "./open-person";
 
 /**
  * "Receptionist for …" on the profile rail.
@@ -25,9 +25,9 @@ test.describe("Receptionist mode for one person", () => {
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await openPersonPage(page, rows.first());
 
-    // Since #907 the mode is a row on the record kit, its control in the Receptionist fold behind the row's Change; since
-    // canvas A (#1574) the rows are inside the card's Messages and receptionist fold.
-    await openMessagesFold(page);
+    // Since #907 the mode is a row on the record kit, its control in the fold behind the row's Change; since the one page
+    // (17 Nov 2026) the rows are What they get, the last group of their record, never folded.
+    await showWhatTheyGet(page);
     await page.getByTestId("rec-row-act-person-receptionist").click();
     const control = page.getByTestId("receptionist-mode");
     await expect(control).toBeVisible();
