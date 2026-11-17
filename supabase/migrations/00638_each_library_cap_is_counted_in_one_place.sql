@@ -32,7 +32,7 @@ $$;
 revoke all on function public.files_toward_cap(uuid) from public, anon, authenticated;
 grant execute on function public.files_toward_cap(uuid) to service_role;
 comment on function public.files_toward_cap(uuid) is
-  'How many of a workspace''s files count toward the Library''s cap (contracts FILES_MAX): every file not removed (00637). The one place that count is written: each door that adds a file asks it, and keeps the cap''s number. The service role''s.';
+  'How many of a workspace''s files count toward the Library''s cap (contracts FILES_MAX): every file not removed (00638). The one place that count is written: each door that adds a file asks it, and keeps the cap''s number. The service role''s.';
 
 create or replace function public.video_seconds_toward_cap(p_tenant_id uuid)
 returns numeric
@@ -47,7 +47,7 @@ $$;
 revoke all on function public.video_seconds_toward_cap(uuid) from public, anon, authenticated;
 grant execute on function public.video_seconds_toward_cap(uuid) to service_role;
 comment on function public.video_seconds_toward_cap(uuid) is
-  'How many seconds of video count toward a workspace''s video minutes (contracts FILE_VIDEO_MINUTES_MAX): every video not removed whose copy did not fail, what is kept and what is on its way together (00637). The one place that sum is written: each door that adds a video asks it, and keeps the cap''s number. The service role''s.';
+  'How many seconds of video count toward a workspace''s video minutes (contracts FILE_VIDEO_MINUTES_MAX): every video not removed whose copy did not fail, what is kept and what is on its way together (00638). The one place that sum is written: each door that adds a video asks it, and keeps the cap''s number. The service role''s.';
 
 create or replace function public.file_start(p_tenant_id uuid, p_id uuid)
 returns void

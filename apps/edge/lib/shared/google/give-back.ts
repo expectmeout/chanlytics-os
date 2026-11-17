@@ -14,7 +14,7 @@
  * whose holders could not be read, is kept. A grant left with Google costs its owner nothing they cannot undo from
  * their Google account; one taken back costs them a connection that was working.
  *
- * A footage source's connection (a Drive folder watched, 00638) is the third kind, counted from the day its table
+ * A footage source's connection (a Drive folder watched, 00639) is the third kind, counted from the day its table
  * exists so no connect is ever written that this rule does not know. A new kind of Google connection joins as one line
  * in HOLDERS.
  */

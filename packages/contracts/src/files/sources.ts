@@ -1,6 +1,6 @@
 /**
  * Footage sources: the places a business's photos and videos already live, watched (the footage sources plan of 17
- * November 2026; its tables are 00638's). Here are the closed sets those tables hold and the contract each provider
+ * November 2026; its tables are 00639's). Here are the closed sets those tables hold and the contract each provider
  * fills. Types and sets only: nothing connects, reads or takes a file yet, so the folder's barrel names none of it
  * until a tree imports it. The sets are held to the schema by their path (shared/schema-sets.ts), the contract's shape
  * by the type test beside this, and a set's own type (`(typeof SET)[number]`) arrives with its first reader.
@@ -8,7 +8,7 @@
 
 /* ------------------------------------------------------------------------------------------------ the closed sets */
 
-/** Whose account a source is read through (00638 source_connections.provider): Google, for Google Drive. */
+/** Whose account a source is read through (00639 source_connections.provider): Google, for Google Drive. */
 export const SOURCE_PROVIDERS = ["google"] as const;
 
 export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
@@ -60,7 +60,7 @@ export interface SourceFolder {
 
 /**
  * One item as its provider records it: all the take reads before any bytes move. Never a photo's place or camera.
- * What a provider gives is cut to what the table holds before it is written (00638's checks): an id and a checksum
+ * What a provider gives is cut to what the table holds before it is written (00639's checks): an id and a checksum
  * 200 characters, a name 1,000, who added it 200. A longer one refused whole would lose its row, and its page with it.
  */
 export interface SourceItemRecord {

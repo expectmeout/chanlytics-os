@@ -2361,7 +2361,7 @@ Foreign keys:
 
 ### media_sources
 
-One folder a business has Chanlytics watch (the footage sources plan, 00638): the connection that reads it, the folder's id and name at its provider, the shared drive's id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel's id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.
+One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder's id and name at its provider, the shared drive's id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel's id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.
 
 - Owned by: none
 - Primary key: `id`
@@ -3844,7 +3844,7 @@ Foreign keys:
 
 ### source_connections
 
-A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00638): the provider (google, for Google Drive), the account's stable id there (Google's sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.
+A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00639): the provider (google, for Google Drive), the account's stable id there (Google's sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.
 
 - Owned by: `packages/db/src/repositories/files/sources.ts`
 - Primary key: `id`
@@ -3875,7 +3875,7 @@ Foreign keys:
 
 ### source_items
 
-One item a provider holds under a watched folder, folders included, since they are the tree's index (the footage sources plan, 00638): the provider's id for it, its kind, its parent's id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.
+One item a provider holds under a watched folder, folders included, since they are the tree's index (the footage sources plan, 00639): the provider's id for it, its kind, its parent's id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.
 
 - Owned by: none
 - Primary key: `id`

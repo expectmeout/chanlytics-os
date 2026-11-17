@@ -80,7 +80,7 @@ grant select on public.source_connections to authenticated;
 grant all on public.source_connections to service_role;
 
 comment on table public.source_connections is
-  'A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00638): the provider (google, for Google Drive), the account''s stable id there (Google''s sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.';
+  'A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00639): the provider (google, for Google Drive), the account''s stable id there (Google''s sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.';
 comment on column public.source_connections.health is
   'ok: its grant reads. needs_reconnect: the provider refused the grant (revoked or expired); its sources pause and nothing in the Library changes. blocked_by_admin: the account''s organisation does not let the app read it, so no grant was given and the account''s id and email may be unknown.';
 
@@ -136,7 +136,7 @@ grant select on public.media_sources to authenticated;
 grant all on public.media_sources to service_role;
 
 comment on table public.media_sources is
-  'One folder a business has Chanlytics watch (the footage sources plan, 00638): the connection that reads it, the folder''s id and name at its provider, the shared drive''s id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel''s id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.';
+  'One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder''s id and name at its provider, the shared drive''s id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel''s id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.';
 comment on column public.media_sources.state is
   'setting_up: chosen, its first walk not done. watching: read as its provider signals and on the floor clock. paused: nothing is read until someone resumes it (the member who connected it left, or its connection needs a reconnect). frozen: the folder itself cannot be read, and nothing is reconciled until it can. stopped: no longer watched; what came in stays.';
 comment on column public.media_sources.channel_token_hash is
@@ -197,7 +197,7 @@ grant select on public.source_items to authenticated;
 grant all on public.source_items to service_role;
 
 comment on table public.source_items is
-  'One item a provider holds under a watched folder, folders included, since they are the tree''s index (the footage sources plan, 00638): the provider''s id for it, its kind, its parent''s id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.';
+  'One item a provider holds under a watched folder, folders included, since they are the tree''s index (the footage sources plan, 00639): the provider''s id for it, its kind, its parent''s id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.';
 comment on column public.source_items.kind is
   'folder: part of the tree. image, video: what the Library takes. other: seen and passed over (a document, a shortcut, a RAW photo).';
 comment on column public.source_items.state is

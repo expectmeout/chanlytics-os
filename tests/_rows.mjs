@@ -181,7 +181,7 @@ const DEFAULTS = {
     created_at: AT,
     updated_at: AT,
   }),
-  // A Google account the business connected at the made-up instant so its footage is read where it lives (00638): its
+  // A Google account the business connected at the made-up instant so its footage is read where it lives (00639): its
   // grant reads, and no folder is watched through it yet.
   source_connections: () => ({
     id: uuid(),

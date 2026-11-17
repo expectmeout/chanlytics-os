@@ -310,7 +310,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof REQUEST_KINDS>, SchemaSet<"privacy_requests.kind">>>,
   // What a member needs, picked on Get help (00468, decision 0067): Support's three, and Health's bug.
   Holds<Exactly<Of<typeof REPORT_KINDS>, SchemaSet<"support_reports.kind">>>,
-  // A business's footage sources (00638): whose account, how it stands, where a watched folder stands, and what an
+  // A business's footage sources (00639): whose account, how it stands, where a watched folder stands, and what an
   // item under it is and where it stands.
   Holds<Exactly<Of<typeof SOURCE_PROVIDERS>, SchemaSet<"source_connections.provider">>>,
   Holds<Exactly<Of<typeof SOURCE_CONNECTION_HEALTHS>, SchemaSet<"source_connections.health">>>,

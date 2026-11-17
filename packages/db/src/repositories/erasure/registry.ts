@@ -211,21 +211,21 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // token, Meta's request id), the tool it came from, our words for a stop, and the run that holds it (00499: a number,
   // or the moment Stop was pressed). None of it names a person.
   imports: all(NOT_PERSONAL, "counts", "job_cursor", "last_error", "via", "run"),
-  // A provider account a member connected so the workspace's footage is read where it lives (00638): the account's id
+  // A provider account a member connected so the workspace's footage is read where it lives (00639): the account's id
   // and email are that member's, and leave with the workspace. Its scopes and its token's name are nobody's (its
   // provider and health are closed sets).
   source_connections: {
     ...all(WITH_WORKSPACE, "provider_account", "email"),
     ...all(NOT_PERSONAL, "scopes", "credentials_ref"),
   },
-  // A folder the workspace has watched (00638). The business named the folder, and a name can be a person's ("Ana's
+  // A folder the workspace has watched (00639). The business named the folder, and a name can be a person's ("Ana's
   // wedding"): it leaves with the workspace. The provider's ids, the cursor, the push channel's id and its token's
   // hash, and our words for what went wrong name nobody.
   media_sources: {
     folder_name: WITH_WORKSPACE,
     ...all(NOT_PERSONAL, "folder_id", "drive_id", "change_cursor", "channel_id", "channel_token_hash", "last_error"),
   },
-  // What a watched folder holds (00638). A file's name and who added it can hold a person's name; an erasure of a person
+  // What a watched folder holds (00639). A file's name and who added it can hold a person's name; an erasure of a person
   // the workspace serves does not reach a file in the business's own folder (its owner removing it there is the remedy,
   // as for a picture in the Library), and both leave with the workspace. The provider's ids, the checksum and our words
   // for why it was passed over name nobody (its kind and state are closed sets).

@@ -7363,7 +7363,7 @@ $$;
 -- Name: FUNCTION files_toward_cap(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_toward_cap(p_tenant_id uuid) IS 'How many of a workspace''s files count toward the Library''s cap (contracts FILES_MAX): every file not removed (00637). The one place that count is written: each door that adds a file asks it, and keeps the cap''s number. The service role''s.';
+COMMENT ON FUNCTION public.files_toward_cap(p_tenant_id uuid) IS 'How many of a workspace''s files count toward the Library''s cap (contracts FILES_MAX): every file not removed (00638). The one place that count is written: each door that adds a file asks it, and keeps the cap''s number. The service role''s.';
 
 
 --
@@ -37329,7 +37329,7 @@ $$;
 -- Name: FUNCTION video_seconds_toward_cap(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) IS 'How many seconds of video count toward a workspace''s video minutes (contracts FILE_VIDEO_MINUTES_MAX): every video not removed whose copy did not fail, what is kept and what is on its way together (00637). The one place that sum is written: each door that adds a video asks it, and keeps the cap''s number. The service role''s.';
+COMMENT ON FUNCTION public.video_seconds_toward_cap(p_tenant_id uuid) IS 'How many seconds of video count toward a workspace''s video minutes (contracts FILE_VIDEO_MINUTES_MAX): every video not removed whose copy did not fail, what is kept and what is on its way together (00638). The one place that sum is written: each door that adds a video asks it, and keeps the cap''s number. The service role''s.';
 
 
 --
@@ -41108,7 +41108,7 @@ CREATE TABLE public.media_sources (
 -- Name: TABLE media_sources; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.media_sources IS 'One folder a business has Chanlytics watch (the footage sources plan, 00638): the connection that reads it, the folder''s id and name at its provider, the shared drive''s id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel''s id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.';
+COMMENT ON TABLE public.media_sources IS 'One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder''s id and name at its provider, the shared drive''s id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel''s id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.';
 
 
 --
@@ -42851,7 +42851,7 @@ CREATE TABLE public.source_connections (
 -- Name: TABLE source_connections; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.source_connections IS 'A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00638): the provider (google, for Google Drive), the account''s stable id there (Google''s sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.';
+COMMENT ON TABLE public.source_connections IS 'A provider account a business connected so its footage can be read where it already lives (the footage sources plan, 00639): the provider (google, for Google Drive), the account''s stable id there (Google''s sub, as google_connections.google_sub and mailbox_connections.provider_account hold it, so one read finds every connection of one Google account), its email, the scopes it granted, the member who connected it, and its health. Its tokens are never on the row: credentials_ref names the Vault secret. Members read; the service role writes.';
 
 
 --
@@ -42901,7 +42901,7 @@ CREATE TABLE public.source_items (
 -- Name: TABLE source_items; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.source_items IS 'One item a provider holds under a watched folder, folders included, since they are the tree''s index (the footage sources plan, 00638): the provider''s id for it, its kind, its parent''s id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.';
+COMMENT ON TABLE public.source_items IS 'One item a provider holds under a watched folder, folders included, since they are the tree''s index (the footage sources plan, 00639): the provider''s id for it, its kind, its parent''s id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.';
 
 
 --

@@ -373,7 +373,7 @@ before(async () => {
     host: `tenancy-mail-${stamp}.example`,
     from_name: "Tenancy",
   });
-  // A business's footage sources (00638), in dependency order: the provider account, a folder watched through it, and
+  // A business's footage sources (00639), in dependency order: the provider account, a folder watched through it, and
   // one item the folder holds.
   ctx.sourceConnection = await seed("source_connections", {
     tenant_id: A,
@@ -993,7 +993,7 @@ const TENANT_TABLES = {
       from_name: "Stranger",
     }),
   ],
-  // A business's footage sources (00638): a provider account it connected, a folder watched through it, and what the
+  // A business's footage sources (00639): a provider account it connected, a folder watched through it, and what the
   // folder holds. Members read their workspace's; only the service role writes (the connect and the reads to come).
   source_connections: [
     "member",

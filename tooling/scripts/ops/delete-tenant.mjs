@@ -139,7 +139,7 @@ const TABLES = [
   "mailbox_sender_reads",
   "mailbox_senders",
   "mailboxes",
-  // A folder the workspace has watched for its photos and videos (00638); its connection and its items are below.
+  // A folder the workspace has watched for its photos and videos (00639); its connection and its items are below.
   "media_sources",
   "memberships",
   "messages",
@@ -189,7 +189,7 @@ const TABLES = [
   "sequences",
   // A workspace's setup choices, its own and not each member's (00513, decision 0091).
   "setup_choices",
-  // The provider account a watched folder is read through, and what each folder holds (00638).
+  // The provider account a watched folder is read through, and what each folder holds (00639).
   "source_connections",
   "source_items",
   "templates",
@@ -374,7 +374,7 @@ async function main() {
         `a connected mailbox, ${m.address}: its grant at ${m.provider === "microsoft" ? "Microsoft" : "Google"}, its watch there, and its mailbox-creds Vault secret. Remove it on Connections first, which hands the grant back and drops the secret.`,
       );
   }
-  // A footage source's connection (00638): its grant at Google, the push channels its watched folders opened there,
+  // A footage source's connection (00639): its grant at Google, the push channels its watched folders opened there,
   // and its Vault secret. One its organisation blocked was never granted and holds none of them.
   for (const s of byTable.get("source_connections") ?? []) {
     if (s.health !== "blocked_by_admin")
