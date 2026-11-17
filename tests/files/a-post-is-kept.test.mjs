@@ -22,6 +22,7 @@ const save = await import(at("apps/dashboard/app/api/v1/files/post/route.ts"));
 const preview = await import(at("apps/dashboard/app/api/v1/files/post/preview/route.ts"));
 const view = await import(at("apps/dashboard/app/api/v1/files/[id]/view/route.ts"));
 const one = await import(at("apps/dashboard/app/api/v1/files/[id]/route.ts"));
+const { FILE_WORDS: W } = await import(at("packages/contracts/src/files/files.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 after(() => setServiceClient(null));
@@ -86,6 +87,7 @@ function world({
   phone = "(555) 010-0100",
   kept = [],
   pieces = [],
+  missing = [],
 } = {}) {
   const asked = { steps: [], started: [], uploaded: [], removed: [], made: [], changed: [], downloaded: [] };
   const ctx = {
@@ -169,10 +171,16 @@ function world({
         asked.removed.push(...paths);
         return { data: paths, error: null };
       },
-      createSignedUrl: async (p, s, o) => ({
-        data: { signedUrl: `https://storage.example/${p}?token=t${o?.transform ? `&w=${o.transform.width}` : ""}` },
-        error: null,
-      }),
+      // A path not in the bucket, as Storage answers it: the body's code says so (StorageApiError's statusCode).
+      createSignedUrl: async (p, s, o) =>
+        missing.includes(p)
+          ? { data: null, error: Object.assign(new Error("Object not found"), { status: 400, statusCode: "404" }) }
+          : {
+              data: {
+                signedUrl: `https://storage.example/${p}?token=t${o?.transform ? `&w=${o.transform.width}` : ""}`,
+              },
+              error: null,
+            },
     }),
   };
   setServiceClient(service);
@@ -358,8 +366,8 @@ test("the owner's word that those in the photo agreed goes on the photo, and on 
 
 /* ------------------------------------------------------------------------- as a file */
 
-const viewed = async (q, row) => {
-  const { ctx } = world({ rows: [row] });
+const viewed = async (q, row, missing = []) => {
+  const { ctx } = world({ rows: [row], missing });
   ctx.params = { id: row.id };
   const res = await view.GET.run(new Request(`http://localhost/api/v1/x${inA}&${q}`), ctx);
   return res.headers.get("location");
@@ -488,6 +496,23 @@ test("a video made here gives its own file, under its name; a clip a member sent
     viewed("download", fileRow({ media_ref: "ref_sent", ...video })),
     (e) => e.code === "validation",
   );
+});
+
+test("a video asked for before its poster is cut is getting ready, as its tile says, and nothing has failed", async () => {
+  // Seen on production 11 Nov 2026: a video Ask made came ready at 06:26:14 and its first poster was cut at 06:26:22; a page on
+  // screen asks in between. That is no failed read: it answers what the tile says, and the page asks again (Today's card too).
+  const video = { kind: "video", mime: "video/mp4", media_status: "ready" };
+  const made = fileRow({ id: MADE, source: "made", name: "i-asked-for-volume", media_ref: "ref_made", ...video });
+  const poster = `${A}/${MADE}/poster.jpg`;
+  await assert.rejects(viewed("w=480", made, [poster]), (e) => {
+    assert.equal(e.code, "not_found");
+    assert.equal(e.status, 404);
+    assert.equal(e.message, W.video.gettingReady);
+    return true;
+  });
+  // Any other file Storage has not got is still a read that failed: a photo's picture is there once its row is.
+  const photo = fileRow();
+  await assert.rejects(viewed("w=480", photo, [`${A}/${photo.id}/original.jpg`]), (e) => e.code === "unavailable");
 });
 
 test("a kept post gives each shape, under its own name; a photo has its one picture whatever is asked", async () => {
