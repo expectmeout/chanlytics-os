@@ -244,99 +244,6 @@
   text-decoration: none;
 }
 
-/* ---- Since you looked: one quiet line under the head's sentence, on the sentence's edge, and its rows in a pane under it
-   once pressed. ---- */
-.tz-since {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 6px;
-  max-width: 100%;
-  min-height: 26px;
-  padding: 0;
-  white-space: nowrap;
-  font-size: var(--text-aside);
-  font-weight: var(--weight-regular);
-  color: var(--ink-dim);
-  text-align: left;
-}
-.tz-since > b {
-  flex: none;
-  font-weight: var(--weight-semibold);
-  color: var(--ink-muted);
-}
-/* What came in, on the one line: cut at its end, and the chevron never falls off it (one row, 9 Nov 2026). */
-.tz-since-bits {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tz-since-bits > em {
-  font-style: normal;
-}
-.tz-since-bits > em + em::before {
-  content: "· ";
-  color: var(--ink-faint);
-}
-.tz-since > svg {
-  flex: none;
-}
-.tz-since[aria-expanded="true"] > svg {
-  rotate: 180deg;
-}
-.tz-since-list {
-  display: flex;
-  flex-direction: column;
-  padding: var(--space-1) 18px;
-  border-radius: var(--radius-sheet);
-}
-.tz-sn {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line);
-  color: inherit;
-  text-decoration: none;
-}
-.tz-sn:last-child {
-  border-bottom: 0;
-}
-.tz-sn > i {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset-fill);
-  color: var(--ink-muted);
-}
-.tz-sn-words {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.tz-sn-words > b {
-  font-size: var(--text-base);
-  line-height: 18px;
-  font-weight: var(--weight-semibold);
-}
-.tz-sn-words > span {
-  font-size: var(--text-sm);
-  line-height: 17px;
-  color: var(--ink-dim);
-  /* A quote with no space in it (a link) breaks where it must rather than running into the time beside it. */
-  overflow-wrap: anywhere;
-}
-.tz-sn > time {
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
-  white-space: nowrap;
-}
-
 /* ---- The day's four figures in the head: what a figure is out of, small after it; a receipt under its own figure. ---- */
 .tc-fig-of {
   font-size: var(--text-aside);
@@ -775,9 +682,6 @@
   .tz-found-wide .tz-ideas {
     display: flex;
     flex-direction: column;
-  }
-  .tz-since-list {
-    padding: var(--space-1) 14px;
   }
 }
 

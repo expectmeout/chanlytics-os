@@ -106,3 +106,8 @@ and the rest at its foot. A reply that never reached them is a row of its own wi
 over the rows, To do's and Ask found's lines at its foot, While you were away and Worth a look went; Ask found is a zone
 of its own (contracts `askFoundOf`), and Since you looked is one line under the head (`todaySince`). The page is
 `surfaces/today/zones/`.
+
+## Amended 17 November 2026 · Nothing under the head (decision 0136)
+
+Since you looked went, as While you were away had: each thing it said has a home already (the bell's notes, Today's
+figures), and it counted from the bell's close, so a look at Today never moved it. Contracts `todaySince` is deleted.

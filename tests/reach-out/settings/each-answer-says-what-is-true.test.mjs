@@ -106,8 +106,19 @@ test("Today's Connect Google opens the connect sheet, and each note says what it
     to: COLD_EMAIL_CONNECT_ROUTE,
     needs: "settings",
   });
-  const waits = coldEmailNoteOf(coldEmailStandingOf(facts({ waitingRun: run() })));
-  assert.equal(waits?.needs, "approve");
+  const paused = coldEmailNoteOf(coldEmailStandingOf(facts({ mailboxes: [{ state: "paused" }], waitingRun: run() })));
+  assert.equal(paused?.needs, "settings", "a paused mailbox over a batch that waits: an OK alone would send nothing");
+});
+
+test("a batch that waits for its OK is Need you's row, and Today's card never says it again", () => {
+  const waits = coldEmailStandingOf(facts({ waitingRun: run() }));
+  assert.equal(waits.kind, "waiting_ok", "the page's own answer still says it");
+  assert.equal(waits.needs_you, true);
+  assert.equal(
+    coldEmailNoteOf(waits),
+    null,
+    "REGRESSION: '8 emails wait for your approval' in Need you over 'Your next 5 emails are ready for your approval'",
+  );
 });
 
 test("a first run whose words are new asks whatever the mode, and a held batch after it does not", () => {

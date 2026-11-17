@@ -1389,7 +1389,7 @@ test("the bell's close is the member looking: opening it marks nothing, closing 
     const open = draw();
     assert.equal(seen, 0, "open: New holds while the popover is up");
     bellOf(open).props.onClick();
-    assert.equal(seen, 1, "closed by its button: every row seen, and Since you looked starts again from now");
+    assert.equal(seen, 1, "closed by its button: every row seen, and the number starts again from now");
     frames.begin();
     bellOf(draw()).props.onClick();
     frames.begin();

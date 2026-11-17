@@ -6,6 +6,9 @@ the build"). Built, and merged as #2191 on 8 November 2026. No migration: the se
 **Amended 9 November 2026 (decision 0116):** the page is Cold email now, in a group of its own, and its rows are arranged
 as an owner reads them. The section, its keys, its one writer and what each writer reads of it stand as they are here.
 
+**Amended 17 November 2026 (decision 0136):** Today's note says nothing of a batch waiting for its OK, which is a row of
+Need you (0120, D8); it speaks for what Need you cannot hold. The page's own answer is as it was.
+
 ## Context
 
 Settings had _How it answers_ for the receptionist answering people who write in, and nothing for the cold email it writes to businesses a search

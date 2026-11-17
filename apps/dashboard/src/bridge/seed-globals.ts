@@ -49,8 +49,6 @@ if (typeof window !== "undefined") {
     Confirm: KIT_GLOBALS.Confirm,
     MoreMenu: KIT_GLOBALS.MoreMenu,
     PolicyChip: KIT_GLOBALS.PolicyChip,
-    // The bell's alert switch (surfaces/frame/topbar/notif-popover.tsx) is the one record-kit part a page of the shell still draws by name.
-    RecordSwitch: KIT_GLOBALS.RecordSwitch,
     // The doors every page uses to move and to ask, for the pages that read them by name (surfaces/frame-doors.ts: the frame fills the
     // registry as it renders; these go through it).
     askAbout: DOOR_NAMES.askAbout,

@@ -40,11 +40,6 @@ interface Standing {
    * 2026: Listen ended the sentence and stood a capsule's height over its second line).
    */
   beside?: ReactNode;
-  /**
-   * What stands under the sentence, as quiet as it, and opens in place: Today's line of what happened since you last looked
-   * (Today in three zones, 2 Nov 2026). Nothing where the page says nothing there.
-   */
-  after?: ReactNode;
   /** The way back, above the name on a desk and in the date's place on a phone: the crumb before the last where unsaid; null
    *  for none. */
   back?: BackWay | null;

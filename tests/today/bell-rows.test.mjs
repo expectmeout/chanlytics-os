@@ -850,10 +850,66 @@ test("looked at but not read: the closed bell says so quietly, by a sign and by 
     assert.equal(signOf(read), null, "read, the bell is plain");
     assert.equal(bellOf(read).props["aria-label"], "Notifications");
     assert.equal(bellOf(read).props["data-tip"], undefined);
+    unmount();
+
+    // The closed bell is for news (decision 0136): a note about what Need you counts wears its dot in the list and is
+    // no part of the sign, since the one count says it on the Inbox's badge.
+    const counted = { id: "needs:th-1", kind: "needs_you", title: "Ana needs you", message: "", at: 0, actions: [] };
+    W.__notifs = bellWith([{ ...counted, unread: true, in_need_you: true }]);
+    fresh();
+    const waits = draw();
+    assert.equal(signOf(waits), null, "REGRESSION: one person waiting was the Inbox's badge and the bell's sign too");
+    assert.equal(bellOf(waits).props["aria-label"], "Notifications");
+    bellOf(waits).props.onClick();
+    const open = find(again(draw), (n) => typeof n.props?.onReadAll === "function");
+    assert.deepEqual(
+      open.props.items.map((n) => [n.id, n.unread]),
+      [["needs:th-1", true]],
+      "and it is still listed, unread, when the bell is opened",
+    );
   } finally {
     unmount();
     delete W.__notifs;
     delete W.usePPToast;
+  }
+});
+
+test("the bell's foot is the door to Settings › Notifications, where this browser's one alert switch is; it holds no switch of its own", () => {
+  W.usePPToast = () => [null, () => undefined];
+  const went = [];
+  const hadNav = W.CHANLY;
+  W.CHANLY = { ...(hadNav ?? {}), nav: (to) => went.push(to) };
+  let looks = 0;
+  W.__notifs = {
+    feed: () => [],
+    alerts: () => ({ on: false, can: true, permission: "default", by: "push", needsHomeScreen: false }),
+    onChange: () => () => undefined,
+    older: () => 0,
+    unread: () => 0,
+    seenAll: () => void (looks += 1),
+  };
+  const bellOf = (tree) => find(tree, (n) => String(n.props?.className || "").includes("tb-bell "));
+  const draw = () => Topbar({ crumbs: ["Today"], theme: "light", themePref: "light", onAsk() {}, onMenu() {} });
+  const notesOf = (tree) => find(tree, (n) => typeof n.props?.onReadAll === "function");
+  try {
+    fresh();
+    bellOf(draw()).props.onClick();
+    const open = notesOf(again(draw));
+    assert.equal(
+      "alerts" in open.props || "onAlerts" in open.props,
+      false,
+      "REGRESSION: a second switch for this browser's alerts stood in the bell's foot (decision 0136)",
+    );
+    open.props.onSettings();
+    assert.deepEqual(went, ["admin/notifications"], "the foot opens the page the one switch is on");
+    assert.equal(notesOf(again(draw)), null, "and the bell closes behind it");
+    assert.equal(looks, 1, "which is a look, as any close is");
+  } finally {
+    unmount();
+    delete W.__notifs;
+    delete W.usePPToast;
+    if (hadNav === undefined) delete W.CHANLY;
+    else W.CHANLY = hadNav;
   }
 });
 

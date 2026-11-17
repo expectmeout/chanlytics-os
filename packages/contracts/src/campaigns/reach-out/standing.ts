@@ -426,9 +426,15 @@ const COLD_EMAIL_ROUTE = "admin/outreach";
 /**
  * What Today says of cold email, from the one answer: where it waits on the owner, and nothing otherwise. The caller asks
  * only once a workspace has started cold email, so a business that writes none is never asked about it (decision 0113).
+ *
+ * Never a batch that waits for its OK: that is a row of Need you (decision 0120, D8: each run's own, or Cold email's one
+ * row where two or more wait), counted in the one count, and a card under it said it again. The two counted apart, too:
+ * the row every waiting run's emails, the card the newest campaign's alone, so one phone read "8 emails wait for your
+ * approval" over "Your next 5 emails are ready for your approval" (17 Nov 2026, decision 0136). The card is for what Need
+ * you cannot hold: a mailbox to fix, a step left before a first email, nobody new to write to.
  */
 export function coldEmailNoteOf(standing: ColdEmailStanding): ColdEmailNote | null {
-  if (!standing.needs_you) return null;
+  if (!standing.needs_you || standing.kind === "waiting_ok") return null;
   // "Connect Google" opens the connect sheet itself, as the page's own press does.
   const own = standing.kind === "no_mailbox" ? COLD_EMAIL_CONNECT_ROUTE : COLD_EMAIL_ROUTE;
   return { headline: standing.headline, act: standing.act ?? "Open", to: standing.to ?? own, needs: standing.needs };

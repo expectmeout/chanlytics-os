@@ -228,10 +228,13 @@ Before a refusal can happen, the product checks for it and says what to change, 
   menu's badge and the Inbox say the same number.
 - **A different count has a different name** ("No reply yet", "Waiting over a week"), never the same name with another
   rule behind it.
-- **A number says its time once, in words:** "Today", "Since you last looked", "Last 30 days". Never a bare date and
-  time ("Since Wed 2:32 PM").
-- **Two facts never share a word.** Appointments on today's calendar and bookings made since the last look are
-  different facts: "6 appointments today · 3 booked since you last looked", never "6 booked" over "3 booked".
+- **A number says its time once, in words:** "Today", "New since you last looked" (a person's History), "Last 30
+  days". Never a bare date and time ("Since Wed 2:32 PM").
+- **Two facts never share a word.** Appointments on today's calendar and bookings made today are different facts:
+  "6 appointments today" in the day and "3 booked" among the figures, never "6 booked" over "3 booked".
+- **A thing is said once on a page** (decision 0136). What waits on you is Needs you's row and the one count; news is
+  the bell's. A card or a line that says a row's fact again, with its own count, is the bug: "8 emails wait for your
+  approval" over "Your next 5 emails are ready for your approval".
 
 ## Grouped by what the owner does
 

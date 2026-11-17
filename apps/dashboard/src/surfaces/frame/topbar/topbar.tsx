@@ -15,7 +15,7 @@ import { Button } from "../../kit/button/button";
 import { AskFace } from "../../kit/face/ask-face";
 import { usePageSearchSaid, type PageSearch } from "../../kit/head/page-search";
 import { frameBell, frameChrome, frameGlyph, frameToastHook } from "../frame-window";
-import { NotifPopover, type BellAlerts, type BellNote } from "./notif-popover";
+import { NotifPopover, type BellNote } from "./notif-popover";
 
 type Flash = (p: FrameFlash) => void;
 type Bell = NonNullable<Window["__notifs"]>;
@@ -116,9 +116,13 @@ function TbLine({ onAsk, askLabel }: { onAsk: () => void; askLabel: string | nul
 /** The unread rows the real bell does not list (S6-10): its badge counts them, as the bell's number everywhere else does. */
 const tbOlderOf = (real: Bell | null) => (real && real.older ? real.older() : 0);
 
-/** The notes that wear a dot, and the older unread ones the bell does not list: what is still unread after a look. */
+/**
+ * The notes that wear a dot, and the older unread ones the bell does not list: what is still unread after a look. A note
+ * about what Need you counts wears its dot in the list and is no part of this: the closed bell is for news, and the one
+ * count says the rest on the Inbox's badge (decision 0136).
+ */
 const tbDotsOf = (real: Bell | null, shown: readonly BellNote[]) =>
-  shown.filter((n) => n.unread).length + tbOlderOf(real);
+  shown.filter((n) => n.unread && !n.in_need_you).length + tbOlderOf(real);
 
 /**
  * The bell's number: what is new since the member last looked (the bridge's own count, decision 0124). A bell that says
@@ -127,25 +131,21 @@ const tbDotsOf = (real: Bell | null, shown: readonly BellNote[]) =>
 const tbNewOf = (real: Bell | null, shown: readonly BellNote[]) =>
   real && real.unread ? real.unread() : tbDotsOf(real, shown);
 
-/** The workspace's own rows and this device's alerts, read again as the bridge's bell changes. */
+/** The workspace's own rows, read again as the bridge's bell changes. */
 function useRealBell(real: Bell | null) {
   const [realRows, setRealRows] = useState<BellNote[]>(() => (real ? real.feed() : []));
-  const [alertState, setAlertState] = useState<BellAlerts | null>(() => (real ? real.alerts() : null));
   useEffect(() => {
     if (!real) return undefined;
-    const refresh = () => {
-      setRealRows(real.feed());
-      setAlertState(real.alerts());
-    };
+    const refresh = () => setRealRows(real.feed());
     refresh();
     return real.onChange(refresh);
   }, [real]);
-  return { realRows, alertState, setAlertState };
+  return { realRows };
 }
 
 const PING_MS = 1200;
 
-/** The bell swings when something new needs you. */
+/** The bell swings when its number rises: news came in. What needs you raises the one count, on the Inbox's badge. */
 function useBellPing(unread: number, real: Bell | null) {
   const [ping, setPing] = useState(false);
   const prevUnread = useRef(unread);
@@ -166,7 +166,6 @@ function useBellPing(unread: number, real: Bell | null) {
 interface BellActsAt {
   real: Bell | null;
   realRows: BellNote[];
-  setAlertState: (a: BellAlerts | null) => void;
   flash: Flash;
   closeBell: () => void;
 }
@@ -195,7 +194,7 @@ const tbReadManyOf =
     real?.readMany ? real.readMany(ids) : ids.forEach(read);
 
 /** What a press in the bell does, on the bridge's rows; with no bell from the bridge there is nothing to press on. */
-function bellActs({ real, realRows, setAlertState, flash, closeBell }: BellActsAt) {
+function bellActs({ real, realRows, flash, closeBell }: BellActsAt) {
   // A note marked read where it stands (its check, or a thumb slid it right).
   const read = (id: string) => {
     real?.read(id);
@@ -206,19 +205,10 @@ function bellActs({ real, realRows, setAlertState, flash, closeBell }: BellActsA
     closeBell();
     if (to) window.CHANLY?.nav?.(to);
   };
-  const onAlerts = async (on: boolean) => {
-    if (!real) return;
-    const r = await real.setAlerts(on);
-    setAlertState(real.alerts());
-    flash({
-      msg: r.on ? (
-        <>This device will be alerted when something needs you</>
-      ) : r.permission === "denied" ? (
-        <>Alerts are blocked in your browser settings</>
-      ) : (
-        <>Alerts off on this device</>
-      ),
-    });
+  // The foot's door: what reaches you, this browser's alerts among it, is chosen on its page (decision 0136).
+  const settings = () => {
+    closeBell();
+    window.CHANLY?.nav?.("admin/notifications");
   };
   const readAll = () => {
     if (real) readAllOnBell(real, flash);
@@ -236,7 +226,7 @@ function bellActs({ real, realRows, setAlertState, flash, closeBell }: BellActsA
       undo: () => real.restore(id),
     });
   };
-  return { act, onAlerts, readAll, read, readMany, dismiss };
+  return { act, settings, readAll, read, readMany, dismiss };
 }
 
 type Crumb = string | { label: string; to?: string; go?: () => void };
@@ -308,7 +298,7 @@ interface TopbarProps {
 function useBell(flash: Flash) {
   const bell = frameBell();
   const real = bell ? bell : null;
-  const { realRows, alertState, setAlertState } = useRealBell(real);
+  const { realRows } = useRealBell(real);
   const [openNotifs, setOpenNotifs] = useState(false);
   // No bell from the bridge yet: no count, rather than a badge promising things that don't exist.
   const shown: BellNote[] = real ? realRows : [];
@@ -317,14 +307,14 @@ function useBell(flash: Flash) {
   const dots = tbDotsOf(real, shown);
   const ping = useBellPing(unread, real);
   // The bell's press is the member looking (Today in three zones, 2 Nov 2026): once it closes, what it held is seen,
-  // so its number starts again and Today's Since you looked does too. No note is read by it (decision 0124): a dot goes
-  // when its note is opened or by Mark all read. Never on a look at Today alone.
+  // so its number starts again. No note is read by it (decision 0124): a dot goes when its note is opened or by Mark
+  // all read. Never on a look at Today alone.
   const closeBell = useCallback(() => {
     setOpenNotifs(false);
     real?.seenAll();
   }, [real]);
-  const acts = bellActs({ real, realRows, setAlertState, flash, closeBell });
-  return { real, shown, unread, dots, ping, openNotifs, setOpenNotifs, closeBell, alertState, acts };
+  const acts = bellActs({ real, realRows, flash, closeBell });
+  return { real, shown, unread, dots, ping, openNotifs, setOpenNotifs, closeBell, acts };
 }
 
 type BellState = ReturnType<typeof useBell>;
@@ -357,8 +347,7 @@ const tbBell = (b: BellState) => {
           onRead={b.acts.read}
           onReadMany={b.acts.readMany}
           onClose={b.closeBell}
-          alerts={b.real ? b.alertState : null}
-          onAlerts={b.acts.onAlerts}
+          onSettings={b.real ? b.acts.settings : null}
         />
       )}
     </>

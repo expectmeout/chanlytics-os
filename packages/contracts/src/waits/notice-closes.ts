@@ -24,7 +24,7 @@ import { NEW_REVIEW_NEWS } from "../google/listing";
 import { reviewNoticeIsAbout } from "../google/google";
 import { REVIEW_REPLY_HELD_TITLE } from "../google/review-reply";
 import { parseLeadsRoute } from "../leads/plan";
-import { SERVER_KEY_PREFIX, serverNotificationRows } from "../today/notifications/feed";
+import { SERVER_KEY_PREFIX, noteWhose, serverNotificationRows } from "../today/notifications/feed";
 import {
   settledRow,
   type NotificationRow,
@@ -291,14 +291,65 @@ const JUDGES: Record<WaitSource, (row: Row, about: { type: string; id: string },
     search: judgeSearch,
   };
 
+/** How a row's kind ends, where it is one the edge keeps: none for a row the browser derives. */
+const noticeEndOf = (kind: string): NoticeEnd | null =>
+  Object.hasOwn(NOTICE_ENDS, kind) ? NOTICE_ENDS[kind as ServerNotificationKind] : null;
+
 /**
  * Whether the thing a kept row announced still waits: true, false once it is settled, null where the row announces no wait or
  * the surface that would say is not read (nothing is then settled).
  */
 export function noticeStillWaits(row: Row, waits: WhatWaits): boolean | null {
-  const end = Object.hasOwn(NOTICE_ENDS, row.kind) ? NOTICE_ENDS[row.kind as ServerNotificationKind] : null;
+  const end = noticeEndOf(row.kind);
   if (!row.about || !end || end.ends === "news" || end.ends === "mended") return null;
   return JUDGES[end.ends](row, row.about, waits);
+}
+
+/**
+ * What Need you counts now, as far as a bell row can be about it (need-you/groups.ts needYouCountOf, decision 0048): the
+ * rows of Today's read above To do. The runs it counts are judged by the surface that holds them, as their rows are
+ * (noticeStillWaits).
+ */
+export interface NeedYouCounted {
+  /** The threads of the people it counts: Up next and who waits on you. None past a week, which no count holds. */
+  threads: ReadonlySet<string>;
+  /** The searches waiting for an answer, by id: the bell's question about one opens that search (leads parseLeadsRoute). */
+  searches: ReadonlySet<string>;
+}
+
+/**
+ * The kinds that say a person waits, each about their thread: a thread that needs you and a reply counting down, as the
+ * browser derives them (today/notifications/feed.ts) and as the edge keeps them (a hold, a held reply), and a lead's
+ * reply, which Need you draws in its thread's place (today withReplies).
+ */
+const saysAPersonWaits = (kind: string, end: NoticeEnd | null): boolean =>
+  kind === "needs_you" ||
+  kind === "held_draft" ||
+  kind === "reach_out_replied" ||
+  end?.ends === "hold" ||
+  end?.ends === "send";
+
+/**
+ * Whether a bell row says what Need you already counts (decision 0136): a person whose thread is one of the count's, a
+ * search's question the count holds, or a run that waits for a word or holds emails for a look. Such a row stays on the
+ * bell, wearing its dot, and adds nothing to the closed bell's number or its dot: the one count says it, on the Inbox's
+ * badge, and a phone showed the two marks for one approval (17 Nov 2026). The closed bell is for news.
+ *
+ * Judged by what the count holds, never by the kind alone: a person past a week is Older, in no count, so their row
+ * still lights the bell, and so does a run that goes unless it is stopped, which is the day's Going today.
+ */
+export function noticeInNeedYou(row: Row, counted: NeedYouCounted, waits: WhatWaits): boolean {
+  const end = noticeEndOf(row.kind);
+  if (saysAPersonWaits(row.kind, end)) {
+    const thread = noteWhose(row)?.conversationId;
+    return !!thread && counted.threads.has(thread);
+  }
+  if (end?.ends === "search") {
+    const search = parseLeadsRoute(row.to)?.searchId;
+    return !!search && counted.searches.has(search);
+  }
+  if (end?.ends === "run") return !RUN_GOES_TITLE.test(row.title) && noticeStillWaits(row, waits) === true;
+  return false;
 }
 
 /**

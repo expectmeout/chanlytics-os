@@ -67,6 +67,13 @@ Smaller corrections in the same change: Undo after Remove saves against the vers
 failed delivery to a subscriber opens Activity, not Notifications; the settings route's and the profile pane's comments
 say who may write and where the device switch is.
 
+## Amended on 17 November 2026: this browser is one switch (decision 0136)
+
+"This browser" is one row and one switch. It turns on the server's push to the browser where the browser and the
+deployment can take it, and the page's own alert where they cannot, and says which; the bell's foot, which held the same
+switch, is a door to this page, and the line under the grid for the server's push alone ("Tell me here") is gone. A
+browser the server tells is not alerted by the page as well.
+
 ## Amended on 15 October 2026: the receptionist stopping is mailed
 
 Point 4 kept every Stripe billing notice on the bell and the phone, and only a number going back was mailed. The wiring's

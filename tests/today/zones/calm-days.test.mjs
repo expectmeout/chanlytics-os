@@ -15,7 +15,6 @@ import {
   figureDoorOf,
   restedWith,
   restedWithout,
-  todaySince,
   toBookingReportVM,
   todayHeadLine,
   todayWentLine,
@@ -261,20 +260,6 @@ test("Listen is offered only where the brief has news", () => {
   );
   const run = { label: "Spring offer", sentence: "It waits for your OK." };
   assert.equal(todayBriefWords(quiet, null, [run]).news, true, "a run waits");
-});
-
-test("Since you looked's answered row opens the thread it names; a read with no thread opens nothing", () => {
-  const since = (conversation_id) =>
-    todaySince({
-      seenAt: "2026-09-18T12:00:00Z",
-      answered: { count: 1, last: { who: "Robin", text: "Yes!", at: "2026-09-18T13:00:00Z", conversation_id } },
-      notes: [],
-      covered: [],
-      tz: "America/New_York",
-      nowMs: NOW.getTime(),
-    }).rows[0];
-  assert.equal(since("c1").to, "inbox/th-c1", "REGRESSION: it named someone and opened nothing");
-  assert.equal(since(undefined).to, null, "an older server's read");
 });
 
 test("Not today's Undo lets one rest go and keeps the others; those run out go with it", () => {

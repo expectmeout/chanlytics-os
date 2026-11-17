@@ -1128,9 +1128,6 @@ button.brief-inbox-link { cursor: pointer; transition: border-color var(--durati
   :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item { background: var(--surface-pop-fill); }
   :is(.tbn-slot-in[data-moving], .tbn-slot[data-going="true"]) .tbn-item.unread { background: color-mix(in oklab, var(--accent) 3%, var(--surface-pop-fill)); }
   .tbn-slot[data-going="true"] .tbn-item { translate: -100% 0; }
-  /* A line the phone can do nothing about ("Alerts are blocked in your browser settings") is not drawn there; the
-     switch itself is, where the browser can alert. */
-  .tbn-foot:has(> .tbn-foot-note) { display: none; }
 }
 @media (max-width: 900px) { .tbn-pop { position: fixed; top: calc(52px + env(safe-area-inset-top, 0px)); right: 12px; left: 12px; width: auto; } }
 /* On a phone the notes are a sheet from the bottom, as every other sheet there is: edge to edge, a handle, the page
@@ -1479,12 +1476,8 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
 .ix-steer-input { flex: 1; min-width: 0; font: inherit; font-size: var(--text-sm); padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); color: var(--ink); }
 .ix-steer-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-field); }
 
-/* ---------- The bell's foot: device alerts ---------- */
+/* ---------- The bell's foot: the door to Settings › Notifications ---------- */
 .tbn-foot { padding: 8px 12px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-dim); }
-.tbn-foot-note { display: block; }
-/* This device's alerts: its words, and the kit's switch beside them, the one Settings > Notifications' This device card
-   draws, which says on or off itself. It was a 9px ring that read as a choice not taken. */
-.tbn-alert { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--ink-muted); }
 
 /* ---- Templates hidden from the composers: still listed, under the rest ---- */
 .set-int-row.is-hidden { opacity: 0.55; }

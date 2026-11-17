@@ -159,3 +159,11 @@ count). Ruben approved the fix on the design shown to him the same day.
    into their conversations' own rows. It is no part of any count, as on Today. Mark all done stays Today's.
 4. **Where the Inbox opens** follows the one count: with anything in it, Needs you (a search's question alone, as a run
    alone already did), and never on a folded conversation.
+
+## Amended 17 November 2026 · The count is said once in the frame (decision 0136)
+
+Since you looked, the line under Today's head that restarted with the bell's close, is gone: what it said is the bell's
+notes and Today's figures. And the bell no longer counts what this count counts: a note about a person, a search's
+question or a run that the count holds stays on the bell with its dot and adds nothing to the closed bell's number
+(contracts `noticeInNeedYou`), so one wait is one mark, on the Inbox's badge. A wait the count does not hold (past a
+week, or before Today is read) still lights the bell. Decision 0136 has the rule and what it leaves alone.

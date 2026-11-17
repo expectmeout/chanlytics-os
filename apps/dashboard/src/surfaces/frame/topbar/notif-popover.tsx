@@ -12,7 +12,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
 import { BELL_READ_WORDS } from "@chanlytics/contracts";
 import type { BellRow } from "@/bridge/notifications";
-import { frameBell, frameGlyph, frameRecordSwitch } from "../frame-window";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { frameBell, frameGlyph } from "../frame-window";
 
 /** A note the bell draws: the server's row (BellRow). */
 export interface BellNote {
@@ -26,6 +27,8 @@ export interface BellNote {
   actions?: ReadonlyArray<{ label: string; to: string; primary?: boolean }>;
   kind?: string;
   about?: { type: string; id: string } | null;
+  /** It says what Need you already counts: listed with its dot, no part of the closed bell's number or dot (BellRow.in_need_you). */
+  in_need_you?: boolean;
 }
 
 interface BellLine {
@@ -34,13 +37,6 @@ interface BellLine {
   count: number;
   title: string | null;
   members: BellNote[];
-}
-
-/** This device's alerts: whether they can be, whether they are on, and what the browser said. */
-export interface BellAlerts {
-  on: boolean;
-  can: boolean;
-  permission: string;
 }
 
 const tbnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
@@ -260,23 +256,14 @@ function bellLine(d: BellDraw, l: BellLine) {
   );
 }
 
-/** Device alerts: a system notification when something new needs the owner while the app is away. */
-function bellAlerts(alerts: BellAlerts, onAlerts: (on: boolean) => void) {
-  const Switch = frameRecordSwitch();
+/**
+ * The bell's foot: the door to Settings › Notifications, where what reaches you is chosen, this browser's alerts among
+ * it. The foot held that switch itself, a second one beside the page's (decision 0136: one switch, on its page).
+ */
+function bellFoot(onSettings: () => void) {
   return (
-    <footer className="tbn-foot" data-testid="notif-alerts">
-      {!alerts.can ? (
-        <span className="tbn-foot-note">{"This browser can't show alerts."}</span>
-      ) : alerts.permission === "denied" ? (
-        <span className="tbn-foot-note">Alerts are blocked in your browser settings.</span>
-      ) : (
-        <div className="tbn-alert">
-          <span className="tbn-alert-words" id="tbn-alert-words">
-            Alert this device when something needs you
-          </span>
-          <Switch labelledBy="tbn-alert-words" on={!!alerts.on} onChange={(on: boolean) => onAlerts(on)} />
-        </div>
-      )}
+    <footer className="tbn-foot" data-testid="notif-settings">
+      <LinkButton onClick={onSettings}>{BELL_READ_WORDS.settings}</LinkButton>
     </footer>
   );
 }
@@ -312,8 +299,8 @@ interface NotifPopoverProps {
   /** A group's notes read by one press; where none is given, each is read by `onRead`. */
   onReadMany?: ((ids: readonly string[]) => void) | null;
   onClose: () => void;
-  alerts?: BellAlerts | null;
-  onAlerts?: (on: boolean) => void;
+  /** Opens Settings › Notifications from the foot; no foot where the bell is not a workspace's. */
+  onSettings?: (() => void) | null;
 }
 
 export function NotifPopover({
@@ -324,8 +311,7 @@ export function NotifPopover({
   onRead = null,
   onReadMany = null,
   onClose,
-  alerts = null,
-  onAlerts = () => {},
+  onSettings = null,
 }: NotifPopoverProps) {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   useTbnEscape(onClose);
@@ -368,7 +354,7 @@ export function NotifPopover({
           )}
         </header>
         {bellList(d, items, readHere.current)}
-        {alerts && bellAlerts(alerts, onAlerts)}
+        {onSettings && bellFoot(onSettings)}
       </div>
     </>
   );

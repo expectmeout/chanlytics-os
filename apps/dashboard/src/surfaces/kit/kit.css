@@ -6667,18 +6667,6 @@ textarea.rec-input,
   color: var(--ink);
   font-weight: var(--weight-semibold);
 }
-/* What stands under the sentence (PageHead `after`: Today's Since you looked, Today in three zones, 2 Nov 2026): its own
-   line, as wide as the head, which opens in place under it; four pixels nearer the sentence than the sentence is to the
-   name. Every width's, a phone's included, where a stacked head keeps its sentence. */
-.pg-after {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
-  align-self: stretch;
-  min-width: 0;
-  margin-top: -4px;
-}
 /* A phone's top bar at its centre (frame-head.tsx BarTitleSaid; canvas A's hand-off): once the page's own head has
    scrolled away, a name and the dot of where they stand, between the way back and the bell, fading in and out. Amber is
    for what needs someone; every other state's dot is the muted ink. Laid over the bar as the date's place is. */

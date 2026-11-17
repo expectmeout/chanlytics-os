@@ -511,7 +511,7 @@ export { openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLO
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";
-export { BELL_READ_WORDS, bellSections, todayAwayGrouped, todaySince } from "./today/away";
+export { BELL_READ_WORDS, bellSections, todayAwayGrouped } from "./today/away";
 export { offerRefusedWords, standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayHeadLine, todayWentLine, todayAlsoWaiting } from "./today/bands";
 export { toTodayVM } from "./today/brief";
 export { tzClock, tzSince } from "./today/clock";
@@ -540,7 +540,7 @@ export { PHONE_PACE_WORDS, PHONE_PACES, phonePaceOf, phonePaceShown, phonePaceSp
 export { PHONE_VOICE_DEFAULT, PHONE_VOICE_SAMPLES_ORIGIN, PHONE_VOICE_WORDS, PHONE_VOICES, PHONE_VOICES_NATIVE_TO, phoneVoiceOf, phoneVoiceShown } from "./voice/phone-voices";
 export { frameDraftChange, frameGuardrail, frameHandOver, frameSteer, frameWhisper, injectedTurn, whisperText } from "./voice/whisper";
 export { GOING_TODAY_WORDS, goingTodayOf } from "./waits/going-today";
-export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeStillWaits, RUN_START_ENDS, settledNoticeIds } from "./waits/notice-closes";
+export { closeSettledNotices, kindsEndedBy, NOTHING_WAITS_KNOWN, NOTICE_ENDS, noticeInNeedYou, noticeStillWaits, RUN_START_ENDS, settledNoticeIds } from "./waits/notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./waits/notice-mends";
 export { noticeTone } from "./waits/notice-tones";
 export { heldReplyNotice, WAIT_ACT_WORDS, WAIT_KINDS, WAIT_RULES, waitEndsWords, waitRuleOf } from "./waits/rules";

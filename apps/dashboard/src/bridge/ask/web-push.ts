@@ -3,6 +3,7 @@
  * offered at all, so nothing is shown that cannot be kept. On an iPhone a browser can only be told once the app is on the home
  * screen, which `reason` says. Nothing here prompts by itself: a person's press asks.
  */
+import { IN_APP_CLASS } from "@chanlytics/contracts";
 import { publicEnv } from "../../lib/public-env";
 import { apiFor } from "../api";
 
@@ -10,6 +11,8 @@ import { apiFor } from "../api";
 export function webPushCan(win: Window): { can: boolean; reason: "no_key" | "no_support" | "home_screen" | null } {
   const key = publicEnv.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!key) return { can: false, reason: "no_key" };
+  // The phone app's view is no browser to tell, and no site to add to a Home Screen: its alerts are the app's own.
+  if (win.document?.documentElement?.classList?.contains(IN_APP_CLASS)) return { can: false, reason: "no_support" };
   const nav = win.navigator as Navigator & { standalone?: boolean };
   const iPhone = /iPhone|iPad/.test(nav.userAgent);
   const installed = nav.standalone === true || win.matchMedia?.("(display-mode: standalone)").matches;
@@ -65,7 +68,10 @@ export async function webPushTurnOn(win: Window): Promise<{ ok: boolean; message
       keys: { p256dh: String(json.keys?.p256dh), auth: String(json.keys?.auth) },
     },
   });
-  return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+  if (r.ok) return { ok: true, message: "" };
+  // A subscription the server did not keep reaches nothing: the browser lets it go, so it never reads as told.
+  await sub.unsubscribe().catch(() => undefined);
+  return { ok: false, message: r.message };
 }
 
 /** Say no in this browser. */

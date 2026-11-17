@@ -6,11 +6,12 @@ export {
   kindsEndedBy,
   NOTHING_WAITS_KNOWN,
   NOTICE_ENDS,
+  noticeInNeedYou,
   noticeStillWaits,
   RUN_START_ENDS,
   settledNoticeIds,
 } from "./notice-closes";
-export type { HeldRun, NoticeEnd, WaitSource, WhatWaits } from "./notice-closes";
+export type { HeldRun, NeedYouCounted, NoticeEnd, WaitSource, WhatWaits } from "./notice-closes";
 export { NOTICE_MENDS, warningsMendedBy } from "./notice-mends";
 export type { MendBy, MendChange, NoticeMend } from "./notice-mends";
 export { noticeTone } from "./notice-tones";

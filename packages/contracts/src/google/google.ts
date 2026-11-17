@@ -115,7 +115,7 @@ export interface GoogleVM {
   /**
    * The old Today's one line when a review was news and not yet answered, where it led (that review, with its reply box),
    * and which review it drew, read now by the away card's grouping alone (todayAwayGrouped), which no page draws: Today's
-   * To do lists the reviews to answer (need-you/reviews.ts), and Since you looked leaves out the bell's rows about them.
+   * To do lists the reviews to answer (need-you/reviews.ts).
    */
   todayLine: { text: string; to: string; review: { id: string; reviewId: string } } | null;
 }
