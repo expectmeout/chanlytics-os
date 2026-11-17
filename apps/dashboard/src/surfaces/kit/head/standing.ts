@@ -12,6 +12,13 @@
  * list held under it (kit motion/held-list.ts), the head says what it said over that list as the row opened, its strip of
  * views with it (`stripShown`, told by the frame's strip), so what lies under the page is the screen it goes back to and
  * nothing of it is drawn as the page goes.
+ *
+ * A page whose views change under one head (Campaigns: home/route.tsx) holds it (`useHeadHeld`): what the view leaving
+ * said stands until the view arriving says its own, its act drawn but not pressed (frame-head.tsx). The view leaving takes
+ * its words back a paint or more before the one arriving says its own (two frames on a phone between two views drawn
+ * ahead, nine onto a view not drawn yet), and the head stood without its act meanwhile: "+ New" went and came back, and
+ * the strip of views beside it, spaced by whether an act stood there, stepped 12 to 17px and back (Ruben's recording,
+ * 17 Nov 2026).
  */
 import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import { nothing } from "../../frame-parts";
@@ -104,6 +111,10 @@ export interface HeadAt {
 }
 
 let said: Said | null = null;
+/** What the page on screen last said, kept while a page that holds its head changes views (`useHeadHeld`); null otherwise. */
+let lastSaid: Standing | null = null;
+/** How many pages hold the head now: the page on screen, or none. */
+let holders = 0;
 let crumbs: readonly ShownCrumb[] = [];
 /**
  * Whether the page at this address draws its own head (its chrome's `ownHead`: a person's hero), told with the crumbs. Until
@@ -130,7 +141,9 @@ const subscribe = (fn: () => void): (() => void) => {
   return () => standingWatchers.delete(fn);
 };
 
-const saidHere = (): Standing | null => said?.standing ?? (headOwn ? OWN_HEAD : headFirst);
+/** What a held head says while no view says anything: the last view's words, until the next says its own. */
+const heldNow = (): Standing | null => (said || holders === 0 ? null : lastSaid);
+const saidHere = (): Standing | null => said?.standing ?? heldNow() ?? (headOwn ? OWN_HEAD : headFirst);
 const standingNow = (): Standing | null => (under ? under.standing : saidHere());
 const crumbsNow = (): readonly ShownCrumb[] => (under ? under.crumbs : crumbs);
 const underNow = (): HeadAt | null => under;
@@ -151,11 +164,34 @@ export function useStanding(standing: Standing | null): void {
     tellStandingWatchers();
     return () => {
       if (said?.token === mine) {
+        if (holders > 0) lastSaid = said.standing;
         said = null;
         tellStandingWatchers();
       }
     };
   });
+}
+
+/**
+ * Hold the head while this page's views change (the page that draws them calls it): what a view said stands until the
+ * next view says its own, and goes with the page.
+ */
+export function useHeadHeld(): void {
+  useLayoutEffect(() => {
+    holders += 1;
+    return () => {
+      holders -= 1;
+      if (holders > 0 || !lastSaid) return;
+      lastSaid = null;
+      tellStandingWatchers();
+    };
+  }, []);
+}
+
+/** Whether the head says what a view that has gone said, for the frame to draw its act but take no press on it. */
+const headHeldNow = (): boolean => heldNow() !== null;
+export function useHeadHeldNow(): boolean {
+  return useSyncExternalStore(subscribe, headHeldNow, () => false);
 }
 
 /** What the page on screen said, drawn again when it says otherwise. */
@@ -215,6 +251,7 @@ export const crumbLabel = (c: ShownCrumb): string => (typeof c === "string" ? c 
 /** What is said and drawn, put back to nothing: for a test that draws pages one after another. */
 export function forgetStanding(): void {
   said = null;
+  lastSaid = null;
   crumbs = noCrumbs;
   headOwn = false;
   headFirst = null;

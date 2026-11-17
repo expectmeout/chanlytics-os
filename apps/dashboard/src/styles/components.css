@@ -3202,8 +3202,11 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     padding-inline: 10px;
   }
   /* Beside a capsule that says a word the strip has 76px less, not 44: its tabs give up 2px more each side, so the
-     Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). */
-  .pg-slot:has(> nav):not([data-strip="people"]):has(> .pg-act-slot .pg-act-fit) > nav > a {
+     Inbox's three still stand on one line on a phone 360 wide ("Needs you" wrapped onto two). Campaigns' strip, named by
+     the slot from the first draw (shell-chrome.tsx `data-strip`), is spaced so whether or not its act stands this frame:
+     each of its views says "+ New" as it draws, and spaced by the act, its tabs stepped 12 to 17px wider and back as a
+     view arrived (Ruben's recording, 17 Nov 2026). */
+  .pg-slot:has(> nav):not([data-strip="people"]):is([data-strip="campaigns"], :has(> .pg-act-slot .pg-act-fit)) > nav > a {
     padding-inline: 8px;
   }
   /* And a phone's strip says the views' names alone: the counts beside them pushed "Templates 7" past the strip's end,

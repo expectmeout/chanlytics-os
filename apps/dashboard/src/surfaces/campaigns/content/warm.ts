@@ -3,6 +3,11 @@
  * read, and the pictures of its first screen asked for at the size the page draws them, so the tab, pressed, shows its pieces
  * at once rather than "Reading…" and then each picture fading in (Ruben, 12 Nov 2026). Its own chunk with the page's, asked
  * for once the frame is idle: nothing of it rides the route.
+ *
+ * It answers once the read is in, and the pictures come in behind it. The route drew Content hidden only once all twelve
+ * had come, which is a dozen resized posters: a swipe a second or two after landing on Campaigns found it not drawn, the
+ * page under the strip blank, then Reading…, then its counts, its tiles and their pictures one by one (Ruben's recording,
+ * 17 Nov 2026). Drawn on its read, the page is whole as it is shown, and a picture is the one thing that can still arrive.
  */
 import type { ContentPageDto } from "@chanlytics/contracts";
 import { refreshSurface } from "../../frame-verbs";
@@ -27,10 +32,10 @@ function firstPicturesOf(dto: ContentPageDto, layout: ContentLayout): string[] {
   return [...ids].slice(0, FIRST_SCREEN).map(layout === "list" ? rowPictureOf : smallPictureOf);
 }
 
-/** Content's page read, where it has not been, and its first screen's pictures in. Answers once both are; never refuses. */
+/** Content's page read, where it has not been, and its first screen's pictures asked for. Answers once the read is in. */
 export async function warmContent(): Promise<void> {
   if (surfaceValue("content") === undefined) await refreshSurface("content");
   const dto = surfaceValue("content")?.dto;
   if (!dto) return;
-  await Promise.all(firstPicturesOf(dto, contentLayoutNow(cmPhoneNow())).map(warmPicture));
+  for (const src of firstPicturesOf(dto, contentLayoutNow(cmPhoneNow()))) void warmPicture(src);
 }

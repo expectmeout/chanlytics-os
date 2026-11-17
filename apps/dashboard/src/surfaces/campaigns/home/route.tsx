@@ -35,6 +35,7 @@ import {
   routeOfPath,
 } from "@chanlytics/contracts";
 import { aheadWhenIdle } from "@/bridge/workspace";
+import { useHeadHeld } from "../../kit/head/standing";
 import { viewDeck } from "../../kit/motion/view-deck";
 import { refreshSurface, replaceRoute, useFrameToast } from "../../frame-verbs";
 import type { CmView } from "../parts/split";
@@ -50,7 +51,7 @@ const AdsPage = lazy(adsCode);
 // The Content view's code, a chunk of its own, fetched where Content is drawn: once the frame is idle on another view, or at its press.
 const contentCode = () => import("../content/page").then((m) => ({ default: m.ContentPage }));
 const ContentPage = lazy(contentCode);
-// Content readied ahead (content/warm.ts): its page read and its first screen's pictures in, from the same chunk as the page.
+// Content readied ahead (content/warm.ts): its page read in, and its first screen's pictures asked for, from the page's chunk.
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 
 /**
@@ -96,7 +97,7 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
     drawn.current.add("sequences");
     drawn.current.add("messages");
   }
-  // Content, once its read and its first pictures are in (useViewsAhead): drawn hidden, so its press shows it whole.
+  // Content, once its code and its read are in (useViewsAhead): drawn hidden, so its press shows it whole.
   if (ahead.content) drawn.current.add("content");
   const sequencesAt = useRef(SEQUENCES_ROUTE);
   if (view === "sequences") sequencesAt.current = route;
@@ -147,9 +148,10 @@ function readKeptViews(view: View): void {
  * in and not by the boot, so an idle frame with the boot in is not yet a page whose reads are. Nothing held Sequences' list,
  * or Sequences drawn hidden, behind it: which went first was left to how long each took.
  *
- * Content is readied the same way from any other view: its code, its page read and its first screen's pictures (content/warm.ts),
- * and once those are in it is drawn hidden too (`content`). It was the one view a press built from nothing: "Reading…", then its
- * tiles, then each picture fading in, where Sequences and Messages were simply there (Ruben, 12 Nov 2026).
+ * Content is readied the same way from any other view: its code and its page read, its first screen's pictures asked for behind
+ * them (content/warm.ts), and once its read is in it is drawn hidden too (`content`). It was the one view a press built from
+ * nothing: "Reading…", then its tiles, then each picture fading in, where Sequences and Messages were simply there (Ruben, 12
+ * Nov 2026); and drawn hidden only once its pictures had come, it was still that, a swipe soon after landing (17 Nov 2026).
  */
 function useViewsAhead(view: View, adsShown: boolean): { others: boolean; content: boolean } {
   const [ahead, setAhead] = useState(false);
@@ -201,6 +203,8 @@ export function CampaignsRoute() {
   const param = route.split("/")[1] || null;
   // The mount's toast: a send made in New, which closes as it sends, says so here, with its Stop (route-toast.ts).
   const [toastNode, flash] = useFrameToast();
+  // One head over every view: what the view leaving said stands until the one arriving says its own (standing.ts).
+  useHeadHeld();
   const adsShown = useAdsShown();
   const landing = retiredRouteOf(route);
   const view = viewOf(param, adsShown);
