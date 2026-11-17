@@ -1185,21 +1185,33 @@
     },
     {
       "kind": "unfed",
-      "why": "Who an occasion waits for, and when (decision 0119): the Sequences list's \"next\" and a person's page's waiting step read sequence_occasions, which the feed does not tell. A row is written when an appointment changes or a booking link goes, and settled when its job runs it into a batch, which each page hears and reads it again with.",
+      "why": "Who an occasion waits for, and when (decision 0119): the Sequences list's \"next\" and a person's page's waiting step read sequence_occasions, which the feed does not tell. A row is written when an appointment changes or a booking link goes, and settled when its job runs it into a batch, which each page hears and reads it again with. The Calendar (and Setup, which reads the Calendar's week) reads whether a missed visit's occasion waits or ran, so its sheet asks no second time: the occasion is written as the visit is said missed, which the Calendar hears as its appointment changing.",
       "reads": {
+        "calendar": [
+          "sequence_occasions"
+        ],
         "sequences": [
           "sequence_occasions"
         ],
         "person": [
+          "sequence_occasions"
+        ],
+        "setup": [
           "sequence_occasions"
         ]
       },
       "heardWith": {
+        "calendar": [
+          "appointments"
+        ],
         "sequences": [
           "sequence_batches"
         ],
         "person": [
           "sequence_batches"
+        ],
+        "setup": [
+          "appointments"
         ]
       }
     },
