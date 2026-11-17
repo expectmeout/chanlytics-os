@@ -697,7 +697,7 @@ const askQueue = () => ({
   },
 });
 
-test("the Line at rest: Right now is Today's queue, then questions about the page; earlier conversations are the head's Earlier -- and no key is drawn", async () => {
+test("the Line at rest: Right now is Today's queue, said once, and no preset question under it; earlier conversations are the head's Earlier -- and no key is drawn", async () => {
   globalThis.window.TODAY_DATA = askQueue();
   try {
     const calls = ask([TH(1), TH(2), TH(3), TH(4)]);
@@ -705,18 +705,20 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     let tree = await later(Palette, OPEN);
     assert.equal(
       textOf(byClass(byTestId(tree, "ask-row-now"), "ask-row-label")[0]),
-      "Nora needs you; your search for personal trainers is waiting for your answer.",
+      "Nora needs you. Your search for personal trainers is waiting for your answer.",
     );
-    // The pills beside the sentence say its counts (rightNowParts): one person waiting, no run, one search.
-    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "ask-pill").map(textOf), [
-      "1 needs you",
-      "1 search waiting",
-    ]);
+    // At rest the sentence says the counts, so no pill says them again (Ruben, 17 Nov 2026; the pills stand while a
+    // phone's field is in use, below).
+    assert.equal(byTestId(tree, "ask-pill"), null, "a thing is said once");
     assert.equal(askText("en").searchWaiting(2), "2 searches waiting", "the pill counts several the same way");
-    assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
-    assert.ok(textOf(tree).includes("Ask about Today"), "questions about the page, under its name");
-    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").length, 3, "three questions, as chips");
-    assert.ok(byTestId(tree, "ask-row-sug").props.className.split(" ").includes("line-chip"));
+    const brief = byTestId(tree, "ask-row-brief");
+    assert.equal(textOf(brief), "Brief me");
+    assert.ok(
+      brief.props.className.split(" ").includes("line-chip"),
+      "Brief me wears the chip's look, as every press here",
+    );
+    assert.ok(!textOf(tree).includes("Ask about"), "no preset questions about the page (Ruben, 12 and 17 Nov 2026)");
+    assert.equal(byTestId(tree, "ask-row-sug"), null, "a question from a table is no chip");
     assert.equal(byTestId(tree, "ask-row-thread"), null, "no earlier conversation stands among the rows (spec 5.2)");
     assert.ok(byTestId(tree, "ask-earlier"), "they are the head's Earlier, on a desk as on a phone");
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
@@ -726,7 +728,7 @@ test("the Line at rest: Right now is Today's queue, then questions about the pag
     assert.deepEqual(calls.sent, [], "a quick answer asks no model");
     assert.equal(
       textOf(byTestId(tree, "ask-say")),
-      "Nora needs you; your search for personal trainers is waiting for your answer.",
+      "Nora needs you. Your search for personal trainers is waiting for your answer.",
     );
     assert.deepEqual(
       all(tree, (n) => n.props?.["data-testid"] === "ask-item").map((n) => textOf(n)),
@@ -762,8 +764,8 @@ test("a follow-up AI kept that came due is the home's row after Right now, in it
   let tree = await later(Palette, OPEN);
   assert.deepEqual(
     all(tree, (n) => n.props?.role === "option").map((n) => n.props["data-testid"]),
-    ["ask-row-now", "ask-row-follow", "ask-row-sug", "ask-row-sug", "ask-row-sug"],
-    "Right now, then the follow-up, then the questions about the page",
+    ["ask-row-now", "ask-row-follow"],
+    "Right now, then the follow-up, and no preset question under them",
   );
   const row = byTestId(tree, "ask-row-follow");
   assert.equal(textOf(row), due[0].said, "its own line, as the member approved it");
@@ -821,8 +823,8 @@ test("REGRESSION: a row is one option and holds no control of its own -- Not now
 
     const row = byTestId(tree, "ask-row-follow");
     const notNow = byTestId(row, "ask-row-rest");
-    assert.deepEqual([notNow.type, notNow.props["aria-hidden"], textOf(notNow)], ["span", true, "Not now"]);
-    assert.ok(notNow.props.className.split(" ").includes("line-words"), "it looks as the kit's words do");
+    assert.deepEqual([notNow.type, notNow.props["aria-hidden"], notNow.props.title], ["span", true, "Not now"]);
+    assert.ok(notNow.props.className.split(" ").includes("line-remove"), "it is the kit's x, as a conversation's is");
     assert.equal(row.props["aria-keyshortcuts"], "Delete", "the option names its key");
     const said = saidOf(tree, row);
     assert.deepEqual(
@@ -4278,7 +4280,7 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
     });
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
-    assert.equal(inputOf(tree).props.placeholder, "Describe the businesses you want", "the field asks for businesses");
+    assert.equal(inputOf(tree).props.placeholder, "Which businesses to find?", "the field asks for businesses");
     assert.deepEqual(
       byClass(tree, "ask-rows-label").map(textOf),
       ["Find businesses"],
@@ -4329,14 +4331,14 @@ test("on Leads the Line is the finder: describe the businesses, Find businesses 
   }
 });
 
-test("on Campaigns the field asks what should go out, and when (the moment spec, A3)", async () => {
+test("on Campaigns the field asks what should go out (the moment spec, A3; one line on a phone, Ruben 17 Nov 2026)", async () => {
   const hash = globalThis.window.location.hash;
   globalThis.window.location.hash = "#/campaigns";
   try {
     ask([]);
     render(Palette, OPEN);
     const tree = await later(Palette, OPEN);
-    assert.equal(inputOf(tree).props.placeholder, "Describe what should go out, and when");
+    assert.equal(inputOf(tree).props.placeholder, "What should go out?");
   } finally {
     await closes();
     globalThis.window.location.hash = hash;
@@ -4364,7 +4366,7 @@ test("a campaign card opens in the composer on its moment before Approve, and sa
   open.props.onClick();
   assert.deepEqual(went, ["campaigns/sequences/new:moment:quiet_30"]);
   assert.equal(askText("es").openNew, "Abrir en Nueva secuencia");
-  assert.equal(askText("es").describeCampaigns, "Describe qué debe salir, y cuándo");
+  assert.equal(askText("es").describeCampaigns, "¿Qué debe salir?");
 });
 
 test("a campaign card says campaign, never playbook (the moment spec, D19): the question before its undo deletes it, in English and Spanish", () => {
@@ -4477,12 +4479,12 @@ test("on Leads a card that answers a search commits through AI's door with no un
   }
 });
 
-test("on Today the Line is as it was: Ask anything, questions about the page, and no consent line", async () => {
+test("on Today the Line is as it was: Ask anything, no preset questions about the page, and no consent line", async () => {
   ask([]);
   render(Palette, OPEN);
   const tree = await later(Palette, OPEN);
   assert.equal(inputOf(tree).props.placeholder, "Ask anything");
-  assert.ok(textOf(tree).includes("Ask about Today"));
+  assert.ok(!textOf(tree).includes("Ask about"), "Today's questions come from a table, so they are no chip");
   assert.equal(byTestId(tree, "ask-rows-note"), null, "the consent rule is Leads' alone");
   await closes();
 });
@@ -4511,8 +4513,8 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
     );
     assert.equal(fold(tree), "ask-rows-fold");
     assert.equal(byTestId(tree, "ask-hero").props.className, "ask-hero");
-    // On a phone the standing pills are the hero's, under the three, and Right now's row keeps its sentence and Brief me.
-    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"]);
+    // At rest Right now's sentence says the counts and Brief me stands under it; no pill says them again.
+    assert.deepEqual(pills(byTestId(tree, "ask-hero")), []);
     assert.deepEqual(pills(byTestId(tree, "ask-row-now")), []);
     assert.equal(textOf(byTestId(tree, "ask-row-brief")), "Brief me");
     inputOf(tree).props.onFocus();
@@ -4525,7 +4527,11 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
       "the rows are gone at once",
     );
     assert.equal(fold(tree), "ask-rows-fold gone", "their fold kept, closed");
-    assert.deepEqual(pills(byTestId(tree, "ask-hero")), ["1 needs you", "1 search waiting"], "the pills stay");
+    assert.deepEqual(
+      pills(byTestId(tree, "ask-hero")),
+      ["1 needs you", "1 search waiting"],
+      "the sentence folds away with the rows, so the pills under the three say its counts",
+    );
     assert.equal(moods.at(-1), "listening", "and the three listen");
     assert.equal(inputOf(tree).props["aria-expanded"], false);
     typed(tree, "in");
@@ -4561,8 +4567,8 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
     tree = await later(Palette, props);
     assert.deepEqual(
       pills(byTestId(tree, "ask-hero")),
-      ["1 needs you", "1 search waiting"],
-      "the line emptied, the home and its pills",
+      [],
+      "the line emptied and the keyboard gone, the home, its sentence saying the counts",
     );
     await closes();
   } finally {
@@ -4782,18 +4788,21 @@ test("over the first run the Line is on the start surface: it asks about setting
     globalThis.window.location.hash = "#/start/phone";
     render(Palette, OPEN);
     let tree = await later(Palette, OPEN);
+    assert.deepEqual(byClass(tree, "ask-rows-label").map(textOf), [], "no preset questions here either");
+    // What is left first, then what AI can do (the operator, D8); never an offer or a playbook here. They match what is
+    // typed, and are no chip at rest.
     assert.deepEqual(
-      byClass(tree, "ask-rows-label").map(textOf),
-      ["Ask about setting up"],
-      "the page's questions, under the first run's name",
-    );
-    assert.deepEqual(
-      all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf),
+      askCalls()
+        .suggestions("start", null, "en")
+        .filter((q) => q.kind === "ask")
+        .slice(0, 3)
+        .map((q) => q.label || q.q),
       ["What is left to set up?", "What are our hours this week?", "What can you do for me?"],
-      "what is left first, then what AI can do (the operator, D8); never an offer or a playbook here",
     );
     assert.ok(!/[↵⌘↑↓]|\bEsc\b|\bdel\b/.test(textOf(tree)), `no key is drawn (D17): ${textOf(tree)}`);
-    press(byTestId(tree, "ask-row-sug"));
+    typed(tree, "What is left to set up?");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
     tree = await later(Palette, OPEN);
     assert.equal(calls.inputs.length, 1, "one turn, the model's: no quick answer reads the steps a second time");
     const [asked] = calls.inputs;
@@ -5418,13 +5427,15 @@ test("over Campaigns the Line's chips are the campaigns the playbooks surface re
     totals: { waiting: null },
     ...over,
   });
+  // The page's questions as the bridge offers them to what is typed, the three AI's home drew as chips until they were
+  // found to come from a table (Ruben, 17 Nov 2026).
   const chips = async (rows) => {
     setSurfaceValue("playbooks", rows === undefined ? undefined : { rows });
-    render(Palette, OPEN);
-    const tree = await later(Palette, OPEN);
-    const said = all(tree, (n) => n.props?.["data-testid"] === "ask-row-sug").map(textOf);
-    await closes();
-    return said;
+    return askCalls()
+      .suggestions("campaigns", null, "en")
+      .filter((q) => q.kind !== "act" && q.q !== askText("en").needsQ)
+      .slice(0, 3)
+      .map((q) => q.label || q.q);
   };
   ask([]);
   try {

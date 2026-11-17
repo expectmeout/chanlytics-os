@@ -578,6 +578,13 @@ test("on Leads, the chips are the first day's ideas, each a search; after that, 
     more.some((s) => s.q === "Who needs me right now?" && s.fast),
     "then the usual questions",
   );
+  // AI's home draws only what was written for this workspace as chips (Ruben, 17 Nov 2026): the model's ideas and the
+  // owner's own searches, never a question from the table.
+  assert.ok(
+    ideas.slice(0, 3).every((s) => s.own) && more.slice(0, 2).every((s) => s.own),
+    "the ideas and the searches are the workspace's own",
+  );
+  assert.ok(!more.some((s) => s.own && s.q === "Who needs me right now?"), "a question from the table is not");
   assert.ok(more.length <= 7);
   const es = buildAskSuggestions({
     ...quiet,
@@ -986,7 +993,7 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
   assert.ok(idx.some((j) => j.to === "conversations/cv-k1" && j.sub === "missed"));
   assert.equal(
     api.rightNow("en"),
-    "Nora needs you; a campaign run is waiting for your approval.",
+    "Nora needs you. A send is waiting for your approval.",
     "the queue's people (a call worth a listen is nobody waiting) and the run waiting for a yes",
   );
   assert.deepEqual(api.waiting().people, [
