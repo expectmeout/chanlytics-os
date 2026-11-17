@@ -17,7 +17,7 @@
         "ask_morning": "today",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
         "leads": "clients/leads, leads",
         "live": "every page",
@@ -75,15 +75,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -145,10 +145,10 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -203,7 +203,7 @@
         "calendar_runs": "calendar",
         "leads": "clients/leads, leads",
         "person": "clients/person",
-        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
         "reports_campaigns": "reports, reports/campaigns",
@@ -264,16 +264,16 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "inbox, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "every page",
         "today": "every page",
         "today_pins": "today",
@@ -296,7 +296,7 @@
         "audiences": "broadcasts",
         "people": "clients, clients/get-yes, segments",
         "reports_campaigns": "reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "start, today"
       }
     },
@@ -310,15 +310,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "today": "today",
         "today_pins": "today"
@@ -334,15 +334,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "today": "today",
         "today_pins": "today"
@@ -365,9 +365,9 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs"
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages"
       }
     },
     "PATCH mailbox-connections/[id]": {
@@ -394,15 +394,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "every page",
         "today": "today",
         "today_pins": "today",
@@ -422,9 +422,9 @@
         "calendar_runs": "calendar",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today",
         "workspace": "every page"
       }
@@ -435,7 +435,7 @@
       "extra": {
         "broadcasts": "clients/get-yes, inbox, today",
         "people": "clients/person, today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
@@ -444,7 +444,7 @@
         "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today"
       }
     },
@@ -460,7 +460,7 @@
       "extra": {
         "broadcasts": "clients/get-yes, inbox, today",
         "people": "clients/person, today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
@@ -469,7 +469,7 @@
         "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today"
       }
     },
@@ -592,7 +592,7 @@
     "POST calendar/visits/[id]": {
       "changes": "appointments UPDATE",
       "extra": {
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_people": "reports/people"
       },
       "missing": {
@@ -611,7 +611,7 @@
     "POST calendar/visits/kept": {
       "changes": "appointments UPDATE",
       "extra": {
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_people": "reports/people"
       },
       "missing": {
@@ -664,7 +664,7 @@
         "calendar_runs": "calendar",
         "leads": "clients/leads, leads",
         "person": "clients/person",
-        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
         "sequences": "every page"
@@ -693,12 +693,12 @@
         "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -717,12 +717,12 @@
         "live": "live, start, today",
         "notifications": "every page",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "inbox, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -745,7 +745,7 @@
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -763,13 +763,13 @@
         "broadcasts": "every page",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
         "live": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
-        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
+        "playbooks": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start",
         "reach_out_replies": "every page",
         "reach_outs": "every page",
         "reply_drafts": "inbox, today",
@@ -789,7 +789,7 @@
         "ask_morning": "today",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "google": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, segments, start, today",
         "leads": "clients/leads, leads",
         "live": "every page",
@@ -810,7 +810,7 @@
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "notifications": "every page",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
@@ -824,7 +824,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
@@ -838,7 +838,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
@@ -852,7 +852,7 @@
         "audiences": "broadcasts",
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
@@ -886,13 +886,13 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -915,12 +915,12 @@
         "notifications": "every page",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -946,7 +946,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -955,11 +955,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -969,7 +969,7 @@
       "changes": "appointments UPDATE · conversations UPDATE · escalations INSERT UPDATE · notifications UPDATE",
       "tells": "notifications",
       "extra": {
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -1002,7 +1002,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1011,11 +1011,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1032,7 +1032,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1041,11 +1041,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1063,20 +1063,20 @@
         "broadcasts": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "every page",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1093,7 +1093,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1102,11 +1102,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1123,7 +1123,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1132,11 +1132,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1153,7 +1153,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1162,11 +1162,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1183,7 +1183,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1192,11 +1192,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -1238,7 +1238,7 @@
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
         "today_pins": "today"
       }
@@ -1378,9 +1378,9 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "every page"
       }
     },
@@ -1391,9 +1391,9 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs"
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages"
       }
     },
     "POST lead-searches/[id]/answer": {
@@ -1411,15 +1411,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1433,9 +1433,9 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "every page"
       }
     },
@@ -1454,15 +1454,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1476,8 +1476,8 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "reach_outs": "outbound",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -1490,9 +1490,9 @@
       "missing": {
         "notifications": "every page",
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "every page"
       }
     },
@@ -1511,15 +1511,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1533,9 +1533,9 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "every page"
       }
     },
@@ -1554,15 +1554,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1576,8 +1576,8 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "reach_outs": "outbound",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -1588,8 +1588,8 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "reach_outs": "outbound",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -1600,8 +1600,8 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "reach_outs": "outbound",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -1650,8 +1650,8 @@
       },
       "missing": {
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "reach_outs": "outbound",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -1667,7 +1667,7 @@
         "broadcasts": "every page",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -1703,21 +1703,21 @@
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "inbox, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1739,14 +1739,14 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1768,15 +1768,15 @@
         "notifications": "every page",
         "people": "clients, clients/get-yes, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -1790,7 +1790,7 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "people": "clients, clients/get-yes, clients/person, segments, today",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_people": "reports/people",
         "setup": "every page"
@@ -1833,7 +1833,7 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "people": "clients, clients/get-yes, clients/person, segments, today",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_people": "reports/people",
         "setup": "every page"
@@ -1846,7 +1846,7 @@
         "audiences": "broadcasts",
         "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "people": "clients, clients/get-yes, clients/person, segments, today",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_people": "reports/people",
         "setup": "every page"
@@ -1888,7 +1888,7 @@
         "conversations": "every page",
         "inbox": "every page",
         "people": "clients, clients/get-yes, clients/person, segments, today",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports_people": "reports/people"
       }
     },
@@ -1897,7 +1897,7 @@
       "extra": {
         "broadcasts": "inbox, today",
         "people": "clients/person, today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -1916,7 +1916,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
@@ -1925,11 +1925,11 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "inbox, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -1967,15 +1967,15 @@
         "notifications": "today",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "every page",
         "setup": "every page",
         "today": "today",
@@ -1994,20 +1994,20 @@
         "broadcasts": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "leads": "clients/leads, leads",
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reply_drafts": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -2029,7 +2029,7 @@
         "reach_outs": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -2076,11 +2076,11 @@
         "notifications": "every page",
         "people": "every page",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_outs": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -2110,7 +2110,7 @@
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, campaigns/messages, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page",
@@ -2128,7 +2128,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
@@ -2137,7 +2137,7 @@
         "reply_drafts": "inbox, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, campaigns/messages, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -2160,7 +2160,7 @@
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
         "reports_campaigns": "reports, reports/campaigns",
-        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, campaigns/messages, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today": "every page"
@@ -2173,7 +2173,7 @@
         "broadcasts": "every page",
         "leads": "every page",
         "playbooks": "every page",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs"
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages"
       }
     },
     "POST reach-outs": {
@@ -2203,11 +2203,11 @@
       "changes": "lead_operations INSERT · lead_search_members INSERT UPDATE",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
-        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
       "missing": {
         "person": "clients/person",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today"
       }
     },
@@ -2246,7 +2246,7 @@
         "audiences": "broadcasts",
         "calendar": "every page",
         "calendar_runs": "calendar",
-        "channels": "admin/integrations, broadcasts, campaigns/messages, campaigns/sequences/new, live, messages, outbound, today",
+        "channels": "admin/integrations, broadcasts, campaigns/sequences/new, live, outbound, today",
         "conversations": "every page",
         "inbox": "every page",
         "live": "live, start, today",
@@ -2312,7 +2312,7 @@
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
         "today_pins": "today"
       }
@@ -2320,10 +2320,10 @@
     "POST segments": {
       "changes": "segments INSERT",
       "extra": {
-        "playbooks": "broadcasts, campaigns/messages, messages, today"
+        "playbooks": "broadcasts, today"
       },
       "missing": {
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today"
       }
     },
@@ -2365,8 +2365,8 @@
       "changes": "lead_operations INSERT · lead_search_members INSERT UPDATE",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
-        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
-        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, campaigns/messages, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
+        "reach_outs": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today",
+        "sequences": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, calendar, campaigns/content, campaigns/content/library, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
       },
       "missing": {
         "person": "clients/person",
@@ -2502,7 +2502,7 @@
       "extra": {
         "broadcasts": "clients/get-yes, inbox, today",
         "people": "clients/person, today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
@@ -2511,7 +2511,7 @@
         "files": "admin/files",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today"
       }
     },
@@ -2541,15 +2541,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "every page",
         "today": "today",
         "today_pins": "today",
@@ -2646,7 +2646,7 @@
       "tells": "contacts",
       "extra": {
         "people": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -2655,9 +2655,9 @@
         "live": "live, start, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -2676,7 +2676,7 @@
         "reach_out_replies": "inbox, today",
         "reach_outs": "every page",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "admin/integrations, admin/receptionist, start, today",
         "today_pins": "today"
@@ -2687,7 +2687,7 @@
       "tells": "contacts",
       "extra": {
         "people": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -2696,9 +2696,9 @@
         "live": "live, start, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -2722,7 +2722,7 @@
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "every page",
         "setup": "start, today",
         "today_pins": "today"
@@ -2733,7 +2733,7 @@
       "tells": "contacts",
       "extra": {
         "people": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -2742,9 +2742,9 @@
         "live": "live, start, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -2755,7 +2755,7 @@
       "tells": "contacts",
       "extra": {
         "people": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -2764,9 +2764,9 @@
         "live": "live, start, today",
         "person": "clients/person",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -2779,7 +2779,7 @@
         "calendar": "admin/hours, admin/workspace, calendar, today",
         "notifications": "every page",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_headline": "today",
         "reports_receptionist": "reports/receptionist",
@@ -2805,7 +2805,7 @@
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "every page",
         "setup": "start, today",
         "today_pins": "today"
@@ -2823,7 +2823,7 @@
       "extra": {
         "broadcasts": "inbox, today",
         "people": "clients/person, today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today",
+        "playbooks": "broadcasts, today",
         "reports_campaigns": "reports"
       },
       "missing": {
@@ -2866,10 +2866,10 @@
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reach_out_replies": "inbox, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_people": "reports/people",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "setup": "start, today",
         "today_pins": "today"
@@ -2895,7 +2895,7 @@
       "changes": "policies UPDATE",
       "extra": {
         "people": "today",
-        "playbooks": "broadcasts, campaigns/messages, messages, today"
+        "playbooks": "broadcasts, today"
       },
       "missing": {
         "calendar": "admin/hours, admin/workspace, calendar, today",
@@ -2907,7 +2907,7 @@
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "start, today",
         "today_pins": "today"
       }
@@ -2936,10 +2936,10 @@
     "PUT segments/[id]": {
       "changes": "segment_members DELETE INSERT UPDATE · segments UPDATE",
       "extra": {
-        "playbooks": "broadcasts, campaigns/messages, messages, today"
+        "playbooks": "broadcasts, today"
       },
       "missing": {
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today_pins": "today"
       }
     },
@@ -2986,10 +2986,10 @@
         "files": "admin/files",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "today": "today",
         "today_pins": "today"
       }
@@ -3023,15 +3023,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "today": "today",
         "today_pins": "today"
@@ -3047,15 +3047,15 @@
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, clients/person, segments, today",
         "person": "clients/person",
-        "playbooks": "broadcasts, campaigns/messages, campaigns/sequences/new, messages, outbound, today",
-        "reach_outs": "campaigns/messages, messages, outbound",
+        "playbooks": "broadcasts, campaigns/sequences/new, outbound, today",
+        "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_campaigns": "reports, reports/campaigns",
         "reports_headline": "today",
         "reports_people": "reports/people",
         "reports_receptionist": "reports/receptionist",
         "reports_reviews": "reports/reviews",
-        "sequences": "broadcasts, campaigns, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs",
+        "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, broadcasts, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, inbox, messages, outbound, start",
         "today": "today",
         "today_pins": "today"

@@ -178,11 +178,13 @@ test("Reports: the period; Campaigns: the tab's own rows; Settings: the pane; St
   const runs = ctx(g, `broadcasts/run:${U(2)}`);
   assert.deepEqual([runs.view, runs.rows], ["broadcasts", [{ kind: "run", id: U(2) }]]);
   assert.deepEqual(runs.focus, { kind: "run", id: U(2), label: "this run" });
-  assert.deepEqual(ctx(g, "messages").rows, [{ kind: "template", id: U(3) }]);
-  // Messages as the view of Campaigns it is (19 Oct 2026): its rows, not Sequences', though both views are drawn.
+  // Messages folded into Campaigns (17 Nov 2026): its old route, and the address of its list, are Campaigns' list, never
+  // the messages the business holds, which no page lists now.
+  const old = ctx(g, "messages");
+  assert.deepEqual([old.surface, old.view, old.rows], ["campaigns", "playbooks", [{ kind: "playbook", id: U(1) }]]);
   holding("sequences", { sequences: [{ id: U(1), name: "Win back", starts: "moment" }] });
   const view = ctx(g, "campaigns/messages");
-  assert.deepEqual([view.surface, view.view, view.rows], ["campaigns", "messages", [{ kind: "template", id: U(3) }]]);
+  assert.deepEqual([view.surface, view.view, view.rows], ["campaigns", "sequences", [{ kind: "playbook", id: U(1) }]]);
   assert.equal(ctx({}, "admin/autonomy").view, "autonomy");
   assert.equal(ctx({}, "admin").view, "workspace");
   assert.equal(ctx({}, "start/phone").view, "phone");

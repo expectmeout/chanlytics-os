@@ -76,9 +76,9 @@ export const PAGE_HEARS: Readonly<Record<string, Readonly<Record<string, PageCel
     settings: true,
     playbooks: ["person", "facts", "rules", "channel", "billing", "visit", "list", "send"],
   },
-  messages: { settings: true },
-  // Messages as the view of Campaigns it is (19 Oct 2026): what the Library heard, at its address now.
-  "campaigns/messages": { settings: true },
+  // Messages folded into Campaigns (17 Nov 2026): its old route and its addresses are Campaigns' list, which hears what it does.
+  messages: { sequences: true, settings: true },
+  "campaigns/messages": { sequences: true, settings: true },
   // Campaigns › Content: the settings read (its switch), and its own read, which a file's change moves (a video landing, a
   // name the look gives). One read of a page of tiles for each quiet two seconds of the feed, on this page only.
   "campaigns/content": { settings: true, content: true },

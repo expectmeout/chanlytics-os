@@ -80,10 +80,10 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   outbound: "real", // the old Playbooks list, retired: it lands on Sequences, and a playbook on its sequence (contracts retiredRouteOf)
   // Campaigns › Sequences (decision 0060): everything sent on its own, one list and a record, over the sequences surface.
   "campaigns/sequences": "real",
-  "campaigns/messages": "real", // Campaigns › Messages (D4: the Library), a view kept beside Sequences under Campaigns' one mount (19 Oct 2026)
+  "campaigns/messages": "real", // Messages' list folded into Campaigns (17 Nov 2026): it lands on Sequences, and a message's address opens it over the list
   content: "demo",
   broadcasts: "real", // Sent's addresses land on Campaigns' screens, the Inbox's To send and People's Get their yes (lanes 2, 4, 7)
-  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
+  messages: "real", // Messages' old route: it lands on Campaigns' list, where every message is since Messages folded into Campaigns (17 Nov 2026)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   // Settings, the page itself. Every pane it draws is classified below, and one nobody has listed is not a pane: Settings
   // opens Profile for it (settings/frame/tabs.ts SET_TAB), which the settings read feeds. It was "demo" once, as the honest
@@ -142,9 +142,10 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // Campaigns is Sequences' list (decision 0060): the gate waits for it; the sheets it opens over it read theirs (ROUTE_DRAWS).
   campaigns: "sequences",
   "campaigns/sequences": "sequences", // its Sequences view (0060) is its own list: the gate waits for it, never the home's moments
-  // Messages, at its address and at its old route: the templates ride on the settings surface; the page waits for it like Settings does.
-  "campaigns/messages": "settings",
-  messages: "settings",
+  // Messages, at its address and at its old route, is Campaigns' list since it folded into Campaigns (17 Nov 2026): the gate
+  // waits for the list, as Sequences' own does.
+  "campaigns/messages": "sequences",
+  messages: "sequences",
   outbound: "playbooks",
   calendar: "calendar",
   // The first run is Setup's rows, so it waits for Setup's read.
@@ -213,8 +214,8 @@ function paneOf(page: string, param?: string | null): string | null | undefined 
   // Content's Library (`content:library`, the content redesign's stage 2) is fed by the library's read, which Made never
   // reads: a screen of its own.
   if (page === "campaigns" && contentPlaceOf(first)?.list === "library") return "content/library";
-  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), its Messages view with a
-  // message open (`campaigns/messages/<name>`), a campaign that lands on its sequence (`moment:<id>`).
+  // Campaigns' first word is what is fed: its Sequences view (`campaigns/sequences/<id>/people`), a message's address
+  // (`campaigns/messages/<name>`, which opens it over the list), a campaign that lands on its sequence (`moment:<id>`).
   if (page === "campaigns" && first) return first.split(":")[0] || first;
   return first;
 }

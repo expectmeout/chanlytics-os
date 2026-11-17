@@ -38,73 +38,6 @@ import {
   usedBy,
 } from "./_message-page.mjs";
 
-test("a message something sends that no channel can carry here waits, in a quiet word with nothing to press, never 'Needs you' and never a channel's reason on its row; one a channel carries is sending, its card saying its word once", () => {
-  const rows = [custom(HOURS)];
-  page({ rows });
-  sendsIt(usedBy(HOURS));
-  setSurfaceValue("playbooks", { rows: [], ready: NOTHING_READY });
-  let tree = redraw();
-  // Its row stands with what something sends, never under Needs you: no press on this page mends a channel (the clean
-  // list, 13 Nov 2026; it said "Nothing can send it here yet." and the channel's reason on every such row).
-  assert.equal(byTestId(tree, "templates-need"), null, "nothing needs you");
-  const row = rowOf(tree, HOURS);
-  assert.equal(row.props["data-place"], "going");
-  const word = (of) => find(of, (n) => n.props?.testid === "template-status") ?? null;
-  assert.equal(word(row).props.label, "Waiting", "one quiet word");
-  assert.equal(word(row).props.value, "plain", "in no warning's tone");
-  assert.equal(textOf(row).includes("Nothing can send"), false, "and no reason under its name");
-  assert.equal(textOf(row).includes(contracts.CHANNEL_WORDS.noWhatsApp), false);
-  tree = opened(tree, HOURS);
-  assert.equal(standingWord(tree), "Waiting");
-  assert.equal(
-    standingSays(tree),
-    "Waiting. Set to go out with Hours · step 2. It goes by itself as soon as there is a way to send it.",
-  );
-
-  // A channel that carries it: Sending, and the card says the word once, then what sends it.
-  setSurfaceValue("playbooks", {
-    rows: [],
-    ready: contracts.channelsReady({
-      whatsapp: { canSend: true, refusal: null },
-      textLine: null,
-      email: { mailbox: false, domain: true },
-    }),
-  });
-  tree = redraw();
-  assert.equal(standingWord(tree), "Sending");
-  assert.equal(standingSays(tree), "Sending. Sent by Hours · step 2.");
-  assert.equal(word(rowOf(tree, HOURS)), null, "and its row wears no word");
-  // The channels not read say nothing of them: what sends it decides.
-  setSurfaceValue("playbooks", undefined);
-  assert.equal(standingWord(redraw()), "Sending");
-
-  // An email it has words for, where email could not be asked about just now: a question nobody answered is not a no,
-  // so nothing is said of it. With no email of its own, the same unanswered question changes nothing: it waits.
-  const unasked = contracts.channelsReady({ whatsapp: null, textLine: null, email: { mailbox: true, domain: null } });
-  page({ rows, versions: [ownRow("email", HOURS)] });
-  sendsIt(usedBy(HOURS));
-  setSurfaceValue("playbooks", { rows: [], ready: unasked });
-  assert.equal(word(rowOf(redraw(), HOURS)), null, "a check that did not answer says nothing");
-  page({ rows });
-  sendsIt(usedBy(HOURS));
-  setSurfaceValue("playbooks", { rows: [], ready: unasked });
-  assert.equal(word(rowOf(redraw(), HOURS)).props.label, "Waiting");
-});
-
-test("a message put away that something still sends says so on its card: putting it away stops nothing", () => {
-  const rows = [custom(HOURS, { hidden_at: "2026-11-12T00:00:00Z" })];
-  page({ rows });
-  sendsIt(usedBy(HOURS));
-  // Put away is a folded group: its head unfolds it.
-  press(byTestId(redraw(), "templates-hidden"));
-  const tree = opened(redraw(), HOURS);
-  assert.equal(standingWord(tree), "Put away");
-  assert.equal(
-    standingSays(tree),
-    "Put away. On file, out of the list and the composers. Its name brings it back. Putting it away stops nothing: it is still sent by Hours · step 2.",
-  );
-});
-
 test("WhatsApp's words have no pencil where WhatsApp holds no copy of them (never sent there): only a message it holds is changed and sent back", () => {
   let tree = opened(page({ rows: [custom(HOURS, { at_meta: false })] }), HOURS);
   assert.equal(byTestId(paneOf(tree), "template-words-edit"), null);
@@ -248,14 +181,6 @@ test("put away while a sequence still sends it says so as it goes: putting it aw
     textOf(toasts.at(-1).msg),
     /is put away · still on file\. Putting it away stops nothing: it is still sent by Hours · step 2\./,
   );
-});
-
-test("New's drawer on a phone draws no 'Messages' line over its own head, as an open message's does not", () => {
-  page({ rows: [] });
-  press(headed(redraw(), "template-new"));
-  const tree = redraw();
-  const drawer = find(tree, (n) => n.props?.testid === "tpl-drawer");
-  if (drawer) assert.equal(drawer.props.bare, true);
 });
 
 test("a refused message whose fix AI already wrote opens on those words at once, never asking Ask again; Undo is the refused words", () => {

@@ -1041,9 +1041,9 @@ const campaignsWorld = async () => {
     clearInterval() {},
   });
   Object.assign(globalThis.window, kitPages);
-  const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
+  const { MessageInPlace } = await import(`${SRC}/surfaces/campaigns/parts/message-in-place.tsx`);
   const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
-  campaigns = { toasts, TemplatesPage, setSurfaceValue };
+  campaigns = { toasts, MessageInPlace, setSurfaceValue };
   return campaigns;
 };
 
@@ -1064,7 +1064,7 @@ test("REGRESSION: a run the server moved to nine says so -- the toast said 'send
 /* ------ Messages: an unread number, and the business the preview names ------ */
 
 const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
-  const { TemplatesPage, setSurfaceValue } = await campaignsWorld();
+  const { setSurfaceValue } = await campaignsWorld();
   const { campaignMessagesOf } = await import("@chanlytics/contracts");
   setSurfaceValue("settings", {
     settings: {
@@ -1079,7 +1079,6 @@ const mountMessages = async ({ channels = [], templatesAll = [] } = {}) => {
   // The number is the channels read's (surfaces/channels/surface.ts): null is a read that failed, [] a workspace with none.
   setSurfaceValue("channels", { rows: channels });
   freshTree();
-  return TemplatesPage();
 };
 const byId = (tree, id) => {
   let hit = null;
@@ -1089,37 +1088,14 @@ const byId = (tree, id) => {
   return hit;
 };
 /**
- * Templates with ONE named message open: a row carries a line of the words, and
- * the whole message -- its slots filled with this business's own -- is in the pane
- * it opens beside the list (the page's tree holds both, so a read by test id finds it).
- * Named, because eight starters are rows on the same page and opening whichever
- * is first passes a preview assertion with another message's words.
+ * ONE named message open in its sheet (parts/message-in-place.tsx), its slots filled with this business's own: how a
+ * message opens over any page since Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026). It was opened from
+ * its row on the Messages page, by name, because eight starters were rows on the same page.
  */
 const mountMessagesOpen = async (over, name) => {
-  const tree = await mountMessages(over);
-  let row = null;
-  // By the name WhatsApp knows it by, which the row carries as data-template: the row's own words are its title and
-  // its quote, and the name in type left the closed row (23 Sep, Campaigns made compact).
-  walk(tree, (n) => {
-    if (
-      !row &&
-      /^(starter|custom)-row$/.test(String(n.props?.["data-testid"] || "")) &&
-      n.props?.["data-template"] === name
-    )
-      row = n;
-  });
-  assert.ok(row, `no row for ${name}`);
-  byId(row, "template-open").props.onClick();
-  return againTree(() => campaigns.TemplatesPage());
+  await mountMessages(over);
+  return againTree(() => campaigns.MessageInPlace({ name, flash: (t) => campaigns.toasts.push(t), onClose() {} }));
 };
-
-test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", async () => {
-  const failed = await mountMessages({ channels: null });
-  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
-  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
-  const none = await mountMessages({ channels: [] });
-  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
-});
 
 test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
   // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,

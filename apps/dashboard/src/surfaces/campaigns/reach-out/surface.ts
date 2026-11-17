@@ -179,8 +179,6 @@ export const reachOuts = {
         }
       : r;
   },
-  /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
-  report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),
   /** A search's reach as this tab last read it, if it has: what a door or a sheet paints first. */
   reachHeld: (searchId: string): ReachOutReachDto | null => reaches.peek(searchId),

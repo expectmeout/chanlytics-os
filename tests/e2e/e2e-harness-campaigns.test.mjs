@@ -91,7 +91,6 @@ const quiet = console.error;
 console.error = () => {};
 const { DraftView } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-draft.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
-const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { cmOfferedMessages } = await import(`${SRC}/surfaces/campaigns/parts/channels.ts`);
 const { settingsOverride } = await import(`${SRC}/bridge/surfaces/settings.ts`);
 const { channelsOverride } = await import(`${SRC}/surfaces/channels/surface.ts`);
@@ -400,106 +399,4 @@ test("a workspace with no WhatsApp number offers New the messages it has written
   assert.ok(textOf(card).includes(said), textOf(card));
   assert.equal(/number/.test(said), false, "an email is never said to need a number");
   assert.equal(hostOf(card, "sq-nw-nobody-yes"), null, "nor their yes, which they gave");
-});
-
-/* ---------------------------------- the Library ---------------------------------- */
-
-/**
- * The Library over what the real settings and channels surfaces publish of a record's answers: the bridge's own reads, not a
- * stand-in. The numbers are the channels read's (#1595 moved the page off the settings read's copy of them).
- */
-const library = async (record) => {
-  wire(record);
-  console.error = () => {};
-  try {
-    await settingsOverride.apply();
-    await channelsOverride.apply();
-  } finally {
-    console.error = quiet;
-  }
-  setSurfaceValue("reach_outs", []);
-  setSurfaceValue("playbooks", undefined);
-  freshTree();
-  return drawAgain(() => TemplatesPage());
-};
-
-/** The Library with every group that folds pressed open (Ready, Ready-made, Put away), as the spec counts it. */
-const unfolded = (tree) => {
-  let now = tree;
-  for (const id of ["templates-fold-idle", "templates-fold-made", "templates-hidden"]) {
-    const head = byTestId(now, id);
-    if (head && head.props["aria-expanded"] === false) {
-      press(head);
-      now = drawAgain(() => TemplatesPage());
-    }
-  }
-  return now;
-};
-
-test("the Library draws the rows the spec counts, the quiet line only where there is no number, and New opens one line to Ask", async () => {
-  // The recorded settings answers say no review link (none predates it), so the Library offers no review ask.
-  const starterNames = contracts.startersOffered({ reviewLink: false }).map((s) => s.name);
-  for (const [name, record] of WORKSPACES) {
-    // Every group open (Messages, the canvas of 10 Nov 2026: Not in use and Put away fold), so each row the spec counts is drawn.
-    const tree = unfolded(await library(record));
-    const messages = messagesOf(read(record, "/api/v1/templates", { all: "1" }));
-    // The bridge made the page the same messages the route answers.
-    assert.deepEqual(
-      JSON.parse(JSON.stringify(surfaceValue("settings").messages)),
-      JSON.parse(JSON.stringify(messages)),
-      `${name}: the messages the page holds are the route's`,
-    );
-    const rows = libraryRows(messages, starterNames);
-    const count = (id) => all(tree, (n) => n.props?.["data-testid"] === id).length;
-    assert.equal(
-      count("starter-row"),
-      rows.starterRows,
-      `${name}: a row to each starter, whatever the workspace holds`,
-    );
-    assert.equal(
-      count("custom-row"),
-      rows.customRows,
-      `${name}: a row to each message it wrote, whatever channels it holds`,
-    );
-    // (The fold is one element in a browser: a link a press opens. In this tree a component and what it draws both carry
-    // the test id, so it is said as there or not.)
-    assert.equal(!!byTestId(tree, "templates-hidden"), rows.hidden, `${name}: the fold for what it hid`);
-    assert.equal(textOf(tree).includes("hello_world"), false, `${name}: Meta's sample is never shown`);
-    // The quiet line where the number is missing, and the list below it either way.
-    assert.equal(
-      !!byTestId(tree, "messages-no-number"),
-      !hasNumber(record),
-      `${name}: the line says where the number is missing`,
-    );
-    // The set's win-back opens in the pane on a bubble, whatever it holds and whether or not there is a number (the
-    // starters nothing sends are sorted by what each is for, so it is found by its name, as the spec finds it).
-    const first = find(tree, (n) => n.props?.["data-testid"] === "starter-row" && textOf(n).includes("Win-back"));
-    assert.ok(first, `${name}: the set's win-back is listed`);
-    // No starter is said to be missing, and nothing under the list asks about WhatsApp (the clean list, 13 Nov 2026).
-    for (const gone of ["Not added", "Not in use", "Checked with WhatsApp"])
-      assert.equal(textOf(tree).includes(gone), false, `${name}: "${gone}" is gone`);
-    press(find(first, (n) => n.props?.["data-testid"] === "template-open"));
-    const open = drawAgain(() => TemplatesPage());
-    const pane = byTestId(open, "template-pane");
-    assert.ok(pane, `${name}: the message opens beside the list`);
-    assert.ok(byTestId(pane, "message-preview"), `${name}: on the bubble the customer sees`);
-    // The language a quiet word where there is a choice: the win-back's library holds English and Spanish, and the
-    // workspace's own languages decide whether it is drawn (the message sheet's canvas, 12 Nov 2026): at most one.
-    assert.ok(all(pane, (n) => n.type === Picker && n.props["data-testid"] === "template-lang").length <= 1);
-    // New is one line to Ask (the Messages redesign's step 4), number or none: no form asks where it is sent first.
-    press(headed(open, "template-new"));
-    const writing = drawAgain(() => TemplatesPage());
-    assert.ok(byTestId(writing, "template-new-words"), `${name}: one line to Ask`);
-    assert.equal(byTestId(writing, "messages-composer"), null, `${name}: no form`);
-    // Closed, it asks nothing and the line is gone.
-    press(byTestId(writing, "cm-pane-close"));
-    assert.equal(
-      byTestId(
-        drawAgain(() => TemplatesPage()),
-        "template-new-words",
-      ),
-      null,
-      `${name}: and the way out`,
-    );
-  }
 });

@@ -36,15 +36,13 @@ import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
  * Messages' address, which was a view of Campaigns beside Sequences (D4: the Library is Messages, 19 Oct 2026) until Messages
  * folded into Campaigns (Campaigns, one tab, 17 Nov 2026): every message is inside the campaign that sends it, and one no
  * campaign sends is at the list's foot. It, and its own old route `messages` (the path `/w/<slug>/templates`), land on
- * Campaigns for ever (retiredRouteOf, below), and a message it was open on lands on that message over Campaigns. Declared
+ * Campaigns' list for ever (retiredRouteOf, below); a message's own address (`campaigns/messages/<name>`, messageRoute) is
+ * Campaigns' page's, which opens the message over the list. Declared
  * here, beside the route words, so the boot does not carry Campaigns' words: from them it carried those into the error
  * screen's chunk (+3.7 KB on every first load). The modules this one imports are Sequences' and People's addresses
  * (sequences/address.ts, people/lists/people-route.ts), which import nothing.
  */
-export const MESSAGES_ROUTE = "campaigns/messages";
-
-/** Whether a param of `campaigns` is Messages' view (its first word). */
-export const isMessagesParam = (param: string | null | undefined): boolean => !!param && /^messages(\/|$)/.test(param);
+const MESSAGES_ROUTE = "campaigns/messages";
 
 /** The parts of an address the functions below read; every part may be missing (a made-up window has few). */
 export interface AddressParts {

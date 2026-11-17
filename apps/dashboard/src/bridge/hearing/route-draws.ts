@@ -100,10 +100,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // its who sheet and its starts offer, the playbooks read first since its first draw waits for it (ROUTE_WAITS). It reads
   // the searches whose leads are ready itself (reach-out/surface.ts sources), started from the document's head with these.
   "campaigns/sequences/new": ["sequences", "playbooks", "settings", "channels"],
-  // Messages says which playbooks send each message, and its number notice and a message's drawer are the channels read's,
-  // read first since its first draw waits for it (ROUTE_WAITS).
-  messages: ["channels", "reach_outs", "playbooks"],
-  "campaigns/messages": ["channels", "reach_outs", "playbooks"],
+  // Messages folded into Campaigns (17 Nov 2026): its old route and its addresses draw Campaigns' list.
+  messages: ["sequences", "settings"],
+  "campaigns/messages": ["sequences", "settings"],
   // Campaigns › Content (`campaigns/content`, where it is drawn): what Ask made, its own read (campaigns/content/surface.ts).
   "campaigns/content": ["content"],
   // Its Library (`campaigns/content:library`, once Settings › Files): what the business keeps, the library's own read
@@ -213,10 +212,8 @@ export const ROUTE_WAITS: Record<string, readonly string[]> = {
   // there is a number to send from: drawn before the channels read, it said there was none, then the list moved 55 px up.
   "campaigns/sequences": ["settings"],
   "campaigns/sequences/new": ["playbooks"],
-  // And what each of its rows says of what sends it (the playbooks read: a pill where a language something sends is missing)
-  // and a cold email sequence's emails (the reach-outs read): neither was waited for, and the pills came 2.7 s after the
-  // list on a phone, the emails 0.3 s after it (the phone review of 15 Nov 2026). Each started from the head with the page's.
-  "campaigns/messages": ["channels", "reach_outs", "playbooks"],
-  messages: ["channels", "reach_outs", "playbooks"],
+  // Messages' old route and its addresses are Campaigns' list's (Messages folded into Campaigns, 17 Nov 2026).
+  "campaigns/messages": ["settings"],
+  messages: ["settings"],
 };
 export const ROUTE_WAIT_MS = 3000;

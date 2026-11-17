@@ -242,6 +242,7 @@ tests/
   reports/
   routes/
   sequences/
+  settings/
   setup/
   shared/
   shell/

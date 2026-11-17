@@ -360,7 +360,7 @@ function lineWords(p: {
 export type MessagePlace = "need" | "going" | "idle" | "made" | "away";
 
 /** A message as the list sets it: where it stands, the line under its name, and what stands at its right. */
-export interface MessageSetting {
+interface MessageSetting {
   place: MessagePlace;
   /** The line under its name: why it needs you, what sends it, or what it is for. */
   said: string;
