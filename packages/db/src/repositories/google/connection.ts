@@ -16,6 +16,15 @@ type ConnectionUpdate = Database["public"]["Tables"]["google_connections"]["Upda
 export const findGoogleConnection = async (db: Db, tenantId: TenantId) =>
   db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
 
+/**
+ * A connection made with this Google account (its `sub`), whichever workspace's, but `exceptTenantId`'s own: one, or
+ * none. Read across workspaces on purpose: a grant given back to Google ends every connection the account made.
+ */
+export const findGoogleConnectionOfAccount = async (db: Db, account: string, exceptTenantId: TenantId | null) => {
+  const ofAccount = platformWide(db).from("google_connections").select("tenant_id").eq("google_sub", account);
+  return (exceptTenantId ? ofAccount.neq("tenant_id", exceptTenantId) : ofAccount).limit(1).maybeSingle();
+};
+
 /** The workspace's connection read again after a write: `single()`, so a row gone is an error the caller says. */
 export const rereadGoogleConnection = async (db: Db, tenantId: TenantId) =>
   db.from("google_connections").select("*").eq("tenant_id", tenantId).single();

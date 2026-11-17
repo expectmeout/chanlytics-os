@@ -12,6 +12,7 @@ import { recordOrEmpty, type SchemaSet, DbFailure } from "@chanlytics/contracts"
 import type { TenantId } from "@chanlytics/contracts";
 import { z } from "zod";
 import { readAnswer } from "../../shared/read-json";
+import { platformWide } from "../../shared/tenant-db";
 
 /** What mailbox_connection_connect answers: the mailbox's row, and whether this call made it. */
 const ConnectAnswer = z.object({ id: z.string(), made: z.boolean(), state: z.string() }).partial();
@@ -56,6 +57,26 @@ export async function findLiveMailboxByAddress(db: Db, address: string): Promise
     .neq("state", "removed")
     .maybeSingle();
   if (error) throw new DbFailure(error, "cannot read the mailbox");
+  return data;
+}
+
+/**
+ * A live mailbox connected with this Google account (its `sub`), whichever workspace's, but the one named: its id, or
+ * null. Read across workspaces on purpose: a grant given back to Google ends every connection the account made.
+ */
+export async function findLiveGoogleMailboxOfAccount(
+  db: Db,
+  account: string,
+  exceptId: string | null,
+): Promise<{ id: string } | null> {
+  const live = platformWide(db)
+    .from("mailbox_connections")
+    .select("id")
+    .eq("provider", "google")
+    .eq("provider_account", account)
+    .neq("state", "removed");
+  const { data, error } = await (exceptId ? live.neq("id", exceptId) : live).limit(1).maybeSingle();
+  if (error) throw new DbFailure(error, "cannot read the Google account's mailboxes");
   return data;
 }
 
