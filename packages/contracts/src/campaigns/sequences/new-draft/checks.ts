@@ -7,7 +7,7 @@ import { FOLLOW_UP_CONDITIONS, type FollowUpCondition } from "../follow-up";
 import type { SequenceMode } from "../sequence";
 import {
   NEW_AUDIENCES,
-  NEW_KINDS,
+  NEW_ANSWER_KINDS,
   NEW_STEP_DOES,
   NEW_WORDS_MAX,
   type DraftWho,
@@ -93,6 +93,22 @@ export interface NewDraftDto {
    */
   voice?: string[];
 }
+
+/**
+ * What New is answered where the line is the words of a message to keep, not something to send (NEW_ANSWER_KINDS'
+ * `message`, Campaigns, one tab, call C12): the line, which New hands to AI's message card. No draft is made of it, so
+ * none is answered.
+ */
+export interface NewDraftKeeps {
+  keeps: "message";
+  said: string;
+}
+
+/** What a line said to New is answered with: a draft, or that it is a message to keep. */
+export type NewDraftAnswered = NewDraftDto | NewDraftKeeps;
+
+/** Whether an answer is a message to keep, and no draft. */
+export const draftKeepsMessage = (answered: NewDraftAnswered): answered is NewDraftKeeps => "keeps" in answered;
 
 /** What New asks Ask: the line, and any choice already made (a door's, or the owner's in the draft). */
 export interface NewDraftAsk {
@@ -217,7 +233,7 @@ export const NEW_DRAFT_JSON_SCHEMA = {
   additionalProperties: false,
   required: ["kind", "audience", "who", "name", "hour", "when", "steps", "cannot"],
   properties: {
-    kind: { type: "string", enum: [...NEW_KINDS] },
+    kind: { type: "string", enum: [...NEW_ANSWER_KINDS] },
     audience: { type: "string", enum: [...NEW_AUDIENCES] },
     who: { type: "string" },
     name: { type: "string" },

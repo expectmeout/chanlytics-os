@@ -22,6 +22,7 @@ import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Segmented } from "../../kit/segmented/segmented";
 import { Select } from "../../kit/select/select";
+import { AskForMessage } from "./ask-line";
 import { approvedKey, onSendKey } from "./state";
 import type { SheetState } from "./state";
 
@@ -161,6 +162,9 @@ function approvedPart(s: SheetState, reach: PersonReachDto) {
           {approved.state === "failed" ? W.unread : W.approved.none(reach.person.name)}
         </p>
         {notOffered(s, choice?.hidden)}
+        {/* None can go yet: AI writes one the Inbox can start a chat with (Campaigns, one tab, call C10). Not where the
+            messages could not be read, which says so and nothing more. */}
+        {approved.state === "failed" ? null : <AskForMessage onAsk={s.askForMessage} />}
       </section>
     );
   return (

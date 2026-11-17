@@ -12,7 +12,7 @@
  * route's params the page draws, and `chrome` names the crumbs an address has, as the row's `draw` did. An address the
  * page does not take stays with the frame's table, which draws its row or says it is not found.
  */
-import { CAMPAIGN_ROOMS, FIRST_RUN_TITLE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, FIRST_RUN_TITLE } from "@chanlytics/contracts";
 import { broadcastsChrome, campaignsChrome, messagesChrome } from "./campaigns/routes";
 import { calendarChrome } from "./calendar/chrome";
 import { conversationsCrumbs, conversationsNav, inboxCrumbs } from "./inbox/routes";
@@ -152,10 +152,11 @@ export const SURFACE_ROUTES: Readonly<Record<string, SurfaceRoute>> = {
   // move (contracts retiredRouteOf, applied where a route is written and where an address is moved on load); this draws only
   // for an address that arrives some other way, which the page at `playbooks` replaces.
   outbound: { activeNav: "campaigns", crumbs: [CAMPAIGN_ROOMS.home], pane: false, takes: () => true },
-  // Campaigns › Messages (0060, D4: the Library is Messages), in the strip beside Sequences.
+  // Messages' old route (0060, D4: the Library was Messages), which lands on Campaigns' list since Messages folded into
+  // Campaigns (17 Nov 2026): this draws only for an address that arrives some other way, until it has moved.
   messages: {
-    activeNav: "messages",
-    crumbs: [{ label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE }, CAMPAIGN_ROOMS.library],
+    activeNav: "campaigns",
+    crumbs: [CAMPAIGN_ROOMS.home],
     pane: true,
     chrome: () => messagesChrome(),
   },

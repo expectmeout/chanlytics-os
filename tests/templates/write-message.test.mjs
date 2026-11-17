@@ -15,13 +15,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import {
-  CAMPAIGN_ROOMS,
-  LIBRARY_WORDS,
-  MESSAGE_BEGIN_WORDS,
-  channelNeverCarries,
-  PROPOSAL_SPECS,
-} from "@chanlytics/contracts";
+import { LIBRARY_WORDS, MESSAGE_BEGIN_WORDS, channelNeverCarries, PROPOSAL_SPECS } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -509,7 +503,7 @@ test("(c2) WhatsApp refusing the version in its answer to the filing is filed as
   assert.deepEqual(r.versions.at(-1), { channel: "whatsapp", id: wa.id, state: "rejected" });
   assert.equal(r.refused, undefined, "filed, and refused by WhatsApp: no version the door could not file");
   const said = PROPOSAL_SPECS.message.receipt({ kind: "message", payload: { name: "spring_colour" } }, r);
-  assert.equal(said, `Words saved. WhatsApp refused them (see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}).`);
+  assert.equal(said, "Words saved. WhatsApp refused them (see the message).");
   assert.doesNotMatch(said, /for review/);
 });
 

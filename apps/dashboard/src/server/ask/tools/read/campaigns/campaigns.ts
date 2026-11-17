@@ -27,7 +27,6 @@ import {
   runWaitsOnYou,
   SEQUENCES_ROUTE,
   runRoute,
-  MESSAGES_ROUTE,
   UUID,
 } from "@chanlytics/contracts";
 import { campaignsHomeOf } from "@/server/campaigns/lifecycle/stages";
@@ -157,7 +156,8 @@ export async function readMessages(toolContext: ToolContext, input: { name?: str
     toolContext.read,
     read.rows.filter((r) => versions.has(r.id)),
   );
-  return { route: MESSAGES_ROUTE, messages };
+  // Every message is inside Campaigns (Campaigns, one tab): each row cites its own, the message over the page.
+  return { route: SEQUENCES_ROUTE, messages };
 }
 
 /** GET playbooks' answer and GET broadcasts', as their readers give them. */

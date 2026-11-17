@@ -232,9 +232,9 @@ test("a page opens its own views, which are no record: a day, a lens, a tab, the
     "campaigns/new": "campaigns/sequences/new",
     "campaigns/sequences/new:once:to:s1": "campaigns/sequences/new",
     "campaigns/in:reach_out": "campaigns/sequences",
-    // Messages is a view of Campaigns (19 Oct 2026), and its old word lands on it.
-    "campaigns/messages": "campaigns/messages",
-    messages: "campaigns/messages",
+    // Messages folded into Campaigns (17 Nov 2026): its list and its old word land on Campaigns' list.
+    "campaigns/messages": "campaigns/sequences",
+    messages: "campaigns/sequences",
     broadcasts: "campaigns/sequences",
     // Sent's views went too (the Campaigns wiring review's lanes 4 and 7): To send to the Inbox, Get their yes to People.
     "broadcasts/get-yes": "clients/get-yes",

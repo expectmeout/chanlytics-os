@@ -665,7 +665,6 @@ test.describe("Phone shell on a real workspace", () => {
     await read("clients", ".pl-table tbody tr.pl-card-row", ".list-row-name", "People");
     await read("clients/leads", ".pl-table tbody tr.pl-card-row", ".list-row-name", "Leads");
     await read("campaigns", ".sq-group > .list-row", ".list-row-name", "Sequences");
-    await read("templates", ".msg-list > .msg-row", ".msg-row-title", "Messages", ".msg-row-line");
     const seen = Object.entries(rules);
     test.skip(seen.length === 0, "this workspace has no list of two rows");
     const [firstSeen] = seen;
@@ -844,10 +843,8 @@ test.describe("Phone shell on a real workspace", () => {
       ["clients", ".cl-main-scroll", ".pp-scope .cl-table-wrap"],
       ["clients/leads", ".cl-main-scroll", ".leads-scope .cl-table-wrap"],
       ["clients/pipeline", ".cl-main-scroll", ".pipe-scope .cl-table-wrap"],
-      // Sequences' list, as Messages' is (parts/split.tsx CmSplit).
+      // Campaigns' list (parts/split.tsx CmSplit: .cm-list), where every message is since Messages folded into it.
       ["campaigns/sequences", ".sq-page > .cm-list", "#main"],
-      // Messages' list (parts/split.tsx CmSplit: .cm-list), where .rp-body is its failed state.
-      ["messages", ".tpl-page > .cm-list", "#main"],
     ] as const) {
       await page.goto(`/#/${hash}`);
       await page.waitForLoadState("networkidle");

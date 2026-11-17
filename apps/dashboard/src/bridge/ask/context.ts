@@ -19,7 +19,6 @@ import {
   fileSaidOf,
   isAdsParam,
   isContentParam,
-  isMessagesParam,
   isList,
   itemFocus,
   parseLeadsRoute,
@@ -167,8 +166,8 @@ const contentContext = (param: string, view: unknown): Provided => {
 
 /**
  * Campaigns is Sequences (decision 0060), whose rows are its list's, forty at most in its order, and a sequence open beside
- * it the scope; before the list is read, the playbooks the surface read. Sent's sheets and Messages are their own views,
- * each with its own rows: Messages at `campaigns/messages` (a view of Campaigns since 19 Oct 2026) as at its old route. Ads, where
+ * it the scope; before the list is read, the playbooks the surface read. Sent's sheets are their own view, with their own
+ * rows. Messages, its view until it folded into Campaigns (17 Nov 2026), is Sequences' at every address. Ads, where
  * the page says it is drawn (an address of it is Sequences where it is not), is a word and no row: it fell through to Sequences' rows,
  * and Ask was told a person looking at their ads was looking at their sequences. Content too (contentContext).
  */
@@ -186,7 +185,8 @@ const campaigns: Provider = (w, route) => {
   const onScreen = askOnScreenOf(w);
   const drawn = drawnTabOf(route, onScreen);
   if (drawn) return drawn;
-  if (route.page === "outbound" || (route.page === "campaigns" && !isMessagesParam(route.param))) {
+  // Messages folded into Campaigns (17 Nov 2026): its old route, and every address of Campaigns, is Sequences'.
+  if (route.page === "outbound" || route.page === "campaigns" || route.page === "messages") {
     const listed = surfaceValue("sequences")?.sequences;
     if (Array.isArray(listed)) {
       const at = `campaigns/${route.param ?? ""}`;
@@ -215,24 +215,13 @@ const campaigns: Provider = (w, route) => {
       })),
     };
   }
-  if (route.page === "broadcasts")
-    return {
-      view: "broadcasts",
-      rows: arr<{ id: string; name?: string | null }>(surfaceValue("broadcasts")?.rows).map((b) => ({
-        kind: "run",
-        id: b.id,
-        label: b.name ?? undefined,
-      })),
-    };
   return {
-    view: "messages",
-    rows: arr<{ id: string; name?: string; title?: string | null }>(surfaceValue("settings")?.templatesAll).map(
-      (t) => ({
-        kind: "template",
-        id: t.id,
-        label: t.title ?? t.name,
-      }),
-    ),
+    view: "broadcasts",
+    rows: arr<{ id: string; name?: string | null }>(surfaceValue("broadcasts")?.rows).map((b) => ({
+      kind: "run",
+      id: b.id,
+      label: b.name ?? undefined,
+    })),
   };
 };
 

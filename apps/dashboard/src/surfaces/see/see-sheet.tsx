@@ -73,14 +73,12 @@ export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolea
         </div>
       </PaneSheet>
     );
-  const tools = <HomeDoor seeRef={seeRef} />;
+  // A message's sheet is the message, naming what sends it: no door to a home it has none of (Campaigns, one tab, C8).
   if (seeRef.kind === "message")
     return (
       <PaneSheet
         open={open}
         title={<span className="see-kicker">{SEE_WORDS.message}</span>}
-        tools={tools}
-        toolsInLine
         onClose={closeSeeOver}
         over
         testid="see-message"
@@ -92,7 +90,7 @@ export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolea
     <PaneSheet
       open={open}
       title={<span className="see-kicker">{SEE_WORDS.run}</span>}
-      tools={tools}
+      tools={<HomeDoor seeRef={seeRef} />}
       toolsInLine
       onClose={closeSeeOver}
       wide

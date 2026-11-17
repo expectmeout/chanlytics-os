@@ -47,6 +47,18 @@ interface CmHeadProps {
  * never a banner. It is read from whichever of Broadcasts and Playbooks has the month (`month_sent`), which the frame loads for
  * its tab counts; a month that could not be read says nothing. Ads is no email and leaves it out (`allowance={false}`).
  */
+/**
+ * The month's email allowance as a head's line says it, once half of it is used and not before ("1,240 of 2,000 emails
+ * used this month"): read from whichever of Broadcasts and Playbooks has the month; none where it is off, or the month
+ * could not be read. Campaigns' own head says it too (sequences-page.tsx), where the emails go out from (call C14).
+ */
+export function useEmailAllowance(on = true): string[] {
+  // Both are read, never one only when the other has nothing: a hook is called every time.
+  const broadcasts = useSurface("broadcasts");
+  const playbooks = useSurface("playbooks");
+  return on ? allowanceLines(broadcasts?.month_sent ?? playbooks?.month_sent ?? null) : [];
+}
+
 export function CmHead({
   title,
   badge = null,
@@ -55,10 +67,7 @@ export function CmHead({
   quiet = false,
   allowance = true,
 }: CmHeadProps) {
-  // Both are read, never one only when the other has nothing: a hook is called every time.
-  const broadcasts = useSurface("broadcasts");
-  const playbooks = useSurface("playbooks");
-  const used = allowance ? allowanceLines(broadcasts?.month_sent ?? playbooks?.month_sent ?? null) : [];
+  const used = useEmailAllowance(allowance);
   const sub =
     used.length === 0 ? (
       said

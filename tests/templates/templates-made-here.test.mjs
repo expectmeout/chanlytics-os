@@ -293,13 +293,9 @@ test("the job fills the slots per person and holds anyone a slot cannot be fille
   // The slots per person and the hold on an unfillable one are run: core-broadcast.test.mjs.
   assert.ok(h.includes('const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";'));
   // The specs and the booking-link refusal are run: core-campaigns.test.mjs.
-  const head = readCode("apps/dashboard/src/surfaces/campaigns/templates/page-parts.tsx");
   const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
-  assert.ok(
-    head.includes('data-testid="template-new"') &&
-      // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
-      s.includes('"data-testid": "template-delete"'),
-  );
+  // Delete is an item of the pane's kit Menu: its test id rides the item's `gate` (the question it asks is `testid=`).
+  assert.ok(s.includes('"data-testid": "template-delete"'));
   const tc = readCode("apps/dashboard/src/surfaces/campaigns/templates/composer-forms.tsx");
   for (const id of [
     "tpl-composer",

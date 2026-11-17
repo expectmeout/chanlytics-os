@@ -44,6 +44,7 @@ export type {
   SequenceDateDto,
   SequenceFirstStepDto,
   SequenceHistoryDto,
+  SequenceMessageOffDto,
   SequenceNeedsDto,
   SequenceNextWordsDto,
   SequenceOneOffDto,
@@ -113,20 +114,27 @@ export {
   batchOkSendsNothing,
   byLongestWait,
   heldByCheckWords,
+  messageFoundLine,
   needsCount,
+  OTHER_MESSAGES_WORDS,
+  otherMessagesOf,
   SEQUENCE_LIST_WORDS,
   SEQUENCE_SORTS,
   SEQUENCE_TYPES,
   sequenceMatches,
+  sequenceMessageFound,
   sequenceTypeOf,
   sortedSequences,
 } from "./list";
-export type { SequenceSort, SequenceType } from "./list";
-export { NewDraftAnswerSchema } from "./new-draft-schema";
-export type { NewDraftAnswer, NewDraftAnswerStep } from "./new-draft-schema";
+export type { OtherMessage, SequenceSort, SequenceType } from "./list";
+export { MESSAGE_WAITS_WORDS, messageOffLine, sequenceMessageOff, sequenceMessageWaits } from "./message-off";
+export type { StepMessageRef } from "./message-off";
+export { NewDraftReplySchema } from "./new-draft-schema";
+export type { NewDraftAnswer, NewDraftAnswerStep, NewDraftReply } from "./new-draft-schema";
 export {
   asDraftedFrom,
   asDraftedOf,
+  draftKeepsMessage,
   handStepsHold,
   NEW_DRAFT_JSON_SCHEMA,
   NEW_VALUES,
@@ -146,8 +154,10 @@ export {
 export type {
   AsDrafted,
   NewCheck,
+  NewDraftAnswered,
   NewDraftAsk,
   NewDraftDto,
+  NewDraftKeeps,
   NewMailbox,
   NewNobody,
   NewReach,
@@ -215,6 +225,7 @@ export {
   scheduleStepSub,
   scheduleWait,
   stepAsOffer,
+  stepChannelsCarried,
 } from "./schedule";
 export type { ScheduleCtx, ScheduleState, StepOffer } from "./schedule";
 export {

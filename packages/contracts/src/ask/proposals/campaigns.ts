@@ -11,7 +11,7 @@ import { PLAYBOOK_PATCH_CLEARS, PLAYBOOK_PATCH_KEYS } from "../../campaigns/play
 import { SEND_ONCE_STOP_WORDS } from "../../campaigns/playbooks/triggers/notices";
 import { PLAYBOOK_VETO_DELAY_MS, whenItGoes } from "../../campaigns/playbooks/triggers/kinds";
 import { SEQUENCES_ROUTE, newSequenceRoute, runRoute, sequenceRoute } from "../../campaigns/sequences/address";
-import { MESSAGES_ROUTE } from "../../shell/address";
+import { openMessage } from "./messages";
 import { clockWhen } from "../../shared/clock";
 import { joinWords } from "../../shared/words";
 import { CAMPAIGN_ROOMS, LIBRARY_STARTER_WORDS, LIBRARY_WORDS, runApprovedTail } from "../../shell/campaign-rooms";
@@ -73,7 +73,7 @@ export const PLAYBOOK_CARD_REFUSALS = {
   starterHidden: (title: string, from: string): string =>
     `${LIBRARY_STARTER_WORDS.hiddenInLibrary(title)} Say so; ${from} names the messages that may send.`,
   starterUnsent: (title: string, from: string): string =>
-    `the “${title}” starter has no version this workspace can send yet · say so and suggest adding the starter set under ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}, or name a message from ${from}`,
+    `the “${title}” starter has no version this workspace can send yet · say so, or name a message from ${from}`,
   hiddenTemplate: (from: string): string =>
     `that template is one the workspace keeps out of the composers; ${from} names the ones that may send`,
   noList: (from: string): string => `no such list; ${from} names them`,
@@ -556,7 +556,7 @@ export const playbookRunSpec: ProposalSpec = {
  */
 const whatsappFiledWords = (state: string): string => {
   const at = metaStatusOf(state);
-  const where = `(see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library})`;
+  const where = "(see the message)";
   if (at === "pending") return "reads them first";
   return at === "rejected" ? `refused them ${where}` : `has them as ${at} ${where}`;
 };
@@ -592,7 +592,7 @@ export const MESSAGE_WORDS = {
     `Its email is kept, and goes once email can send: ${reason ?? CHANNEL_WORDS.noMailbox}`,
   /** A name and language the Library holds: the door's sentence for a twin, and where that message's versions change. */
   twin: (name: string): string =>
-    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}; its words change with action message_words, its name with action message_rename.`,
+    `${TEMPLATE_SAME_NAME_WORDS} Say so: “${name}” in this language is already one of the workspace's messages. Its words change with action message_words, its name with action message_rename.`,
   /** The card's title: what the owner calls the message (its title, else its name made words), and its language in words. */
   title: (title: string, language: string): string =>
     `${CAMPAIGN_ROOMS.newMessage}: ${title}, in ${languageName(language)}`,
@@ -632,7 +632,7 @@ export const MESSAGE_WORDS = {
   undone: (own: readonly OwnVersionChannel[], whatsapp: boolean): string => {
     const gone = `Its ${versionsWords(own)} ${own.length === 1 ? "is" : "are"} deleted`;
     return whatsapp
-      ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it in ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library} if it should go.`
+      ? `${gone}. Its WhatsApp version stays, held by WhatsApp: delete it from the message, in ${CAMPAIGN_ROOMS.home}, if it should go.`
       : gone;
   },
   /**
@@ -739,5 +739,7 @@ export const messageSpec: ProposalSpec = {
       return MESSAGE_WORDS.partlyUndone(own.slice(0, landed), own.slice(landed), refused);
     },
   },
-  open: () => MESSAGES_ROUTE,
+  // The message it filed, over the page (Campaigns, one tab, 17 Nov 2026: a message no campaign sends yet is at the foot of
+  // Campaigns' list, "Not in a campaign"), as every card about one message opens; Campaigns where the card names none.
+  open: openMessage,
 };

@@ -259,12 +259,12 @@ test("New ad starts from an ad: a copy keeps its door and platform, Google keeps
 });
 
 test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequences'", () => {
-  // No window stands here: a real workspace's answer, Sequences with Messages beside it (decision 0060).
+  // No window stands here: a real workspace's answer, Sequences with Content beside it (decision 0060; Messages folded in).
   const home = campaignsChrome({ param: null });
   assert.deepEqual(home.crumbs, ["Campaigns"]);
   assert.deepEqual(
     home.views?.tabs.map((t) => t.id),
-    ["sequences", "messages", "content"],
+    ["sequences", "content"],
     "no Ads tab in a real workspace; Content is every workspace's (decision 0125)",
   );
   assert.deepEqual(campaignsChrome({ param: "ads" }), home);
@@ -276,7 +276,7 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
     assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
     assert.deepEqual(
       campaignsChrome({ param: null }).views?.tabs.map((t) => t.id),
-      ["sequences", "messages", "content", "ads"],
+      ["sequences", "content", "ads"],
     );
     const at = campaignsChrome({ param: "ads" });
     assert.equal(at.views?.picked, "ads");

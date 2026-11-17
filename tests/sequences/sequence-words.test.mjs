@@ -361,7 +361,7 @@ test("an older address lands on what it names: the home and Sent's list on Seque
   assert.equal(retiredRouteOf("campaigns/new:to:list-1"), "campaigns/sequences/new:once:to:list-1");
   assert.equal(retiredRouteOf("campaigns/new:leads"), "campaigns/sequences/new:leads");
   assert.equal(retiredRouteOf("campaigns/new:edit:s1"), "campaigns/sequences/s1");
-  // A message's drawer over Sequences went into its home, the Library open on it.
+  // A message's drawer over Sequences went into its address, which opens it over Campaigns' list.
   assert.equal(retiredRouteOf("campaigns/message:come_back"), "campaigns/messages/come_back");
   for (const stays of [
     "campaigns/new:moment:",
@@ -373,9 +373,10 @@ test("an older address lands on what it names: the home and Sent's list on Seque
     "campaigns/sequences/new:once",
     TO_SEND_ROUTE,
     GET_YES_ROUTE,
-    "campaigns/messages",
   ])
     assert.equal(retiredRouteOf(stays), null, stays);
+  // Messages' list folded into Campaigns' (Campaigns, one tab, 17 Nov 2026).
+  assert.equal(retiredRouteOf("campaigns/messages"), "campaigns/sequences");
 });
 
 test("New on a moment is written in: the owner's line for that moment, in the workspace's word, and none for one it does not know", () => {

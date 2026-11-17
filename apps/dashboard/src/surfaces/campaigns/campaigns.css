@@ -1791,67 +1791,7 @@ html.frame-on .bc-nobody-door {
   }
 }
 
-/* ---- The messages are a list, not a wall of chat ----
-   Messages (the canvas of 10 Nov 2026): the messages in groups a person reads top down, each under its name -- what needs
-   you, what goes out, what nothing sends now, what was put away -- and a row two lines: its name, and under it why it needs
-   you, what sends it or what it is for, with how many went out, or when the last did, at its right. The row is People's
-   row (the --row-* tokens) at every width; the whole message opens beside the list, one at a time. */
-.msg-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-.msg-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-/* A group's name over its rows is the one heading every list draws (kit/head/group-head.tsx; components.css .group-head),
-   which is a phone's whole look. On a desk the list is a pane's: the heading is the pane's label at the rows' own inset,
-   with no hairline; a group that folds is its name, its count and a chevron, one press. */
-@media (width > 900px) {
-  .msg-group > .group-head {
-    --group-head-pad: 0 var(--row-pad-x);
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--space-8);
-    margin: 0 var(--space-2);
-    border-bottom: 0;
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    line-height: inherit;
-    color: var(--ink);
-  }
-  .msg-group > .group-head .group-head-name {
-    font-size: inherit;
-    font-weight: inherit;
-    color: inherit;
-  }
-  .msg-group > .group-head .group-head-count {
-    font-weight: var(--weight-regular);
-    color: var(--ink-dim);
-  }
-  .msg-group > .group-head > .group-head-fold {
-    align-items: center;
-    gap: var(--space-2);
-    min-height: var(--space-8);
-  }
-}
-/* What a run of ready-made starters is for (Appointments, Follow-ups, Offers and news, Calls), among the rows at their
-   inset: a step quieter than the group's own name, with room over it so each run reads as one. */
-.msg-moment {
-  margin: var(--space-3) var(--space-2) var(--space-1);
-  padding: 0 var(--row-pad-x);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-.msg-list {
-  container-type: inline-size;
-  min-width: 0;
-}
+/* ---- A message's row: its name and its line, as the message's sheet heads it ---- */
 .msg-row {
   min-width: 0;
 }
@@ -2063,9 +2003,6 @@ html.frame-on .msg-row-what {
 }
 .msg-card-meta {
   min-width: 0;
-}
-.msg-card-spacer {
-  flex: 1;
 }
 .msg-card-acts {
   display: flex;
@@ -2370,9 +2307,9 @@ section:has(> .tpl-composer:not(.is-translate)) {
   order: -1;
 }
 
-/* Broadcasts' week and runs and Templates' list stand inside the list's one pane (parts/split.tsx), as the Playbooks'
+/* Broadcasts' week and runs stand inside the list's one pane (parts/split.tsx), as the Playbooks'
    list does: no pane of their own, their head the canvases' small capitals, their hairlines the roles'. */
-:is(.bc-week, .bc-runs, .msg-list, .bc-optin) {
+:is(.bc-week, .bc-runs, .bc-optin) {
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -3652,13 +3589,6 @@ html.frame-on .cm-pane-sub .bc-run-link {
 
 /* Every tab's rows as the Playbooks' and the Inbox's: no hairline between two, the line a lozenge inset from the pane's
    sides under a pointer, and the one open beside the list an inset's fill, never a darker band. */
-.msg-list > .msg-row {
-  border-top: 0;
-  border-bottom: 0;
-}
-.msg-list > .msg-row {
-  background: transparent;
-}
 :is(.bc-run-line, .msg-row-line) {
   margin: 0 var(--space-2);
   border-radius: var(--surface-inset-radius);
@@ -3673,41 +3603,7 @@ html.frame-on .cm-pane-sub .bc-run-link {
   color: var(--ink-dim);
 }
 
-/* ---- Templates in the split ---- */
-/* The list's pane (templates/templates-page.tsx): the head's line, then the top bar, the notices and the rows. The pane
-   scrolls itself (.cm-list), so the page keeps no scroller of its own. */
-.tpl-wrap {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-4) var(--space-4) var(--space-6);
-}
-.tpl-wrap > * {
-  flex-shrink: 0;
-}
-/* On a phone the list is the page's (no pane round it): its search at the strip's 12px edge, as People's is. */
-@media (max-width: 900px) {
-  .cm-split:not([data-open]) .tpl-wrap {
-    padding: 0 0 var(--space-6);
-  }
-  /* Its rows at the edge Sequences' stand at: the lozenge's 8px inset was the pane's. */
-  .cm-split:not([data-open]) .tpl-wrap :is(.msg-row-line, .msg-moment) {
-    margin-inline: 0;
-  }
-  /* The first group's heading stands right under the row (components.css .group-head, the one every list draws), and the
-     heading's own room parts one group from the next. */
-  .cm-split:not([data-open]) .tpl-wrap > .tpl-bar + .msg-section {
-    margin-top: calc(-1 * var(--space-3));
-  }
-  .cm-split:not([data-open]) .tpl-wrap :is(.msg-section, .msg-group) {
-    gap: 0;
-  }
-}
-/* The top bar, as the Inbox's list opens on its search: the box takes the list's width and what WhatsApp's sync state
-   leaves, which is as wide as its words. The kit's search capsule is the box (by position: it is a kit class). */
-/* ---- A list's top (parts/list-top.tsx): Sequences' and Messages', one way (Ruben, 12 Nov 2026) ----
+/* ---- A list's top (parts/list-top.tsx): Sequences' (Ruben, 12 Nov 2026) ----
    The view at its left, as Pipeline's "All deals 1 ⌄" stands over its list (clients.css .pp-bar-pick): the view's name in the
    base size's semibold, how many it holds beside it in a dim medium, the chevron dim, a thumb's 44px to press standing in the
    row's 34 (its reach goes 5px over and under); at its right the search's glyph while the search rests, then the list's own
@@ -3763,12 +3659,6 @@ html.frame-on .cm-pane-sub .bc-run-link {
   .cm-lookup {
     padding-top: var(--space-1);
   }
-}
-/* Messages' top on a phone (templates/page-parts.tsx listBar): the row, then the search under it. */
-.tpl-bar {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 /* The open message in its pane: the pane's body is its inset, so what was the open row's own is not added to it. Its
    fields and the message beside them fold by the pane's own width, as they folded by the row's list (the rules for
@@ -3942,38 +3832,9 @@ html.frame-on .cm-pane-sub .bc-run-link {
   font-size: var(--text-sm);
   color: var(--ink-muted);
 }
-.tpl-ask-line {
-  display: flex;
+/* The line itself is the kit's box (kit.css .line-box); here, only that it takes the editor's width. */
+.tpl-ver-line {
   align-self: stretch;
-  gap: var(--space-2);
-  align-items: center;
-  min-height: 40px;
-  padding: 3px 4px 3px 12px;
-  border: 1px solid var(--surface-inset-edge);
-  border-radius: var(--radius-2xl);
-  background: var(--surface-inset-fill);
-}
-.tpl-ask-line:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--focus-field);
-}
-.tpl-ask-line[data-busy] .tpl-ask-words {
-  color: var(--ink-muted);
-}
-/* The AI's mark, ink at rest and coral only while it works (docs/words.md): the busy line lends it the accent. */
-.tpl-ask-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--tpl-ask-tone, var(--ink));
-}
-.tpl-ask-line[data-busy] {
-  --tpl-ask-tone: var(--accent);
-}
-.tpl-ask-line .tpl-ask-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-base);
 }
 /* What sending WhatsApp's words back does, under its editor. */
 .tpl-ver-note {

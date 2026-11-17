@@ -217,13 +217,13 @@ const TOPIC_PLAYBOOKS: Record<SupportTopic, SupportPlaybook> = {
     check: "Their Campaigns › Sequences: what is on, and what waits for their approval.",
     steps: () => [
       "Everything that sends on its own is a sequence: Campaigns › Sequences › New.",
-      "Its wording lives in Campaigns › Messages; a new sequence is approved once, then runs.",
+      "Each message’s wording opens from its step, inside the campaign; a new sequence is approved once, then runs.",
       "A one-off message to a list is a sequence that runs once.",
     ],
     reply: (p) =>
       letter(
         p,
-        "messages that go out on their own are set up under Campaigns: press New, choose who it's for and what it says, and approve it once. The wording lives in Campaigns › Messages. Want me to build the first one with you on a short call?",
+        "messages that go out on their own are set up under Campaigns: press New, choose who it's for and what it says, and approve it once. Each message’s wording opens from its step, inside the campaign. Want me to build the first one with you on a short call?",
       ),
     meanwhile: "Campaigns › Sequences › New starts one.",
   },

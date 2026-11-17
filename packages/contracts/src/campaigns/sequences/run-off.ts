@@ -54,6 +54,26 @@ const RUN_OFF_WORDS: Record<
   ended: { said: "its last day has passed", act: "End it", mends: "end" },
 };
 
+/**
+ * WhatsApp's no in the one word the row, the step and the bell say it (Campaigns, one tab, call C3): what a run that did
+ * nothing for its message says where WhatsApp has refused that message since, where the run recorded only that it was not
+ * approved (in review counts as that too).
+ */
+const REFUSED_WORDS = { said: "WhatsApp refused its message", brief: "WhatsApp refused it" } as const;
+
+/**
+ * Whether the first step's message is one WhatsApp has refused, as the list read says it (message-off.ts): the message
+ * a run that did nothing for its message was about.
+ */
+export const firstMessageRefused = (row: Pick<SequenceRowDto, "message_off">): boolean =>
+  row.message_off?.why === "refused" && row.message_off.place === 1;
+
+/** A reason's words, WhatsApp's no said as refused where the message is refused now. */
+const runOffWordsOf = (reason: RunOffReason, refused: boolean) =>
+  reason === "template_not_approved" && refused
+    ? { ...RUN_OFF_WORDS[reason], ...REFUSED_WORDS }
+    : RUN_OFF_WORDS[reason];
+
 /** What a sequence whose last day has passed says, on its record's dock and on the list's row. */
 const LAST_DAY_PASSED = "Its last day has passed";
 
@@ -74,10 +94,13 @@ function runOffReasonOf(
 /** A run's business day as a time, its noon, for a clock's words or an order; null where the day is not known. */
 const runDayMs = (day: string | null | undefined): number | null => (day ? Date.parse(`${day}T12:00:00Z`) : null);
 
-/** A run that did nothing, on the list's row (decision 0128, stage 2): "Didn’t run · no calendar is connected". */
-export function runOffRowWords(reason: RunOffReason): string {
+/**
+ * A run that did nothing, on the list's row (decision 0128, stage 2): "Didn’t run · no calendar is connected".
+ * `refused` where its first step's message is one WhatsApp has refused (firstMessageRefused).
+ */
+export function runOffRowWords(reason: RunOffReason, refused = false): string {
   if (reason === "ended") return LAST_DAY_PASSED;
-  const item = RUN_OFF_WORDS[reason];
+  const item = runOffWordsOf(reason, refused);
   return `Didn’t run · ${item.brief ?? item.said}`;
 }
 
@@ -99,13 +122,13 @@ interface SequenceRunOff {
  * today: no calendar is connected"; a last day passed says itself, with End it.
  */
 export function sequenceRunOff(
-  row: Pick<SequenceRowDto, "state" | "starts" | "first">,
+  row: Pick<SequenceRowDto, "state" | "starts" | "first" | "message_off">,
   lastRun: { off: string | null | undefined; for: string | null | undefined },
   clock: { tz: string; nowMs: number },
 ): SequenceRunOff | null {
   const reason = runOffReasonOf(row, lastRun.off);
   if (!reason) return null;
-  const item = RUN_OFF_WORDS[reason];
+  const item = runOffWordsOf(reason, firstMessageRefused(row));
   const dayMs = runDayMs(lastRun.for);
   const day = dayMs === null ? null : clockDate(dayMs, clock.tz, clock.nowMs);
   const line = reason === "ended" ? LAST_DAY_PASSED : "Its last run did nothing";

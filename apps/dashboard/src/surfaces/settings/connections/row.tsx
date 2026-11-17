@@ -22,7 +22,7 @@
  * a phone.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
-import { MESSAGES_ROUTE } from "@chanlytics/contracts";
+import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { ConnectionKind, ConnectionLine as Row, ConnectionVerb } from "./model/setup";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -75,7 +75,7 @@ const NOT_A_MEND = new Set([
   "verb:instagram-disconnect",
   "verb:meta-disconnect",
   "verb:email-setup",
-  MESSAGES_ROUTE,
+  SEQUENCES_ROUTE,
 ]);
 
 /** The verbs that disconnect, each asked about on its row first (rowAsk): Google's Business Profile, an Instagram account. */

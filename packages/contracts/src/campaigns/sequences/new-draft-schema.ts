@@ -11,9 +11,10 @@
  */
 import { z } from "zod";
 import { FOLLOW_UP_CONDITIONS } from "./follow-up";
-import { NEW_AUDIENCES, NEW_KINDS, NEW_STEP_DOES } from "./new-draft/steps";
+import { NEW_ANSWER_KINDS, NEW_AUDIENCES, NEW_KINDS, NEW_STEP_DOES } from "./new-draft/steps";
 
-export const NewDraftAnswerSchema = z.object({
+/** A draft as it is judged: what the drafter keeps of the model's answer once a `message` is read as its kind. */
+const NewDraftAnswerSchema = z.object({
   kind: z.enum(NEW_KINDS),
   audience: z.enum(NEW_AUDIENCES),
   who: z.string().trim(),
@@ -43,4 +44,12 @@ export const NewDraftAnswerSchema = z.object({
   cannot: z.string().trim(),
 });
 export type NewDraftAnswer = z.infer<typeof NewDraftAnswerSchema>;
+
+/**
+ * What the model answers, read in shape: a draft, or `message` where the line is the words of a message to keep
+ * (NEW_ANSWER_KINDS, Campaigns, one tab, call C12), which the drafter hands back as one before any of it is judged.
+ */
+export const NewDraftReplySchema = NewDraftAnswerSchema.extend({ kind: z.enum(NEW_ANSWER_KINDS) });
+
+export type NewDraftReply = z.infer<typeof NewDraftReplySchema>;
 export type NewDraftAnswerStep = NewDraftAnswer["steps"][number];

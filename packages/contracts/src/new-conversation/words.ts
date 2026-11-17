@@ -7,6 +7,7 @@ import { renderTemplate } from "../campaigns/broadcasts/broadcasts";
 import { clipAtWord } from "../conversations/message-words";
 import { THREAD_CHANNEL_WORDS, type WrittenChannel } from "../conversations/thread-channel";
 import { inboxSlots } from "../campaigns/templates/inbox-templates";
+import { WHATSAPP_REVIEW_TAKES } from "../campaigns/templates/templates";
 import { resolveParams } from "../campaigns/templates/params";
 import { PLAN_NOTE_MAX, type PersonReachDto } from "./person-draft";
 import { WRITE_WAY_REFUSED, type WriteWay } from "./write-ways";
@@ -60,6 +61,16 @@ export const NEW_CONVERSATION_WORDS = {
     none: (personName: string) => `No approved message can go to ${personName} yet.`,
     /** Which messages are not offered, and why, is one press away, never a paragraph under the choice. */
     why: "Why not the others?",
+    /**
+     * Where none can go yet, one line to AI, which writes a message the Inbox can start a chat with and files it
+     * (Campaigns, one tab, call C10: it was Messages' New message). WhatsApp looks at it before it can go.
+     */
+    ask: {
+      label: "What a first message should say",
+      hint: "What should it say?",
+      send: "Ask AI",
+      note: `AI writes it for WhatsApp, email and text. WhatsApp looks at it first (${WHATSAPP_REVIEW_TAKES}).`,
+    },
   },
   /** The line a first text carries, said before it is sent: nothing reaches their phone that the sender did not see. */
   firstText: (line: string) => `Their first text from you also carries: “${line}”`,

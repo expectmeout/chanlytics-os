@@ -456,8 +456,12 @@ test("the door: idempotent, one language at a time, synced in when the number's 
   );
   assert.ok(r.includes("Pick at least one starter template, in English or Spanish."));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
+  // The door's one caller is the bridge's verb, which Campaigns' verbs and Settings › Business (the call's text) both press.
+  const door = readCode("apps/dashboard/src/bridge/verbs/templates.ts");
   assert.ok(
-    b.includes('fileStarters: (body: StarterBody) => api()("POST templates/starter", { body })'),
+    door.includes('export const fileStarters = (body: StarterBody) => api()("POST templates/starter", { body });') &&
+      b.includes('import { fileStarters, syncWhatsAppList } from "@/bridge/verbs/templates";') &&
+      /\n {2}fileStarters,\n/.test(b),
     "the verb goes through the client (a step editor files the starter it picked); the map refreshes every surface that shows templates",
   );
   assert.ok(
@@ -476,8 +480,9 @@ test("the door: idempotent, one language at a time, synced in when the number's 
 });
 
 test("the pages: titles not names, the starter set in Settings, the message as the customer sees it", () => {
-  // The Templates page is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one.
-  const s = ["page-parts", "message-row-parts", "message-row", "group", "words"]
+  // A message's sheet is a folder of modules (moved from messages.jsx, decision 0015): its source is read as one. The list
+  // that stood beside it (page-parts, message-row) went as Messages folded into Campaigns (17 Nov 2026).
+  const s = ["message-row-parts", "group", "words"]
     .map((f) =>
       readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.ts${f === "group" || f === "words" ? "" : "x"}`),
     )
@@ -488,10 +493,6 @@ test("the pages: titles not names, the starter set in Settings, the message as t
   for (const id of ["starters", "starter-add-all"]) assert.ok(!s.includes(`data-testid="${id}"`), `no ${id}`);
   assert.ok(s.includes('testid="template-lang"'), "one language control per message, the picker's");
   assert.ok(
-    s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'),
-    "one card per message: the starters, then what the workspace wrote",
-  );
-  assert.ok(
     isLibrarySample("hello_world") && s.includes("!isLibrarySample(t.name)"),
     "Meta's sample is never shown, nor counted (contracts library-count.ts: the one list)",
   );
@@ -501,17 +502,13 @@ test("the pages: titles not names, the starter set in Settings, the message as t
       s.includes("buttons={row ? row.buttons : null}"),
     "the card is the WHOLE message as the customer sees it: its heading and its buttons too",
   );
-  assert.ok(
-    // Messages is the view of Campaigns it is (19 Oct 2026, `campaigns/messages`): its page a chunk of Campaigns' own.
-    readCode("apps/dashboard/src/surfaces/campaigns/home/campaigns-code.tsx").includes('"TemplatesPage"'),
-  );
   // Integrations is Settings › Connections' TSX now (moved from integrations-real.jsx): the pane and its row.
   const integrations = ["pane", "row"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/settings/connections/${f}.tsx`))
     .join(" ");
   assert.ok(
     integrations.includes('messages: "channel-messages"') && !integrations.includes("TemplatesCard"),
-    "Integrations points at Messages (the WhatsApp row's verb) and lists no template",
+    "Integrations points at where the messages are (the WhatsApp row's verb) and lists no template",
   );
   // Where it was made ("Made here", "From WhatsApp Manager") went from the open message (Messages, the canvas of 10 Nov 2026).
   assert.ok(s.includes("tplTitle(") && !s.includes('"Made here"'), "a title, and nothing an owner does not act on");
@@ -647,12 +644,12 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   );
   // The sync hiding Meta's sample on first sight only, and the create door
   // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
-  const s = ["page-parts", "message-row-parts"]
+  const s = ["message-row-parts"]
     .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
     .join(" ");
   // Hide is an item of the pane's kit Menu, which takes no test id of its own: it is among the props its `gate` hands the item's button.
-  // What was put away is a group of the list, under its name; its head is the fold's press (templates-hidden).
-  assert.ok(s.includes('"data-testid": "template-hide"') && s.includes('"templates-hidden"'));
+  // What was put away says so in Campaigns' "Not in a campaign" (Messages' own fold of it went, 17 Nov 2026).
+  assert.ok(s.includes('"data-testid": "template-hide"'));
   const b = readCode("apps/dashboard/src/surfaces/campaigns/templates/verbs.ts");
   assert.ok(b.includes("body: { hidden: true } })") && b.includes("body: { hidden: false } })"));
   // A run under the veto window is a row of Today's day, at its time, with its Stop (decision 0064): runs-honest.test.mjs

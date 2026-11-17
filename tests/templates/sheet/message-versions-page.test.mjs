@@ -31,7 +31,6 @@ import {
   SlotName,
   SubTabs,
   VISIT,
-  W,
   WINBACK,
   all,
   baseRow,
@@ -47,12 +46,9 @@ import {
   fillSlots,
   find,
   firstView,
-  headSaid,
-  headed,
   itemOf,
   itemsOf,
   library,
-  lineBox,
   listingOf,
   menuOf,
   messageFacts,
@@ -111,13 +107,6 @@ test("a row says its name and one line; the channels a message has are its tabs'
   const hints = (name) => standingOf(opened(tree, name));
   assert.equal(hints(VISIT), "WhatsApp · approved, Email · ready, Text · ready", "all three, in the tabs' order");
   assert.equal(hints(WINBACK), "WhatsApp · approved, Email · not written, Text · not for offers");
-});
-
-test("a page whose email and text rows were not read draws its WhatsApp rows as it always did", () => {
-  const tree = viewing(page({ rows: [starterRow(VISIT)], versions: null }), VISIT, "email");
-  assert.ok(rowOf(tree, VISIT), "the row is there");
-  assert.equal(tabOf(tree, "email").hint, "Email · not written", "never a channel it did not read");
-  assert.ok(byTestId(paneOf(tree), "template-version-none"), "and the pane offers to write the email");
 });
 
 /* ---------------------------------- the switch ---------------------------------- */
@@ -1119,32 +1108,15 @@ test("the language control lists a language the message holds on any channel und
   assert.equal(contracts.LIBRARY_WORDS.addNeedsNumber, "Connect a WhatsApp number to add a WhatsApp version.");
 });
 
-test("an own-only message is a row the Library draws whole: its words quoted, its channels said, found by its words, and the pane writes and removes its versions with no WhatsApp number", async () => {
+test("an own-only message's sheet writes and removes its versions with no WhatsApp number: its email reads as any message's, and its menu is a message's whole", async () => {
   const calls = stubbed();
   const own = [ownRow("email", HOURS, { category: "utility" })];
-  let tree = page({ rows: [], versions: own, channels: [] });
-  const row = rowOf(tree, HOURS);
-  assert.ok(row, "the row is there, found by the name it is filed under");
-  assert.equal(row.props["data-testid"], "custom-row");
-  // Its email's words as one person would get them, each value by its sample (the clean list, 13 Nov 2026: no braces).
-  assert.ok(textOf(row).includes("“Hi Dani, our hours start Oct 1.”"), "its email's words: nothing sends it");
-  // The search finds it by the words of an email's subject and body, as it finds a WhatsApp message by its own.
-  lineBox().props.onChange({
-    target: { value: "our hours start" },
-  });
-  tree = redraw();
-  assert.ok(rowOf(tree, HOURS), "found by its words");
-  lineBox().props.onChange({
-    target: { value: "no such words" },
-  });
-  tree = redraw();
-  assert.equal(rowOf(tree, HOURS), null);
-  lineBox().props.onChange({ target: { value: "" } });
+  page({ rows: [], versions: own, channels: [] });
 
   // Opened, its email reads as any message's does, with its pencil, and its name's menu is a message's whole: Rename, Put
   // away and Delete, which need no number (the live demo, 12 Nov 2026: a message with no WhatsApp version had none of
   // them). Its email is its only version, so no Remove: its Delete is the message's.
-  tree = opened(redraw(), HOURS);
+  let tree = opened(redraw(), HOURS);
   assert.equal(
     byTestId(paneOf(tree), "template-version").props["data-channel"],
     "email",
@@ -1205,56 +1177,7 @@ test("an own-only message is a row the Library draws whole: its words quoted, it
   ]);
 });
 
-test("with no number the page still lists the starter set and says WhatsApp waits; no banner asks for the set, which files itself as a number connects", () => {
-  const tree = page({ rows: [], versions: [], channels: [] });
-  const n = library.list.length;
-  assert.equal(all(tree, (nd) => nd.props?.["data-testid"] === "starter-row").length, n, "the starter set is listed");
-  assert.ok(headed(tree, "template-new"), "New is drawn whenever the person may act, number or none");
-  assert.ok(
-    textOf(byTestId(tree, "messages-no-number")).startsWith(contracts.LIBRARY_WORDS.noNumber),
-    "one quiet notice, in contracts' words",
-  );
-  assert.equal(
-    contracts.LIBRARY_WORDS.noNumber,
-    "No WhatsApp number yet. Email and text versions are written here; WhatsApp versions wait until one is connected.",
-  );
-  // The Messages redesign's step 5: the starters file themselves as a number connects, so nothing asks for the set.
-  assert.equal(byTestId(tree, "starters"), null, "no banner");
-  assert.equal(byTestId(tree, "starter-add-all"), null, "and no act to add the set");
-  const withNumber = page({ rows: [], versions: [] });
-  assert.equal(byTestId(withNumber, "messages-no-number"), null);
-  assert.equal(byTestId(withNumber, "starters"), null);
-});
-
 /* ---------------------------------- New: one line to Ask ---------------------------------- */
-
-test("New is one line to AI: no form, no channel first, no kind; the owner's words go to AI, which writes every channel", () => {
-  const asked = [];
-  W.askAbout = (about) => void asked.push(about);
-  let tree = page({ rows: [custom("fall_hours")] });
-  press(headed(tree, "template-new"));
-  tree = redraw();
-  const words = byTestId(tree, "template-new-words");
-  assert.ok(words, "one line, in the owner's own words");
-  assert.equal(
-    find(tree, (n) => n.props?.["data-testid"] === "tpl-composer"),
-    null,
-    "no form",
-  );
-  assert.equal(byTestId(tree, "template-new-send").props.disabled, true, "nothing said, nothing sent");
-  words.props.onChange({ currentTarget: { value: "20% off colour this week" } });
-  tree = redraw();
-  press(byTestId(tree, "template-new-send"));
-  assert.deepEqual(asked, [
-    {
-      prompt:
-        "New message, with a version for WhatsApp, email and text wherever its kind may go (an offer never by text): 20% off colour this week",
-      fresh: true,
-    },
-  ]);
-  assert.equal(byTestId(redraw(), "template-new-words"), null, "the pane goes as AI comes");
-  delete W.askAbout;
-});
 
 test("a new message's title, values and words are words: Cancel asks before they go, as it does for a template's", () => {
   const { wroteWords } = composerActsModule;
@@ -1283,34 +1206,4 @@ test("what a text says for a message written here is channelNeverCarries' senten
     `${contracts.CHANNEL_WORDS.noOffersByText} ${NEW_WORDS.textGoesByEmail}`,
   );
   assert.equal(NEW_WORDS.textGoesByEmail, "This one can go by email.");
-});
-
-test("the Library's count says what it holds on hover in contracts' words, whether or not the workspace has a WhatsApp number: every message, by each channel it goes by", () => {
-  const tip = () => find(headSaid(), (n) => n.props?.["data-testid"] === "messages-count").props["data-tip"];
-  const key = "visit_reminder";
-  // A workspace with a number and a message of WhatsApp, email and text.
-  page({ rows: [starterRow(key)], versions: [emailRow(key), smsRow(key)] });
-  assert.equal(tip(), contracts.LIBRARY_WORDS.headTip);
-  // A workspace with no number and a message of an email alone: the same words, true of it too.
-  page({ rows: [], versions: [emailRow(key)], channels: [] });
-  assert.equal(tip(), contracts.LIBRARY_WORDS.headTip);
-  assert.ok(contracts.LIBRARY_WORDS.headTip.startsWith("What AI and your campaigns send, as the customer sees it."));
-  assert.ok(contracts.LIBRARY_WORDS.headTip.includes("an email or a text is ready the moment it is saved"));
-  assert.ok(!/template/i.test(contracts.LIBRARY_WORDS.headTip));
-});
-
-test("the Library's starter set holds the review ask only where Settings says the Google listing keeps a review link, as the starter route files it: its row beside How did it go, and nowhere without one", () => {
-  const REVIEW = "after_visit_review";
-  const linked = page({ reviewLink: true });
-  assert.ok(rowOf(linked, REVIEW), "a row of its own");
-  assert.ok(
-    library.list.some((s) => s.key === REVIEW),
-    "and a starter the composer may start from",
-  );
-  const keys = library.list.map((s) => s.key);
-  assert.equal(keys.indexOf(REVIEW), keys.indexOf(AFTER_VISIT) + 1, "beside How did it go");
-  const none = page({ reviewLink: false });
-  assert.equal(rowOf(none, REVIEW) ?? null, null, "no row");
-  assert.ok(!library.list.some((s) => s.key === REVIEW), "and nothing to start from");
-  assert.ok(rowOf(none, AFTER_VISIT), "the rest of the set is there either way");
 });

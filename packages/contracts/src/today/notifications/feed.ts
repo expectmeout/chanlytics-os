@@ -12,7 +12,6 @@ import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
-import { MESSAGES_ROUTE } from "../../shell/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
@@ -278,8 +277,10 @@ const SERVER_LOOK: Record<string, ServerLook> = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: MESSAGES_ROUTE },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: MESSAGES_ROUTE },
+  // A row names the message it is about, which opens over the page (verbForRoute: "Open the message"); one that names
+  // none opens Campaigns, where every message is now (Campaigns, one tab, 17 Nov 2026).
+  template_ready: { icon: "check", tone: "ok", action: "Open Campaigns", to: SEQUENCES_ROUTE },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Campaigns", to: SEQUENCES_ROUTE },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -383,10 +384,12 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^live/, "Open Live"],
   // The old Playbooks list (`outbound`) lands on Sequences, which is Campaigns now (decision 0060): the door says the name.
   [/^outbound/, "Open Campaigns"],
-  // A message open in its own drawer over Campaigns (a template's notice: refused, paused, approved): the door says what it opens.
+  // A message, by its address or its old drawer (a template's notice: refused, paused, approved): the door says what it
+  // opens, the message over the page.
   [/^campaigns\/(message:|messages\/[^/]+)/, "Open the message"],
-  // Messages, Campaigns' other view (19 Oct 2026): the door says the page's name.
-  [/^campaigns\/messages(\/|$)/, "Open Messages"],
+  // Messages, which was Campaigns' other view until it folded into Campaigns (17 Nov 2026): a row kept from before lands
+  // on Campaigns, and its door says so.
+  [/^campaigns\/messages(\/|$)/, "Open Campaigns"],
   // A run at its home under its sequence (the Campaigns wiring review's lane 2): the door says it opens the run.
   [/^campaigns\/sequences\/[^/]+\/runs\/[^/]+/, RUN_OPEN_WORDS],
   // Content, Campaigns' view of what Ask made, and its Library (the content redesign's stage 2): the door says the page's name.
@@ -400,8 +403,8 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^broadcasts\/get-yes/, "Open Get their yes"],
   // Sent's list went to each sequence's History (decision 0060, D3): its address, and a row kept before, land on Sequences.
   [/^broadcasts/, "Open Campaigns"],
-  // The route is still `messages`; the page is Messages (a room of Campaigns), and the door says the page's name.
-  [/^messages/, "Open Messages"],
+  // The old route `messages`, Messages' before it was a view of Campaigns: it lands on Campaigns, and the door says so.
+  [/^messages/, "Open Campaigns"],
   [/^calendar/, "Open Calendar"],
   // One person's page, by their id: the row is about them, so its door says so.
   [/^clients\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Open their page"],

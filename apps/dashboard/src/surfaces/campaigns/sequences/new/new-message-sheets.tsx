@@ -1,7 +1,8 @@
 /**
  * A step's message in New (decision 0065; the New canvas's C3 and C5): which message a person's step sends, one of the
  * workspace's or one Ask wrote (or one the owner writes here), and the words of one Ask wrote or of a lead's email,
- * edited in place. A message the workspace holds is changed in Messages, where every version of it is; one Ask wrote is
+ * edited in place. A message the workspace holds is changed on the message itself, opened over New, where every version of
+ * it is; one Ask wrote is
  * filed only when the draft is kept or started, so its words are the draft's until then. Values are said by name while
  * they are written ({{first name}}), put in where the cursor is, and numbered as a message holds them on Save (contracts
  * numberedValues). Here the words are typed; Ask changes them where the owner says so in the line under the draft
@@ -14,6 +15,7 @@ import {
   REACH_OUT_SLOTS,
   numberedValues,
   slugTemplateName,
+  messageRoute,
   momentNamesVisit,
   triggerOf,
   type CampaignMessage,
@@ -401,7 +403,24 @@ function LeadWords(p: {
   );
 }
 
-/** The words editor for a step: a lead's email, a person's message Ask wrote, or one of the workspace's (in Messages). */
+/**
+ * The door from a message the workspace holds to the message itself, opened over New (Campaigns, one tab, 17 Nov 2026: it
+ * opened Messages, which folded into Campaigns): its name read off the rows by its version, or a starter's own. None
+ * where the rows hold no version of it.
+ */
+function HeldMessageDoor({ message }: { message: { template_id: string | null; starter?: string | null } }) {
+  const settings = useSurface("settings");
+  const rows = [...(settings?.templatesAll ?? []), ...(settings?.templateVersions ?? [])];
+  const name = message.starter ?? rows.find((t) => t.id === message.template_id)?.name ?? null;
+  if (!name) return null;
+  return (
+    <Button {...routeDoor(messageRoute(name))} data-testid="sq-nw-words-library">
+      {W.sheets.openMessage}
+    </Button>
+  );
+}
+
+/** The words editor for a step: a lead's email, a person's message Ask wrote, or one of the workspace's (the message itself). */
 export function WordsSheet(p: {
   open: boolean;
   draft: NewDraftDto;
@@ -440,9 +459,7 @@ export function WordsSheet(p: {
         testid="sq-nw-words"
       >
         <p className="sq-nw-note">{W.sheets.heldWords}</p>
-        <Button {...routeDoor("messages")} data-testid="sq-nw-words-library">
-          {W.sheets.openMessages}
-        </Button>
+        <HeldMessageDoor message={step.message} />
       </PickSheet>
     );
   return (

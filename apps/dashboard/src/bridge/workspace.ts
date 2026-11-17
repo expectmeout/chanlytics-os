@@ -452,8 +452,16 @@ const AHEAD_IDLE_MS = 3000;
  * still answering, and what went then stood in its way. Never where the page may not warm on its own (warmsOnItsOwn): a
  * press fetches it then. Answers what cancels it.
  */
-export function aheadWhenIdle(fn: () => void, waitMs: number = AHEAD_IDLE_MS): () => void {
-  if (!warmsOnItsOwn()) return () => undefined;
+export function aheadWhenIdle(
+  fn: () => void,
+  waitMs: number = AHEAD_IDLE_MS,
+  /**
+   * `everyLine`: a page's own quiet work (a check nobody waits for), not a fetch ahead of need, so it goes on every line,
+   * a slow one too, and still never beside the reads the page opens on.
+   */
+  how: { everyLine?: boolean } = {},
+): () => void {
+  if (!how.everyLine && !warmsOnItsOwn()) return () => undefined;
   let stop: (() => void) | null = null;
   let cancelled = false;
   void boot.then(() => {

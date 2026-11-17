@@ -2,10 +2,10 @@
  * A message open where it is needed, drawn as the Library draws it (templates/template-pane.tsx): its languages, its
  * channels and its menu, with the Library's own verbs (templates/page-acts.tsx), so a change made here is the change the
  * Library makes, said in the opener's toast. The settings surface holds the messages, as it does for the Library: read as
- * it is drawn. A name the workspace no longer holds says so, with the Library one press away.
+ * it is drawn. A name the workspace no longer holds says so, with Campaigns, where every message is, one press away.
  */
 import { useRef, useState } from "react";
-import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, MESSAGES_ROUTE } from "@chanlytics/contracts";
+import { CAMPAIGN_ROOMS, LIBRARY_WORDS, LIFECYCLE_WORDS, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import { canDo, gateTitle, routeDoor } from "../../frame-verbs";
 import type { useFrameToast } from "../../frame-verbs";
@@ -15,6 +15,7 @@ import { useSurface } from "../../use-surface";
 import { groupNamed, listingOf } from "../templates/group";
 import { pageActs } from "../templates/page-acts";
 import { TemplatePane } from "../templates/template-pane";
+import type { PaneStep } from "../templates/template-pane";
 import { starters as library } from "../templates/verbs";
 import { brainOf } from "../templates/words";
 
@@ -27,6 +28,8 @@ export interface MessageInPlaceProps {
   /** The opener's toast host: what a change says outlives the pane. */
   flash: ReturnType<typeof useFrameToast>[1];
   onClose: () => void;
+  /** Opened as a campaign's step's own sheet (sequences/step-sheet.tsx): what the step changes of the pane. */
+  step?: PaneStep;
 }
 
 /**
@@ -34,7 +37,7 @@ export interface MessageInPlaceProps {
  * the page a message was pressed on (surfaces/see), and where a sequence's step stands, in place of its preview
  * (sequences/step-editor.tsx: the canvas's step editor, its words written where they are read).
  */
-export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
+export function MessageInPlace({ name, flash, onClose, step }: MessageInPlaceProps) {
   const settings = useSurface("settings");
   // The numbers, from the channels read (surfaces/channels/surface.ts): a WhatsApp version needs one.
   const channels = useSurface("channels")?.rows;
@@ -70,8 +73,8 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
         body={
           <>
             {W.body}{" "}
-            <LinkButton {...routeDoor(MESSAGES_ROUTE)} data-testid="cmh-message-library">
-              {CAMPAIGN_ROOMS.library}
+            <LinkButton {...routeDoor(SEQUENCES_ROUTE)} data-testid="cmh-message-library">
+              {CAMPAIGN_ROOMS.home}
             </LinkButton>
           </>
         }
@@ -86,7 +89,8 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
   const acts = pageActs({ doingRef, setDoing, flash });
   return (
     <TemplatePane
-      key={g.key}
+      // The message's, and a step's own where it is one's sheet: the language and channel in view are that step's.
+      key={step ? `${g.key}:${step.id}` : g.key}
       g={g}
       langs={listing.langs}
       bizName={brainOf(settings?.settings).business_name || null}
@@ -108,6 +112,7 @@ export function MessageInPlace({ name, flash, onClose }: MessageInPlaceProps) {
       onRemoveVersion={acts.removeVersion}
       onSendWords={acts.sendWords}
       onTranslateOwn={acts.translateOwn}
+      step={step}
     />
   );
 }

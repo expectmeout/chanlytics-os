@@ -114,7 +114,8 @@ test("a run's home and a message's drawer open in place, a retired address of a 
     assert.equal(seeRefOfRoute(route), null, route);
   // The sheet's door goes home: the address it was opened from, spelled as its page writes it.
   assert.equal(seeHomeOf({ kind: "run", id: "b-1", sequenceId: "q-1" }), runRoute("b-1", "q-1"));
-  assert.equal(seeHomeOf({ kind: "message", name: "come_back" }), messageRoute("come_back"));
+  // A message has no page of its own: home from its sheet is Campaigns' list, which its address opens it over.
+  assert.equal(seeHomeOf({ kind: "message", name: "come_back" }), "campaigns/sequences");
 });
 
 /* ---------------------------- the verbs ---------------------------- */
@@ -167,13 +168,11 @@ test("a sheet a link opened closes by writing the address without it, and tells 
     assert.equal(see.inPlace(runRoute("b-1", "q-1")), false, `${path}: the home, where a press goes to the run's home`);
     assert.equal(entries.pushed.length, 0);
   }
-  // A message's home is the Library alone (the framework's rating, 19 Oct 2026: its drawer over Sequences went): there a
-  // press goes to it; on Sequences a step's message or the call's text opens over the list, as anywhere else.
-  for (const path of ["/w/acme/campaigns/messages", "/w/acme/campaigns/messages/come_back"]) {
-    openAt(path);
-    assert.equal(see.inPlace(messageRoute("come_back")), false, `${path}: the Library, where a press opens it there`);
-    assert.equal(entries.pushed.length, 0);
-  }
+  // A message has no page of its own (Campaigns, one tab, 17 Nov 2026: the Library, where a press went to it, folded into
+  // Campaigns): a press on one opens it over whatever page it was pressed on, Campaigns' list too.
+  openAt("/w/acme/campaigns/sequences");
+  assert.equal(see.inPlace(messageRoute("come_back")), true, "over Campaigns' list");
+  assert.deepEqual(see.seeOverNow(), { kind: "message", name: "come_back" });
   openAt("/w/acme/campaigns/sequences/q-1");
   assert.equal(see.inPlace(messageRoute("come_back")), true, "a step's message opens over its sequence");
   assert.deepEqual(see.seeOverNow(), { kind: "message", name: "come_back" });

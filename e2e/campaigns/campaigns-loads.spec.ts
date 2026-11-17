@@ -63,18 +63,6 @@ test.describe("Campaigns' views on a cold load", () => {
     await signIn(page);
   });
 
-  test("Messages: the strip never moves once drawn, and no number is never said where there is one", async ({
-    page,
-  }) => {
-    const load = await coldLoad(page, "campaigns/messages", "messages-real");
-    expect(stripMoved(load), `the strip's tops, frame by frame: ${load.strip.join(" > ")}`).toBeLessThanOrEqual(
-      ENTRANCE_PX,
-    );
-    const noNumberNow = await page.getByTestId("messages-no-number").count();
-    if (noNumberNow === 0)
-      expect(load.seen["messages-no-number"], "said there was no number, then took it back").toBe(undefined);
-  });
-
   test("New: the strip never moves, and nothing it draws is taken back", async ({ page }) => {
     const load = await coldLoad(page, "campaigns/sequences/new", "sq-new");
     expect(stripMoved(load), `the strip's tops, frame by frame: ${load.strip.join(" > ")}`).toBeLessThanOrEqual(

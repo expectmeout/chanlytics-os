@@ -982,7 +982,7 @@ test("a starter always begins on its own words, so a utility category is only ev
   // changed in its own place (the clean list, 14 Nov 2026).
   assert.equal(
     MESSAGE_BEGIN_WORDS.starterNeedsItsOwnWords,
-    "That name is a ready-made message's. Open it in Messages to change its words.",
+    "That name is a ready-made message's: give yours a name of its own.",
   );
   // A member's own words on a ready-made starter nothing has filed: it begins on the starter's words, its category and
   // values, then the member's are written beside them, as a filed one's are.

@@ -744,8 +744,9 @@ test("D1-template-marks: a kept template notice opens the message it is about in
   assert.equal(by["n:t1"].to, "campaigns/message:winback_offer", "not the bare Library, at its top");
   assert.equal(by["n:t1"].action, "Open the message");
   assert.deepEqual(by["n:t1"].about, { type: "template", id: "winback_offer" });
-  assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Messages"]);
-  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["campaigns/messages", "Open Messages"]);
+  // Messages folded into Campaigns (17 Nov 2026): a row naming no message opens Campaigns, and says so.
+  assert.deepEqual([by["n:t0"].to, by["n:t0"].action], ["messages", "Open Campaigns"]);
+  assert.deepEqual([by["n:t2"].to, by["n:t2"].action], ["campaigns/sequences", "Open Campaigns"]);
 });
 
 /* ------------------------- the top bar's own presses ------------------------- */

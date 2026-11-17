@@ -103,7 +103,9 @@ test.describe("Settings → Integrations on a real workspace", () => {
     await expect(row).toContainText(/Connect|isn't set up to connect|Checking|Sign in to Meta/);
   });
 
-  test("Integrations lists no template: the WhatsApp row points at Campaigns › Messages", async ({ page }) => {
+  test("Integrations lists no template: the WhatsApp row points at Campaigns, where every message is", async ({
+    page,
+  }) => {
     await page.goto("/#/admin/integrations");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("connections-connected")).toBeVisible();
@@ -114,8 +116,8 @@ test.describe("Settings → Integrations on a real workspace", () => {
     const link = page.getByTestId("channel-messages");
     if (await link.count()) {
       await link.click();
-      await expect(page).toHaveURL(atRoute(/^messages/));
-      await expect(page.getByTestId("messages-real")).toBeVisible();
+      await expect(page).toHaveURL(atRoute(/^campaigns\/sequences/));
+      await expect(page.getByTestId("campaigns-view-sequences")).toBeVisible();
     }
   });
 
