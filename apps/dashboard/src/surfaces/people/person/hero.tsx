@@ -432,25 +432,12 @@ function mergeAsk(c: PageCtx): SheetAsk {
  * rail says that beside the head), and the notices under it, or a stand-in's story where no notice waits.
  */
 function headLineOf(c: PageCtx, row: "line" | "notice"): ReactNode {
-  const line = c.p.head.line;
+  // A phone says a stand-in's story on the state's line (personHeadStateOf's story), never in the notices' row.
+  const line = row === "notice" && c.phone ? null : c.p.head.line;
   const notices = c.p.notices.some((n) => n.home === "name");
-  // A phone says a stand-in's story on the state's line (phoneStoryOf), not on a row of its own under the face.
-  if (row === "notice")
-    return notices ? <NameNotices c={c} /> : line?.kind === "origin" && !c.phone ? <HeadLine c={c} /> : null;
+  if (row === "notice") return notices ? <NameNotices c={c} /> : line?.kind === "origin" ? <HeadLine c={c} /> : null;
   if (!line || line.kind === "origin" || (line.kind === "gone" && !c.phone)) return null;
   return <HeadLine c={c} />;
-}
-
-/**
- * A stand-in's story ("We wrote first · Nov 5") on a phone, where no notice takes its row: said on the state's line beside
- * the face, as a sentence is ("● Not heard from · We wrote first · Nov 5"), where a row of its own under the face stood the
- * head 30px taller for six words (Ruben, 17 Nov 2026). The head's state says no sentence where the story is told
- * (personHeadStateOf), so the line says one or the other.
- */
-function phoneStoryOf(c: PageCtx): string | null {
-  const line = c.p.head.line;
-  if (!c.phone || line?.kind !== "origin" || c.p.notices.some((n) => n.home === "name")) return null;
-  return line.text;
 }
 
 /**
@@ -462,7 +449,6 @@ function phoneStoryOf(c: PageCtx): string | null {
 function heroId(c: PageCtx) {
   const { p, flash, canRecord, load, error } = c;
   const head = personHeadStateOf(p);
-  const story = phoneStoryOf(c);
   return (
     <div className="cl-prof-id">
       {p.head.face.kind === "tile" ? (
@@ -484,15 +470,10 @@ function heroId(c: PageCtx) {
         <Wash scope={p.id} value={head.state} said={PERSON_WASH_WORDS.state(head.word)}>
           <StatePill kind="person" value={head.state} label={head.word} testid="person-standing" />
         </Wash>
-        {/* On a phone its sentence rides the state's line, "● New · First contact Nov 11" (Ruben, 12 Nov 2026: the head
-            was too tall for what it says). */}
-        {c.phone && head.sentence ? (
-          <span className="cl-prof-now-said" data-testid="person-now-why">
-            {head.sentence.replace(/\.$/, "")}
-          </span>
-        ) : story ? (
-          <span className="cl-prof-now-said" data-testid="person-origin">
-            {story}
+        {/* On a phone its sentence, or a stand-in's story, rides the state's line (Ruben, 12 and 17 Nov 2026). */}
+        {c.phone && (head.sentence || head.story) ? (
+          <span className="cl-prof-now-said" data-testid={head.sentence ? "person-now-why" : "person-origin"}>
+            {head.sentence?.replace(/\.$/, "") ?? head.story}
           </span>
         ) : null}
       </span>

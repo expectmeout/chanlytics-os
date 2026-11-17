@@ -11,6 +11,12 @@ export interface PersonHeadStateVM {
   state: PersonState;
   word: string;
   sentence: string | null;
+  /**
+   * A stand-in's story ("We wrote first · Nov 5") where no notice takes its row, which a phone says on the state's line
+   * beside the face in the sentence's place ("● Not heard from · We wrote first · Nov 5"), where a row of its own under
+   * the face stood the head 30px taller for six words (Ruben, 17 Nov 2026). A desk says it under the name (hero.tsx).
+   */
+  story: string | null;
 }
 
 /** What it is read from: the row's state, its word and its detail, and Right now's sentence for one that needs someone. */
@@ -20,7 +26,7 @@ export interface PersonHeadStateFacts {
   stateDetail: string;
   rightNow: { detail: string };
   /** The head's line (business.ts personHeadOf): a lead's stand-in's says how they met. */
-  head?: { line: { kind: string } | null };
+  head?: { line: { kind: string; text: string } | null };
   /** The page's notices; one that stands under the name takes the line's row. */
   notices?: readonly { home: string }[];
 }
@@ -38,10 +44,12 @@ export function personHeadStateOf(stateFacts: PersonHeadStateFacts): PersonHeadS
   const needs = stateFacts.state === "needs_you" || stateFacts.state === "waiting_on_you";
   // A stand-in's head that says how they met ("We wrote first · Oct 30") is not told it again under the pill ("First
   // contact Oct 30."; the phone pass, 3 Nov 2026): the line is drawn where no notice stands in its row (hero.tsx).
-  const met = stateFacts.head?.line?.kind === "origin" && !(stateFacts.notices ?? []).some((n) => n.home === "name");
+  const line = stateFacts.head?.line;
+  const met = line?.kind === "origin" && !(stateFacts.notices ?? []).some((n) => n.home === "name");
   return {
     state: stateFacts.state,
     word: stateFacts.stateLabel,
     sentence: needs ? asSentence(stateFacts.rightNow.detail) : met ? null : asSentence(stateFacts.stateDetail),
+    story: met && line ? line.text : null,
   };
 }
