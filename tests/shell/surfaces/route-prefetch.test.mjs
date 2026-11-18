@@ -834,8 +834,9 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
     live: ["channels"],
     broadcasts: ["channels", "sequences"],
     outbound: ["channels"],
-    messages: ["channels"],
-    "campaigns/messages": ["channels"],
+    // Messages' old route and its addresses are Campaigns' list's (Messages folded into Campaigns, 17 Nov 2026).
+    messages: ["settings"],
+    "campaigns/messages": ["settings"],
     "campaigns/content": ["content"],
     // Content's Library (the content redesign's stage 2), once Settings › Files: the library's read, never Made's.
     "campaigns/content:library": ["files"],

@@ -108,7 +108,8 @@ test("what a Campaigns view waits for is among the first four the boot reads bes
 test("Campaigns' views each wait for what their own first screen is made of, asked of the view before the page (the Campaigns load review, 28 Oct 2026)", () => {
   assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences"], ["settings"]);
   assert.deepEqual(reg.ROUTE_WAITS["campaigns/sequences/new"], ["playbooks"]);
-  assert.deepEqual(reg.ROUTE_WAITS["campaigns/messages"], ["channels", "reach_outs", "playbooks"]);
+  // Messages' addresses are Campaigns' list's since it folded into Campaigns (17 Nov 2026): they wait for what it does.
+  assert.deepEqual(reg.ROUTE_WAITS["campaigns/messages"], ["settings"]);
   assert.equal(reg.ROUTE_WAITS.campaigns, undefined, "no view waits for another's");
   status.setStatus("sequences", "live");
   // A sequence's steps say their messages' words, which are the settings read's.
@@ -138,26 +139,8 @@ test("Campaigns' views each wait for what their own first screen is made of, ask
   );
   status.setStatus("settings", "live");
   assert.equal(gate("campaigns", "sequences/sq-1"), true, "the steps and their words draw together");
-  // Messages' own surface is the settings read; beside it, the number it sends from.
-  assert.equal(
-    gate("campaigns", "messages"),
-    false,
-    "REGRESSION: Messages said there was no number, then the list moved up as the numbers came",
-  );
-  assert.equal(gate("campaigns", "messages/booking_link"), false, "a message open in it is Messages too");
-  status.setStatus("channels", "seeded");
-  // And what its rows say of what sends each (the playbooks read, in by now) and a cold email sequence's emails.
-  assert.equal(
-    gate("campaigns", "messages"),
-    false,
-    "REGRESSION (15 Nov 2026): a row's pill came 2.7 s after the list on a phone, the emails 0.3 s after it",
-  );
-  status.setStatus("reach_outs", "live");
-  assert.equal(
-    gate("campaigns", "messages"),
-    true,
-    "a numbers read that failed holds nothing: the page says what it could not read",
-  );
+  // A message's address opens the message over Campaigns' list, so it draws once the list and its words are in.
+  assert.equal(gate("campaigns", "messages/booking_link"), true, "a message's address is Campaigns' list's");
 });
 
 // After Reports' own: the report and the workspace list are in by then (module state).

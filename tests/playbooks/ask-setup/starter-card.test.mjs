@@ -356,7 +356,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
   assert.equal(rows.templates.length, 1, "nothing is filed at the card");
   // Refused, with WhatsApp named: it waits on a version WhatsApp refused, said so, and nothing goes for review. It reaches
   // those whose yes covers email; where nobody's does, it reaches no one and is no campaign card (the 30 Oct 2026 review,
-  // item 6), but a card of that one thing, with Messages, where a version is written again, for its door.
+  // item 6), but a card of that one thing, with the message itself, where AI writes its words again, for its door.
   const refused = { templates: [onFile("rejected")] };
   const nobody = await propose({ trigger: "quiet_30", channels: ["whatsapp", "email"] }, refused).made;
   assert.equal(nobody.isError, false, nobody.result);
@@ -366,7 +366,7 @@ test("a starter whose WhatsApp version is on file says what it is, never that it
       "fix",
       "Fix the message's WhatsApp version first",
       "WhatsApp asked for a change to this message's words. Until then the “Win-back” campaign would reach no one.",
-      "campaigns/messages",
+      `campaigns/messages/${STARTER.name}`,
     ],
   );
   const named = await propose({ trigger: "quiet_30", channels: ["whatsapp", "email"] }, refused, YES_BY_EMAIL).made;
@@ -430,7 +430,7 @@ test("a starter the workspace hid is never added back, and the card says it is h
   assert.ok(said(hidden).startsWith(LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title)), said(hidden));
   assert.equal(
     LIBRARY_STARTER_WORDS.hiddenInLibrary(STARTER.title),
-    `The “${STARTER.title}” starter is hidden in this workspace: show it again under Campaigns › Messages, or name another message.`,
+    `The “${STARTER.title}” starter is hidden here: show it again under “Not in a campaign”, or name another message.`,
   );
   assert.ok(!/no version|starter set/.test(said(hidden)), said(hidden));
 });

@@ -6,7 +6,9 @@
  * (byLongestWait); its words are words/row-line.ts's.
  */
 import { plural } from "../../shared/words";
+import type { CampaignMessage } from "../templates/campaign-message";
 import type { SequenceNeedsDto, SequenceRowDto } from "./dto";
+import { MESSAGE_OFF_WORDS } from "./words/stopped-message";
 import { sequenceStuckOf } from "./run-off";
 
 export const SEQUENCE_LIST_WORDS = {
@@ -91,14 +93,44 @@ export function byLongestWait(one: WaitingRow, other: WaitingRow): number {
   return x - y;
 }
 
-/** Whether a row holds the words searched for: its name, or the lead search or list it takes people from, in any case. */
-export function sequenceMatches(row: Pick<SequenceRowDto, "name" | "first">, words: string): boolean {
+/**
+ * The step of a sequence whose message holds the words searched for, by its title as people read it (`titleOf`, the
+ * messages' own: "A short nudge") or its name, the first by place; null where none does (Campaigns, one tab, call C7).
+ */
+export function sequenceMessageFound(
+  row: Pick<SequenceRowDto, "messages">,
+  words: string,
+  titleOf: (name: string) => string | null,
+): { place: number; title: string } | null {
+  const query = words.trim().toLowerCase();
+  if (query === "") return null;
+  for (const m of row.messages ?? []) {
+    const title = titleOf(m.name) ?? m.name;
+    if (title.toLowerCase().includes(query) || m.name.toLowerCase().includes(query)) return { place: m.place, title };
+  }
+  return null;
+}
+
+/** What a row found by its message says in place of its line: the step, and the message's title ("Step 2 · A short nudge"). */
+export const messageFoundLine = (found: { place: number; title: string }): string =>
+  `Step ${found.place} · ${found.title}`;
+
+/**
+ * Whether a row holds the words searched for: its name, or the lead search or list it takes people from, in any case,
+ * or a message one of its steps sends, where the titles are given (sequenceMessageFound).
+ */
+export function sequenceMatches(
+  row: Pick<SequenceRowDto, "name" | "first" | "messages">,
+  words: string,
+  titleOf: ((name: string) => string | null) | null = null,
+): boolean {
   const query = words.trim().toLowerCase();
   if (query === "") return true;
   const first = row.first;
-  return [row.name, first?.search_name, first?.source_name, first?.list_name].some((name) =>
+  const own = [row.name, first?.search_name, first?.source_name, first?.list_name].some((name) =>
     (name ?? "").toLowerCase().includes(query),
   );
+  return own || (titleOf !== null && sequenceMessageFound(row, query, titleOf) !== null);
 }
 
 /**
@@ -133,4 +165,59 @@ export function needsCount(sequenceNeeds: SequenceNeedsDto): number {
       ? sequenceNeeds.waiting
       : 0;
   return sequenceNeeds.waiting_people + sequenceNeeds.held + sequenceNeeds.to_send + sequenceNeeds.replies + batches;
+}
+
+/** The fold at the list's foot of the messages no campaign sends (Campaigns, one tab, call C5), and what each says. */
+export const OTHER_MESSAGES_WORDS = {
+  group: "Not in a campaign",
+  inbox: "The Inbox can start a chat with it",
+  hidden: "Hidden from the Inbox",
+  checking: "WhatsApp is checking it",
+  /** WhatsApp's no, as a step's box says it of its own message (message-off.ts): pressed, the row opens the message. */
+  refused: MESSAGE_OFF_WORDS.refused,
+  paused: MESSAGE_OFF_WORDS.paused,
+  nothing: "Nothing sends it yet",
+  /** The fold's press, as the ended campaigns' says it. */
+  show: (n: number): string => `Show ${n}`,
+  hide: "Hide",
+} as const;
+
+/** What the fold says of one message, of its versions in every language: the first of these that is true. */
+function otherMessageLine(versions: readonly CampaignMessage[]): string {
+  const words = OTHER_MESSAGES_WORDS;
+  if (versions.every((m) => m.hidden)) return words.hidden;
+  const shown = versions.filter((m) => !m.hidden);
+  const stands = (...statuses: string[]) => shown.some((m) => statuses.includes(m.versions.whatsapp?.status ?? ""));
+  if (stands("approved")) return words.inbox;
+  if (stands("rejected")) return words.refused;
+  if (stands("paused", "disabled")) return words.paused;
+  return stands("pending") ? words.checking : words.nothing;
+}
+
+/** A message no campaign sends, as the fold lists it: its name (its address), its title, and what can use it. */
+export interface OtherMessage {
+  name: string;
+  title: string;
+  line: string;
+}
+
+/**
+ * The messages on file that nothing sends (`sends`: the settings read's usage, a campaign's step or the Inbox's booking),
+ * one row a name whatever its languages, by title (Campaigns, one tab, call C5): with Messages folded into Campaigns they
+ * sit at the list's foot, each saying what can use it. One put away is said as what that does: the Inbox's picker leaves
+ * it out (offered-templates.ts templateOffered); one WhatsApp approved, that the Inbox can start a chat with it; one
+ * WhatsApp refused or paused in every language it has, that, with the press that mends it (the Messages list put such a
+ * message under its own Needs you, and the bell's row about it opens it too); one WhatsApp is still checking, that.
+ */
+export function otherMessagesOf(
+  messages: readonly CampaignMessage[],
+  sends: (name: string) => boolean,
+): OtherMessage[] {
+  const byName = new Map<string, CampaignMessage[]>();
+  for (const m of messages) if (!sends(m.name)) byName.set(m.name, [...(byName.get(m.name) ?? []), m]);
+  return [...byName.entries()]
+    .map(([name, versions]) => {
+      return { name, title: versions[0]?.title ?? name, line: otherMessageLine(versions) };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title));
 }

@@ -343,6 +343,8 @@ export {
   pageProposalsOut,
   pageRunPeople,
 } from "./sequences/sent";
+export { listStepMessages } from "./sequences/step-messages";
+export type { StepMessageRow } from "./sequences/step-messages";
 export { findConfirmationEmail, findSignupAskFacts } from "./signup-confirms";
 export {
   batchStatesOf,

@@ -56,6 +56,7 @@ const {
   VOICE_WORDS,
   asDraftedFrom,
   asDraftedOf,
+  draftKeepsMessage,
   leadChainStepOf,
   newListOf,
   whatsappOffersOpen,
@@ -635,6 +636,19 @@ test("asked once, as its own purpose, with only what the workspace offers and ho
   );
   assert.match(JSON.stringify(calls[1].request.messages), /The owner already chose: kind once/);
   assert.equal(kept.kind, "once");
+});
+
+test("a line that is only a message to keep is answered as one, which New hands to AI's message card; a chosen kind or a change never is (Campaigns, one tab, call C12)", async () => {
+  const keep = { words: "A message for when someone asks about prices: all our prices are on the booking page" };
+  answerWith(answer({ kind: "message", who: "", name: "", steps: [] }));
+  const out = await draftSequenceFrom(KNOWN, keep, { tenantId: "t1", userId: "u1" });
+  assert.deepEqual([out, calls.length], [{ keeps: "message", said: keep.words }, 1], "the line alone, asked once");
+  assert.ok(NEW_DRAFT_JSON_SCHEMA.properties.kind.enum.includes("message") && draftKeepsMessage(out));
+  assert.match(JSON.stringify(calls[0].request.system), /choose message/, "AI is told when a line is one");
+  answerWith(answer({ kind: "message", steps: [step({ message: "k1" })] }));
+  const chosen = await draftSequenceFrom(KNOWN, { ...keep, kind: "sequence" }, { tenantId: "t1", userId: "u1" });
+  const judgedAs = [draftKeepsMessage(chosen), chosen.kind, chosen.steps[0].message.template_id];
+  assert.deepEqual(judgedAs, [false, "sequence", ID(1)], "a chosen kind is kept whatever AI says");
 });
 
 test("REGRESSION (the live run of 14 Nov 2026): leads picked on Leads are who a draft goes to, so AI never says no search is ready", async () => {

@@ -13,7 +13,7 @@ import { Button } from "../../kit/button/button";
 import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { Spark } from "../../kit/spark/spark";
+import { Spark, type SparkColumn } from "../../kit/spark/spark";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
@@ -58,28 +58,48 @@ function pinDoors(pins: ReturnType<typeof usePins>) {
   ));
 }
 
+/** Past a month a column a day is too thin to see (90 of them were dust in 360px): the days go a week a column. */
+const DAYS_A_COLUMN_MAX = 31;
+const DAYS_A_WEEK = 7;
+
 /**
- * The period's days beside its line (Today with colour, D7, 17 Nov 2026): a column a day, what AI answered of its messages
- * in the ok tone, today in the accent. Said by the line's own words. None for a period with nothing in it.
+ * The period's columns: a day each up to a month, else a week each, summed, the last week ending today and the first
+ * holding what is left over. Each its messages, and what AI answered of them.
+ */
+function monthColumns(perDay: ReportHeadlineVM["perDay"]): SparkColumn[] {
+  const days = perDay.map((day) => ({ value: day.messages, part: day.answered }));
+  if (days.length <= DAYS_A_COLUMN_MAX) return days;
+  const weeks: SparkColumn[] = [];
+  for (let end = days.length; end > 0; end -= DAYS_A_WEEK) {
+    const week = days.slice(Math.max(0, end - DAYS_A_WEEK), end);
+    weeks.unshift({
+      value: week.reduce((total, day) => total + day.value, 0),
+      part: week.reduce((total, day) => total + day.part, 0),
+    });
+  }
+  return weeks;
+}
+
+/**
+ * The period's days beside its line (his look, 17 Nov 2026): a column a day or a week, what AI answered of its messages
+ * in the ok tone and the rest in the faint ink, and under the last column the word for where they end, today (a time the
+ * page says, so a copy some minutes old leaves it out). Said by the line's own words. None for a period with nothing in it.
  */
 const monthSpark = (headline: ReportHeadlineVM, sentence: string) =>
   headline.perDay.length > 1 && !headline.empty ? (
-    <Spark
-      className="tz-month"
-      today
-      columns={headline.perDay.map((d) => ({ value: d.messages, part: d.answered }))}
-      aria-label={sentence}
-    />
+    <span className="tz-month">
+      <Spark className="tz-month-days" columns={monthColumns(headline.perDay)} aria-label={sentence} />
+      <span className="tz-month-end" aria-hidden="true" {...SAYS_WHEN}>
+        {P.monthEnd}
+      </span>
+    </span>
   ) : null;
 
-/**
- * The key to the days drawn beside the line: what the ok tone's part of a day is, and that the accent's day is today
- * (a time the page says, so a copy some minutes old leaves it out). A reader of the screen hears the line, not the colours.
- */
+/** The key to the days drawn beside the line: what the green of a column is, and its faint rest. A reader hears the line. */
 const monthKey = (
-  <span className="tz-month-key" aria-hidden="true" data-testid="today-period-key" {...SAYS_WHEN}>
+  <span className="tz-month-key" aria-hidden="true" data-testid="today-period-key">
     <span>{P.monthKey.ai}</span>
-    <span className="tz-key-today">{P.monthKey.today}</span>
+    <span className="tz-key-rest">{P.monthKey.rest}</span>
   </span>
 );
 

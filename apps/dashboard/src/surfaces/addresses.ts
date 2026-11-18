@@ -28,7 +28,6 @@ import {
   isAdsParam,
   GET_YES_PARAM,
   GET_YES_ROUTE,
-  MESSAGES_ROUTE,
   messageOfRoute,
   isToSendParam,
   newConversationOf,
@@ -129,7 +128,6 @@ function opensCalendar(param: string): Opened | null {
  */
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
-  if (`campaigns/${param}` === MESSAGES_ROUTE) return { view: MESSAGES_ROUTE };
   if (isAdsParam(param)) return { view: "campaigns/ads" };
   const content = contentPlaceOf(param);
   if (content) return content.list === "library" && !content.open ? { ref: { kind: "file" } } : { view: CONTENT_ROUTE };
@@ -284,8 +282,7 @@ const PAGES: ReadonlyMap<string, Parse> = new Map<string, Parse>([
   ["live", flat(opensLive)],
   ["calendar", flat(opensCalendar)],
   ["campaigns", opensCampaigns],
-  // Messages is a view of Campaigns (19 Oct 2026): canonicalRoute sends `messages` to `campaigns/messages` before the page
-  // is asked, so nothing is opened here.
+  // Messages' old route lands on Campaigns' list (canonicalRoute) before the page is asked, so nothing is opened here.
   ["messages", () => null],
   ["broadcasts", flat(opensSent)],
   // A person's tab has a slash (`clients/<id>/history`), which opensPeople reads itself.

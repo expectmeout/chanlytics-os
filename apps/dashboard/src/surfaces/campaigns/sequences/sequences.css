@@ -2,6 +2,13 @@
    the page's own words alone; every value a token (tokens.css), every primitive the kit's. Loaded with the page's own
    chunk (sequences-page.tsx), so no other page pays for it. */
 
+/* The month's emails on a desk, on the strip's row before New (sequences-page.tsx newAct, call C14): the head's quiet line. */
+.sq-month {
+  margin-right: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
 /* The list: its search over the groups, which scroll; the groups are its filter. */
 .sq-list-head {
   display: flex;

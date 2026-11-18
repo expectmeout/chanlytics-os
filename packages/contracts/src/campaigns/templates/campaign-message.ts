@@ -39,7 +39,6 @@ import { CONSENT_CHANNELS, type ConsentChannel } from "../../consent/channels";
 import { purposeOfTemplate, type AskedPurpose } from "../../consent/consent";
 import { TEMPLATE_STATUSES, type TemplateStatus } from "../../shared/enums";
 import type { ChannelsReady } from "../broadcasts/reach-for";
-import { CAMPAIGN_ROOMS } from "../../shell/campaign-rooms";
 import { VERSION_CHANNEL_WORDS, noVersionWords, type VersionChannel } from "./message-versions/channels";
 import { isReachOutRow, versionsOf } from "./message-versions/email-rules";
 import { refusedWords, templateBlocked } from "./parts";
@@ -431,7 +430,7 @@ export const STARTER_LINE_WORDS = {
     const at = metaStatusOf(status);
     return at === "pending"
       ? `has its WhatsApp version in review · it appears here once approved (${WHATSAPP_REVIEW_TAKES}).`
-      : `has its WhatsApp version ${whatsappStandingWord(at)} · see ${CAMPAIGN_ROOMS.home} › ${CAMPAIGN_ROOMS.library}.`;
+      : `has its WhatsApp version ${whatsappStandingWord(at)} · open the message to see why.`;
   },
   /**
    * The link that adds the moment's own message: its email and text versions at once, a WhatsApp version where a number
@@ -463,7 +462,7 @@ export const MESSAGE_BEGIN_WORDS = {
    */
   utilityNeedsWhatsapp: `A message ${THEIRS_WORDS}, needs a WhatsApp version, which WhatsApp reviews.`,
   /** A message written whole under a ready-made starter's name: the starter is changed in its own place, never replaced. */
-  starterNeedsItsOwnWords: "That name is a ready-made message's. Open it in Messages to change its words.",
+  starterNeedsItsOwnWords: "That name is a ready-made message's: give yours a name of its own.",
   doorNotSwitchedOn: "Writing a message with no WhatsApp version is not switched on here yet.",
   /**
    * A message written whole in a language of a message already on file in another, said as something else (POST

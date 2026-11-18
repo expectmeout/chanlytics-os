@@ -45,7 +45,7 @@ import { useSurface } from "../../use-surface";
 import { runDetail } from "../broadcasts/detail-read";
 import { cmFootAsk } from "../parts/split";
 import { keptSendOf } from "./new/kept-send";
-import { useSequenceRead } from "./use-record";
+import { useSequenceRead, withListMessageOff } from "./use-record";
 import { pressed, sequenceVerbs as verbs } from "./verbs";
 
 type Flash = (flash: FrameFlash) => void;
@@ -64,9 +64,9 @@ export function useRecordActs(
   rec: SequenceRecordDto,
   flash: Flash,
   moved: () => void,
-  opens: { step: (id: string) => void; how: () => void; writing?: boolean },
+  opens: { step: (id: string) => void; view: (id: string) => void; how: () => void; writing?: boolean },
 ) {
-  const { step: editStep, how: openHow, writing = false } = opens;
+  const { step: editStep, view: viewStep, how: openHow, writing = false } = opens;
   const [busy, setBusy] = useState(false);
   const [asking, setAsking] = useState<Asking | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -75,7 +75,7 @@ export function useRecordActs(
   const list = useSurface("sequences");
   const twin = list ? sequenceTwinOf(list.sequences, row) : null;
   // What needs you most, a run that did nothing among it (the loop review's item 8: its last run's reason, said until one goes).
-  const notice = sequenceNotice(row, rec.steps, twin, {
+  const notice = sequenceNotice(withListMessageOff(row, list), rec.steps, twin, {
     off: rec.last_run_off,
     for: rec.last_run_for,
     tz: rec.timezone,
@@ -110,6 +110,8 @@ export function useRecordActs(
     renaming,
     setRenaming,
     editStep,
+    /** A step's own sheet, opened on Steps: on its message, where a refused one's fix is written (Campaigns, one tab). */
+    viewStep,
     /** How it runs, opened on Steps: where Before each batch is set (decision 0064). */
     openHow,
     unwritten,
@@ -541,9 +543,13 @@ function NoticeAct({ a, tab, phone }: { a: RecordActs; tab: SequenceTab; phone: 
   }
   if (n.kind === "off" && n.off) {
     const mends = n.off.mends;
-    if (mends === "door" && n.off.to)
+    // WhatsApp hasn't approved its first step's message: that step's own sheet, which opens on the message and AI's new
+    // words for it (Campaigns, one tab, 17 Nov 2026), rather than the message alone over the page.
+    const first = n.off.reason === "template_not_approved" ? (a.rec.steps.find((s) => s.place === 1) ?? null) : null;
+    const opens = first ? { onClick: () => a.viewStep(first.id) } : n.off.to ? routeDoor(n.off.to) : null;
+    if (mends === "door" && opens)
       return (
-        <Button size={size} {...routeDoor(n.off.to)} data-testid="sq-off-mend">
+        <Button size={size} {...opens} data-testid="sq-off-mend">
           {n.act}
         </Button>
       );

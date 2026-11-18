@@ -100,8 +100,6 @@ export const ASK_PAGE_ROUTES: readonly string[] = [
   "calendar",
   // Campaigns › Sequences (decision 0060): everything that sends on its own, Campaigns' first view.
   "campaigns/sequences",
-  // Campaigns › Messages, its other view (19 Oct 2026); its old route, `messages`, lands on it (RETIRED_PAGES).
-  "campaigns/messages",
   // Campaigns › Content (decision 0125), with the library that was Settings › Files (RETIRED_PAGES).
   "campaigns/content",
   "campaigns/content:library",
@@ -196,13 +194,15 @@ const RETIRED_PAGES: ReadonlySet<string> = new Set([
   "broadcasts",
   "broadcasts/to-send",
   "broadcasts/get-yes",
+  // Messages, Campaigns' other view until it folded into Campaigns (17 Nov 2026), and its own old route: Campaigns' list.
+  "campaigns/messages",
   "messages",
   "admin/files",
 ]);
 
 /**
  * The page a retired one an answer names moved to (Campaigns' home and a real group of its ledger, the old Playbooks list,
- * Sent's list: Sequences; the Library's old route: Messages; retiredRouteOf), or null for any other route. A made-up group is no page that moved: dropped.
+ * Sent's list, Messages and the Library's old route: Sequences; retiredRouteOf), or null for any other route. A made-up group is no page that moved: dropped.
  */
 function movedPageOf(route: string): string | null {
   const group = route.startsWith("campaigns/in:") ? route.slice("campaigns/in:".length) : null;

@@ -145,7 +145,8 @@ test("the live salon: both numbers on, the listing watched, the profile connecte
   assert.equal(r.whatsapp.state, "connected");
   assert.equal(r.whatsapp.detail, "+1 (305) 555-0188");
   assert.ok(r.whatsapp.sentence.startsWith("Receiving · last message"));
-  assert.deepEqual(r.whatsapp.verb, { label: "Messages", to: "campaigns/messages", who: "operator" });
+  // Campaigns, where every message the number sends is, inside the campaign that sends it (Messages folded in, 17 Nov 2026).
+  assert.deepEqual(r.whatsapp.verb, { label: "Campaigns", to: "campaigns/sequences", who: "operator" });
   assert.equal(r.phone.state, "connected");
   assert.equal(r.phone.verb, null);
   assert.equal(r.google_profile.state, "connected");

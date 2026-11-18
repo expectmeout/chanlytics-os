@@ -442,20 +442,30 @@ function dayLinesOf(
   return { kept, foot: todayWentFoot(today, zone.toMark, answered, word) };
 }
 
-/** The day's bar, with now on it; tomorrow's has no now, and says none. Called, not drawn. */
+/**
+ * The day's bar, with now on it, and the hours its two ends stand at under it, so it reads as the day it is (his look, 17
+ * Nov 2026: the canvas drew them, the build had none). Tomorrow's has no now, and says none. Called, not drawn.
+ */
 function dayBar(zone: TodayZoneDayVM, clock: ReturnType<typeof workspaceClock>) {
   const bar = zone.bar;
   if (!bar) return null;
   return (
-    <Meter
-      className="tpd-bar"
-      parts={barParts(bar)}
-      mark={bar.now}
-      aria-label={[zone.note, bar.now !== null && clock ? `now ${clock.time(Date.now())}` : ""]
-        .filter(Boolean)
-        .join("; ")}
-      {...(bar.now === null ? {} : SAYS_WHEN)}
-    />
+    <div className="tpd-span">
+      <Meter
+        className="tpd-bar"
+        size="lg"
+        parts={barParts(bar)}
+        mark={bar.now}
+        aria-label={[zone.note, bar.now !== null && clock ? `now ${clock.time(Date.now())}` : ""]
+          .filter(Boolean)
+          .join("; ")}
+        {...(bar.now === null ? {} : SAYS_WHEN)}
+      />
+      <span className="tpd-ends tabular" aria-hidden="true" {...SAYS_WHEN}>
+        <span>{bar.ends.from}</span>
+        <span>{bar.ends.to}</span>
+      </span>
+    </div>
   );
 }
 

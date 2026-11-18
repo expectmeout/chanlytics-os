@@ -49,7 +49,7 @@ import { LeadSteps } from "./leads/lead-steps";
 import { RailAdd, RailBox, RailRow, RailStart, StepsRail, type RailStep } from "./place/rail";
 import { SettingsSheet } from "./settings-sheet";
 import { StepSheet, type StepSheetTarget } from "./step-sheet";
-import { StepPreviewLine, StepWords, stepOfferOf, useStepMessageRead } from "./step-words";
+import { StepPreviewLine, StepWords, stepOfferOf, useStepMessageRead, useStepMessageSays } from "./step-words";
 import { useSequenceRead } from "./use-record";
 import { sequenceVerbs as verbs } from "./verbs";
 import type { CmOffered } from "../parts/channels";
@@ -173,7 +173,9 @@ function StepRow({ rec, step, day, ctx, onOpen }: StepRowProps) {
   const gone = customer && read && !message;
   // An offer under a moment that is not one (a ready-made follow-up WhatsApp filed as an offer): no text, and who gets it.
   const offer = customer ? stepOfferOf(rec, step, stepRead) : null;
-  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer });
+  // Its message cannot go (call C3), or nothing can carry it here now (call C13): it says so, as the Messages list did.
+  const says = useStepMessageSays(rec, customer ? step : null, message);
+  const state = scheduleStepState(rec.sequence, step, { ...ctx, gone, offer, ...says });
   const done = state?.tone === "done";
   const by = stepBy(step, offer);
   // A call or a note by its kind, as New's rail calls it: the name the database gave it is the sequence's.
@@ -279,6 +281,9 @@ interface StepsProps {
   onEditing: (id: string | null) => void;
   /** How it runs, asked open by the head's Who approves: a count, each ask opening it again. */
   howAsked: number;
+  /** A step's own sheet, asked open by the record's notice (its message WhatsApp hasn't approved), let go once open. */
+  viewAsked?: string | null;
+  onViewed?: () => void;
   /** Cancel this send, asked first by the record (a one-off waiting for its day). */
   onCancelSend: () => void;
 }
@@ -297,12 +302,20 @@ function usePeopleOf(rec: SequenceRecordDto, again: number): SequencePeopleDto |
   return wants && read.state === "read" ? read.data : null;
 }
 
-export function SequenceSteps({ rec, flash, moved, again, editing, onEditing, howAsked, onCancelSend }: StepsProps) {
+export function SequenceSteps(props: StepsProps) {
+  const { rec, flash, moved, again, editing, onEditing, howAsked, viewAsked = null, onViewed, onCancelSend } = props;
   const row = rec.sequence;
   const people = usePeopleOf(rec, again);
   // What the sheet holds, kept as it leaves; open is the schedule's, or the record's while it holds a step to change.
   const [held, setHeld] = useState<StepSheetTarget | null>(null);
   const [open, setOpen] = useState(false);
+  // A step asked open by the record's notice: its sheet, and the ask let go.
+  useEffect(() => {
+    if (!viewAsked) return;
+    setHeld({ kind: "step", id: viewAsked });
+    setOpen(true);
+    onViewed?.();
+  }, [viewAsked, onViewed]);
   // What the step to come will do, pressed on the sheet's first face (decision 0065 step 6).
   const [does, setDoes] = useState<NewStepDoes | null>(null);
   const target = editing ? sheetTargetOf(editing, does) : held;

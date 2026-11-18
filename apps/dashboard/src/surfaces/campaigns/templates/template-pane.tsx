@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   MESSAGE_CHANGE_WORDS,
+  aboutOfMessage,
   VERSION_CHANNELS,
   VERSION_CHANNEL_WORDS,
   channelChoices,
@@ -29,12 +30,13 @@ import {
 import type { CampaignMessage, VersionChannel } from "@chanlytics/contracts";
 import type { ApiResult } from "@/client/api";
 import type { TemplateDto } from "@/surfaces/inbox/types";
+import type { MenuItem } from "../../kit/menu/menu";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { surfaceValue } from "../../surface-values";
 import { CmPane } from "../parts/split";
 import type { TemplateMade } from "./composer-acts";
 import type { StarterGroup, TemplateGroup, TplLang } from "./group";
-import { aboutOfMessage, firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
+import { firstView, messageFacts, placeOfMessage, sentByWords } from "./message-row-facts";
 import { LanguageWord, addLanguageItem, openRow, paneName } from "./message-row-parts";
 import type { RowCtx, VersionActs } from "./message-row-parts";
 import { factsLine, standingTap } from "./sheet-head";
@@ -72,6 +74,53 @@ interface PaneProps {
   onSendWords?: (row: TemplateDto, body: string) => Promise<ApiResult<unknown> | null>;
   /** A language added: the message's email and text versions written in it too, each saved beside the message. */
   onTranslateOwn?: (title: string, rows: readonly TemplateDto[], to: TplLang) => void;
+  /** Opened from a campaign's step, as the step's own sheet: what the step changes of the pane (PaneStep). */
+  step?: PaneStep;
+}
+
+/**
+ * The pane opened from a campaign's step (Campaigns, one tab, call C2, 17 Nov 2026): a step that sends a message opens on
+ * that message, said as the step sends it, not on a second sheet behind a door. Its name's menu holds the step's acts
+ * beside Rename, and never Put away, a version's Remove or Delete, which reach every other thing that sends it; its tabs
+ * are the channels the step goes by and no other (an offer's has no Text); it opens on the language the step sends, with
+ * none other offered (a campaign sends each step in one); and what the step says of itself stands under the words.
+ */
+export interface PaneStep {
+  /** The step, by its id: a pane is one step's, so two steps that send the same message each open their own. */
+  id: string;
+  /** The step's acts on the name's menu: before Rename (changing the step), and after it (taking it away, last). */
+  before: readonly MenuItem[];
+  after: readonly MenuItem[];
+  /** The channels the step goes by: its tabs, and no other. */
+  channels: readonly string[];
+  /** The language the step sends, which the pane opens on. */
+  language: string | null;
+  /** What the step says of itself, under the words. */
+  under: ReactNode;
+}
+
+/** No language word and nothing to add one by: a step sends the one language it names. */
+const ONE_LANGUAGE = { languageWord: { shown: false, asked: false, done: () => undefined }, more: [] };
+
+/** The language choice: none for a step's sheet (ONE_LANGUAGE), the message's own otherwise. */
+const languagesOf = <T,>(step: PaneStep | undefined, choice: () => T): T | typeof ONE_LANGUAGE =>
+  step ? ONE_LANGUAGE : choice();
+
+/** The only tabs a step's sheet draws, its channels; null where the pane is the message's own. */
+const stepTabsOf = (step: PaneStep | undefined): readonly string[] | null => step?.channels ?? null;
+
+/** Where the pane opens: on the language a step sends, where it holds that one, else on the message's first. */
+function openingView(g: TemplateGroup, langs: readonly TplLang[], step: PaneStep | undefined) {
+  const first = firstView(g, langs);
+  const sends = step?.language ?? null;
+  return sends && g.rows.some((r) => r.lang.id === sends && (r.row || r.message)) ? { ...first, langId: sends } : first;
+}
+
+/** The channel in view as it opens: its anchor's, else the first a step goes by where the step does not go by that one. */
+function openingChannel(g: TemplateGroup, langId: string, step: PaneStep | undefined): VersionChannel {
+  const anchor = g.rows.find((r) => r.lang.id === langId)?.message?.anchor.channel ?? "whatsapp";
+  if (!step || step.channels.includes(anchor)) return anchor;
+  return VERSION_CHANNELS.find((c) => step.channels.includes(c)) ?? anchor;
 }
 
 /**
@@ -362,14 +411,17 @@ function viewBar(parts: {
   setChannel: (channel: VersionChannel) => void;
   /** Drawn where there is a choice; asked for from the menu, it goes again as its list closes with nothing added. */
   languageWord: { shown: boolean; asked: boolean; done: () => void };
+  /** The channels a step goes by, where the pane is its sheet: the only tabs drawn. */
+  only: readonly string[] | null;
 }) {
-  const { c, facts, cannot, channel, setChannel, languageWord } = parts;
+  const { c, facts, cannot, channel, setChannel, languageWord, only } = parts;
+  const tabs = channelTabs(c.g, facts, c.standing, cannot);
   return (
     <div className="tpl-viewbar">
       <SubTabs
         label={TPL_VERSION_WORDS.switchName(c.g.title)}
         value={channel}
-        tabs={channelTabs(c.g, facts, c.standing, cannot)}
+        tabs={only ? tabs.filter((tab) => only.includes(tab.id)) : tabs}
         onSelect={(id) => setChannel(VERSION_CHANNELS.find((v) => v === id) ?? channel)}
         className="tpl-channels"
       />
@@ -431,8 +483,8 @@ const stillSentByOf = (usage: Facts["usage"]): string | null =>
 
 export function TemplatePane(p: PaneProps) {
   const { g, langs, bizName, canAct, canAdd = false, addWhy = null, busy, doing = null, S, onClose } = p;
-  const { onAdd, onRename, onHide, onDelete, onWritten, versions, canWrite = false } = p;
-  const first = firstView(g, langs);
+  const { onAdd, onRename, onHide, onDelete, onWritten, versions, canWrite = false, step } = p;
+  const first = openingView(g, langs, step);
   const [langId, setLangId] = useState(first.langId);
   // The language that was in view before one nobody has written was picked: the
   // words a translation is written from, and where Cancel goes back to.
@@ -455,9 +507,7 @@ export function TemplatePane(p: PaneProps) {
   const grow = useGrowOnly(heldOf.closes);
   // Which of the message's channels is in view: where it opens is the one its anchor is on (contracts rule 2: WhatsApp's,
   // else the email's, else the text's), WhatsApp's words as they always were where it has them.
-  const [channel, setChannel] = useState<VersionChannel>(
-    () => g.rows.find((r) => r.lang.id === first.langId)?.message?.anchor.channel ?? "whatsapp",
-  );
+  const [channel, setChannel] = useState<VersionChannel>(() => openingChannel(g, first.langId, step));
   const facts = messageFacts({ g, langs, S, canAdd, addWhy, versions, view: { langId, back, adding, sentLang } });
   const { present, onFile, lang, words, usage, note, standing } = facts;
   // Where it stands is the list's reading, of the language it opens on: the head says what its row says.
@@ -532,20 +582,22 @@ export function TemplatePane(p: PaneProps) {
     canChange: canWrite,
   };
   const cannot = channelsCannot(lang.message);
-  const { languageWord, more } = languageChoice({
-    ...{ facts, firstLangId: first.langId, adding, mayAdd },
-    ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
-  });
-  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord });
+  const { languageWord, more } = languagesOf(step, () =>
+    languageChoice({
+      ...{ facts, firstLangId: first.langId, adding, mayAdd },
+      ...{ asked: langAsked, setAsked: setLangAsked, mayWrite: adds.ownOnly || canAct },
+    }),
+  );
+  const bar = viewBar({ c, facts, cannot, channel, setChannel, languageWord, only: stepTabsOf(step) });
   const { version, versionActs } = paneVersion(p, { facts, channel, heldOf, dock });
   return (
     <CmPane
       testid="template-pane"
       className="tpl-pane"
       // What it is (the gift or the bell) leads the line of facts under its name, not a mark before it.
-      title={paneName(c, channel, versionActs, more)}
+      title={paneName(c, { channel, version: versionActs, more, step })}
       badge={standingTap(g, facts, setting)}
-      sub={factsLine(g, facts)}
+      sub={factsLine(g, facts, !step)}
       onClose={onClose}
       // What is answered stands here, docked as every drawer's acts are; nothing is drawn of it while nothing is asked.
       foot={<div className="tpl-foot" data-foot-pair="" ref={setDock} />}
@@ -557,6 +609,7 @@ export function TemplatePane(p: PaneProps) {
           cannot: cannot[channel],
           onEdit: channel === "whatsapp" ? (versionActs?.onEdit ?? null) : null,
         })}
+        {step?.under}
       </div>
     </CmPane>
   );

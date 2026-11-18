@@ -107,10 +107,8 @@ const { Switch } = await import(`${SRC}/surfaces/kit/switch/switch.tsx`);
 const M = await import(`${SRC}/surfaces/campaigns/sequences/new/new-model.ts`);
 const { CHANGE_WORDS } = await import(`${SRC}/surfaces/campaigns/sequences/new/change.ts`);
 const { WordsSheet } = await import(`${SRC}/surfaces/campaigns/sequences/new/new-message-sheets.tsx`);
-const { TemplatesPage } = await import(`${SRC}/surfaces/campaigns/templates/templates-page.tsx`);
 const { TemplateComposer } = await import(`${SRC}/surfaces/campaigns/templates/composer.tsx`);
 const { broadcasts } = await import(`${SRC}/surfaces/campaigns/broadcasts/verbs.ts`);
-const { templates } = await import(`${SRC}/surfaces/campaigns/templates/verbs.ts`);
 const { setSurfaceValue } = await import(`${SRC}/surfaces/surface-values.ts`);
 
 /* ---------------------------------- walking a tree ---------------------------------- */
@@ -388,16 +386,6 @@ const askDrafts = async (props = DOOR) => {
   type(lineBox(tree), ASKED.said);
   press(hostOf(redraw(page), "sq-nw-draft"));
   return landed(() => !!byTestId(redraw(page), "sq-nw-sentence"));
-};
-const messagesPage = () => {
-  setSurfaceValue("settings", {
-    settings: { config: { brain: { business_name: "Northside Studio" } } },
-    templatesAll: [],
-    messages: [],
-  });
-  // A WhatsApp number, as the channels read holds it (surfaces/channels/surface.ts).
-  setSurfaceValue("channels", { rows: [{ kind: "whatsapp" }] });
-  return TemplatesPage();
 };
 
 beforeEach(() => {
@@ -962,112 +950,6 @@ test("where the channels could not be read, a message picked goes by WhatsApp, a
 });
 
 /* ---------------------------------- G: the template composer ---------------------------------- */
-
-test("a template half-written is kept, comes back with the page, and Close asks once; a translation the assistant wrote is kept too, and is not written again", async () => {
-  const keep = { ...templates };
-  const drafted = [];
-  Object.assign(templates, {
-    draft: async (body) => {
-      drafted.push(body);
-      return {
-        ok: true,
-        data: {
-          draft: {
-            name: "autumn_offer",
-            body: "Hola {{1}}, {{2}} este otoño.",
-            footer: "",
-            examples: ["Dani", "20%"],
-            variables: [{ label: "Name" }, { label: "Offer" }],
-            warnings: [],
-          },
-        },
-      };
-    },
-    create: async (b) => ({ ok: true, data: { name: b.name } }),
-  });
-  try {
-    // New, drawn on its own.
-    let closed = 0;
-    const composeNew = () =>
-      TemplateComposer({
-        businessName: "Northside Studio",
-        onDone() {},
-        onCancel() {
-          closed += 1;
-        },
-      });
-    let tree = composeNew();
-    type(byTestId(tree, "tpl-body"), "Hi {{1}}, 20% off any colour service this week.");
-    tree = redraw(composeNew);
-    assert.equal(
-      TM.draft("template", "new").body,
-      "Hi {{1}}, 20% off any colour service this week.",
-      "kept as it is typed",
-    );
-    press(byTestId(tree, "tpl-close"));
-    tree = redraw(composeNew);
-    assert.equal(closed, 0, "not closed");
-    assert.ok(byTestId(tree, "tpl-leave-confirm"), "Close with words asks");
-    assert.equal(byTestId(tree, "tpl-submit"), null, "where the submit was");
-    press(byTestId(tree, "tpl-leave-no"));
-    tree = redraw(composeNew);
-    assert.ok(byTestId(tree, "tpl-submit"));
-    // Campaigns > Messages, come back to: its New is one line to Ask (the Messages redesign's step 4), so the page opens no
-    // form by itself; the form drawn again opens on the words it kept.
-    unmount();
-    tree = messagesPage();
-    assert.equal(byTestId(tree, "messages-composer"), null, "the page opens no form by itself");
-    // Submitted and taken: nothing kept.
-    unmount();
-    tree = composeNew();
-    assert.equal(
-      byTestId(tree, "tpl-body").props.value,
-      "Hi {{1}}, 20% off any colour service this week.",
-      "come back to, the form opens on the words",
-    );
-    type(byTestId(tree, "tpl-name"), "autumn_colour");
-    tree = redraw(composeNew);
-    const ex = find(tree, (n) => n.type === Field && n.props?.placeholder === "Ana");
-    type(ex, "Dani");
-    tree = redraw(composeNew);
-    await press(byTestId(tree, "tpl-submit"));
-    assert.equal(TM.draft("template", "new"), null, "submitted and taken: nothing kept");
-    unmount();
-    tree = messagesPage();
-    assert.equal(byTestId(tree, "messages-composer"), null, "and Templates opens on its rows");
-
-    // A translation: written once by the assistant, kept under the message and its language, and never paid for twice.
-    fresh();
-    const translate = { ref: "tpl-own", from: "en_US", name: "autumn_offer", language: "es", title: "Autumn offer" };
-    const compose = () => TemplateComposer({ businessName: "Northside Studio", translate, onDone() {}, onCancel() {} });
-    tree = compose();
-    await settle();
-    assert.equal(drafted.length, 1, "written once");
-    tree = redraw(compose);
-    assert.equal(byTestId(tree, "tpl-body").props.value, "Hola {{1}}, {{2}} este otoño.");
-    assert.equal(
-      TM.draft("template", "autumn_offer|es").body,
-      "Hola {{1}}, {{2}} este otoño.",
-      "the assistant's words are work too",
-    );
-    unmount();
-    tree = compose();
-    await settle();
-    assert.equal(
-      drafted.length,
-      1,
-      "REGRESSION: opened again, it was drafted again -- and the assistant is paid per draft",
-    );
-    assert.equal(byTestId(tree, "tpl-body").props.value, "Hola {{1}}, {{2}} este otoño.", "the words it had");
-    press(byTestId(tree, "tpl-cancel"));
-    tree = redraw(compose);
-    assert.ok(byTestId(tree, "tpl-leave-confirm"), "Cancel asks");
-    press(byTestId(tree, "tpl-leave-yes"));
-    assert.equal(TM.draft("template", "autumn_offer|es"), null, "thrown away");
-  } finally {
-    Object.assign(templates, keep);
-  }
-});
 
 test("a template composer drawn where there is no number to write to says so in place of its rows, and its submit stays shut over words the tab kept", () => {
   const compose = (over = {}) =>

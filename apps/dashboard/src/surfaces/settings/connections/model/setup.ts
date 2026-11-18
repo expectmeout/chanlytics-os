@@ -21,7 +21,6 @@ import type {
   EmailSetupDto,
 } from "@chanlytics/contracts";
 import {
-  MESSAGES_ROUTE,
   numberHealth,
   PHONE_LINE_OFF,
   channelFor,
@@ -39,6 +38,7 @@ import {
   ownLineStandOf,
   agoWords,
   HOUR_MS,
+  SEQUENCES_ROUTE,
   checkedWords,
   connectionWords,
   listingLine,
@@ -450,8 +450,8 @@ const KEEP_APP_NOTE: ConnectionNote = {
   text: "Already answering on the WhatsApp Business app? Keep the app: you go on using it, AI answers what you don't, and your contacts and last six months of chats come in if you share them in the app.",
 };
 
-/** The WhatsApp row's own verb: the Library, what the receptionist and the campaigns send on the number. */
-const LIBRARY: ConnectionVerb = { label: "Messages", to: MESSAGES_ROUTE, who: "operator" };
+/** The WhatsApp row's own verb: Campaigns, where every message sent on the number is (decision 0140). */
+const CAMPAIGNS: ConnectionVerb = { label: "Campaigns", to: SEQUENCES_ROUTE, who: "operator" };
 
 /**
  * The row of a connected number. What Meta holds against it comes first (channel.standing, 00338, in contracts' words: a
@@ -463,7 +463,7 @@ const LIBRARY: ConnectionVerb = { label: "Messages", to: MESSAGES_ROUTE, who: "o
  */
 function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: ChannelVM, nowMs: number): Draft {
   const row = { ...base, detail: wa.number };
-  if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: LIBRARY };
+  if (!wa.on) return { ...row, state: "off", stateWords: "Off", sentence: wa.healthLabel, verb: CAMPAIGNS };
   const limit = wa.messagingLimit ?? wa.standing?.limit ?? null;
   const standing = wa.standing && { ...wa.standing, limit };
   if (standing) {
@@ -492,7 +492,7 @@ function whatsappNumberRow(base: Pick<Draft, "kind" | "icon" | "title">, wa: Cha
     state: flagged ? "attention" : "connected",
     stateWords: flagged ? "Needs attention" : "On",
     sentence: `${wa.healthLabel}${health}`,
-    verb: LIBRARY,
+    verb: CAMPAIGNS,
     // How to try it from a phone, first, on a row nobody has written to yet; then what Meta holds that the owner can act on.
     notes: [
       ...(flagged ? [] : tryItNotes(wa, nowMs)),

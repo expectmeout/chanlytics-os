@@ -63,10 +63,14 @@ function servicesLine(profile: Profile): string | null {
   return `${names.length} ${noun} (${few}${names.length > SERVICES_NAMED ? ", and more" : ""})`;
 }
 
-/** What it knows, as its page lists it (contracts previewKnowsOf), its services by their count. */
+/**
+ * What it knows, as its page lists it (contracts previewKnowsOf), its services by their count. A fact the page shows as
+ * lacking (its hours, its services, where the listing and the site had none) is not something it knows: the page says
+ * why it matters, and the writer is told nothing of it.
+ */
 function knowsLine(profile: Profile): string | null {
   const facts = previewKnowsOf(profile, null).flatMap((known) =>
-    known.key === "services" ? [] : [`${known.label.toLowerCase()}: ${known.value}`],
+    known.key === "services" || known.missing ? [] : [`${known.label.toLowerCase()}: ${known.value}`],
   );
   const services = servicesLine(profile);
   const lines = services ? [...facts, services] : facts;

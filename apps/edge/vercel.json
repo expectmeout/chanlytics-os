@@ -68,6 +68,9 @@
           "api/admin/rehearsal/review.ts": {
             "maxDuration": 60
           },
+          "api/admin/previews/after-call.ts": {
+            "maxDuration": 15
+          },
           "api/admin/previews/make.ts": {
             "maxDuration": 15
           },

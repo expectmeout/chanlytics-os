@@ -111,16 +111,14 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   assert.ok(w.includes('"template_category_update"'), "a recategorised template changes who may receive it");
   // Meta's verdict and its reason are written on the row, its kind moved by name and language, and a quality flag leaves
   // an approved template approved: all three run in whatsapp/a-template-s-verdict-reaches-its-row.test.mjs.
-  // The Templates page is a folder of modules (moved from messages.jsx): its source is read as one.
-  const s = ["page-parts", "message-row-parts", "emails"]
-    .map((f) => readCode(`apps/dashboard/src/surfaces/campaigns/templates/${f}.tsx`))
-    .join(" ");
-  assert.ok(s.includes('data-testid="templates"') && s.includes('data-testid="template-row"'));
-  // No sync button (the Messages redesign's step 5): WhatsApp is asked quietly as the page opens (templates-page.tsx).
+  // A message's sheet (message-row-parts.tsx): the list that stood beside it went as Messages folded into Campaigns.
+  const s = readCode("apps/dashboard/src/surfaces/campaigns/templates/message-row-parts.tsx");
+  // No sync button (the Messages redesign's step 5): WhatsApp is asked quietly as Campaigns opens, whichever view is on
+  // screen (parts/whatsapp-list.ts; Campaigns, one tab, call C11: it was the Messages page's own).
   assert.ok(!s.includes('data-testid="sync-templates"'), "no press to ask WhatsApp");
   assert.ok(
-    readCode("apps/dashboard/src/surfaces/campaigns/templates/templates-page.tsx").includes("useQuietCheck("),
-    "the page asks it as it opens",
+    readCode("apps/dashboard/src/surfaces/campaigns/home/route.tsx").includes("useWhatsAppListAsked()"),
+    "Campaigns asks it as it opens",
   );
   // The head's hover is contracts' (the page draws it: message-versions-page.test.mjs): it says who a marketing message reaches.
   assert.ok(LIBRARY_WORDS.headTip.includes("A marketing message can only go to people who said yes to offers."));

@@ -33,18 +33,16 @@ import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE } from "../content/address";
 import { GET_YES_PARAM, GET_YES_ROUTE } from "../people/lists/people-route";
 
 /**
- * Messages' address (D4: the Library is Messages): a view of Campaigns beside Sequences, under the one mount Campaigns' views
- * share, as Ads is at `campaigns/ads`, so a switch between the two reveals a view kept drawn rather than loading a page (the
- * tabs review of 19 Oct 2026: a phone showed nothing for 600 ms between them). Its old route, `messages`, whose path was
- * `/w/<slug>/templates`, lands here for ever (retiredRouteOf, below). Declared here, beside the route words, so the boot does
- * not carry Campaigns' words: from them it carried those into the error screen's chunk (+3.7 KB on every first load). The
- * modules this one imports are Sequences' and People's addresses (sequences/address.ts, people/lists/people-route.ts),
- * which import nothing.
+ * Messages' address, which was a view of Campaigns beside Sequences (D4: the Library is Messages, 19 Oct 2026) until Messages
+ * folded into Campaigns (Campaigns, one tab, 17 Nov 2026): every message is inside the campaign that sends it, and one no
+ * campaign sends is at the list's foot. It, and its own old route `messages` (the path `/w/<slug>/templates`), land on
+ * Campaigns' list for ever (retiredRouteOf, below); a message's own address (`campaigns/messages/<name>`, messageRoute) is
+ * Campaigns' page's, which opens the message over the list. Declared
+ * here, beside the route words, so the boot does not carry Campaigns' words: from them it carried those into the error
+ * screen's chunk (+3.7 KB on every first load). The modules this one imports are Sequences' and People's addresses
+ * (sequences/address.ts, people/lists/people-route.ts), which import nothing.
  */
-export const MESSAGES_ROUTE = "campaigns/messages";
-
-/** Whether a param of `campaigns` is Messages' view (its first word). */
-export const isMessagesParam = (param: string | null | undefined): boolean => !!param && /^messages(\/|$)/.test(param);
+const MESSAGES_ROUTE = "campaigns/messages";
 
 /** The parts of an address the functions below read; every part may be missing (a made-up window has few). */
 export interface AddressParts {
@@ -91,8 +89,10 @@ const headOf = (route: string): string => (route.includes("/") ? route.slice(0, 
  * - The composer (`campaigns/new`, `new:to:<audience>`, `new:leads`) is the one New, for whom it named (lane 6), and a
  *   reach-out's change (`new:edit:<root>`) its sequence's record.
  *
- * - Messages (D4: the Library is Messages) is a view of Campaigns (19 Oct 2026): `messages`, and the Library's path
- *   `templates`, land on `campaigns/messages`; nothing was ever under it, so `messages/<word>` lands nowhere, as before.
+ * - Messages (D4: the Library is Messages) was a view of Campaigns (19 Oct 2026) until it folded into Campaigns (17 Nov
+ *   2026): `campaigns/messages`, `messages` and the Library's path `templates` land on Campaigns' list. A message's own
+ *   address (`campaigns/messages/<name>`, messageRoute) stays its own: Campaigns opens it over its list. Nothing was ever
+ *   under `messages`, so `messages/<word>` lands nowhere, as before.
  * - Settings › Files is Content's library (the content redesign's stage 2, 11 Nov 2026): `admin/files` lands on
  *   `campaigns/content:library`, and a file it opened (`admin/files?do=file:<id>`, a bell's row, an Ask card's door) opens
  *   in Content's viewer, `campaigns/content:<id>`, which shows the list the file is in.
@@ -112,7 +112,7 @@ export function retiredRouteOf(route: string): string | null {
 function retiredPathOf(path: string): string | null {
   const head = headOf(path);
   const param = path.slice(head.length).replace(/^\//, "").split("/")[0] ?? "";
-  if (head === "messages") return path === head ? MESSAGES_ROUTE : null;
+  if (head === "messages") return path === head ? SEQUENCES_ROUTE : null;
   if (head === "outbound") return param ? sequenceRoute(param) : SEQUENCES_ROUTE;
   if (head === "broadcasts") return sentLandingOf(param);
   return head === "campaigns" ? campaignsLandingOf(path, param) : null;
@@ -140,13 +140,15 @@ function sentLandingOf(param: string): string {
 /** Where a retired address of Campaigns (`campaigns/<param>`) lands, or null where it is the page's own. */
 function campaignsLandingOf(path: string, param: string): string | null {
   if (param === "" || param.startsWith("in:")) return SEQUENCES_ROUTE;
+  // Messages' list is Campaigns' list now; a message's own address is the page's (it opens the message over the list).
+  if (param === "messages") return path === MESSAGES_ROUTE ? SEQUENCES_ROUTE : null;
   if (param === "sequences") {
     const [, , id, tab, day] = path.split("/");
     return id && tab === "history" && day ? runRoute(day, id) : null;
   }
   const moment = /^moment:([^:/]+)(:people)?$/.exec(param);
   if (moment?.[1]) return sequenceRoute(moment[1], moment[2] ? "people" : "steps");
-  // A message's drawer over Sequences went into its home, the Library open on it (messageRoute).
+  // A message's drawer over Sequences went into its address, which opens it over Campaigns' list (messageRoute).
   const drawer = /^message:([^/]+)$/.exec(param);
   if (drawer?.[1]) return messageRoute(drawer[1]);
   if (param === "new:every") return newSequenceRoute();

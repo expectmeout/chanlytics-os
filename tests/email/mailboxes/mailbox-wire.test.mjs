@@ -81,7 +81,13 @@ test("the way to consent: each provider's scopes, offline access, and the token 
     "a refresh token every time, and the signed state",
   );
   assert.equal(g.searchParams.get("login_hint"), "sam@getharbor.example");
+  assert.equal(
+    g.searchParams.get("include_granted_scopes"),
+    "false",
+    "a mailbox's key holds the mailbox's scopes alone: nothing another sign-in was granted is folded in",
+  );
   const m = new URL(mailboxAuthorizeUrl("microsoft", CLIENT, "state-2"));
+  assert.equal(m.searchParams.get("include_granted_scopes"), null, "Google's parameter is never sent to Microsoft");
   assert.match(m.pathname, /\/common\/oauth2\/v2\.0\/authorize$/);
   assert.match(m.searchParams.get("scope"), /offline_access .*Mail\.ReadWrite Mail\.Send/);
   const t = mailboxTokenRequest("google", CLIENT, "code-1");

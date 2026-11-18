@@ -639,6 +639,9 @@
     "00634_the_database_calls_cold_email_cold_email.sql": "5fbfc4f0b6d0c81e2198767d2ce1591280b66e09d4cf905d1b73103173c982fe",
     "00635_a_search_reaches_its_count_or_says_why.sql": "80bdda332ec11d9972f164dc537fc72913a7b336d608cb9dbd35a17d4c013404",
     "00636_how_many_legs_a_search_may_read_is_the_server_s_to_ask.sql": "e596a2a4d069c3ff84fe580fcf0d1528e3f8f79128e24f34a8f8657cac229d17",
-    "00637_sending_can_be_stopped_for_a_workspace.sql": "0267be31390a031dc874d38b6455fca3a57a2d699a765d2cfbd3e71590ba3bab"
+    "00637_sending_can_be_stopped_for_a_workspace.sql": "0267be31390a031dc874d38b6455fca3a57a2d699a765d2cfbd3e71590ba3bab",
+    "00638_each_library_cap_is_counted_in_one_place.sql": "98e3825832eb246b55c3d66b45e42065eaf3b61374ce60a97ec40ddb0a4fa261",
+    "00639_a_business_s_footage_has_its_sources.sql": "4ba4b0ba2bef929cab8df25ec5d8792125f8e69d1977c563c8812a2e70b75e46",
+    "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e"
   }
 }

@@ -36,8 +36,22 @@ function googleEnabled(): Promise<boolean> {
  *
  * On success the browser has already left for Google; only a failure returns
  * to this component.
+ *
+ * `under` draws it under the form it shares a card with ("or" first, then the
+ * button), where the form is the way in the page leads with. `onLeave` is told
+ * as the tab leaves for Google, for a page that has something to keep.
  */
-export default function GoogleSignIn({ next = "/", hint }: { next?: string | (() => string); hint?: string }) {
+export default function GoogleSignIn({
+  next = "/",
+  hint,
+  under = false,
+  onLeave,
+}: {
+  next?: string | (() => string);
+  hint?: string;
+  under?: boolean;
+  onLeave?: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -59,6 +73,7 @@ export default function GoogleSignIn({ next = "/", hint }: { next?: string | (()
     // landing clear it (login's signInLanding), and Google's comes back through /auth/callback, a server's redirect
     // that cannot reach the tab's storage. So it goes as the tab leaves for Google, and stays gone.
     sealSurfaceCache();
+    onLeave?.();
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -73,8 +88,14 @@ export default function GoogleSignIn({ next = "/", hint }: { next?: string | (()
     }
   }
 
+  const or = (
+    <div className="auth-or" aria-hidden="true">
+      {under ? SIGNUP_WORDS.orUnder : SIGNUP_WORDS.or}
+    </div>
+  );
   return (
     <>
+      {under ? or : null}
       <button
         type="button"
         className="auth-google"
@@ -89,9 +110,7 @@ export default function GoogleSignIn({ next = "/", hint }: { next?: string | (()
       <div role="alert" aria-live="assertive">
         {error && <div className="error">{error}</div>}
       </div>
-      <div className="auth-or" aria-hidden="true">
-        {SIGNUP_WORDS.or}
-      </div>
+      {under ? null : or}
     </>
   );
 }

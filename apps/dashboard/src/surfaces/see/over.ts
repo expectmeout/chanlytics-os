@@ -10,7 +10,7 @@
  * Pure: the grammar of the param and which homes open in place. The frame reads it in the browser (the frame is one
  * prerender for every address), as it reads the lead sheet's `?lead=<id>`.
  */
-import { TO_SEND_ROUTE, messageOfRoute, messageRoute, parseSequencesRoute, runRoute } from "@chanlytics/contracts";
+import { SEQUENCES_ROUTE, TO_SEND_ROUTE, messageOfRoute, parseSequencesRoute, runRoute } from "@chanlytics/contracts";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";
@@ -48,10 +48,10 @@ export function seeRefOf(value: string | null | undefined): SeeRef | null {
 }
 
 /**
- * The thing a home's route names, which a mention of it opens in place: a run's home (runRoute), or a message's, the
- * Library open on it (messageRoute); null for any other route, which a press goes to. The route as the shell names it, a
- * retired one moved first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run, one kept as
- * `campaigns/message:<name>` the message.
+ * The thing a home's route names, which a mention of it opens in place: a run's home (runRoute), or a message's address
+ * (messageRoute), which opens it over Campaigns' list; null for any other route, which a press goes to. The route as the shell names
+ * it, a retired one moved first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run, one kept as
+ * `campaigns/message:<name>` or `campaigns/messages/<name>` the message.
  */
 export function seeRefOfRoute(route: string): SeeRef | null {
   const [path = ""] = route.split("?");
@@ -65,16 +65,18 @@ export function seeRefOfRoute(route: string): SeeRef | null {
 
 /**
  * The thing's home: where its sheet's door goes, and where it opens when it is pressed on its own page. To send has no
- * page of its own: its address opens it over the Inbox, and its sheet has no door home.
+ * page of its own: its address opens it over the Inbox, and its sheet has no door home. Nor has a message's (Campaigns, one
+ * tab, 17 Nov 2026): its sheet is the message, naming what sends it, and its address opens it over Campaigns' list, so
+ * that list is where a move home from its sheet lands (a lead opened from it: leads/sheet/lead-over.ts).
  */
 export function seeHomeOf(ref: SeeRef): string {
   if (ref.kind === "to-send") return TO_SEND_ROUTE;
-  return ref.kind === "message" ? messageRoute(ref.name) : runRoute(ref.id, ref.sequenceId);
+  return ref.kind === "message" ? SEQUENCES_ROUTE : runRoute(ref.id, ref.sequenceId);
 }
 
 /** The words of the sheet a thing opens in over the page. */
 export const SEE_WORDS = {
-  /** The door from the sheet to the thing's home. */
+  /** The door from a run's sheet to its home. */
   home: "Open in Campaigns",
   /** Its kicker, where it was opened over. */
   run: "A run",

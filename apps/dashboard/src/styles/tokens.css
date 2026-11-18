@@ -183,8 +183,12 @@
   /* The colour as small text on the page. In light, --ok and --accent read 3.3:1 and 3.8:1 there; these read 4.5:1 or
      more, on a tint too (the Calendar's open times and today, C4; a lit pill). Dark keeps its own, which already do. */
   --ok-ink: oklch(0.48 0.12 155);
-  --danger: oklch(0.6 0.2 27);
-  --danger-soft: oklch(0.6 0.2 27 / 0.12);
+  /* What failed: a crimson, apart from the accent's coral (hue 18 against 31, and darker), still plainly a red. At hue
+     27 it stood about 2 OKLab units from the light accent, the same colour to the eye, so the page's one act to take read
+     as an error and an error as the act (the 60-30-10 read, 17 Nov 2026); now about 9 in light and 20 in dark. Hue 10
+     was further still, and read as a raspberry. */
+  --danger: oklch(0.52 0.2 18);
+  --danger-soft: oklch(0.52 0.2 18 / 0.12);
   --danger-fg: oklch(0.99 0 0);
   --info: oklch(0.6 0.12 235);
   --info-soft: oklch(0.6 0.12 235 / 0.12);
@@ -450,7 +454,8 @@
   --slot-soft: var(--accent-soft);
   --ok: oklch(0.571 0.12 155);
   --ok-soft: oklch(0.571 0.12 155 / 0.12);
-  --danger-ink: oklch(0.45 0.17 27);
+  /* The crimson's words (--danger's hue), a step darker than the accent's coral ink beside them. */
+  --danger-ink: oklch(0.43 0.17 18);
   --info-ink: oklch(0.43 0.1 235);
 
   /* The page: its ground, and the light, three soft pools where the canvases put them, each its tint (a desk's layers
@@ -689,8 +694,9 @@
   --ok: oklch(0.77 0.135 155);
   --ok-soft: oklch(0.77 0.135 155 / 0.13);
   /* Classic's red words read 4.2:1 on this lighter ground and 2.7 on the glass of a control over the pool; these read
-     4.8 there. Blue's are Classic's, set again over the light side's. */
-  --danger-ink: oklch(0.74 0.15 27);
+     4.8 there. Blue's are Classic's, set again over the light side's. The red is the crimson's hue (--danger), apart
+     from the coral of the accent's words. */
+  --danger-ink: oklch(0.72 0.16 18);
   --info-ink: oklch(0.72 0.12 235);
 
   --pool-a-tint: oklch(0.737 0.103 267 / 0.2);

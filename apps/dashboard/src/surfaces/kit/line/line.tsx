@@ -8,7 +8,7 @@
  * tests/styles/kit-components.test.mjs holds the two together). `className` is for the page's layout, and
  * comes last; the ref reaches the element.
  */
-import type { ComponentPropsWithRef } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import type { PressAct } from "../press";
 import { Press } from "../press";
 import { cx, variants } from "../variants";
@@ -78,6 +78,25 @@ export function LinePress({ kind, selected, on, className, children, ...element 
 /** What a press of `attach` opens: the device's own picker, drawn by the device and never by the page. */
 export function LineFiles(props: Omit<ComponentPropsWithRef<"input">, "type" | "hidden" | "className">) {
   return <input {...props} type="file" hidden />;
+}
+
+/** The box a line to AI is typed in on a page or a sheet: AI's mark, and whether the line is at work. */
+export type LineBoxProps = { mark: ReactNode; busy?: boolean } & ComponentPropsWithRef<"div">;
+
+/**
+ * A line to AI where it stands in a page or a sheet, away from Ask's own band: AI's mark at its start, then what the page
+ * puts in it, a LineField and the send circle. `busy` while AI works on what was said: the mark takes the accent and
+ * the words go quiet.
+ */
+export function LineBox({ mark, busy, className, children, ...box }: LineBoxProps) {
+  return (
+    <div {...box} className={cx("line-box", className)} data-busy={busy || undefined}>
+      <span className="line-box-mark" aria-hidden="true">
+        {mark}
+      </span>
+      {children}
+    </div>
+  );
 }
 
 /** The field: one line that grows with its words, and takes the accent in its placeholder while a mic listens. */

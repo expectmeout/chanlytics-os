@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { scheduleSettingsOf, sequenceGroupOf, sequenceNotice } from "@chanlytics/contracts";
+import { scheduleSettingsOf, sequenceGroupOf, sequenceNotice, sequenceRowLine } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
 const NOW = Date.parse("2026-10-17T14:00:00Z");
@@ -40,13 +40,37 @@ test("a run that did nothing says why, with the door that mends it, until a run 
   );
   assert.equal(calendar.off.mends, "door");
   assert.ok(calendar.off.to, "a door to the channels");
-  assert.equal(off("template_not_approved").off.to, "campaigns/messages/come_back", "its message in Messages");
+  assert.equal(off("template_not_approved").off.to, "campaigns/messages/come_back", "its message, by its address");
   assert.deepEqual([off("no_list").act, off("no_list").off.mends], [null, null], "said, with nothing a door mends");
   const ended = off("ended");
   assert.deepEqual(
     [ended.words, ended.act, ended.off.mends],
     ["Its last day has passed: it sends nothing more", "End it", "end"],
   );
+});
+
+test("WhatsApp's no is one word: a run that did nothing for a message WhatsApp has refused says refused, as its row and its step do", () => {
+  // Not approved yet (in review), or the list read did not say: what the run recorded.
+  assert.equal(
+    off("template_not_approved").words,
+    "Its last run (Oct 17) did nothing: WhatsApp hasn’t approved its message",
+  );
+  // Refused since, the first step's: the one word (Campaigns, one tab, call C3).
+  const refused = { message_off: { place: 1, why: "refused", language: "en_US" } };
+  const said = off("template_not_approved", refused);
+  assert.equal(said.words, "Its last run (Oct 17) did nothing: WhatsApp refused its message");
+  assert.equal(said.fact, "WhatsApp refused its message");
+  assert.deepEqual([said.act, said.off.to], ["Open it", "campaigns/messages/come_back"], "the same door");
+  // A later step's message refused says nothing of the first step's, which the run was about; nor does a pause.
+  const later = { message_off: { place: 2, why: "refused", language: "en_US" } };
+  assert.equal(off("template_not_approved", later).fact, "WhatsApp hasn’t approved its message");
+  const paused = { message_off: { place: 1, why: "paused", language: "en_US" } };
+  assert.equal(off("template_not_approved", paused).fact, "WhatsApp hasn’t approved its message");
+  // And the list's row, which says a run that did nothing before it says a step's message cannot go.
+  const AT = { tz: TZ, nowMs: NOW, word: "meeting", twin: null };
+  const stuck = { last_run_off: "template_not_approved", last_run_for: "2026-10-17" };
+  assert.equal(sequenceRowLine(row(stuck), AT), "Didn’t run · WhatsApp hasn’t approved it");
+  assert.equal(sequenceRowLine(row({ ...stuck, ...refused }), AT), "Didn’t run · WhatsApp refused it");
 });
 
 test("nothing is said where it ran, found nobody, is not on, sends to leads, or is a one-off; a batch waiting comes first", () => {

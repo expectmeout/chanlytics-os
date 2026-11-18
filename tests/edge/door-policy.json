@@ -259,6 +259,14 @@
         "aud": "/api/admin/playbooks-run"
       }
     },
+    "POST /api/admin/previews/after-call": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/previews/after-call.ts",
+      "knock_args": {
+        "aud": "/api/admin/previews/after-call"
+      }
+    },
     "POST /api/admin/previews/make": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

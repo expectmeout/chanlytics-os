@@ -1,7 +1,10 @@
 /**
- * The Messages page on the stub React, as its tests draw it: the page over what the settings surface holds, its verbs
- * stubbed on the one `templates` object it imports, the rows a fixture makes, and the readings of what it draws (the
- * pane, its tabs, its menu, its fields). Shared by message-versions-page.test.mjs and message-sheet-review.test.mjs.
+ * A message's sheet on the stub React, as its tests draw it: the message's pane (parts/message-in-place.tsx, what opens
+ * over any page and as a step's own sheet) over what the settings surface holds, its verbs stubbed on the one `templates`
+ * object it imports, the rows a fixture makes, and the readings of what it draws (the pane, its tabs, its menu, its
+ * fields). It drew the Messages page and opened a message from its list until Messages folded into Campaigns (Campaigns,
+ * one tab, 17 Nov 2026): a message is opened by its name now. Shared by message-versions-page.test.mjs and
+ * message-sheet-review.test.mjs.
  */
 import * as contracts from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, press, settle } from "../../_stub-react.mjs";
@@ -25,7 +28,7 @@ export const SRC = "../../../apps/dashboard/src";
 // The toast is the shell's (the frame's usePPToast): what the page flashes is recorded in its place.
 W.usePPToast = () => [null, (t) => toasts.push(t)];
 export const S = "../../../apps/dashboard/src/surfaces";
-export const { TemplatesPage } = await import(`${S}/campaigns/templates/templates-page.tsx`);
+export const { MessageInPlace } = await import(`${S}/campaigns/parts/message-in-place.tsx`);
 export const { templates: verbs } = await import(`${S}/campaigns/templates/verbs.ts`);
 export const { setSurfaceValue, surfaceValue } = await import(`${S}/surface-values.ts`);
 export const { listingOf } = await import(`${S}/campaigns/templates/group.ts`);
@@ -122,7 +125,18 @@ export const custom = (name, over = {}) =>
 
 /* ---------------------------------- the page ---------------------------------- */
 
-export const draw = () => W.React.createElement(TemplatesPage, {});
+/** The message open, by its name: none until a test opens one (`opened`). */
+let openName = null;
+export const draw = () =>
+  openName === null
+    ? null
+    : W.React.createElement(MessageInPlace, {
+        name: openName,
+        flash: (t) => toasts.push(t),
+        onClose: () => {
+          openName = null;
+        },
+      });
 /**
  * Templates over what the settings surface holds: the WhatsApp rows, the email and text rows, who is acting, the
  * channels the workspace has (a WhatsApp number, unless the test says none), and whether its Google listing keeps a
@@ -153,6 +167,7 @@ export const page = ({
   setSurfaceValue("playbooks", undefined);
   fresh();
   toasts.length = 0;
+  openName = null;
   return again(draw);
 };
 export const redraw = () => again(draw);
@@ -181,9 +196,9 @@ export const unfoldedFor = (tree, name) => {
   }
   return now;
 };
-/** A message opened beside the list, as a press on its row opens it (its group unfolded first, where it is folded). */
-export const opened = (tree, name) => {
-  press(find(rowOf(unfoldedFor(tree, name), name), (n) => n.props?.["data-testid"] === "template-open"));
+/** A message opened, as a press on it anywhere opens its sheet (surfaces/see), by its name. */
+export const opened = (_tree, name) => {
+  openName = name;
   return redraw();
 };
 /** The open message's channels, as the kit's sub-tabs (Messages, the canvas of 10 Nov 2026: they were a switch). */

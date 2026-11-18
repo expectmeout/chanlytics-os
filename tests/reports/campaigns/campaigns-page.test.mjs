@@ -870,7 +870,7 @@ test("what is stuck wears its tone and opens its door; with every count at 0 no 
       "/w/studio/campaigns/sequences",
       "/w/studio/campaigns/sequences",
       "/w/studio/inbox",
-      "/w/studio/campaigns/messages",
+      "/w/studio/campaigns/sequences",
       "/w/studio/settings/integrations",
     ],
     "a door each",

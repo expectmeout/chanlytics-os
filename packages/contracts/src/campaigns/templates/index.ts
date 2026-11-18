@@ -20,6 +20,7 @@ export {
   whatsappWaits,
 } from "./campaign-message";
 export type { CampaignMessage, CampaignMessageRow } from "./campaign-message";
+export { aboutOfMessage, messageCarriedNowhere } from "./carried-nowhere";
 export {
   WHATSAPP_TEMPLATES_CREATE_DOOR,
   WHATSAPP_TEMPLATES_DELETE_DOOR,

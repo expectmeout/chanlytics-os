@@ -53,6 +53,11 @@ interface NeedYouLine {
   quoted: boolean;
   /** Amber for a to-do past its day, red for a reply that never reached them: the words themselves say why. */
   tone: "warn" | "danger" | null;
+  /**
+   * The words of the sentence the tone is on, where only they warn: a to-do's "overdue since Thu", not whose it is or for
+   * whom (the 60-30-10 read, 17 Nov 2026: three whole lines of amber made Today a page of alerts). Null: the whole line.
+   */
+  toneOn: string | null;
 }
 
 /** A row's two lines, by what it is. */
@@ -64,16 +69,18 @@ export function needYouLineOf(
 ): NeedYouLine {
   if (row.kind === "step") {
     const [when, whose] = row.status;
+    const late = when ? lowered(when) : "";
     return {
       name: row.sentence,
-      sentence: [row.who, when ? lowered(when) : "", whose ?? ""].filter(Boolean).join(" · "),
+      sentence: [row.who, late, whose ?? ""].filter(Boolean).join(" · "),
       quoted: false,
       tone: row.warn ? "warn" : null,
+      toneOn: row.warn && late ? late : null,
     };
   }
   if (row.kind === "visit") {
     const title = (row.status[1] ?? "").replace(` · ${row.who}`, "");
-    return { name: row.who, sentence: title, quoted: false, tone: null };
+    return { name: row.who, sentence: title, quoted: false, tone: null, toneOn: null };
   }
   // A time asked for says what for, on the one line: its sheet holds the rest.
   const service = row.request?.service?.trim();
@@ -82,5 +89,6 @@ export function needYouLineOf(
     sentence: service && !row.sentence.includes(service) ? `${row.sentence} · ${service}` : row.sentence,
     quoted: row.quoted,
     tone: row.failed ? "danger" : null,
+    toneOn: null,
   };
 }

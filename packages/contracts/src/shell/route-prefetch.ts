@@ -146,10 +146,10 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   // playbooks read, and a cold email sequence's emails, the reach-outs read: started by the frame only once the page had
   // drawn, a row's pill came 2.7 s after the list on a phone (5.8 s in Safari's engine) and the emails 0.3 s after it (the
   // phone review of 15 Nov 2026; the load sweep of 12 Nov 2026).
-  messages: ["settings", "team", "policies", "channels", "templates?all=1", "playbooks", "reach-outs"],
-  // Messages as the view of Campaigns it is (MESSAGES_ROUTE, 19 Oct 2026): the same reads, at the address it opens at now,
-  // and a message open in it (`campaigns/messages/<name>`, its home) is drawn from them.
-  "campaigns/messages": ["settings", "team", "policies", "channels", "templates?all=1", "playbooks", "reach-outs"],
+  // Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): its old route and its list's land on Campaigns' list,
+  // and a message's own address (`campaigns/messages/<name>`) opens the message over it, so each reads what the list does.
+  messages: ["sequences", "settings", "team", "policies", "templates?all=1"],
+  "campaigns/messages": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // Campaigns › Ads (`campaigns/ads…`, where it is drawn; an ad, New ad and Results among its addresses): the settings read, which
   // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw. What
   // a workspace's page counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what
