@@ -8,6 +8,7 @@ once), 0040 (each alert says where it goes) and 0018 (a reply goes first, each w
 0048, both drafted in another lane and not on main when this was written (#1564 built both, 12 October 2026); each
 place that depends on one says so. Written against commit
 `132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
+Amended on 18 November 2026 by "Pause, Resume and Disconnect say what is true" (below): calls 1, 3, 4, 6, 8, 9, 11 and 16. Nothing built.
 
 ## Context
 
@@ -29,7 +30,8 @@ Of the review's fourteen calls, 2, 3, 4, 8, 9, 11 and 12 are this note's, with 1
 
 1. **Only the owner's own ad accounts.** The platform bills the owner; Chanlytics creates no ad account and holds no ad
    money. It links accounts the owner already has. The page says so under its head: "Charged to your card by each
-   platform, never through Chanlytics. Pause an ad and nothing more is spent."
+   platform, never through Chanlytics. Pause an ad and it stops. Meta still bills what it already showed." The last
+   sentence names the ad's own platform. _Amended 18 November 2026: it said "Pause an ad and nothing more is spent."_
 2. **An `ads` permission, owner only,** in `ROLE_PERMS`, in SQL's `has_permission()` and in the route policy, separate
    from `route()`'s `spend` flag. A partner does not hold it: a partner brings the workspace and does not spend its
    owner's money. Operators and partners may **draft**, which writes Chanlytics's rows and touches no platform. A draft
@@ -43,19 +45,27 @@ Of the review's fourteen calls, 2, 3, 4, 8, 9, 11 and 12 are this note's, with 1
    answers `409 conflict` with the new words if either differs. A stale press (an old card, a second tab, an edit since)
    is refused, and the owner can only press the number the server would have computed. Only a raise names a maximum;
    lowering, pausing and renaming are free. The sentence the owner saw is stored on the ad (`approved`) and in the
-   decision's data.
+   decision's data. Where the platform asks whether an ad belongs to a special category (Meta's list today: jobs,
+   housing, financial products, politics and gambling), the answer is part of what the owner approves: the draft says
+   it in one line, the Turn on press is the owner's declaration of it, and it is stored with `approved`. Changing the
+   ad's words works it out again. _Added 18 November 2026._
 4. **"Up to" is said only where the platform enforces it.** That is Meta's lifetime budget with an end time, Google's
    campaign total (up to 90 days) and TikTok's lifetime budget. Before an ad is activated, the platform's own budget, end
-   time and status are read back and compared with `approved`; a difference fails the ad. A Google "until I stop it" is a
+   time and status are read back and compared with `approved`; a difference fails the ad. The special-category answer is
+   read back with them, and a difference fails the ad (_added 18 November 2026_). A Google "until I stop it" is a
    daily average that may reach twice a day, and says "about $15 a day", never "at most".
 5. **Turn on is a job.** The press writes the intent, the owner's decision, the maximum and the job in one transaction
    and answers `202`; the drawer says "Setting up". The job creates everything paused, reads it back, then activates from
    the bottom (the ad, its group, its campaign), so the last flip is the one that starts spending.
-6. **A failure never leaves an ad running.** No failure path calls activate. A job that fails after creating something
+6. **Nothing the owner did not approve is ever switched on.** No failure path calls activate. A job that fails after
+   creating something
    pauses or removes it; what it cannot remove stays recorded, named, and paused ("Left in Meta, paused ›"). The ad says
    "Couldn't finish", the owner gets a bell row ("We couldn't finish setting up Spring offer. Nothing was spent."), and
    an owner can remove the leftovers in the platform. An outcome the job cannot tell is settled by a read of the object's
-   tagged name, never by sending again.
+   tagged name, never by sending again, and is followed until the platform says what it is. Where that takes longer
+   than a few minutes the ad says "Couldn't confirm it's on", with "Check", and the owner gets a bell row. _Amended
+   18 November 2026: its head said "A failure never leaves an ad running", which a lost answer to the last switch
+   cannot promise._
 7. **An unready account blocks Turn on.** "Checked before turning on" lists every gate in the owner's words, each with
    its door: payment, the Page and the WhatsApp number linked to it, Meta's lead-ad terms for a form, Google's advertiser
    verification, TikTok's identity and post permission. A red row stops the press; an amber row is told. The rows for
@@ -63,9 +73,21 @@ Of the review's fourteen calls, 2, 3, 4, 8, 9, 11 and 12 are this note's, with 1
    list of their own. The ad's words are checked by the receptionist's own predicates (`namesMoney`): a price that
    disagrees with Services is red, and any price while the receptionist is set never to quote prices is amber, with its
    consequence: "Your receptionist will hand over anyone who asks about this offer."
-8. **Disconnecting while an ad runs is refused:** "Pause or end your ads first." Otherwise Chanlytics would lose control
-   of money still being spent. A disconnect asks the platform to revoke first and drops the credentials after.
-9. **Ads made on the platform are adopted read-only** (0049) and take Pause and Resume only. Pausing is always safe.
+8. **Disconnecting is always possible.** With ads running, Disconnect offers one press that pauses them and then
+   disconnects ("Pause 1 ad and disconnect"). Where the pause cannot be confirmed because the platform is not answering,
+   or where the owner chooses to, it disconnects anyway and first says what that means: the ads keep running, the
+   platform keeps charging, and they can only be stopped on the platform now. Those ads stay listed, as "Left in Meta"
+   with whether each was on when access ended, and the decision's data names them. A disconnect stops using the
+   credentials at once, drops them, and asks the platform to revoke. The page says access is withdrawn on the platform
+   only when the platform confirms. Until then it says where the owner can remove Chanlytics there, and the revoke is
+   asked again with Chanlytics' own key, which needs no sign-in of the owner's (to be confirmed for the sign-in
+   Chanlytics uses). _Amended 18 November 2026: disconnecting while an ad ran was refused ("Pause or end your ads
+   first")._
+9. **Ads made on the platform are adopted read-only** (0049). Every one of them takes Pause, and pausing is always
+   safe. Resume shows only where the platform's own budget is a total with an end date and the ad has that budget to
+   itself, and its confirm names what the platform holds: "Turn back on · up to $180 left, ends 30 Nov". An ad with a
+   daily budget and no end, or one that shares its budget with other ads, gets "Turn it back on in Meta ›" instead, and
+   the route refuses a resume of one. _Amended 18 November 2026: every adopted ad took Pause and Resume alike._
 10. **Each platform's budget rules live in one table in contracts, `platformRules`,** read by the checks, the presets, the
     amount chip and Ask. Meta's floors come from the account's own `minimum_budgets`, never hard-coded; a day may overspend
     by a quarter and a week never above seven times the daily amount. TikTok needs more than $20 a day for an ad group,
@@ -73,9 +95,12 @@ Of the review's fourteen calls, 2, 3, 4, 8, 9, 11 and 12 are this note's, with 1
     90 days from its start, its type is fixed once it runs, and edits should be rare. A raise that breaks a rule is refused
     before any platform call, in the platform's words.
 11. **A closed way in is told, not acted on.** A running ad whose door has closed (WhatsApp disconnected or blocked, the
-    line off, billing paused) still spends. The sweep checks each running ad's door each tick; when it fails, the ad's
+    line off, billing paused, AI stopped) still spends. The sweep checks each running ad's door each tick; when it
+    fails, the ad's
     badge is Needs you, a bell row is kept and Today shows it. "Pause my ads when the way in closes" is an owner setting,
-    off by default; when on, the pause is the owner's standing instruction and the decision names it.
+    off by default; when on, the pause is the owner's standing instruction and the decision names it. While AI is
+    stopped, no ad is turned on and no draft is written, and the ads already running are told at once, with one press to
+    pause them all. _Amended 18 November 2026: AI's stop, built on 17 November, joined the list._
 12. **Ask proposes and never spends.** One action, `propose_campaign.ad` (draft, extend, raise, lower, move, pause,
     resume), makes an owner-only card. The card's id is the idempotency key; the commit is the owner's press on the route
     a button uses, with `expect_max_minor` and `expect_version` from the card; a card lapses in a day. No ad is approved
@@ -101,8 +126,11 @@ Of the review's fourteen calls, 2, 3, 4, 8, 9, 11 and 12 are this note's, with 1
     existing hold's row, which carries the ad. A row closes when its subject stops waiting (0048's rule), as an ad is
     fixed or ended or an account reconnects.
 16. **Later, and not built here.** "Leave out people already in People" comes in a v1.5, Meta only, behind a consent line in
-    Settings, since it sends customers' hashed numbers to a platform. Telling a platform who booked is not built, and
-    stays off for health businesses.
+    Settings, since it sends customers' hashed numbers to a platform. Telling a platform who booked is two steps, each its
+    own switch, and neither is built here: first the platform is told who booked, each booking sent once and kept in a
+    record so a second try never counts twice; later an ad is set to look for bookings, only once the platform shows
+    them arriving and the ad's setup allows it. The click id an outcome needs is kept from the first of those steps on
+    (0049, as amended). Both stay off for health and cosmetic businesses until that is decided. _Amended 18 November 2026._
 
 ## Shape
 
@@ -114,7 +142,8 @@ transaction through a definer door.
 - `draftAd`, `copyAd`: operator and above; no platform contact; Undo deletes the draft.
 - `requestTurnOn`: the owner; Undo while it is setting up cancels the job, and after that it is a Pause.
 - `publishAd`: the job, no one's press. `unwindAd`: the system removes or leaves paused what a failed Turn on made.
-- `pauseAd`, `resumeAd`: the owner; short calls; each is the other's Undo.
+- `pauseAd`, `resumeAd`: the owner; short calls; each is the other's Undo. For an ad made on the platform with a daily
+  budget and no end, a pause has no Undo here: its toast says where the ad is turned back on (call 9, as amended).
 - `setBudget`, `setEnd`: the owner; Undo returns the old value while the version is unchanged (a budget only while the
   spend is within the old total).
 - `endAd`: the owner; no Undo, since the platforms cannot un-remove. The toast offers "Make a copy".
@@ -207,3 +236,43 @@ the suite's own workspace, never a customer's.
   representative for cosmetic procedures, so there is no one-press Turn on there.
 - Which of the five notices in 15 also email. The review proposes mail always for the first two and a choice for the rest.
 - The wording of the form's consent line, which is counsel's. Nothing ships past a draft.
+
+## Amended 18 November 2026 · Pause, Resume and Disconnect say what is true
+
+Ruben, 18 November 2026, to eight changes proposed after an outside review of the Ads canvas: "Yes, all eight". Three of
+them are this note's. Later the same day, to nine more found while the build plan was written
+(`docs/plans/2026-11-18-ads.md`): "Approve as written". Four of those are this note's. And to three sentences that
+follow
+from the first eight: "Yes, all six". Nothing in this note is built, so nothing built changes.
+
+- **Call 1, the page's line about Pause.** A pause stops an ad from being shown. What was shown before the pause is
+  billed afterwards, so "nothing more is spent" could read as untrue on the owner's next statement. The line now says
+  what a pause does and what the platform still bills.
+- **Calls 3 and 4, the owner's declaration.** A platform holds the advertiser to its answer about special categories,
+  not Chanlytics. So the answer is part of what the owner approves, is kept with it, and is read back before anything is
+  switched on.
+- **Call 6, what a failure may never do.** The mechanics are unchanged. The head promised more than a lost answer
+  allows: where the last switch is answered by silence, the ad may be running as approved. So the promise is that
+  nothing unapproved is ever switched on, and what is not confirmed is followed and, past a few minutes, told.
+- **Call 8, Disconnect.** A refusal did not keep control: the owner can withdraw Chanlytics on the platform itself at
+  any time, and a person must always be able to take access away, on a day the platform is down as well. So Disconnect
+  pauses first where it can, and where it cannot, or the owner chooses, it first says in full what the page says when
+  the platform itself signs Chanlytics out. Access is never said to be withdrawn on the platform before the platform
+  confirms it.
+- **Call 9, Resume on an adopted ad.** Call 4's rule is that "up to" is said only where the platform enforces it. An ad
+  Chanlytics did not make can have no limit at all, and one press here would start it spending again with nothing
+  named. Resume is therefore offered only where the platform holds a total with an end date. A platform can also put one
+  budget over several ads, where "up to $180 left" would be a shared amount, so the ad must have its budget to itself.
+  Allowing it with the rate named ("about $20 a day until you pause it"), as call 4 words Google's open-ended kind, was
+  weighed and left aside for the first version.
+- **Call 11, a closed way in.** AI's stop was built on 17 November, after this note. An ad that runs while AI is stopped
+  brings people nobody answers, so it is told as the other closed ways in are.
+- **Call 16, telling a platform who booked.** Two steps, each its own switch: the first can be built and proven by
+  itself; the second depends on the platform's rules for the kind of ad.
+
+Call 10 is not amended. Its sentence on how far a day may overspend a daily budget is to be read again on Meta's own
+page before the build.
+
+The Ads page is a mockup on sample data, and its sentences still say the calls as they stood: the line under its head,
+the toasts after a pause, an adopted ad's line in its drawer, and Disconnect in Settings › Connections. They change in
+a words change of their own, with their tests.
