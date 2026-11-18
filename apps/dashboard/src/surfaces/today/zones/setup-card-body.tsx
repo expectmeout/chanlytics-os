@@ -351,7 +351,7 @@ export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }
       : null;
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      {/* The head's whole line folds it, as Your history's does; the chevron is the press a key and a reader reach. */}
+      {/* The head's whole line folds it; the chevron is the press a key and a reader reach. */}
       <div
         className="setup-card-head tz-head"
         role="presentation"

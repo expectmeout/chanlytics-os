@@ -21,7 +21,7 @@ const RECORD = `(() => {
     const top = Math.round(q.getBoundingClientRect().top + window.scrollY);
     if (log.above === null) {
       // What stands above the queue in the frame it is first drawn in, and the head over the page then.
-      log.above = ["today-warnings", "today-setup", "today-brought-in"].filter((id) => document.querySelector('[data-testid="' + id + '"]'));
+      log.above = ["today-warnings", "today-setup", "today-history"].filter((id) => document.querySelector('[data-testid="' + id + '"]'));
       const head = document.querySelector("header.pg-head");
       log.head = head ? Math.round(head.getBoundingClientRect().height) : 0;
     }
@@ -54,7 +54,7 @@ test.describe("Today on a cold load", () => {
     expect(moved, `the queue's tops, frame by frame: ${load.queue.join(" > ")}`).toBeLessThanOrEqual(ENTRANCE_PX);
     // Whatever stands above the queue at the end stood there in its first frame: nothing landed over it.
     const aboveNow = await page.evaluate(() =>
-      ["today-warnings", "today-setup", "today-brought-in"].filter((id) =>
+      ["today-warnings", "today-setup", "today-history"].filter((id) =>
         document.querySelector(`[data-testid="${id}"]`),
       ),
     );

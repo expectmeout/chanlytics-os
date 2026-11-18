@@ -115,7 +115,7 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // receptionist's stamp reads the row.
   { table: "tenants", events: UPDATES },
   // What a connection brought in, a part at a time (the mailbox's months, its people and calendar, WhatsApp's chats), and
-  // what the Business Profile and the website say: the first run's "Bringing it in", Found for you, Today's "Brought in"
+  // what the Business Profile and the website say: the first run's "Bringing it in", Found for you, Today's setting-up card
   // and Connections' sentences repaint (00480, decision 0073).
   { table: "imports", events: EVERY },
   { table: "business_reads", events: EVERY },

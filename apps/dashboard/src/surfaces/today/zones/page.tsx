@@ -37,17 +37,18 @@ import { DayZone } from "./day";
 import { DeskFoot, PhoneNothingYet, PhonePins, PhoneSoFar, TodayEnd, useNothingSoFar } from "./foot";
 import { AskFound } from "./found";
 import { NeedYou } from "./need-you";
-import { TodayBroughtIn } from "./brought-in";
+import { TodayHistory } from "./history";
 import { TodaySetup } from "./setup-card";
 
 /**
- * What is left to set up and what was brought in, one card (nothing while neither draws), over Need you (`lead`) or under
- * it; its first act the coral where the arrangement gave it.
+ * What is left to set up, and under it the business's history while it is still coming in or a part of it stopped
+ * (history.tsx), one card (nothing while neither draws), over Need you (`lead`) or under it; its first act the coral where
+ * the arrangement gave it.
  */
 const settingUp = (lead: boolean, at: TodayArrangement) => (
   <div key="setting-up" className={`tq tps tz-setup${lead ? " tz-setup-lead" : ""}`} data-testid="today-setting-up">
     <TodaySetup coral={at.coral === "setup"} />
-    <TodayBroughtIn />
+    <TodayHistory />
   </div>
 );
 

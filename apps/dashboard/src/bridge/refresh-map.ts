@@ -643,7 +643,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
   // A connection's history asked for again (decision 0073, R23): its ledger row starts over, which Setup carries to the first
-  // run's Bringing it in and Today's Brought in.
+  // run's Bringing it in and Today's setting-up card.
   "POST imports/again": setup,
   "PUT business-record": setup,
   // Making the mailbox adds a line, so the count above the work changes with it, and opens the email channel to a campaign.
