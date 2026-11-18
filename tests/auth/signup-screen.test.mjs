@@ -434,7 +434,7 @@ test("back from Google, left for from this screen: it is theirs at once, with no
   auth = { session: null };
   await openFromLink("open");
   find((n) => typeof n.type === "function" && n.type.name === "GoogleSignIn").props.onLeave();
-  assert.deepEqual([...kept.values()], [TOKEN], "which preview this tab left from");
+  assert.match([...kept.values()].join(), new RegExp(`^\\d+:${TOKEN}$`), "which preview this tab left from, and when");
 
   // Back, signed in: claimed without a press, and its first run opens.
   auth = { session: { user: { email: "ada@example.com" } } };
@@ -451,13 +451,20 @@ test("back from Google, left for from this screen: it is theirs at once, with no
   assert.deepEqual(postedTo("/api/v1/preview-claims"), [], "nothing claimed without a press");
 
   // Left for Google from another preview's screen: this one is not claimed by it.
-  kept.set("chanlytics.preview.left-for-google", "OtherOtherOtherOther01");
+  kept.set("chanlytics.preview.left-for-google", `${Date.now()}:OtherOtherOtherOther01`);
   await openFromLink("open", { [CLAIM]: CLAIMED });
   await settle();
   assert.deepEqual(postedTo("/api/v1/preview-claims"), []);
 
+  // Left for Google long ago and never signed in there: the tab's memory has lapsed, and the press is asked.
+  kept.set("chanlytics.preview.left-for-google", `${Date.now() - 16 * 60_000}:${TOKEN}`);
+  await openFromLink("open", { [CLAIM]: CLAIMED });
+  await settle();
+  assert.deepEqual(postedTo("/api/v1/preview-claims"), []);
+  assert.equal(kept.size, 0, "and it is forgotten");
+
   // A claim refused on the way back leaves the one press, with the door's words beside it.
-  kept.set("chanlytics.preview.left-for-google", TOKEN);
+  kept.set("chanlytics.preview.left-for-google", `${Date.now()}:${TOKEN}`);
   await openFromLink("open", {
     [CLAIM]: { status: 409, body: { ok: false, error: { message: "Fixture Barbers is already set up." } } },
   });

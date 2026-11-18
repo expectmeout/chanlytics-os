@@ -7,7 +7,13 @@
  * or, turned to telling, a thing the business tells it. Every word is contracts' (previews/words.ts).
  */
 import type { ReactNode, SyntheticEvent } from "react";
-import { LEAD_PREVIEW_WORDS as W, previewMinePath, type PreviewPageVM } from "@chanlytics/contracts";
+import {
+  LEAD_PREVIEW_WORDS as W,
+  PREVIEW_LIMITS,
+  PREVIEW_TAUGHT,
+  previewMinePath,
+  type PreviewPageVM,
+} from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
@@ -217,11 +223,13 @@ export function PvDock({ talk, call, canCall, token }: { talk: Talk; call: Call;
             value={talk.text}
             onValueChange={talk.setText}
             readOnly={talk.busy}
-            maxLength={500}
+            // As long as its door takes: a thing told is shorter than a question asked.
+            maxLength={talk.telling ? PREVIEW_TAUGHT.chars : PREVIEW_LIMITS.messageChars}
             enterKeyHint="go"
             data-testid="pv-text"
             onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey) return;
+              // Enter sends; Shift+Enter is a new line, and Enter that ends a keyboard's own composing is its own.
+              if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
               event.preventDefault();
               void talk.send();
             }}

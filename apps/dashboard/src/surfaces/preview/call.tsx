@@ -21,7 +21,7 @@ const clockOf = (seconds: number): string =>
   `${Math.floor(seconds / MINUTE_S)}:${String(seconds % MINUTE_S).padStart(2, "0")}`;
 /** The three on the call's screen, in px. */
 const THREE_PX = 88;
-/** The lines of the call its screen shows: the last thing each side said. */
+/** The lines of the call its screen shows: the last two things said. */
 const HEARD_SHOWN = 2;
 
 export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {

@@ -249,7 +249,7 @@ export const RATE = {
   /**
    * A preview call's words read back (the page asks every two seconds while a call runs, and a few times after it for
    * its write-up), per network: a preview's six minutes are under two hundred reads, so six hundred an hour is three
-   * businesses at one desk. It reads a row and, once a call has ended, asks the provider nothing it bills.
+   * businesses at one desk. It reads a row and, for two minutes past a call's end, asks the provider nothing it bills.
    */
   preview_heard_ip: { limit: 600, windowMs: HOUR_MS, noun: "reads" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */

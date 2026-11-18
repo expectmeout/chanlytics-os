@@ -9,7 +9,7 @@
  *     fields, and one there is nothing to come for is none; a rehearsal is its own workspace's;
  *   - the page's door (app/api/v1/previews/[token]/heard), run as Next runs it, its knock on the edge answered by the
  *     edge's own function: the words so far while a call runs (the edge is not asked), the card once it is written,
- *     a write-up waited for a minute and a half and no longer, an edge deployed before this door read as no write-up,
+ *     a write-up waited for two minutes and the provider asked no longer, an edge deployed before this door read as none,
  *     a call found in the preview's own workspace alone, and a bucket of its own.
  *
  * Made-up businesses only.
@@ -212,6 +212,8 @@ test("a call's analysis is the card an Inbox would hold: how it ended, what the 
   // A to-do makes it theirs whatever the outcome says, and an outcome outside the six is not said.
   const odd = previewGotOf({ ...analysis, outcome: "resolved_by_magic" });
   assert.deepEqual([odd.outcome, odd.yours], [null, true]);
+  // A to-do with no sentence of what was wanted says its notes alone, never that there is nothing to do.
+  assert.deepEqual(previewGotOf({ ...analysis, wanted: null, summary: null }), { ...CARD, wanted: "" });
 });
 
 test("a call nobody asked anything on says so; an analysis with nothing in it is no card", () => {
@@ -301,7 +303,7 @@ test("once it has ended and is written up: its words whole and the card, asked o
   assert.deepEqual(edgeAsked, [{ tenant_id: WS, rehearsal_id: CALL }]);
 });
 
-test("a write-up is waited for a minute and a half past the call's end, and no longer", async () => {
+test("a write-up is waited for two minutes past the call's end; after them the provider is not asked, whatever it holds", async () => {
   retellAnswers = () => [200, { call_id: "call_1", call_status: "ended" }];
   world({ rehearsals: [{ ended_at: ago(5_000) }] });
   assert.deepEqual((await read(await post({ call: CALL }))).body.data, {
@@ -310,8 +312,18 @@ test("a write-up is waited for a minute and a half past the call's end, and no l
     got: null,
     writing: true,
   });
+  // Past the wait, with a write-up there for the asking: the words still, and nobody asked for the rest.
+  retellAnswers = () => [200, { call_id: "call_1", call_status: "ended", call_analysis: ANALYSIS }];
   world({ rehearsals: [{ ended_at: ago(PREVIEW_WRITE_UP_MS + 5_000) }] });
-  assert.equal((await read(await post({ call: CALL }))).body.data.writing, false);
+  edgeAsked = [];
+  retellAsked = [];
+  assert.deepEqual((await read(await post({ call: CALL }))).body.data, {
+    lines: LINES,
+    ended: true,
+    got: null,
+    writing: false,
+  });
+  assert.deepEqual([edgeAsked, retellAsked], [[], []]);
 });
 
 test("an edge deployed before this door is no write-up: the words alone, and nothing said to have failed", async () => {

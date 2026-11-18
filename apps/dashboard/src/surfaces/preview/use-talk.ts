@@ -29,9 +29,13 @@ import {
 import type { CallEnded } from "./use-call";
 import { previewVerbs } from "./verbs";
 
-/** A call's write-up is asked for every three seconds after it ends, twelve times at most: the provider takes a few. */
-const AFTER_EVERY_MS = 3 * SECOND_MS;
-const AFTER_TRIES = 12;
+/**
+ * When a call's write-up is asked for after its end: soon and often at first, since the provider usually writes one in
+ * a few seconds, then less and less, to about the minute and a half the server waits for one (PREVIEW_WRITE_UP_MS).
+ */
+const AFTER_WAITS_MS = [2, 2, 3, 3, 4, 5, 6, 8, 10, 12, 15, 15].map((seconds) => seconds * SECOND_MS);
+/** Reads that fail one after another before the page stops asking: a preview that ended, a network that is gone. */
+const AFTER_FAILS = 3;
 
 /** One line of the conversation. */
 export type TalkLine =
@@ -86,13 +90,15 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     if (!sentence || busy || spent) return;
     setBusy(true);
     setProblem(null);
-    setLines((was) => [...was, { kind: "said", text: sentence }]);
+    const asking: TalkLine = { kind: "said", text: sentence };
+    setLines((was) => [...was, asking]);
     setText("");
     const answer = await previewVerbs.say(token, sentence);
     setBusy(false);
     if (!answer.ok) {
-      // The message goes back into the field, with what happened beside it.
-      setLines((was) => was.slice(0, -1));
+      // The message goes back into the field, with what happened beside it. Its own line is taken out, wherever it
+      // stands by now: a call may have ended, and joined the list, while it waited.
+      setLines((was) => was.filter((line) => line !== asking));
       setText(sentence);
       setProblem(answer.message ?? W.failed);
       return;
@@ -123,15 +129,20 @@ export function useTalk(vm: PreviewPageVM, token: string) {
   const changeCall = (id: string, change: Partial<Extract<TalkLine, { kind: "call" }>>) =>
     setLines((was) => was.map((line) => (line.kind === "call" && line.id === id ? { ...line, ...change } : line)));
 
-  /** A call's write-up, asked for until it is there, none is to come, or its tries are spent. */
+  /** A call's write-up, asked for until it is there, none is to come, its reads keep failing, or its waits are spent. */
   const writeUp = async (id: string) => {
-    for (let tries = 0; tries < AFTER_TRIES; tries += 1) {
-      await new Promise((go) => setTimeout(go, AFTER_EVERY_MS));
+    let failed = 0;
+    for (const wait of AFTER_WAITS_MS) {
+      await new Promise((go) => setTimeout(go, wait));
       if (!open.current) return;
       const answer = await previewVerbs.heard(token, id);
       if (!open.current) return;
-      // A read that failed is asked again: its tries are what bound it.
-      if (!answer.ok) continue;
+      if (!answer.ok) {
+        failed += 1;
+        if (failed >= AFTER_FAILS) break;
+        continue;
+      }
+      failed = 0;
       const { lines: said, got, writing } = answer.data;
       // The words whole, now the call has ended: more than the last read of a live call held.
       changeCall(id, { ...(said.length ? { lines: said } : {}), got, writing });

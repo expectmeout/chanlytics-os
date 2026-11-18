@@ -254,7 +254,9 @@ async function afterCallOf(
  * A preview call's words read back, and what the business would get after it (the redesign of 17 November 2026): the
  * rehearsal's own turns, kept by the call's webhook as it goes, and once it has ended the write-up of it. The rehearsal
  * is found in the preview's own workspace, so a link reads its own calls and no other's. The page asks every two
- * seconds while a call runs and a few times after it; a write-up is waited for a minute and a half past the end.
+ * seconds while a call runs and a few times after it. A write-up is waited for two minutes past the end, and the
+ * provider is asked for one only inside them: the page has stopped asking by then, and a call's name, kept by whoever
+ * holds the link, is no way to ask the provider for ever.
  */
 export async function previewHeard(token: string, raw: unknown): Promise<PreviewHeardDto> {
   const id = typeof raw === "string" && UUID.test(raw) ? raw : null;
@@ -265,7 +267,8 @@ export async function previewHeard(token: string, raw: unknown): Promise<Preview
   if (!row || row.kind !== "call") throw new AppError("not_found", W.failed, 404);
   const lines = previewHeardOf(row.transcript);
   if (row.ended_at === null) return { lines, ended: false, got: null, writing: true };
+  if (Date.now() - Date.parse(row.ended_at) >= PREVIEW_WRITE_UP_MS)
+    return { lines, ended: true, got: null, writing: false };
   const after = await afterCallOf(tenantId, id);
-  const fresh = Date.now() - Date.parse(row.ended_at) < PREVIEW_WRITE_UP_MS;
-  return { lines, ended: true, got: after.got, writing: after.state === "writing" && fresh };
+  return { lines, ended: true, got: after.got, writing: after.state === "writing" };
 }

@@ -35,6 +35,7 @@ const OWN_DOOR = new Set([
   "previews/[token]/not-right",
   "previews/[token]/tell",
   "previews/[token]/call",
+  "previews/[token]/heard",
 ]);
 
 const files = [];

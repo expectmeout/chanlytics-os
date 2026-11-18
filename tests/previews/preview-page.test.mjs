@@ -356,12 +356,16 @@ test("after a call: being written while the provider writes it up, then the card
   // Nothing left for them to do: the outcome is said without the mark of a thing that is theirs.
   const done = called({ got: { ...GOT, outcome: "Question answered", yours: false, notes: [] } });
   assert.ok(!/data-yours/.test(done));
+  // Only its notes: no sentence is drawn, and none that says there is nothing to do.
+  const notes = called({ got: { ...GOT, wanted: "" } });
+  assert.ok(words(notes).includes(GOT.notes[0]) && !words(notes).includes(W.gotNothing));
+  assert.ok(!/<p class="pv-answer"><\/p>/.test(notes), "no empty line");
   // A write-up that never came: the line alone, and nothing said to have failed.
   const none = called({ lines: HEARD });
   assert.ok(!has(none, "pv-got") && !has(none, "pv-got-writing"));
 });
 
-test("the call's screen shows the newest of what was said, the last thing each side said, once the call is live", () => {
+test("the call's screen shows the newest of what was said, its last two lines, once the call is live", () => {
   const vm = previewPageOf(FACTS, NOW);
   const call = { phase: "live", seconds: 42, muted: false, heard: HEARD, end() {}, mute() {} };
   const html = page.renderToStaticMarkup(page.createElement(page.PvCall, { vm, call }));

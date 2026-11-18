@@ -7,7 +7,7 @@
  * heard door); the card is the provider's own write-up of the call, in the words every surface says a call in
  * (contracts previews/heard.ts). Every word here is contracts'.
  */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { LEAD_PREVIEW_WORDS as W, type PreviewGotVM, type PreviewHeardLine } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
@@ -16,10 +16,10 @@ import { PvThree } from "./head";
 import type { TalkLine } from "./use-talk";
 
 /** A call's words, in order: who said each, and what. `newest` keeps the last few alone, as the call's screen shows them. */
-export function PvHeard({ lines, newest }: { lines: readonly PreviewHeardLine[]; newest?: number }) {
+export function PvHeard({ lines, newest, id }: { lines: readonly PreviewHeardLine[]; newest?: number; id?: string }) {
   const from = newest ? Math.max(0, lines.length - newest) : 0;
   return (
-    <ol className="pv-heard" aria-label={W.heardLabel} data-testid="pv-heard">
+    <ol id={id} className="pv-heard" aria-label={W.heardLabel} data-testid="pv-heard">
       {lines.slice(from).map((line, at) => (
         <li key={from + at} className="pv-heard-line" data-who={line.who}>
           <span className="pv-quiet">{line.who === "ai" ? W.it : W.you}</span>
@@ -42,7 +42,7 @@ function PvGot({ got }: { got: PreviewGotVM }) {
           </span>
         ) : null}
       </span>
-      <p className="pv-answer">{got.wanted}</p>
+      {got.wanted ? <p className="pv-answer">{got.wanted}</p> : null}
       {got.notes.length ? (
         <ul className="pv-got-notes">
           {got.notes.map((note) => (
@@ -62,6 +62,7 @@ function PvGot({ got }: { got: PreviewGotVM }) {
  */
 export function PvCalled({ line }: { line: Extract<TalkLine, { kind: "call" }> }) {
   const [open, setOpen] = useState(false);
+  const words = useId();
   return (
     <li className="pv-line" data-testid="pv-called">
       <span className="pv-called">
@@ -75,6 +76,7 @@ export function PvCalled({ line }: { line: Extract<TalkLine, { kind: "call" }> }
             variant="quiet"
             size="touch"
             aria-expanded={open}
+            aria-controls={open ? words : undefined}
             onClick={() => setOpen(!open)}
             data-testid="pv-read-it"
           >
@@ -83,7 +85,7 @@ export function PvCalled({ line }: { line: Extract<TalkLine, { kind: "call" }> }
           </Button>
         ) : null}
       </span>
-      {open ? <PvHeard lines={line.lines} /> : null}
+      {open ? <PvHeard id={words} lines={line.lines} /> : null}
       {line.got ? (
         <PvGot got={line.got} />
       ) : line.writing ? (

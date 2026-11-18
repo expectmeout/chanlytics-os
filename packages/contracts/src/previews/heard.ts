@@ -5,7 +5,7 @@
  * analysis in, lines out. Nothing here is kept: the words are the rehearsal's row's, the analysis the provider's.
  */
 import { callNoteLines, callNotesOf, callOutcomeOf, CALL_OUTCOME_WORDS, tidyCallSummary } from "../voice/call-words";
-import { SECOND_MS } from "../shared/time";
+import { MIN_MS } from "../shared/time";
 import { LEAD_PREVIEW_WORDS } from "./words";
 
 /** One thing said on the call: by AI, or by the person who called it. */
@@ -46,7 +46,7 @@ export interface PreviewGotVM {
   outcome: string | null;
   /** Whether something is left for a person at the business to do: what the card's mark says. */
   yours: boolean;
-  /** What the caller wanted, in one sentence. */
+  /** What the caller wanted, in one sentence; empty where the analysis left only its notes. */
   wanted: string;
   /** The to-do first, then what the caller gave about themselves. */
   notes: string[];
@@ -58,7 +58,8 @@ const firstSentenceOf = (text: string): string => text.split(/(?<=[.!?])\s/)[0] 
 /**
  * The card, from a call's analysis: what the caller wanted leads, in the analysis's plain words, with the provider's
  * own summary as the fallback (its opening folded, as every surface folds it). A call nobody asked anything on says so
- * in the page's own sentence. Null where the analysis holds nothing a card could say.
+ * in the page's own sentence, and only there: a call with a to-do and no sentence of what was wanted says its notes
+ * alone, never that there is nothing to do. Null where the analysis holds nothing a card could say.
  */
 export function previewGotOf(analysis: PreviewCallAnalysis): PreviewGotVM | null {
   const outcome = callOutcomeOf(analysis.outcome);
@@ -74,7 +75,7 @@ export function previewGotOf(analysis: PreviewCallAnalysis): PreviewGotVM | null
   return {
     outcome: outcome ? CALL_OUTCOME_WORDS[outcome] : null,
     yours: outcome === "callback_needed" || notes.todo !== null,
-    wanted: wanted || LEAD_PREVIEW_WORDS.gotNothing,
+    wanted,
     notes: lines,
   };
 }
@@ -89,5 +90,8 @@ export interface PreviewHeardDto {
   writing: boolean;
 }
 
-/** How long after a call's end its write-up is still waited for: the provider writes one in seconds, or never. */
-export const PREVIEW_WRITE_UP_MS = 90 * SECOND_MS;
+/**
+ * How long after a call's end its write-up is waited for, and the provider asked for it: it writes one in seconds, or
+ * never. The page's own asking ends inside this (surfaces/preview/use-talk.ts), so its last read is still answered.
+ */
+export const PREVIEW_WRITE_UP_MS = 2 * MIN_MS;
