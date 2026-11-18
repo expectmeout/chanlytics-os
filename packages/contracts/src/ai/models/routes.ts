@@ -32,6 +32,7 @@ export const MODEL_PURPOSES = [
   "website_read",
   "sender_read",
   "file_look",
+  "preview_starters",
 ] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
@@ -344,6 +345,18 @@ export const MODEL_ROUTES = {
     timeoutMs: FILE_LOOK_TRY_MS,
     retries: 0,
     maxTokens: 2000,
+    thinking: "off",
+  },
+  // The questions a lead's own preview offers first (decision 0079, amended 18 Nov 2026): three short lines into a fixed
+  // shape as the preview is built, the smallest model, its answer read in code (contracts previewStartersWrittenOf).
+  // Nothing waits on it but the page's first questions: no answer leaves the ones the page makes from the record.
+  preview_starters: {
+    attributed: "workspace",
+    model: HAIKU_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: READ_TRY_MS,
+    retries: 0,
+    maxTokens: 300,
     thinking: "off",
   },
 } as const satisfies Record<ModelPurpose, ModelRoute>;

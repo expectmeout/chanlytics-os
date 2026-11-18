@@ -21,8 +21,9 @@ beforeEach(() => {
   process.env.LEAD_PREVIEWS = "on";
 });
 const { previewBuilder } = await importSrc("apps/edge/lib/previews/build.ts");
-/** One build, as the job runner hands it, with the website read by the test. */
-const buildPreview = (db, job, deadline, read) => previewBuilder(db, read).build(job, deadline);
+/** One build, as the job runner hands it, with the website read by the test and its first questions written by it (none, unless a test writes some). */
+const buildPreview = (db, job, deadline, read, write = async () => []) =>
+  previewBuilder(db, read, write).build(job, deadline);
 const { askPreview } = await importSrc("apps/edge/lib/previews/make.ts");
 
 const OURS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -157,9 +158,61 @@ test("a site that cannot be read, or none at all, leaves the listing's reception
   assert.deepEqual(noSite.built, [{ ok: true, why: null }]);
 });
 
+test("its first questions are written from the listing's kind and the receptionist just made, and kept beside it in one write", async () => {
+  const QUESTIONS = [
+    "Do you take walk-ins on Saturday?",
+    "How long does a fade take?",
+    "Can someone call me back today?",
+  ];
+  const told = [];
+  const { db, tables, built } = world();
+  const deadline = DEADLINE();
+  await buildPreview(db, job(), deadline, siteSays(), async (known, o) => {
+    told.push({ known, o });
+    return QUESTIONS;
+  });
+  assert.deepEqual(built, [{ ok: true, why: null }]);
+  const cfg = tables.tenant_config[0];
+  assert.deepEqual(cfg.config.preview, { starters: QUESTIONS });
+  assert.equal(cfg.version, 2, "with the receptionist, through the settings' compare-and-swap");
+  assert.equal(cfg.config.brain.business_name, "Fixture Barbers");
+
+  assert.equal(told.length, 1, "asked once a build");
+  const [{ known, o }] = told;
+  assert.deepEqual([known.business, known.kind, known.goesToCustomers], ["Fixture Barbers", "Barber shop", false]);
+  assert.deepEqual(
+    known.profile.services.map((service) => service.name),
+    ["Fade", "Beard trim"],
+    "told what the receptionist knows once its site is worn",
+  );
+  assert.deepEqual(
+    o,
+    { tenantId: WS, previewId: ID, deadline },
+    "on the preview's own workspace, inside the build's time",
+  );
+});
+
+test("none written leaves no section and fails nothing; a lead found by its area is said to go to its customers", async () => {
+  const none = world();
+  await buildPreview(none.db, job(), DEADLINE(), siteSays());
+  assert.equal("preview" in none.tables.tenant_config[0].config, false, "the page offers the record's own");
+  assert.equal(none.tables.lead_previews[0].state, "ready");
+
+  const told = [];
+  const area = world({ lead: { street: null, website_host: null, category: null } });
+  await buildPreview(area.db, job(), DEADLINE(), siteSays(), async (known) => {
+    told.push(known);
+    return [];
+  });
+  assert.deepEqual([told[0].kind, told[0].goesToCustomers], [null, true]);
+  assert.deepEqual(area.built, [{ ok: true, why: null }]);
+});
+
 test("a lead with no name to give it fails with why, and writes nothing", async () => {
   const { db, tables, built } = world({ lead: { business_name: "  " } });
-  await buildPreview(db, job(), DEADLINE(), siteSays());
+  await buildPreview(db, job(), DEADLINE(), siteSays(), async () => {
+    throw new Error("no questions are written for a preview that is not made");
+  });
   assert.deepEqual(built, [{ ok: false, why: "no_name" }]);
   assert.equal(tables.tenant_config[0].version, 1);
   assert.equal(tables.lead_previews[0].failed_why, "no_name");

@@ -27,10 +27,25 @@ interface PreviewPageRead {
   look: LinkPageLook;
 }
 
-/** The preview workspace's record, or none where it cannot be read: the page says only what it knows. */
-export async function previewProfileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
+/**
+ * What the preview's workspace keeps for its page: its record, and the questions written for it as it was built
+ * (config `preview.starters`, as kept: contracts reads each for what it is).
+ */
+type PreviewKept = Pick<PreviewPageFacts, "profile" | "starters">;
+
+/** What it keeps, or none of either where its settings cannot be read: the page says only what it knows. */
+async function previewKeptOf(db: Db, tenantId: TenantId): Promise<PreviewKept> {
   const row = await getTenantConfig(db, tenantId).catch(() => null);
-  return parseTenantConfig(row?.config ?? null)?.brain?.profile ?? null;
+  const config = parseTenantConfig(row?.config ?? null);
+  return { profile: config?.brain?.profile ?? null, starters: config?.preview?.starters };
+}
+
+/** A preview whose workspace is gone keeps nothing. */
+const NOTHING_KEPT: PreviewKept = { profile: null };
+
+/** The preview workspace's record, or none where it cannot be read. */
+export async function previewProfileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
+  return (await previewKeptOf(db, tenantId)).profile;
 }
 
 /** What the page shows of the lead it was made from: its listing's number and its Google photo; none where it is gone. */
@@ -45,9 +60,9 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
   const row = await findLeadPreviewByToken(db, token);
   if (!row) return null;
   const ws = row.preview_tenant_id;
-  const [look, profile, shown] = ws
-    ? await Promise.all([linkPageLookOf(db, ws), previewProfileOf(db, ws), leadShownOf(db, row)])
-    : [NO_LOOK, null, { phone: null, photo: null }];
+  const [look, kept, shown] = ws
+    ? await Promise.all([linkPageLookOf(db, ws), previewKeptOf(db, ws), leadShownOf(db, row)])
+    : [NO_LOOK, NOTHING_KEPT, { phone: null, photo: null }];
   return {
     row,
     look,
@@ -58,7 +73,8 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
       turns: row.turns,
       business: look.business ?? "",
       logo_url: look.logo_url,
-      profile,
+      profile: kept.profile,
+      starters: kept.starters,
       phone_display: shown.phone,
       call_seconds: row.call_seconds,
       call_count: row.call_count,

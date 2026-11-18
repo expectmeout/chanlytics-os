@@ -186,3 +186,50 @@ where a fact came from, so a source is said in words).
 Not yet: a call's line and its card on a later visit (a call is kept with no place in the conversation's order, so a
 page opened again shows the messages and not the call); the sender's own read of what a lead said on a call; the
 greeting as a recording, as before.
+
+## Amended, 18 November 2026: its first questions are written for the business
+
+Ruben's review of the live page (18 November) approved this with the rest: the questions under "Try asking" were the
+same for every trade, filled in from the record (a service, a day closed or the hours, where it is, a call back). An
+emergency plumber's page offered "Where are you located?", where its customer writes "My basement is flooding, can
+someone come now?". They are now written for the business as its preview is built.
+
+- **Written by the model, once, at the build.** After the receptionist is made and its site worn, the smallest model
+  is asked for three first messages a customer of this business would send, in that customer's words
+  (`apps/edge/lib/previews/starters.ts`; the registry's `preview_starters` route: Haiku 5.5, its thinking off, 300
+  tokens at most). It is told the listing's kind, whether the business goes to its customers, and what the
+  receptionist was just given to know (its hours, its services by name, its rules, the things its site answered), in a
+  fence, since a site's words are someone else's.
+- **A call of the preview's own, not a part of the website's read.** That read (`imports/website-read.ts`) asks the
+  same model already, and adding the questions to it would cost nothing more. It was weighed and left alone for three
+  reasons. It is every customer's first run and monthly read too, so its shape and its words are not a preview's to
+  change. A lead with no site, or one whose site could not be read, has a kind and a listing to write from, and those
+  are the pages the old questions served worst. And the questions are held to what the receptionist knows, which is
+  settled only once the listing and the site are put together.
+- **The rule stays, and is held in code.** Never a price, which it refuses, and never a time to come in, since many
+  businesses go to the customer and it sees no calendar; a question it would pass on to the business is fine. The
+  model is told so, and its answer is read by `previewStartersWrittenOf` (contracts `previews/starters.ts`), which
+  leaves out a line that asks a price or a time to come in, one that holds a link, and one too long to be a first
+  message. The same reading is made of the list as it is kept, so a list written under an older rule is held to
+  today's.
+- **Kept with the preview, in its workspace's settings.** A section of their own, `preview.starters`, written in the
+  one write that writes the receptionist. Weighed against a column on `lead_previews`: the settings are read by the
+  page already and written by the build already, so nothing new is read, written or migrated; they go when the
+  preview's workspace is erased, as its words do; and a build from before the section leaves it out and keeps
+  answering. Never a key of `brain`: nothing in it is told to the receptionist. A workspace someone makes theirs keeps
+  the section, unread by anything but a preview's page.
+- **Today's questions are the fallback.** With none written (no model, no time left in the build, a refusal, a
+  preview built before this), the page offers the ones it makes from the record, as before. With one or two kept, the
+  record's own follow them up to three. Writing them never fails a build.
+- **Either deploy order.** A dashboard from before this leaves the section out and offers the record's own; an edge
+  from before it writes none. The ledger's purpose is the one thing with an order: `ai_usage.purpose` takes
+  `preview_starters` (00642), applied before the edge that asks. An edge that asks first still gets its answer, and
+  only the ledger's row is refused.
+- **What it costs.** One more call a preview: about 750 to 1,000 tokens in and 40 to 50 out for a business with a
+  dozen services and a few notes, about a hundredth of a cent at Haiku 5.5's list price ($0.10 and $0.50 a million);
+  under four hundredths of a cent for the longest record at the answer's cap; under a cent where the fallback
+  (Sonnet 5.5) answers. Computed from the call's own text at three to four characters a token, not yet measured: the
+  first preview built writes the real figure on the ledger, under its own purpose.
+
+Not yet: a real model's questions read for a real lead (nothing was spent to try it); the questions written again
+when the business tells it something or puts a fact right; previews built before this are left with the record's own.
