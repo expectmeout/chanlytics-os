@@ -17,7 +17,7 @@ interface Part {
   lit: boolean;
 }
 
-function partsOf(text: string, spans: readonly Span[]): Part[] {
+function answerPartsOf(text: string, spans: readonly Span[]): Part[] {
   const parts: Part[] = [];
   let at = 0;
   for (const [from, to] of spans) {
@@ -105,7 +105,7 @@ function PvWriting({ parts }: { parts: readonly Part[] }) {
  * visit, which is written out.
  */
 export function PvWords({ text, spans, write }: { text: string; spans: readonly Span[]; write: boolean }) {
-  const parts = partsOf(text, spans);
+  const parts = answerPartsOf(text, spans);
   if (write) return <PvWriting parts={parts} />;
   return (
     <>

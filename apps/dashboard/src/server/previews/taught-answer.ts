@@ -14,10 +14,10 @@ type AnswerSpan = [from: number, to: number];
 const FIGURE = /[$€£]?\d[\d,.:]*\d/g;
 
 /** A figure as an answer and a thing told share it: its digits alone, so "$1,450" and "1450" are one. */
-const digitsOf = (figure: string): string => figure.replace(/[^\d]/g, "");
+const figureDigitsOf = (figure: string): string => figure.replace(/[^\d]/g, "");
 
 const taughtFiguresOf = (text: string): string[] =>
-  (text.match(FIGURE) ?? []).map(digitsOf).filter((digits) => digits.length > 1);
+  (text.match(FIGURE) ?? []).map(figureDigitsOf).filter((digits) => digits.length > 1);
 
 /** A sentence as its words alone, for a run of them to be found in another. */
 const plainWordsOf = (text: string): string[] =>
@@ -51,30 +51,35 @@ const TAUGHT_RUN = 5;
 const SPANS_MOST = 8;
 
 /** Where the answer writes a figure one of the things told holds. */
-function figureSpansOf(answer: string, told: ReadonlySet<string>): AnswerSpan[] {
+function figureSpansOf(answer: string, theirFigures: ReadonlySet<string>): AnswerSpan[] {
   return [...answer.matchAll(FIGURE)].flatMap((found): AnswerSpan[] => {
-    const digits = digitsOf(found[0]);
-    return digits.length > 1 && told.has(digits) ? [[found.index, found.index + found[0].length]] : [];
+    const digits = figureDigitsOf(found[0]);
+    return digits.length > 1 && theirFigures.has(digits) ? [[found.index, found.index + found[0].length]] : [];
   });
 }
 
 /** How far the answer's words, from one of them, run along a thing told's own, from one of those. */
-function runLength(answered: readonly PlacedWord[], at: number, told: readonly string[], from: number): number {
+function runLength(placed: readonly PlacedWord[], at: number, theirWords: readonly string[], from: number): number {
   let run = 0;
-  while (at + run < answered.length && from + run < told.length && answered[at + run]?.word === told[from + run])
+  while (
+    at + run < placed.length &&
+    from + run < theirWords.length &&
+    placed[at + run]?.word === theirWords[from + run]
+  )
     run += 1;
   return run;
 }
 
 /** Where the answer carries a run of one thing told's own words. */
-function runSpansOf(answered: readonly PlacedWord[], told: readonly string[]): AnswerSpan[] {
+function runSpansOf(placed: readonly PlacedWord[], theirWords: readonly string[]): AnswerSpan[] {
   const spans: AnswerSpan[] = [];
   let at = 0;
-  while (at < answered.length) {
+  while (at < placed.length) {
     let longest = 0;
-    for (let from = 0; from < told.length; from += 1) longest = Math.max(longest, runLength(answered, at, told, from));
-    const first = answered[at];
-    const last = answered[at + longest - 1];
+    for (let from = 0; from < theirWords.length; from += 1)
+      longest = Math.max(longest, runLength(placed, at, theirWords, from));
+    const first = placed[at];
+    const last = placed[at + longest - 1];
     if (longest >= TAUGHT_RUN && first && last) spans.push([first.from, last.to]);
     at += longest >= TAUGHT_RUN ? longest : 1;
   }
@@ -88,10 +93,10 @@ function runSpansOf(answered: readonly PlacedWord[], told: readonly string[]): A
  */
 export function taughtSpansOf(answer: string, taught: readonly string[]): AnswerSpan[] {
   const figures = new Set(taught.flatMap(taughtFiguresOf));
-  const answered = placedWordsOf(answer);
+  const placed = placedWordsOf(answer);
   const found = [
     ...figureSpansOf(answer, figures),
-    ...taught.flatMap((sentence) => runSpansOf(answered, plainWordsOf(sentence))),
+    ...taught.flatMap((sentence) => runSpansOf(placed, plainWordsOf(sentence))),
   ].sort((one, other) => one[0] - other[0]);
   const spans: AnswerSpan[] = [];
   for (const [from, to] of found) {

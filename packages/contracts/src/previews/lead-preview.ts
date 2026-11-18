@@ -135,13 +135,13 @@ function turnSpansOf(raw: unknown, length: number): [number, number][] {
 /** The chat as the row keeps it (00497 preview_said: {role, content, then?}), read for what each turn is. */
 export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((t: unknown): PreviewTurnVM[] => {
-    const o = t && typeof t === "object" ? (t as Record<string, unknown>) : null;
-    if (!o || (o.role !== "user" && o.role !== "assistant") || typeof o.content !== "string") return [];
-    const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
-    const spans = then?.taught === true ? turnSpansOf(then.spans, o.content.length) : [];
+  return raw.flatMap((kept: unknown): PreviewTurnVM[] => {
+    const row = kept && typeof kept === "object" ? (kept as Record<string, unknown>) : null;
+    if (!row || (row.role !== "user" && row.role !== "assistant") || typeof row.content !== "string") return [];
+    const then = row.then && typeof row.then === "object" ? (row.then as Record<string, unknown>) : null;
+    const spans = then?.taught === true ? turnSpansOf(then.spans, row.content.length) : [];
     const turn =
-      o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
+      row.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
         ? {
             words: then.words,
             tone: then.tone as Tone,
@@ -149,7 +149,7 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
             ...(spans.length ? { spans } : {}),
           }
         : null;
-    return [{ role: o.role, text: o.content, then: turn }];
+    return [{ role: row.role, text: row.content, then: turn }];
   });
 }
 

@@ -98,6 +98,25 @@ async function askForWriteUp(ask: {
   ask.change({ writing: false });
 }
 
+/**
+ * The calls of an earlier visit, each read once for its words: the row names the call, its own record holds what was
+ * said. A read that fails leaves the line as it is, with how long the call ran.
+ */
+function useEarlierCalls(
+  earlier: PreviewPageVM["calls"],
+  token: string,
+  open: RefObject<boolean>,
+  setLines: (change: (was: TalkLine[]) => TalkLine[]) => void,
+) {
+  useEffect(() => {
+    for (const call of earlier)
+      void previewVerbs.heard(token, call.id).then((answer) => {
+        if (!open.current || !answer.ok || !answer.data.lines.length) return;
+        setLines((was) => withCallChanged(was, call.id, { lines: answer.data.lines, got: answer.data.got }));
+      });
+  }, [earlier, token, open, setLines]);
+}
+
 /** The conversation, and everything its field does. */
 export function useTalk(vm: PreviewPageVM, token: string) {
   const [lines, setLines] = useState<TalkLine[]>(() => talkLinesOf(vm.turns, vm.calls));
@@ -117,16 +136,7 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     };
   }, []);
 
-  // The calls of an earlier visit, each read once for its words: the row names the call, its own record holds what
-  // was said. A read that fails leaves the line as it is, with how long the call ran.
-  const earlier = vm.calls;
-  useEffect(() => {
-    for (const call of earlier)
-      void previewVerbs.heard(token, call.id).then((answer) => {
-        if (!open.current || !answer.ok || !answer.data.lines.length) return;
-        setLines((was) => withCallChanged(was, call.id, { lines: answer.data.lines, got: answer.data.got }));
-      });
-  }, [earlier, token]);
+  useEarlierCalls(vm.calls, token, open, setLines);
 
   const spent = vm.state === "spent" || left <= 0;
   const canTell = told < PREVIEW_TAUGHT.most;
