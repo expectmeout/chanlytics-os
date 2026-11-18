@@ -7,6 +7,8 @@ Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 
 0047 (a page hears the record it draws) and 0048 (one list of what needs you), both drafted in another lane and not on
 main when this was written (#1564 built both, 12 October 2026); each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
 paths below were read at it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
+Amended on 18 November 2026 by "No click id yet, and totals counted whole" (below): calls 6 and 11, the shape of
+`ad_entries`, step P0a and one risk. Nothing built.
 
 ## Context
 
@@ -62,11 +64,14 @@ Ads are three records and one facet of a person. Of the review's fourteen calls,
    people by the day they first got in touch, and whether they have booked is read at the read. It answers a different
    question from Reports' booking line (`bookedAfterAsk`: on an ask, as of today), so it has its own function in
    contracts, `bookedAfterTouch(touchAt, visits)`, its own glossary word, and the two never share a label. It is worked
-   out when read, never stored: a stored `booked_at` would stay after a visit is cancelled. It uses the existing match
-   (`peopleVisitsOf`, over the record and the feed, by number or address), so it inherits two limits and says them: a
+   out when read, never stored: a stored `booked_at` would stay after a visit is cancelled. It uses the match the pages
+   already use (`peopleVisitsOf`: the record and the feed, by number or address), made in the database so that a total
+   is never cut short, and a test holds the two to the same answer. It inherits two limits and says them: a
    workspace with booking notices and no calendar link has no visits to read, so Booked is a dash there (0002 leaves that
-   case to Ruben), and an appointment that matches no person is in no ad's number. A read is bounded to 2,000 people and
-   says "first 2,000" past it.
+   case to Ruben), and an appointment that matches no person is in no ad's number. The totals are counted whole, and the
+   list
+   of people is read a page at a time. _Amended 18 November 2026: a read was bounded to 2,000 people, which would have
+   cut a growing business's totals short._
 7. **The cost words are one rule, `adCostRule`.** The cost for each person who booked is the spend of the ads whose
    people Chanlytics can count, over the people who booked from them. Under `REPORT_MIN_N` (5) booked it is a dash that
    says "only N".
@@ -80,8 +85,9 @@ Ads are three records and one facet of a person. Of the review's fourteen calls,
    A platform's own counts are never added to one another or to ours.
 10. **Existing ads are adopted, read-only.** An ad found in the owner's account is an `ads` row with
     `origin = 'platform'`: drawn, counted, and open to Pause and Resume alone (0050).
-11. **Retention.** `ad_days` is kept 25 months (`RETENTION_DAYS.ad_days`, said on the privacy page). A click id is kept
-    90 days and then nulled, and goes at once with an erasure; the ad's words on an entry go with the person.
+11. **Retention.** `ad_days` is kept 25 months (`RETENTION_DAYS.ad_days`, said on the privacy page). No click id is kept
+    yet. When one is, it is kept 90 days and then nulled, and goes at once with an erasure. The ad's words on an entry
+    go with the person. _Amended 18 November 2026: a click id was kept from the first step._
 12. **The receptionist hears the ad as an origin, and two things from it.** The person's part of its brief gains one
     sentence: they first wrote after tapping an ad, the ad's headline (fenced as data like any wire text), the service it
     is about, and whether it still runs. Terms, prices and hours come from Services and Hours as before. 0039 keeps that
@@ -115,19 +121,20 @@ is the record. Money is `bigint` minor units beside a `currency`.
 - `ad_entries`: one row each time someone reaches the workspace through an ad. `contact_id` (cascade), `ad_id` (null for
   an ad not yet adopted), `platform`, `platform_ad_id` (the raw reference), `kind` (`chat`, `number`, `call`), `new_person`
   (00306's test), `external_ref` (a form lead's id, unique with workspace and platform, so a replay does nothing),
-  `click_id`, and `said`: the referral's headline, body, media type and link, each bounded.
+  and `said`: the referral's headline, body, media type and link, each bounded. `click_id` is not in the first
+  migration: it arrives with the step that tells a platform who booked (0050, call 16; amended 18 November 2026).
 
 **Why `ad_entries` beside the columns.** `acquired_*` says first, once, which ad, and survives an erasure as a count. It
 cannot hold the click id (personal, needed to send an outcome back), what the ad said (the receptionist needs it), a
 repeat tap, a form's replay key, or an ad Chanlytics did not make. The click id is not put on a message row, which is
-not edited once written.
+not edited once written. The click id is one of those reasons from the day it is kept, not before.
 
 **Security.** Members read their workspace's rows and are granted no write; a forbidden UPDATE does not raise, so every
 write is a `security definer` door that checks the role. A member cannot read `credentials_ref`. A platform's token is a
 Vault secret, `ad-creds-<account id>`, put, read and dropped only by service-role functions the edge calls (the
 `wa-creds-`, `line-creds-` and `google-creds-` precedents). The dashboard holds no token and calls no platform. The
-tenancy suite and the erasure registry name the new tables: `ad_entries.click_id` and `.said` go with the person, and the
-click id also by age.
+tenancy suite and the erasure registry name the new tables: `ad_entries.said` goes with the person. A click id, once
+it is kept, goes with the person and also by age.
 
 **The read sweep** follows the channel-quality clock (00315). `trigger_ads_sweep` asks the edge only when a connected
 account exists. One door, three tiers: every 15 minutes for an ad being set up, in review or in its first 48 hours;
@@ -157,12 +164,15 @@ of 0048 and counts nothing a second way; if 0048 has not landed when P1 is built
 
 Each ships alone, in either deploy order.
 
-**P0a · Keep what the referral says (no page, no platform).** `adReferralOf` returns the same two fields plus a click
-id, headline, body, media type and link, each bounded and read defensively; anything odd is dropped field by field, and a
+**P0a · Keep what the referral says (no page, no platform).** `adReferralOf` returns the same two fields plus the
+headline, body, media type and link, and no click id, each bounded and read defensively; anything odd is dropped field
+by field, and a
 bad referral still costs a message nothing. `persist.ts` keeps `meta.referral` exactly as now. After the ingest, the edge
-calls `ad_entry_keep` (keyed by the message id) with the rest. One migration holds `ad_entries`, that function, the
-trigger taught `source: 'ad'`, and the 90-day purge. A nightly reconcile finds people stamped `ad` with no entry and
-rebuilds one from the message's `source_id`, so a failed enrichment loses a click id and never a count. _Both orders:_
+calls `ad_entry_keep` (keyed by the message id) with the rest. One migration holds `ad_entries`, that function, and the
+trigger taught `source: 'ad'`. There is no purge yet, since nothing is kept that ages out. A nightly reconcile finds
+people stamped `ad` with no entry and
+rebuilds one from the message's `source_id`, so a failed enrichment loses the ad's words and never a count, and each one
+that fails is counted. _Both orders:_
 an edge ahead of the migration gets `PGRST202` from `ad_entry_keep` and ignores it (the 00364 precedent); a database
 ahead of the edge has a table nothing writes. History accrues from the first click-to-WhatsApp after the step.
 
@@ -188,7 +198,8 @@ first touch; `adCostRule` at 4, 5 and a settling window; `adStateOf` per platfor
 a person who taps two ads is counted once, for the first; the Ads total plus the unnamed line equals Reports › People's
 "An ad". Edge: a referral with odd fields keeps what is sound, and the same message twice leaves one entry. Database:
 RLS and the column grant, no `authenticated` execute on a credential function, `ad_account_taken`, the first-touch
-trigger for `ad`, and the each-workspace-is-told equality.
+trigger for `ad`, and the each-workspace-is-told equality. The database's total of who booked equals the pages' match on
+the same people.
 
 ## Risks
 
@@ -198,7 +209,7 @@ trigger for `ad`, and the each-workspace-is-told equality.
   then treats a `source_id` that matches a known ad as an ad whatever its type.
 - **A missed lead is lost.** Meta keeps a lead 90 days and does not replay a missed webhook, so the hourly sweep lists
   each form's leads as a backstop (0050).
-- **Booked costs a join.** It is bounded at 2,000 people. A workspace with no calendar link shows a dash.
+- **Booked costs a join,** made in the database. A workspace with no calendar link shows a dash.
 - **A bare reference.** Rows written by 00306 hold a bare id. The reader prefixes it; nothing rewrites it.
 - **An offer matched by name.** Services have no key, so a renamed service reads as a change to the ad's offer. The
   drawer says "Services changed" and does not guess. A key in Services would end it, and is another lane's.
@@ -209,3 +220,19 @@ trigger for `ad`, and the each-workspace-is-told equality.
 - Health and cosmetic businesses: whether they may keep a click id at all, and the platforms' extra gates (0050).
 - Which notices also email (0050 lists the five).
 - The wording of the form's consent line, which is counsel's. Nothing ships past a draft.
+
+## Amended 18 November 2026 · No click id yet, and totals counted whole
+
+Ruben, 18 November 2026, to nine changes found while the build plan for Ads was written
+(`docs/plans/2026-11-18-ads.md`):
+"Approve as written". Two of them are this note's. Nothing in this note is built, so nothing built changes.
+
+- **No click id yet.** This note leaves open whether health and cosmetic businesses may keep a click id at all, and the
+  product has no way to tell such a business apart. The id has one use, sending an outcome back to a platform, which is
+  a later step and off for those businesses. So the first step keeps the ad's name and words, which every business can
+  keep, and the click id waits for the step that needs it and for that decision. What is given up is known: a tap made
+  before that step cannot be reported to the platform afterwards.
+- **Totals counted whole.** A read bounded to 2,000 people was honest about its limit, and still partial exactly when a
+  business grows. Totals are counted in the database. The list of people stays paged. How the match is made in the
+  database is the design of the step that builds it; what must hold is that the total is whole and agrees with the
+  match the pages already use.
