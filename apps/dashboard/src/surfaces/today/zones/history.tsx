@@ -14,7 +14,7 @@ import type { FrameFlash } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { useToast } from "../shell";
 
-const IW = FIRST_RUN_HELPERS.importWords;
+const importWords = FIRST_RUN_HELPERS.importWords;
 
 /** A source that stopped: what happened, why or what it kept, and Try again (Starting, and still, once pressed). */
 function StoppedRow({ row, flash }: { row: HistoryStoppedVM; flash: (f: FrameFlash) => void }) {
@@ -22,10 +22,10 @@ function StoppedRow({ row, flash }: { row: HistoryStoppedVM; flash: (f: FrameFla
   return (
     <SetupCardRow
       tone="danger"
-      stateWords={IW.stopped}
+      stateWords={importWords.stopped}
       name={row.name}
       sentence={row.says}
-      cta={{ label: starting ? IW.starting : IW.retry, busy: starting, onClick: () => void again() }}
+      cta={{ label: starting ? importWords.starting : importWords.retry, busy: starting, onClick: () => void again() }}
       testid={`today-history-stopped-${row.source}`}
       ctaTestid={`today-history-again-${row.source}`}
     />
@@ -33,9 +33,9 @@ function StoppedRow({ row, flash }: { row: HistoryStoppedVM; flash: (f: FrameFla
 }
 
 export const TodayHistory = () => {
-  const S = useSurface("setup");
+  const setup = useSurface("setup");
   const [toastNode, flash] = useToast();
-  const history = S ? historyOnTodayOf(S.dto.imports) : null;
+  const history = setup ? historyOnTodayOf(setup.dto.imports) : null;
   // The toast outlives its row: a Try again heard starting takes the row away while a refusal may still be up.
   if (!history) return toastNode;
   return (
@@ -43,7 +43,7 @@ export const TodayHistory = () => {
       {history.coming ? (
         <SetupCardRow
           tone=""
-          stateWords={IW.comingIn}
+          stateWords={importWords.comingIn}
           name={history.coming.name}
           sentence={history.coming.says}
           testid="today-history-coming"

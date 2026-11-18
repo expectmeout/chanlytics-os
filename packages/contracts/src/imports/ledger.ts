@@ -529,11 +529,11 @@ export interface HistoryOnTodayVM {
 }
 
 /** Whether Today offers Try again for a stopped source: one the press can start again (never the clients' file, added again from People). */
-const triedAgainFromToday = (r: ImportRowDto): boolean =>
-  r.state === "failed" &&
-  !ONCE_ONLY.has(r.source) &&
-  r.source !== "clients_file" &&
-  !(r.last_error && NOT_MENDED_BY_TRYING.has(r.last_error));
+const triedAgainFromToday = (run: ImportRowDto): boolean =>
+  run.state === "failed" &&
+  !ONCE_ONLY.has(run.source) &&
+  run.source !== "clients_file" &&
+  !(run.last_error && NOT_MENDED_BY_TRYING.has(run.last_error));
 
 /**
  * The business's history on Today (18 Nov 2026, Ruben: a card of its own, "Your history · All in", was a fact with
@@ -544,25 +544,25 @@ const triedAgainFromToday = (r: ImportRowDto): boolean =>
  */
 export function historyOnTodayOf(rows: readonly ImportRowDto[] | null | undefined): HistoryOnTodayVM | null {
   const history = sourceRowsOf(rows)
-    .filter((r) => !CONTENT_SOURCES.has(r.source))
-    .sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
+    .filter((run) => !CONTENT_SOURCES.has(run.source))
+    .sort((first, next) => SAID_ORDER.indexOf(first.source) - SAID_ORDER.indexOf(next.source));
   const words = IMPORT_WORDS;
-  const stopped = history.filter(triedAgainFromToday).map((r): HistoryStoppedVM => {
-    const kept = stoppedKept(r);
+  const stopped = history.filter(triedAgainFromToday).map((run): HistoryStoppedVM => {
+    const kept = stoppedKept(run);
     return {
-      source: r.source,
-      name: words.stoppedComing(words.titles[r.source]),
+      source: run.source,
+      name: words.stoppedComing(words.titles[run.source]),
       says:
-        r.last_error && r.last_error !== IMPORT_STOPPED_WORDS.failed
-          ? r.last_error
+        run.last_error && run.last_error !== IMPORT_STOPPED_WORDS.failed
+          ? run.last_error
           : kept
             ? `${kept} kept`
             : words.keptSoFar,
     };
   });
-  const coming = history.some((r) => r.state === "running" || r.state === "queued");
+  const coming = history.some((run) => run.state === "running" || run.state === "queued");
   if (!coming && !stopped.length) return null;
-  const done = history.filter((r) => r.state === "done").length;
+  const done = history.filter((run) => run.state === "done").length;
   return {
     coming: coming
       ? { name: words.historyComing, says: joined(words.inSoFar(done, history.length), words.keepsGoing) }

@@ -8,6 +8,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
+import { until } from "../shared/_until.mjs";
 import {
   byTestId,
   flashes,
@@ -43,7 +44,6 @@ const drawFresh = () => {
   fresh();
   return draw();
 };
-const settled = () => new Promise((r) => setImmediate(r));
 
 test("while the history is still coming in: one line, how far it has come, and nothing to press", () => {
   const imports = [
@@ -120,7 +120,7 @@ test("a source that stopped: what happened, what it kept, and Try again that ans
   const press = byTestId(tree, "today-history-again-mailbox");
   assert.equal(textOf(press), "Try again");
   press.props.onClick();
-  await settled();
+  await until(() => again.length === 1, "the press asked the run to start again");
   assert.deepEqual(again, ["mailbox"]);
   tree = draw();
   const busy = byTestId(tree, "today-history-again-mailbox");
@@ -153,7 +153,7 @@ test("a source that stopped: what happened, what it kept, and Try again that ans
   flashes.length = 0;
   assert.match(textOf(byTestId(tree, "today-history-stopped-mailbox")), /What came in is kept\./);
   byTestId(tree, "today-history-again-mailbox").props.onClick();
-  await settled();
+  await until(() => flashes.length > 0, "the refusal was said");
   tree = draw();
   assert.equal(textOf(byTestId(tree, "today-history-again-mailbox")), "Try again");
   assert.equal(flashes.length, 1, "the refusal said once");
