@@ -12,11 +12,12 @@ import {
   fencedInline,
   promptSafeName,
   isAskAdsView,
+  isContentParam,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 import { oneLine } from "../context/rows";
-import { AD_SCOPE_LINE, adsLine } from "../prompt-rules";
+import { AD_SCOPE_LINE, CONTENT_LINE, adsLine } from "../prompt-rules";
 import type { WorkspaceFacts } from "./stable-system";
 
 /**
@@ -147,6 +148,16 @@ function rowName(r: AskScope): string {
 const CAMPAIGNS_LINE =
   "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are campaigns to propose, as the rule \"Setting up campaigns is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or its mode (how its sends are decided) of one that exists is a change to that campaign, by the id the page's rows carry, and cold email to leads is a campaign too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
+/**
+ * What a turn on Campaigns is told, by the tab the page says it is on: Ads' line, Content's, or Campaigns' own. Content
+ * says its view as its own param with its tab ("content:all", "content:library": bridge/ask/context.ts), so the address's
+ * one predicate reads it.
+ */
+function campaignsLineOf(view: string | null | undefined): string {
+  if (isAskAdsView(view)) return adsLine(view);
+  return isContentParam(view) ? CONTENT_LINE : CAMPAIGNS_LINE;
+}
+
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */
 const AFTER_APPROVAL_LINE =
   "Cards were approved since the workspace's shape above was read: for what runs now, read the campaigns again, never the shape.";
@@ -223,8 +234,7 @@ export function turnWords(turnFacts: TurnFacts): string {
     lines.push(
       'They are on the Leads page, where the businesses Chanlytics found for them are listed. Words that describe businesses (a kind, a place, a count) are a lead search to propose, once the searches they have are read; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it, and "this search" is the one the scope names.',
     );
-  else if (turnFacts.surface === "campaigns")
-    lines.push(isAskAdsView(turnFacts.pageView) ? adsLine(turnFacts.pageView) : CAMPAIGNS_LINE);
+  else if (turnFacts.surface === "campaigns") lines.push(campaignsLineOf(turnFacts.pageView));
   else if (turnFacts.surface) lines.push(`They are on the ${turnFacts.surface} page.`);
   // Every row a scope names is read by its id (cross-page.ts scopedRead) and rides in with the question; one whose read
   // failed, like a page, is read by the model. The page they are on, at its own address, rode in as the page.
