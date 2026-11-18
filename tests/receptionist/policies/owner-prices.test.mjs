@@ -173,7 +173,7 @@ test("a chat reply: the strict rule swaps any price, the switch off lets a writt
 
 test("a call: the owner's greeting is heard as written and never a breach; with the switch on, nothing after it may repeat its price", () => {
   const turns = (said) => [
-    { role: "agent", content: "Hi, Harbor Moving. Moves start at $199. I'm the automated assistant. How can I help?" },
+    { role: "agent", content: "Hi, Harbor Moving. Moves start at $199. I'm the AI assistant. How can I help?" },
     { role: "user", content: "How much for a two bedroom?" },
     { role: "agent", content: said },
   ];

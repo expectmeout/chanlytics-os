@@ -358,9 +358,9 @@ test("one name: the sender's line is titled as the blank is labelled in the camp
 });
 
 test("on the sender's line and the lead's own page the AI is called AI, never a receptionist, an agent or an assistant", () => {
-  // The greeting a customer hears keeps "the automated assistant" (decision 0051): words to callers, not a screen's name.
+  // The greeting a customer hears keeps "the AI assistant" (decision 0051): words to callers, not a screen's name.
   const { textGreeting, ...page } = LEAD_PREVIEW_WORDS;
-  assert.match(textGreeting("Harbor Movers", null), /the automated assistant/);
+  assert.match(textGreeting("Harbor Movers", null), /the AI assistant/);
   for (const sentence of [...sentencesOf(page), ...sentencesOf(W)])
     assert.doesNotMatch(
       sentence,

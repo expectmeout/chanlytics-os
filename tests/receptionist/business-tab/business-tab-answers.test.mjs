@@ -499,7 +499,7 @@ test("the rules at rest are a chip for each rule in force, and each is a row of 
   // it is an assistant, decision 0051, and the booking rule) say so where a switch would be.
   for (const [k, label] of [
     ["never_confirm_booking", "Never confirm a booking"],
-    ["disclose_ai", "Says it's an automated assistant"],
+    ["disclose_ai", "Says it's an AI assistant"],
   ]) {
     const always = byTestId(tree, `rec-rule-${k}`);
     assert.match(textOf(always), new RegExp(label));
@@ -701,7 +701,7 @@ const ruleRow = (tree, key) => byTestId(tree, `rec-rule-${key}`);
 const BTA_LABELS = {
   never_quote_prices: "Never quote a price",
   never_confirm_booking: "Never confirm a booking",
-  disclose_ai: "Says it's an automated assistant",
+  disclose_ai: "Says it's an AI assistant",
   no_health_advice: "No health advice",
 };
 const badgesOn = (row) =>
@@ -1600,11 +1600,11 @@ test("the greeting row: what callers hear at rest; the box opens on the standard
   tree = redrawTab();
   assert.match(
     textOf(byTestId(tree, "rec-greeting-hears")),
-    /Thanks for calling Marisa's Beauty Salon\. I'm the automated assistant\. How can I help\?/,
+    /Thanks for calling Marisa's Beauty Salon\. I'm the AI assistant\. How can I help\?/,
   );
   assert.match(
     textOf(byTestId(tree, "rec-greeting-note-adds_ai")),
-    /doesn't say it's automated, so callers also hear “I'm the automated assistant.”/,
+    /doesn't say it's automated, so callers also hear “I'm the AI assistant.”/,
   );
   assert.ok(byTestId(tree, "rec-greeting-note-no_recording"), "every note that applies, not the first alone");
   assert.ok(byTestId(tree, "rec-greeting-default"), "the way back to the standard line");

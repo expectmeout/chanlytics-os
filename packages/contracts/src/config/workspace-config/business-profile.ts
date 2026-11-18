@@ -96,7 +96,7 @@ export const ServiceSchema = z
  *
  * Flags, never prose, so a switch says exactly what it does: off means off, and the code that checks a reply reads the
  * same switch (guardrailsInForce). Default ON, the safe reading of an absent value. `disclose_ai` is kept for the rows
- * that store it and read as on whatever it says: the receptionist always says it is an automated assistant, because
+ * that store it and read as on whatever it says: the receptionist always says it is an AI assistant, because
  * the usage policy of the model it runs on asks every consumer-facing agent to (compose.ts standingRules).
  */
 export const GuardrailsSchema = z
@@ -189,7 +189,7 @@ export const BusinessProfileSchema = z
     escalate_when: z.array(z.string().min(1).max(L.reason)).max(L.reasons).optional(),
     tone: z.string().max(L.tone).optional(),
     /**
-     * The receptionist's own name (decision 0073): "I'm Ava, the automated assistant" in the standard greeting, and the
+     * The receptionist's own name (decision 0073): "I'm Ava, the AI assistant" in the standard greeting, and the
      * prompt's first line. Absent, it has none, and every line is as it was. A first name, never a claim to be a person:
      * the greeting says it is automated beside it whatever the name (decision 0051).
      */

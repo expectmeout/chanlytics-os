@@ -66,7 +66,7 @@ export function describeLead(
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   // What they answered about offers, whether they were asked for the yes, a text conversation said to be one, and one
   // already under way: the rules that ask for the yes once (contracts offers-ask.ts) and open by saying it is an
-  // automated assistant (assistant-disclosure.ts) read these; a reader that never learned them says nothing.
+  // AI assistant (assistant-disclosure.ts) read these; a reader that never learned them says nothing.
   bits.push(
     ...offersFacts(lead, channel, now, tz),
     ...disclosureFacts({ returning: lead.returning, lastTurnAt: lead.lastSeenAt }, channel, now),

@@ -102,3 +102,30 @@ allowance, the greeting and its notes, the disclosure fact, the call webhook's a
 - A code stamp on the receptionist's own first text reply, the only way text disclosure becomes checked.
 - The "On the phone" card (the engine review's Lane 7), the transfer number's one home, and the Reports figure's
   fifteen-second rule in SQL.
+
+## Amended, 18 November 2026: it says "AI assistant"
+
+Ruben, 18 November 2026, while a lead's preview was reviewed: "lets not force our opinions of how ai should be used to
+other users/businesses", "we can recommend via smart indicators or something and provide a default but allow changes",
+and then "The recommended default should just be 'I'm the AI Assistant' without name".
+
+- **The product's own words for what answers are "AI assistant"** where they were "automated assistant": the standard
+  greeting ("Hi, {business}. I'm the AI assistant, and calls are recorded. How can I help?"), the paused one, the clause
+  added to an owner's line that never says it ("I'm the AI assistant.", and in Spanish "Soy el asistente de IA."), the
+  text receptionist's opening and its answer when asked what it is (`compose.ts`), the whisper's reminder, a lead's
+  preview's first line, and the screens that quote what callers hear.
+- **The default names nobody.** Where the owner gave it a name (0073) the line says the name beside the words, "I'm
+  Ava, the AI assistant", as before.
+- **Nothing else of this decision moves.** The owner writes the greeting with no cap. A line that says it in any words
+  is the owner's as written, "automated assistant" among them (`statesAutomated` reads it as it did); one that never
+  says it has the clause added; one that denies it, or claims to be a person, is not spoken. It is still a default and
+  a clause, never a switch: the model's usage policy was read again on 18 November 2026 (effective 12 November 2026)
+  and asks that consumer-facing agents that talk with a business's customers disclose that they are AI, "at a minimum
+  at the beginning of each chat session or in the product interface", with no exception listed.
+- **Steps.** Words only, no migration, either deploy order: an app not yet deployed says the old words until it is. The
+  standard greeting on every Retell agent is the shell's default (`GREETING_DEFAULT`), so the new default reaches a call
+  whose settings cannot be read in time only after a converger run on every agent
+  (`tooling/scripts/ops/voice/voice-converge.mjs`, a dry run, then `--apply --publish`, on Ruben's word); until then
+  that one case speaks the old standard line and the agents' check reads a drift.
+- **Not built here:** an indicator beside the line as it is written, on the preview and in Settings, and the business's
+  own words for the clause (next); the line with nothing said of what answers (not offered, for the policy above).

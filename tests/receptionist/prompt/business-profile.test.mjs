@@ -107,7 +107,7 @@ test("the guardrails are composed in even for a bare profile", () => {
   const p = composeSystemPrompt(brain, { address: "somewhere" }, "whatsapp");
   assert.match(p, /Never quote or confirm a price/);
   assert.match(p, /Never promise or confirm an appointment/);
-  assert.match(p, /automated assistant/);
+  assert.match(p, /AI assistant/);
 });
 
 test("the guardrails come LAST, so nothing above can read as overriding them", () => {

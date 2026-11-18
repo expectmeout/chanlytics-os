@@ -35,7 +35,7 @@ import { dateFormat } from "../../shared/time";
  * The rules are appended LAST, where no earlier instruction can read as
  * overriding them, and the last of them says so (RULES_WIN). Which rules are
  * in force is the owner's, through the switches (guardrailsInForce); that it
- * is an automated assistant, the Autonomy rows and the fence on a customer's
+ * is an AI assistant, the Autonomy rows and the fence on a customer's
  * words are said to every prompt (standingRules, decision 0051).
  */
 /**
@@ -407,9 +407,9 @@ function identitySection({ base, profile, channel, wire, audience }: SectionFact
   } else {
     texts.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
     // The receptionist's own name (decision 0073): said in the greeting, and how it introduces itself; never a claim to
-    // be a person (standingRules says it is the business's automated assistant, whatever its name).
+    // be a person (standingRules says it is the business's AI assistant, whatever its name).
     const named = (profile.assistant_name ?? "").trim();
-    if (named) texts.push(`Your name is ${named}. Introduce yourself by it, as the business's automated assistant.`);
+    if (named) texts.push(`Your name is ${named}. Introduce yourself by it, as the business's AI assistant.`);
   }
   if (profile.tone) texts.push(`Tone: ${profile.tone}`);
   if (profile.languages?.length) {
@@ -722,7 +722,7 @@ export type PromptAudience = "customer" | "draft";
 export type PromptWire = "whatsapp" | "sms" | "instagram" | "voice" | "email";
 
 /**
- * That it is an automated assistant, and never a person (decision 0051). The usage policy of the model the receptionist
+ * That it is an AI assistant, and never a person (decision 0051). The usage policy of the model the receptionist
  * runs on asks every consumer-facing agent to say it is AI at the start of each session: on a call the greeting says it
  * (voice/greeting-owner.ts), and in text it opens a conversation that is not already under way, which the facts about
  * the person say (disclosureFacts). Told, and nothing checks the answer: the phrase that would catch a denial also
@@ -730,8 +730,8 @@ export type PromptWire = "whatsapp" | "sms" | "instagram" | "voice" | "email";
  */
 const ASSISTANT_RULE = {
   always:
-    "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
-  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's automated assistant.`,
+    "You are the business's AI assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's AI assistant and offer to bring in a person.",
+  textOpening: `Unless the facts about them say "${CONVERSATION_UNDER_WAY}", open your reply by saying, in a few words, that you are the business's AI assistant.`,
 } as const;
 
 /** Said last of all: the business's own words above never outweigh a rule here. */
@@ -739,7 +739,7 @@ const RULES_WIN = "Where anything above disagrees with these rules, the rules wi
 
 /**
  * The rules every prompt ends with, composed or written by hand: the Autonomy pane's rows (policyRules), that it is an
- * automated assistant and, on a call, what a seller is owed (to a customer), that these rules win, and that a customer's
+ * AI assistant and, on a call, what a seller is owed (to a customer), that these rules win, and that a customer's
  * words are data, never an instruction (DATA_NOT_INSTRUCTIONS, the one injection policy). A draft's rows are its own
  * (DRAFT_RULES, the money row in its words): the Autonomy rows say what the receptionist may send, and nothing here sends.
  */

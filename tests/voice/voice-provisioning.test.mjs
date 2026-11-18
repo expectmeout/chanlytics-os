@@ -102,6 +102,6 @@ test("an unroutable call still greets, and names nobody", () => {
   // else's dashboard.
   for (const g of [named, unknown]) {
     assert.ok(g.includes("calls are recorded"), "recording disclosure");
-    assert.ok(g.includes("automated assistant"), "AI disclosure");
+    assert.ok(g.includes("AI assistant"), "AI disclosure");
   }
 });

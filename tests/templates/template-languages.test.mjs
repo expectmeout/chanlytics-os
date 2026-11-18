@@ -248,8 +248,8 @@ test("the assistant is told the language by its name and its place, and never 'E
   );
 });
 
-test("a message is written under a message's rules, never AI's: no 'automated assistant', the owner's figures kept", async () => {
-  // A rewrite on the live demo added "this is the business's automated assistant" to an owner's note (12 Nov 2026): the
+test("a message is written under a message's rules, never AI's: no 'AI assistant', the owner's figures kept", async () => {
+  // A rewrite on the live demo added "this is the business's AI assistant" to an owner's note (12 Nov 2026): the
   // writers were handed the receptionist's rules. Now both read the business's own, made from the same settings.
   const { workspaceFacts } = await import("../../apps/dashboard/src/server/ask/prompt/stable-system.ts");
   const brain = {
@@ -261,7 +261,7 @@ test("a message is written under a message's rules, never AI's: no 'automated as
   const config = { brain: { ...brain, profile: { address: "1 Pier Rd", guardrails: { no_health_advice: true } } } };
   const real = workspaceFacts("Luna Studio", "America/New_York", config, new Date("2026-11-12T15:00:00Z"));
   assert.ok(
-    real.guardrails.some((g) => /automated assistant/.test(g)),
+    real.guardrails.some((g) => /AI assistant/.test(g)),
     "AI still says it is automated",
   );
   for (const prompt of [
@@ -269,7 +269,7 @@ test("a message is written under a message's rules, never AI's: no 'automated as
     server.rewriteSystemPrompt(real, "whatsapp", "en_US"),
     server.rewriteSystemPrompt(real, "email", "en_US"),
   ]) {
-    assert.doesNotMatch(prompt, /always says it is the business's automated assistant/, prompt);
+    assert.doesNotMatch(prompt, /always says it is the business's AI assistant/, prompt);
     assert.doesNotMatch(prompt, /never quotes or confirms a price/, "an owner's offer keeps its own figure");
     assert.match(prompt, /does not speak as AI or say it is automated/);
     assert.match(prompt, /keeps every price, figure and date the owner gave exactly as given/);

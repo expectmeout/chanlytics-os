@@ -67,7 +67,7 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
     `At most ${pluralGrouped(max, one, many)}, one to a line${seen === undefined ? "." : ` · this is ${count(seen)}.`}`;
   const words: Record<ProfileRefusalKey, () => string> = {
     tone: () => chars(log.tone),
-    // The name it goes by (decision 0073), said beside "the automated assistant", never instead of it.
+    // The name it goes by (decision 0073), said beside "the AI assistant", never instead of it.
     assistantName: () => chars(log.assistantName),
     services: () => `At most ${pluralGrouped(log.services, "service", "services")}.`,
     serviceName: () => chars(log.serviceName),

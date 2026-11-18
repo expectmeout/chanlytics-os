@@ -4,7 +4,7 @@
  * in such regards we can provide tips or warnings thats it").
  *
  * One thing is held here, at the moment the line is spoken, whatever any door stored: the caller is told they are
- * talking to an automated assistant. The receptionist runs on Claude, and Anthropic's usage policy asks every
+ * talking to an AI assistant. The receptionist runs on Claude, and Anthropic's usage policy asks every
  * consumer-facing agent to say it is AI at the start of each session. So a line that never says it has the product's
  * clause added; a line that denies it, or claims to be a person, is not spoken, and the standard greeting is. The
  * check is asked here and not at save because other doors write the profile too (migrations, the service role), and a
@@ -26,7 +26,7 @@ const GREETING_NAME_SLOT = "{business}";
 
 /** The product's clause, added to an owner's line that never says it is automated, in the line's language. */
 // screen-word: what callers hear (decision 0051).
-const AI_CLAUSE = { en: "I'm the automated assistant.", es: "Soy el asistente automático." } as const;
+const AI_CLAUSE = { en: "I'm the AI assistant.", es: "Soy el asistente de IA." } as const;
 
 /** The standard greeting as the owner's box shows it: the slot in place of the name, so a rename follows it. */
 export const GREETING_TEMPLATE = greetingFor(GREETING_NAME_SLOT);
@@ -48,7 +48,7 @@ const ROLE = String.raw`(?:assistant|receptionist|agent|attendant|operator|conci
 const MACHINE = String.raw`(?:A\.?I\.?|(?:chat)?bot|robot|machine|computer|automated|automatic|virtual|digital|artificial intelligence)`;
 
 // An AI statement says the CALLER is talking to a machine, in English or Spanish: a machine word before a role ("our AI
-// receptionist", "an automated assistant"), or a claim about the speaker ("I'm an AI", "you've reached the automated
+// receptionist", "an AI assistant"), or a claim about the speaker ("I'm an AI", "you've reached the automated
 // line"). A bare word is not one: "automated booking system", "automatic payments" and Iowa's "IA" say nothing about
 // who answers, and a line that only seems to disclose would go out with no disclosure. "assistant" alone is not one
 // either (a person is an assistant too). A miss costs a line the product's clause; a false match costs the disclosure.
@@ -216,9 +216,9 @@ export function greetingNotes(input: {
   if (deniesAutomated(raw, name)) {
     notes.push({
       key: "denies_ai",
-      // screen-word: "automated assistant" is what callers hear, said in its own words (decision 0051).
+      // screen-word: "AI assistant" is what callers hear, said in its own words (decision 0051).
       words:
-        "This says it isn't automated, so callers hear the standard greeting instead: AI always says it's an automated assistant.",
+        "This says it isn't automated, so callers hear the standard greeting instead: they are always told it's AI.",
     });
     return notes;
   }

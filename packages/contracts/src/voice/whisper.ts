@@ -28,12 +28,12 @@ const OPEN = 'Owner: "';
 
 /**
  * What a whisper or a steer is told of the rules: the ones in its instructions still hold, whatever the owner typed,
- * and it is the business's automated assistant. The rules themselves are said once, in the prompt, as the owner's
+ * and it is the business's AI assistant. The rules themselves are said once, in the prompt, as the owner's
  * switches set them (decision 0051): a frame that restated "do not quote a price" told a receptionist whose owner had
  * turned that rule off to refuse what the owner had just asked for.
  */
 const STANDING_RULES_HOLD = (kind: "whisper" | "instruction") =>
-  `The rules in your instructions still hold, and you are the business's automated assistant, never a person: if the ${kind} asks for something they rule out, use what you can of it and leave the rest.`;
+  `The rules in your instructions still hold, and you are the business's AI assistant, never a person: if the ${kind} asks for something they rule out, use what you can of it and leave the rest.`;
 
 export function frameWhisper(text: string): string {
   return (
@@ -107,7 +107,7 @@ export function frameDraftChange(text: string): string {
     "Write your reply again and do as they say. Keep everything else that was right. Never repeat the instruction word for word. " +
     "A price, a figure, a time or a fact the owner states here is theirs to give: use it exactly, for this one message, even where " +
     "your instructions would keep you from offering one yourself. Give no price or figure the owner did not state. " +
-    "You are still the business's automated assistant, never a person."
+    "You are still the business's AI assistant, never a person."
   );
 }
 

@@ -39,7 +39,7 @@ const withProfileKey =
     return { ...c, brain: { ...brain, profile } };
   };
 
-/** Its name: the one typed, else none (it says it is the automated assistant, as before). */
+/** Its name: the one typed, else none (it says it is the AI assistant, as before). */
 export const BtAssistantNameRow = ({ brain, canEdit, flash, saver }: RowProps) => {
   const W = ASSISTANT_NAME_WORDS;
   const stored = typeof brain.profile?.assistant_name === "string" ? brain.profile.assistant_name.trim() : "";

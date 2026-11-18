@@ -918,7 +918,7 @@ test("You're live (canvas 5C): what answers now, AI's three moves each waiting f
   );
   assert.match(
     textOf(byTestId(tree, "fr-live-greeting")),
-    /^Every caller hears “Hi, Harbor Moving\. I'm the automated assistant, and calls are recorded\./,
+    /^Every caller hears “Hi, Harbor Moving\. I'm the AI assistant, and calls are recorded\./,
   );
   assert.equal(textOf(byTestId(tree, "fr-live-note")), "We'll email you a copy of this.");
   await byTestId(tree, "fr-onward").props.onClick();

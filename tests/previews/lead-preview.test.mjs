@@ -124,11 +124,11 @@ test("starters ask only what it knows: a service, a day it is closed, where it i
 test("it speaks first, as their business, and always says it is automated", () => {
   assert.equal(
     previewPageOf(FACTS, NOW).greeting,
-    "Hi, this is Fixture Barbers. I'm the automated assistant. What can I help you with?",
+    "Hi, this is Fixture Barbers. I'm the AI assistant. What can I help you with?",
   );
   assert.equal(
     previewPageOf({ ...FACTS, profile: { ...PROFILE, assistant_name: " Ava " } }, NOW).greeting,
-    "Hi, this is Fixture Barbers. I'm Ava, the automated assistant. What can I help you with?",
+    "Hi, this is Fixture Barbers. I'm Ava, the AI assistant. What can I help you with?",
   );
 });
 
