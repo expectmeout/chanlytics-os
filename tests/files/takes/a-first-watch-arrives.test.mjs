@@ -125,8 +125,17 @@ test("FINDING 6: the clips being prepared for takes are held under one number fo
   const elsewhere = Array.from({ length: TAKE_HAND_OUT.videosAtOnce - 2 }, () =>
     itemRow({ tenant_id: T2, state: "taking", file_id: randomUUID(), provider_id: `their-${randomUUID()}` }),
   );
+  // Each is a clip on its way at the video platform: the one file a take left taking is never put back for.
+  const onTheirWay = elsewhere.map((item) => ({
+    id: item.file_id,
+    tenant_id: T2,
+    kind: "video",
+    source: "drive",
+    media_status: "uploading",
+    removed_at: null,
+  }));
   const ours = folderOf(5, (i) => (i < 4 ? clip(i) : photo(i)));
-  const w = world({ tenants: [T, T2], items: [...elsewhere, ...ours.items] });
+  const w = world({ tenants: [T, T2], items: [...elsewhere, ...ours.items], files: onTheirWay });
   theSync({ drive: ours.drive });
   theWeb({ drive: ours.drive });
   assert.equal(await handOutTakes(w.db), 3, "two clips, which is the platform's room, and the photo");
@@ -262,4 +271,65 @@ test("FINDING 8: a clip of bytes already taken costs no range read and asks the 
     web.calls.some((c) => c.url.startsWith(`${STREAM_API}?search=`)),
     false,
   );
+});
+
+test("a video its provider has not measured yet waits for its length as long as the sync says, and no longer", async () => {
+  const hour = 3_600_000;
+  const now = Date.parse("2026-11-17T20:00:00Z");
+  const { items, drive } = folderOf(3, clip, (i) => ({
+    seconds: null,
+    // The first is a fresh upload; the second's wait is over; the third never had one (its provider gave no upload time).
+    length_until: [new Date(now + hour).toISOString(), new Date(now - 1000).toISOString(), null][i],
+  }));
+  const w = world({ items });
+  theSync({ drive });
+  theWeb({ drive });
+  assert.equal(w.nowMs, now);
+  assert.equal(await handOutTakes(w.db), 2);
+  assert.deepEqual(
+    items.map((item) => w.item(item.id).state),
+    ["waiting", "taking", "taking"],
+    "the one still waited for is handed no job, and holds no place in flight",
+  );
+  assert.equal(w.item(items[0].id).why, null, "it only waits: nothing is wrong with it");
+  // Its wait is over (its length came, or a day passed): it is handed its job like any other.
+  w.nowMs = now + 2 * hour;
+  assert.equal(await handOutTakes(w.db), 1);
+  assert.equal(w.item(items[0].id).state, "taking");
+});
+
+test("a take left taking with a file that is not a clip on its way waits again, and its next take finds the file it holds", async () => {
+  const stale = "2026-11-17T10:00:00.000Z";
+  // It was in, left its folder and came back, and the job it was handed was lost before it ran.
+  const held = { id: randomUUID(), tenant_id: T, kind: "image", source: "drive", media_status: null, removed_at: null };
+  const lost = itemRow({
+    kind: "image",
+    state: "taking",
+    file_id: held.id,
+    updated_at: stale,
+    provider_id: "drive-back",
+  });
+  // A clip on its way at the video platform is the platform's to finish, however long it takes.
+  const coming = {
+    id: randomUUID(),
+    tenant_id: T,
+    kind: "video",
+    source: "drive",
+    media_status: "uploading",
+    removed_at: null,
+  };
+  const fetching = itemRow({ state: "taking", file_id: coming.id, updated_at: stale, provider_id: "drive-clip" });
+  const w = world({ items: [lost, fetching], files: [held, coming] });
+  const opened = theSync({ drive: {} });
+  const web = theWeb({ drive: {} });
+  assert.deepEqual(await runTakes(w), [{ took: "in" }]);
+  const back = w.item(lost.id);
+  assert.deepEqual([back.state, back.file_id, back.why], ["in", held.id, null]);
+  assert.deepEqual(
+    [w.item(fetching.id).state, w.item(fetching.id).file_id, w.item(fetching.id).why],
+    ["taking", coming.id, null],
+    "the clip on its way is left as it stands",
+  );
+  assert.deepEqual([opened.length, web.calls.length], [0, 0], "nothing is asked of Drive for a file already here");
+  assert.deepEqual(w.unitWrites, []);
 });

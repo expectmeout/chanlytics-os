@@ -15,7 +15,6 @@ import {
   askStreamToFetch,
   deleteStreamVideo,
   fileFingerprintOf,
-  readDriveBytes,
   relayClipAddress,
   signRelayTicket,
   type StreamAccount,
@@ -35,11 +34,11 @@ import { env } from "../../shared/env.js";
 import { streamAccount } from "../video-keys.js";
 import { DRIVE_UNITS, RELAY_TICKET_MS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
 import {
-  countUnits,
   endTake,
   endUnread,
   keepTakeFacts,
   putBack,
+  readTakeBytes,
   spendTake,
   type TakeEnd,
   type Taking,
@@ -98,11 +97,7 @@ export async function takeVideo(
     });
   if (Date.now() >= taking.deadline)
     return putBack(taking, { why: "deadline", until: new Date(Date.now() + TAKE_RESTS_MS.deadline) });
-  const read = await readDriveBytes(taking.accessToken, record.id, {
-    most: FINGERPRINT_BYTES,
-    timeoutMs: TAKE_READ_MS.head,
-  });
-  countUnits(taking.spent, DRIVE_UNITS.download);
+  const read = await readTakeBytes(taking, { most: FINGERPRINT_BYTES, timeoutMs: TAKE_READ_MS.head });
   if (read.verdict !== "ok") return endUnread(taking, read);
   // The size the bytes' own answer gives is the file's now; a clip that grew past the most since it was listed is not taken.
   const bytes = read.answer.size;

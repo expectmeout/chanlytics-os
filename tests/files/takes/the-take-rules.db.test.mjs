@@ -343,6 +343,38 @@ test(
     assert.equal((await takeJobsOf(A, lost.id)).length, 1, "put back to wait and handed its job again");
     assert.equal((await itemNow(lost.id)).why, "lost", "and it says it was lost, so its take clears a copy it left");
     assert.equal((await takeJobsOf(A, asked.id)).length, 0, "a clip with the video platform is left as it stands");
+
+    // A video its provider has not measured waits for its length as long as the sync says (00641 length_until), and
+    // is handed its job once that is over.
+    const unmeasured = await item({
+      length_until: new Date(Date.now() + 3_600_000).toISOString(),
+      modified_at: "2026-11-18T14:00:00Z",
+    });
+    const waitOver = await item({
+      length_until: new Date(Date.now() - 1_000).toISOString(),
+      modified_at: "2026-11-18T14:00:00Z",
+    });
+    ok(await handOut({ p_in_flight: 50 }), "a turn with a video still unmeasured");
+    assert.deepEqual(await states(unmeasured, waitOver), ["waiting", "taking"]);
+    assert.equal((await takeJobsOf(A, unmeasured.id)).length, 0, "no job while its length is waited for");
+    assert.equal((await takeJobsOf(A, waitOver.id)).length, 1);
+
+    // An item that was in, left its folder and came back holds the file it had. Left taking with it and never run,
+    // it waits again as a lost take does, its file still on its row: its next take finds it. A clip on its way at the
+    // video platform is still left.
+    const back = await item({ state: "taking" });
+    const backRef = `takes-back-${stamp}`;
+    ok(await sourced(back.id, { p_media_ref: backRef }), "the file it holds");
+    ok(
+      await db.rpc("file_media_ready", { p_media_ref: backRef, p_seconds: 38.1, p_width: 1080, p_height: 1920 }),
+      "its clip is playable: no longer on its way",
+    );
+    assert.equal((await takeJobsOf(A, back.id)).length, 0);
+    ok(await handOut({ p_in_flight: 50, p_stale_seconds: 0 }), "a turn that takes up a take that holds a file");
+    const again = await itemNow(back.id);
+    assert.deepEqual([again.state, again.why, Boolean(again.file_id)], ["taking", "lost", true]);
+    assert.equal((await takeJobsOf(A, back.id)).length, 1, "handed its job again, with its file");
+    assert.equal((await takeJobsOf(A, asked.id)).length, 0, "and the clip on its way is still left");
   },
 );
 

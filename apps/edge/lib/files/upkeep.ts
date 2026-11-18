@@ -45,7 +45,6 @@ import { errField, logger } from "../shared/log.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
 import { makePiece, tellPieceMoved } from "./piece-make.js";
-import { handOutTakes } from "./takes/hand-out.js";
 import { settleTakenVideo } from "./takes/word.js";
 import { digestVideo, scheduleVideoStep } from "./video-digest.js";
 import { streamAccount } from "./video-keys.js";
@@ -231,8 +230,6 @@ export async function keepFilesMoving(
       return { asked: 0, digests: 0 };
     });
     await keepPostsHonest(db, nowMs).catch((e: unknown) => log.error("files_sweep_failed", { error: errField(e) }));
-    // What a watched folder lists that waits is given its job (00642), and a take that never ended waits again.
-    await handOutTakes(db).catch((e: unknown) => log.error("files_sweep_failed", { error: errField(e) }));
     return { looks: looks.length, purges: purges.length, videos: videos.asked + videos.digests };
   } catch (e) {
     log.error("files_sweep_failed", { error: errField(e) });

@@ -17,7 +17,7 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.EDGE_PROVIDERS = "live";
 delete process.env.VERCEL_ENV;
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 /** The edge's door, answering what the test says; every body it was sent is kept. */

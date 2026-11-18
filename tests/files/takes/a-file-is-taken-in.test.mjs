@@ -14,6 +14,7 @@ import { linesOf } from "../../_log-lines.mjs";
 import { importSrc } from "../../_source.mjs";
 import {
   DRIVE_KEY,
+  DRIVE_UNITS,
   REFRESH_TOKEN,
   RELAY_URL,
   STREAM_API,
@@ -455,4 +456,62 @@ test("an item Drive will not give is a failed try: tried twice more, then it say
   assert.deepEqual(await runTakes(w), [{ took: "unread:gone" }]);
   assert.deepEqual([w.item(item.id).state, w.item(item.id).why], ["failed", "unreadable"]);
   assert.deepEqual(await runTakes(w), [], "a failed item is handed no more jobs");
+});
+
+test("a key Drive refuses as the bytes are asked for is the sync's to settle: signed out, the file waits for its folder; else the job is tried again", async () => {
+  const refusedKey = () =>
+    new Response(JSON.stringify({ error: { errors: [{ reason: "authError" }] } }), { status: 401 });
+  for (const held of [{ mime: "image/png", name: "Front Desk.PNG", bytes: PHOTO }, CLIP]) {
+    // The account is signed out for it: the sync says so, and the file waits for its folder with no try spent.
+    const { item, drive } = oneItem(held);
+    const w = world({ items: [item] });
+    const opened = theSync({ drive, signedOut: "the account is signed out" });
+    theWeb({ drive, driveSays: refusedKey });
+    assert.deepEqual(await runTakes(w), [{ skipped: "the account is signed out" }], held.name);
+    const after = w.item(item.id);
+    assert.deepEqual([after.state, after.why, after.take_tries, after.file_id], ["waiting", "folder", 0, null]);
+    assert.ok(Date.parse(after.take_after) > Date.now(), "asked after again, later");
+    assert.deepEqual(
+      opened.settled.map((error) => [error.name, error.refused]),
+      [["SourceKeyRefused", "key"]],
+      "what Drive refused is handed to the sync, not judged here",
+    );
+    assert.deepEqual(w.unitWrites, [DRIVE_UNITS.record + DRIVE_UNITS.download], "both calls were made, and counted");
+    assert.equal(w.tables.files.length, 0);
+
+    // The sync cannot settle it (a stale key it has now replaced): thrown on, and the item is still its job's.
+    const again = oneItem(held);
+    const w2 = world({ items: [again.item] });
+    theSync({ drive: again.drive });
+    theWeb({ drive: again.drive, driveSays: refusedKey });
+    await assert.rejects(runTakes(w2), { name: "SourceKeyRefused" }, held.name);
+    assert.equal(w2.item(again.item.id).state, "taking");
+    assert.deepEqual(w2.unitWrites, [DRIVE_UNITS.record + DRIVE_UNITS.download], "counted though the job failed");
+  }
+});
+
+test("a record Drive never answered for is still counted: the call was made, and its job is tried again", async () => {
+  const { item, drive } = oneItem(CLIP);
+  const w = world({ items: [item] });
+  theSync({ drive, recordThrows: new Error("drive files.get: no answer (status 502)") });
+  theWeb({ drive });
+  await assert.rejects(runTakes(w), /no answer/);
+  assert.deepEqual(w.unitWrites, [DRIVE_UNITS.record]);
+  assert.equal(w.item(item.id).state, "taking", "still its job's to take");
+});
+
+test("a hand-out that fails as a take ends is a line, never the take's failure: the clock's next turn is the floor", async () => {
+  const { item, drive } = oneItem({ mime: "image/png", name: "Front Desk.PNG", bytes: PHOTO });
+  const w = world({ items: [item] });
+  theSync({ drive });
+  theWeb({ drive });
+  w.handOutFails = "the connection was lost";
+  const { result: ends, lines } = await linesOf(() => runTakes(w));
+  assert.deepEqual(ends, [{ took: "in" }], "the file came in all the same");
+  assert.equal(w.item(item.id).state, "in");
+  const failed = lines.filter((line) => line.event === "source_take_failed");
+  assert.deepEqual(
+    failed.map((line) => [line.level, line.why]),
+    [["error", "hand_out"]],
+  );
 });

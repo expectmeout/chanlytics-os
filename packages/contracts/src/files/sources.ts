@@ -64,8 +64,6 @@ export const SOURCE_ITEM_WHYS = [
   "videos_off",
   /** The video platform is preparing as many clips as it takes at once. */
   "busy",
-  /** Its provider has not said how long it is yet. */
-  "length",
   /** Its folder is not being read just now. */
   "folder",
   /** Its provider said "not now". */

@@ -48,6 +48,8 @@ const CHECK_ONE = "apps/edge/lib/campaigns/reach-out/check-one.ts";
 const LEDGER = "packages/jobs/src/runner/ledger.ts";
 const RULES = "packages/contracts/src/campaigns/reach-out/rules.ts";
 const TIMETABLE = "packages/contracts/src/campaigns/reach-out/timetable.ts";
+const TAKES = "apps/edge/lib/files/takes/budgets.ts";
+const FILE_KINDS = "packages/contracts/src/files/kinds.ts";
 
 /** What a row's limit is. Each kind names the field that holds its constant, and the shape that constant's name has. */
 export const KINDS = {
@@ -88,6 +90,17 @@ export function outreachAtFull(root = ROOT) {
     anHour: aDay / hours,
     aMinute: aDay / hours / 60,
   };
+}
+
+/**
+ * A number one of the takes' settings holds (takes/budgets.ts keeps them in named objects): `key: 1_000,`, or
+ * `key: 300 * MILLION_UNITS,` for Google's units.
+ */
+function takeSettingOf(key, root = ROOT) {
+  const text = fs.readFileSync(path.join(root, TAKES), "utf8");
+  const found = new RegExp(`^\\s+${key}:\\s*([0-9_]+)(\\s*\\*\\s*MILLION_UNITS)?,`, "m").exec(text);
+  if (!found) throw new Error(`${TAKES} holds no number ${key}`);
+  return Number(found[1].replaceAll("_", "")) * (found[2] ? 1_000_000 : 1);
 }
 
 /**
@@ -302,12 +315,43 @@ export const CAPACITY = {
     bound: "None: one statement in the database, over rows whose time has come.",
     atFull: "Holds on its index.",
   },
+  // One turn, two hand-outs (files/sources/sweep.ts): each watched folder its read or its walk, by its own row's
+  // time (00641), and each waiting file its take (00642), a few a workspace at once.
   sources: {
     job: "sources-sweep",
-    bound:
-      "None: it hands each watched folder a `source_read` or a `source_walk` when its own row says one is due, every five minutes, and reads no provider itself.",
-    atFull:
-      "A folder is read once an hour at its floor, six hours where nothing changed in a week, and at most once in five minutes when its provider signals; it is walked again once a day, or a week. The ledger's row is the limit.",
+    lanes: {
+      "folders read and walked": {
+        bound:
+          "None: it hands each watched folder a `source_read` or a `source_walk` when its own row says one is due, every five minutes, and reads no provider itself.",
+        atFull:
+          "A folder is read once an hour at its floor, six hours where nothing changed in a week, and at most once in five minutes when its provider signals; it is walked again once a day, or a week. The ledger's row is the limit.",
+      },
+      "files handed their take": {
+        kind: "each_tick",
+        cap: [TAKES, "TAKES_A_TICK"],
+        atFull: ({ root, ticks }) => {
+          const aTick = constantOf(TAKES, "TAKES_A_TICK", root);
+          const [inFlight, clips, aWorkspace, bytes, units, reads, files] = [
+            "inFlight",
+            "videosAtOnce",
+            "workspaceTakesADay",
+            "platformBytesADay",
+            "unitsADay",
+            "platformReadsADay",
+            "filesARead",
+          ].map((key) => takeSettingOf(key, root));
+          const clipMost = constantOf(FILE_KINDS, "FILE_VIDEO_BYTES_MAX", root);
+          const first = WORKING_FIGURE * inFlight;
+          return (
+            `NOT TIMED: no real run yet. The clock is the floor, not the pace: a take's end, the video platform's word and a read each hand their own workspace its next file as they happen, ${count(inFlight)} in flight a workspace and ${count(clips)} clips at the video platform at once for all. ` +
+            `What the clock itself must hand out is each workspace's first ${count(inFlight)}: a thousand first watches begun in the same five minutes are ${count(first)}, handed out in ${count(Math.ceil(first / aTick))} turns. ` +
+            `SHORT at full by the day's budgets, which are what binds: a thousand workspaces each taking their ${count(aWorkspace)} files a day are ${count(WORKING_FIGURE * aWorkspace)} takes, which the clock's ${count(aTick * ticks * 24)} a day cover, but all of them share ${count(bytes / 1e9)} GB a day (under Google's free terabyte of downloads), ` +
+            `which is ${count(Math.floor(bytes / clipMost))} clips at the ${count(clipMost / 1e6)} MB most, and ${count(units / 1e6)} million of Google's units. A file past a budget waits for tomorrow and its folder says so. ` +
+            `Beside them a full day of found reads is ${count(reads)} reads of at most ${count(files)} files each: ${count(reads * files)} files handed to the ledger.`
+          );
+        },
+      },
+    },
   },
   text_canary: {
     job: "text-canary",

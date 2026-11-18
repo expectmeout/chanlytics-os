@@ -273,8 +273,8 @@ export const SCHEMA_SETS = {
     "no_access",
   ],
   "source_items.why": [
-    "budget", "room", "library_full", "videos_off", "busy", "length", "folder", "pace", "deadline",
-    "retry", "lost", "kind", "empty", "too_small", "unreadable", "bytes", "seconds", "pixels", "stopped",
+    "budget", "room", "library_full", "videos_off", "busy", "folder", "pace", "deadline", "retry",
+    "lost", "kind", "empty", "too_small", "unreadable", "bytes", "seconds", "pixels", "stopped",
     "stream", "not_found",
   ],
   "support_reports.kind": ["how_to", "setup", "wrong", "billing"],

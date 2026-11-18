@@ -10,7 +10,7 @@
  * removed. Storage or the database failing throws, and leaves no bytes behind with no row to find them.
  */
 import { randomUUID } from "node:crypto";
-import { FINGERPRINT_BYTES, fileFingerprintOf, readDriveBytes } from "@chanlytics/channels/files";
+import { FINGERPRINT_BYTES, fileFingerprintOf } from "@chanlytics/channels/files";
 import {
   DbFailure,
   FILE_BYTES_MAX,
@@ -26,7 +26,7 @@ import {
 import { imageHeaderOf } from "@chanlytics/core";
 import { filesBucket, findFileForWork, markFileSeen, recordFileFound } from "@chanlytics/db/files";
 import { DRIVE_UNITS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
-import { countUnits, endTake, endUnread, putBack, spendTake, type TakeEnd, type Taking } from "./ends.js";
+import { endTake, endUnread, putBack, readTakeBytes, spendTake, type TakeEnd, type Taking } from "./ends.js";
 
 /** The type a photo's own first bytes say it is, where they say one of these. */
 const MIME_OF_HEAD: Readonly<Record<string, FileImageMime>> = {
@@ -67,11 +67,7 @@ export async function takePhoto(taking: Taking, photo: { mime: FileImageMime; by
   if (Date.now() >= taking.deadline)
     return putBack(taking, { why: "deadline", until: new Date(Date.now() + TAKE_RESTS_MS.deadline) });
   // One byte past the most, so a photo that grew since it was listed shows as too big and is never half kept.
-  const read = await readDriveBytes(taking.accessToken, record.id, {
-    most: FILE_BYTES_MAX + 1,
-    timeoutMs: TAKE_READ_MS.photo,
-  });
-  countUnits(taking.spent, DRIVE_UNITS.download);
+  const read = await readTakeBytes(taking, { most: FILE_BYTES_MAX + 1, timeoutMs: TAKE_READ_MS.photo });
   if (read.verdict !== "ok") return endUnread(taking, read);
   const { bytes, size } = read.answer;
   if (size > FILE_BYTES_MAX || bytes.length > FILE_BYTES_MAX)

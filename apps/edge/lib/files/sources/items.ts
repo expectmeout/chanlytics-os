@@ -13,6 +13,11 @@
  *
  * A video its provider lists without a length is not known yet: never too long and never passed over for lacking
  * one. Its row says until when the length is waited for (`length_until`, pace.ts), and a read asks again.
+ *
+ * What a listing does for the taking of files (00642). An item that was in, left and is seen again still holds its
+ * file on its row: it is asked for at once, by a re-walk as by a change, since its take finds that file and fetches
+ * nothing. Bytes that are no longer the ones taken are a new file: such a row lets go of the file it held, and one
+ * the taking holds (`taking`, `in`, `let_go`, `failed`) is asked for again. An item that moves starts its tries anew.
  */
 import {
   FILE_BYTES_MAX,
@@ -23,6 +28,7 @@ import {
   type SourceItemState,
 } from "@chanlytics/contracts";
 import {
+  askToTakeAgain,
   insertSourceItems,
   keepSourceItemFacts,
   moveSourceItems,
@@ -65,19 +71,26 @@ function freshStateOf(item: SourceItemRecord, wanted: boolean): Standing {
   return { state: wanted ? "waiting" : "listed", why: null };
 }
 
+/** Whether an item's bytes are no longer the ones its row keeps, by its provider's own checksum and size. */
+const bytesChanged = (known: SourceItemRow, item: SourceItemRecord): boolean =>
+  known.checksum !== item.checksum || known.bytes !== item.bytes;
+
 /**
  * Where a known item's state moves to on being seen again, or null when it stays. One the taking holds stays. One that
  * was away (gone, moved out, unreadable) is here again. A photo or a video already listed or waiting keeps its place
- * unless its bytes changed, which makes it wanted; anything else takes what the listing says now.
+ * unless its bytes changed or it holds a file, either of which makes it wanted; anything else takes what the listing
+ * says now.
  */
 function movedStateOf(known: SourceItemRow, item: SourceItemRecord, wanted: boolean): Standing | null {
   if (!isOneOf(LISTING_STATES, known.state)) return null;
-  if (isOneOf(SOURCE_ITEM_AWAY, known.state)) return freshStateOf(item, wanted);
-  const bytesChanged = known.checksum !== item.checksum || known.bytes !== item.bytes;
-  const fresh = freshStateOf(item, wanted || bytesChanged);
+  // The file a take gave it is still on its row: its take is asked for, which finds that file and fetches nothing.
+  const held = Boolean(known.file_id);
+  if (isOneOf(SOURCE_ITEM_AWAY, known.state)) return freshStateOf(item, wanted || held);
+  const takeNow = bytesChanged(known, item) || held;
+  const fresh = freshStateOf(item, wanted || takeNow);
   const resting = (state: string) => state === "listed" || state === "waiting";
   if (resting(known.state) && resting(fresh.state))
-    return bytesChanged && known.state === "listed" && item.kind !== "folder" ? { state: "waiting", why: null } : null;
+    return takeNow && known.state === "listed" && item.kind !== "folder" ? { state: "waiting", why: null } : null;
   return fresh.state === known.state && fresh.why === known.why ? null : fresh;
 }
 
@@ -126,6 +139,21 @@ const withKnownLength = (row: SourceItemRow, item: SourceItemRecord): SourceItem
     ? { ...item, seconds: row.seconds }
     : item;
 
+/**
+ * What a listing writes of an item the taking holds: it is asked for again where its bytes are no longer the ones
+ * taken (new bytes are a new file), and otherwise only where it sits and its name, where either changed.
+ */
+function planTaken(plan: PagePlan, ref: SourceRef, row: SourceItemRow, item: SourceItemRecord): void {
+  const taken = itemFactsOf(ref, item);
+  if (item.kind !== "folder" && bytesChanged(row, item)) {
+    plan.retakes.push(taken);
+    return;
+  }
+  const { tenant_id, source_id, provider_id, kind, parent_id, name } = taken;
+  const place = { tenant_id, source_id, provider_id, kind, parent_id, name };
+  if (!keepsPlace(row, place)) plan.places.push(place);
+}
+
 /** What a page comes to, before anything is written. */
 interface PagePlan {
   /** Items seen for the first time, each with the state the listing gives it. */
@@ -136,6 +164,10 @@ interface PagePlan {
   places: SourceItemPlace[];
   /** Known items whose state moves, by the state they move to. */
   moves: { standing: Standing; providerIds: string[] }[];
+  /** Known items a listing may write whose bytes are no longer those of the file they hold: they let go of it. */
+  letGo: string[];
+  /** Known items the taking holds whose bytes are no longer the ones taken: asked for again, with these facts. */
+  retakes: SourceItemFacts[];
   /** Folders that are new to the tree, or back in it: their contents are still to be listed. */
   folders: string[];
 }
@@ -148,7 +180,7 @@ export function planPage(
   wanted: boolean,
 ): PagePlan {
   const byId = new Map(known.map((row) => [row.provider_id, row]));
-  const plan: PagePlan = { inserts: [], facts: [], places: [], moves: [], folders: [] };
+  const plan: PagePlan = { inserts: [], facts: [], places: [], moves: [], letGo: [], retakes: [], folders: [] };
   const moves = new Map<string, { standing: Standing; providerIds: string[] }>();
   for (const item of items) {
     const row = byId.get(item.id);
@@ -158,14 +190,13 @@ export function planPage(
       continue;
     }
     if (!isOneOf(LISTING_STATES, row.state)) {
-      const { tenant_id, source_id, provider_id, kind, parent_id, name } = itemFactsOf(ref, item);
-      const place = { tenant_id, source_id, provider_id, kind, parent_id, name };
-      if (!keepsPlace(row, place)) plan.places.push(place);
+      planTaken(plan, ref, row, item);
       continue;
     }
     const seen = withKnownLength(row, item);
     const facts = itemFactsOf(ref, seen);
     if (!keepsFacts(row, facts)) plan.facts.push(facts);
+    if (row.file_id && bytesChanged(row, seen)) plan.letGo.push(item.id);
     const moved = movedStateOf(row, seen, wanted);
     if (!moved) continue;
     const key = `${moved.state}:${moved.why ?? ""}`;
@@ -192,6 +223,9 @@ interface PageKept {
 /**
  * A page written: new items once (as many as there is `room` for), known items' changed facts over what was kept, and each
  * state moved only from the states a listing gives. A folder back in the tree is to be listed again from its first page.
+ *
+ * A row lets go of a file whose bytes changed BEFORE its new facts are kept: stopped between the two, the next listing
+ * still sees the change. Written the other way round it would see none, and the old file would be called the item's.
  */
 export async function keepPage(db: Db, ref: SourceRef, plan: PagePlan, room: number): Promise<PageKept> {
   const inserts = plan.inserts.slice(0, Math.max(0, room));
@@ -200,14 +234,17 @@ export async function keepPage(db: Db, ref: SourceRef, plan: PagePlan, room: num
     db,
     inserts.map((row) => ({ ...row, first_seen_at: seenAt })),
   );
+  await moveSourceItems(db, ref, { providerIds: plan.letGo, from: LISTING_STATES, patch: { file_id: null } });
   await keepSourceItemFacts(db, plan.facts);
   await keepSourceItemFacts(db, plan.places);
   for (const move of plan.moves)
     await moveSourceItems(db, ref, {
       providerIds: move.providerIds,
       from: LISTING_STATES,
-      patch: { state: move.standing.state, why: move.standing.why, gone_at: null, missed_run: null },
+      // An item that moves starts its tries anew: one that failed twice before it left is not failed by its next.
+      patch: { state: move.standing.state, why: move.standing.why, gone_at: null, missed_run: null, take_tries: 0 },
     });
+  await askToTakeAgain(db, plan.retakes);
   const fresh = new Set(plan.inserts.map((row) => row.provider_id));
   const written = new Set(inserts.map((row) => row.provider_id));
   // A folder back in the tree is listed again from its first page; a new one the cap left unwritten is not in the tree.

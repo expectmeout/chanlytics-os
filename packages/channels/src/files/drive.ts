@@ -106,7 +106,8 @@ type DriveDeps = NonNullable<Parameters<typeof fetchFromProvider>[3]> & {
 /**
  * What a call costs at Google since 1 May 2026, by its path: a list, and a channel opened, 100; an item's record, the
  * place to start from and a channel closed 5 (developers.google.com/workspace/drive/api/guides/limits, read 18 Nov
- * 2026). A download is 200 there: none is made through here.
+ * 2026). A download is 200 there: none is made through here (a file's bytes are read by drive-bytes.ts, and whoever
+ * asks for them counts them).
  */
 function driveUnitsOf(path: string): number {
   return path === "/changes/startPageToken" || path === "/channels/stop" || path.startsWith("/files/") ? 5 : 100;
@@ -179,8 +180,10 @@ const ITEM_REASONS =
  * this does not know may be about the project (its API switched off, its billing, a new limit), so it is no answer
  * and throws, as a reply that never came does, and nothing is paused for it. A refused key (a 401) and a missing
  * scope throw SourceKeyRefused: only their asker can settle whether the grant is dead.
+ *
+ * The one judge of a refusal from Drive: a read of a file's bytes (drive-bytes.ts) is judged here too.
  */
-function driveRefusalOf(
+export function driveRefusalOf(
   call: string,
   reply: ProviderReply,
   about: "item" | "list" = "list",

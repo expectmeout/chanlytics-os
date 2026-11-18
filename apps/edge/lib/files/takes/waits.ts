@@ -9,7 +9,7 @@ import { FILES_MAX, FILE_VIDEO_MINUTES_MAX, type SourceItemWhy } from "@chanlyti
 /** Why an item is back to waiting: those of the closed set (contracts SOURCE_ITEM_WHYS) a take itself puts one back for. */
 export type TakeWait = Extract<
   SourceItemWhy,
-  "budget" | "room" | "library_full" | "videos_off" | "busy" | "length" | "folder" | "pace" | "deadline" | "retry"
+  "budget" | "room" | "library_full" | "videos_off" | "busy" | "folder" | "pace" | "deadline" | "retry"
 >;
 
 /** How many files, in the words a person counts them by: clips where only videos wait, else photos and videos. */

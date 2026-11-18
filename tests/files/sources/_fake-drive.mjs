@@ -13,10 +13,12 @@
  *     one of them is not there the whole question is refused, as it is for that folder alone;
  *   - many folders asked together are answered in full only when the whole shared drive is asked
  *     (`corpora=drive`). Asked of the account's own files, only what it opened itself comes back (`viewedByMe`):
- *     measured on a real account, 161 folders of more than 1,700.
+ *     measured on a real account, 161 folders of more than 1,700;
+ *   - a file's bytes (`alt=media`) come by the range asked for, with the whole file's size beside them, and are a
+ *     download: what the taking of a file asks for (`holds` gives a file its bytes; one given none holds none).
  *
  * Every call is kept (`calls`), with what it costs at Google since 1 May 2026 (`units()`): an item's record 5, a
- * list 100, a channel closed 5. A test reads back what was asked, as Google would read it.
+ * list 100, a channel closed 5, a download 200. A test reads back what was asked, as Google would read it.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -27,8 +29,9 @@ const json = (status, body, headers = {}) =>
 const refusal = (status, reason, extra = {}, headers = {}) =>
   json(status, { error: { code: status, errors: [{ reason, ...extra }] } }, headers);
 
-/** What each call costs, by its path. */
-function unitsOf(method, path) {
+/** What each call costs, by its path; a file's bytes are a download. */
+function unitsOf(method, path, media) {
+  if (media && method === "GET" && path.startsWith("/drive/v3/files/")) return 200;
   if (path === "/drive/v3/changes/startPageToken") return 5;
   if (path === "/drive/v3/changes" || path === "/drive/v3/files" || path === "/drive/v3/drives") return 100;
   if (path === "/drive/v3/changes/watch") return 100;
@@ -43,6 +46,8 @@ export function fakeDrive() {
   let changes = [];
   let seq = 100;
   const hidden = new Map();
+  /** id → the bytes a file holds: all of them, or only its first, with `size` saying how many the whole has. */
+  const contents = new Map();
   const channels = new Map();
   const calls = [];
   /** Replies handed out before the drive answers for itself, each for the next call whose path matches. */
@@ -103,6 +108,11 @@ export function fakeDrive() {
     },
     move(id, parent) {
       return drive.put({ id, parents: [parent] });
+    },
+    /** The bytes a file holds, read by `alt=media`: no change is listed for them. */
+    holds(id, bytes) {
+      contents.set(id, bytes);
+      return drive;
     },
     trash(id) {
       return drive.put({ id, trashed: true });
@@ -192,7 +202,7 @@ export function fakeDrive() {
         path,
         query: Object.fromEntries(url.searchParams),
         body: init.body ?? null,
-        units: unitsOf(method, path),
+        units: unitsOf(method, path, url.searchParams.get("alt") === "media"),
       };
       calls.push(call);
       onCall?.(call);
@@ -239,11 +249,28 @@ export function fakeDrive() {
         const id = decodeURIComponent(path.slice("/drive/v3/files/".length));
         const file = files.get(id);
         if (hidden.get(id) === 403) return refusal(403, "insufficientFilePermissions");
-        return visible(file) ? json(200, fieldsOf(file)) : refusal(404, "notFound");
+        if (!visible(file)) return refusal(404, "notFound");
+        return url.searchParams.get("alt") === "media" ? bytesOf(file, init) : json(200, fieldsOf(file));
       }
       throw new Error(`the pretend drive does not answer ${method} ${url}`);
     },
   };
+
+  /** A file's bytes, by the range asked for: what it holds of them, and the whole file's size beside. */
+  function bytesOf(file, init) {
+    const held = contents.get(file.id) ?? new Uint8Array(0);
+    const size = Number(file.size ?? held.length);
+    const headers = Object.fromEntries(
+      Object.entries(init.headers ?? {}).map(([name, value]) => [name.toLowerCase(), String(value)]),
+    );
+    const range = /^bytes=(\d+)-(\d+)$/.exec(headers.range ?? "");
+    const from = range ? Number(range[1]) : 0;
+    const to = Math.min(range ? Number(range[2]) : size - 1, held.length - 1, size - 1);
+    return new Response(held.subarray(from, to + 1), {
+      status: 206,
+      headers: { "content-type": file.mimeType, "content-range": `bytes ${from}-${to}/${size}` },
+    });
+  }
 
   function listChanges(url) {
     const from = Number(url.searchParams.get("pageToken"));

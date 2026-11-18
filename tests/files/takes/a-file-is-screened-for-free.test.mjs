@@ -1,7 +1,8 @@
 /**
  * The screen (apps/edge/lib/files/takes/screen.ts, the footage sources plan): what an item is and whether it may be
  * taken, from its provider's own record, before any bytes move. Short clips only: a video over ten minutes or 500 MB
- * is listed, said to be too long, and never taken.
+ * is listed, said to be too long, and never taken. The wait for a fresh upload's length is the sync's
+ * (source_items.length_until): an item reaches the screen only once it is over, so the screen keeps none.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -9,9 +10,6 @@ import { at } from "../../_cron-doors-world.mjs";
 
 const { screenItem } = await import(at("apps/edge/lib/files/takes/screen.ts"));
 
-const NOW = Date.parse("2026-11-18T03:00:00Z");
-const SEEN_LAST_WEEK = "2026-11-10T10:00:00.000Z";
-const SEEN_AN_HOUR_AGO = "2026-11-18T02:00:00.000Z";
 const record = (over) => ({
   id: "drive-1",
   kind: "video",
@@ -26,7 +24,7 @@ const record = (over) => ({
   trashed: false,
   ...over,
 });
-const screen = (over, seen = SEEN_LAST_WEEK) => screenItem(record(over), seen, NOW);
+const screen = (over) => screenItem(record(over));
 
 test("a short clip and a photo are taken, each as what its record says it is", () => {
   assert.deepEqual(screen({}), { fate: "video", mime: "video/quicktime", bytes: 56_812_805, seconds: 8.2 });
@@ -62,15 +60,14 @@ test("what is not a photo or a video a member may add is passed over, and so is 
   assert.deepEqual(screen({ mime: "image/png", bytes: null }), { fate: "not_media", why: "empty" });
 });
 
-test("a video whose length Drive has not said yet waits, and a day after it was first seen is judged by its size", () => {
-  assert.deepEqual(screen({ seconds: null }, SEEN_AN_HOUR_AGO), { fate: "wait", why: "length" });
+test("a video whose length Drive never said is judged by its size alone: the screen keeps no wait of its own", () => {
   assert.deepEqual(screen({ seconds: null }), {
     fate: "video",
     mime: "video/quicktime",
     bytes: 56_812_805,
     seconds: null,
   });
-  assert.deepEqual(screen({ seconds: null, bytes: 500_000_001 }, SEEN_AN_HOUR_AGO), { fate: "too_big", why: "bytes" });
+  assert.deepEqual(screen({ seconds: null, bytes: 500_000_001 }), { fate: "too_big", why: "bytes" });
 });
 
 test("an item in its provider's bin is the sync's to say, never taken", () => {

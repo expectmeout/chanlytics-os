@@ -35,6 +35,8 @@ import { checkFolderAnswers, isInTree, markAway, itemStandingOf, unfoundMarkOf, 
 import { keepChannel } from "./channel.js";
 import { keepPage, planPage } from "./items.js";
 import { isLengthSoon, nextReadOf, SOURCE_PACE, soonestRewalkOf } from "./pace.js";
+import { keepUnitsSpent } from "../takes/ends.js";
+import { handOutTakesNow } from "../takes/hand-out.js";
 import { freezeSource, leaveRefusedKey, openSource, type OpenSource } from "./standing.js";
 
 type Db = OpenSource["db"];
@@ -178,6 +180,8 @@ interface Read {
   folders: number;
   /** Whether a hold stands on the folder: one that stood before the read, or one a page of it set. */
   holding: boolean;
+  /** Whether a video's length arrived in this read: it may be taken now, where it waited for it. */
+  measured: boolean;
   out: ReadOut;
 }
 
@@ -328,6 +332,7 @@ async function rereadLengths(read: Read, row: MediaSourceRow): Promise<boolean> 
   }
   await keepPage(open.db, open.ref, planPage(open.ref, records, rows, false), 0);
   const measured = new Set(records.filter((record) => record.seconds !== null).map((record) => record.id));
+  read.measured ||= measured.size > 0;
   return rows.some((item) => !measured.has(item.provider_id) && isLengthSoon(item.length_until, now));
 }
 
@@ -411,6 +416,9 @@ export async function runSourceRead(
   } catch (error) {
     // A key its provider refused is settled before anything is paused; anything else is the job's to fail on.
     return leaveRefusedKey(opened.open, error);
+  } finally {
+    // What the read spent at its provider, on the day's count beside the takes' (00642 source_days), however it ended.
+    await keepUnitsSpent(db, opened.open.spent);
   }
 }
 
@@ -431,6 +439,7 @@ async function readOpened(opened: OpenSource, deadline: number): Promise<{ read:
     deadline,
     folders: 0,
     holding: open.source.hold_at !== null,
+    measured: false,
     out: { pages: 0, changes: 0, inside: 0, added: 0, marked: 0, held: 0, ended: false, units: 0 },
   };
   for (let place: Place = { cursor, row: open.source }; ;) {
@@ -449,5 +458,7 @@ async function readOpened(opened: OpenSource, deadline: number): Promise<{ read:
   }
   read.out.units = open.spent.units;
   open.log.info("source_read", { source: open.source.id, ...read.out });
+  // What it found inside, or a length that arrived, may be a file to take: its workspace's is handed its job now.
+  if (read.out.inside > 0 || read.measured) await handOutTakesNow(open.db, open.ref.tenantId);
   return { read: read.out };
 }

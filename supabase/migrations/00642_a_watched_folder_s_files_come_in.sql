@@ -57,6 +57,11 @@
 -- room releases what waited for it (7); an item of bytes already taken is found by its provider's checksum (8); a
 -- watched clip its provider never measured is judged as the video platform says its length (11); the caps' numbers
 -- are each in one function (14); an item's reason is one of a closed set (15); a paused kind is handed nothing (16).
+--
+-- After the sync landed (00641): a video its provider has not measured yet waits for its length as the sync says
+-- (source_items.length_until), so the hand-out passes it over until then and the take keeps no wait of its own; and
+-- an item left taking with a file that is not a clip on its way (one that was in, left its folder and came back)
+-- waits again as a lost take does, so its next take finds the file it holds.
 
 set local lock_timeout = '3s';
 
@@ -77,7 +82,7 @@ alter table public.source_items drop constraint if exists source_items_take_trie
 alter table public.source_items add constraint source_items_take_tries_check check (take_tries >= 0);
 
 comment on column public.source_items.take_after is
-  'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full or its provider has not said its length. Null: now.';
+  'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
 comment on column public.source_items.taken_at is
   'When its take last spent the day''s budget (00642 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
 comment on column public.source_items.take_tries is
@@ -86,7 +91,7 @@ comment on column public.source_items.take_tries is
 -- Why an item stands where it does, one of a closed set (contracts SOURCE_ITEM_WHYS), so a screen has words for each.
 alter table public.source_items drop constraint if exists source_items_why_check;
 alter table public.source_items add constraint source_items_why_check
-  check (why is null or why = any (array['budget', 'room', 'library_full', 'videos_off', 'busy', 'length', 'folder', 'pace', 'deadline', 'retry', 'lost', 'kind', 'empty', 'too_small', 'unreadable', 'bytes', 'seconds', 'pixels', 'stopped', 'stream', 'not_found']));
+  check (why is null or why = any (array['budget', 'room', 'library_full', 'videos_off', 'busy', 'folder', 'pace', 'deadline', 'retry', 'lost', 'kind', 'empty', 'too_small', 'unreadable', 'bytes', 'seconds', 'pixels', 'stopped', 'stream', 'not_found']));
 
 -- The clock's read: what waits and is due, whichever workspace's.
 create index if not exists source_items_take_due on public.source_items (take_after) where state = 'waiting';
@@ -463,11 +468,15 @@ begin
     return 0;
   end if;
   -- A take that never ended (its job lost, or stopped before it wrote anything) waits again, and says it was lost:
-  -- its next take first clears a copy it may have left at the video platform. One whose file exists is the video
-  -- platform's to finish, and is left.
+  -- its next take first clears a copy it may have left at the video platform. One whose clip is on its way there is
+  -- the video platform's to finish, and is left. One that holds any other file (it was in, left its folder and came
+  -- back, 00641) waits again too: its next take finds that file and is in with it.
   update public.source_items i
      set state = 'waiting', why = 'lost', take_after = null, updated_at = now()
-   where i.state = 'taking' and i.file_id is null
+   where i.state = 'taking'
+     and (i.file_id is null or not exists (
+            select 1 from public.files f
+             where f.id = i.file_id and f.removed_at is null and f.media_status in ('uploading', 'processing')))
      and (p_tenant_id is null or i.tenant_id = p_tenant_id)
      and i.updated_at < now() - make_interval(secs => greatest(p_stale_seconds, 0));
   if p_tenant_id is not null then
@@ -480,6 +489,7 @@ begin
           join public.media_sources s on s.id = i.source_id
          where i.tenant_id = p_tenant_id and i.state = 'waiting' and i.kind in ('image', 'video')
            and (i.take_after is null or i.take_after <= now())
+           and (i.length_until is null or i.length_until <= now())
            and s.state in ('setting_up', 'watching')
          order by i.modified_at desc nulls last, i.id
          limit greatest(greatest(p_in_flight, 1) - v_flying, 0)
@@ -496,6 +506,7 @@ begin
               join public.media_sources s on s.id = i.source_id
              where i.state = 'waiting' and i.kind in ('image', 'video')
                and (i.take_after is null or i.take_after <= now())
+               and (i.length_until is null or i.length_until <= now())
                and s.state in ('setting_up', 'watching')
           ) d
           left join (
@@ -537,7 +548,7 @@ end $$;
 revoke all on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) from public, anon, authenticated;
 grant execute on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) to service_role;
 comment on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) is
-  'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, no file, untouched for p_stale_seconds) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
+  'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
 
 /* ------------------------------------------------------------------------ 10b. freed room releases what waited for it -- */
 

@@ -26,9 +26,9 @@ import {
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { errField, logger } from "../../shared/log.js";
+import { logger } from "../../shared/log.js";
 import { TAKE_RESTS_MS } from "./budgets.js";
-import { handOutTakes } from "./hand-out.js";
+import { handOutTakesNow } from "./hand-out.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -66,9 +66,7 @@ export async function settleTakenVideo(db: Db, fate: MediaFate, seconds: number 
   // A word about a video no folder brought (a member's upload, a found one) settles no item, and hands nothing out.
   if ((await settleByWord(db, { tenantId, fileId }, word)) === 0) return;
   // One fewer in flight: the workspace's next waiting file begins now. A hand-out that fails waits for the clock.
-  await handOutTakes(db, tenantId).catch((error: unknown) =>
-    logger({ tenant_id: tenantId }).error("source_take_failed", { why: "hand_out", error: errField(error) }),
-  );
+  await handOutTakesNow(db, tenantId);
 }
 
 /** One clip's items settled by one word. Answers how many items it settled. */

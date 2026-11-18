@@ -1,7 +1,8 @@
 /**
  * A Drive file's bytes read by the app (packages/channels/src/files/drive-bytes.ts, the footage sources plan): a
  * clip's first MiB or a photo whole, in one download, under a key that rides a header and never the address. Drive's
- * answers are judged once: "not now" is a rest, a 404 gone, a refused grant no access, and silence throws.
+ * refusals are judged where the sync's are (drive.ts): "not now" is a rest, a 404 gone, a 403 about the file no
+ * access; a refused key or a missing scope is thrown for the sync to settle, and silence throws.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -67,7 +68,7 @@ test("bytes past what was asked are never held, whatever Drive sends", async () 
   assert.equal(read.answer.size, MIB, "with no size said, the bytes read are all that is known");
 });
 
-test("Drive's refusals are judged once: a rest, gone, no access", async () => {
+test("Drive's refusals are judged by the sync's one rule: a rest, gone, no access to the file", async () => {
   const refusal = (status, reason, headers = {}) =>
     drive(() => new Response(JSON.stringify({ error: { errors: [{ reason }] } }), { status, headers })).deps;
   assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(429, "rateLimitExceeded", { "retry-after": "7" })), {
@@ -79,15 +80,29 @@ test("Drive's refusals are judged once: a rest, gone, no access", async () => {
     restMs: 60_000,
   });
   assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(404, "notFound")), { verdict: "gone" });
-  assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(403, "insufficientPermissions")), {
+  assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(403, "insufficientFilePermissions")), {
     verdict: "no_access",
   });
-  assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(401, "authError")), { verdict: "no_access" });
+  // A 403 with a reason nobody knows is about the one file asked for here, never read as the whole account's.
+  assert.deepEqual(await readDriveBytes(KEY, "f", TRY, refusal(403, "somethingNew")), { verdict: "no_access" });
+});
+
+test("a refused key or a missing scope is no verdict on the file: it is thrown, for the sync to settle", async () => {
+  const refusal = (status, reason) =>
+    drive(() => new Response(JSON.stringify({ error: { errors: [{ reason }] } }), { status })).deps;
+  await assert.rejects(readDriveBytes(KEY, "f", TRY, refusal(401, "authError")), {
+    name: "SourceKeyRefused",
+    refused: "key",
+  });
+  await assert.rejects(readDriveBytes(KEY, "f", TRY, refusal(403, "insufficientPermissions")), {
+    name: "SourceKeyRefused",
+    refused: "scope",
+  });
 });
 
 test("no answer, or a body cut short, is no verdict: it throws, and half a file is never a file", async () => {
   await assert.rejects(readDriveBytes(KEY, "f", TRY, drive(() => new Response("upstream", { status: 502 })).deps), {
-    name: "DriveBytesUnread",
+    name: "SourceUnanswered",
     status: 502,
   });
   const cut = new ReadableStream({

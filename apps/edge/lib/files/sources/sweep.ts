@@ -8,6 +8,10 @@
  * It reads no provider. A job that fails for good leaves its folder due, and the next turn hands it another: late, not
  * lost.
  *
+ * The same turn hands what waits in a watched folder its take (00642 source_takes_hand_out): each waiting photo or
+ * video whose time has come, a few a workspace at once. A take's end, the video platform's word and a read ask for
+ * their own workspace's as they happen; this is the floor under them, and what puts a take that never ended back.
+ *
  * The route is api/cron/sources.ts: sweepDoor (lib/ops/sweep-door.ts) names the request, finds the database and
  * checks the sweep key, then hands this its tick.
  */
@@ -19,6 +23,7 @@ import { errField } from "../../shared/log.js";
 import { HAND_OUT_SPREAD_SECONDS } from "../../shared/sweep-rotation.js";
 import type { SweepTick } from "../../ops/sweep-door.js";
 import { driveClient } from "./config.js";
+import { handOutTakes } from "../takes/hand-out.js";
 import { SOURCE_PACE } from "./pace.js";
 import { runSourceRead } from "./read.js";
 import { runSourceWalk } from "./walk.js";
@@ -31,8 +36,9 @@ export async function sweepSources({ db, L }: SweepTick): Promise<Response> {
       spreadSeconds: HAND_OUT_SPREAD_SECONDS,
       walkStaleSeconds: SOURCE_PACE.walkStaleMs / SECOND_MS,
     });
-    L.info("sources_sweep", handed);
-    return json(200, { ok: true, ...handed });
+    const takes = await handOutTakes(db);
+    L.info("sources_sweep", { ...handed, takes });
+    return json(200, { ok: true, ...handed, takes });
   } catch (error) {
     L.error("sources_sweep_failed", { error: errField(error) });
     return json(500, { ok: false });

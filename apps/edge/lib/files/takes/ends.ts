@@ -6,6 +6,7 @@
  * And the day's budget, asked in one place before any bytes move: when one binds, every waiting file of the workspace
  * is set to wait for tomorrow with it, and the folder's line says so.
  */
+import { readDriveBytes } from "@chanlytics/channels/files";
 import type { SourceItemRecord, SourceItemWhy, SourceReply } from "@chanlytics/contracts";
 import {
   endSourceTake,
@@ -19,7 +20,7 @@ import type { Database } from "@chanlytics/db/types";
 import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "../../shared/log.js";
-import { TAKE_BUDGETS } from "./budgets.js";
+import { DRIVE_UNITS, TAKE_BUDGETS } from "./budgets.js";
 import { takeWaitLine, type TakeWait } from "./waits.js";
 
 type Db = SupabaseClient<Database>;
@@ -145,6 +146,18 @@ export async function endUnread(
 /** Google's units a call just spent, added to the job's own count. */
 export function countUnits(spent: UnitsSpent, units: number): void {
   spent.units += units;
+}
+
+/**
+ * The item's first `most` bytes, read from its provider: one download, counted as it is asked, so a read that then
+ * throws was still made. The one way a take reads bytes itself: a photo whole, a clip's first MiB.
+ */
+export function readTakeBytes(
+  taking: Pick<Taking, "accessToken" | "record" | "spent">,
+  read: { most: number; timeoutMs: number },
+): ReturnType<typeof readDriveBytes> {
+  countUnits(taking.spent, DRIVE_UNITS.download);
+  return readDriveBytes(taking.accessToken, taking.record.id, read);
 }
 
 /**

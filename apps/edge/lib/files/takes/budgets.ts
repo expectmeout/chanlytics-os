@@ -6,7 +6,7 @@
  * Google gives a project 1 TB of Drive downloads and 400,000,000 units a day before it charges, and counts a day in
  * Pacific time. The database counts the same day (00642 source_take_spend), so "tomorrow" here is Google's tomorrow.
  */
-import { DAY_MS, HOUR_MS, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { HOUR_MS, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 
 /** A million of Google's units: its quota is written in them. */
 const MILLION_UNITS = 1_000_000;
@@ -47,6 +47,12 @@ export const FOUND_READ_BUDGETS = {
 export const DRIVE_UNITS = { record: 5, download: 200 } as const;
 
 /**
+ * The most takes one turn of the footage clock hands out, for every workspace together. A constant of its own so the
+ * capacity page reads it (docs/capacity.md, the sources clock's second lane).
+ */
+const TAKES_A_TICK = 500;
+
+/**
  * How waiting items are handed their jobs: a workspace has a few being taken at once, and the next is handed as one
  * ends, so a first watch arrives in minutes and no workspace fills the bulk lane. The clock is the floor under that.
  */
@@ -54,7 +60,7 @@ export const TAKE_HAND_OUT = {
   /** How many of a workspace's files are being taken at once. */
   inFlight: 5,
   /** The most jobs one turn of the clock writes, for every workspace together. */
-  limit: 500,
+  limit: TAKES_A_TICK,
   /**
    * The clips the video platform is preparing for takes at once, for every workspace together. It prepares 120 for
    * an account (queued or encoding, by its FAQ; its support can raise that) and answers the rest "too many": this
@@ -73,8 +79,6 @@ export const TAKE_RESTS_MS = {
   libraryFull: 6 * HOUR_MS,
   /** The workspace takes no videos yet, or this deployment has no relay or video platform to send one through. */
   videosOff: 6 * HOUR_MS,
-  /** Its provider has not said how long a video is: it may come some time after an upload. */
-  length: HOUR_MS,
   /** Its folder is not being read just now (paused, or its account signed out). */
   folder: HOUR_MS,
   /** The job ran out of its time before a download could start. */
@@ -82,9 +86,6 @@ export const TAKE_RESTS_MS = {
   /** The video platform is preparing as many clips as it takes at once: asked again shortly, and no try is spent. */
   busy: 2 * MIN_MS,
 } as const;
-
-/** How long a video waits for its provider to say its length before it is screened by its size alone. */
-export const TAKE_LENGTH_WAIT_MS = DAY_MS;
 
 /** How long a clip's ticket runs: the video platform fetches within minutes, and asks again after a break. */
 export const RELAY_TICKET_MS = 6 * HOUR_MS;

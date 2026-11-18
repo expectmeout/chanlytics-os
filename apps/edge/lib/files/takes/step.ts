@@ -4,8 +4,10 @@
  * item's own record at its provider, screens it for free, and hands a photo or a clip to its road. Everything it
  * writes names the state it leaves, so the job run again, or beside the sync, changes nothing twice.
  *
- * A folder that is not being read (paused, its account signed out) is not read here either: the item waits. A
- * provider or the database not answering throws, and the ledger tries the job again.
+ * A folder that is not being read (paused, its account signed out) is not read here either: the item waits. The
+ * folder is opened by the sync's own opener (sync.ts), and a key its provider refuses part way is the sync's to
+ * settle: where the account is signed out for it the item waits for its folder, as any other of that folder's does.
+ * A provider or the database not answering throws, and the ledger tries the job again.
  *
  * Bytes its provider's own checksum says are already taken are shared, with no download (the review's finding 8). As a
  * take ends its workspace's next is handed its job (5), and the units it spent are counted once (20).
@@ -24,7 +26,7 @@ import {
 import type { Database } from "@chanlytics/db/types";
 import type { ClaimedJob, JobContext } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { errField, logger } from "../../shared/log.js";
+import { logger } from "../../shared/log.js";
 import { DRIVE_UNITS, TAKE_RESTS_MS } from "./budgets.js";
 import {
   countUnits,
@@ -36,7 +38,7 @@ import {
   type Taking,
   type UnitsSpent,
 } from "./ends.js";
-import { handOutTakes } from "./hand-out.js";
+import { handOutTakesNow } from "./hand-out.js";
 import { takePhoto } from "./photo.js";
 import { screenItem } from "./screen.js";
 import { takeSync, type TakeSync } from "./sync.js";
@@ -94,11 +96,36 @@ interface TakeRun {
   spent: UnitsSpent;
 }
 
+/** An item waits for its folder: it is not being read just now, and the clock asks after it again. */
+const waitForFolder = (held: Pick<Taking, "db" | "item" | "log">): Promise<TakeEnd> =>
+  putBack(held, { why: "folder", until: new Date(Date.now() + TAKE_RESTS_MS.folder) });
+
+/** The item taken under an hour's key: its own record read, screened for free, and handed to its road. */
+async function takeOpened(
+  held: Pick<Taking, "db" | "item" | "log">,
+  accessToken: string,
+  { deadline, sync, spent }: TakeRun,
+): Promise<TakeEnd> {
+  // Counted as it is asked: a call that then throws was still made.
+  countUnits(spent, DRIVE_UNITS.record);
+  const read = await sync.record(accessToken, held.item.provider_id);
+  if (read.verdict !== "ok") return endUnread(held, read);
+  const taking: Taking = { ...held, record: read.answer, accessToken, deadline, spent };
+  const screened = screenItem(read.answer);
+  // In its provider's bin: where it went is the sync's to say, at its next read. Until then it only waits.
+  if (screened.fate === "away") return waitForFolder(taking);
+  if (screened.fate === "not_media" || screened.fate === "too_big")
+    return endTake(taking, { state: screened.fate, why: screened.why });
+  const shared = await shareTakenBytes(taking);
+  if (shared) return shared;
+  return screened.fate === "photo" ? takePhoto(taking, screened) : takeVideo(taking, screened);
+}
+
 /** One item's take: what became of it, or why it was not one to take now. */
 async function takeItem(
   db: Db,
   job: Pick<ClaimedJob, "tenant_id" | "payload">,
-  { deadline, sync, spent }: TakeRun,
+  run: TakeRun,
 ): Promise<TakeEnd | { skipped: string }> {
   const tenantId: TenantId = job.tenant_id;
   const log = logger({ tenant_id: tenantId });
@@ -106,30 +133,24 @@ async function takeItem(
   if (!found) return { skipped: "no such item" };
   // Moved on since its job was written (the sync marked it gone, a take before this one ended it): nothing to do.
   if (found.state !== "taking") return { skipped: `the item is ${found.state}` };
-  const held = await endHeldFile(db, found);
-  if (held) return held;
+  const kept = await endHeldFile(db, found);
+  if (kept) return kept;
   // It holds no file, or the one it held is no longer there: it is taken as any waiting file is.
-  const item: SourceTakeItem = { ...found, file_id: null };
-  const key = await sync.open(db, { tenantId, sourceId: item.source_id }, log);
+  const held = { db, item: { ...found, file_id: null }, log };
+  const key = await run.sync.open(db, { tenantId, sourceId: found.source_id }, log);
   if (!key.ok) {
-    await putBack({ db, item, log }, { why: "folder", until: new Date(Date.now() + TAKE_RESTS_MS.folder) });
+    await waitForFolder(held);
     return { skipped: key.skipped };
   }
-  const read = await sync.record(key.accessToken, item.provider_id);
-  countUnits(spent, DRIVE_UNITS.record);
-  if (read.verdict !== "ok") return endUnread({ db, item, log }, read);
-  const taking: Taking = { db, item, record: read.answer, accessToken: key.accessToken, log, deadline, spent };
-  const screened = screenItem(read.answer, item.first_seen_at, Date.now());
-  // In its provider's bin: where it went is the sync's to say, at its next read. Until then it only waits.
-  if (screened.fate === "away")
-    return putBack(taking, { why: "folder", until: new Date(Date.now() + TAKE_RESTS_MS.folder) });
-  if (screened.fate === "not_media" || screened.fate === "too_big")
-    return endTake(taking, { state: screened.fate, why: screened.why });
-  const shared = await shareTakenBytes(taking);
-  if (shared) return shared;
-  if (screened.fate === "wait")
-    return putBack(taking, { why: screened.why, until: new Date(Date.now() + TAKE_RESTS_MS.length) });
-  return screened.fate === "photo" ? takePhoto(taking, screened) : takeVideo(taking, screened);
+  try {
+    return await takeOpened(held, key.accessToken, run);
+  } catch (error) {
+    // A key its provider refused is the sync's to settle, and what it cannot settle is thrown on: the ledger tries
+    // the job again. Where the account is now signed out its folder is paused, and the item waits for it.
+    const left = await key.refused(error);
+    await waitForFolder(held);
+    return left;
+  }
 }
 
 /**
@@ -145,9 +166,7 @@ export function sourceTaker(db: Db, sync: TakeSync = takeSync): NonNullable<JobC
         return await takeItem(db, job, { deadline, sync, spent });
       } finally {
         await keepUnitsSpent(db, spent);
-        await handOutTakes(db, job.tenant_id).catch((error: unknown) =>
-          logger({ tenant_id: job.tenant_id }).error("source_take_failed", { why: "hand_out", error: errField(error) }),
-        );
+        await handOutTakesNow(db, job.tenant_id);
       }
     },
   };

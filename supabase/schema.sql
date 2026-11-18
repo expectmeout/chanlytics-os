@@ -35971,11 +35971,15 @@ begin
     return 0;
   end if;
   -- A take that never ended (its job lost, or stopped before it wrote anything) waits again, and says it was lost:
-  -- its next take first clears a copy it may have left at the video platform. One whose file exists is the video
-  -- platform's to finish, and is left.
+  -- its next take first clears a copy it may have left at the video platform. One whose clip is on its way there is
+  -- the video platform's to finish, and is left. One that holds any other file (it was in, left its folder and came
+  -- back, 00641) waits again too: its next take finds that file and is in with it.
   update public.source_items i
      set state = 'waiting', why = 'lost', take_after = null, updated_at = now()
-   where i.state = 'taking' and i.file_id is null
+   where i.state = 'taking'
+     and (i.file_id is null or not exists (
+            select 1 from public.files f
+             where f.id = i.file_id and f.removed_at is null and f.media_status in ('uploading', 'processing')))
      and (p_tenant_id is null or i.tenant_id = p_tenant_id)
      and i.updated_at < now() - make_interval(secs => greatest(p_stale_seconds, 0));
   if p_tenant_id is not null then
@@ -35988,6 +35992,7 @@ begin
           join public.media_sources s on s.id = i.source_id
          where i.tenant_id = p_tenant_id and i.state = 'waiting' and i.kind in ('image', 'video')
            and (i.take_after is null or i.take_after <= now())
+           and (i.length_until is null or i.length_until <= now())
            and s.state in ('setting_up', 'watching')
          order by i.modified_at desc nulls last, i.id
          limit greatest(greatest(p_in_flight, 1) - v_flying, 0)
@@ -36004,6 +36009,7 @@ begin
               join public.media_sources s on s.id = i.source_id
              where i.state = 'waiting' and i.kind in ('image', 'video')
                and (i.take_after is null or i.take_after <= now())
+               and (i.length_until is null or i.length_until <= now())
                and s.state in ('setting_up', 'watching')
           ) d
           left join (
@@ -36047,7 +36053,7 @@ end $$;
 -- Name: FUNCTION source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) IS 'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, no file, untouched for p_stale_seconds) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
+COMMENT ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) IS 'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
 
 
 --
@@ -43735,7 +43741,7 @@ CREATE TABLE public.source_items (
     CONSTRAINT source_items_state_check CHECK ((state = ANY (ARRAY['listed'::text, 'waiting'::text, 'taking'::text, 'in'::text, 'too_big'::text, 'not_media'::text, 'let_go'::text, 'failed'::text, 'outside'::text, 'gone'::text, 'no_access'::text]))),
     CONSTRAINT source_items_take_tries_check CHECK ((take_tries >= 0)),
     CONSTRAINT source_items_walk_page_check CHECK (((walk_page IS NULL) OR (char_length(walk_page) <= 4000))),
-    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'length'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
+    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
 );
 
 
@@ -43799,7 +43805,7 @@ COMMENT ON COLUMN public.source_items.length_until IS 'A video its provider has 
 -- Name: COLUMN source_items.take_after; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.source_items.take_after IS 'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full or its provider has not said its length. Null: now.';
+COMMENT ON COLUMN public.source_items.take_after IS 'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
 
 
 --

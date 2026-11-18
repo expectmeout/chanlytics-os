@@ -19,6 +19,7 @@ import { z } from "zod";
 import type { Database } from "../../types";
 import { readAnswer } from "../../shared/read-json";
 import { platformWide } from "../../shared/tenant-db";
+import type { SourceItemFacts } from "./source-items";
 
 type Db = SupabaseClient<Database>;
 export type SourceTakeItem = Database["public"]["Tables"]["source_items"]["Row"];
@@ -229,6 +230,33 @@ export async function removeFailedTake(db: Db, tenantId: TenantId, fileId: strin
     .select("id");
   if (error) throw new DbFailure(error, "cannot remove the failed clip");
   return data.length > 0;
+}
+
+/** The states a take's own writes leave an item in: what a listing never writes over (source-items.ts). */
+const TAKEN_STATES = ["taking", "in", "let_go", "failed"] as const satisfies readonly ItemState[];
+
+/**
+ * Items whose bytes changed at their provider after a take of them began or ended, as the sync's listing finds them:
+ * new bytes are a new file, so each is asked for again. It goes back to `waiting` with what its provider says of it
+ * now, lets go of the file it held (which stays in the Library) and its tries start again. One statement an item,
+ * its state and its facts together, and only from the states a take leaves: an item the sync has since marked away,
+ * or one already waiting, is left as it is. Answers how many were asked for.
+ */
+export async function askToTakeAgain(db: Db, items: readonly SourceItemFacts[]): Promise<number> {
+  let moved = 0;
+  for (const { tenant_id, source_id, provider_id, ...facts } of items) {
+    const { data, error } = await db
+      .from("source_items")
+      .update({ ...facts, state: "waiting", why: null, take_after: null, take_tries: 0, file_id: null })
+      .eq("tenant_id", tenant_id)
+      .eq("source_id", source_id)
+      .eq("provider_id", provider_id)
+      .in("state", [...TAKEN_STATES])
+      .select("id");
+    if (error) throw new DbFailure(error, "cannot ask for the watched folder's item again");
+    moved += data.length;
+  }
+  return moved;
 }
 
 /* ------------------------------------------------------------------------------------- what is already here */

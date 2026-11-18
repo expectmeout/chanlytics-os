@@ -118,6 +118,7 @@ export {
 } from "./source-items";
 export type { SourceItemFacts, SourceItemPlace, SourceItemRow, SourceRef } from "./source-items";
 export {
+  askToTakeAgain,
   endSourceTake,
   findSourceItem,
   findSourceItemAnywhere,

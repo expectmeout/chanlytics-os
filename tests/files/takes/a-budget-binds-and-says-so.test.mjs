@@ -216,7 +216,7 @@ test("the folder's line says what waits in the owner's words, and nothing for a 
     takeWaitLine({ why: "budget", count: 1_200, videosOnly: false }),
     "1,200 photos and videos wait for tomorrow.",
   );
-  for (const why of ["length", "folder", "pace", "deadline", "retry", "videos_off"])
+  for (const why of ["folder", "pace", "deadline", "retry", "videos_off"])
     assert.equal(takeWaitLine({ why, count: 3, videosOnly: false }), null, why);
   assert.equal(takeWaitLine({ why: "budget", count: 0, videosOnly: false }), null);
 });

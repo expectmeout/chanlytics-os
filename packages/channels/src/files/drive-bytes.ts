@@ -6,17 +6,16 @@
  * Each read is one download to Google (200 of its units since 1 May 2026), under an hour's key in a header. The key is
  * never part of an address, and nothing of the answer but its bytes and its size is kept.
  *
- * Drive's "not now" (429, or a 403 that names a rate or a quota) is the verdict `pace`, a 404 `gone`, a 401 or any
- * other 403 `no_access`. A reply that never came, or a body cut short, is no verdict: the read throws and its job is
- * tried again.
+ * A refusal is judged where every refusal of Drive's is (drive.ts driveRefusalOf): its "not now" is the verdict
+ * `pace`, a 404 `gone`, a 403 about the file `no_access`; a refused key (a 401) or a missing scope throws
+ * SourceKeyRefused, which only the sync can settle. A reply that never came, or a body cut short, is no verdict: the
+ * read throws and its job is tried again.
  */
-import { MIN_MS, recordOrEmpty, recordOrNull, type SourceReply } from "@chanlytics/contracts";
-import { fetchFromProvider, type ProviderReply } from "../shared/provider-fetch";
+import type { SourceReply } from "@chanlytics/contracts";
+import { fetchFromProvider } from "../shared/provider-fetch";
+import { driveRefusalOf } from "./drive";
 
 const DRIVE_FILES_API = "https://www.googleapis.com/drive/v3/files";
-
-/** How long to rest when Drive says "not now" and names no time. */
-const DRIVE_BYTES_REST_MS = MIN_MS;
 
 /** What a test hands in instead of the network. */
 type DriveBytesDeps = Parameters<typeof fetchFromProvider>[3];
@@ -38,13 +37,6 @@ class DriveBytesUnread extends Error {
     super(`drive bytes: ${reason} (status ${status})`);
     this.name = "DriveBytesUnread";
   }
-}
-
-/** Drive's own one-word reason on a refusal (`error.errors[0].reason`), or none. */
-function refusalReasonOf(reply: Pick<ProviderReply, "json">): string {
-  const errors = recordOrNull(recordOrNull(reply.json)?.error)?.errors;
-  const reason = Array.isArray(errors) ? recordOrEmpty(errors[0]).reason : null;
-  return typeof reason === "string" ? reason : "";
 }
 
 /** The whole file's size from a range's answer (`bytes 0-1048575/56812805`), or null where Drive names none. */
@@ -103,13 +95,8 @@ export async function readDriveBytes(
     },
     deps,
   );
-  if (reply.outcome !== "ok" || !reply.body) {
-    if (reply.status === 429 || (reply.status === 403 && /ratelimit|dailylimit|quota/i.test(refusalReasonOf(reply))))
-      return { verdict: "pace", restMs: reply.retryAfterMs ?? DRIVE_BYTES_REST_MS };
-    if (reply.status === 404) return { verdict: "gone" };
-    if (reply.status === 401 || reply.status === 403) return { verdict: "no_access" };
-    throw new DriveBytesUnread(reply.status, reply.error ?? "no answer");
-  }
+  if (reply.outcome !== "ok") return driveRefusalOf("files.get media", reply, "item");
+  if (!reply.body) throw new DriveBytesUnread(reply.status, "no body");
   let bytes: Uint8Array;
   try {
     bytes = await readUpTo(reply.body, read.most);
