@@ -512,6 +512,9 @@ const NOT_MENDED_BY_TRYING: ReadonlySet<string> = new Set<string>([
   IMPORT_STOPPED_WORDS.googleGone,
 ]);
 
+/** The stands of a run still coming in: waiting to start, or bringing it in. */
+const STILL_COMING: ReadonlySet<ImportState> = new Set<ImportState>(["queued", "running"]);
+
 /** A source that stopped where Try again can bring it in, as Today's setting-up card says it. */
 export interface HistoryStoppedVM {
   source: ImportSource;
@@ -560,7 +563,7 @@ export function historyOnTodayOf(rows: readonly ImportRowDto[] | null | undefine
             : words.keptSoFar,
     };
   });
-  const coming = history.some((run) => run.state === "running" || run.state === "queued");
+  const coming = history.some((run) => STILL_COMING.has(run.state));
   if (!coming && !stopped.length) return null;
   const done = history.filter((run) => run.state === "done").length;
   return {
