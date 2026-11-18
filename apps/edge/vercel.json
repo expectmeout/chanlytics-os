@@ -83,6 +83,9 @@
           "api/admin/mailboxes.ts": {
             "maxDuration": 60
           },
+          "api/admin/sources.ts": {
+            "maxDuration": 60
+          },
           "api/admin/voice/erase-calls.ts": {
             "maxDuration": 60
           },
@@ -105,6 +108,9 @@
             "maxDuration": 30
           },
           "api/mailbox/gmail.ts": {
+            "maxDuration": 30
+          },
+          "api/sources/drive.ts": {
             "maxDuration": 30
           },
           "api/mailbox/graph.ts": {
@@ -166,6 +172,9 @@
           },
           "api/cron/text-canary.ts": {
             "maxDuration": 30
+          },
+          "api/cron/sources.ts": {
+            "maxDuration": 60
           },
           "api/cron/texts.ts": {
             "maxDuration": 60

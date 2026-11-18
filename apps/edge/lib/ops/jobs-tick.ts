@@ -47,6 +47,7 @@ import { calendarReader } from "../calendar/sweep.js";
 import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
 import { googleReader } from "../google/sweep.js";
 import { textsReader } from "../sms/texts-sweep.js";
+import { sourcesReader } from "../files/sources/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
 import { remindLateBooking } from "../campaigns/late-reminder.js";
@@ -301,6 +302,8 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               campaigns: { ...campaignRuns(db), occasions: occasionRuns(db) },
               google: googleReader(db),
               texts: textsReader(db),
+              // A watched folder's walk and its read (00641): its tree listed, and its provider's changes read.
+              sources: sourcesReader(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },
