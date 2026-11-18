@@ -22,27 +22,60 @@ import { Icon } from "../kit/icon/icon";
 import { Panel } from "../kit/panel/panel";
 import { PvThree } from "./head";
 import { PvCalled } from "./heard";
+import { PvSlide } from "./slide";
 import type { Call } from "./use-call";
 import type { Talk, TalkLine } from "./use-talk";
+import { PvWords, useWriting } from "./written";
 
-/** AI's words: its mark and its name over them, and the words plain, as the page's own. */
-function PvAnswer({ text, at, children }: { text: string; at: number | "greeting"; children?: ReactNode }) {
+/** A stretch of an answer lit as theirs: from one character up to another. */
+type Lit = readonly (readonly [number, number])[];
+const NONE_LIT: Lit = [];
+
+/**
+ * AI's words: its mark and its name over them, and the words plain, as the page's own; what it took from the things
+ * they told it lit in them. One that came on this visit (`fresh`) is drawn arriving and written out, and what stands
+ * under it waits until it has been, however short or long it is.
+ */
+function PvAnswer({
+  text,
+  at,
+  lit = NONE_LIT,
+  fresh = false,
+  children,
+}: {
+  text: string;
+  at: number | "greeting";
+  lit?: Lit;
+  fresh?: boolean;
+  children?: ReactNode;
+}) {
+  const writing = useWriting(text, lit, fresh);
   return (
-    <li className="pv-line" data-testid={at === "greeting" ? "pv-greeting" : `pv-turn-${at}`}>
+    <li
+      className="pv-line"
+      data-new={fresh || undefined}
+      data-testid={at === "greeting" ? "pv-greeting" : `pv-turn-${at}`}
+    >
       <span className="pv-line-by">
         <PvThree />
         {W.it}
       </span>
-      <p className="pv-says">{text}</p>
-      {children}
+      <p className="pv-says">
+        <PvWords text={text} spans={lit} shown={fresh ? writing.shown : null} />
+      </p>
+      {children ? (
+        <div className="pv-after" data-wait={!writing.written || undefined}>
+          {children}
+        </div>
+      ) : null}
     </li>
   );
 }
 
 /** What they told it, as a card in the conversation: the words, that it uses them, and the question asked again. */
-function PvTold({ text, talk }: { text: string; talk: Talk }) {
+function PvTold({ text, talk, fresh }: { text: string; talk: Talk; fresh: boolean }) {
   return (
-    <li className="pv-line" data-testid="pv-told">
+    <li className="pv-line" data-new={fresh || undefined} data-testid="pv-told">
       <Panel as="section" className="pv-told" aria-label={W.toldTitle}>
         <span className="pv-told-head">
           <Icon name="pencil" size={14} />
@@ -74,7 +107,7 @@ function PvTold({ text, talk }: { text: string; talk: Talk }) {
 function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: boolean; talk: Talk }) {
   if (line.kind === "said")
     return (
-      <li className="pv-line" data-mine data-testid={`pv-turn-${at}`}>
+      <li className="pv-line" data-mine data-new={line.fresh || undefined} data-testid={`pv-turn-${at}`}>
         <p className="pv-said">
           <span className="rec-sr">{W.you}: </span>
           {line.text}
@@ -82,26 +115,28 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
       </li>
     );
   if (line.kind === "call") return <PvCalled line={line} />;
-  if (line.kind === "told") return <PvTold text={line.text} talk={talk} />;
+  if (line.kind === "told") return <PvTold text={line.text} talk={talk} fresh={line.fresh === true} />;
   return (
-    <PvAnswer text={line.text} at={at}>
-      {line.then?.taught ? (
-        <span className="pv-used" data-testid={`pv-used-${at}`}>
-          <Icon name="pencil" size={13} />
-          {W.fromTaught}
-        </span>
-      ) : null}
+    <PvAnswer text={line.text} at={at} lit={line.then?.spans ?? NONE_LIT} fresh={line.fresh === true}>
       {line.then ? (
-        <p className="pv-then" data-tone={line.then.tone} data-testid={`pv-then-${at}`}>
-          <Icon name="send" size={14} />
-          <span>{W.then[line.then.tone]}</span>
-        </p>
-      ) : null}
-      {last && line.then?.tone === "yours" && talk.canTell && !talk.telling ? (
-        <Button size="touch" onClick={talk.startTelling} data-testid="pv-tell-what">
-          <Icon name="pencil" size={15} />
-          {W.tellWhat}
-        </Button>
+        <>
+          {line.then.taught ? (
+            <span className="pv-used" data-testid={`pv-used-${at}`}>
+              <Icon name="pencil" size={13} />
+              {W.fromTaught}
+            </span>
+          ) : null}
+          <p className="pv-then" data-tone={line.then.tone} data-testid={`pv-then-${at}`}>
+            <Icon name="send" size={14} />
+            <span>{W.then[line.then.tone]}</span>
+          </p>
+          {last && line.then.tone === "yours" && talk.canTell && !talk.telling ? (
+            <Button size="touch" onClick={talk.startTelling} data-testid="pv-tell-what">
+              <Icon name="pencil" size={15} />
+              {W.tellWhat}
+            </Button>
+          ) : null}
+        </>
       ) : null}
     </PvAnswer>
   );
@@ -190,13 +225,13 @@ function PvStarters({ talk }: { talk: Talk }) {
   return (
     <>
       <span className="pv-label pv-dock-label">{W.tryAsking}</span>
-      <div className="pv-starters" data-testid="pv-starters">
+      <PvSlide className="pv-starters" testid="pv-starters" count={talk.starters.length}>
         {talk.starters.map((question) => (
           <Button key={question} size="touch" disabled={talk.busy} onClick={() => void talk.say(question)}>
             {question}
           </Button>
         ))}
-      </div>
+      </PvSlide>
     </>
   );
 }

@@ -11,6 +11,7 @@ import type { BusinessProfile } from "../config/workspace-config/business-profil
 import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
 import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
+import { phoneVoiceShown } from "../voice/phone-voices";
 import { PREVIEW_LIMITS, PREVIEW_NEAR, previewStateOf, type PreviewPageState } from "./standing";
 import { PREVIEW_STARTERS_MOST, previewStartersWrittenOf } from "./starters";
 import { previewTheirsOf } from "./theirs";
@@ -23,8 +24,17 @@ import { LEAD_PREVIEW_WORDS } from "./words";
 export interface PreviewTurnVM {
   role: "user" | "assistant";
   text: string;
-  /** `taught`: the answer says a thing they told it (the message door's rule, server/previews), kept with the turn. */
-  then: { words: string; tone: "sends" | "waits" | "yours"; taught?: boolean } | null;
+  /**
+   * `taught`: the answer says a thing they told it (the message door's rule, server/previews), kept with the turn;
+   * `spans`: where it says it, each from one character of the answer up to another, for the page to light.
+   */
+  then: { words: string; tone: "sends" | "waits" | "yours"; taught?: boolean; spans?: [number, number][] } | null;
+}
+
+/** A call the preview ended, as a line of its conversation on a visit after it: which one, and how long it ran. */
+interface PreviewCallVM {
+  id: string;
+  seconds: number;
 }
 
 /**
@@ -51,6 +61,8 @@ export interface PreviewPageVM {
   /** Their Google photo, only from Google's own host. */
   photo: string | null;
   turns: PreviewTurnVM[];
+  /** The calls it ended, oldest first, so a visit after one still shows it and its words: none on a page not open. */
+  calls: PreviewCallVM[];
   /** Messages it will still answer. */
   left: number;
   /** What its calls may still speak, by the seconds its ended calls were counted. */
@@ -59,6 +71,8 @@ export interface PreviewPageVM {
   starters: string[];
   /** What it says first in the chat, as their business: shown, never stored or counted. */
   greeting: string;
+  /** The phone voice it speaks with (voice/phone-voices.ts), heard on the page in the provider's own recording of it. */
+  voice: string;
   knows: PreviewKnowsRowVM[];
   /** What they told it, in the order they did (previews/theirs.ts): none on a page that is not open. */
   taught: string[];
@@ -79,12 +93,17 @@ export interface PreviewPageFacts {
   business: string;
   logo_url: string | null;
   /** With its notes: what the business told it and put right are notes of the record (previews/theirs.ts). */
-  profile: Pick<BusinessProfile, "hours" | "address" | "website" | "services" | "assistant_name" | "notes"> | null;
+  profile: Pick<
+    BusinessProfile,
+    "hours" | "address" | "website" | "services" | "assistant_name" | "notes" | "phone_voice"
+  > | null;
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
   /** The calls it ended (lead_previews.call_count); absent where its reader does not carry it. */
   call_count?: number;
+  /** Its newest ended calls, oldest first (the preview workspace's rehearsals); absent where its reader carries none. */
+  calls?: PreviewCallVM[];
   /** The lead's Google photo (leads.image_url), or none. */
   photo_url: string | null;
   /**
@@ -101,18 +120,42 @@ const photoOf = (url: string | null): string | null => (url && GOOGLE_PHOTO.test
 const TURN_TONES: ReadonlySet<string> = new Set(["sends", "waits", "yours"]);
 type Tone = NonNullable<PreviewTurnVM["then"]>["tone"];
 
+/** The stretches lit in one answer, at most: what its door keeps (server/previews/taught-answer.ts). */
+const SPANS_MOST = 8;
+
+/** An answer's lit stretches as its turn keeps them, read for what each is: whole numbers, in order, inside the answer. */
+function turnSpansOf(raw: unknown, length: number): [number, number][] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .flatMap((span: unknown): [number, number][] => {
+      const from: unknown = Array.isArray(span) ? span[0] : null;
+      const to: unknown = Array.isArray(span) ? span[1] : null;
+      if (typeof from !== "number" || typeof to !== "number") return [];
+      return Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from < to && to <= length
+        ? [[from, to]]
+        : [];
+    })
+    .slice(0, SPANS_MOST);
+}
+
 /** The chat as the row keeps it (00497 preview_said: {role, content, then?}), read for what each turn is. */
 export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((t: unknown): PreviewTurnVM[] => {
-    const o = t && typeof t === "object" ? (t as Record<string, unknown>) : null;
-    if (!o || (o.role !== "user" && o.role !== "assistant") || typeof o.content !== "string") return [];
-    const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
+  return raw.flatMap((kept: unknown): PreviewTurnVM[] => {
+    const row = kept && typeof kept === "object" ? (kept as Record<string, unknown>) : null;
+    if (!row || (row.role !== "user" && row.role !== "assistant") || typeof row.content !== "string") return [];
+    const then = row.then && typeof row.then === "object" ? (row.then as Record<string, unknown>) : null;
+    const spans = then?.taught === true ? turnSpansOf(then.spans, row.content.length) : [];
     const turn =
-      o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
-        ? { words: then.words, tone: then.tone as Tone, ...(then.taught === true ? { taught: true } : {}) }
+      row.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
+        ? {
+            words: then.words,
+            tone: then.tone as Tone,
+            ...(then.taught === true ? { taught: true } : {}),
+            ...(spans.length ? { spans } : {}),
+          }
         : null;
-    return [{ role: o.role, text: o.content, then: turn }];
+    return [{ role: row.role, text: row.content, then: turn }];
   });
 }
 
@@ -246,6 +289,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     logo_url: previewPageFacts.logo_url,
     photo: state === "ended" || state === "taken" ? null : photoOf(previewPageFacts.photo_url),
     turns,
+    calls: open ? (previewPageFacts.calls ?? []) : [],
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),
     starters: state === "ready" ? startersShownOf(previewPageFacts) : [],
@@ -253,6 +297,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
       previewPageFacts.business,
       previewPageFacts.profile?.assistant_name ?? null,
     ),
+    voice: phoneVoiceShown(previewPageFacts.profile?.phone_voice).id,
     knows:
       state === "ready" || state === "spent"
         ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)

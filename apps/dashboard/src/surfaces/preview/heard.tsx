@@ -85,7 +85,7 @@ export function PvCalled({ line }: { line: Extract<TalkLine, { kind: "call" }> }
   const [open, setOpen] = useState(false);
   const words = useId();
   return (
-    <li className="pv-line pv-line-call" data-testid="pv-called">
+    <li className="pv-line pv-line-call" data-new={line.fresh || undefined} data-testid="pv-called">
       <span className="pv-called">
         <span className="pv-glyph" aria-hidden="true">
           <Icon name="phone" size={18} />

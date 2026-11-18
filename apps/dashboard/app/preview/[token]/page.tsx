@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { accentOf, LEAD_PREVIEW_WORDS as W, previewPageOf } from "@chanlytics/contracts";
+import { LEAD_PREVIEW_WORDS as W, previewPageOf } from "@chanlytics/contracts";
 import { findPreviewPage } from "@/server/public/preview-page";
 import { PreviewPage } from "@/surfaces/preview/preview-page";
 
@@ -27,14 +27,6 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 // (its state, its chat). Under cacheComponents a page that reads before it draws may block, and this says it may.
 export const instant = false;
 
-/** The business's colour on the one button and the links (decision 0075), as tokens: a colour its read checked. */
-function accentRule(accent: string | null): string | null {
-  if (!accent) return null;
-  const colour = accentOf({ accent });
-  if (!/^#[0-9a-f]{6}$/i.test(colour)) return null;
-  return `:root[data-theme]{--accent:${colour};--accent-ink:${colour};--accent-fg:#fff;--accent-soft:color-mix(in oklab, ${colour} 14%, transparent)}`;
-}
-
 export default async function LeadPreviewPage({
   params,
   searchParams,
@@ -47,12 +39,8 @@ export default async function LeadPreviewPage({
   const look = (await searchParams).look === "1";
   const read = await findPreviewPage(token);
   if (!read) notFound();
+  // The page wears the app's own colours, its one coral among them: the business is its face and its name, never a
+  // second accent beside the filled act (decision 0079's amendment of 18 November 2026; 0075's colour is its links').
   const vm = previewPageOf(read.facts, new Date());
-  const rule = accentRule(read.look.accent);
-  return (
-    <>
-      {rule ? <style>{rule}</style> : null}
-      <PreviewPage vm={vm} token={token} look={look} />
-    </>
-  );
+  return <PreviewPage vm={vm} token={token} look={look} />;
 }

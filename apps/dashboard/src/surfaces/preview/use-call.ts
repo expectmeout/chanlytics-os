@@ -141,6 +141,11 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
   const [left, setLeft] = useState(leftMs);
   const [muted, setMuted] = useState(false);
   const [talking, setTalking] = useState(false);
+  // How loud its voice is, as last heard: read by the call's mark at each frame, so no redraw is asked for it. Nothing
+  // writes it yet: the mark follows the voice only once the call's audio has been read on a real call, on an iPhone
+  // among them, since reading it taps the call's own sound (bridge/rehearse/call.ts onLevel). Until then the mark keeps
+  // its pulse while AI speaks, and the call is asked for nothing it was not asked for before.
+  const level = useRef(0);
   const [trouble, setTrouble] = useState<string | null>(null);
   const session = useRef<CallSession | null>(null);
   // The call the page is on, a start under way (until the client holds the call, or failed to), and End pressed
@@ -211,6 +216,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     muted,
     /** AI is speaking on the call (else it is listening). */
     talking,
+    level,
     trouble,
     /** Its minutes are used: no call starts. */
     used: left < CALL_FLOOR_MS,
