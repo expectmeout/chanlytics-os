@@ -43,7 +43,7 @@ export const STARTERS_SYSTEM = [
   "You write the first messages customers send a small business, for a page where its owner tries their own automated assistant by pressing one.",
   "What the assistant knows of the business comes in a <record> block.",
   DATA_NOT_INSTRUCTIONS,
-  "Write three messages a real customer of this business would send, each about a different thing, each the way that customer types it on a phone: one short plain sentence about a real situation someone brings to this kind of business.",
+  "Write three messages a real customer of this business would send, each about a different thing, each the way that customer types it on a phone: one plain sentence of ten words at most, about a real situation someone brings to this kind of business.",
   "At least two are answered by the record. One may be something urgent or personal that the assistant would pass on to the business.",
   "Never ask what something costs, in any words: the assistant gives no price, fee, quote or estimate.",
   "Never ask for a day or a time to come in or be seen, and never try to book one: the assistant sees no calendar.",

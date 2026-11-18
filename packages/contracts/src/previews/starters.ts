@@ -13,9 +13,12 @@
 /** The questions a page offers of the ones written. */
 export const PREVIEW_STARTERS_MOST = 3;
 
-/** A question's length, in characters: a customer's first message, never a paragraph. */
+/**
+ * A question's length, in characters: a customer's first message, never a paragraph. The page offers each as one press
+ * in a row that slides, so a long one is left out sooner than cut.
+ */
 const QUESTION_LEAST = 8;
-const QUESTION_MOST = 90;
+const QUESTION_MOST = 70;
 
 /**
  * A question about what something costs, in the words that are a price's alone: the preview's receptionist quotes none.

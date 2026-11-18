@@ -119,6 +119,7 @@ test("the model is told the kind of business and what its receptionist knows, ea
 test("the model is asked for a customer's words, and told the rule: no price, no time to come in, nothing the record lacks", () => {
   for (const said of [
     /three messages/,
+    /ten words at most/,
     /<record>/,
     /never ask what something costs/i,
     /never ask for a day or a time/i,
@@ -167,6 +168,8 @@ test("its answer is read for what each is: a customer's short line, never a pric
     ["Do you fix leaks?", "Are you open on Saturday?", "Is someone there now?"],
     "tidied, each once, a line and not a paragraph, three at most",
   );
+  // One press in a row that slides: seventy characters is the most a question runs.
+  assert.deepEqual(previewStartersWrittenOf([`${"a".repeat(69)}?`, `${"a".repeat(70)}?`]), [`${"a".repeat(69)}?`]);
   for (const none of [null, undefined, "a string", { questions: WRITTEN }, 3]) {
     assert.deepEqual(previewStartersWrittenOf(none), []);
   }
