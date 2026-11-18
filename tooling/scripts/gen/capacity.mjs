@@ -302,6 +302,13 @@ export const CAPACITY = {
     bound: "None: one statement in the database, over rows whose time has come.",
     atFull: "Holds on its index.",
   },
+  sources: {
+    job: "sources-sweep",
+    bound:
+      "None: it hands each watched folder a `source_read` or a `source_walk` when its own row says one is due, every five minutes, and reads no provider itself.",
+    atFull:
+      "A folder is read once an hour at its floor, six hours where nothing changed in a week, and at most once in five minutes when its provider signals; it is walked again once a day, or a week. The ledger's row is the limit.",
+  },
   text_canary: {
     job: "text-canary",
     bound: "None needed: one text to the platform's own line, and one read of what became of it.",

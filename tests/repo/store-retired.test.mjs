@@ -132,6 +132,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "google_read",
       "texts_read",
       "sequence_occasions",
+      "source_walk",
+      "source_read",
       "canary",
     ],
   );

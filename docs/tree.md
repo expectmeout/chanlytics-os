@@ -10,6 +10,7 @@ apps/edge/api/
   cron/
   jobs/
   mailbox/
+  sources/
 apps/edge/lib/
   ai/
   billing/

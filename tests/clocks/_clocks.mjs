@@ -27,6 +27,12 @@ export const CLOCKS = {
     why: "hands each workspace with a feed a job hourly, which parses it to add people and stamp booked leads (0115); appointment events from push sync replace it, the iCal read a fallback (0002)",
   },
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
+  sources: {
+    kind: "due",
+    why: "hands each watched folder the read or the re-walk whose time its row holds, written there by its last read and walk (00641); a walk whose steps stopped is taken up from its rows",
+    times: ["media_sources.next_read_at", "media_sources.next_walk_at"],
+    fn: "sources_hand_out",
+  },
   text_canary: {
     kind: "judge",
     why: "judges the real wires once a day: a text to the platform's own line, taken in and answered, or a page (00595)",

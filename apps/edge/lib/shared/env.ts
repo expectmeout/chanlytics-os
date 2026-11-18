@@ -220,6 +220,10 @@ export const env = {
   get MAILBOX_OAUTH_REDIRECT() {
     return trimmedEnv(process.env.MAILBOX_OAUTH_REDIRECT);
   },
+  /** The dashboard's callback a Drive connect returns to, registered on the Google client exactly as written here. */
+  get SOURCES_OAUTH_REDIRECT() {
+    return trimmedEnv(process.env.SOURCES_OAUTH_REDIRECT);
+  },
   /** The Pub/Sub topic Gmail publishes a mailbox's changes to (projects/<project>/topics/<name>). */
   get GMAIL_PUSH_TOPIC() {
     return trimmedEnv(process.env.GMAIL_PUSH_TOPIC);
