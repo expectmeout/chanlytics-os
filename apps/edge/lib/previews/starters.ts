@@ -39,7 +39,7 @@ const NOTES_TOLD = 8;
 const NOTE_TOLD_MAX = 240;
 
 /** What the model is asked for: three first messages, in a customer's words, that this business's receptionist can take. */
-export const STARTERS_SYSTEM = [
+const STARTERS_SYSTEM = [
   "You write the first messages customers send a small business, for a page where its owner tries their own automated assistant by pressing one.",
   "What the assistant knows of the business comes in a <record> block.",
   DATA_NOT_INSTRUCTIONS,
@@ -52,7 +52,7 @@ export const STARTERS_SYSTEM = [
 ].join("\n");
 
 /** The JSON schema the questions are answered in (Anthropic's structured output): a list, read by previewStartersWrittenOf. */
-export const STARTERS_SCHEMA = {
+const STARTERS_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["questions"],
@@ -80,7 +80,7 @@ function whereLine(known: StartersKnown): string | null {
 }
 
 /** What the model is told: each thing the receptionist knows on a line of its own, someone else's words in their fence. */
-export function startersAskOf(known: StartersKnown): string {
+function startersAskOf(known: StartersKnown): string {
   const profile = known.profile;
   const hours = calendarHoursLines(profile?.hours ?? null);
   const services = (profile?.services ?? []).map((service) => service.name.trim()).filter(Boolean);
