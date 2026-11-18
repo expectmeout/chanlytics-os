@@ -351,12 +351,25 @@ html.in-app .auth-or {
   height: 44px;
   margin: -6px 0 6px -10px;
   border-radius: var(--radius-full);
+}
+/* In the quiet ink, where every other link of the card wears the accent's. */
+.auth-claim > .auth-back {
   color: var(--ink-muted);
 }
 @media (hover: hover) {
-  .auth-back:hover {
+  .auth-claim > .auth-back:hover {
     color: var(--ink);
   }
+}
+.auth-claim h1 {
+  font-size: var(--text-hero);
+}
+/* Its presses round, its box a softer corner, as the board draws them. */
+.auth-claim button {
+  border-radius: var(--radius-full);
+}
+.auth-claim input {
+  border-radius: var(--radius-xl);
 }
 .auth-claim h1,
 .auth-claim .hint {
