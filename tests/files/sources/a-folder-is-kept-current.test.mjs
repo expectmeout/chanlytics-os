@@ -180,7 +180,7 @@ test("a change in a shared drive is seen: its changes are read from that drive's
   assert.equal(list.query.includeItemsFromAllDrives, "true");
 });
 
-test("deleted, binned, moved out and unreadable are told apart, and removed alone is asked about first", async () => {
+test("binned, moved out, unreadable and no longer found are told apart, and removed alone is asked about first", async () => {
   await watched(tree);
   w.drive.remove("clip-1");
   w.drive.trash("clip-2");
@@ -188,10 +188,14 @@ test("deleted, binned, moved out and unreadable are told apart, and removed alon
   w.drive.forbid("clip-4");
   const [answer] = await read();
 
-  assert.equal(stateOf("clip-1"), "gone", "its provider no longer knows it, and the watched folder still answers");
-  assert.equal(stateOf("clip-2"), "gone", "in the bin");
+  assert.deepEqual(
+    [stateOf("clip-1"), w.item("clip-1").why],
+    ["no_access", "not_found"],
+    "its provider no longer shows it and the bin never did: kept as unreadable, since a 404 does not say deleted",
+  );
+  assert.equal(stateOf("clip-2"), "gone", "in the bin: the one sign of a deletion");
   assert.equal(stateOf("clip-3"), "outside", "still there, under a folder the tree does not hold");
-  assert.equal(stateOf("clip-4"), "no_access", "access lost is never read as gone");
+  assert.deepEqual([stateOf("clip-4"), w.item("clip-4").why], ["no_access", null], "refused is never read as gone");
   assert.equal(answer.read.marked, 4);
   assert.ok(w.item("clip-1").gone_at);
   const records = w.drive.calls.filter((call) => call.path.startsWith("/drive/v3/files/")).map((call) => call.path);
@@ -200,6 +204,25 @@ test("deleted, binned, moved out and unreadable are told apart, and removed alon
     ["/drive/v3/files/clip-1", "/drive/v3/files/clip-4", `/drive/v3/files/${ROOT}`].sort(),
     "the two reported removed are asked about by their own record, and the 404 by whether the folder still answers",
   );
+});
+
+test("a file that vanishes with the bin never seen is kept, however many: a wave of them is no wave of removals", async () => {
+  await watched((drive) => {
+    drive.folder(ROOT, "Footage", null);
+    for (let n = 0; n < 40; n++) drive.photo(`photo-${n}`, `${n}.jpg`, ROOT);
+  });
+  // Thirty files are no longer shared with the account (or were deleted for good): Drive says "removed" of each.
+  for (let n = 0; n < 30; n++) w.drive.unshare(`photo-${n}`);
+  await read();
+  const states = w.items().filter((row) => row.kind === "image");
+  assert.equal(states.filter((row) => row.state === "no_access" && row.why === "not_found").length, 30);
+  assert.equal(states.filter((row) => row.state === "gone").length, 0, "none is said gone");
+  assert.equal(w.source().hold_at, null, "unreadable takes nothing out, so nothing is held");
+
+  // One comes back into the account's sight: its change brings it back by itself, asked for as any arrival is.
+  w.drive.share("photo-0");
+  await read();
+  assert.deepEqual([stateOf("photo-0"), w.item("photo-0").why, w.item("photo-0").gone_at], ["waiting", null, null]);
 });
 
 test("a 404 is not gone when the watched folder itself no longer answers: the folder is frozen and nothing is marked", async () => {

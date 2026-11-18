@@ -2,14 +2,17 @@
  * What is no longer where it was in a watched folder (the footage sources plan, P2): the three ways an item leaves,
  * told apart and never mistaken for one another, and the hold on a wave of them.
  *
- *   gone       trashed, or deleted: its provider says it is in the bin, or no longer knows it while the folder itself
- *              is still readable under a working grant.
+ *   gone       in the bin: its provider says it is trashed. That is the one sign of a deletion a provider gives.
  *   outside    still there, moved out of the watched tree.
- *   no_access  its provider no longer lets it be read. Never read as gone: access lost never deletes.
+ *   no_access  its provider no longer lets it be read, or no longer shows it at all. Never read as gone: access lost
+ *              never deletes.
  *
- * Google answers 404 both for a file that was deleted and for one the account can no longer see, so a 404 alone is not
- * "gone": it is gone only where the watched folder itself still answers (`checkFolderAnswers`), and a folder that does not
- * is frozen instead, with nothing marked.
+ * Google answers 404 both for a file that was deleted and for one the account can no longer see (a folder someone
+ * restricted, a file moved somewhere private), and its change list says "removed" for both. So a 404 is never "gone"
+ * (Ruben, 18 Nov 2026: a file that vanishes is kept, not counted as deleted): an item the bin never showed is
+ * `no_access`, with `not_found` as its why, and it is listed again by itself if its provider shows it again. One
+ * deleted for good with the bin never seen stays so until its owner removes it from the Library. Where the watched
+ * folder itself does not answer (`checkFolderAnswers`), the folder is frozen instead, with nothing marked.
  *
  * A folder that leaves takes what it holds with it (`listSubtree`). An item's Library file is not touched here: the row
  * says where its original stands, and what becomes of the file is the next phases' (the plan's D3 grace).
@@ -38,7 +41,22 @@ type AwayState = (typeof SOURCE_ITEM_AWAY)[number];
 export interface AwayMark {
   providerId: string;
   state: AwayState;
+  /** Said with `no_access` alone: its provider no longer shows the item at all, and the bin never showed it. */
+  why?: "not_found";
 }
+
+/** The mark of an item its provider answered a 404 for: unreadable, never gone, since a 404 does not say deleted. */
+export const unfoundMarkOf = (providerId: string): AwayMark => ({ providerId, state: "no_access", why: "not_found" });
+
+/** Marks that send their items to one state for one reason, with everything under them. */
+interface Leaving {
+  state: AwayState;
+  why: string | null;
+  ids: string[];
+}
+
+/** Whether a group takes items out of the tree: in the bin or moved out. Unreadable removes nothing. */
+const isRemoval = (group: Pick<Leaving, "state">): boolean => group.state !== "no_access";
 
 const isAway = (state: string): boolean => SOURCE_ITEM_AWAY.some((away) => away === state);
 
@@ -122,30 +140,32 @@ export async function markAway(
     marks.map((mark) => mark.providerId),
   );
   const here = new Map(rows.filter((row) => !isAway(row.state)).map((row) => [row.provider_id, row]));
-  const byState = new Map<AwayState, string[]>();
+  const groups = new Map<string, Leaving>();
   for (const mark of marks) {
     if (!here.has(mark.providerId)) continue;
-    byState.set(mark.state, [...(byState.get(mark.state) ?? []), mark.providerId]);
+    const key = `${mark.state}:${mark.why ?? ""}`;
+    const group = groups.get(key) ?? { state: mark.state, why: mark.why ?? null, ids: [] };
+    group.ids.push(mark.providerId);
+    groups.set(key, group);
   }
-  const leaving = new Map<AwayState, string[]>();
-  for (const [state, ids] of byState) leaving.set(state, await listSubtree(open, ids));
-  const removals = (leaving.get("gone")?.length ?? 0) + (leaving.get("outside")?.length ?? 0);
+  let leaving: Leaving[] = [];
+  for (const group of groups.values()) leaving.push({ ...group, ids: await listSubtree(open, group.ids) });
+  const removals = leaving.filter(isRemoval).reduce((sum, group) => sum + group.ids.length, 0);
   let held = 0;
   if (removals > 0 && rule !== "agreed") {
     const standing = rule === "held";
     if (standing || isMassGone(removals, await countSourceItems(open.db, open.ref, { here: true }))) {
       held = removals;
-      leaving.delete("gone");
-      leaving.delete("outside");
+      leaving = leaving.filter((group) => !isRemoval(group));
       if (!standing) await holdSource(open, removals, at);
     }
   }
   let marked = 0;
-  for (const [state, ids] of leaving)
+  for (const { state, why, ids } of leaving)
     marked += await moveSourceItems(open.db, open.ref, {
       providerIds: ids,
       from: SOURCE_ITEM_STATES.filter((from: SourceItemState) => from !== state),
-      patch: { state, why: null, gone_at: at.toISOString(), missed_run: null },
+      patch: { state, why, gone_at: at.toISOString(), missed_run: null },
     });
   return { marked, held };
 }

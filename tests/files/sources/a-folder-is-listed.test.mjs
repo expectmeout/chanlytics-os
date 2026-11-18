@@ -268,7 +268,8 @@ test("where one folder of a question is gone the whole question is refused: each
   manyFolders(w.drive);
   await firstWalk(w);
   w.source().next_walk_at = new Date(Date.now() - 1000).toISOString();
-  // A folder is deleted with what it held, and no read of the changes saw it.
+  // A folder is no longer there with what it held (deleted for good, or out of the account's sight: Drive answers
+  // the same for both), and no read of the changes saw it.
   w.drive.remove("shoot-3").remove("clip-3a").remove("clip-3b");
   w.drive.calls.length = 0;
   const [walk] = await clockTurn(w);
@@ -277,9 +278,9 @@ test("where one folder of a question is gone the whole question is refused: each
   assert.equal(walk.walked.missed, 3, "the folder and its two clips, and nothing else");
   // The other folders and their clips stand as they were (a first watch had asked for the clips).
   assert.deepEqual(["shoot-3", "clip-3a", "clip-3b", "shoot-2", "clip-2a", "clip-4b"].map(stateOf), [
-    "gone",
-    "gone",
-    "gone",
+    "no_access",
+    "no_access",
+    "no_access",
     "listed",
     "waiting",
     "waiting",
@@ -329,7 +330,7 @@ test("folders listed together that do not fit one step keep the page they stand 
 
   // A re-walk of the same tree, in steps too: nothing is missed, since what each page showed was stamped.
   w.source().next_walk_at = new Date(Date.now() - 1000).toISOString();
-  w.drive.remove("clip-2a");
+  w.drive.trash("clip-2a");
   const again = await clockTurn(w);
   assert.equal(again.at(-1).walked.ended, true);
   assert.deepEqual(
@@ -338,7 +339,7 @@ test("folders listed together that do not fit one step keep the page they stand 
       .filter((row) => row.state === "gone")
       .map((row) => row.provider_id),
     ["clip-2a"],
-    "only the clip that is gone is said gone",
+    "only the clip in the bin is said gone",
   );
 });
 
@@ -352,7 +353,7 @@ async function watched(build) {
   return w;
 }
 
-test("a re-walk finds what the changes missed, and tells deleted, moved out and unreadable apart", async () => {
+test("a re-walk finds what the changes missed, and tells binned, moved out, unreadable and no longer found apart", async () => {
   await watched((drive) => {
     smallTree(drive);
     drive.folder("elsewhere", "Private", null).video("clip-3", "c.MOV", ROOT).video("clip-4", "d.MOV", ROOT);
@@ -367,10 +368,14 @@ test("a re-walk finds what the changes missed, and tells deleted, moved out and 
 
   const [walk] = await clockTurn(w);
   assert.equal(walk.payload.walk, "reconcile");
-  assert.equal(stateOf("clip-1"), "gone", "deleted, with the watched folder itself still answering");
+  assert.deepEqual(
+    [stateOf("clip-1"), w.item("clip-1").why],
+    ["no_access", "not_found"],
+    "a 404 does not say deleted: the bin never showed it, so it is kept as unreadable, and its row says not found",
+  );
   assert.equal(stateOf("clip-2"), "outside", "still there, moved out of the tree");
-  assert.equal(stateOf("clip-3"), "no_access", "unreadable is never read as gone");
-  assert.equal(stateOf("clip-4"), "gone", "in the bin");
+  assert.deepEqual([stateOf("clip-3"), w.item("clip-3").why], ["no_access", null], "refused is never read as gone");
+  assert.equal(stateOf("clip-4"), "gone", "in the bin: the one sign of a deletion");
   assert.ok(w.item("clip-1").gone_at && w.item("clip-2").gone_at);
   assert.equal(stateOf("clip-new"), "waiting", "what the changes missed is found and asked for");
   assert.equal(w.source().change_cursor, cursor, "a walk never moves the folder's place in the changes");
@@ -414,7 +419,7 @@ test("a wave of removals is held: nothing is marked until the next re-walk still
     drive.folder(ROOT, "Footage", null);
     for (let n = 0; n < 30; n++) drive.photo(`photo-${n}`, `${n}.jpg`, ROOT);
   });
-  for (let n = 0; n < 25; n++) w.drive.remove(`photo-${n}`);
+  for (let n = 0; n < 25; n++) w.drive.trash(`photo-${n}`);
 
   await clockTurn(w);
   assert.equal(w.items().filter((row) => row.state === "gone").length, 0, "held: none is marked");
@@ -455,10 +460,29 @@ test("one file gone from a small folder is simply gone: a hold is for a wave", a
   await watched((drive) => {
     drive.folder(ROOT, "Footage", null).photo("a", "a.jpg", ROOT).photo("b", "b.jpg", ROOT).photo("c", "c.jpg", ROOT);
   });
-  w.drive.remove("a");
+  w.drive.trash("a");
   await clockTurn(w);
   assert.equal(stateOf("a"), "gone", "a third of the folder, and still under the hold's least");
   assert.equal(w.source().hold_at, null);
+});
+
+test("a folder someone restricts takes nothing out: what it held is kept as unreadable, and is listed again by itself", async () => {
+  await watched(smallTree);
+  // The folder and what it holds are no longer shared with the account: Drive answers each as it does a deleted file.
+  w.drive.unshare("sub-1").unshare("photo-1").unshare("heavy-1");
+  await clockTurn(w);
+  for (const id of ["sub-1", "photo-1", "heavy-1"])
+    assert.deepEqual([stateOf(id), w.item(id).why], ["no_access", "not_found"], `${id} is kept, never said gone`);
+  assert.equal(w.items().filter((row) => row.state === "gone").length, 0);
+  assert.equal(w.source().state, "watching", "the watched folder itself still answers");
+  assert.equal(w.source().hold_at, null, "three items are no wave");
+
+  // Shared again: the next walk lists the folder and what it holds again, as it does one moved back in.
+  w.drive.share("sub-1").share("photo-1").share("heavy-1");
+  w.source().next_walk_at = new Date(Date.now() - 1000).toISOString();
+  await clockTurn(w);
+  assert.deepEqual([stateOf("sub-1"), stateOf("photo-1")], ["listed", "listed"]);
+  assert.deepEqual([w.item("photo-1").why, w.item("photo-1").gone_at], [null, null]);
 });
 
 test("a folder that left takes what it holds with it", async () => {

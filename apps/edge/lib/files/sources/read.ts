@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/db/files";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../../shared/log.js";
-import { checkFolderAnswers, isInTree, markAway, itemStandingOf, type AwayMark } from "./away.js";
+import { checkFolderAnswers, isInTree, markAway, itemStandingOf, unfoundMarkOf, type AwayMark } from "./away.js";
 import { keepChannel } from "./channel.js";
 import { keepPage, planPage } from "./items.js";
 import { isLengthSoon, nextReadOf, SOURCE_PACE, soonestRewalkOf } from "./pace.js";
@@ -87,7 +87,7 @@ export function sortChanges(
     const row = known.get(change.id);
     if (change.id === open.source.folder_id) sorted.rootChanged = true;
     else if (change.removed) {
-      // Deleted, or no longer readable: its own record says which.
+      // Deleted for good, or out of the account's sight: its own record is asked, and neither answer says gone.
       if (isHere(row)) sorted.toRead.push(change.id);
     } else if (change.trashed) {
       if (isHere(row)) sorted.marks.push({ providerId: change.id, state: "gone" });
@@ -114,7 +114,8 @@ interface RecordsSorted extends PageRead {
 
 /**
  * One item's own record, sorted. One in the tree is an item to keep; one in the bin, or under a parent the tree does
- * not hold, has left if the tree knew it; one its provider refuses is unreadable, never gone; a 404 is asked about.
+ * not hold, has left if the tree knew it; one its provider refuses is unreadable, never gone; a 404 is asked about
+ * (whether the watched folder itself still answers), and is unreadable too.
  */
 function sortRecord(
   open: OpenSource,
@@ -137,8 +138,9 @@ function sortRecord(
 }
 
 /**
- * Each item's own record, a few at a time, sorted (sortRecord). A 404 is gone only where the watched folder itself
- * still answers; where it does not, the folder is frozen and nothing is said of its items.
+ * Each item's own record, a few at a time, sorted (sortRecord). A 404 is never gone: where the watched folder itself
+ * still answers the item is unreadable, not found (away.ts says why); where it does not, the folder is frozen and
+ * nothing is said of its items.
  */
 async function readRecords(
   read: Pick<Read, "open" | "deadline">,
@@ -163,7 +165,7 @@ async function readRecords(
     const answers = await checkFolderAnswers(open);
     if (answers === "no") return "frozen";
     if (answers !== "yes") return answers;
-    sorted.marks.push(...sorted.notFound.map((providerId): AwayMark => ({ providerId, state: "gone" })));
+    sorted.marks.push(...sorted.notFound.map((providerId) => unfoundMarkOf(providerId)));
   }
   return { items: sorted.items, marks: sorted.marks };
 }

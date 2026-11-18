@@ -16,7 +16,7 @@
  *     measured on a real account, 161 folders of more than 1,700.
  *
  * Every call is kept (`calls`), with what it costs at Google since 1 May 2026 (`units()`): an item's record 5, a
- * list 100. A test reads back what was asked, as Google would read it.
+ * list 100, a channel closed 5. A test reads back what was asked, as Google would read it.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -32,7 +32,7 @@ function unitsOf(method, path) {
   if (path === "/drive/v3/changes/startPageToken") return 5;
   if (path === "/drive/v3/changes" || path === "/drive/v3/files" || path === "/drive/v3/drives") return 100;
   if (path === "/drive/v3/changes/watch") return 100;
-  if (path === "/drive/v3/channels/stop") return 50;
+  if (path === "/drive/v3/channels/stop") return 5;
   return method === "GET" && path.startsWith("/drive/v3/files/") ? 5 : 0;
 }
 

@@ -329,7 +329,7 @@ test("a person's word for a held wave walks the folder at the clock's next turn,
   for (let n = 0; n < 30; n++) w.drive.photo(`photo-${n}`, `${n}.jpg`, ROOT);
   await firstWalk(w);
   assert.deepEqual((await knock({ op: "confirm", source_id: SOURCE }))[0], 404, "nothing is held");
-  for (let n = 0; n < 25; n++) w.drive.remove(`photo-${n}`);
+  for (let n = 0; n < 25; n++) w.drive.trash(`photo-${n}`);
   w.tables.jobs.push({
     id: "job-read",
     tenant_id: T,

@@ -307,13 +307,18 @@ test("a refused key and a missing scope are never a verdict: they are thrown for
   await assert.rejects(() => source.getItem(TOKEN, "clip-1"), SourceKeyRefused, "on an item's record too");
 });
 
-test("each call tells what it cost at Google: a list 100, a record 5", async () => {
-  const web = answers(ok({ changes: [], newStartPageToken: "101" }), ok({ id: "clip-1", mimeType: "video/mp4" }));
+test("each call tells what it cost at Google: a list 100, a record 5, a channel closed 5", async () => {
+  const web = answers(
+    ok({ changes: [], newStartPageToken: "101" }),
+    ok({ id: "clip-1", mimeType: "video/mp4" }),
+    new Response(null, { status: 204 }),
+  );
   const spent = [];
   const source = driveSource({ fetch: web.fetch, spent: (units) => spent.push(units) });
   await source.listChanges(TOKEN, MINE, "100");
   await source.getItem(TOKEN, "clip-1");
-  assert.deepEqual(spent, [100, 5]);
+  await source.closeChannel(TOKEN, { id: "channel-1", resourceId: "resource-1" });
+  assert.deepEqual(spent, [100, 5, 5]);
 });
 
 test("no answer from Drive is not a verdict: the read is asked once more, then throws for its job to be tried again", async () => {

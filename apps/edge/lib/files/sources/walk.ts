@@ -18,8 +18,8 @@
  * say. Every write is once an item, so a page listed twice changes nothing.
  *
  * What a re-walk did not find is only marked as missed (source_items.missed_run). When the tree is listed, each missed
- * item's own record is asked for, and only then is it said gone, outside or unreadable (away.ts); a wave of them is
- * held instead. A folder listed in one step is compared in memory, so a re-walk writes nothing on an item that did
+ * item's own record is asked for, and only then is it said gone (in the bin), outside or unreadable (away.ts: one its
+ * provider no longer shows is unreadable, never gone); a wave of them is held instead. A folder listed in one step is compared in memory, so a re-walk writes nothing on an item that did
  * not change; one too large for a step stamps what it sees (seen_run) and closes with one statement.
  */
 import {
@@ -49,7 +49,7 @@ import {
 } from "@chanlytics/db/files";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../../shared/log.js";
-import { holdSource, markAway, itemStandingOf, type AwayMark } from "./away.js";
+import { holdSource, markAway, itemStandingOf, unfoundMarkOf, type AwayMark } from "./away.js";
 import { keepPage, planPage } from "./items.js";
 import { agreesWithHold, isMassGone, nextWalkOf, SOURCE_PACE } from "./pace.js";
 import { freezeSource, leaveRefusedKey, openSource, type OpenSource } from "./standing.js";
@@ -299,9 +299,11 @@ async function askAfter(walk: Walk, rows: readonly SourceItemRow[]): Promise<Sto
       const row = batch[index];
       if (!row) continue;
       if (reply.verdict === "pace") return { restMs: reply.restMs };
-      // The tree was just listed under this grant, so the folder answers: a 404 on one of its items is a deletion.
+      // The bin is the one sign of a deletion. An item its provider no longer shows (a 404) or lets be read is
+      // unreadable, never gone: a 404 is also what a folder someone restricted answers (away.ts).
       if (reply.verdict === "ok") records.push({ row, item: reply.answer });
-      else marks.push({ providerId: row.provider_id, state: reply.verdict === "gone" ? "gone" : "no_access" });
+      else if (reply.verdict === "gone") marks.push(unfoundMarkOf(row.provider_id));
+      else marks.push({ providerId: row.provider_id, state: "no_access" });
     }
   }
   const parents = await listSourceItemsByIds(

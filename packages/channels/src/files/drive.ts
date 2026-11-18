@@ -103,10 +103,13 @@ type DriveDeps = NonNullable<Parameters<typeof fetchFromProvider>[3]> & {
   spent?: (units: number) => void;
 };
 
-/** What a call costs at Google since 1 May 2026, by its path: a list 100, an item's record 5, a channel closed 50. */
+/**
+ * What a call costs at Google since 1 May 2026, by its path: a list, and a channel opened, 100; an item's record, the
+ * place to start from and a channel closed 5 (developers.google.com/workspace/drive/api/guides/limits, read 18 Nov
+ * 2026). A download is 200 there: none is made through here.
+ */
 function driveUnitsOf(path: string): number {
-  if (path === "/changes/startPageToken" || path.startsWith("/files/")) return 5;
-  return path === "/channels/stop" ? 50 : 100;
+  return path === "/changes/startPageToken" || path === "/channels/stop" || path.startsWith("/files/") ? 5 : 100;
 }
 
 /** A folder the chooser offers: its id and its name, and nothing else of it. */
