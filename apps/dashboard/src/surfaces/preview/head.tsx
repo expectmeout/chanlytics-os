@@ -8,16 +8,22 @@
  * slides, each opening What it knows whole; on a desk the facts down their card, each put right in place (knows.tsx).
  * Every word is contracts' (previews/words.ts).
  */
+import { useEffect, useRef, useState } from "react";
 import {
   LEAD_PREVIEW_WORDS as W,
   previewMinePath,
   type PreviewKnowsRowVM,
   type PreviewPageVM,
+  type Theme,
 } from "@chanlytics/contracts";
+import { keepStrangerTheme } from "@/bridge/device-prefs";
+import { useVoiceSample } from "@/bridge/rehearse/voice-sample";
+import { paintThemeColor } from "@/bridge/theme-color";
 import { Button } from "../kit/button/button";
 import { Face } from "../kit/face/face";
 import { Icon } from "../kit/icon/icon";
 import { StatePill } from "../kit/pill/state-pill";
+import { PvSlide } from "./slide";
 import type { Call } from "./use-call";
 
 /** The glyph each fact wears. */
@@ -49,46 +55,107 @@ export function PvFace({ vm, size }: { vm: PreviewPageVM; size: "sm" | "lg" | "x
   return <Face person={{ name: vm.business }} size={size} {...(picture ? { photo: picture } : {})} />;
 }
 
+/** The glyph of the light and dark press. */
+const THEME_GLYPH_PX = 17;
+
 /**
- * The bar that stays at the top, on the page's own ground: whose page it is, once the conversation has started and the
- * head has scrolled away; and Make it mine, quiet glass until they have tried it, then the page's filled act.
+ * The page in the other theme (the review of 18 November 2026): a stranger's page opens as their device is set
+ * (contracts themeBootScript), and this press puts it in the other, light where it is dark. The document wears the
+ * theme, the browser's bars are painted in its paper, and this device keeps the choice for a stranger's page alone
+ * (bridge/device-prefs.ts), so the next visit and Make it mine open as they left it. Its glyph is the theme a press
+ * goes to, chosen by the stylesheet from what the document wears, so nothing is read before the page is drawn.
  */
-export function PvTop({
-  vm,
-  token,
-  leads,
-  started,
-}: {
-  vm: PreviewPageVM;
-  token: string;
-  leads: boolean;
-  started: boolean;
-}) {
+function PvTheme() {
+  const change = () => {
+    const root = document.documentElement;
+    const next: Theme = root.dataset.theme === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    paintThemeColor(document, next);
+    keepStrangerTheme(() => localStorage, next);
+  };
   return (
-    <div className="pv-top">
-      {started ? (
-        <span className="pv-top-who">
+    <Button
+      variant="glass"
+      size="touch"
+      iconOnly
+      className="pv-theme"
+      aria-label={W.themeSwitch}
+      onClick={change}
+      data-testid="pv-theme"
+    >
+      <span className="pv-theme-light">
+        <Icon name="sun" size={THEME_GLYPH_PX} />
+      </span>
+      <span className="pv-theme-dark">
+        <Icon name="moon" size={THEME_GLYPH_PX} />
+      </span>
+    </Button>
+  );
+}
+
+/** How far the page has moved from its top before something lies under the bar, in px. */
+const UNDER_BAR_PX = 2;
+
+/**
+ * Whether the page has scrolled from its top, so something lies under the bar: its paper falls away beneath it only
+ * then (preview.css). At rest nothing of the bar lies over their head.
+ */
+function useUnderBar(): boolean {
+  const [under, setUnder] = useState(false);
+  useEffect(() => {
+    const place = () => setUnder(document.documentElement.scrollTop > UNDER_BAR_PX);
+    place();
+    document.addEventListener("scroll", place, { passive: true });
+    return () => document.removeEventListener("scroll", place);
+  }, []);
+  return under;
+}
+
+/**
+ * The bar that stays at the top, on the page's own ground: whose page it is (`who`), once the conversation has started
+ * and the head has scrolled away, so their name never stands twice; light or dark; and Make it mine, quiet glass until
+ * they have tried it, then the page's filled act.
+ */
+export function PvTop({ vm, token, leads, who }: { vm: PreviewPageVM; token: string; leads: boolean; who: boolean }) {
+  const under = useUnderBar();
+  return (
+    <div className="pv-top" data-under={under || undefined}>
+      {who ? (
+        <span className="pv-top-who" data-testid="pv-top-who">
           <PvFace vm={vm} size="sm" />
           <b>{vm.business}</b>
         </span>
       ) : (
         <span />
       )}
-      <Button
-        variant={leads ? "primary" : "glass"}
-        size="touch"
-        href={previewMinePath(token)}
-        data-testid="pv-mine"
-        data-leads={leads || undefined}
-      >
-        {W.mine}
-      </Button>
+      <span className="pv-top-acts">
+        <PvTheme />
+        <Button
+          variant={leads ? "primary" : "glass"}
+          size="touch"
+          href={previewMinePath(token)}
+          data-testid="pv-mine"
+          data-leads={leads || undefined}
+        >
+          {W.mine}
+        </Button>
+      </span>
     </div>
   );
 }
 
-/** Call it, and what stands under it: the microphone's line, why no call can be made, or what the last one ran into. */
-function PvCallIt({ call, canCall, leads }: { call: Call; canCall: boolean; leads: boolean }) {
+/** The glyph of Hear its voice, beside its words. */
+const HEAR_GLYPH_PX = 17;
+
+/**
+ * Call it, and what stands under it: the microphone's line, why no call can be made, or what the last one ran into.
+ * Beside it, its voice heard with no call (the review of 18 November 2026): the provider's own recording of the voice
+ * this preview speaks with, as the first run plays it, so a browser with no microphone still hears it. It asks for no
+ * microphone and spends nothing.
+ */
+function PvCallIt({ call, canCall, leads, voice }: { call: Call; canCall: boolean; leads: boolean; voice: string }) {
+  const sample = useVoiceSample();
+  const playing = sample.playing === voice;
   if (call.used)
     return (
       <p className="pv-made" role="status" data-testid="pv-call-left">
@@ -97,22 +164,41 @@ function PvCallIt({ call, canCall, leads }: { call: Call; canCall: boolean; lead
     );
   if (!canCall)
     return (
-      <p className="pv-made" role="status" data-testid="pv-call-nomic">
-        {W.noMic}
-      </p>
+      <>
+        <p className="pv-made" role="status" data-testid="pv-call-nomic">
+          {W.noMic}
+        </p>
+        <Button size="touch" onClick={() => sample.toggle(voice)} aria-pressed={playing} data-testid="pv-hear">
+          <Icon name={playing ? "pause" : "play"} size={14} />
+          {playing ? W.hearStop : W.hearVoice}
+        </Button>
+      </>
     );
   return (
     <>
-      <Button
-        variant={leads ? "outline" : "primary"}
-        size="touch"
-        className="pv-go"
-        onClick={() => void call.start()}
-        data-testid="pv-call-start"
-      >
-        <Icon name="phone" size={CALL_GLYPH_PX} />
-        {W.callStart}
-      </Button>
+      <span className="pv-acts">
+        <Button
+          variant={leads ? "outline" : "primary"}
+          size="touch"
+          className="pv-go"
+          onClick={() => void call.start()}
+          data-testid="pv-call-start"
+        >
+          <Icon name="phone" size={CALL_GLYPH_PX} />
+          {W.callStart}
+        </Button>
+        <Button
+          variant="glass"
+          size="touch"
+          className="pv-hear"
+          aria-pressed={playing}
+          onClick={() => sample.toggle(voice)}
+          data-testid="pv-hear"
+        >
+          <Icon name={playing ? "pause" : "sound-on"} size={HEAR_GLYPH_PX} />
+          {playing ? W.hearStop : W.hearVoice}
+        </Button>
+      </span>
       {call.trouble ? (
         <p className="pv-made" role="alert" data-testid="pv-call-trouble">
           {call.trouble}
@@ -143,6 +229,24 @@ function PvTried({ vm }: { vm: PreviewPageVM }) {
   );
 }
 
+/** The bar at the top of a phone, in px: their head has gone once it is under it. */
+const TOP_BAR_PX = 60;
+
+/** Tells the page when their head leaves the screen and when it is back, so the bar says whose page it is only then. */
+function useSeen(onSeen: (seen: boolean) => void) {
+  const head = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = head.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const watch = new IntersectionObserver((entries) => onSeen(entries.some((entry) => entry.isIntersecting)), {
+      rootMargin: `-${TOP_BAR_PX}px 0px 0px 0px`,
+    });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [onSeen]);
+  return head;
+}
+
 /** The business on top, so it reads as theirs. */
 export function PvHead({
   vm,
@@ -150,15 +254,18 @@ export function PvHead({
   canCall,
   leads,
   look,
+  onSeen,
 }: {
   vm: PreviewPageVM;
   call: Call;
   canCall: boolean;
   leads: boolean;
   look: boolean;
+  onSeen: (seen: boolean) => void;
 }) {
+  const head = useSeen(onSeen);
   return (
-    <header className="pv-head">
+    <header className="pv-head" ref={head}>
       {vm.photo ? <img className="pv-light" src={vm.photo} alt="" referrerPolicy="no-referrer" /> : null}
       <span className="pv-who">
         <PvFace vm={vm} size="xl" />
@@ -168,7 +275,7 @@ export function PvHead({
         {vm.business}
       </h1>
       {look ? <PvTried vm={vm} /> : <p className="pv-ready">{W.ready}</p>}
-      {look ? null : <PvCallIt call={call} canCall={canCall} leads={leads} />}
+      {look ? null : <PvCallIt call={call} canCall={canCall} leads={leads} voice={vm.voice} />}
     </header>
   );
 }
@@ -240,11 +347,11 @@ export function PvFacts({ rows, onOpen }: { rows: readonly PreviewKnowsRowVM[]; 
           </Button>
         ) : null}
       </div>
-      <div className="pv-facts-row">
+      <PvSlide className="pv-facts-row" count={rows.length}>
         {factsInOrder(rows).map((row) => (
           <PvFact key={row.key} row={row} onOpen={onOpen} />
         ))}
-      </div>
+      </PvSlide>
     </section>
   );
 }

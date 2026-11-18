@@ -8,7 +8,7 @@
  * Every pick saves at once through the Business tab's one saver (a profile key each), as the voice's row on How it
  * answers does; the name saves as the box is left. Every word is contracts'.
  */
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   PHONE_PACES,
   PHONE_PACE_WORDS,
@@ -28,6 +28,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { RecordField, RecordToggleGroup } from "../../../kit/record/field";
 import { gate, type FrameFlash } from "../../../frame-verbs";
 import { businessTabSave } from "../../shell";
+import { useVoiceSample } from "@/bridge/rehearse/voice-sample";
 import type { CardBrain } from "../inputs";
 
 const SW = FIRST_RUN_HELPERS.words.sounds;
@@ -50,29 +51,6 @@ function saveProfileKey(o: {
     said: o.said,
     flash: o.flash,
   });
-}
-
-/** One voice's sample, played and stopped: one at a time, none left playing once the panel goes. */
-export function useVoiceSample(): { playing: string | null; toggle: (id: string) => void } {
-  const audio = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState<string | null>(null);
-  const stop = () => {
-    audio.current?.pause();
-    audio.current = null;
-    setPlaying(null);
-  };
-  useEffect(() => stop, []);
-  const toggle = (id: string) => {
-    const was = playing;
-    stop();
-    if (was === id) return;
-    const a = new Audio(phoneVoiceShown(id).sample);
-    audio.current = a;
-    a.onended = () => setPlaying(null);
-    setPlaying(id);
-    void a.play().catch(() => setPlaying(null));
-  };
-  return { playing, toggle };
 }
 
 /** The eight voices, each a pick with its sample beside it. */

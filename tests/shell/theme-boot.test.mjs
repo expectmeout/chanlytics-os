@@ -36,7 +36,12 @@ import { outlineBootScript } from "../../packages/contracts/src/shell/chrome/in-
 import { routeOfAddress, routeOfPath } from "../../packages/contracts/src/shell/address.ts";
 import { FIRST_RUN_ROUTE } from "../../packages/contracts/src/setup/first-run-route.ts";
 import { paintThemeColor } from "../../apps/dashboard/src/bridge/theme-color.ts";
-import { loadPrefs, choosePref, documentStamps } from "../../apps/dashboard/src/bridge/device-prefs.ts";
+import {
+  loadPrefs,
+  choosePref,
+  documentStamps,
+  keepStrangerTheme,
+} from "../../apps/dashboard/src/bridge/device-prefs.ts";
 import * as manifestModule from "../../apps/dashboard/app/manifest.ts";
 import { OUTLINE_ROUTES } from "../../apps/dashboard/src/surfaces/frame/places.ts";
 
@@ -577,4 +582,32 @@ test("a page a stranger opens from an email follows their device, whatever this 
     assert.equal(boot({ stored: null, systemDark: false, path }).theme, resolveTheme(themePrefOf(null), false), path);
     assert.equal(boot({ stored: JSON.stringify({ theme: "light" }), systemDark: true, path }).theme, "light", path);
   }
+});
+
+test("a stranger's page opens in the theme chosen on one, and the app's own theme and that choice never cost each other", () => {
+  const kept = new Map([[DEVICE_PREFS_STORAGE, JSON.stringify({ theme: "dark", sidebar: "rail" })]]);
+  const storage = () => ({ getItem: (k) => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, v) });
+  keepStrangerTheme(storage, "light");
+  const stored = kept.get(DEVICE_PREFS_STORAGE);
+  assert.deepEqual(JSON.parse(stored), { theme: "dark", sidebar: "rail", stranger: "light" });
+  for (const systemDark of [true, false]) {
+    for (const path of ["/preview/TokenTokenTokenToken01", "/preview/TokenTokenTokenToken01/mine"])
+      assert.equal(boot({ stored, systemDark, path }).theme, "light", `${path}, device dark ${systemDark}`);
+    assert.equal(boot({ stored, systemDark, path: "/today" }).theme, "dark", "the app keeps its own");
+  }
+  keepStrangerTheme(storage, "dark");
+  assert.equal(boot({ stored: kept.get(DEVICE_PREFS_STORAGE), systemDark: false, path: "/preview/x" }).theme, "dark");
+  // Anything else kept there is no choice: the page follows the device.
+  for (const stranger of ["system", "", 1, null])
+    assert.equal(boot({ stored: JSON.stringify({ stranger }), systemDark: true, path: "/preview/x" }).theme, "dark");
+  // A member's own press carries the stranger's choice through, as it carries everything the device keeps.
+  choosePref(storage, loadPrefs(storage), "theme", "light");
+  assert.equal(JSON.parse(kept.get(DEVICE_PREFS_STORAGE)).stranger, "dark");
+  assert.equal(JSON.parse(kept.get(DEVICE_PREFS_STORAGE)).theme, "light");
+  // A storage that refuses costs the page nothing.
+  assert.doesNotThrow(() =>
+    keepStrangerTheme(() => {
+      throw new Error("blocked");
+    }, "dark"),
+  );
 });

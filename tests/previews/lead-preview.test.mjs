@@ -251,3 +251,30 @@ test("the page carries their Google photo, and nothing where the lead has none",
   // A page with nothing to try shows no photo.
   assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo, null);
 });
+
+test("an answer's lit stretches are read for what each is: whole numbers, in order, inside the answer, on one marked taught alone", () => {
+  const then = (over) => ({ words: "It would send this right away.", tone: "sends", ...over });
+  const content = "A fade is 30 dollars.";
+  const [marked, unmarked, unread] = previewTurnsOf([
+    {
+      role: "assistant",
+      content,
+      then: then({ taught: true, spans: [[10, 12], [3, "x"], [9, 4], [2, 999], "no", [0.5, 3]] }),
+    },
+    { role: "assistant", content, then: then({ spans: [[10, 12]] }) },
+    { role: "assistant", content, then: then({ taught: true, spans: "never a list" }) },
+  ]);
+  assert.deepEqual(marked.then.spans, [[10, 12]]);
+  assert.equal("spans" in unmarked.then, false);
+  assert.equal("spans" in unread.then, false);
+});
+
+test("the calls it ended stand on a page open to try, oldest first, and on no other", () => {
+  const calls = [
+    { id: "r1", seconds: 42 },
+    { id: "r2", seconds: 95 },
+  ];
+  assert.deepEqual(previewPageOf({ ...FACTS, calls }, NOW).calls, calls);
+  assert.deepEqual(previewPageOf(FACTS, NOW).calls, [], "a reader that carries none");
+  assert.deepEqual(previewPageOf({ ...FACTS, calls, state: "ended" }, NOW).calls, []);
+});

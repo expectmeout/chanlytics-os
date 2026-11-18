@@ -183,9 +183,61 @@ preview theirs; the call's own client tells the browser none of its words). What
 Not drawn from the canvas, by choice: the coloured dot before a fact's source (the app's colours say a state, never
 where a fact came from, so a source is said in words).
 
-Not yet: a call's line and its card on a later visit (a call is kept with no place in the conversation's order, so a
-page opened again shows the messages and not the call); the sender's own read of what a lead said on a call; the
-greeting as a recording, as before.
+Not yet, as of that build: a call's line and its card on a later visit; the sender's own read of what a lead said on
+a call; the greeting as a recording, as before. The review below takes the first half of the first.
+
+## Amended, 18 November 2026: the review of the page as it stood live
+
+Ruben asked for the live page to be reviewed (its look, its light and dark, how intelligent it reads, its motion), and
+approved every finding "as you best suggest". What changed, each with why:
+
+- **It greets once.** The page speaks first, as their business, and no row keeps that line, so the model took the first
+  question for a conversation's first and greeted again. The message door now gives the model the page's own first
+  line as turns it reads, a customer's "Hi" and then the greeting (`server/previews/doors.ts greetedTurnsOf`), inside
+  the eval door's twelve. Nothing is stored for it, and a preview whose name cannot be read is asked as before.
+- **An answer is written out.** One that comes on this visit is let in word by word, in about a second and a half, and
+  what stands under it comes once it has been; a line of this visit rises into its place. This is how the answer is
+  drawn, never how it was made: it comes whole from the receptionist's own door, the door every customer's answer comes
+  from, and that door is not changed for a preview's feel. Every word is in the document from the first, for a screen
+  reader and for the page's height, and a device that asks for less motion shows it at once (`written.tsx`).
+- **Light or dark is theirs to choose.** A stranger's page still opens as their device is set. A press in the top bar
+  puts it in the other, and this device keeps that for a stranger's page alone, beside the member's own theme and never
+  in its place (`bridge/device-prefs.ts keepStrangerTheme`, read by `themeBootScript`), so the next visit and Make it
+  mine open as they left it.
+- **Nothing is read through the field's bar.** It stands on the page's paper whole, the paper fading in above it, where
+  it faded in under the questions' label and an answer read through it. A row that slides fades at an edge only where
+  more waits past it, so nothing is chopped at the left once it has slid (`slide.tsx`).
+- **Their name stands once, and the bar has no edge.** The bar says whose page it is only once their head has
+  scrolled away. It lays the page's own ground where the window lays it, so at rest it is no strip over the light, and
+  once the page has scrolled its paper falls away beneath it over a run, so what passes under dims into it. Their
+  photo, as light behind the head, rises from nothing under the bar and is fainter on the dark ground.
+- **One coral.** The page wears the app's own colours. The business's colour (0075), which coloured its links and the
+  call's "Speaking" beside the app's coral, no longer reaches this page: the business is its face and its name.
+- **What it took from them is lit.** The message door keeps, with the mark, where in the answer it says a thing they
+  told it: the figure with its sign, or the run of their words (`taught-answer.ts taughtSpansOf`, at most eight
+  stretches, read back defensively by `previewTurnsOf`). The page lights each in the fill their own words wear.
+- **A call stays on a later visit.** The page's read carries the preview workspace's newest ended calls
+  (`listEndedRehearsalCalls`, three at most), which stand after the messages, since a call keeps no place among them;
+  each is read once for its words. Its card is still the provider's to write and is asked for only inside two minutes
+  of the call's end, so a later visit shows the call and its words and not the card: keeping the card needs a place of
+  its own in storage, and is not built.
+- **The call's screen.** Its two presses are round at 68px, as the canvas draws them: they stood 44 wide and 68
+  tall. The screen arrives, and the page arrives back from it. The mark that moves with the voice is built and not
+  switched on: the call client can give the voice's audio (its own option, `bridge/rehearse/call.ts onLevel`), and
+  the mark swells with how loud it is, but reading that audio taps the call's own sound, and the call is the page's
+  first proof. So the preview asks the call for nothing it did not ask before, and the mark keeps its pulse while AI
+  speaks, until the tap has been heard on a real call, on an iPhone among them.
+- **Hear its voice.** Beside Call it, by its name, the provider's own recording of the voice this preview speaks
+  with, as the first run plays it (`bridge/rehearse/voice-sample.ts`): no call, no microphone, nothing spent, and a
+  browser that can give no microphone still hears it. It says the provider's words, not their greeting.
+- **What stands under an answer comes as its last word does,** however short or long the answer is, holding its room
+  until then, so nothing moves as it comes.
+- **It's yours arrives.** Its mark grows in, the tick is drawn, and what came with it lands after.
+
+Not built, each a change to how a preview is made or answered and so a change of its own: an answer streamed from the
+model as it is written (the receptionist's shared door); their greeting spoken in their business's name (a recording
+made per preview, which spends); a call's card on a later visit (above); the sender's own read of what a lead said on
+a call, as before. The first questions written for their trade are the next amendment's.
 
 ## Amended, 18 November 2026: its first questions are written for the business
 

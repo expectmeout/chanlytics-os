@@ -14,6 +14,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { formatPhoneDisplay, parseTenantConfig, type PreviewPageFacts } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db/workspace";
 import { findLeadForPreview, findLeadPreviewByToken, type LeadPreviewRow } from "@chanlytics/db/campaigns";
+import { listEndedRehearsalCalls } from "@chanlytics/db/facts";
+import { logAndGoOn } from "@chanlytics/log";
 import type { Database } from "@chanlytics/db/types";
 import { linkPageDb, linkPageLookOf, NO_LOOK, type LinkPageLook } from "./link-page";
 import type { TenantId } from "@chanlytics/contracts";
@@ -54,15 +56,22 @@ async function leadShownOf(db: Db, row: LeadPreviewRow): Promise<{ phone: string
   return { phone: formatPhoneDisplay(lead?.phone_e164 ?? null), photo: lead?.image_url ?? null };
 }
 
+/** The calls the page draws again on a visit after them: its newest few, as a preview's minutes allow. */
+const CALLS_SHOWN = 3;
+
+/** The preview's ended calls, or none where they cannot be read: the page is drawn without them, never refused. */
+const endedCallsOf = (db: Db, tenantId: TenantId): Promise<NonNullable<PreviewPageFacts["calls"]>> =>
+  listEndedRehearsalCalls(db, tenantId, CALLS_SHOWN).catch(logAndGoOn("reading a preview's ended calls", []));
+
 /** The page's read for a token, or null where it names no preview. Throws where the database cannot be asked. */
 export async function findPreviewPage(token: string, db: Db | null = linkPageDb()): Promise<PreviewPageRead | null> {
   if (!db) throw new Error("preview page: this deployment holds no service-role key");
   const row = await findLeadPreviewByToken(db, token);
   if (!row) return null;
   const ws = row.preview_tenant_id;
-  const [look, kept, shown] = ws
-    ? await Promise.all([linkPageLookOf(db, ws), previewKeptOf(db, ws), leadShownOf(db, row)])
-    : [NO_LOOK, NOTHING_KEPT, { phone: null, photo: null }];
+  const [look, kept, shown, calls] = ws
+    ? await Promise.all([linkPageLookOf(db, ws), previewKeptOf(db, ws), leadShownOf(db, row), endedCallsOf(db, ws)])
+    : [NO_LOOK, NOTHING_KEPT, { phone: null, photo: null }, []];
   return {
     row,
     look,
@@ -78,6 +87,7 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
       phone_display: shown.phone,
       call_seconds: row.call_seconds,
       call_count: row.call_count,
+      calls,
       photo_url: shown.photo,
     },
   };

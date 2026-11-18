@@ -24,7 +24,9 @@ import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
 // The rule the message door marks an answer by, read before the tests that run it are named.
-const { answerUsesTaught } = await importSrc("apps/dashboard/src/server/previews/taught-answer.ts");
+const { taughtSpansOf } = await importSrc("apps/dashboard/src/server/previews/taught-answer.ts");
+/** Whether an answer says a thing they told it: it has a stretch that does. */
+const answerUsesTaught = (answer, taught) => taughtSpansOf(answer, taught).length > 0;
 
 const PROFILE = {
   address: "12 Main St, Austin, TX 78701",
@@ -92,6 +94,24 @@ test("an answer is said to say a thing they told it only where it carries its fi
   // A single digit is no figure, and nothing told credits nothing.
   assert.equal(answerUsesTaught("We have 2 trucks.", ["We run 2 crews."]), false);
   assert.equal(answerUsesTaught("A new one starts at $1,450.", []), false);
+});
+
+test("where an answer says it: the figure with its sign, the run of words without what is written around it, each once, in order", () => {
+  const taught = ["A new water heater starts at $1,450, tank and labor.", "We don't do gas line work at all."];
+  const lit = (answer, told = taught) => taughtSpansOf(answer, told).map(([from, to]) => answer.slice(from, to));
+  assert.deepEqual(lit("A new one starts at $1,450, installed."), ["$1,450"]);
+  assert.deepEqual(lit("It starts at 1450 dollars."), ["1450"]);
+  assert.deepEqual(lit("Sorry, we don't do gas line work."), ["we don't do gas line work"]);
+  // A figure inside a run of their words is one stretch, never two over each other.
+  assert.deepEqual(lit("A new water heater starts at $1,450, tank and labor included."), [
+    "A new water heater starts at $1,450, tank and labor",
+  ]);
+  // Two of the things they told it in one answer, in the answer's order.
+  assert.deepEqual(lit("We don't do gas line work, but a heater is $1,450."), ["We don't do gas line work", "$1,450"]);
+  assert.deepEqual(lit("Yes, that's one of our services."), []);
+  // A few stretches are kept with a turn, never a list without end.
+  const many = Array.from({ length: 12 }, (_, i) => `Item ${i} is ${100 + i} dollars.`);
+  assert.equal(taughtSpansOf(many.join(" "), many).length, 8);
 });
 
 test("the sender's line says what they told it apart from what they said is not right", () => {
