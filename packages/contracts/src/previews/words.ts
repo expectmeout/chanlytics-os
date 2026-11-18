@@ -142,7 +142,10 @@ export const LEAD_PREVIEW_WORDS = {
   lookTried: "Tried it",
   lookTaught: (n: number) => (n === 1 ? "Told it 1 thing" : `Told it ${n} things`),
   mine: "Make it mine",
-  /** Beside Call it: its voice heard with no call, in the provider's own recording of it; and the same press, playing. */
+  /**
+   * Beside Call it: its voice heard with no microphone asked, saying the greeting their callers hear (or, where that
+   * cannot be played, the provider's own recording of the voice); and the same press, playing.
+   */
   hearVoice: "Hear its voice",
   hearStop: "Stop",
   /** The top bar's press that puts the page in the other theme, as a screen reader says it. */

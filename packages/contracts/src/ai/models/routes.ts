@@ -394,5 +394,10 @@ export function readsAsModel(value: unknown): value is string {
   return typeof value === "string" && /^claude-[a-z0-9][a-z0-9.-]{0,62}$/.test(value);
 }
 
-/** The models behind a phone call, in Retell's own names (voice-provision.ts): its language model and its analysis. */
-export const RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1" } as const;
+/**
+ * The models behind a phone call, in Retell's own names (voice-provision.ts): its language model and its analysis; and
+ * the analysis of a call only listened to (a lead's preview hearing its greeting, decision 0079), which has nothing to
+ * write up. The provider bills a call's write-up flat, whatever its length (1.5 cents on `analysis`, nothing on this
+ * one, read off two test calls' own bills on 18 November 2026), so a listen of eight seconds asks for the smallest.
+ */
+export const RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1", listenAnalysis: "gpt-5-nano" } as const;

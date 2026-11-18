@@ -31,6 +31,7 @@ export type { FixAsk, FixRouted } from "./fix-router";
 export {
   REHEARSAL_KINDS,
   REHEARSAL_LIMITS,
+  REHEARSAL_LISTEN,
   REHEARSAL_SHOWN_TOOLS,
   REHEARSAL_TOOL_WORDS,
   rehearsalAllowance,

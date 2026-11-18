@@ -30,14 +30,16 @@ const call = (id, minute, seconds, over = {}) => ({
   ...over,
 });
 
-test("the calls a preview ended: its newest, oldest first, each by how long it spoke; never one still running, unspoken, typed, or another workspace's", async () => {
+test("the calls a preview ended: its newest, oldest first, each by how long it spoke; never one still running, unspoken, only listened to, typed, or another workspace's", async () => {
   const rehearsals = [
     call("r1", 1, 42),
-    call("r2", 2, 95),
+    call("r2", 2, 95, { end_reason: "user_hangup" }),
     call("r3", 3, 0),
-    call("r4", 4, 61),
+    call("r4", 4, 61, { end_reason: null }),
     call("r5", 5, 18),
     call("r6", 6, null),
+    // Their greeting heard with no microphone (contracts REHEARSAL_LISTEN): a spoken rehearsal nobody called.
+    call("heard", 9, 8, { end_reason: "listened" }),
     call("typed", 7, 30, { kind: "typed" }),
     call("theirs", 8, 77, { tenant_id: OTHER }),
   ];

@@ -31,6 +31,7 @@ import { PvFacts, PvHead, PvThree, PvTop } from "./head";
 import { PvSideKnows } from "./knows";
 import { PvDock, PvTalk } from "./talk";
 import { useCall } from "./use-call";
+import { useHear } from "./use-hear";
 import { useTalk } from "./use-talk";
 import { previewVerbs } from "./verbs";
 import "../kit/kit.css";
@@ -100,6 +101,13 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
     talk.endedCall(ended);
   });
   const canCall = useCanCall();
+  // Their greeting, heard with no microphone asked. A call takes the page's place, and the greeting gives way to it.
+  const hear = useHear(token, vm.voice);
+  const calling = call.phase !== "idle";
+  const stopHearing = hear.stop;
+  useEffect(() => {
+    if (calling) stopHearing();
+  }, [calling, stopHearing]);
   // What it knows whole: drawn from its first press on, so it leaves as a sheet leaves.
   const [knows, setKnows] = useState<"never" | "open" | "closed">("never");
   const foot = useRef<HTMLDivElement | null>(null);
@@ -129,7 +137,15 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
       )}
       <div className="pv-cols" data-back={back || undefined}>
         <aside className="pv-side">
-          <PvHead vm={vm} call={call} canCall={canCall} leads={talk.leads} look={look} onSeen={setHeadSeen} />
+          <PvHead
+            vm={vm}
+            call={call}
+            hear={hear}
+            canCall={canCall}
+            leads={talk.leads}
+            look={look}
+            onSeen={setHeadSeen}
+          />
           <PvFacts rows={vm.knows} onOpen={look ? null : () => setKnows("open")} />
           <PvSideKnows vm={vm} token={token} look={look} />
         </aside>

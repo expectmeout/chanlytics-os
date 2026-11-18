@@ -9,11 +9,21 @@
  *   - a call's end adds its seconds to the preview's row once, though the provider tells an end twice;
  *   - two presses at once are one call: the start reserves its row before the provider is asked, gives it back where no
  *     call came of it, and a reservation a dead start left is given up after two minutes;
- *   - previews switched off, a preview nobody has made theirs calls nothing.
+ *   - previews switched off, a preview nobody has made theirs calls nothing;
+ *   - a call only listened to (the greeting heard with no microphone): a minute at the most, its write-up on the
+ *     provider's smallest model, its row a listen's from the start; its seconds count against the six minutes, the
+ *     preview's row is told of no call, and a call made while its end is on its way is not held for it.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { REHEARSAL_LIMITS, rehearsalAllowance, rehearsalCallMs, REHEARSE_WORDS } from "@chanlytics/contracts";
+import {
+  REHEARSAL_LIMITS,
+  REHEARSAL_LISTEN,
+  RETELL_MODELS,
+  rehearsalAllowance,
+  rehearsalCallMs,
+  REHEARSE_WORDS,
+} from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -248,6 +258,105 @@ test("a reservation a start left as it died holds the workspace two minutes at m
     tables.rehearsals.map((r) => r.retell_call_id),
     ["call_new"],
   );
+});
+
+const listen = () =>
+  startRehearsalCall({ via: "token", workspace: WS, user: null }, { tenant_id: WS, listen: true }).then(async (res) => [
+    res.status,
+    await res.json(),
+  ]);
+
+/** Retell as above, each web call under a name of its own: a listen and the call after it are two calls. */
+function retellNumbered() {
+  const calls = retell();
+  const answered = globalThis.fetch;
+  let made = 0;
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith("/v3/create-web-call")) return answered(url, init);
+    calls.push({ path: "/v3/create-web-call", body: JSON.parse(init.body) });
+    made += 1;
+    return Response.json({ call_id: `call_${made}`, access_token: `token_${made}` }, { status: 201 });
+  };
+  return calls;
+}
+
+/** A listen's end as the provider tells it: eight seconds, hung up by the page that left it. */
+const listenEnded = (callId) => ({
+  call_id: callId,
+  call_type: "web_call",
+  call_status: "ended",
+  start_timestamp: Date.parse("2026-11-18T22:12:00Z"),
+  end_timestamp: Date.parse("2026-11-18T22:12:08Z"),
+  duration_ms: 8_000,
+  disconnection_reason: "user_hangup",
+  transcript_object: [{ role: "agent", content: "Hi, Fixture Barbers. I'm the automated assistant." }],
+});
+
+test("a call only listened to: a minute at the most, its write-up on the smallest model, a listen's row from the start", async () => {
+  const { tables } = world({ spokenSeconds: [60] });
+  const calls = retell();
+  const [status, body] = await listen();
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.max_ms, MIN, "the provider's floor: the page leaves it as the greeting ends");
+  const made = calls.find((c) => c.path === "/v3/create-web-call").body;
+  assert.equal(made.agent_override.agent.max_call_duration_ms, MIN);
+  assert.equal(made.agent_override.agent.post_call_analysis_model, RETELL_MODELS.listenAnalysis);
+  assert.equal(made.metadata.listen, 1);
+  assert.match(made.retell_llm_dynamic_variables.greeting, /Fixture Barbers/, "the greeting a caller hears");
+  const kept = tables.rehearsals.find((r) => r.retell_call_id === "call_new");
+  assert.deepEqual([kept.kind, kept.end_reason, kept.created_by], ["call", REHEARSAL_LISTEN.ended, null]);
+
+  // An ordinary call asks for no write-up model of its own, and its row says nothing of how it ends.
+  world();
+  const ordinary = retell();
+  await start();
+  const plain = ordinary.find((c) => c.path === "/v3/create-web-call").body;
+  assert.equal("post_call_analysis_model" in plain.agent_override.agent, false);
+  assert.equal("listen" in plain.metadata, false);
+});
+
+test("a listen's end counts its seconds against the six minutes, and tells the preview's row of no call", async () => {
+  const { tables, called } = world();
+  retellNumbered();
+  assert.equal((await listen())[0], 200);
+  assert.equal(await settleRehearsalEvent(pg(), "call_ended", listenEnded("call_1")), "ended");
+  assert.equal(await settleRehearsalEvent(pg(), "call_analyzed", listenEnded("call_1")), "ended");
+  assert.deepEqual(called, [], "nobody called: no count, nothing for its sender");
+  assert.deepEqual([tables.lead_previews[0].call_count, tables.lead_previews[0].call_seconds], [0, 0]);
+  const row = tables.rehearsals.find((r) => r.retell_call_id === "call_1");
+  assert.deepEqual([row.end_reason, row.seconds], [REHEARSAL_LISTEN.ended, 8], "a listen's still, with its seconds");
+  const [status, body] = await start();
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.allowance.left_ms, 6 * MIN - 8_000 - 3 * MIN, "its eight seconds are spent");
+});
+
+test("a call made while a listen's end is on its way is not held for it; a listen during a call is", async () => {
+  const { tables } = world();
+  const calls = retellNumbered();
+  assert.equal((await listen())[0], 200);
+  // The database stamps a row as it is made; the one in memory is told.
+  const stamped = (callId) =>
+    Object.assign(
+      tables.rehearsals.find((r) => r.retell_call_id === callId),
+      { created_at: new Date().toISOString(), ended_at: null, seconds: null },
+    );
+  stamped("call_1");
+  // The page left the listen and they pressed Call it: the provider has not yet said the listen ended.
+  const [status, body] = await start();
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.allowance.left_ms, 6 * MIN - MIN - 3 * MIN, "the listen counts its most until its end says less");
+  assert.equal(calls.filter((c) => c.path === "/v3/create-web-call").length, 2);
+  assert.deepEqual(
+    tables.rehearsals.map((r) => [r.retell_call_id, r.end_reason ?? null]),
+    [
+      ["call_1", REHEARSAL_LISTEN.ended],
+      ["call_2", null],
+    ],
+  );
+  // The call is running now: nothing is listened to beside it.
+  stamped("call_2");
+  const [refused, why] = await listen();
+  assert.deepEqual([refused, why.error, why.allowance.why], [409, "rehearsal_minutes_used", "running"]);
 });
 
 test("previews switched off, a preview nobody has made theirs calls nothing; one made theirs calls as any workspace", async () => {
