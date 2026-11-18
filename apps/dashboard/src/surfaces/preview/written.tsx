@@ -71,7 +71,7 @@ function useWordsIn(words: number): number {
 }
 
 /** How many words an answer holds, as it is cut to be written out. */
-const wordsIn = (cut: ReturnType<typeof piecesOf>): number =>
+const writtenWordsOf = (cut: ReturnType<typeof piecesOf>): number =>
   cut.reduce((count, part) => count + part.pieces.filter((piece) => piece.word !== null).length, 0);
 
 /**
@@ -79,7 +79,7 @@ const wordsIn = (cut: ReturnType<typeof piecesOf>): number =>
  * (`write` false) is written already. What stands under an answer waits for this, however short or long the answer is.
  */
 export function useWriting(text: string, spans: readonly Span[], write: boolean): { shown: number; written: boolean } {
-  const words = write ? wordsIn(piecesOf(answerPartsOf(text, spans))) : 0;
+  const words = write ? writtenWordsOf(piecesOf(answerPartsOf(text, spans))) : 0;
   const shown = useWordsIn(words);
   return { shown, written: shown >= words };
 }
