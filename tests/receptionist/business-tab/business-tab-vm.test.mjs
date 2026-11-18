@@ -206,7 +206,7 @@ test("M-2: on a record that composes nothing the row names only what holds, and 
   // no-profile branch), so none of the four is a line it reads. The fold says that once
   // (RULES_WITHOUT_FIELDS_WORDS); the row at rest says nothing it cannot back, which leaves the two that hold
   // whatever it is told: the detector, and the appointments table that does not exist; and the one line every prompt
-  // carries, stored or composed (decision 0051): that it is an automated assistant.
+  // carries, stored or composed (decision 0051): that it is an AI assistant.
   const all = { never_quote_prices: true, never_confirm_booking: true, disclose_ai: true, no_health_advice: true };
   assert.deepEqual(rulesKept({ rules: all, composes: false }), ["Cannot book anything", "Says it's an assistant"]);
   // Every switch off changes nothing about it: none of the two is the switch's to decide.
@@ -1380,7 +1380,7 @@ test("a record whose details compose nothing is told the stored prompt and Auton
   assert.ok(RULES_WITHOUT_FIELDS_WORDS.startsWith(NO_FIELDS_COMPOSED_WORDS), "and the fold's note opens with it");
   assert.match(
     RULES_WITHOUT_FIELDS_WORDS,
-    /Until they are, it isn't told these rules, only that it is an automated assistant\.$/,
+    /Until they are, it isn't told these rules, only that it is an AI assistant\.$/,
   );
   // What it is TOLD, never what it does: the price detector reads every reply whatever the profile (layerTwo on a chat
   // reply, spokenBreach on a call), and nothing can confirm a booking anyway. The sheet draws this over "Checked", the
@@ -1541,7 +1541,7 @@ test("the rules sheet over a stored prompt says one line, link or no link: what 
   assert.equal(rulesWithoutFieldsWords(), RULES_WITHOUT_FIELDS_WORDS);
   assert.equal(
     RULES_WITHOUT_FIELDS_WORDS,
-    `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`,
+    `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an AI assistant.`,
   );
 });
 

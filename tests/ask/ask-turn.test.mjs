@@ -5661,7 +5661,7 @@ test("the rules AI says AI follows are the ones the composer gave it: the price 
   const BOOKING = "never confirms a booking itself";
   // Always (decision 0051; the booking rule since 18 Oct 2026, nothing books): a stored false changes nothing, and the
   // price rule off says what it may say instead.
-  const AI = "always says it is the business's automated assistant, never a person";
+  const AI = "always says it is the business's AI assistant, never a person";
   const WRITTEN = "says only the prices the business wrote, never another";
   const HEALTH = "gives no health advice";
 

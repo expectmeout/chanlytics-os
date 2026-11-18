@@ -46,9 +46,7 @@ test("the frame is an owner instruction with the words quoted, and its inverse g
   assert.ok(!framed.includes("outranks"), "REGRESSION: the first frame let a whisper override the guardrails");
   // The rules are said once, in the prompt, as the owner's switches set them (decision 0051); the frame names the one that
   // is not a switch, and restates none that is.
-  assert.ok(
-    framed.includes("automated assistant, never a person") && !framed.includes("do not quote or confirm a price"),
-  );
+  assert.ok(framed.includes("AI assistant, never a person") && !framed.includes("do not quote or confirm a price"));
   assert.equal(whisperText(framed), "tell them we have a haircut special");
   assert.equal(
     whisperText('plain injected text with a "quote"'),

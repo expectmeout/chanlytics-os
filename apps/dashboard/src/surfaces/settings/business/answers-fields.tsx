@@ -198,8 +198,8 @@ export const BtaLanguages = ({
 // PRICE_CHOICE_WORDS), and the booking rule is always on (ALWAYS_ON), as nothing in the product books.
 const BTA_RULES: [GuardrailKey, string, string][] = [
   ["never_confirm_booking", "Never confirm a booking", "Never confirms a booking"],
-  // screen-word: "automated assistant" is the disclosure customers hear, said in its own words (decision 0051).
-  ["disclose_ai", "Says it's an automated assistant", "Says it's an assistant"],
+  // screen-word: "AI assistant" is the disclosure customers hear, said in its own words (decision 0051).
+  ["disclose_ai", "Says it's an AI assistant", "Says it's an assistant"],
   ["no_health_advice", "No health advice", "No health advice"],
 ];
 
@@ -209,7 +209,7 @@ type RulesDraft = Partial<Record<GuardrailKey, unknown>>;
 /**
  * One of the four rules: its label with how far it goes as one quiet word under it, and the switch, which carries the
  * rule's sentence as its description (the sentence is read under "How these rules work", BtaRuleHow). A rule that is
- * not a switch (contracts ALWAYS_ON: saying it is an automated assistant, decision 0051, and the booking rule) says
+ * not a switch (contracts ALWAYS_ON: saying it is an AI assistant, decision 0051, and the booking rule) says
  * "Always on" with a lock where the switch would be: one signal at the row's end, never a dot, a word, a tip and a
  * switch.
  */

@@ -203,7 +203,7 @@ test("a routed call: the facts are the workspace's own composition with the cloc
   assert.ok(
     r.variables.greeting.includes("Harbor Moving") &&
       r.variables.greeting.includes("calls are recorded") &&
-      r.variables.greeting.includes("automated assistant"),
+      r.variables.greeting.includes("AI assistant"),
   );
   assert.equal(r.variables.handoff_number, "+13055550199");
   assert.deepEqual(
@@ -487,7 +487,7 @@ test("the shell's defaults are the judgement's fallbacks, one constant each: a c
   assert.match(FACTS_UNAVAILABLE, /do not state/i, "it must forbid inventing the facts it lacks");
   for (const g of [greetingFor("Aurora Nails"), greetingFor(null)]) {
     assert.ok(
-      g.includes("calls are recorded") && g.includes("automated assistant"),
+      g.includes("calls are recorded") && g.includes("AI assistant"),
       "both disclosures are the product's promises, not a dashboard setting",
     );
   }
@@ -559,7 +559,7 @@ test("the business's own greeting is what the caller hears first, with the AI cl
     ["Hey, you've reached Harbor Moving! This is our virtual assistant. What can I do for you?", "owner"],
   );
   assert.deepEqual(await plan("Thanks for calling {business}. How can I help?"), [
-    "Thanks for calling Harbor Moving. I'm the automated assistant. How can I help?",
+    "Thanks for calling Harbor Moving. I'm the AI assistant. How can I help?",
     "owner_disclosed",
   ]);
   assert.deepEqual(

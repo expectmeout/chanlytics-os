@@ -70,14 +70,14 @@ export const TONE_PRESETS: readonly { key: Personality; label: string; tone: str
 /**
  * The receptionist's own name (decision 0073, R7: profile.assistant_name), as the first run's How it sounds and
  * Settings' How it talks ask it. Absent, every greeting and prompt is what it was; named, the greeting still says it is
- * the automated assistant (0051).
+ * the AI assistant (0051).
  */
 export const ASSISTANT_NAME_WORDS = {
   label: "Its name",
   empty: "No name",
   placeholder: "Ava",
-  // screen-word: "automated assistant" is what callers hear, said in its own words (decision 0051).
-  hint: "Callers always hear that it's the automated assistant, so the greeting says it beside the name.",
+  // screen-word: "AI assistant" is what callers hear, said in its own words (decision 0051).
+  hint: "Callers always hear that it's the AI assistant, so the greeting says it beside the name.",
   gate: "give it a name",
   saved: (name: string | null) => (name ? `It introduces itself as ${name}.` : "It has no name now."),
   tooLong: (max: number) => `A name is at most ${max} characters.`,

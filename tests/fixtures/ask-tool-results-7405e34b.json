@@ -375,7 +375,7 @@
   },
   {
     "call": ["get_settings", {}, "owner"],
-    "result": "{\"business\":\"Harbor Moving\",\"timezone\":\"America/New_York\",\"hours\":[\"mon: 09:00–17:00\",\"tue–fri: Closed\",\"sat: 09:00–13:00\",\"sun: Closed\"],\"closures\":[],\"services\":[{\"name\":\"Estimate\",\"duration_min\":60}],\"languages\":[],\"guardrails\":[\"never quotes or confirms a price\",\"never confirms a booking itself\",\"says it is an automated assistant when asked\"],\"notes\":[],\"booking_rules\":null,\"escalate_when\":[],\"calendar_connected\":false,\"vision\":false,\"notifications\":{\"escalation_emails\":[\"ada@example.com\"]},\"policies\":[{\"class\":\"reply\",\"mode\":\"auto\",\"limits\":{\"min_confidence\":0.6}}],\"channels\":[{\"kind\":\"whatsapp\",\"status\":\"active\",\"number\":\"+19295550100\"}],\"config_version\":3}",
+    "result": "{\"business\":\"Harbor Moving\",\"timezone\":\"America/New_York\",\"hours\":[\"mon: 09:00–17:00\",\"tue–fri: Closed\",\"sat: 09:00–13:00\",\"sun: Closed\"],\"closures\":[],\"services\":[{\"name\":\"Estimate\",\"duration_min\":60}],\"languages\":[],\"guardrails\":[\"never quotes or confirms a price\",\"never confirms a booking itself\",\"says it is an AI assistant when asked\"],\"notes\":[],\"booking_rules\":null,\"escalate_when\":[],\"calendar_connected\":false,\"vision\":false,\"notifications\":{\"escalation_emails\":[\"ada@example.com\"]},\"policies\":[{\"class\":\"reply\",\"mode\":\"auto\",\"limits\":{\"min_confidence\":0.6}}],\"channels\":[{\"kind\":\"whatsapp\",\"status\":\"active\",\"number\":\"+19295550100\"}],\"config_version\":3}",
     "isError": false,
     "label": "Reading Settings",
     "reads": [

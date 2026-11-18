@@ -60,13 +60,13 @@ import { greetingFor as shellGreeting, GREETING_DEFAULT as SHELL_DEFAULT } from 
 test("the phone greeting is one sentence, composed once: contracts', and the voice shell says the same", () => {
   assert.equal(
     greetingFor("Harbor Moving"),
-    "Hi, Harbor Moving. I'm the automated assistant, and calls are recorded. How can I help?",
+    "Hi, Harbor Moving. I'm the AI assistant, and calls are recorded. How can I help?",
   );
   assert.equal(shellGreeting("Harbor Moving"), greetingFor("Harbor Moving"));
   assert.equal(GREETING_DEFAULT, SHELL_DEFAULT);
   assert.equal(
     GREETING_DEFAULT,
-    "Hi, thanks for calling. I'm the automated assistant, and calls are recorded. How can I help?",
+    "Hi, thanks for calling. I'm the AI assistant, and calls are recorded. How can I help?",
   );
 });
 
@@ -77,7 +77,7 @@ test("the greeting is short and says both things a caller is owed first, the pau
   for (const line of [greetingFor(name), greetingFor(null), pausedGreetingFor(name), pausedGreetingFor(null)]) {
     const words = line.split(/\s+/).filter(Boolean).length;
     assert.ok(words < 35, `${words} words: ${line}`);
-    assert.match(line, /automated assistant/, "the caller is told it is not a person");
+    assert.match(line, /AI assistant/, "the caller is told it is not a person");
     assert.match(line, /calls are recorded/, "the caller is told the call is recorded");
   }
   assert.ok(greetingFor(name).split(/\s+/).length < 20, "the everyday line stays under twenty words");

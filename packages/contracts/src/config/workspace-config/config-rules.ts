@@ -251,7 +251,7 @@ export function guardrailsInForce(storedGuardrails: StoredGuardrails | null | un
     // receptionist confirm one; what happens instead is the booking choice on Hours & booking. A stored false is read as
     // on, and the key stays in the schema so an older tab's rules save is not refused by name.
     never_confirm_booking: true,
-    // Always: the receptionist says it is an automated assistant whatever a row stores (decision 0051). The key stays
+    // Always: the receptionist says it is an AI assistant whatever a row stores (decision 0051). The key stays
     // in the schema so an open tab's rules save, which writes all four, is never refused by name.
     disclose_ai: true,
     no_health_advice: storedGuardrails?.no_health_advice === true,

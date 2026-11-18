@@ -381,7 +381,7 @@ export async function rewriteVersion(
 
 /**
  * What a rewrite is told: the business's voice, the rules its own messages keep (never the receptionist's, which made a
- * rewrite add "this is the automated assistant" to an owner's note), its language, that every value stays and nothing
+ * rewrite add "this is the AI assistant" to an owner's note), its language, that every value stays and nothing
  * unasked is added, and the channel's shape. Pure, so what it says is held by a test.
  */
 export function rewriteSystemPrompt(
