@@ -13,6 +13,7 @@ import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
 import { phoneVoiceShown } from "../voice/phone-voices";
 import { PREVIEW_LIMITS, PREVIEW_NEAR, previewStateOf, type PreviewPageState } from "./standing";
+import { PREVIEW_STARTERS_MOST, previewStartersWrittenOf } from "./starters";
 import { previewTheirsOf } from "./theirs";
 import { TRIED_JOIN, previewTriedParts } from "./tried";
 import { LEAD_PREVIEW_WORDS } from "./words";
@@ -105,6 +106,11 @@ export interface PreviewPageFacts {
   calls?: PreviewCallVM[];
   /** The lead's Google photo (leads.image_url), or none. */
   photo_url: string | null;
+  /**
+   * The questions written for this business as its preview was built (previews/starters.ts), as its workspace keeps
+   * them: read here for what each is. Absent where its reader carries none, and where none were written.
+   */
+  starters?: unknown;
 }
 
 /** Their photo as the page may draw it: Google's own host, over https, else none (the CSP allows that host alone). */
@@ -175,6 +181,22 @@ export function previewStartersOf(profile: PreviewPageFacts["profile"]): string[
     "Can someone call me back?",
   ];
   return starters.filter((s): s is string => !!s);
+}
+
+/**
+ * The questions the page offers: the ones written for this business as its preview was built, in a customer's own
+ * words; where fewer than three were kept, the record's own after them; and where none were, the record's own, as
+ * every preview offered before any were written.
+ */
+function startersShownOf(previewPageFacts: Pick<PreviewPageFacts, "starters" | "profile">): string[] {
+  const written = previewStartersWrittenOf(previewPageFacts.starters);
+  const fromRecord = previewStartersOf(previewPageFacts.profile);
+  if (written.length === 0) return fromRecord;
+  const offered = new Set(written.map((question) => question.toLowerCase()));
+  return [...written, ...fromRecord.filter((question) => !offered.has(question.toLowerCase()))].slice(
+    0,
+    PREVIEW_STARTERS_MOST,
+  );
 }
 
 /** The services as a line: the first six, and how many more. */
@@ -270,7 +292,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     calls: open ? (previewPageFacts.calls ?? []) : [],
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),
-    starters: state === "ready" ? previewStartersOf(previewPageFacts.profile) : [],
+    starters: state === "ready" ? startersShownOf(previewPageFacts) : [],
     greeting: LEAD_PREVIEW_WORDS.textGreeting(
       previewPageFacts.business,
       previewPageFacts.profile?.assistant_name ?? null,

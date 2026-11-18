@@ -26,6 +26,7 @@ export {
   previewStateOf,
 } from "./standing";
 export type { LeadPreviewSlot, PreviewFailure, PreviewPageState, PreviewState } from "./standing";
+export { previewStartersWrittenOf } from "./starters";
 export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./theirs";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./tried";
 export type { PreviewTriedDto } from "./tried";
