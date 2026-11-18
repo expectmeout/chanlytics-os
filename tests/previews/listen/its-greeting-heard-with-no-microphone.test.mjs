@@ -11,13 +11,14 @@
  *                the voice cannot be read; told as not played where the browser refuses it or no call was made
  *
  * The edge's half (a minute at the most, the smallest write-up, a listen's row, no call told to the preview) is
- * preview-call.test.mjs's. Made-up businesses only.
+ * tests/previews/preview-call.test.mjs's. Made-up businesses only.
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_PREVIEW_WORDS as W } from "@chanlytics/contracts";
-import { importSrc } from "../_source.mjs";
-import { fakeDb } from "../_fake-db.mjs";
+import { importSrc } from "../../_source.mjs";
+import { fakeDb } from "../../_fake-db.mjs";
+import { until } from "../../shared/_until.mjs";
 
 const was = { EDGE_URL: process.env.EDGE_URL, EDGE_CALL_SECRET: process.env.EDGE_CALL_SECRET };
 Object.assign(process.env, {
@@ -196,8 +197,6 @@ after(() => setCallClient(null));
 const never = async () => ({ ok: false, message: "never asked" });
 /** The clock and the reads' timer, the test's own: a listen is read fifty milliseconds apart. */
 const clock = (t) => t.mock.timers.enable({ apis: ["setInterval", "Date"], now: Date.parse("2026-11-18T22:00:00Z") });
-/** A promise's turn taken: what a refusal to play is told on. */
-const turn = () => new Promise((go) => setImmediate(go));
 
 test("a voice that never stops is left at a listen's longest", async (t) => {
   clock(t);
@@ -250,7 +249,7 @@ test("the greeting is heard out, and the page leaves once its voice has been qui
   assert.deepEqual([done, session.ended], [[true], 1]);
 });
 
-test("a voice that cannot be read plays by the clock; a browser that will not play it is told at once", async (t) => {
+test("a voice that cannot be read plays by the clock", async (t) => {
   clock(t);
   const unread = fakeClient();
   const done = [];
@@ -260,13 +259,15 @@ test("a voice that cannot be read plays by the clock; a browser that will not pl
   assert.deepEqual(done, []);
   t.mock.timers.tick(100);
   assert.deepEqual([done, unread.session.ended], [[true], 1]);
+});
 
+test("a browser that will not play it is told at once, and the page plays the sample instead", async () => {
   const blocked = fakeClient({ plays: false });
   const told = [];
   await startListen(never, (played) => told.push(played));
   blocked.joins[0].hooks.onStatus("live");
-  await turn();
-  assert.deepEqual([told, blocked.session.ended], [[false], 1], "not played: the page plays the sample instead");
+  await until(() => told.length > 0, "the refusal to play is told");
+  assert.deepEqual([told, blocked.session.ended], [[false], 1]);
 });
 
 test("no call made, a join that fails, or a client that cannot be loaded: not played, said once", async (t) => {

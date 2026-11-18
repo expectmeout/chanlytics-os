@@ -90,6 +90,7 @@
   "provider",
   "purpose",
   "query",
+  "quiet",
   "raw",
   "ready",
   "ref",

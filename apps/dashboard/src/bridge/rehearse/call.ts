@@ -230,7 +230,7 @@ export async function startListen(start: StartCall, onDone: (played: boolean) =>
   };
   // The client's receive-only switch (its transport's `listener`) is not among the options it lists for a caller's own
   // join, and reaches the transport with them all the same. Held in a value of its own, so the join stays typed as the
-  // client types it; tests/previews/preview-listen.test.mjs holds that it is asked for.
+  // client types it; tests/previews/listen/its-greeting-heard-with-no-microphone.test.mjs holds that it is asked for.
   const audio = { emitRawAudioSamples: true, listener: true };
   try {
     session = rc.createWebCall({

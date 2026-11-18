@@ -332,7 +332,8 @@ one opened and pressed once, is 75 cents at the most.
 
 **Not proven.** A phone, and a mail app's own browser, where this press matters most: the proof ran in a desktop
 browser. The receive-only switch is not among the options the client lists for a caller's own join, so the client's
-version stays pinned and `tests/previews/preview-listen.test.mjs` holds that it is asked for. Reading the voice's level
+version stays pinned and `tests/previews/listen/its-greeting-heard-with-no-microphone.test.mjs` holds that it is
+asked for. Reading the voice's level
 taps the call's sound, which the call's own screen still holds back from until it is heard on an iPhone.
 
 Not built: the greeting kept as a file after its first press (the call's own recording, copied as a real call's is,
