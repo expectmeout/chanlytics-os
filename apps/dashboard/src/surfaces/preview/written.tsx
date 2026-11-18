@@ -70,14 +70,44 @@ function useWordsIn(words: number): number {
   return shown;
 }
 
-/** An answer being written: each word let in after the last, a lit stretch lit as its first word comes. */
-function PvWriting({ parts }: { parts: readonly Part[] }) {
-  const cut = piecesOf(parts);
-  const words = cut.reduce((count, part) => count + part.pieces.filter((piece) => piece.word !== null).length, 0);
+/** How many words an answer holds, as it is cut to be written out. */
+const wordsIn = (cut: ReturnType<typeof piecesOf>): number =>
+  cut.reduce((count, part) => count + part.pieces.filter((piece) => piece.word !== null).length, 0);
+
+/**
+ * An answer being written out: how many of its words are in, and whether they all are. One that came before this visit
+ * (`write` false) is written already. What stands under an answer waits for this, however short or long the answer is.
+ */
+export function useWriting(text: string, spans: readonly Span[], write: boolean): { shown: number; written: boolean } {
+  const words = write ? wordsIn(piecesOf(answerPartsOf(text, spans))) : 0;
   const shown = useWordsIn(words);
+  return { shown, written: shown >= words };
+}
+
+/**
+ * An answer's words, with what it took from the things they told it lit. `shown` is how many of them are in while it
+ * is written out (useWriting), each let in after the last, a lit stretch lit as its first word comes; null draws an
+ * answer that is not being written, plain.
+ */
+export function PvWords({ text, spans, shown }: { text: string; spans: readonly Span[]; shown: number | null }) {
+  const parts = answerPartsOf(text, spans);
+  if (shown === null)
+    return (
+      <>
+        {parts.map((part, at) =>
+          part.lit ? (
+            <mark key={at} className="pv-yours">
+              {part.text}
+            </mark>
+          ) : (
+            <Fragment key={at}>{part.text}</Fragment>
+          ),
+        )}
+      </>
+    );
   return (
     <>
-      {cut.map((part, at) => {
+      {piecesOf(parts).map((part, at) => {
         const pieces = part.pieces.map((piece, place) =>
           piece.word === null ? (
             piece.text
@@ -96,28 +126,6 @@ function PvWriting({ parts }: { parts: readonly Part[] }) {
           <Fragment key={at}>{pieces}</Fragment>
         );
       })}
-    </>
-  );
-}
-
-/**
- * An answer's words: plain, with what it took from the things they told it lit. `write` is an answer that came on this
- * visit, which is written out.
- */
-export function PvWords({ text, spans, write }: { text: string; spans: readonly Span[]; write: boolean }) {
-  const parts = answerPartsOf(text, spans);
-  if (write) return <PvWriting parts={parts} />;
-  return (
-    <>
-      {parts.map((part, at) =>
-        part.lit ? (
-          <mark key={at} className="pv-yours">
-            {part.text}
-          </mark>
-        ) : (
-          <Fragment key={at}>{part.text}</Fragment>
-        ),
-      )}
     </>
   );
 }

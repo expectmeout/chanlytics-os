@@ -207,8 +207,10 @@ approved every finding "as you best suggest". What changed, each with why:
 - **Nothing is read through the field's bar.** It stands on the page's paper whole, the paper fading in above it, where
   it faded in under the questions' label and an answer read through it. A row that slides fades at an edge only where
   more waits past it, so nothing is chopped at the left once it has slid (`slide.tsx`).
-- **Their name stands once.** The bar says whose page it is only once their head has scrolled away. Their photo, as
-  light behind the head, rises from nothing under the bar and is fainter on the dark ground.
+- **Their name stands once, and the bar has no edge.** The bar says whose page it is only once their head has
+  scrolled away. It lays the page's own ground where the window lays it, so at rest it is no strip over the light, and
+  once the page has scrolled its paper falls away beneath it over a run, so what passes under dims into it. Their
+  photo, as light behind the head, rises from nothing under the bar and is fainter on the dark ground.
 - **One coral.** The page wears the app's own colours. The business's colour (0075), which coloured its links and the
   call's "Speaking" beside the app's coral, no longer reaches this page: the business is its face and its name.
 - **What it took from them is lit.** The message door keeps, with the mark, where in the answer it says a thing they
@@ -219,12 +221,17 @@ approved every finding "as you best suggest". What changed, each with why:
   each is read once for its words. Its card is still the provider's to write and is asked for only inside two minutes
   of the call's end, so a later visit shows the call and its words and not the card: keeping the card needs a place of
   its own in storage, and is not built.
-- **The call's mark moves with its voice.** The call client is asked for the voice's audio (its own option), and the
-  mark swells with how loud it is, eased, with no redraw asked for; where a call gives none the mark keeps its pulse.
-  Not yet heard on a real call. The call's two presses are round at 68px, as the canvas draws them: they stood 44 wide.
-- **Hear its voice.** Beside Call it, the provider's own recording of the voice this preview speaks with, as the first
-  run plays it (`bridge/rehearse/voice-sample.ts`): no call, no microphone, nothing spent, and a browser that can give
-  no microphone still hears it. It says the provider's words, not their greeting.
+- **The call's screen.** Its two presses are round at 68px, as the canvas draws them: they stood 44 wide and 68
+  tall. The screen arrives, and the page arrives back from it. The mark that moves with the voice is built and not
+  switched on: the call client can give the voice's audio (its own option, `bridge/rehearse/call.ts onLevel`), and
+  the mark swells with how loud it is, but reading that audio taps the call's own sound, and the call is the page's
+  first proof. So the preview asks the call for nothing it did not ask before, and the mark keeps its pulse while AI
+  speaks, until the tap has been heard on a real call, on an iPhone among them.
+- **Hear its voice.** Beside Call it, by its name, the provider's own recording of the voice this preview speaks
+  with, as the first run plays it (`bridge/rehearse/voice-sample.ts`): no call, no microphone, nothing spent, and a
+  browser that can give no microphone still hears it. It says the provider's words, not their greeting.
+- **What stands under an answer comes as its last word does,** however short or long the answer is, holding its room
+  until then, so nothing moves as it comes.
 - **It's yours arrives.** Its mark grows in, the tick is drawn, and what came with it lands after.
 
 Not built, each a change to how a preview is made or answered and so a change of its own: an answer streamed from the

@@ -8,7 +8,7 @@
  * slides, each opening What it knows whole; on a desk the facts down their card, each put right in place (knows.tsx).
  * Every word is contracts' (previews/words.ts).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LEAD_PREVIEW_WORDS as W,
   previewMinePath,
@@ -93,14 +93,33 @@ function PvTheme() {
   );
 }
 
+/** How far the page has moved from its top before something lies under the bar, in px. */
+const UNDER_BAR_PX = 2;
+
+/**
+ * Whether the page has scrolled from its top, so something lies under the bar: its paper falls away beneath it only
+ * then (preview.css). At rest nothing of the bar lies over their head.
+ */
+function useUnderBar(): boolean {
+  const [under, setUnder] = useState(false);
+  useEffect(() => {
+    const place = () => setUnder(document.documentElement.scrollTop > UNDER_BAR_PX);
+    place();
+    document.addEventListener("scroll", place, { passive: true });
+    return () => document.removeEventListener("scroll", place);
+  }, []);
+  return under;
+}
+
 /**
  * The bar that stays at the top, on the page's own ground: whose page it is (`who`), once the conversation has started
  * and the head has scrolled away, so their name never stands twice; light or dark; and Make it mine, quiet glass until
  * they have tried it, then the page's filled act.
  */
 export function PvTop({ vm, token, leads, who }: { vm: PreviewPageVM; token: string; leads: boolean; who: boolean }) {
+  const under = useUnderBar();
   return (
-    <div className="pv-top">
+    <div className="pv-top" data-under={under || undefined}>
       {who ? (
         <span className="pv-top-who" data-testid="pv-top-who">
           <PvFace vm={vm} size="sm" />
@@ -125,8 +144,8 @@ export function PvTop({ vm, token, leads, who }: { vm: PreviewPageVM; token: str
   );
 }
 
-/** The glyph of Hear its voice, on its round press. */
-const HEAR_GLYPH_PX = 18;
+/** The glyph of Hear its voice, beside its words. */
+const HEAR_GLYPH_PX = 17;
 
 /**
  * Call it, and what stands under it: the microphone's line, why no call can be made, or what the last one ran into.
@@ -171,14 +190,13 @@ function PvCallIt({ call, canCall, leads, voice }: { call: Call; canCall: boolea
         <Button
           variant="glass"
           size="touch"
-          iconOnly
           className="pv-hear"
-          aria-label={playing ? W.hearStop : W.hearVoice}
           aria-pressed={playing}
           onClick={() => sample.toggle(voice)}
           data-testid="pv-hear"
         >
           <Icon name={playing ? "pause" : "sound-on"} size={HEAR_GLYPH_PX} />
+          {playing ? W.hearStop : W.hearVoice}
         </Button>
       </span>
       {call.trouble ? (

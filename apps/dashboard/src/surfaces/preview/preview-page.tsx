@@ -8,8 +8,9 @@
 // under it what it knows, each fact with where it was read; then one conversation (what they asked, what it answered,
 // a call, a thing they told it) and one field, a capsule of glass, with the questions it can answer standing on it. On
 // a phone it is one screen on the lit ground, the field at its foot; on a desk two panes, their card and the
-// conversation, each the window's height. Make it mine waits at the top, quiet until they have tried it. Light unless
-// the visitor's device is dark (contracts themeBootScript). Every word is contracts' (previews/words.ts); the page is
+// conversation, each the window's height. Make it mine waits at the top, quiet until they have tried it, with the press
+// that puts the page in light or dark beside it: it opens as the visitor's device is set, or as they last put it
+// (contracts themeBootScript). Every word is contracts' (previews/words.ts); the page is
 // drawn from its view model (previewPageOf), which the server builds from the row its token names.
 //
 // The page has two views of itself, the page and the call (call.tsx), and one sheet over it on a phone: What it knows

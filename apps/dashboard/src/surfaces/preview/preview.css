@@ -17,7 +17,7 @@
   color: var(--ink);
 }
 
-/* ---- The bar that stays at the top, on the page's own paper, so nothing is read through it ---- */
+/* ---- The bar that stays at the top, on the page's own ground, so nothing is read through it ---- */
 .pv-top {
   position: sticky;
   top: 0;
@@ -38,6 +38,22 @@
   background-position: center top;
   background-size: 100vw 100vh;
   background-size: 100vw 100lvh;
+}
+/* Once the page has scrolled (head.tsx says so), the paper falls away under the bar over a run, so what passes beneath
+   dims into it: a bar that ended on a line cut the head's light off at its foot, and read as a change of ground. At
+   rest it is not drawn, so nothing lies over their head. */
+.pv-top::after {
+  content: "";
+  position: absolute;
+  inset: 100% 0 auto;
+  height: 44px;
+  background: linear-gradient(to bottom, var(--surface-page-fill), transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.pv-top[data-under]::after {
+  opacity: 1;
 }
 .pv-top-who {
   display: flex;
@@ -131,7 +147,7 @@
   place-items: center;
   color: var(--ink-muted);
 }
-/* At work it wears the page's one coral, the filled act's, whatever colour the business's own links wear. */
+/* At work it wears the page's one coral, the filled act's: the page has no other accent. */
 .pv-three[data-live] {
   color: var(--primary-fill);
   animation: pv-work calc(var(--duration-slow) * 3) var(--ease-in-out) infinite alternate;
@@ -186,6 +202,7 @@
 /* Call it and, beside it, Hear its voice: a round press of the control layer's glass, as tall as Call it. */
 .pv-acts {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 10px;
@@ -194,14 +211,13 @@
 .pv-acts > .pv-go {
   margin-top: 0;
 }
-/* Under the page's own name, so its size holds over the kit's for a press of a glyph alone. */
-.pv-page .pv-acts > .pv-hear {
-  width: 52px;
-  min-width: 52px;
+/* Hear its voice: as tall as Call it, by its name. */
+.pv-hear {
+  gap: 8px;
   height: 52px;
   min-height: 52px;
-  padding: 0;
-  border-radius: var(--radius-circle);
+  padding: 0 20px 0 16px;
+  font-size: var(--text-md);
 }
 .pv-made {
   max-width: 34ch;
@@ -488,9 +504,12 @@
   align-items: flex-start;
   gap: 7px;
 }
-.pv-line[data-new] > .pv-after {
+/* Under an answer being written it holds its room and is not drawn; it rises in as the last word comes. */
+.pv-after[data-wait] {
+  visibility: hidden;
+}
+.pv-line[data-new] > .pv-after:not([data-wait]) {
   animation: pv-rise var(--duration-slow) var(--ease-out) both;
-  animation-delay: calc(var(--duration-slow) * 4);
 }
 /* Under an answer that says a thing they told it: its glyph, the told card's own, and the words. */
 .pv-used {
@@ -1069,6 +1088,9 @@ p.pv-known {
     padding: 0 32px;
     background: none;
   }
+  .pv-top::after {
+    content: none;
+  }
   /* Their card stands beside the conversation, so the bar never says whose page it is. */
   .pv-top-who {
     visibility: hidden;
@@ -1236,7 +1258,7 @@ p.pv-known {
   .pv-three[data-live],
   .pv-skel > i,
   .pv-line[data-new],
-  .pv-line[data-new] > .pv-after,
+  .pv-line[data-new] > .pv-after:not([data-wait]),
   .pv-call,
   .pv-cols[data-back] {
     animation: none;
@@ -1247,6 +1269,9 @@ p.pv-known {
   .pv-word {
     opacity: 1;
     transition: none;
+  }
+  .pv-after[data-wait] {
+    visibility: visible;
   }
   .pv-yours[data-wait] {
     background: var(--selected-fill);

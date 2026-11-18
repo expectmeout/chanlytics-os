@@ -25,7 +25,7 @@ import { PvCalled } from "./heard";
 import { PvSlide } from "./slide";
 import type { Call } from "./use-call";
 import type { Talk, TalkLine } from "./use-talk";
-import { PvWords } from "./written";
+import { PvWords, useWriting } from "./written";
 
 /** A stretch of an answer lit as theirs: from one character up to another. */
 type Lit = readonly (readonly [number, number])[];
@@ -33,7 +33,8 @@ const NONE_LIT: Lit = [];
 
 /**
  * AI's words: its mark and its name over them, and the words plain, as the page's own; what it took from the things
- * they told it lit in them. One that came on this visit (`fresh`) is drawn arriving and written out.
+ * they told it lit in them. One that came on this visit (`fresh`) is drawn arriving and written out, and what stands
+ * under it waits until it has been, however short or long it is.
  */
 function PvAnswer({
   text,
@@ -48,6 +49,7 @@ function PvAnswer({
   fresh?: boolean;
   children?: ReactNode;
 }) {
+  const writing = useWriting(text, lit, fresh);
   return (
     <li
       className="pv-line"
@@ -59,9 +61,13 @@ function PvAnswer({
         {W.it}
       </span>
       <p className="pv-says">
-        <PvWords text={text} spans={lit} write={fresh} />
+        <PvWords text={text} spans={lit} shown={fresh ? writing.shown : null} />
       </p>
-      {children ? <div className="pv-after">{children}</div> : null}
+      {children ? (
+        <div className="pv-after" data-wait={!writing.written || undefined}>
+          {children}
+        </div>
+      ) : null}
     </li>
   );
 }

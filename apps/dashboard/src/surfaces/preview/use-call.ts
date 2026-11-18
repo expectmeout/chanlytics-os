@@ -141,7 +141,10 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
   const [left, setLeft] = useState(leftMs);
   const [muted, setMuted] = useState(false);
   const [talking, setTalking] = useState(false);
-  // How loud its voice is, as last heard: read by the call's mark at each frame, so no redraw is asked for it.
+  // How loud its voice is, as last heard: read by the call's mark at each frame, so no redraw is asked for it. Nothing
+  // writes it yet: the mark follows the voice only once the call's audio has been read on a real call, on an iPhone
+  // among them, since reading it taps the call's own sound (bridge/rehearse/call.ts onLevel). Until then the mark keeps
+  // its pulse while AI speaks, and the call is asked for nothing it was not asked for before.
   const level = useRef(0);
   const [trouble, setTrouble] = useState<string | null>(null);
   const session = useRef<CallSession | null>(null);
@@ -163,7 +166,6 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     callId.current = null;
     const seconds = clock.stop();
     const lines = live.take();
-    level.current = 0;
     setTalking(false);
     setPhase("idle");
     // What went wrong stays said until the next call starts: the provider tells an end after a failure too. A call
@@ -192,9 +194,6 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
       onEnd: (reason) => over(reason?.startsWith("error_") ? W.dropped : null),
       onError: (kind, words) => over(troubleOf(kind, words)),
       onTalking: setTalking,
-      onLevel: (loud) => {
-        level.current = loud;
-      },
     });
     starting.current = false;
     // Left while it was being joined: the call the client now holds is ended, and nothing of it is kept.

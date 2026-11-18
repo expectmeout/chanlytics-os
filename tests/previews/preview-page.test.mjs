@@ -478,9 +478,9 @@ test("a visit after a call still shows it: its line after the messages, with how
   assert.ok(!has(draw({ asked_count: 1, turns: turnsOf(["Hello?", "Hi.", "sends"]) }), "pv-called"));
 });
 
-test("Hear its voice stands beside Call it, said by name to a screen reader; its sender looking has no press", () => {
+test("Hear its voice stands beside Call it, by its name; its sender looking has no press", () => {
   const html = draw();
-  assert.ok(has(html, "pv-hear") && html.includes(`aria-label="${W.hearVoice}"`));
+  assert.match(html, new RegExp(`data-testid="pv-hear"[^>]*>.*?${W.hearVoice}</button>`, "s"));
   assert.ok(html.indexOf('data-testid="pv-call-start"') < html.indexOf('data-testid="pv-hear"'));
   // Its minutes used, there is no call to stand beside; its sender looking presses nothing.
   assert.ok(!has(draw({ call_seconds: 360 }), "pv-hear"));
