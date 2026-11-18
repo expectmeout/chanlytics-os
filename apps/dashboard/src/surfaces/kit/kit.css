@@ -489,14 +489,6 @@ a.chip:focus-visible {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-/* On an icon (the bell, the phone's Inbox tab): a ring of the page lifts it off the glyph, and the amber ground turns
-   opaque so the glyph does not show through it. */
-.tally-icon {
-  box-shadow: 0 0 0 2px var(--bg);
-}
-.tally-icon.tally-warn {
-  background: color-mix(in oklab, var(--warn) 22%, var(--bg-raised));
-}
 
 .mark {
   display: inline-grid;
@@ -5606,17 +5598,19 @@ a.list-row {
   box-shadow: var(--focus-ring), var(--surface-inset-depth);
 }
 .tab-bar-glyph {
+  position: relative;
   display: inline-flex;
   transition: color var(--duration-base) var(--ease-out);
 }
 .tab-bar-tab.active > .tab-bar-glyph {
   color: var(--tab-ink);
 }
-/* The count is the neutral count on an icon (.tally-icon, below); the place's corner is where it stands. */
+/* The count is the count on an icon (.tally-icon, below), on its glyph's top corner, as a phone's badge stands: set from
+   the place's corner, it covered the glyph's right half on a phone's narrow places (Ruben, 18 Nov 2026). */
 .tab-bar-count {
   position: absolute;
-  top: 4px;
-  right: 10px;
+  top: -6px;
+  left: calc(100% - 7px);
 }
 .tab-bar-pill {
   position: absolute;
@@ -6566,10 +6560,13 @@ textarea.rec-input,
   color: var(--count-ink);
 }
 /* People who need you, counted on an icon (the phone's Inbox tab): amber, warn's own meaning, as the menu's count is
-   (Today with colour, D5, 17 Nov 2026). A count beside its words stays the words' ink. */
+   (Today with colour, D5, 17 Nov 2026). On a glyph a tint let its lines show through the figure, so the amber is whole,
+   the figure dark and a ring of the bar's glass lifts it off the glyph (Ruben, 18 Nov 2026). A count beside its words
+   stays the words' ink. */
 .tally-icon.tally-warn {
-  background: var(--warn-soft);
-  color: var(--warn-ink);
+  background: var(--warn);
+  box-shadow: var(--count-ring);
+  color: var(--count-warn-ink);
 }
 
 /* ---- A tone's words read the tone's ink (the one-badge spec's rule) ----
