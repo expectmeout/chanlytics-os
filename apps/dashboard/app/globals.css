@@ -353,8 +353,10 @@ html.in-app .auth-or {
   border-radius: var(--radius-full);
   color: var(--ink-muted);
 }
-.auth-back:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .auth-back:hover {
+    color: var(--ink);
+  }
 }
 .auth-claim h1,
 .auth-claim .hint {
