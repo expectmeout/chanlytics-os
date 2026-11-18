@@ -159,7 +159,7 @@ const sectionOf = (id: string): string => (id.includes("/") ? id.slice(0, id.ind
 
 /**
  * The sections an address may name a row of: the business's pages and Autonomy's, the part Activity opens on, and
- * Connections' (`integrations/left`: the mailbox's "Left in your mailbox", open, which Today's Brought in links to).
+ * Connections' (`integrations/left`: the mailbox's "Left in your mailbox", open).
  */
 const SECTIONS_WITH_ROWS = new Set([
   "workspace",

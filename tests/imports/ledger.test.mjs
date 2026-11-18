@@ -1,17 +1,16 @@
 /**
  * What was brought in (decision 0073, R23; contracts imports/ledger.ts), as each page says it: a line per source with
- * where it stands (the first run's "Bringing it in", Today's "Brought in"), Connections' notes on each row, Meta's three
- * parts of the kept app's chats, Today's card and how long it stays. Everything brought is before Chanlytics: said, never
- * counted as today's.
+ * where it stands (the first run's "Bringing it in"), Connections' notes on each row, Meta's three parts of the kept
+ * app's chats, and Today's rows in the setting-up card while the history is coming in or a part of it stopped. Everything
+ * brought is before Chanlytics: said, never counted as today's.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   IMPORT_STOPPED_WORDS,
   MAILBOX_LEFT_ROW,
-  broughtInCardOf,
-  broughtInShown,
   billingDayWords,
+  historyOnTodayOf,
   importLineOf,
   importLinesOf,
   importNotesOf,
@@ -19,7 +18,6 @@ import {
   whatsappPartsOf,
 } from "@chanlytics/contracts";
 
-const NOW = Date.parse("2026-09-07T15:00:00Z");
 const DAY = 86_400_000;
 /** A ledger row, every column the page reads, as the table keeps it. */
 const row = (source, state = "done", counts = {}, over = {}) => ({
@@ -49,8 +47,6 @@ test("a source's line says what came and how far back, in its own words, and whe
       retry: false,
       share: null,
       aside: null,
-      door: "reports/reviews",
-      asideDoor: null,
       count: 212,
     },
   );
@@ -121,20 +117,8 @@ test("what the mailbox set aside is said apart, under its line, and only for the
   assert.equal(importLineOf(row("contacts", "done", { people: 4, dropped: 2 })).aside, null);
 });
 
-test("each line opens the page what it brought is on, and what the mailbox set aside opens where it is listed", () => {
-  const doorOf = (source, state = "done", counts = {}) => importLineOf(row(source, state, counts)).door;
-  assert.equal(doorOf("calendar"), "calendar");
-  assert.equal(doorOf("contacts"), "clients", "People");
-  assert.equal(doorOf("clients_file"), "clients");
-  assert.equal(doorOf("whatsapp_contacts"), "clients");
-  assert.equal(doorOf("mailbox"), "inbox");
-  assert.equal(doorOf("whatsapp_history"), "inbox");
-  assert.equal(doorOf("google_reviews"), "reports/reviews", "the Reviews lens");
-  assert.equal(doorOf("mailbox", "failed"), "inbox", "a stopped line still opens what it kept");
-  const mail = importLineOf(row("mailbox", "done", { messages: 414, dropped: 195 }));
-  assert.equal(mail.asideDoor, "admin/integrations/left", "Connections, with Left in your mailbox open");
-  assert.equal(MAILBOX_LEFT_ROW, "left", "the row Settings' address names (settings/frame/tabs.ts)");
-  assert.equal(importLineOf(row("mailbox", "done", { messages: 4 })).asideDoor, null, "nothing set aside: no door");
+test("Left in your mailbox is the row Settings' address names", () => {
+  assert.equal(MAILBOX_LEFT_ROW, "left", "settings/frame/tabs.ts");
 });
 
 test("a line's count is the number its words open with, for a page to let glide; none where they open with words", () => {
@@ -227,8 +211,6 @@ test("Bringing it in: a line a source in the order they are said, WhatsApp's wai
     retry: false,
     share: null,
     aside: null,
-    door: null,
-    asideDoor: null,
     count: null,
   });
   assert.deepEqual([waiting.done, waiting.of, waiting.running], [1, 2, false]);
@@ -288,51 +270,65 @@ test("the kept app's chats in Meta's three parts: in, coming in, next, each said
   assert.deepEqual(whatsappPartsOf(null), []);
 });
 
-test("Today's Brought in card: where it all stands in one place, and closed, the people, how far back email reached, the calendar", () => {
+test("Today says the history only while it helps: one line while any of it is coming in, a row a source Try again can bring in, nothing once it is all in", () => {
   const rows = [
     row("google_reviews", "done", { reviews: 212 }),
     row("mailbox", "done", { messages: 300 }, { oldest: "2026-03-07T00:00:00Z" }),
     row("calendar", "done", { past: 0, coming: 9 }),
     row("whatsapp_history", "running", {}, { parts_done: 1, parts_total: 3 }),
   ];
-  assert.deepEqual(broughtInCardOf(rows, 640), {
-    title: "Your history",
-    state: { tone: "live", words: "Bringing it in · 3 of 4" },
-    facts: [
-      { key: "people", text: "640 people · 212 reviews" },
-      { key: "mail", text: `Email since ${billingDayWords("2026-03-07T00:00:00Z")}` },
-      { key: "calendar", text: "No past appointments · 9 coming up" },
-    ],
-  });
-  assert.deepEqual(broughtInCardOf([row("contacts", "done", { people: 1 })], 1), {
-    title: "Your history",
-    state: { tone: "ok", words: "All in" },
-    facts: [{ key: "people", text: "1 person" }],
+  assert.deepEqual(historyOnTodayOf(rows), {
+    coming: { name: "Bringing in your history", says: "3 of 4 in · Keeps going if you leave." },
+    stopped: [],
   });
   assert.deepEqual(
-    broughtInCardOf([row("mailbox", "failed"), row("calendar", "failed"), row("contacts", "running")], 3).state,
-    { tone: "stopped", words: "2 stopped" },
-    "a source stopped is said before one still coming: its Try again is the act",
+    historyOnTodayOf([row("calendar", "queued")])?.coming?.says,
+    "0 of 1 in · Keeps going if you leave.",
   );
-  assert.deepEqual(broughtInCardOf([row("calendar", "queued")], null).state, {
-    tone: "live",
-    words: "Bringing it in · 0 of 1",
-  });
-  assert.equal(broughtInCardOf([], 10), null, "nothing came: no card");
+  // All in is said nowhere on Today (18 Nov 2026): a fact with nothing to do beside the queue, the minute it finished too.
+  assert.equal(historyOnTodayOf([row("contacts", "done", { people: 1 })]), null, "all in: nothing");
+  assert.equal(historyOnTodayOf([]), null, "nothing came: nothing");
+  assert.equal(historyOnTodayOf(null), null);
+  // A source that stopped: what happened, then why where the run said a reason the owner acts on, else what it kept.
+  assert.deepEqual(
+    historyOnTodayOf([
+      row("mailbox", "failed", { messages: 130 }, { last_error: IMPORT_STOPPED_WORDS.failed }),
+      row("google_reviews", "failed", {}, { last_error: IMPORT_STOPPED_WORDS.googleSignedOut }),
+      row("calendar", "failed"),
+      row("contacts", "running"),
+    ]),
+    {
+      coming: { name: "Bringing in your history", says: "0 of 4 in · Keeps going if you leave." },
+      stopped: [
+        { source: "google_reviews", name: "Reviews stopped coming in", says: IMPORT_STOPPED_WORDS.googleSignedOut },
+        { source: "calendar", name: "Your calendar stopped coming in", says: "What came in is kept." },
+        { source: "mailbox", name: "Your inbox stopped coming in", says: "130 emails kept" },
+      ],
+    },
+    "in the order the sources are said, each with its own words",
+  );
 });
 
-test("Today keeps the card while anything is coming or stopped, and for the day the last source finished", () => {
-  // A week of All in was a card with nothing to press beside the queue (the refined canvas, 31 Oct 2026).
-  const done = row("google_reviews", "done", {}, { finished_at: new Date(NOW - 2 * 3600 * 1000).toISOString() });
-  assert.equal(broughtInShown([done], NOW), true, "two hours after: All in, seen once");
-  assert.equal(broughtInShown([done], NOW + DAY), false, "past the day: People's, the Inbox's, the Calendar's own");
-  assert.equal(broughtInShown([done, row("mailbox", "running")], NOW + 30 * DAY), true, "still coming");
-  assert.equal(
-    broughtInShown([row("calendar", "failed")], NOW + 30 * DAY),
-    true,
-    "stopped: its Try again stays in reach",
+test("Today never asks for what Try again cannot give, and never counts what Content reads for itself", () => {
+  const stopped = (source, last_error) => row(source, "failed", {}, { last_error });
+  // Stopped by the owner, or what it came through is gone: Connections says each on its row.
+  for (const why of ["byYou", "removed", "numberGone", "googleGone"])
+    assert.equal(historyOnTodayOf([stopped("mailbox", IMPORT_STOPPED_WORDS[why])]), null, why);
+  // Meta offers the kept app's history once; the clients' file is added again from People.
+  assert.equal(historyOnTodayOf([stopped("whatsapp_history", IMPORT_STOPPED_WORDS.notShared)]), null);
+  assert.equal(historyOnTodayOf([stopped("whatsapp_contacts", IMPORT_STOPPED_WORDS.offeredOnce)]), null);
+  assert.equal(historyOnTodayOf([stopped("clients_file", IMPORT_STOPPED_WORDS.clientsAgain)]), null);
+  // A website read again each month, an Instagram, a profile's photos: Content's own, coming in or stopped (a website's
+  // read brought "Your history · All in" back to Today, and one that stopped kept "1 stopped" there for good).
+  for (const source of ["website_media", "instagram", "google_photos"]) {
+    assert.equal(historyOnTodayOf([row(source, "running")]), null, `${source} coming in`);
+    assert.equal(historyOnTodayOf([row(source, "failed")]), null, `${source} stopped`);
+  }
+  assert.deepEqual(
+    historyOnTodayOf([row("website_media", "done", { photos: 12 }), row("mailbox", "running")])?.coming?.says,
+    "0 of 1 in · Keeps going if you leave.",
+    "the count is the history's own",
   );
-  assert.equal(broughtInShown([], NOW), false);
 });
 
 test("every mailbox's row of a source is said as the one source (decision 0086): its counts added, its stand the most pressing, its reach the furthest", () => {
@@ -364,10 +360,10 @@ test("every mailbox's row of a source is said as the one source (decision 0086):
   assert.equal(sourceRowsOf([first, later])[0].finished_at, "2026-09-07T15:00:00.000Z", "in when the last one was");
   assert.equal(sourceRowsOf([first])[0], first, "a source with one row is that row");
   assert.deepEqual(sourceRowsOf(null), []);
-  assert.deepEqual(
-    broughtInCardOf([first, second], 10)?.facts.find((f) => f.key === "mail"),
-    { key: "mail", text: `Email since ${billingDayWords("2026-05-01T00:00:00Z")}` },
-    "Today's card: the furthest any mailbox reached",
+  assert.equal(
+    historyOnTodayOf([first, second])?.coming?.says,
+    "0 of 1 in · Keeps going if you leave.",
+    "Today's line: two mailboxes are one inbox, still coming",
   );
   assert.deepEqual(
     importLinesOf([first, second], "UTC").lines.map((l) => [l.source, l.count]),

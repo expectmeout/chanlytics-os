@@ -31,9 +31,8 @@ export {
   withFoundWorn,
 } from "./found-adds";
 export {
-  broughtInCardOf,
-  broughtInShown,
   HISTORY_BACK_DAYS,
+  historyOnTodayOf,
   IMPORT_SOURCES,
   IMPORT_STATES,
   IMPORT_STOPPED_WORDS,
@@ -48,8 +47,8 @@ export {
   whatsappPartsOf,
 } from "./ledger";
 export type {
-  BroughtInFactVM,
-  BroughtInStateVM,
+  HistoryOnTodayVM,
+  HistoryStoppedVM,
   ImportCounts,
   ImportLineVM,
   ImportRowDto,
