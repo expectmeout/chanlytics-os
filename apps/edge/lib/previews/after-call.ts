@@ -34,9 +34,9 @@ import {
 const READ_TIMEOUT_MS = 6_000;
 
 /** A field of the analysis as words, or null where it said none. */
-const said = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
+const fieldWords = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim() : null);
 
-const NOTHING: PreviewCallAnalysis = {
+const NO_ANALYSIS: PreviewCallAnalysis = {
   outcome: null,
   wanted: null,
   summary: null,
@@ -46,7 +46,7 @@ const NOTHING: PreviewCallAnalysis = {
 };
 
 /** The door's answer: where the write-up stands, and its fields where it is ready. */
-const answer = (state: PreviewAfterCallState, analysis: PreviewCallAnalysis = NOTHING): Response =>
+const writeUpAnswer = (state: PreviewAfterCallState, analysis: PreviewCallAnalysis = NO_ANALYSIS): Response =>
   json(200, { ok: true, state, ...analysis });
 
 export async function previewAfterCall(
@@ -69,30 +69,30 @@ export async function previewAfterCall(
   try {
     rehearsal = await findRehearsalById(db, tenantId, rehearsalId);
   } catch (e) {
-    log.error("preview_after_call_failed", { tenant_id: tenantId, step: "rehearsal", error: errField(e) });
+    log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "after_call_read", error: errField(e) });
     return refuse(503, "read_failed");
   }
   if (!rehearsal) return refuse(404, "not_found", "no such rehearsal in this workspace");
-  if (rehearsal.kind !== "call" || !rehearsal.retell_call_id) return answer("none");
-  if (rehearsal.ended_at === null) return answer("writing");
+  if (rehearsal.kind !== "call" || !rehearsal.retell_call_id) return writeUpAnswer("none");
+  if (rehearsal.ended_at === null) return writeUpAnswer("writing");
 
   const read = await getCall({ apiKey }, rehearsal.retell_call_id, { timeoutMs: READ_TIMEOUT_MS });
-  if (read.kind === "unavailable") return answer("writing");
+  if (read.kind === "unavailable") return writeUpAnswer("writing");
   if (read.kind !== "found") {
     // A key the provider refuses is ours to mend, and a call it has no record of was never written up.
     if (read.kind === "auth")
-      log.error("preview_after_call_failed", { tenant_id: tenantId, step: "provider", status: read.status });
-    return answer("none");
+      log.error("rehearsal_call_failed", { tenant_id: tenantId, step: "after_call_provider", status: read.status });
+    return writeUpAnswer("none");
   }
   // The analysis arrives a few seconds after the end (the provider's call_analyzed): until then the call has none.
-  if (!read.call.call_analysis) return answer("writing");
+  if (!read.call.call_analysis) return writeUpAnswer("writing");
   const call = normalizeCall(read.call);
-  return answer("ready", {
-    outcome: said(call.analysis?.outcome),
-    wanted: said(call.analysis?.caller_wanted),
-    summary: said(call.summary),
-    follow_up: said(call.analysis?.follow_up),
-    caller_name: said(call.analysis?.caller_name),
-    caller_email: said(call.analysis?.caller_email),
+  return writeUpAnswer("ready", {
+    outcome: fieldWords(call.analysis?.outcome),
+    wanted: fieldWords(call.analysis?.caller_wanted),
+    summary: fieldWords(call.summary),
+    follow_up: fieldWords(call.analysis?.follow_up),
+    caller_name: fieldWords(call.analysis?.caller_name),
+    caller_email: fieldWords(call.analysis?.caller_email),
   });
 }

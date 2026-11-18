@@ -2,8 +2,8 @@
  * A call to a lead's own preview, read back (decision 0079; the redesign of 17 November 2026): the words said on it and
  * what the business would get after a real one, at its three layers, each run for real:
  *
- *   - contracts previews/heard.ts: a rehearsal's turns as the call's lines (tools and empty turns left out), and a
- *     call's analysis as the card its Inbox would hold, in the words every surface says a call in;
+ *   - the dashboard's server/previews/heard.ts: a rehearsal's turns as the call's lines (tools and empty turns left
+ *     out), and a call's analysis as the card its Inbox would hold, in the words every surface says a call in;
  *   - the edge's door (apps/edge/lib/previews/after-call.ts), over a database in memory with the provider answered by
  *     the test: a call still running or not yet written up is being written, an analysed one is ready with its
  *     fields, and one there is nothing to come for is none; a rehearsal is its own workspace's;
@@ -16,13 +16,7 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import {
-  CALL_OUTCOME_WORDS,
-  LEAD_PREVIEW_WORDS as W,
-  PREVIEW_WRITE_UP_MS,
-  previewGotOf,
-  previewHeardOf,
-} from "@chanlytics/contracts";
+import { CALL_OUTCOME_WORDS, LEAD_PREVIEW_WORDS as W } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -48,6 +42,7 @@ after(() => {
 const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/shared/rate-limit.ts");
 const { setServiceClient } = await importSrc("apps/dashboard/src/server/shared/service-db.ts");
 const heardDoor = await importSrc("apps/dashboard/app/api/v1/previews/[token]/heard/route.ts");
+const { WRITE_UP_MS, previewGotOf, previewHeardOf } = await importSrc("apps/dashboard/src/server/previews/heard.ts");
 const { setPg } = await importSrc("apps/edge/lib/shared/pg.ts");
 const { previewAfterCall } = await importSrc("apps/edge/lib/previews/after-call.ts");
 after(() => {
@@ -181,7 +176,7 @@ const knock = (body, workspace = WS) =>
     await res.json(),
   ]);
 
-/* ------------------------------------------------------------------ contracts */
+/* ------------------------------------------------------------------ the lines and the card */
 
 test("a rehearsal's turns are the call's lines: who said each, a tool and a turn with no words left out", () => {
   assert.deepEqual(previewHeardOf(TURNS), LINES);
@@ -314,7 +309,7 @@ test("a write-up is waited for two minutes past the call's end; after them the p
   });
   // Past the wait, with a write-up there for the asking: the words still, and nobody asked for the rest.
   retellAnswers = () => [200, { call_id: "call_1", call_status: "ended", call_analysis: ANALYSIS }];
-  world({ rehearsals: [{ ended_at: ago(PREVIEW_WRITE_UP_MS + 5_000) }] });
+  world({ rehearsals: [{ ended_at: ago(WRITE_UP_MS + 5_000) }] });
   edgeAsked = [];
   retellAsked = [];
   assert.deepEqual((await read(await post({ call: CALL }))).body.data, {

@@ -7,18 +7,13 @@
  * Under the three, the newest of what was said, as the page reads it from its own door while the call runs (the call
  * tells the browser none of it): a read every two seconds, so a line shows a moment after it is said.
  */
-import { LEAD_PREVIEW_WORDS as W, MIN_MS, PREVIEW_LIMITS, SECOND_MS, type PreviewPageVM } from "@chanlytics/contracts";
+import { LEAD_PREVIEW_WORDS as W, PREVIEW_LIMITS, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { PvFace, PvThree } from "./head";
 import { PvHeard } from "./heard";
 import type { Call } from "./use-call";
 
-/** The seconds of a minute, for a call's clock. */
-const MINUTE_S = MIN_MS / SECOND_MS;
-/** A call's length as its clock says it: "0:42". */
-const clockOf = (seconds: number): string =>
-  `${Math.floor(seconds / MINUTE_S)}:${String(seconds % MINUTE_S).padStart(2, "0")}`;
 /** The three on the call's screen, in px. */
 const THREE_PX = 88;
 /** The lines of the call its screen shows: the last two things said. */
@@ -33,7 +28,7 @@ export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {
         <span className="pv-called-words">
           <b>{vm.business}</b>
           <span role="status" data-testid="pv-call-status">
-            {live ? `${W.live} · ${clockOf(call.seconds)}` : W.connecting}
+            {live ? `${W.live} · ${W.clock(call.seconds)}` : W.connecting}
           </span>
         </span>
       </div>

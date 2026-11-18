@@ -12,14 +12,70 @@
 import { useState, type SyntheticEvent } from "react";
 import { LEAD_PREVIEW_WORDS as W, type PreviewKnowsRowVM, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
-import { Field } from "../kit/field/field";
+import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { Panel } from "../kit/panel/panel";
 import { previewVerbs } from "./verbs";
 
 /** What a row's press says: add what it lacks, put its value right, or say what is off about a list. */
-const pressOf = (row: PreviewKnowsRowVM, lacks: boolean): string =>
+const knownPressOf = (row: PreviewKnowsRowVM, lacks: boolean): string =>
   lacks ? W.add : row.fix === "say" ? W.sayOff : W.fix;
+
+/** A row's press, which opens the box that puts it right: outlined where the fact is one it lacks. */
+function PvKnownPress({ row, lacks, onOpen }: { row: PreviewKnowsRowVM; lacks: boolean; onOpen: () => void }) {
+  const list = row.fix === "say";
+  return (
+    <Button variant={lacks ? "outline" : "quiet"} size="touch" onClick={onOpen} data-testid={`pv-not-right-${row.key}`}>
+      {lacks || list ? null : <Icon name="pencil" size={14} />}
+      {knownPressOf(row, lacks)}
+    </Button>
+  );
+}
+
+/** The box that puts a fact right: what is right, or what is off about a list, then Cancel and Save. */
+function PvKnownEdit(props: {
+  row: PreviewKnowsRowVM;
+  said: string;
+  busy: boolean;
+  problem: string | null;
+  onSaid: (words: string) => void;
+  onCancel: () => void;
+  onSave: (event: SyntheticEvent) => void;
+}) {
+  const { row, busy } = props;
+  return (
+    <form className="pv-edit" onSubmit={props.onSave}>
+      <Field
+        aria-label={row.fix === "say" ? W.sayOffLabel : row.label}
+        rows={2}
+        value={props.said}
+        onValueChange={props.onSaid}
+        readOnly={busy}
+        maxLength={300}
+        data-testid={`pv-not-right-text-${row.key}`}
+        {...fieldProblem(props.problem)}
+      />
+      <span className="pv-edit-acts">
+        <Button variant="quiet" size="touch" onClick={props.onCancel}>
+          {W.cancel}
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          size="touch"
+          disabled={busy || !props.said.trim()}
+          data-testid={`pv-not-right-send-${row.key}`}
+        >
+          {W.save}
+        </Button>
+      </span>
+    </form>
+  );
+}
+
+/** What a row says under its value: where it was read, or that it is theirs now, or that what they said was heard. */
+const knownFromOf = (row: PreviewKnowsRowVM, theirs: string | null, thanked: boolean): string =>
+  theirs ? `${W.from.you} · ${W.fixed}` : thanked ? W.notRightThanks : row.from;
 
 /** One fact: its name, its value, where it was read, and its press; open, the box that puts it right. */
 function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: string; look: boolean }) {
@@ -29,14 +85,19 @@ function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: strin
   const [busy, setBusy] = useState(false);
   const [theirs, setTheirs] = useState<string | null>(null);
   const [thanked, setThanked] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const save = async (event: SyntheticEvent) => {
     event.preventDefault();
     const right = said.trim();
     if (!right || busy) return;
     setBusy(true);
+    setProblem(null);
     const answer = await previewVerbs.notRight(token, row.label, right);
     setBusy(false);
-    if (!answer.ok) return;
+    if (!answer.ok) {
+      setProblem(answer.message ?? W.failed);
+      return;
+    }
     setOpen(false);
     // A list keeps its own words, with theirs told beside it: the row says it was heard, never that it changed.
     if (answer.data.fixed && row.fix === "value") setTheirs(right);
@@ -51,46 +112,20 @@ function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: strin
           {theirs ?? row.value}
         </span>
         <span className="pv-quiet" role={theirs || thanked ? "status" : undefined}>
-          {theirs ? `${W.from.you} · ${W.fixed}` : thanked ? W.notRightThanks : row.from}
+          {knownFromOf(row, theirs, thanked)}
         </span>
       </span>
-      {look || open || thanked ? null : (
-        <Button
-          variant={lacks ? "outline" : "quiet"}
-          size="touch"
-          onClick={() => setOpen(true)}
-          data-testid={`pv-not-right-${row.key}`}
-        >
-          {lacks || row.fix === "say" ? null : <Icon name="pencil" size={14} />}
-          {pressOf(row, lacks)}
-        </Button>
-      )}
+      {look || open || thanked ? null : <PvKnownPress row={row} lacks={lacks} onOpen={() => setOpen(true)} />}
       {open ? (
-        <form className="pv-edit" onSubmit={save}>
-          <Field
-            aria-label={row.fix === "say" ? W.sayOffLabel : row.label}
-            rows={2}
-            value={said}
-            onValueChange={setSaid}
-            readOnly={busy}
-            maxLength={300}
-            data-testid={`pv-not-right-text-${row.key}`}
-          />
-          <span className="pv-edit-acts">
-            <Button variant="quiet" size="touch" onClick={() => setOpen(false)}>
-              {W.cancel}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="touch"
-              disabled={busy || !said.trim()}
-              data-testid={`pv-not-right-send-${row.key}`}
-            >
-              {W.save}
-            </Button>
-          </span>
-        </form>
+        <PvKnownEdit
+          row={row}
+          said={said}
+          busy={busy}
+          problem={problem}
+          onSaid={setSaid}
+          onCancel={() => setOpen(false)}
+          onSave={save}
+        />
       ) : null}
     </div>
   );

@@ -5,7 +5,7 @@ import "server-only";
  * Make it mine (decision 0079, L4): a lead's own receptionist made a workspace of the person who claims it.
  *
  *   findPreviewForSignup  what sign-up says of a preview's link, asked by its token alone: the business's name, the
- *                     address the sender wrote to and what comes with it (contracts previewComesOf, from its record),
+ *                     address the sender wrote to and what comes with it (comesWith, from its record),
  *                     while it can still be made theirs; else nothing, the same for a
  *                     token that names nothing. Make it mine's page draws it (app/preview/[token]/mine), and the
  *                     sign-up route asks it, for which a live link stands for an invite code (signupPostureFor)
@@ -17,9 +17,11 @@ import "server-only";
 import {
   AppError,
   PreviewTokenSchema,
+  LEAD_PREVIEW_WORDS,
   formatPhoneDisplay,
   previewClaimable,
-  previewComesOf,
+  previewKnowsOf,
+  previewTheirsOf,
   previewFirstRunMarks,
   previewStateOf,
 } from "@chanlytics/contracts";
@@ -51,6 +53,37 @@ interface PreviewForSignup {
   comes: string[];
 }
 
+/** A list as a sentence's: "a, b and c". */
+const asSentence = (parts: readonly string[]): string =>
+  parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+
+/**
+ * What comes with a preview once it is someone's own (L4), as Make it mine's page says it before they sign up: what it
+ * read, counted from the rows its page shows (previewKnowsOf), then what they told it. Only what its record holds, since
+ * the record is what becomes theirs: the conversation on its page and its calls are the preview's, and are not promised.
+ */
+function comesWith(profile: Parameters<typeof previewKnowsOf>[0], phoneDisplay: string | null): string[] {
+  const words = LEAD_PREVIEW_WORDS.signup.comesRead;
+  const known = new Set(
+    previewKnowsOf(profile, phoneDisplay)
+      .filter((row) => !row.missing)
+      .map((row) => row.key),
+  );
+  const services = (profile?.services ?? []).filter((service) => service.name.trim()).length;
+  const parts = [
+    known.has("services") && services > 0 ? words.services(services) : null,
+    known.has("hours") ? words.hours : null,
+    known.has("address") ? words.address : null,
+    known.has("phone") ? words.phone : null,
+  ].filter((part): part is string => part !== null);
+  const sentence = asSentence(parts);
+  const taught = previewTheirsOf(profile).taught.length;
+  return [
+    ...(sentence ? [`${sentence[0]?.toUpperCase()}${sentence.slice(1)}`] : []),
+    ...(taught > 0 ? [LEAD_PREVIEW_WORDS.signup.comesTold(taught)] : []),
+  ];
+}
+
 /** A preview's row by its link, where it can still be made theirs; null for any other, or none. */
 async function claimableRow(db: Db, token: string): Promise<LeadPreviewRow | null> {
   if (!db || !PreviewTokenSchema.safeParse(token).success) return null;
@@ -73,7 +106,7 @@ export async function findPreviewForSignup(token: string): Promise<PreviewForSig
   return {
     business: look.business,
     email: lead?.email ?? null,
-    comes: previewComesOf(profile, formatPhoneDisplay(lead?.phone_e164 ?? null)),
+    comes: comesWith(profile, formatPhoneDisplay(lead?.phone_e164 ?? null)),
   };
 }
 

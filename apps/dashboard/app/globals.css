@@ -244,6 +244,8 @@ body {
   box-shadow: var(--focus-field);
 }
 .auth-card button {
+  /* A thumb high on every sign-in page: the type alone left it a pixel short on a phone. */
+  min-height: var(--control-h-touch);
   width: 100%;
   background: var(--accent);
   color: var(--accent-fg);
@@ -259,11 +261,6 @@ body {
   .auth-card button:hover:not(:disabled) {
     filter: brightness(1.08);
   }
-}
-/* A press is a thumb high on every sign-in page: the type alone left it a pixel short on a phone. The buttons that
-   read as links keep their line, with the margin a finger gets round them below. */
-.auth-card button:not(.auth-linkbtn) {
-  min-height: var(--control-h-touch);
 }
 .auth-card button:focus-visible {
   outline: none;
@@ -345,8 +342,9 @@ html.in-app .auth-or {
 }
 
 /* Make it mine, from a preview: the way back over the title, and what comes with it as a short list over the form. */
-.auth-card .auth-back {
+.auth-back {
   margin: 0 0 14px;
+  font-size: var(--text-sm);
 }
 .auth-comes {
   margin: 0 0 20px;
@@ -365,6 +363,8 @@ html.in-app .auth-or {
 /* A button that reads as a link: the way to the code door, the way back from
    it, and "resend". */
 .auth-card .auth-linkbtn {
+  /* A link's line, with the margin a finger gets round it below. */
+  min-height: 0;
   width: auto;
   background: none;
   border: none;

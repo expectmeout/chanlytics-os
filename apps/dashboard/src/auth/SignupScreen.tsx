@@ -434,18 +434,22 @@ function formCard(s: SignupState, submit: (e: React.SyntheticEvent) => Promise<v
  * and the emailed code (nothing to choose, so it leads), Google under it, and what it costs to try. A link stands for an
  * invite code, so its door is open whatever the posture and the form waits only for the server to have said one.
  */
-function previewFormCard(s: SignupState, preview: SignupPreview, submit: (e: React.SyntheticEvent) => Promise<void>) {
-  const W = LEAD_PREVIEW_WORDS.signup;
+function previewFormCard(
+  state: SignupState,
+  preview: SignupPreview,
+  submit: (e: React.SyntheticEvent) => Promise<void>,
+) {
+  const words = LEAD_PREVIEW_WORDS.signup;
   return (
     <AuthShell>
-      <div className="auth-card" data-testid="signup" data-posture={s.posture ?? "unknown"}>
-        <div className="hint auth-back">
-          <a href={`/preview/${encodeURIComponent(preview.token)}`}>{W.back}</a>
+      <div className="auth-card" data-testid="signup" data-posture={state.posture ?? "unknown"}>
+        <div className="auth-back">
+          <a href={`/preview/${encodeURIComponent(preview.token)}`}>{words.back}</a>
         </div>
-        <h1>{W.title(preview.business)}</h1>
+        <h1>{words.title(preview.business)}</h1>
         {preview.comes.length ? (
           <div className="auth-comes" data-testid="signup-comes">
-            <b>{W.comes}</b>
+            <b>{words.comes}</b>
             <ul>
               {preview.comes.map((line) => (
                 <li key={line}>{line}</li>
@@ -453,22 +457,22 @@ function previewFormCard(s: SignupState, preview: SignupPreview, submit: (e: Rea
             </ul>
           </div>
         ) : null}
-        {detailsForm(s, submit)}
-        <div className="hint">{W.lead}</div>
+        {detailsForm(state, submit)}
+        <div className="hint">{words.lead}</div>
         <div role="alert" aria-live="assertive">
-          {s.error && <div className="error">{s.error}</div>}
+          {state.error && <div className="error">{state.error}</div>}
         </div>
-        {s.posture !== null && (
+        {state.posture !== null && (
           <GoogleSignIn
             under
             // Google comes back here signed in, where the tab remembers it left from this screen.
             next={previewMinePath(preview.token)}
-            hint={W.googleNext}
+            hint={words.googleNext}
             onLeave={() => rememberLeftForGoogle(preview.token)}
           />
         )}
         <div className="hint">
-          {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, s.email)}>Sign in</a>
+          {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, state.email)}>Sign in</a>
         </div>
         <div className="hint">{LEAD_PREVIEW_WORDS.mineSub}</div>
       </div>

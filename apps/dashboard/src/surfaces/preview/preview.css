@@ -491,7 +491,7 @@
 }
 
 /* ---- A desk: their business at the left, the conversation at the right ---- */
-@media (min-width: 900px) {
+@media (min-width: 901px) {
   .pv-page {
     max-width: 1120px;
     padding-top: var(--space-6);

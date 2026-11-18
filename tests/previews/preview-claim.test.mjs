@@ -190,6 +190,9 @@ test("what Make it mine's page draws: whose receptionist and the address it was 
     "2 services, your hours, your address and your number",
     LEAD_PREVIEW_WORDS.signup.comesTold(1),
   ]);
+  // One service, and nothing told: a sentence of one part, and no line for what they told it.
+  tables.tenant_config[0].config.brain.profile = { services: [{ name: "Fade" }, { name: " " }] };
+  assert.deepEqual((await findPreviewForSignup(TOKEN))?.comes, ["1 service and your number"]);
   world({ asked_count: 20 });
   assert.equal(
     (await findPreviewForSignup(TOKEN))?.business,

@@ -17,7 +17,7 @@
  * once: the page is back, the call's door is not asked where it has not been, and a call already made is ended the
  * moment the client holds it, so no minute is spent on a call nobody is on.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   LEAD_PREVIEW_WORDS as W,
   MIN_MS,
@@ -25,7 +25,7 @@ import {
   SECOND_MS,
   type PreviewHeardLine,
 } from "@chanlytics/contracts";
-import { startCall, type CallSession } from "@/bridge/rehearse/call";
+import { startCall, type CallHooks, type CallSession, type StartCall } from "@/bridge/rehearse/call";
 import { previewVerbs } from "./verbs";
 
 type Phase = "idle" | "connecting" | "live";
@@ -44,73 +44,127 @@ export interface CallEnded {
   lines: PreviewHeardLine[];
 }
 
+/** What a failure of the call says: the microphone kept off, the door's own words, or that it could not start. */
+const troubleOf = (kind: Parameters<CallHooks["onError"]>[0], words: string | null): string =>
+  kind === "mic" ? W.micBlocked : kind === "refused" ? (words ?? W.callFailed) : W.callFailed;
+
+/** Seconds between two moments, at least one: a call that was answered ran for some. */
+const secondsSince = (since: number): number => Math.max(1, Math.round((Date.now() - since) / SECOND_MS));
+
+/**
+ * The call's door, as the client's one request asks it: the call, with what its minutes have left, or the door's own
+ * words. Nothing is asked for a call they left before it was made.
+ */
+function doorFor(token: string, leaving: RefObject<boolean>, onLeft: (ms: number) => void): StartCall {
+  return async () => {
+    if (leaving.current) return { ok: false, message: W.callFailed };
+    const answer = await previewVerbs.call(token);
+    if (!answer.ok) return { ok: false, message: answer.message ?? W.callFailed };
+    onLeft(answer.data.left_ms);
+    return { ok: true, started: { rehearsal_id: answer.data.rehearsal_id, call: answer.data.call } };
+  };
+}
+
+/** The call's clock: counted from the moment it is live, and stopped with how long it ran. */
+function useLiveClock(phase: Phase) {
+  const since = useRef<number | null>(null);
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (phase !== "live") return undefined;
+    const timer = setInterval(() => {
+      if (since.current !== null) setSeconds(Math.round((Date.now() - since.current) / SECOND_MS));
+    }, SECOND_MS);
+    return () => clearInterval(timer);
+  }, [phase]);
+  return {
+    seconds,
+    /** The call is live: the clock runs from now, once. */
+    begin: () => {
+      since.current ??= Date.now();
+    },
+    /** The clock stopped: how long the call ran, or null for one that was never live. */
+    stop: (): number | null => {
+      const at = since.current;
+      since.current = null;
+      setSeconds(0);
+      return at === null ? null : secondsSince(at);
+    },
+  };
+}
+
+/** One read of a live call's words: kept where there are any. One at a time, so a slow read is not overtaken. */
+async function readLiveWords(token: string, id: string, keep: (lines: PreviewHeardLine[]) => void): Promise<void> {
+  const answer = await previewVerbs.heard(token, id);
+  if (answer.ok && answer.data.lines.length) keep(answer.data.lines);
+}
+
+/** The call's words while it is live, read every two seconds until a little past the longest a call runs. */
+function useLiveWords(token: string, phase: Phase, callId: RefObject<string | null>) {
+  const [heard, setHeard] = useState<PreviewHeardLine[]>([]);
+  const last = useRef<PreviewHeardLine[]>([]);
+  useEffect(() => {
+    if (phase !== "live") return undefined;
+    let stopped = false;
+    let reading = false;
+    const until = Date.now() + PREVIEW_LIMITS.aCallMs + HEARD_MARGIN_MS;
+    const keep = (lines: PreviewHeardLine[]) => {
+      if (stopped) return;
+      last.current = lines;
+      setHeard(lines);
+    };
+    const timer = setInterval(() => {
+      const id = callId.current;
+      if (!id || reading || Date.now() > until) return;
+      reading = true;
+      void readLiveWords(token, id, keep).finally(() => (reading = false));
+    }, HEARD_EVERY_MS);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [phase, token, callId]);
+  return {
+    heard,
+    /** The words last read, handed over as the call ends, and forgotten here. */
+    take: (): PreviewHeardLine[] => {
+      const lines = last.current;
+      last.current = [];
+      setHeard([]);
+      return lines;
+    },
+  };
+}
+
 /** The call: where it stands, its presses, and what `onEnded` is told of one that was answered. */
 export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded) => void) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [left, setLeft] = useState(leftMs);
   const [muted, setMuted] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
-  const [seconds, setSeconds] = useState(0);
   const session = useRef<CallSession | null>(null);
-  const liveSince = useRef<number | null>(null);
-  const [heard, setHeard] = useState<PreviewHeardLine[]>([]);
-  // The call the page is on, and the last of its words read: refs, since the call's end reads them from a callback.
+  // The call the page is on, a start under way (until the client holds the call, or failed to), and End pressed
+  // before it does.
   const callId = useRef<string | null>(null);
-  const heardNow = useRef<PreviewHeardLine[]>([]);
-  // A start under way (until the client holds the call, or failed to), and End pressed before it does.
   const starting = useRef(false);
   const leaving = useRef(false);
+  const clock = useLiveClock(phase);
+  const live = useLiveWords(token, phase, callId);
 
   // A page left mid-call ends the call.
   useEffect(() => () => session.current?.end(), []);
 
-  // The call's length, counted while it is live.
-  useEffect(() => {
-    if (phase !== "live") return undefined;
-    const tick = setInterval(() => {
-      if (liveSince.current !== null) setSeconds(Math.round((Date.now() - liveSince.current) / SECOND_MS));
-    }, SECOND_MS);
-    return () => clearInterval(tick);
-  }, [phase]);
-
-  // The call's words, read while it is live. One read at a time: a slow one is not overtaken by the next.
-  useEffect(() => {
-    if (phase !== "live") return undefined;
-    let stopped = false;
-    let reading = false;
-    const until = Date.now() + PREVIEW_LIMITS.aCallMs + HEARD_MARGIN_MS;
-    const read = async () => {
-      const id = callId.current;
-      if (!id || reading || Date.now() > until) return;
-      reading = true;
-      const answer = await previewVerbs.heard(token, id);
-      reading = false;
-      if (stopped || !answer.ok || !answer.data.lines.length) return;
-      heardNow.current = answer.data.lines;
-      setHeard(answer.data.lines);
-    };
-    const tick = setInterval(() => void read(), HEARD_EVERY_MS);
-    return () => {
-      stopped = true;
-      clearInterval(tick);
-    };
-  }, [phase, token]);
-
   /** The call is over: back to the page, with its line where it was answered. */
-  const over = (why: string | null) => {
+  const over = (problem: string | null) => {
     session.current = null;
-    const since = liveSince.current;
-    liveSince.current = null;
     const id = callId.current;
     callId.current = null;
-    const lines = heardNow.current;
-    heardNow.current = [];
-    setHeard([]);
+    const seconds = clock.stop();
+    const lines = live.take();
     setPhase("idle");
     // What went wrong stays said until the next call starts: the provider tells an end after a failure too. A call
     // they left before it was joined went wrong in no way, whatever the client says of the start it was refused.
-    if (why && !leaving.current) setTrouble(why);
-    if (since !== null) onEnded({ seconds: Math.max(1, Math.round((Date.now() - since) / SECOND_MS)), id, lines });
+    if (problem && !leaving.current) setTrouble(problem);
+    if (seconds !== null) onEnded({ seconds, id, lines });
   };
 
   const start = async () => {
@@ -120,54 +174,37 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     leaving.current = false;
     setTrouble(null);
     setMuted(false);
-    setSeconds(0);
     setPhase("connecting");
-    const joined = await startCall(
-      async () => {
-        // Left before the call was made: its door is not asked, so nothing is made and no minute is counted.
-        if (leaving.current) return { ok: false, message: W.callFailed };
-        const answer = await previewVerbs.call(token);
-        if (!answer.ok) return { ok: false, message: answer.message ?? W.callFailed };
-        setLeft(answer.data.left_ms);
-        return { ok: true, started: { rehearsal_id: answer.data.rehearsal_id, call: answer.data.call } };
+    const joined = await startCall(doorFor(token, leaving, setLeft), {
+      onStarted: (started) => {
+        callId.current = started.rehearsal_id;
       },
-      {
-        onStarted: (started) => {
-          callId.current = started.rehearsal_id;
-        },
-        onStatus: (status) => {
-          if (status !== "live") return;
-          liveSince.current ??= Date.now();
-          setPhase("live");
-        },
-        onEnd: (reason) => over(reason?.startsWith("error_") ? W.dropped : null),
-        onError: (kind, words) =>
-          over(kind === "mic" ? W.micBlocked : kind === "refused" ? (words ?? W.callFailed) : W.callFailed),
+      onStatus: (status) => {
+        if (status !== "live") return;
+        clock.begin();
+        setPhase("live");
       },
-    );
+      onEnd: (reason) => over(reason?.startsWith("error_") ? W.dropped : null),
+      onError: (kind, words) => over(troubleOf(kind, words)),
+    });
     starting.current = false;
     // Left while it was being joined: the call the client now holds is ended, and nothing of it is kept.
-    if (leaving.current) {
-      joined?.end();
-      return;
-    }
-    session.current = joined;
+    if (leaving.current) joined?.end();
+    else session.current = joined;
   };
 
   /** End: the call the client holds, or, before it holds one, the start itself. */
   const end = () => {
-    if (session.current) {
-      session.current.end();
-      return;
+    if (session.current) session.current.end();
+    else if (starting.current) {
+      leaving.current = true;
+      setPhase("idle");
     }
-    if (!starting.current) return;
-    leaving.current = true;
-    setPhase("idle");
   };
 
   return {
     phase,
-    seconds,
+    seconds: clock.seconds,
     muted,
     trouble,
     /** Its minutes are used: no call starts. */
@@ -176,7 +213,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     leftWords: left < CALL_FLOOR_MS ? W.callUsed : W.callLeft(left),
     left,
     /** What has been said on the call so far, as the page last read it. */
-    heard,
+    heard: live.heard,
     start,
     end,
     mute: () => {

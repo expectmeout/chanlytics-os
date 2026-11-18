@@ -14,7 +14,7 @@
  * The field under it has two ways of taking words: as a customer would ask (the message door), or told to it (the tell
  * door), which the page turns on where an answer would have come to the business.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   LEAD_PREVIEW_WORDS as W,
   PREVIEW_LIMITS,
@@ -31,7 +31,7 @@ import { previewVerbs } from "./verbs";
 
 /**
  * When a call's write-up is asked for after its end: soon and often at first, since the provider usually writes one in
- * a few seconds, then less and less, to about the minute and a half the server waits for one (PREVIEW_WRITE_UP_MS).
+ * a few seconds, then less and less, inside the two minutes the server waits for one (server/previews/heard.ts WRITE_UP_MS).
  */
 const AFTER_WAITS_MS = [2, 2, 3, 3, 4, 5, 6, 8, 10, 12, 15, 15].map((seconds) => seconds * SECOND_MS);
 /** Reads that fail one after another before the page stops asking: a preview that ended, a network that is gone. */
@@ -56,14 +56,46 @@ export type TalkLine =
   | { kind: "told"; text: string };
 
 /** The row's turns as lines. */
-const linesOf = (turns: readonly PreviewTurnVM[]): TalkLine[] =>
+const talkLinesOf = (turns: readonly PreviewTurnVM[]): TalkLine[] =>
   turns.map((turn) =>
     turn.role === "user" ? { kind: "said", text: turn.text } : { kind: "answer", text: turn.text, then: turn.then },
   );
 
+/** A call's line as it changes: the call it names, in the list where it stands. */
+type CallLine = Extract<TalkLine, { kind: "call" }>;
+const withCallChanged = (lines: readonly TalkLine[], id: string, change: Partial<CallLine>): TalkLine[] =>
+  lines.map((line) => (line.kind === "call" && line.id === id ? { ...line, ...change } : line));
+
+/**
+ * A call's write-up, asked for until it is there, none is to come, its reads keep failing, or its waits are spent; each
+ * answer changes the call's line where it stands. `open` is whether the page is still there to draw it.
+ */
+async function askForWriteUp(ask: {
+  token: string;
+  id: string;
+  open: RefObject<boolean>;
+  change: (change: Partial<CallLine>) => void;
+}): Promise<void> {
+  let failed = 0;
+  for (const wait of AFTER_WAITS_MS) {
+    await new Promise((go) => setTimeout(go, wait));
+    if (!ask.open.current) return;
+    const answer = await previewVerbs.heard(ask.token, ask.id);
+    if (!ask.open.current) return;
+    failed = answer.ok ? 0 : failed + 1;
+    if (failed >= AFTER_FAILS) break;
+    if (!answer.ok) continue;
+    const { lines: whole, got, writing } = answer.data;
+    // The words whole, now the call has ended: more than the last read of a live call held.
+    ask.change({ ...(whole.length ? { lines: whole } : {}), got, writing });
+    if (got || !writing) return;
+  }
+  ask.change({ writing: false });
+}
+
 /** The conversation, and everything its field does. */
 export function useTalk(vm: PreviewPageVM, token: string) {
-  const [lines, setLines] = useState<TalkLine[]>(() => linesOf(vm.turns));
+  const [lines, setLines] = useState<TalkLine[]>(() => talkLinesOf(vm.turns));
   const [left, setLeft] = useState(vm.left);
   const [told, setTold] = useState(vm.taught.length);
   const [telling, setTelling] = useState(false);
@@ -82,7 +114,7 @@ export function useTalk(vm: PreviewPageVM, token: string) {
 
   const spent = vm.state === "spent" || left <= 0;
   const canTell = told < PREVIEW_TAUGHT.most;
-  const asked = lines.filter((line) => line.kind === "said").map((line) => line.text);
+  const questions = lines.filter((line) => line.kind === "said").map((line) => line.text);
 
   /** A message, asked as a customer would. */
   const say = async (words: string) => {
@@ -125,31 +157,9 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     setTelling(false);
   };
 
-  /** A call's line, changed where it stands. */
-  const changeCall = (id: string, change: Partial<Extract<TalkLine, { kind: "call" }>>) =>
-    setLines((was) => was.map((line) => (line.kind === "call" && line.id === id ? { ...line, ...change } : line)));
-
-  /** A call's write-up, asked for until it is there, none is to come, its reads keep failing, or its waits are spent. */
-  const writeUp = async (id: string) => {
-    let failed = 0;
-    for (const wait of AFTER_WAITS_MS) {
-      await new Promise((go) => setTimeout(go, wait));
-      if (!open.current) return;
-      const answer = await previewVerbs.heard(token, id);
-      if (!open.current) return;
-      if (!answer.ok) {
-        failed += 1;
-        if (failed >= AFTER_FAILS) break;
-        continue;
-      }
-      failed = 0;
-      const { lines: said, got, writing } = answer.data;
-      // The words whole, now the call has ended: more than the last read of a live call held.
-      changeCall(id, { ...(said.length ? { lines: said } : {}), got, writing });
-      if (got || !writing) return;
-    }
-    changeCall(id, { writing: false });
-  };
+  /** A call's write-up, asked for once it has ended, its line changed where it stands as each answer comes. */
+  const writeUp = (id: string) =>
+    askForWriteUp({ token, id, open, change: (change) => setLines((was) => withCallChanged(was, id, change)) });
 
   return {
     lines,
@@ -167,9 +177,9 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     send: () => (telling ? tell(text) : say(text)),
     say,
     /** The last thing they asked, which Ask again asks once more. */
-    lastAsked: asked.at(-1) ?? null,
+    lastAsked: questions.at(-1) ?? null,
     /** The questions on the field not yet asked. */
-    starters: vm.starters.filter((question) => !asked.includes(question)),
+    starters: vm.starters.filter((question) => !questions.includes(question)),
     /** A call that ended, as a line: its seconds as the page counted them, its words, and its write-up asked for. */
     endedCall: (call: CallEnded) => {
       setCalled(true);

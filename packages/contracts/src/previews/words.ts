@@ -9,6 +9,9 @@ import { PREVIEW_FACT_NAMES } from "./tried";
 
 /** The seconds of a minute, as a call's length is said ("1:12"). */
 const MINUTE_S = MIN_MS / SECOND_MS;
+/** A call's length as its clock says it: "0:42". */
+const callClock = (seconds: number): string =>
+  `${Math.floor(seconds / MINUTE_S)}:${String(Math.round(seconds % MINUTE_S)).padStart(2, "0")}`;
 
 export const LEAD_PREVIEW_WORDS = {
   /** The tab's title and the page's heading. */
@@ -55,9 +58,10 @@ export const LEAD_PREVIEW_WORDS = {
   noMic: "To call it, open this page in your browser.",
   /** On the call's screen: how long one runs. */
   callMax: (ms: number) => `A preview call runs up to ${Math.round(ms / MIN_MS)} minutes.`,
+  /** A call's length as its clock says it: "0:42". */
+  clock: callClock,
   /** A call, as a line of the conversation: how long it ran, and who answered. */
-  called: (seconds: number) =>
-    `You called it · ${Math.floor(seconds / MINUTE_S)}:${String(Math.round(seconds % MINUTE_S)).padStart(2, "0")}`,
+  called: (seconds: number) => `You called it · ${callClock(seconds)}`,
   calledSub: "AI answered as your business",
   /** On a call's line: the press that opens the words said on it. */
   readIt: "Read it",
@@ -137,8 +141,15 @@ export const LEAD_PREVIEW_WORDS = {
     title: (business: string) => `AI for ${business.trim()} is waiting for you`,
     // No password is asked from a preview's link (the canvas's call P10): the code that proves the address is the way in.
     lead: "A code is emailed to you, so there is no password to choose.",
-    /** Over the form: what becomes theirs with it, each line only what its record holds (previewComesOf). */
+    /** Over the form: what becomes theirs with it, each line only what its record holds (server/previews/claim.ts). */
     comes: "Everything it knows comes with it",
+    /** The parts of what it read, said as one sentence by the server (server/previews/claim.ts). */
+    comesRead: {
+      services: (n: number) => (n === 1 ? "1 service" : `${n} services`),
+      hours: "your hours",
+      address: "your address",
+      phone: "your number",
+    },
     comesTold: (n: number) => (n === 1 ? "What you told it" : `The ${n} things you told it`),
     /** The form's press: the code is what makes it theirs, so the press asks for the code. */
     code: "Email me a code",

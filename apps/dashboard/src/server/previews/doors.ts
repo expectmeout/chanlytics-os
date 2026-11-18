@@ -22,13 +22,10 @@ import {
   LEAD_PREVIEW_WORDS as W,
   PREVIEW_LIMITS,
   PREVIEW_TAUGHT,
-  PREVIEW_WRITE_UP_MS,
   SECOND_MS,
   UUID,
   heldTenantId,
   previewFactOf,
-  previewGotOf,
-  previewHeardOf,
   previewStateOf,
   previewTheirsOf,
   previewTurnsOf,
@@ -54,6 +51,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import { linkPageDb } from "../public/link-page";
 import { changePreviewRecord } from "./theirs";
 import { callEdge, edgeConfigured } from "../shared/edge";
+import { WRITE_UP_MS, previewGotOf, previewHeardOf } from "./heard";
 import { takeRate } from "../shared/rate-limit";
 import { startRehearsal, type RehearsalStartDto } from "../settings/rehearsal";
 import { tryReceptionist } from "../receptionist/try";
@@ -239,7 +237,7 @@ async function afterCallOf(
   if (answer.status !== 200 || !body?.ok || !body.state)
     return { state: answer.status === 503 ? "writing" : "none", got: null };
   if (body.state !== "ready") return { state: body.state, got: null };
-  const got = previewGotOf({
+  const card = previewGotOf({
     outcome: body.outcome ?? null,
     wanted: body.wanted ?? null,
     summary: body.summary ?? null,
@@ -247,7 +245,7 @@ async function afterCallOf(
     caller_name: body.caller_name ?? null,
     caller_email: body.caller_email ?? null,
   });
-  return got ? { state: "ready", got } : { state: "none", got: null };
+  return card ? { state: "ready", got: card } : { state: "none", got: null };
 }
 
 /**
@@ -267,8 +265,7 @@ export async function previewHeard(token: string, raw: unknown): Promise<Preview
   if (!row || row.kind !== "call") throw new AppError("not_found", W.failed, 404);
   const lines = previewHeardOf(row.transcript);
   if (row.ended_at === null) return { lines, ended: false, got: null, writing: true };
-  if (Date.now() - Date.parse(row.ended_at) >= PREVIEW_WRITE_UP_MS)
-    return { lines, ended: true, got: null, writing: false };
+  if (Date.now() - Date.parse(row.ended_at) >= WRITE_UP_MS) return { lines, ended: true, got: null, writing: false };
   const after = await afterCallOf(tenantId, id);
   return { lines, ended: true, got: after.got, writing: after.state === "writing" };
 }
