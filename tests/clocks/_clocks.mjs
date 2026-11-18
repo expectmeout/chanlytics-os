@@ -29,7 +29,7 @@ export const CLOCKS = {
   calls: { kind: "reconcile", why: "re-reads calls, recordings and notes from Retell" },
   sources: {
     kind: "due",
-    why: "hands each watched folder the read or the re-walk whose time its row holds, written there by its last read and walk (00641); a walk whose steps stopped is taken up from its rows. The same turn hands each waiting file its take once its own times have come (00642 source_takes_hand_out: source_items.take_after and length_until), the floor under the hand-outs a take's end, the video platform's word and a read ask for",
+    why: "hands each watched folder the read or the re-walk whose time its row holds, written there by its last read and walk (00641); a walk whose steps stopped is taken up from its rows. The same turn hands each waiting file its take once its own times have come (00643 source_takes_hand_out: source_items.take_after and length_until), the floor under the hand-outs a take's end, the video platform's word and a read ask for",
     times: ["media_sources.next_read_at", "media_sources.next_walk_at"],
     fn: "sources_hand_out",
   },

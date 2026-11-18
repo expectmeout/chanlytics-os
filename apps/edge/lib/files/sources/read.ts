@@ -417,7 +417,7 @@ export async function runSourceRead(
     // A key its provider refused is settled before anything is paused; anything else is the job's to fail on.
     return leaveRefusedKey(opened.open, error);
   } finally {
-    // What the read spent at its provider, on the day's count beside the takes' (00642 source_days), however it ended.
+    // What the read spent at its provider, on the day's count beside the takes' (00643 source_days), however it ended.
     await keepUnitsSpent(db, opened.open.spent);
   }
 }

@@ -1,5 +1,5 @@
 /**
- * A found video comes in (apps/edge/lib/files/found-video.ts and found.ts; 00626, 00642), over a database in memory and a web
+ * A found video comes in (apps/edge/lib/files/found-video.ts and found.ts; 00626, 00643), over a database in memory and a web
  * that answers from memory: what a website plays or an Instagram posted, let in by its length at the door before Stream is
  * asked, fetched by Stream from its address and kept once, at the road's status; a twin or one a person let go never
  * fetched; a workspace that takes no videos passed over; Stream's copy let go where no row holds it; a batch that brings a
@@ -81,7 +81,7 @@ function world({ takesVideos = true, videos = [], files = 0, roomGoes = false, u
     live()
       .filter((f) => f.kind === "video" && f.media_status !== "failed")
       .reduce((n, f) => n + Number(f.seconds ?? 0), 0);
-  // 00642 file_video_room: long, minutes or room.
+  // 00643 file_video_room: long, minutes or room.
   const roomFor = (seconds) => {
     if (seconds !== null && seconds > 600) return "long";
     if (seconds === null ? used() >= 3600 : used() + seconds > 3600) return "minutes";
@@ -110,7 +110,7 @@ function world({ takesVideos = true, videos = [], files = 0, roomGoes = false, u
         });
         return { fate: "kept", file_id: a.p_id };
       },
-      // 00642's order: asked again, twin, let go, the thousand, room by its length, then (with a copy named) the row.
+      // 00643's order: asked again, twin, let go, the thousand, room by its length, then (with a copy named) the row.
       file_video_found: (a) => {
         asked.push(a);
         if (world.throws && a.p_media_ref) throw new Error(world.throws);

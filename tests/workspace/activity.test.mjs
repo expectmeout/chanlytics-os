@@ -98,7 +98,7 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
     "AI kept one of two copies of a photo",
   );
   assert.equal(activityWords("file.removed", { file_id: "f1", by: "u1" }), "A photo was deleted");
-  // A found video passed over as the video platform said its length (00642) is AI's too, each for its own reason.
+  // A found video passed over as the video platform said its length (00643) is AI's too, each for its own reason.
   assert.equal(
     activityWords("file.removed", { file_id: "f1", why: "long" }),
     "AI passed over a video too long to watch",

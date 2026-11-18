@@ -6820,7 +6820,7 @@ begin
   if v_row.media_status in ('ready', 'failed') then
     return jsonb_build_object('fate', 'repeated', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
   end if;
-  -- A video whose road never said its length is judged by it now (00642), by the one rule every road's door asks: one
+  -- A video whose road never said its length is judged by it now (00643), by the one rule every road's door asks: one
   -- longer than AI can watch, or with no room left in the minutes, is passed over. It is removed as a twin is (nothing
   -- a person kept: it only just arrived), keeping why and the length it turned out to have, and its purge lets the
   -- copy go. A found one is counted on its road's line, so the owner is told, and a long one is let go by its road's
@@ -6882,7 +6882,7 @@ end $$;
 -- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). A video whose road never said its length (a found one, or a watched folder''s clip its provider had not measured) is judged by it here (00642, file_video_room): one too long or with no room is passed over and removed, a found one counted on its road''s line. Answers {fate: ready, repeated, gone, unknown or passed (why: long or minutes), tenant_id, file_id, made}. The service role''s.';
+COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). A video whose road never said its length (a found one, or a watched folder''s clip its provider had not measured) is judged by it here (00643, file_video_room): one too long or with no room is passed over and removed, a found one counted on its road''s line. Answers {fate: ready, repeated, gone, unknown or passed (why: long or minutes), tenant_id, file_id, made}. The service role''s.';
 
 
 --
@@ -7060,7 +7060,7 @@ $$;
 -- Name: FUNCTION file_road_is_owners(p_source text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_road_is_owners(p_source text) IS 'Whether a road is the owner''s own word (00642): an upload, which they put there, and a watched folder, which they confirmed. A found road is nobody''s word until a Keep. The one place that says so. Its doors''.';
+COMMENT ON FUNCTION public.file_road_is_owners(p_source text) IS 'Whether a road is the owner''s own word (00643): an upload, which they put there, and a watched folder, which they confirmed. A found road is nobody''s word until a Keep. The one place that says so. Its doors''.';
 
 
 --
@@ -7182,7 +7182,7 @@ $$;
 -- Name: FUNCTION file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) IS 'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. The owner''s own word (file_road_is_owners, 00642: an upload or a watched folder) is never the one that goes. Its doors''.';
+COMMENT ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) IS 'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. The owner''s own word (file_road_is_owners, 00643: an upload or a watched folder) is never the one that goes. Its doors''.';
 
 
 --
@@ -7386,7 +7386,7 @@ end $$;
 -- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric) IS 'A found video on its way (00626), let in by its length where its road says it (00642, p_seconds). With no copy named it only judges, before the video platform is asked: {fate: room, here, full, minutes or long}. With one it writes the row, uploading, at its road''s status and with its length, so the platform''s word alone can finish it: {fate: kept, file_id}. Its twin is by fingerprint (the road''s name for it, hashed). The service role''s.';
+COMMENT ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric) IS 'A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). With no copy named it only judges, before the video platform is asked: {fate: room, here, full, minutes or long}. With one it writes the row, uploading, at its road''s status and with its length, so the platform''s word alone can finish it: {fate: kept, file_id}. Its twin is by fingerprint (the road''s name for it, hashed). The service role''s.';
 
 
 --
@@ -7413,7 +7413,7 @@ $$;
 -- Name: FUNCTION file_video_room(p_tenant_id uuid, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) IS 'Whether a video of this length may come in (00642): long (over ten minutes, more than AI can watch), minutes (the workspace''s sixty would be passed; with no length known, only where they are already full) or room. The one place a video is let in by its length, whichever road brought it. Its doors''.';
+COMMENT ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) IS 'Whether a video of this length may come in (00643): long (over ten minutes, more than AI can watch), minutes (the workspace''s sixty would be passed; with no length known, only where they are already full) or room. The one place a video is let in by its length, whichever road brought it. Its doors''.';
 
 
 --
@@ -7474,7 +7474,7 @@ end $$;
 -- Name: FUNCTION file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) IS 'A watched folder''s clip on its way (00642), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}. With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
+COMMENT ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) IS 'A watched folder''s clip on its way (00643), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}. With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
 
 
 --
@@ -7494,7 +7494,7 @@ $$;
 -- Name: FUNCTION files_are_full(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_are_full(p_tenant_id uuid) IS 'Whether a workspace''s Library holds its thousand files (00642): the number in one place for the doors that ask it here (file_video_sourced, file_video_found). Its doors''.';
+COMMENT ON FUNCTION public.files_are_full(p_tenant_id uuid) IS 'Whether a workspace''s Library holds its thousand files (00643): the number in one place for the doors that ask it here (file_video_sourced, file_video_found). Its doors''.';
 
 
 --
@@ -7742,7 +7742,7 @@ end $$;
 -- Name: FUNCTION found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) IS 'A found read''s pace and budget, spent or refused (00642, the footage sources plan''s D21): an account is read once in a day, a workspace asks for p_workspace_max reads in a day (kept on its imports row, job_cursor.reads), and the platform for p_platform_max (source_days.reads, a day as Google counts one). Answers {fate: go, since: when this account''s last whole read began, or null to read it whole}, {fate: read_lately, read_at, state, counts} with nothing spent, or {fate: wait, binds: workspace_reads or platform_reads, until}. An account whose last read stopped may be asked again. The service role''s.';
+COMMENT ON FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) IS 'A found read''s pace and budget, spent or refused (00643, the footage sources plan''s D21): an account is read once in a day, a workspace asks for p_workspace_max reads in a day (kept on its imports row, job_cursor.reads), and the platform for p_platform_max (source_days.reads, a day as Google counts one). Answers {fate: go, since: when this account''s last whole read began, or null to read it whole}, {fate: read_lately, read_at, state, counts} with nothing spent, or {fate: wait, binds: workspace_reads or platform_reads, until}. An account whose last read stopped may be asked again. The service role''s.';
 
 
 --
@@ -35949,7 +35949,7 @@ end $$;
 -- Name: FUNCTION source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) IS 'A take''s budget, spent or refused (00642, the footage sources plan''s D15): the platform''s bytes and units of the day (source_days) and the workspace''s takes and bytes of the day (counted from source_items.taken_at), a day as Google counts one. Every number is the caller''s setting. It counts the bytes and the take; the units it only judges (p_units is what the take will still spend), since source_units_spend counts each where it is spent. Answers {fate: go}, {fate: wait, binds: units, platform_bytes, workspace_takes or workspace_bytes, until: when the next day begins}, or {fate: unknown} for an item that is not this workspace''s. The service role''s.';
+COMMENT ON FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) IS 'A take''s budget, spent or refused (00643, the footage sources plan''s D15): the platform''s bytes and units of the day (source_days) and the workspace''s takes and bytes of the day (counted from source_items.taken_at), a day as Google counts one. Every number is the caller''s setting. It counts the bytes and the take; the units it only judges (p_units is what the take will still spend), since source_units_spend counts each where it is spent. Answers {fate: go}, {fate: wait, binds: units, platform_bytes, workspace_takes or workspace_bytes, until: when the next day begins}, or {fate: unknown} for an item that is not this workspace''s. The service role''s.';
 
 
 --
@@ -36053,7 +36053,7 @@ end $$;
 -- Name: FUNCTION source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) IS 'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
+COMMENT ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) IS 'The takes'' hand-out (00643, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
 
 
 --
@@ -36079,7 +36079,7 @@ end $$;
 -- Name: FUNCTION source_takes_release(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_takes_release() IS 'A trigger on files (00642): a file removed frees room, so the workspace''s items that waited for room in the Library (and in the videos, where a video left) are due at once. Whoever removed it: a person, a twin, a failed copy.';
+COMMENT ON FUNCTION public.source_takes_release() IS 'A trigger on files (00643): a file removed frees room, so the workspace''s items that waited for room in the Library (and in the videos, where a video left) are due at once. Whoever removed it: a person, a twin, a failed copy.';
 
 
 --
@@ -36102,7 +36102,7 @@ $$;
 -- Name: FUNCTION source_units_spend(p_units bigint); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_units_spend(p_units bigint) IS 'A provider''s units counted as they are spent (00642): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
+COMMENT ON FUNCTION public.source_units_spend(p_units bigint) IS 'A provider''s units counted as they are spent (00643): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
 
 
 --
@@ -43696,7 +43696,7 @@ CREATE TABLE public.source_days (
 -- Name: TABLE source_days; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.source_days IS 'What taking footage in cost the platform in a day (00642, the footage sources plan''s budgets): the bytes moved from providers, the takes begun, the provider''s units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role''s alone.';
+COMMENT ON TABLE public.source_days IS 'What taking footage in cost the platform in a day (00643, the footage sources plan''s budgets): the bytes moved from providers, the takes begun, the provider''s units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role''s alone.';
 
 
 --
@@ -43805,21 +43805,21 @@ COMMENT ON COLUMN public.source_items.length_until IS 'A video its provider has 
 -- Name: COLUMN source_items.take_after; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.source_items.take_after IS 'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
+COMMENT ON COLUMN public.source_items.take_after IS 'When a waiting item may next be taken (00643): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
 
 
 --
 -- Name: COLUMN source_items.taken_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.source_items.taken_at IS 'When its take last spent the day''s budget (00642 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
+COMMENT ON COLUMN public.source_items.taken_at IS 'When its take last spent the day''s budget (00643 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
 
 
 --
 -- Name: COLUMN source_items.take_tries; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.source_items.take_tries IS 'How many fetches of it failed (00642): the video platform could not prepare it, or its job stopped. Tried again twice, then failed.';
+COMMENT ON COLUMN public.source_items.take_tries IS 'How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed.';
 
 
 --

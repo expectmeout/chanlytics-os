@@ -4,7 +4,7 @@
  * about 415 of Google's units; the bytes pass in seconds); each is changed here and nowhere else.
  *
  * Google gives a project 1 TB of Drive downloads and 400,000,000 units a day before it charges, and counts a day in
- * Pacific time. The database counts the same day (00642 source_take_spend), so "tomorrow" here is Google's tomorrow.
+ * Pacific time. The database counts the same day (00643 source_take_spend), so "tomorrow" here is Google's tomorrow.
  */
 import { HOUR_MS, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 
@@ -31,7 +31,7 @@ export const TAKE_BUDGETS = {
 
 /**
  * A found read's pace and budget (the plan's D21): what reading an account a business names for its posts may cost in a
- * day. The day's own line beside the takes' (00642 found_read_spend, source_days.reads). An account is read once in a
+ * day. The day's own line beside the takes' (00643 found_read_spend, source_days.reads). An account is read once in a
  * day whatever these say.
  */
 export const FOUND_READ_BUDGETS = {

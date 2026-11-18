@@ -334,7 +334,7 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id", "step"],
     never: [],
   },
-  // One item of a watched folder taken in (00642, the footage sources plan). Safe to run again at every step: an item is
+  // One item of a watched folder taken in (00643, the footage sources plan). Safe to run again at every step: an item is
   // moved by a guarded write, a file is made once by its door, and a workspace's day counts an item once. A throw is the
   // provider, the video platform or the database not answering: two minutes, then ten. One that ends for good puts its
   // item back to wait or says it failed (settle.ts), and the folder's line tells its owner. The longest call is a photo's

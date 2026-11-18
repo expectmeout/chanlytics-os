@@ -6,7 +6,7 @@
  *   ready    every item still taking the clip is in.
  *   failed   the failed copy is let go (the file is removed and its purge deletes the copy at the platform), and each
  *            item waits to be fetched again as a new job, twice. Then it says it failed, and its folder's line says so.
- *   passed   a clip its provider never measured, whose length the platform has now said (00642 file_media_ready; the
+ *   passed   a clip its provider never measured, whose length the platform has now said (00643 file_media_ready; the
  *            review's finding 11): too long, and its item ends as too big by its length; or no room in the videos,
  *            and its item waits for room. The row is already removed, and its purge deletes the copy.
  *
@@ -35,7 +35,7 @@ type Db = SupabaseClient<Database>;
 /** The platform's word as the items are settled by it: playable, not prepared, or passed over for its length. */
 type TakenWord = { said: "ready" | "failed" } | { said: "long" | "minutes"; seconds: number | null };
 
-/** Why a removed row says it was passed over (00642 file_media_ready writes it as it removes one). */
+/** Why a removed row says it was passed over (00643 file_media_ready writes it as it removes one). */
 const PASSED_AS: Readonly<Record<string, "long" | "minutes">> = { too_long: "long", no_room: "minutes" };
 
 /**

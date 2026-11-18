@@ -49,7 +49,7 @@ export interface ContentSourceDto {
   /** Why it could not be read, in its own words for the owner; null where it was. */
   unread: string | null;
   /**
-   * What its last read left behind (the ledger's counts, 00642), each zero where it left none: videos with no room in
+   * What its last read left behind (the ledger's counts, 00643), each zero where it left none: videos with no room in
    * the workspace's minutes, videos longer than AI can watch, and files a full Library stopped.
    */
   left_videos: number;

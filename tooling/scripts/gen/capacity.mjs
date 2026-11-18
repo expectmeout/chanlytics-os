@@ -316,7 +316,7 @@ export const CAPACITY = {
     atFull: "Holds on its index.",
   },
   // One turn, two hand-outs (files/sources/sweep.ts): each watched folder its read or its walk, by its own row's
-  // time (00641), and each waiting file its take (00642), a few a workspace at once.
+  // time (00641), and each waiting file its take (00643), a few a workspace at once.
   sources: {
     job: "sources-sweep",
     lanes: {

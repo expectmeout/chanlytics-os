@@ -1,5 +1,5 @@
 /**
- * The takes' hand-out (00642 source_takes_hand_out; the review of 18 November, findings 5, 6 and 16): waiting items
+ * The takes' hand-out (00643 source_takes_hand_out; the review of 18 November, findings 5, 6 and 16): waiting items
  * are given their jobs while their workspace has fewer than a few in flight and the video platform is preparing fewer
  * than so many clips. It is asked for one workspace as a take of its ends, as the video platform's word settles a
  * clip, as a read finds files inside its folder and as a walk ends; and for every workspace on the footage clock

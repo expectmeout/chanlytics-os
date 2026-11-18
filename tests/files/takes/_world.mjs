@@ -1,6 +1,6 @@
 /**
  * The world the takes' tests share (apps/edge/lib/files/takes, the footage sources plan's P3): a database in memory
- * whose doors answer as 00642's SQL does (_doors.mjs), a Storage that keeps what it is handed, a Drive and a video platform that
+ * whose doors answer as 00643's SQL does (_doors.mjs), a Storage that keeps what it is handed, a Drive and a video platform that
  * answer from memory, and a pretend sync that hands out an hour's key. The real take, key door and settlement run over
  * it; nothing here reaches a network.
  *
@@ -88,7 +88,7 @@ export const itemRow = (over = {}) => ({
 });
 
 /**
- * The world: its tables, its doors modelled as 00642 writes them, its Storage, and a clock the doors read (`w.nowMs`),
+ * The world: its tables, its doors modelled as 00643 writes them, its Storage, and a clock the doors read (`w.nowMs`),
  * so a case can let a day pass.
  */
 export function world({

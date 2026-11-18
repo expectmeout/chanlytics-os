@@ -7,7 +7,7 @@
  * where it stands, for the page's card.
  *
  * Platform-spent, as a website's read is: about a fifth of a cent a post, a read at most INSTAGRAM_POSTS_MAX posts. So a
- * read is paced and budgeted (00642 found_read_spend; the footage sources plan's F5 and D21): an account is read once in
+ * read is paced and budgeted (00643 found_read_spend; the footage sources plan's F5 and D21): an account is read once in
  * a day, a workspace asks for a few reads in a day, the platform for so many, and a second paste inside the day spends
  * nothing and says when it was read and what came. A read after the first asks only for what is newer. A read hands on
  * a bounded number of files, newest first, and says each reel's length, so a video is let in by it (F3).
@@ -127,7 +127,7 @@ type InstagramReadAsked =
   | { fate: "wait"; binds: "workspace_reads" | "platform_reads"; until: Date };
 
 /**
- * The read asked for. Its pace and budget first, in one statement (00642 found_read_spend): an account read inside the
+ * The read asked for. Its pace and budget first, in one statement (00643 found_read_spend): an account read inside the
  * day is not read again, and a budget that binds starts nothing. Then its first step, once while one waits for the
  * account, and the ledger's line set to say it is on its way, under the account's handle.
  */

@@ -1,5 +1,5 @@
 /**
- * Where what a watched folder brings meets what was found online, on a real database (00642; the footage sources plan's
+ * Where what a watched folder brings meets what was found online, on a real database (00643; the footage sources plan's
  * "Found media meets watched sources", F3 to F5): a watched file is its owner's word, so it is never the twin that goes
  * (acceptance 29 to 31); a video is let in by its length at one check, whichever road brought it, at the door where the
  * road says it and as the video platform says it where the road does not (26, 27); and a found read is paced and
@@ -139,7 +139,7 @@ const fateOf = async (source, status, twin) =>
     "the twins' fate",
   );
 
-/** A found video's door (00626, 00642): judging only with no copy named, writing with one. */
+/** A found video's door (00626, 00643): judging only with no copy named, writing with one. */
 const foundVideo = (tenant, over = {}) => {
   const id = over.p_id ?? randomUUID();
   return db.rpc("file_video_found", {

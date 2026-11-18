@@ -82,11 +82,11 @@ alter table public.source_items drop constraint if exists source_items_take_trie
 alter table public.source_items add constraint source_items_take_tries_check check (take_tries >= 0);
 
 comment on column public.source_items.take_after is
-  'When a waiting item may next be taken (00642): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
+  'When a waiting item may next be taken (00643): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
 comment on column public.source_items.taken_at is
-  'When its take last spent the day''s budget (00642 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
+  'When its take last spent the day''s budget (00643 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
 comment on column public.source_items.take_tries is
-  'How many fetches of it failed (00642): the video platform could not prepare it, or its job stopped. Tried again twice, then failed.';
+  'How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed.';
 
 -- Why an item stands where it does, one of a closed set (contracts SOURCE_ITEM_WHYS), so a screen has words for each.
 alter table public.source_items drop constraint if exists source_items_why_check;
@@ -120,7 +120,7 @@ alter table public.source_days enable row level security;
 revoke all on public.source_days from anon, authenticated;
 grant all on public.source_days to service_role;
 comment on table public.source_days is
-  'What taking footage in cost the platform in a day (00642, the footage sources plan''s budgets): the bytes moved from providers, the takes begun, the provider''s units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role''s alone.';
+  'What taking footage in cost the platform in a day (00643, the footage sources plan''s budgets): the bytes moved from providers, the takes begun, the provider''s units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role''s alone.';
 
 /* ---------------------------------------------------------------------------------------------- 4. the take's job -- */
 
@@ -144,7 +144,7 @@ $$;
 revoke all on function public.file_road_is_owners(text) from public, anon, authenticated;
 grant execute on function public.file_road_is_owners(text) to service_role;
 comment on function public.file_road_is_owners(text) is
-  'Whether a road is the owner''s own word (00642): an upload, which they put there, and a watched folder, which they confirmed. A found road is nobody''s word until a Keep. The one place that says so. Its doors''.';
+  'Whether a road is the owner''s own word (00643): an upload, which they put there, and a watched folder, which they confirmed. A found road is nobody''s word until a Keep. The one place that says so. Its doors''.';
 
 create or replace function public.file_twin_fate(
   p_source  text,
@@ -175,7 +175,7 @@ $$;
 
 revoke all on function public.file_twin_fate(text, text, numeric, uuid) from public, anon, authenticated;
 comment on function public.file_twin_fate(text, text, numeric, uuid) is
-  'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. The owner''s own word (file_road_is_owners, 00642: an upload or a watched folder) is never the one that goes. Its doors''.';
+  'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. The owner''s own word (file_road_is_owners, 00643: an upload or a watched folder) is never the one that goes. Its doors''.';
 
 /* --------------------------------------------------------------------------------------- 6. room for a video, once -- */
 
@@ -192,7 +192,7 @@ $$;
 revoke all on function public.files_are_full(uuid) from public, anon, authenticated;
 grant execute on function public.files_are_full(uuid) to service_role;
 comment on function public.files_are_full(uuid) is
-  'Whether a workspace''s Library holds its thousand files (00642): the number in one place for the doors that ask it here (file_video_sourced, file_video_found). Its doors''.';
+  'Whether a workspace''s Library holds its thousand files (00643): the number in one place for the doors that ask it here (file_video_sourced, file_video_found). Its doors''.';
 
 create or replace function public.file_video_room(p_tenant_id uuid, p_seconds numeric)
 returns text
@@ -214,7 +214,7 @@ $$;
 revoke all on function public.file_video_room(uuid, numeric) from public, anon, authenticated;
 grant execute on function public.file_video_room(uuid, numeric) to service_role;
 comment on function public.file_video_room(uuid, numeric) is
-  'Whether a video of this length may come in (00642): long (over ten minutes, more than AI can watch), minutes (the workspace''s sixty would be passed; with no length known, only where they are already full) or room. The one place a video is let in by its length, whichever road brought it. Its doors''.';
+  'Whether a video of this length may come in (00643): long (over ten minutes, more than AI can watch), minutes (the workspace''s sixty would be passed; with no length known, only where they are already full) or room. The one place a video is let in by its length, whichever road brought it. Its doors''.';
 
 /* ---------------------------------------------------------------------------------- 7. a watched folder's clip's row -- */
 
@@ -281,7 +281,7 @@ end $$;
 revoke all on function public.file_video_sourced(uuid, uuid, uuid, text, text, text, bigint, numeric, text) from public, anon, authenticated;
 grant execute on function public.file_video_sourced(uuid, uuid, uuid, text, text, text, bigint, numeric, text) to service_role;
 comment on function public.file_video_sourced(uuid, uuid, uuid, text, text, text, bigint, numeric, text) is
-  'A watched folder''s clip on its way (00642), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}. With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
+  'A watched folder''s clip on its way (00643), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}. With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
 
 /* ------------------------------------------------------------------------- 8. a found video is let in by its length -- */
 
@@ -351,7 +351,7 @@ end $$;
 revoke all on function public.file_video_found(uuid, uuid, text, text, text, text, text, text, text, numeric) from public, anon, authenticated;
 grant execute on function public.file_video_found(uuid, uuid, text, text, text, text, text, text, text, numeric) to service_role;
 comment on function public.file_video_found(uuid, uuid, text, text, text, text, text, text, text, numeric) is
-  'A found video on its way (00626), let in by its length where its road says it (00642, p_seconds). With no copy named it only judges, before the video platform is asked: {fate: room, here, full, minutes or long}. With one it writes the row, uploading, at its road''s status and with its length, so the platform''s word alone can finish it: {fate: kept, file_id}. Its twin is by fingerprint (the road''s name for it, hashed). The service role''s.';
+  'A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). With no copy named it only judges, before the video platform is asked: {fate: room, here, full, minutes or long}. With one it writes the row, uploading, at its road''s status and with its length, so the platform''s word alone can finish it: {fate: kept, file_id}. Its twin is by fingerprint (the road''s name for it, hashed). The service role''s.';
 
 /* ----------------------------------------------------------------- 9. a found video judged as the platform says it -- */
 
@@ -380,7 +380,7 @@ begin
   if v_row.media_status in ('ready', 'failed') then
     return jsonb_build_object('fate', 'repeated', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
   end if;
-  -- A video whose road never said its length is judged by it now (00642), by the one rule every road's door asks: one
+  -- A video whose road never said its length is judged by it now (00643), by the one rule every road's door asks: one
   -- longer than AI can watch, or with no room left in the minutes, is passed over. It is removed as a twin is (nothing
   -- a person kept: it only just arrived), keeping why and the length it turned out to have, and its purge lets the
   -- copy go. A found one is counted on its road's line, so the owner is told, and a long one is let go by its road's
@@ -440,7 +440,7 @@ end $$;
 revoke all on function public.file_media_ready(text, numeric, integer, integer) from public, anon, authenticated;
 grant execute on function public.file_media_ready(text, numeric, integer, integer) to service_role;
 comment on function public.file_media_ready(text, numeric, integer, integer) is
-  'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). A video whose road never said its length (a found one, or a watched folder''s clip its provider had not measured) is judged by it here (00642, file_video_room): one too long or with no room is passed over and removed, a found one counted on its road''s line. Answers {fate: ready, repeated, gone, unknown or passed (why: long or minutes), tenant_id, file_id, made}. The service role''s.';
+  'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). A video whose road never said its length (a found one, or a watched folder''s clip its provider had not measured) is judged by it here (00643, file_video_room): one too long or with no room is passed over and removed, a found one counted on its road''s line. Answers {fate: ready, repeated, gone, unknown or passed (why: long or minutes), tenant_id, file_id, made}. The service role''s.';
 
 /* ----------------------------------------------------------------------------------- 10. what waits is handed its job -- */
 
@@ -548,7 +548,7 @@ end $$;
 revoke all on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) from public, anon, authenticated;
 grant execute on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) to service_role;
 comment on function public.source_takes_hand_out(uuid, integer, integer, integer, integer) is
-  'The takes'' hand-out (00642, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
+  'The takes'' hand-out (00643, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
 
 /* ------------------------------------------------------------------------ 10b. freed room releases what waited for it -- */
 
@@ -570,7 +570,7 @@ end $$;
 
 revoke all on function public.source_takes_release() from public, anon, authenticated;
 comment on function public.source_takes_release() is
-  'A trigger on files (00642): a file removed frees room, so the workspace''s items that waited for room in the Library (and in the videos, where a video left) are due at once. Whoever removed it: a person, a twin, a failed copy.';
+  'A trigger on files (00643): a file removed frees room, so the workspace''s items that waited for room in the Library (and in the videos, where a video left) are due at once. Whoever removed it: a person, a twin, a failed copy.';
 
 drop trigger if exists source_takes_release on public.files;
 create trigger source_takes_release
@@ -645,7 +645,7 @@ end $$;
 revoke all on function public.source_take_spend(uuid, uuid, bigint, bigint, bigint, bigint, integer, bigint) from public, anon, authenticated;
 grant execute on function public.source_take_spend(uuid, uuid, bigint, bigint, bigint, bigint, integer, bigint) to service_role;
 comment on function public.source_take_spend(uuid, uuid, bigint, bigint, bigint, bigint, integer, bigint) is
-  'A take''s budget, spent or refused (00642, the footage sources plan''s D15): the platform''s bytes and units of the day (source_days) and the workspace''s takes and bytes of the day (counted from source_items.taken_at), a day as Google counts one. Every number is the caller''s setting. It counts the bytes and the take; the units it only judges (p_units is what the take will still spend), since source_units_spend counts each where it is spent. Answers {fate: go}, {fate: wait, binds: units, platform_bytes, workspace_takes or workspace_bytes, until: when the next day begins}, or {fate: unknown} for an item that is not this workspace''s. The service role''s.';
+  'A take''s budget, spent or refused (00643, the footage sources plan''s D15): the platform''s bytes and units of the day (source_days) and the workspace''s takes and bytes of the day (counted from source_items.taken_at), a day as Google counts one. Every number is the caller''s setting. It counts the bytes and the take; the units it only judges (p_units is what the take will still spend), since source_units_spend counts each where it is spent. Answers {fate: go}, {fate: wait, binds: units, platform_bytes, workspace_takes or workspace_bytes, until: when the next day begins}, or {fate: unknown} for an item that is not this workspace''s. The service role''s.';
 
 create or replace function public.source_units_spend(p_units bigint)
 returns bigint
@@ -663,7 +663,7 @@ $$;
 revoke all on function public.source_units_spend(bigint) from public, anon, authenticated;
 grant execute on function public.source_units_spend(bigint) to service_role;
 comment on function public.source_units_spend(bigint) is
-  'A provider''s units counted as they are spent (00642): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
+  'A provider''s units counted as they are spent (00643): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
 
 /* ------------------------------------------------------------------------------- 12. a found read's pace and budget -- */
 
@@ -740,4 +740,4 @@ end $$;
 revoke all on function public.found_read_spend(uuid, text, text, integer, integer) from public, anon, authenticated;
 grant execute on function public.found_read_spend(uuid, text, text, integer, integer) to service_role;
 comment on function public.found_read_spend(uuid, text, text, integer, integer) is
-  'A found read''s pace and budget, spent or refused (00642, the footage sources plan''s D21): an account is read once in a day, a workspace asks for p_workspace_max reads in a day (kept on its imports row, job_cursor.reads), and the platform for p_platform_max (source_days.reads, a day as Google counts one). Answers {fate: go, since: when this account''s last whole read began, or null to read it whole}, {fate: read_lately, read_at, state, counts} with nothing spent, or {fate: wait, binds: workspace_reads or platform_reads, until}. An account whose last read stopped may be asked again. The service role''s.';
+  'A found read''s pace and budget, spent or refused (00643, the footage sources plan''s D21): an account is read once in a day, a workspace asks for p_workspace_max reads in a day (kept on its imports row, job_cursor.reads), and the platform for p_platform_max (source_days.reads, a day as Google counts one). Answers {fate: go, since: when this account''s last whole read began, or null to read it whole}, {fate: read_lately, read_at, state, counts} with nothing spent, or {fate: wait, binds: workspace_reads or platform_reads, until}. An account whose last read stopped may be asked again. The service role''s.';

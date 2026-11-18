@@ -239,7 +239,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // the workspace serves does not reach a file in the business's own folder (its owner removing it there is the remedy,
   // as for a picture in the Library), and both leave with the workspace. The provider's ids, the checksum and the
   // provider's token for a folder's next page (00641) name nobody (its kind, its state and why it stands there are
-  // closed sets: 00642 made the reason one).
+  // closed sets: 00643 made the reason one).
   source_items: {
     ...all(WITH_WORKSPACE, "name", "added_by"),
     ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "walk_page"),

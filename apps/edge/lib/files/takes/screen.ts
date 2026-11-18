@@ -5,7 +5,7 @@
  * A photo or a video of a kind a member may add is taken. A video over ten minutes or 500 MB, or a photo over 25 MB,
  * is `too_big`, with which; anything else is `not_media`. A video whose provider has not said its length is screened
  * by its size alone: the wait for a fresh upload's length is the sync's (source_items.length_until), and an item is
- * handed its take only once that wait is over or the length has come (00642 source_takes_hand_out).
+ * handed its take only once that wait is over or the length has come (00643 source_takes_hand_out).
  */
 import {
   FILE_BYTES_MAX,

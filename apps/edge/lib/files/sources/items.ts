@@ -14,7 +14,7 @@
  * A video its provider lists without a length is not known yet: never too long and never passed over for lacking
  * one. Its row says until when the length is waited for (`length_until`, pace.ts), and a read asks again.
  *
- * What a listing does for the taking of files (00642). An item that was in, left and is seen again still holds its
+ * What a listing does for the taking of files (00643). An item that was in, left and is seen again still holds its
  * file on its row: it is asked for at once, by a re-walk as by a change, since its take finds that file and fetches
  * nothing. Bytes that are no longer the ones taken are a new file: such a row lets go of the file it held, and one
  * the taking holds (`taking`, `in`, `let_go`, `failed`) is asked for again. An item that moves starts its tries anew.

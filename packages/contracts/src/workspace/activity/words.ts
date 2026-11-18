@@ -26,7 +26,7 @@ function baseWords(kind: string, item: Record<string, unknown>): string {
   // A copy that went by itself (00630 file_twin_goes): the photo it copied stays. It read "A photo was deleted", as if
   // someone had (16 Nov 2026).
   if (kind === "file.removed" && textAt(item, "why") === "twin") return "AI kept one of two copies of a photo";
-  // A found video passed over as the video platform said its length (00642 file_media_ready): nobody deleted it.
+  // A found video passed over as the video platform said its length (00643 file_media_ready): nobody deleted it.
   if (kind === "file.removed" && textAt(item, "why") === "long") return "AI passed over a video too long to watch";
   if (kind === "file.removed" && textAt(item, "why") === "minutes") return "AI passed over a video with no room for it";
   return WORDS[kind] ?? humanize(kind);

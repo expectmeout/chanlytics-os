@@ -65,7 +65,7 @@ export async function receiveStreamWebhook(request: Request): Promise<Response> 
     log.error("stream_webhook_unwritable", { error: errField(e) });
     return refuse(503, "no_database");
   }
-  // A clip a watched folder brought (00642): the item it came from is in, or waits to be fetched again. Not written is
+  // A clip a watched folder brought (00643): the item it came from is in, or waits to be fetched again. Not written is
   // not heard, so Stream says it again, and a word heard twice settles what the first did not.
   try {
     await settleTakenVideo(db, fate, video.seconds);

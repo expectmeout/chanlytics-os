@@ -189,7 +189,7 @@ being read is dropped by a migration.
 | `file_purged` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A removed file's bytes and Anthropic's copy are gone (00551), so its row goes. |
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
-| `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00642): |
+| `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
@@ -198,15 +198,15 @@ being read is dropped by a migration.
 | `file_twin_of` | the server's | the server | SQL `file_found`, `file_printed` | The file a print finds (00630), by its id: |
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
-| `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), let in by its length where its road says it (00642, p_seconds). |
-| `file_video_room` | the server's | the server | SQL `file_media_ready`, `file_video_found` and 1 more | Whether a video of this length may come in (00642): |
-| `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00642), a sibling of file_video_found that takes the clip's size and length. |
-| `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00642): |
+| `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). |
+| `file_video_room` | the server's | the server | SQL `file_media_ready`, `file_video_found` and 1 more | Whether a video of this length may come in (00643): |
+| `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
+| `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
 | `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |
-| `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00642, the footage sources plan's D21): |
+| `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
 | `get_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts` |  |
 | `get_cron_sweep_key` | the server's | the server | code `packages/db/src/repositories/ops/sweeps.ts`; SQL `request_sweep`, `trigger_deadman_sweep` and 1 more |  |
@@ -710,10 +710,10 @@ being read is dropped by a migration.
 | `source_credentials_drop` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: deletes a footage account's token from Vault (00641). |
 | `source_credentials_get` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: a footage account's token from Vault, or null (00641). |
 | `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
-| `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00642, the footage sources plan's D15): |
-| `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00642, decision 0115): |
-| `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00642): |
-| `source_units_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A provider's units counted as they are spent (00642): |
+| `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00643, the footage sources plan's D15): |
+| `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00643, decision 0115): |
+| `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00643): |
+| `source_units_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A provider's units counted as they are spent (00643): |
 | `sources_hand_out` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | The footage clock's one statement (00641, decision 0115): |
 | `sources_sweep_ask` | the server's | the server | the clock, `sources-sweep` | The footage clock (00641): |
 | `stamp_email_complaint` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |

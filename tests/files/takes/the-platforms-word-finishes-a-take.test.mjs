@@ -152,7 +152,7 @@ test("a word about nothing a folder brought, or with no row, is nothing to settl
     file_id: "ffffffff-0000-4000-8000-000000000003",
     made: false,
   });
-  // A found video passed over as the platform said its length (00642 file_media_ready): no folder brought it.
+  // A found video passed over as the platform said its length (00643 file_media_ready): no folder brought it.
   await settleTakenVideo(w.db, {
     fate: "passed",
     tenant_id: T,

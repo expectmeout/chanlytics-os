@@ -92,7 +92,7 @@ export async function takePhoto(taking: Taking, photo: { mime: FileImageMime; by
     edition: FILE_LOOK_EDITION,
     actor: null,
     // What it looks like is printed where an upload's is, as its look starts (look.ts), from the copy Storage makes:
-    // so a HEIC is printed too, and a look-alike found online meets it there (00630 file_printed, 00642 file_twin_fate).
+    // so a HEIC is printed too, and a look-alike found online meets it there (00630 file_printed, 00643 file_twin_fate).
     print: null,
   };
   const store = async () => {

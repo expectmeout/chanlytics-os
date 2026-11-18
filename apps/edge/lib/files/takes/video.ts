@@ -6,7 +6,7 @@
  *
  * Before the video platform is asked: one range read of the clip's first MiB gives the fingerprint an upload has, so
  * the same clip already in the Library is one file with one more origin and one its owner removed is not brought
- * back; then its door judges room from the clip's own length (00642 file_video_sourced); then the day's budget is
+ * back; then its door judges room from the clip's own length (00643 file_video_sourced); then the day's budget is
  * spent. Only then is a copy asked for, and the row written, uploading. The platform's word finishes it (word.ts).
  */
 import { randomUUID } from "node:crypto";

@@ -11,7 +11,7 @@
  * The four SQL functions of 00641 are modelled here by hand, as the in-memory database models every function it is
  * given; the SQL itself is proved on a real database by the-clock-hands-out-folders.db.test.mjs.
  *
- * The sync asks two things of the taking of files (00642): its workspace's hand-out, as a walk ends and as a read finds
+ * The sync asks two things of the taking of files (00643): its workspace's hand-out, as a walk ends and as a read finds
  * files, and the day's count of what it spent at its provider. Here both are only kept (`w.handOuts`, `w.unitWrites`):
  * nothing is handed out, so an item a listing asked for stays `waiting` for a test to read. A test of the whole road
  * hands in the takes' own doors (`rpcs` as a function of the tables: tests/files/takes/_doors.mjs).
@@ -72,7 +72,7 @@ const ITEM_DEFAULTS = () => ({
   walked_run: null,
   walk_page: null,
   length_until: null,
-  // What the taking of a file keeps on the row (00642).
+  // What the taking of a file keeps on the row (00643).
   take_after: null,
   taken_at: null,
   take_tries: 0,
@@ -237,7 +237,7 @@ export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreR
   const handOuts = [];
   const unitWrites = [];
   const rpcs = {
-    // 00642, as the sync meets it: asked for, and nothing handed out (the takes' own tests prove the hand-out).
+    // 00643, as the sync meets it: asked for, and nothing handed out (the takes' own tests prove the hand-out).
     source_takes_hand_out: (args) => {
       handOuts.push(args);
       return 0;

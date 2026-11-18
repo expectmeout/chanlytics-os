@@ -50,7 +50,7 @@ export const SOURCE_ITEM_STATES = [
 export type SourceItemState = (typeof SOURCE_ITEM_STATES)[number];
 
 /**
- * Why an item stands where it does (source_items.why, held by 00642's check): the one list a screen has words for.
+ * Why an item stands where it does (source_items.why, held by 00643's check): the one list a screen has words for.
  * Read with the item's state. First why it waits, then why it was passed over, then why its take failed.
  */
 export const SOURCE_ITEM_WHYS = [

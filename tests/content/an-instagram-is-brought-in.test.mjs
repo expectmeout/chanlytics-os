@@ -1,6 +1,6 @@
 /**
  * A link brought in (apps/edge/lib/imports/bring-in.ts) and an Instagram account read (lib/imports/instagram-read.ts; 00626,
- * 00642), over a database in memory and a scraping platform that answers from memory: the door asks for a website's read or
+ * 00643), over a database in memory and a scraping platform that answers from memory: the door asks for a website's read or
  * an account's, each on the ledger first; an account is read once in a day, a workspace asks for three reads in a day and
  * the platform for so many, and a paste inside the day spends nothing and says when it was read and what came; the
  * account's run started at its pinned build, asked after, and once done its own posts handed to file_fetch newest first, a
@@ -49,7 +49,7 @@ const ok = (data) =>
 
 /**
  * The database a read meets, its clock the test's (`w.nowMs`): the ledger's door as a read writes it (00477
- * import_ledger_note) and the read's pace and budget (00642 found_read_spend), each as its SQL has it.
+ * import_ledger_note) and the read's pace and budget (00643 found_read_spend), each as its SQL has it.
  */
 function world() {
   const tables = {

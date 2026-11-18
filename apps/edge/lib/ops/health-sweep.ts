@@ -187,7 +187,7 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   });
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
-  // The Instagram actor's with them (00642): a pasted account is read at a pinned build too.
+  // The Instagram actor's with them (00643): a pasted account is read at a pinned build too.
   const pinsGone = (await watchLeadPins(db, leadSourceClient())) + (await watchInstagramPin(db, leadSourceClient()));
   // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
   const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());

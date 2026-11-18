@@ -8,7 +8,7 @@
  * It reads no provider. A job that fails for good leaves its folder due, and the next turn hands it another: late, not
  * lost.
  *
- * The same turn hands what waits in a watched folder its take (00642 source_takes_hand_out): each waiting photo or
+ * The same turn hands what waits in a watched folder its take (00643 source_takes_hand_out): each waiting photo or
  * video whose time has come, a few a workspace at once. A take's end, the video platform's word and a read ask for
  * their own workspace's as they happen; this is the floor under them, and what puts a take that never ended back.
  *

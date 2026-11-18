@@ -3890,7 +3890,7 @@ Foreign keys:
 
 ### source_days
 
-What taking footage in cost the platform in a day (00642, the footage sources plan's budgets): the bytes moved from providers, the takes begun, the provider's units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role's alone.
+What taking footage in cost the platform in a day (00643, the footage sources plan's budgets): the bytes moved from providers, the takes begun, the provider's units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role's alone.
 
 - Owned by: none
 - Primary key: `day`
@@ -3938,9 +3938,9 @@ One item a provider holds under a watched folder, folders included, since they a
 | `walked_run` | integer | yes |  | A folder's own: the last walk run that listed its contents whole. Null: never listed. |
 | `walk_page` | text | yes |  | A folder's own: the provider's token for the next page of its contents while a walk is part way through it. |
 | `length_until` | timestamp with time zone | yes |  | A video its provider has listed without its length (a fresh upload is measured a few minutes later): its own record is asked again until then, and it is not taken into the Library before. Null: its length is known, it is no video, or its provider made it more than the wait ago. |
-| `take_after` | timestamp with time zone | yes |  | When a waiting item may next be taken (00642): the start of the next day where a day's budget bound, later where the videos or the Library are full. Null: now. |
-| `taken_at` | timestamp with time zone | yes |  | When its take last spent the day's budget (00642 source_take_spend): a workspace's takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried. |
-| `take_tries` | smallint | no | `0` | How many fetches of it failed (00642): the video platform could not prepare it, or its job stopped. Tried again twice, then failed. |
+| `take_after` | timestamp with time zone | yes |  | When a waiting item may next be taken (00643): the start of the next day where a day's budget bound, later where the videos or the Library are full. Null: now. |
+| `taken_at` | timestamp with time zone | yes |  | When its take last spent the day's budget (00643 source_take_spend): a workspace's takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried. |
+| `take_tries` | smallint | no | `0` | How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed. |
 
 Foreign keys:
 

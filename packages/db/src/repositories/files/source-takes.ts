@@ -1,5 +1,5 @@
 /**
- * Taking a watched folder's file in (00642, the footage sources plan's P3): what a take reads and writes of
+ * Taking a watched folder's file in (00643, the footage sources plan's P3): what a take reads and writes of
  * `source_items`, the doors it knocks on, and the day's budgets. Only the service role writes, through these.
  *
  * An item's state moves only from the states its writer names, so a take whose job runs twice, the video platform's
@@ -190,7 +190,7 @@ export async function settleTakesFailed(
 
 /**
  * The video platform said a taken clip's length, which its provider never had, and the clip was passed over for it
- * (00642 file_media_ready, fate `passed`): each item that came to it ends as too long, or waits for room until
+ * (00643 file_media_ready, fate `passed`): each item that came to it ends as too long, or waits for room until
  * `roomAfter`, with the length it turned out to have, and none points at the removed file any more. Answers how many.
  */
 export async function settleTakesPassed(
@@ -329,7 +329,7 @@ export type SourcedVideoFate = {
 const SOURCED_FATES = ["room", "kept", "here", "let_go", "full", "minutes", "long"] as const;
 
 /**
- * A watched folder's clip judged, or written (00642 file_video_sourced). With no copy named (`mediaRef` null) the door
+ * A watched folder's clip judged, or written (00643 file_video_sourced). With no copy named (`mediaRef` null) the door
  * only judges, before the video platform is asked; with one it writes the row, uploading and filed, and makes the item
  * its origin in the same transaction. The service role's; asked twice it answers the same.
  */
@@ -372,7 +372,7 @@ export async function recordVideoSourced(
 /* -------------------------------------------------------------------------------------- the clock and the budgets */
 
 /**
- * The takes' hand-out (00642 source_takes_hand_out, decision 0115): each waiting item whose time has come is moved to
+ * The takes' hand-out (00643 source_takes_hand_out, decision 0115): each waiting item whose time has come is moved to
  * taking and given its job, while its workspace has fewer than `inFlight` being taken and the video platform is
  * preparing fewer than `videosAtOnce` clips; a take that never ended waits again; a paused kind is handed nothing.
  * For one workspace (as a take of its ends, so the next begins at once) or, with none named, for all (the clock).
@@ -408,7 +408,7 @@ const SpendAnswer = z.object({
 });
 
 /**
- * A take's budget, spent or refused in one place (00642 source_take_spend): the platform's bytes and units of the day
+ * A take's budget, spent or refused in one place (00643 source_take_spend): the platform's bytes and units of the day
  * and the workspace's takes and bytes of the day. Every number is the caller's setting. Throws for an item that is not
  * this workspace's.
  */
@@ -443,7 +443,7 @@ export async function spendSourceTake(
   return { fate: "wait", binds: answer.binds, until: new Date(answer.until) };
 }
 
-/** A provider's units counted as they are spent (00642 source_units_spend). Answers the day's units so far. */
+/** A provider's units counted as they are spent (00643 source_units_spend). Answers the day's units so far. */
 export async function spendSourceUnits(db: Db, units: number): Promise<number> {
   const { data, error } = await db.rpc("source_units_spend", { p_units: units });
   if (error) throw new DbFailure(error, "cannot count the provider's units");

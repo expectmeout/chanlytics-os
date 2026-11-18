@@ -334,7 +334,7 @@ export interface JobContext {
     piece: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
-   * A watched folder's file taken into the Library (00642, the footage sources plan), as the edge holds the provider's
+   * A watched folder's file taken into the Library (00643, the footage sources plan), as the edge holds the provider's
    * grant, the video platform's key and the relay's ticket key. INJECTED like the files; a source_take job in a runtime
    * without it fails loudly. Answers `skipped` when the item is no longer one to take (moved on by another writer, its
    * folder not being read), and throws when a provider or the database gave no answer.

@@ -45,7 +45,7 @@ function runBelievedOf(
 /** An import's states while it is on its way: queued, or running. */
 const ON_ITS_WAY: ReadonlySet<string> = new Set(["queued", "running"]);
 
-/** What a road's last read left behind, as its ledger's line counted it (00642); zeros for a road with no line. */
+/** What a road's last read left behind, as its ledger's line counted it (00643); zeros for a road with no line. */
 function leftBy(
   row: ImportLedgerRow | undefined,
 ): Pick<ContentSourceDto, "left_videos" | "long_videos" | "left_files"> {

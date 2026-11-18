@@ -55,7 +55,7 @@ async function takesVideos(db: Db, tenantId: TenantId): Promise<boolean> {
 }
 
 /**
- * One found video kept once, let in by its length (00642): `seconds` is its road's own word for it, null where the
+ * One found video kept once, let in by its length (00643): `seconds` is its road's own word for it, null where the
  * road says none (a website's is judged when the video platform says it). The door judges before the platform is asked,
  * so a twin, one a person let go, a full Library, full minutes and a video too long cost no fetch. The platform refusing
  * the address is a pass (a page's video can be gone); the database failing throws, so the batch is tried again.

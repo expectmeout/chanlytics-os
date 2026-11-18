@@ -421,7 +421,7 @@ async function videoDigest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.digest(job, ctx.deadline);
 }
 
-/** source_take: one item of a watched folder taken into the Library (00642), through what the edge injects. payload: { item_id, try } */
+/** source_take: one item of a watched folder taken into the Library (00643), through what the edge injects. payload: { item_id, try } */
 async function sourceTake(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
   if (!ctx.takes) throw new Error("source_take: this runtime holds no taker");
   const answer = await ctx.takes.take(job, ctx.deadline);

@@ -3,7 +3,7 @@
  * Content's empty state, 14 Nov 2026): a website read again for its photos and videos (the website_read job, with its
  * photos), or an Instagram account's posts and reels (instagram_read). Each says on the ledger that it is on its way, so the
  * page's card says "Looking"; what comes waits in the Library for a Keep. A link nothing here reads is refused in words.
- * An account already read inside the day is not read again: the answer says when it was and what came (00642).
+ * An account already read inside the day is not read again: the answer says when it was and what came (00643).
  */
 import { BRING_IN_WORDS, bringInOf, type DoorRead, type FILE_BRING_IN_DOOR } from "@chanlytics/contracts";
 import { noteImport } from "@chanlytics/db/imports";

@@ -1,5 +1,5 @@
 /**
- * A found read's pace and budget (00642 found_read_spend; the footage sources plan's D21): an account a business
+ * A found read's pace and budget (00643 found_read_spend; the footage sources plan's D21): an account a business
  * names is read for its posts once in a day, a workspace asks for a few reads in a day, and the platform for so many.
  * Spent or refused in one statement, so two pastes at once cannot both be the last of a day. The service role's.
  */

@@ -287,7 +287,7 @@ export type FoundVideoFate = {
 const FOUND_VIDEO_FATES = ["room", "kept", "here", "full", "minutes", "long"] as const;
 
 /**
- * A found video judged, or written (00626; 00642). With no copy named (`mediaRef` null) the door only judges, before
+ * A found video judged, or written (00626; 00643). With no copy named (`mediaRef` null) the door only judges, before
  * the video platform is asked, by the length its road says (`seconds`, null where the road says none). With one it
  * writes the row, uploading, at its road's status (inbox, or filed for a connected profile). Its twin is by
  * `fingerprint`, the road's name for it hashed, since its bytes are never ours. The service role's; asked twice it
@@ -335,7 +335,7 @@ export async function markFileMediaProcessing(db: Db, tenantId: TenantId, id: st
 /** What the platform's word did to a row, found by its id there. */
 export type MediaFate = {
   /**
-   * `passed`: a found video whose road never said its length, judged by it as the platform said it (00642), was longer
+   * `passed`: a found video whose road never said its length, judged by it as the platform said it (00643), was longer
    * than AI can watch or had no room: it is removed, and its road's line counts it.
    */
   fate: "ready" | "failed" | "repeated" | "gone" | "unknown" | "passed";

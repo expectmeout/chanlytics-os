@@ -229,7 +229,7 @@ function leftCountsOf(left: { videos: number; long: number; files: number }): Re
  * file_fetch: a batch read a few at a time, and no read started past the deadline: what is left goes on as its own job. The
  * bell rings once, as soon as something waits on a person, and before anything can throw.
  *
- * A video is let in by its length (00642): one with no room in the minutes, or longer than AI can watch, is passed over
+ * A video is let in by its length (00643): one with no room in the minutes, or longer than AI can watch, is passed over
  * and the batch goes on, so the photos behind it still come. A full Library stops the batch, as it did. What was left
  * either way is counted on the road's line, so the page says it.
  *

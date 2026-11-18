@@ -644,6 +644,6 @@
     "00639_a_business_s_footage_has_its_sources.sql": "4ba4b0ba2bef929cab8df25ec5d8792125f8e69d1977c563c8812a2e70b75e46",
     "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e",
     "00641_a_watched_folder_is_listed_and_kept_current.sql": "c77f5358e65597c0713bbc2bab7f7e8f80eabbea454f55805f8929bd5ea953d4",
-    "00642_a_watched_folder_s_files_come_in.sql": "9d44042d4517aad4775b49bea3f49937ab8f8c1dd83f9d74ab82d13dbbd3b0a8"
+    "00643_a_watched_folder_s_files_come_in.sql": "0c7025bd6b9d821210584a0df2ae1215378cbbe8c80480443653feb8c4d3bc74"
   }
 }

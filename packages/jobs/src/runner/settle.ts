@@ -498,7 +498,7 @@ async function settlePiece(db: Db, job: TerminalJob): Promise<Settled[]> {
 }
 
 /**
- * A take that will not finish (00642): its item stops saying it is being taken. One that had not begun a file waits to be
+ * A take that will not finish (00643): its item stops saying it is being taken. One that had not begun a file waits to be
  * tried again, or says it failed once its tries are spent; one whose file exists is the video platform's to finish, and is
  * left as it stands, by the write's own guard.
  */

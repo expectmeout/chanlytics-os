@@ -1,5 +1,5 @@
 /**
- * 00642's SQL as the takes' tests model it (the footage sources plan's P3): the doors a take knocks on, the day's
+ * 00643's SQL as the takes' tests model it (the footage sources plan's P3): the doors a take knocks on, the day's
  * budgets and the hand-out, over tables in memory. Pure: it imports nothing of the edge, so the sync's world
  * (tests/files/sources/_world.mjs) can stand the same doors beside its own for a test of the whole road.
  *
@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 
 const LA = "America/Los_Angeles";
 
-/** The day Google counts an instant in, as 00642 does: the date in Pacific time. */
+/** The day Google counts an instant in, as 00643 does: the date in Pacific time. */
 export const pacificDay = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: LA }).format(new Date(ms));
 
 /** When the Pacific day after an instant's begins. */
@@ -111,7 +111,7 @@ export function takeDoors(tables, w) {
       });
       return { fate: "kept", file_id: a.p_id };
     },
-    // 00642's order: asked again, a twin, what was let go, the Library's cap, the videos' room, then (with a copy
+    // 00643's order: asked again, a twin, what was let go, the Library's cap, the videos' room, then (with a copy
     // named) the row and its origin in one write.
     file_video_sourced: (a) => {
       w.asked.push({ door: "file_video_sourced", ...a });
@@ -122,7 +122,7 @@ export function takeDoors(tables, w) {
       if (twin) return { fate: "here", file_id: twin.id };
       if (wasLetGo(a.p_tenant_id, a.p_fingerprint)) return { fate: "let_go", file_id: null };
       if (kept(a.p_tenant_id).length >= 1000) return { fate: "full", file_id: null };
-      // 00642 file_video_room, the one check a found video's door asks too: long, minutes or room.
+      // 00643 file_video_room, the one check a found video's door asks too: long, minutes or room.
       if (w.doorCallsLong || (a.p_seconds !== null && a.p_seconds > 600)) return { fate: "long", file_id: null };
       const used = videoSeconds(a.p_tenant_id);
       if ((a.p_seconds === null && used >= 3600) || used + Number(a.p_seconds ?? 0) > 3600)
@@ -149,7 +149,7 @@ export function takeDoors(tables, w) {
       if (item) item.file_id = a.p_id;
       return { fate: "kept", file_id: a.p_id, media_ref: a.p_media_ref };
     },
-    // 00642: the platform's day and the workspace's, a day as Google counts one.
+    // 00643: the platform's day and the workspace's, a day as Google counts one.
     source_take_spend: (a) => {
       const item = tables.source_items.find((i) => i.tenant_id === a.p_tenant_id && i.id === a.p_item_id);
       if (!item) return { fate: "unknown" };
@@ -180,7 +180,7 @@ export function takeDoors(tables, w) {
     // 00556's two doors, as the video platform's word meets them: found by the copy's id, moved once.
     file_media_ready: (a) => mediaWord(a.p_media_ref, "ready", a.p_seconds ?? null),
     file_media_failed: (a) => mediaWord(a.p_media_ref, "failed"),
-    // 00642: what waits and is due, of a folder still being read, moved to taking and given its job in one write.
+    // 00643: what waits and is due, of a folder still being read, moved to taking and given its job in one write.
     // For one workspace or for all, while a workspace has fewer than so many in flight and the video platform is
     // preparing fewer than so many clips. A paused kind is handed nothing.
     source_takes_hand_out: (a) => {
