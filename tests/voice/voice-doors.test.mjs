@@ -391,7 +391,7 @@ test("provision, the plan: a dry run by default that prints what an apply would 
         nickname: "Harbor Moving · Chanlytics",
         voice_id: VOICE_AGENT_DEFAULTS.voice_id,
         languages: VOICE_AGENT_DEFAULTS.language.length,
-        model: VOICE_LLM_DEFAULTS.model,
+        model: VOICE_LLM_DEFAULTS.model_config.primary.model,
         retention_days: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
         webhook_url: ends.webhook,
         inbound_webhook_url: ends.inbound,
@@ -872,8 +872,8 @@ const drifted = (id, over = {}) =>
 const onShell = (over = {}) => ({
   llm_id: "llm_pub",
   version: 1,
-  model: "claude-4.5-haiku",
-  model_temperature: 0,
+  // The model as the provider answers it once its `model` and `model_temperature` are retired (31 January 2027).
+  model_config: { type: "cascading", primary: { model: "claude-4.5-haiku", tier: "standard" }, temperature: 0 },
   ...desiredVoiceShell(FN_URL, { "x-fn-secret": FN_SECRET }),
   ...over,
 });

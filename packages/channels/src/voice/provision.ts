@@ -28,10 +28,13 @@ import {
 import { SILENCE_REMINDER_MS, SILENCE_REMINDERS, CALL_FEEL, CALL_HANDBOOK } from "./shell/agent-plan";
 import { E164, PHONE_VOICE_DEFAULT, RETELL_MODELS } from "@chanlytics/contracts";
 
-/** The model behind the shell, in Retell's name for it (contracts RETELL_MODELS). Temperature 0: the facts are read, not improvised. */
+/**
+ * The model behind the shell, in Retell's name for it (contracts RETELL_MODELS), under the provider's `model_config`:
+ * it retires `model` and `model_temperature` on 31 January 2027, and ignores them wherever `model_config` is set.
+ * Temperature 0: the facts are read, not improvised.
+ */
 export const VOICE_LLM_DEFAULTS = {
-  model: RETELL_MODELS.llm,
-  model_temperature: 0,
+  model_config: { type: "cascading", primary: { model: RETELL_MODELS.llm }, temperature: 0 },
   start_speaker: "agent",
 } as const;
 
@@ -265,7 +268,7 @@ export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan 
         : {
             id: "llm",
             action: "create",
-            detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model} at temperature ${VOICE_LLM_DEFAULTS.model_temperature}`,
+            detail: `the shell: placeholders, the four tools, spoken defaults; ${VOICE_LLM_DEFAULTS.model_config.primary.model} at temperature ${VOICE_LLM_DEFAULTS.model_config.temperature}`,
           },
     );
     steps.push({

@@ -219,7 +219,7 @@ function planAnswerFor(
       nickname: plan.names.nickname,
       voice_id: VOICE_AGENT_DEFAULTS.voice_id,
       languages: VOICE_AGENT_DEFAULTS.language.length,
-      model: VOICE_LLM_DEFAULTS.model,
+      model: VOICE_LLM_DEFAULTS.model_config.primary.model,
       retention_days: VOICE_AGENT_DEFAULTS.data_storage_retention_days,
       webhook_url: ends.webhook,
       inbound_webhook_url: ends.inbound,
