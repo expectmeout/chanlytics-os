@@ -75,7 +75,7 @@ export function PvCalled({ line }: { line: Extract<TalkLine, { kind: "call" }> }
   return (
     <li className="pv-line pv-line-call" data-testid="pv-called">
       <span className="pv-called">
-        <span className="pv-tile" aria-hidden="true">
+        <span className="pv-glyph" aria-hidden="true">
           <Icon name="phone" size={18} />
         </span>
         <span className="pv-called-words">

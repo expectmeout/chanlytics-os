@@ -152,7 +152,7 @@ export function PvHead({
 /** A fact's glyph, on its own small tile. */
 export function PvFactGlyph({ fact }: { fact: PreviewKnowsRowVM["key"] }) {
   return (
-    <span className="pv-tile" aria-hidden="true">
+    <span className="pv-glyph" aria-hidden="true">
       <Icon name={FACT_GLYPH[fact]} size={18} />
     </span>
   );

@@ -212,7 +212,7 @@
   border-color: var(--warn-line);
   background: var(--warn-soft);
 }
-.pv-tile {
+.pv-glyph {
   display: grid;
   flex: none;
   place-items: center;
@@ -224,7 +224,7 @@
   background: var(--bg-raised);
   color: var(--ink-muted);
 }
-.pv-fact[data-missing] .pv-tile {
+.pv-fact[data-missing] .pv-glyph {
   color: var(--warn-ink);
 }
 .pv-fact-words {

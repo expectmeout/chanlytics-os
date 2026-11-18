@@ -160,7 +160,9 @@ function PvKnownRow({
 }
 
 /** Its facts by where each was read, those it lacks first: one group a source, in the order the sources first come. */
-function groupsOf(rows: readonly PreviewKnowsRowVM[]): { from: string; missing: boolean; rows: PreviewKnowsRowVM[] }[] {
+function factGroupsOf(
+  rows: readonly PreviewKnowsRowVM[],
+): { from: string; missing: boolean; rows: PreviewKnowsRowVM[] }[] {
   const groups: { from: string; missing: boolean; rows: PreviewKnowsRowVM[] }[] = [];
   for (const row of [...rows.filter((r) => r.missing), ...rows.filter((r) => !r.missing)]) {
     const group = groups.find((g) => g.from === row.from);
@@ -195,7 +197,7 @@ export function PvKnows({
         </Button>
       </div>
       <p className="pv-knows-sub">{W.knowsSub}</p>
-      {groupsOf(vm.knows).map((group) => (
+      {factGroupsOf(vm.knows).map((group) => (
         <div key={group.from} className="pv-group">
           <span className="pv-label">{group.from}</span>
           <div className="pv-rows" data-missing={group.missing || undefined}>
