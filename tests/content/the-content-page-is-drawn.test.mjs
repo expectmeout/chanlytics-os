@@ -265,19 +265,20 @@ test("more of what was made is read after what is there, and whoever draws it is
 /** The settings read as the surface holds it, with these features in the workspace's stored config. */
 const settingsWith = (features) => S.setSurfaceValue("settings", { settings: { config: { features } }, messages: [] });
 
-test("every workspace's Campaigns has a Content tab, after Messages and before Ads where Ads is drawn", () => {
+// Messages folded into Campaigns (#2408, 17 Nov 2026): its tab went with it, so Content stands after Campaigns' own.
+test("every workspace's Campaigns has a Content tab, after its campaigns and before Ads where Ads is drawn", () => {
   settingsWith({});
   const plain = S.campaignsChrome({ param: null });
   assert.deepEqual(
     plain.views.tabs.map((t) => t.id),
-    ["sequences", "messages", "content"],
+    ["sequences", "content"],
     "no switch draws it: Connect Meta's (content_preview) is off here",
   );
   assert.equal(plain.views.tabs.find((t) => t.id === "content").to, "campaigns/content");
   settingsWith({ ads_preview: true });
   assert.deepEqual(
     S.campaignsChrome({ param: null }).views.tabs.map((t) => t.id),
-    ["sequences", "messages", "content", "ads"],
+    ["sequences", "content", "ads"],
   );
 });
 

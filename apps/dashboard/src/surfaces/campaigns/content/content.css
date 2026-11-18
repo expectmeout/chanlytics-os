@@ -170,6 +170,15 @@
   .cnv > .cm-list > .lookup-folded:not(:focus-within) {
     margin-bottom: -14px;
   }
+  /* The first day's card stands the list's own 14px under the bar, as the first pane stands under every page's strip: the
+     first day's 8px and the found card's 8px over it stood it 30px under, 44px under Made and Library's words (Ruben,
+     18 Nov 2026: too much room under them). */
+  .cnv > .cm-list > .cnv-first {
+    padding-top: 0;
+  }
+  .cnv-first > .cnv-found:first-child {
+    margin-top: 0;
+  }
 }
 
 /* On a desk the grid keeps the room and the open piece stands narrow beside it, a piece being taller than it is wide.

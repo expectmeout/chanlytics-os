@@ -1150,6 +1150,12 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     max-height: none;
     overflow: clip;
   }
+  /* Content's list clips nothing: its cards are drawn to its edges (what AI found, the pieces), and their outline stands a
+     pixel outside them, so the clip cut it down both sides (Ruben, 18 Nov 2026). Nothing in it reaches past it, where a
+     Sequences group's head reaches 8px past its list on each side and keeps the clip. */
+  .main-scroll.pane > .cm-split.cnv:not([data-open]) > .cm-list {
+    overflow: visible;
+  }
   /* The pages that held still in a box of their own (the Calendar, Live, an open sequence or message) are as tall as
      what they hold too, and the window scrolls them, as every page above: in a box of their own Safari's toolbar stood
      on a solid strip under them, where the Inbox's rows passed under its glass (Ruben, 21 Oct 2026). An open thread is
@@ -1330,8 +1336,10 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
      the window scrolling them. Its bar (the range and the steps) is the frame's top's, under the row of views (kit/head
      standing.ts `under`, calendar-page.tsx), so no scroll takes it off the screen and it holds as still as the top: stuck
      in the page under the top, it stepped a pixel or two under the thumb as the window scrolled, where the top held still
-     (Ruben's recording, 3 Nov 2026). A week's and a day's heads stick under the top. The board's pane clips its rounded
-     top without being a box that scrolls, so its heads stick to the window. */
+     (Ruben's recording, 3 Nov 2026). A week's and a day's heads stick 6px under the top, where the top's band ends, so the
+     band never lies over the pane's outline and the heads stick where they stand (calendar.css, the bar); the band's fade
+     is those 6px. The board's pane clips its rounded top without being a box that scrolls, so its heads stick to the
+     window. */
   .main-scroll.pane > .calendar,
   .main-scroll.pane > .calendar .cal-pane,
   .main-scroll.pane > .calendar .cal-body {
@@ -1345,7 +1353,10 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
     overflow-x: clip;
   }
   .main-scroll.pane > .calendar :is(.cal-corner, .cal-dayhead) {
-    top: calc(var(--frame-top-at) + var(--frame-top, 0px));
+    top: calc(var(--frame-top-at) + var(--frame-top, 0px) + 6px);
+  }
+  .main:has(> .main-scroll > .calendar) > .frame-top {
+    --frame-top-fade: 6px;
   }
 
   /* An open sequence or message (Campaigns' split, data-open): its body as long as what it holds, its capsule 12px under

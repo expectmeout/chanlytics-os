@@ -387,13 +387,16 @@
 /* On a phone the bar is the frame's top's, under its row of views (kit/head/standing.ts `under`): 16 under the views (the
    slot's 14 between its rows, and 2), as the slot stood over the page, and the first pane 14 under it, as the Inbox's and
    People's stand under theirs; across, at the boards' 12px from the screen's edges (below), out of the slot's gutter, as
-   it stood in the page. Every rule names it in the frame's top, as heavy as they were when they named the page's. */
+   it stood in the page. Every rule names it in the frame's top, as heavy as they were when they named the page's.
+   Of the 14 under the bar, 8 are the top's and 6 the page's (the phone block below): the top's band is solid and ended
+   on the pane's top edge, so it lay over the pane's outline there and the outline stopped at its corners, in every view
+   (Ruben, 18 Nov 2026). It ends 6px over the pane, as it does over a person's strip of tabs (mobile.css). */
 .frame-top .pg-under-slot > .cal-head {
   margin-inline: calc(var(--space-3) - var(--gutter-page));
   padding: 2px 0 0;
 }
 .frame-top .pg-slot:has(> .pg-under-slot > .cal-head) {
-  padding-bottom: 14px;
+  padding-bottom: 8px;
 }
 .frame-top .pg-under-slot .cal-bar {
   gap: var(--space-2) var(--space-3);
@@ -688,8 +691,9 @@
   }
   /* The pane is the column the page leaves (mobile.css): it never pulls, and the body takes the room under the notices
      down to the screen's foot, under the tab bar as every page's rows run (the room for the bar is the end of what
-     holds the days, mobile.css). */
+     holds the days, mobile.css). Its first 6px are the page's, between the top's band and the first pane (the bar, above). */
   .main-scroll > .calendar {
+    padding-top: 6px;
     padding-bottom: 0;
   }
   .main-scroll > .calendar .cal-pane {
