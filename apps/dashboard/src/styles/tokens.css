@@ -648,6 +648,11 @@
   /* A count beside what it counts, on a nav row or an icon: neutral, never a warning's colour. */
   --count-fill: oklch(0.227 0.008 275);
   --count-ink: oklch(1 0 0);
+  /* People who need you, counted on an icon (the phone's Inbox tab): the warn tone whole under a dark figure, in both
+     themes, and a ring of the bar's own glass that lifts it off the glyph whose corner it stands on. A tint let the
+     glyph's lines show through the figure (Ruben, 18 Nov 2026). */
+  --count-warn-ink: oklch(0.209 0.006 271);
+  --count-ring: 0 0 0 1.5px var(--surface-control-solid);
 
   /* The fills the glass falls back on where there is no blur or transparency is to be reduced (the two blocks at the
      end): each translucent fill laid over what it sits on, opaque. */
