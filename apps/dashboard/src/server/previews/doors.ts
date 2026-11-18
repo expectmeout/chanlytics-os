@@ -11,6 +11,8 @@ import "server-only";
  *   recordPreviewNotRightBy what the business said is not right, kept for the sender; the receptionist is never changed by it
  *   previewCall       a call in the browser to the preview's receptionist: the rehearsal's own (settings/rehearsal.ts,
  *                     the edge's call door), for the preview's workspace and no person, counted against its six minutes
+ *   previewHeard      a call's words read back while it runs, and once it has ended what the business would get after a
+ *                     real one: the rehearsal's own turns, and the write-up the edge reads from the provider
  *
  * Their routes (app/api/v1/previews/[token]/…) are its own doors: the same-origin check, a bucket per network and the
  * envelope, in public-route.ts.
@@ -20,6 +22,8 @@ import {
   LEAD_PREVIEW_WORDS as W,
   PREVIEW_LIMITS,
   PREVIEW_TAUGHT,
+  SECOND_MS,
+  UUID,
   heldTenantId,
   previewFactOf,
   previewStateOf,
@@ -27,7 +31,11 @@ import {
   previewTurnsOf,
   withPreviewFix,
   withPreviewTaught,
+  type PreviewAfterCallState,
+  type PreviewGotVM,
+  type PreviewHeardDto,
   type PreviewTurnVM,
+  type TenantId,
   causedBy,
 } from "@chanlytics/contracts";
 import {
@@ -38,9 +46,12 @@ import {
   type LeadPreviewRow,
   type PreviewRefusal,
 } from "@chanlytics/db/campaigns";
+import { findRehearsalById } from "@chanlytics/db/facts";
 import { logAndGoOn } from "@chanlytics/log";
 import { linkPageDb } from "../public/link-page";
 import { changePreviewRecord } from "./theirs";
+import { callEdge, edgeConfigured } from "../shared/edge";
+import { WRITE_UP_MS, previewGotOf, previewHeardOf } from "./heard";
 import { takeRate } from "../shared/rate-limit";
 import { startRehearsal, type RehearsalStartDto } from "../settings/rehearsal";
 import { tryReceptionist } from "../receptionist/try";
@@ -202,4 +213,59 @@ export async function previewCall(token: string): Promise<PreviewCall> {
     log.warn("preview_call_failed", { tenant_id: result.preview_tenant_id, error: e });
     throw causedBy(new AppError("upstream_retell", W.callFailed, 502), e);
   }
+}
+
+/** The edge is asked for a write-up briefly: the page asks again in seconds. */
+const AFTER_CALL_TIMEOUT_MS = 8 * SECOND_MS;
+
+/**
+ * A call's write-up as the edge reads it from the provider, as the card the page draws. None where there is no edge, or
+ * one deployed before this door (a 404): the page then shows the call's words alone, and nothing is said to have failed.
+ * An edge that could not be reached in time may yet answer, so that one is still being written.
+ */
+async function afterCallOf(
+  tenantId: TenantId,
+  rehearsalId: string,
+): Promise<{ state: PreviewAfterCallState; got: PreviewGotVM | null }> {
+  if (!edgeConfigured()) return { state: "none", got: null };
+  const answer = await callEdge(
+    "/api/admin/previews/after-call",
+    { tenant_id: tenantId, rehearsal_id: rehearsalId },
+    { workspace: tenantId, user: null, timeoutMs: AFTER_CALL_TIMEOUT_MS },
+  );
+  const body = answer.body;
+  if (answer.status !== 200 || !body?.ok || !body.state)
+    return { state: answer.status === 503 ? "writing" : "none", got: null };
+  if (body.state !== "ready") return { state: body.state, got: null };
+  const card = previewGotOf({
+    outcome: body.outcome ?? null,
+    wanted: body.wanted ?? null,
+    summary: body.summary ?? null,
+    follow_up: body.follow_up ?? null,
+    caller_name: body.caller_name ?? null,
+    caller_email: body.caller_email ?? null,
+  });
+  return card ? { state: "ready", got: card } : { state: "none", got: null };
+}
+
+/**
+ * A preview call's words read back, and what the business would get after it (the redesign of 17 November 2026): the
+ * rehearsal's own turns, kept by the call's webhook as it goes, and once it has ended the write-up of it. The rehearsal
+ * is found in the preview's own workspace, so a link reads its own calls and no other's. The page asks every two
+ * seconds while a call runs and a few times after it. A write-up is waited for two minutes past the end, and the
+ * provider is asked for one only inside them: the page has stopped asking by then, and a call's name, kept by whoever
+ * holds the link, is no way to ask the provider for ever.
+ */
+export async function previewHeard(token: string, raw: unknown): Promise<PreviewHeardDto> {
+  const id = typeof raw === "string" && UUID.test(raw) ? raw : null;
+  if (!id) throw new AppError("validation", W.failed, 400);
+  const preview = await openPreview(token, { calls: true });
+  const tenantId = heldTenantId(preview.preview_tenant_id);
+  const row = await findRehearsalById(dbOrFail(), tenantId, id);
+  if (!row || row.kind !== "call") throw new AppError("not_found", W.failed, 404);
+  const lines = previewHeardOf(row.transcript);
+  if (row.ended_at === null) return { lines, ended: false, got: null, writing: true };
+  if (Date.now() - Date.parse(row.ended_at) >= WRITE_UP_MS) return { lines, ended: true, got: null, writing: false };
+  const after = await afterCallOf(tenantId, id);
+  return { lines, ended: true, got: after.got, writing: after.state === "writing" };
 }

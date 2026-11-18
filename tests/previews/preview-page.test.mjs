@@ -23,6 +23,8 @@ async function pageBundle() {
     stdin: {
       contents:
         'export { PreviewPage } from "../../apps/dashboard/src/surfaces/preview/preview-page.tsx";\n' +
+        'export { PvCalled } from "../../apps/dashboard/src/surfaces/preview/heard.tsx";\n' +
+        'export { PvCall } from "../../apps/dashboard/src/surfaces/preview/call.tsx";\n' +
         'export { renderToStaticMarkup } from "react-dom/server";\n' +
         'export { createElement } from "react";\n',
       resolveDir: path.join(ROOT, "tests/previews"),
@@ -106,164 +108,276 @@ const words = (html) =>
     .replace(/\s+/g, " ");
 const has = (html, testid) => html.includes(`data-testid="${testid}"`);
 
-test("open, nothing said yet: the business by its name, three questions to start from, the box, what it knows, the foot", () => {
+/** A row's turns: what they asked and what it answered, with what a live conversation would do. */
+const turnsOf = (...pairs) =>
+  pairs.flatMap(([asked, answered, tone]) => [
+    { role: "user", content: asked },
+    {
+      role: "assistant",
+      content: answered,
+      ...(tone ? { then: { words: "An owner's sentence, 62% sure.", tone } } : {}),
+    },
+  ]);
+
+test("open, nothing said yet: their name, Call it and the microphone's line, what it knows, its questions on the field, who sees it", () => {
   const html = draw();
   const said = words(html);
-  assert.ok(html.includes('data-state="ready"'));
-  assert.match(html, /<h1 class="pv-title">Fixture Barbers<\/h1>/, "the heading is their name alone");
-  assert.ok(said.includes(W.ready) && said.includes(W.madeFrom));
-  assert.ok(!said.includes(W.chip), "no Preview chip on top");
-  for (const s of ["Can you tell me about the fade?", "Are you open on Sunday?", "Where are you located?"])
-    assert.ok(said.includes(s), s);
-  assert.ok(has(html, "pv-text") && has(html, "pv-send"));
-  assert.ok(said.includes("20 messages left"));
-  assert.ok(said.includes("Mon–Fri 9 AM – 6 PM · Sat 10 AM – 2 PM · Sun closed"));
-  assert.ok(has(html, "pv-not-right-hours"));
-  assert.ok(html.includes(`href="/preview/${TOKEN}/mine"`), "Make it mine is a door: its own sign-up");
-  assert.ok(said.includes(W.mine) && said.includes(W.mineSub));
-  assert.ok(said.includes(W.kept), "it says what is kept");
-  assert.ok(!html.includes("<img"), "no mark to show, no image");
+  assert.match(html, /data-state="ready"/);
+  assert.match(html, /<h1[^>]*>Fixture Barbers<\/h1>/, "the page's heading is the business's own name");
+  for (const line of [W.ready, W.callStart, W.micFirst, W.knowsTitle, W.knowsAll, W.tryAsking, W.kept, W.mine])
+    assert.ok(said.includes(line), line);
+  for (const id of [
+    "pv-mine",
+    "pv-call-start",
+    "pv-facts",
+    "pv-knows-open",
+    "pv-starters",
+    "pv-text",
+    "pv-send",
+    "pv-dock",
+  ])
+    assert.ok(has(html, id), id);
+  for (const question of ["Can you tell me about the fade?", "Are you open on Sunday?", "Where are you located?"])
+    assert.ok(said.includes(question), question);
+  // Nothing is counted before anything is tried, and no conversation is drawn before one starts.
+  for (const gone of ["messages left", "of calls left", W.teachLeft(3), "chat"]) assert.ok(!said.includes(gone), gone);
+  for (const id of ["pv-chat", "pv-greeting", "pv-left", "pv-telling", "pv-called"]) assert.ok(!has(html, id), id);
 });
 
-test("they see their business, then its call, then its chat", () => {
-  const html = draw({ photo_url: PHOTO });
-  assert.match(html, /<img class="pv-photo"[^>]*src="https:\/\/lh3\.googleusercontent\.com\/p\/made-up"/);
-  assert.ok(html.indexOf('data-testid="pv-call"') < html.indexOf('data-testid="pv-chat"'), "Call comes before Text");
-  assert.ok(html.indexOf("pv-photo") < html.indexOf('class="pv-title"'), "the photo over the name");
+test("Call it is the page's one filled act until they have tried it; then Make it mine leads", () => {
+  const fresh = draw();
+  assert.ok(!/data-testid="pv-mine"[^>]*data-leads/.test(fresh) && !/data-leads[^>]*data-testid="pv-mine"/.test(fresh));
+  for (const tried of [{ asked_count: 3 }, { call_seconds: 54, call_count: 1 }]) {
+    const html = draw(tried);
+    assert.match(html, /data-leads="true"/, JSON.stringify(tried));
+  }
 });
 
-test("their mark sits on their photo, where both are known", () => {
-  const html = draw({ photo_url: PHOTO, logo_url: "https://storage.example.com/logos/fixture.png" });
-  assert.match(html, /class="pv-hero"><img class="pv-photo"[^>]*><img class="pv-logo"/);
+test("their face is their mark, else their photo, else their initials; the photo is the light behind the head", () => {
+  const bare = draw();
+  assert.ok(!bare.includes("pv-light") && !bare.includes("<img"), "no photo and no mark: nothing fetched");
+  assert.match(bare, />FB</, "their initials stand in the circle");
+  const photo = draw({ photo_url: PHOTO });
+  assert.ok(
+    photo.includes("pv-light") && photo.includes("face-photo"),
+    "the photo is the face, and the light behind the head",
+  );
+  assert.ok(photo.split(PHOTO).length - 1 >= 2);
+  assert.match(
+    photo,
+    /class="pv-light"[^>]*referrerPolicy="no-referrer"|referrerPolicy="no-referrer"[^>]*class="pv-light"|class="pv-light"[^>]*referrerpolicy="no-referrer"/,
+  );
+  const both = draw({ photo_url: PHOTO, logo_url: "https://cdn.example.com/logo.png" });
+  assert.match(
+    both,
+    /face-photo"[^>]*src="https:\/\/cdn\.example\.com\/logo\.png"|src="https:\/\/cdn\.example\.com\/logo\.png"[^>]*class="face-photo"/,
+    "their mark is their face where the site gave one",
+  );
+  assert.equal(draw({ photo_url: "https://evil.example.com/x.png" }).includes("evil.example.com"), false);
 });
 
-test("the chat opens on its greeting, before the questions to start from, and stays first", () => {
-  const html = draw();
-  const greeting = W.textGreeting("Fixture Barbers", null);
-  assert.ok(has(html, "pv-greeting") && words(html).includes(greeting));
-  assert.ok(html.indexOf('data-testid="pv-greeting"') < html.indexOf('data-testid="pv-starters"'));
-  const talked = draw({ asked_count: 1, turns: [{ role: "user", content: "Hi" }] });
-  assert.ok(talked.indexOf('data-testid="pv-greeting"') < talked.indexOf('data-testid="pv-turn-0"'), "still first");
+test("what it knows, up front: each fact with where it was read, and the one it lacks second, said as lacking", () => {
+  const plumber = {
+    profile: { address: "80 Made Up St, Brooklyn, NY 11225", services: [{ name: "Hydro Jetting" }] },
+    phone_display: null,
+  };
+  const html = draw(plumber);
+  const order = ["pv-fact-services", "pv-fact-hours", "pv-fact-address"].map((id) =>
+    html.indexOf(`data-testid="${id}"`),
+  );
+  assert.ok(
+    order.every((at) => at > 0),
+    "each is drawn",
+  );
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    "what it lacks stands second, where a phone still shows it",
+  );
+  const said = words(html);
+  assert.ok(said.includes(W.missing.google) && said.includes(W.from.site));
+  assert.match(html, /data-missing="true"/);
+  assert.ok(!has(draw(), "pv-fact-hours") || !/data-missing/.test(draw()), "a record with its hours lacks nothing");
 });
 
-test("no photo, no strip", () => {
-  assert.ok(!draw().includes("pv-photo") && !draw().includes("pv-hero"));
-  assert.ok(!draw({ photo_url: "http://evil.example/x.jpg" }).includes("<img"), "only Google's own host");
-});
-
-test("a conversation: each turn, the answer with what a live chat would do, no questions to start from, the count left", () => {
+test("a conversation: its greeting first, each line, what a live conversation would do said for a business, never an owner's sentence", () => {
   const html = draw({
-    asked_count: 1,
-    turns: [
-      { role: "user", content: "Are you open on Sunday?" },
-      {
-        role: "assistant",
-        content: "We're closed on Sundays.",
-        then: { words: "It would send this right away.", tone: "sends" },
-      },
-    ],
+    asked_count: 2,
+    turns: turnsOf(
+      ["Are you open on Sunday?", "We're closed on Sunday.", "sends"],
+      ["How much is a fade?", "Someone will get back to you with a price.", "yours"],
+    ),
   });
   const said = words(html);
-  assert.ok(has(html, "pv-turn-0") && has(html, "pv-turn-1"));
-  assert.match(html, /data-mine="true"[^>]*data-testid="pv-turn-0"|data-testid="pv-turn-0"[^>]*data-mine/);
-  assert.ok(said.includes(`${W.onRealChat}: It would send this right away.`));
-  assert.ok(html.includes('data-tone="sends"'));
-  assert.ok(!has(html, "pv-starters"));
-  assert.ok(said.includes("19 messages left"));
+  for (const id of ["pv-chat", "pv-greeting", "pv-turn-0", "pv-turn-1", "pv-then-1", "pv-turn-3", "pv-then-3"])
+    assert.ok(has(html, id), id);
+  assert.ok(html.indexOf('data-testid="pv-greeting"') < html.indexOf('data-testid="pv-turn-0"'), "it speaks first");
+  assert.ok(said.includes(W.then.sends) && said.includes(W.then.yours));
+  assert.ok(
+    !said.includes("62% sure") && !/\d+%/.test(said),
+    "no percentage and no settings sentence reaches a business",
+  );
+  // Where the conversation would come to them, the newest answer offers to be told what to say.
+  assert.equal(html.split('data-testid="pv-tell-what"').length - 1, 1);
+  assert.ok(said.includes(W.tellWhat));
+  // The questions already asked are not offered again; who sees it is said before the first message only.
+  assert.ok(has(html, "pv-starters"));
+  assert.equal(html.split("Are you open on Sunday?").length - 1, 1, "asked once, drawn once: not among the questions");
+  assert.ok(!said.includes(W.kept));
 });
 
-test("its twenty said: no box, the words that say so, what it knows and the foot still there", () => {
+test("an answer that goes by itself offers nothing to tell; with three told, none is offered", () => {
+  const sends = draw({ asked_count: 1, turns: turnsOf(["Where are you located?", "12 Main St.", "sends"]) });
+  assert.ok(!has(sends, "pv-tell-what"));
+  const notes = Array.from({ length: PREVIEW_TAUGHT.most }, (_, i) => ({
+    title: PREVIEW_TAUGHT.title,
+    text: `Told ${i + 1}.`,
+  }));
+  const full = draw({
+    asked_count: 1,
+    turns: turnsOf(["How much is a fade?", "Someone will get back to you.", "yours"]),
+    profile: { ...FACTS.profile, notes },
+  });
+  assert.ok(!has(full, "pv-tell-what"), "it holds its three: the press is not offered, so none is refused");
+});
+
+test("a count is said only near its end", () => {
+  assert.ok(!has(draw({ asked_count: 14 }), "pv-left"));
+  const near = draw({ asked_count: 15 });
+  assert.ok(has(near, "pv-left") && words(near).includes(W.left(5)));
+});
+
+test("its twenty said: no field, the note with Make it mine beside it, and a call while its minutes last", () => {
   const html = draw({ asked_count: 20 });
-  assert.ok(html.includes('data-state="spent"'));
-  assert.ok(!has(html, "pv-text"));
-  assert.ok(words(html).includes(W.spent));
-  assert.ok(has(html, "pv-knows") && has(html, "pv-mine"));
+  const said = words(html);
+  assert.match(html, /data-state="spent"/);
+  assert.ok(has(html, "pv-spent") && said.includes(W.spent));
+  assert.ok(!has(html, "pv-text") && !has(html, "pv-starters"));
+  assert.ok(html.split(W.mine).length - 1 >= 2, "Make it mine at the top, and in the note that says to");
+  assert.ok(html.split(W.callStart).length - 1 >= 2, "its minutes are its own: a call is still offered");
 });
 
-test("being set up, ended, someone's own: one thing said, no chat, no foot", () => {
+test("its minutes used: no call is offered, and the page says why", () => {
+  const html = draw({ call_seconds: 6 * 60, call_count: 2 });
+  assert.ok(!has(html, "pv-call-start") && !has(html, "pv-call-again"));
+  assert.ok(words(html).includes(W.callUsed));
+});
+
+test("being set up, ended, someone's own: one thing said, nothing of the page", () => {
   const building = draw({ state: "building" });
-  assert.ok(words(building).includes(W.building.title("Fixture Barbers")));
-  assert.ok(!has(building, "pv-chat") && !has(building, "pv-mine"));
-
-  const ended = draw({ state: "ended", turns: [{ role: "user", content: "Kept words" }] });
-  assert.ok(words(ended).includes(W.ended.title) && words(ended).includes(W.ended.body));
-  assert.ok(ended.includes('href="/signup"'));
-  assert.ok(!words(ended).includes("Kept words"), "an ended preview shows nothing it kept");
-  assert.ok(!has(ended, "pv-mine"));
-
+  assert.ok(has(building, "pv-building") && words(building).includes(W.building.title("Fixture Barbers")));
+  const ended = draw({ state: "ended" });
+  assert.ok(has(ended, "pv-ended") && words(ended).includes(W.ended.title));
   const taken = draw({ state: "claimed" });
-  assert.ok(words(taken).includes(W.taken.title("Fixture Barbers")));
-  assert.ok(taken.includes('href="/login"'));
+  assert.ok(has(taken, "pv-taken") && words(taken).includes(W.taken.title("Fixture Barbers")));
+  for (const html of [building, ended, taken])
+    for (const id of ["pv-mine", "pv-call-start", "pv-dock", "pv-facts", "pv-chat"]) assert.ok(!has(html, id), id);
 });
 
-test("the business's mark, where its site gave one", () => {
-  const html = draw({ logo_url: "https://storage.example.com/logos/fixture.png" });
-  assert.ok(html.includes('src="https://storage.example.com/logos/fixture.png"'));
-});
-
-test("Call it: up to three minutes a call, the minutes its calls have left, none started once they are spent", () => {
-  const fresh = draw();
-  assert.ok(has(fresh, "pv-call") && has(fresh, "pv-call-start"));
-  assert.ok(words(fresh).includes(W.callSub));
-  assert.ok(words(fresh).includes("6 minutes of calls left"));
-  const once = draw({ call_seconds: 72 });
-  assert.ok(words(once).includes("4 minutes of calls left"), "four whole minutes after a call of 1:12");
-  const spent = draw({ call_seconds: 330 });
-  assert.ok(words(spent).includes(W.callUsed));
-  assert.match(spent, /<button[^>]*disabled[^>]*data-testid="pv-call-start"|data-testid="pv-call-start"[^>]*disabled/);
-  assert.ok(has(draw({ asked_count: 20 }), "pv-call-start"), "its twenty messages said, it can still be called");
-  assert.ok(!has(draw({ state: "ended" }), "pv-call"));
-});
-
-test("its sender looking (Open it, ?look=1): what it has said and what it knows, nothing to press, nothing counted", () => {
+test("its sender looking (Open it, ?look=1): what it has said, what it knows and what they did, nothing to press", () => {
   const html = draw(
     {
       asked_count: 1,
-      turns: [
-        { role: "user", content: "Are you open on Sunday?" },
-        { role: "assistant", content: "We're closed on Sundays.", then: null },
-      ],
+      call_seconds: 54,
+      call_count: 1,
+      turns: turnsOf(["Are you open on Sunday?", "We're closed on Sunday.", "sends"]),
     },
     true,
   );
-  assert.ok(words(html).includes(W.look));
-  assert.ok(has(html, "pv-turn-0") && has(html, "pv-knows"), "what it has said, and what it knows");
-  for (const id of ["pv-text", "pv-send", "pv-starters", "pv-call", "pv-mine", "pv-not-right-hours", "pv-spent"])
-    assert.ok(!has(html, id), `${id}: nothing to press`);
-  assert.ok(!has(draw(), "pv-look"), "the lead's own page says none of it");
-});
-
-/* ---- what a business makes of it before it signs up (the canvas's calls P4 and P5) ---- */
-
-const toldNotes = (texts) => texts.map((text) => ({ title: PREVIEW_TAUGHT.title, text }));
-
-test("telling it something: the field while it has room, what they told it listed, and no field once it holds three", () => {
-  const room = draw();
-  assert.ok(has(room, "pv-teach") && has(room, "pv-teach-text") && has(room, "pv-teach-send"));
-  assert.ok(words(room).includes(W.teachLeft(3)), "how many more it takes");
-  const one = draw({ profile: { ...FACTS.profile, notes: toldNotes(["We answer all night."]) } });
-  assert.ok(has(one, "pv-taught-0") && words(one).includes("We answer all night."));
-  assert.ok(words(one).includes(W.teachLeft(2)));
-  const full = draw({ profile: { ...FACTS.profile, notes: toldNotes(["One", "Two", "Three"]) } });
-  assert.ok(has(full, "pv-taught-2") && !has(full, "pv-teach-text"), "no field once it holds three");
-  assert.ok(words(full).includes(W.taughtFull));
-});
-
-test("telling it comes after the chat it changes, and before the fold of what it knows", () => {
-  const html = draw();
-  const at = (testid) => html.indexOf(`data-testid="${testid}"`);
-  assert.ok(at("pv-chat") < at("pv-teach") && at("pv-teach") < at("pv-knows"));
-});
-
-test("its sender looking sees what they told it and nothing to type into; with nothing told, no part at all", () => {
-  const looked = draw({ profile: { ...FACTS.profile, notes: toldNotes(["One"]) } }, true);
-  assert.ok(has(looked, "pv-taught-0") && !has(looked, "pv-teach-text"));
-  assert.ok(!has(draw({}, true), "pv-teach"));
+  const said = words(html);
+  assert.ok(has(html, "pv-look") && said.includes(W.look));
+  assert.ok(said.includes("1 message · a call of a minute"), "what they did, as the lead's card says it");
+  assert.ok(has(html, "pv-chat") && has(html, "pv-facts"));
+  for (const id of ["pv-mine", "pv-call-start", "pv-dock", "pv-text", "pv-tell-what"]) assert.ok(!has(html, id), id);
 });
 
 test("a fact they put right is drawn as theirs, in their words", () => {
-  const html = draw({ profile: withPreviewFix(FACTS.profile, "hours", "Saturday we close at 1") });
-  const row = html.slice(html.indexOf('data-testid="pv-knows-hours"'), html.indexOf('data-testid="pv-knows-address"'));
-  assert.ok(words(row).includes("Saturday we close at 1"), words(row));
-  assert.ok(words(row).includes(W.from.you));
+  const fixed = withPreviewFix(FACTS.profile, "address", "9 New St, Austin");
+  const html = draw({ profile: fixed });
+  assert.ok(words(html).includes("9 New St, Austin"));
+  assert.ok(words(html).includes(W.from.you));
+});
+
+test("every press is the kit's, at a thumb's size", () => {
+  const html = draw({
+    asked_count: 1,
+    turns: turnsOf(["How much is a fade?", "Someone will get back to you.", "yours"]),
+  });
+  const presses = [...html.matchAll(/<(?:button|a)\b[^>]*class="([^"]*)"/g)].map((m) => m[1]);
+  assert.ok(presses.length >= 6, "the page has its presses");
+  for (const classes of presses) assert.match(classes, /\bbtn-touch\b/, classes);
+});
+
+/* ---- A call's words and what it leaves (the redesign's steps 2 and 3) ---- */
+
+const HEARD = [
+  { who: "ai", text: "Thanks for calling Fixture Barbers. How can I help?" },
+  { who: "you", text: "Do you take walk-ins on Saturday?" },
+  { who: "ai", text: "We do, from ten until two." },
+];
+const GOT = {
+  outcome: "Needs a call back",
+  yours: true,
+  wanted: "Asked about a Saturday walk-in for two.",
+  notes: ["To do: Call back to confirm Saturday at 11.", "Gave their name as Ana"],
+};
+const called = (line) =>
+  page.renderToStaticMarkup(
+    page.createElement(page.PvCalled, {
+      line: { kind: "call", seconds: 72, id: "c1", lines: [], got: null, writing: false, ...line },
+    }),
+  );
+
+test("a call's line: how long it ran and who answered; its words wait behind Read it, a press a thumb can hit", () => {
+  const html = called({ lines: HEARD });
+  assert.ok(words(html).includes("You called it · 1:12"));
+  assert.ok(words(html).includes(W.calledSub));
+  const press = html.match(/<button[^>]*data-testid="pv-read-it"[^>]*>/)?.[0] ?? "";
+  assert.ok(press.includes("btn-touch"), press);
+  assert.ok(press.includes('aria-expanded="false"'), "closed until it is pressed");
+  assert.ok(!has(html, "pv-heard"), "the words are not drawn until then");
+  assert.ok(!has(called({}), "pv-read-it"), "a call whose words were never read has no press for them");
+});
+
+test("after a call: being written while the provider writes it up, then the card an Inbox would hold", () => {
+  const writing = called({ writing: true });
+  assert.ok(has(writing, "pv-got-writing"));
+  assert.ok(words(writing).includes(W.gotWriting));
+  assert.ok(!has(writing, "pv-got"));
+
+  const html = called({ lines: HEARD, got: GOT });
+  assert.ok(has(html, "pv-got") && !has(html, "pv-got-writing"));
+  const said = words(html);
+  for (const sentence of [W.gotTitle, GOT.outcome, GOT.wanted, ...GOT.notes, W.gotFoot])
+    assert.ok(said.includes(sentence), sentence);
+  assert.match(html, /data-testid="pv-got-how"/);
+  assert.match(html, /data-yours="true"[^>]*data-testid="pv-got-how"|data-testid="pv-got-how"[^>]*data-yours="true"/);
+
+  // Nothing left for them to do: the outcome is said without the mark of a thing that is theirs.
+  const done = called({ got: { ...GOT, outcome: "Question answered", yours: false, notes: [] } });
+  assert.ok(!/data-yours/.test(done));
+  // Only its notes: no sentence is drawn, and none that says there is nothing to do.
+  const notes = called({ got: { ...GOT, wanted: "" } });
+  assert.ok(words(notes).includes(GOT.notes[0]) && !words(notes).includes(W.gotNothing));
+  assert.ok(!/<p class="pv-answer"><\/p>/.test(notes), "no empty line");
+  // A write-up that never came: the line alone, and nothing said to have failed.
+  const none = called({ lines: HEARD });
+  assert.ok(!has(none, "pv-got") && !has(none, "pv-got-writing"));
+});
+
+test("the call's screen shows the newest of what was said, its last two lines, once the call is live", () => {
+  const vm = previewPageOf(FACTS, NOW);
+  const call = { phase: "live", seconds: 42, muted: false, heard: HEARD, end() {}, mute() {} };
+  const html = page.renderToStaticMarkup(page.createElement(page.PvCall, { vm, call }));
+  const said = words(html);
+  assert.ok(said.includes("We do, from ten until two.") && said.includes("Do you take walk-ins on Saturday?"));
+  assert.ok(!said.includes("How can I help?"), "an older line has given way");
+  assert.ok(said.includes(W.heardLabel) === false && html.includes(`aria-label="${W.heardLabel}"`));
+
+  const quiet = page.renderToStaticMarkup(page.createElement(page.PvCall, { vm, call: { ...call, heard: [] } }));
+  assert.ok(!has(quiet, "pv-heard"), "nothing said yet, nothing drawn");
+  const connecting = page.renderToStaticMarkup(
+    page.createElement(page.PvCall, { vm, call: { ...call, phase: "connecting" } }),
+  );
+  assert.ok(!has(connecting, "pv-heard") && words(connecting).includes(W.mic));
 });

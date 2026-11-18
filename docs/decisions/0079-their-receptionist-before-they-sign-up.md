@@ -132,3 +132,40 @@ minute second in its build order. This part of it is built:
 
 Not yet: the greeting as a recording heard with no microphone asked. The phone's voice (MiniMax's Tamsin, through
 Retell) has no source for a clip in the same voice, and a clip in another would not sound like the call.
+
+## Amended, 18 November 2026: one page, the call read back, and what they would get
+
+Ruben's canvas of 17 November ("Their preview, redesigned") rebuilt the page end to end, on four tests run against
+production first (a typed answer in under four seconds; a call live in under four; an emailed code that makes a
+preview theirs; the call's own client tells the browser none of its words). What is built:
+
+- **One page shaped like AI's home.** Call it leads until they have tried it, then Make it mine does. What it knows is
+  up front as its facts, one it lacks among them, each put right in place (the not-right door, which puts a fact right
+  in the preview's record where they say what is right). One field under one conversation: a customer's question, or,
+  where an answer would have come to the business, a thing they tell it (the tell door). A call and a thing told are
+  lines of that conversation for the visit they happen in.
+- **A call's words, read back.** The call tells the browser nothing of what is said, so the page reads the rehearsal's
+  own turns, which the call's webhook writes as the call goes: `POST /api/v1/previews/<token>/heard` with the call's
+  name (the rehearsal's id its call door answered), every two seconds while the call is live. The call's screen shows
+  the last two lines; the call's line in the conversation keeps them all behind Read it. Public as its siblings are:
+  the token is the authority, the call is found in the preview's own workspace alone, and the read has a bucket of
+  its own per network (`preview_heard_ip`).
+- **What you'd get.** Once a call has ended the same door answers the card a real call would leave in their Inbox:
+  how it ended, what the caller wanted, the to-do and what the caller gave, in the words every surface says a call in
+  (contracts `previews/heard.ts` over `voice/call-words.ts`). The write-up is the provider's own analysis of the call,
+  read by a new edge door, `POST /api/admin/previews/after-call`, and kept nowhere: a rehearsal's webhook still takes
+  its analysis for an end only, since a preview's call is nobody's customer. It is waited for two minutes past the
+  call's end, and the provider is asked only inside them. A call nobody asked anything on says so; a write-up that
+  never comes leaves the call's line and its words, and nothing is said to have failed.
+- **Either deploy order.** A dashboard that deploys first is answered a 404 by an edge without the door, which it
+  reads as no write-up; an edge that deploys first is knocked on by nobody.
+- **Make it mine's sign-up.** The way back to the preview, whose AI is waiting, and what comes with it, counted from
+  the preview's own record (what it read, then what they told it; the conversation on its page and its calls are the
+  preview's, and are not promised). The emailed code leads, since it asks nothing to be chosen, and Google stands
+  under it. Someone who leaves for Google from that screen comes back signed in and the preview is theirs with no
+  second press: the tab remembers leaving, for a quarter of an hour, and a link alone never says so, so a person
+  already signed in who opens Make it mine is still asked the one press.
+
+Not yet: a call's line and its card on a later visit (a call is kept with no place in the conversation's order, so a
+page opened again shows the messages and not the call); the sender's own read of what a lead said on a call; the
+moment after the claim ("It's yours"); the greeting as a recording, as before.

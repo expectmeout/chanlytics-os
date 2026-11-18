@@ -4,14 +4,50 @@
  * /preview/<token>/mine), where someone signed in makes it theirs with one press and a new account as its code signs it
  * in; and asked by the first screen (bridge/CreateWorkspace.tsx), for an account that comes back to sign in later.
  */
-import { FIRST_RUN_ROUTE, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, MIN_MS, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
 import { rememberWorkspace } from "@/bridge/workspace";
 
-/** A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, and the address it was sent to. */
+/**
+ * A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, the address it was sent to, and
+ * what comes with it.
+ */
 export interface SignupPreview {
   token: string;
   business: string;
   email: string | null;
+  comes: readonly string[];
+}
+
+/** Where this tab keeps which preview's sign-up it left for Google from, and when: the tab's own, gone when it closes. */
+const LEFT_FOR_GOOGLE = "chanlytics.preview.left-for-google";
+/** How long that is believed: a sign-in at Google takes a minute or two, never the rest of a tab's day. */
+const LEFT_FOR_GOOGLE_MS = 15 * MIN_MS;
+
+/**
+ * Kept as the tab leaves for Google from a preview's sign-up, so that coming back signed in makes the preview theirs
+ * with no second press. The tab's own storage and never the link's: a link somebody was sent cannot say it, so a person
+ * signed in who merely opens Make it mine is still asked. It lapses after a quarter of an hour, so a sign-in given up
+ * at Google does not make a preview theirs the next time the tab comes by signed in.
+ */
+export function rememberLeftForGoogle(token: string): void {
+  try {
+    window.sessionStorage.setItem(LEFT_FOR_GOOGLE, `${Date.now()}:${token}`);
+  } catch {
+    // Storage switched off: they are asked the one press when they come back.
+  }
+}
+
+/** Whether this tab left for Google from this preview's sign-up: asked once, and forgotten as it is asked. */
+export function takeLeftForGoogle(token: string): boolean {
+  try {
+    const kept = window.sessionStorage.getItem(LEFT_FOR_GOOGLE) ?? "";
+    window.sessionStorage.removeItem(LEFT_FOR_GOOGLE);
+    const cut = kept.indexOf(":");
+    const at = Number(kept.slice(0, cut));
+    return cut > 0 && kept.slice(cut + 1) === token && Date.now() - at < LEFT_FOR_GOOGLE_MS && Date.now() >= at;
+  } catch {
+    return false;
+  }
 }
 
 /** The workspace a claim made theirs, as /api/v1/workspaces lists one. */

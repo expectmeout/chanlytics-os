@@ -16,11 +16,13 @@
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import {
+  LEAD_PREVIEW_WORDS,
   PENDING_WORKSPACE_KEY,
   SIGNUP_WAITLIST,
   SIGNUP_WORDS,
   previewFirstRunMarks,
   setupLaterOf,
+  withPreviewTaught,
 } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "../../apps/dashboard/src/surfaces/setup/first-run/model/first-run-helpers.ts";
 import { importSrc } from "../_source.mjs";
@@ -156,7 +158,41 @@ const signUpWith = (body) => (
 
 test("what Make it mine's page draws: whose receptionist and the address it was sent to, while it can be made theirs", async () => {
   world();
-  assert.deepEqual(await findPreviewForSignup(TOKEN), { business: "Fixture Barbers", email: "owner@fixture.example" });
+  assert.deepEqual(await findPreviewForSignup(TOKEN), {
+    business: "Fixture Barbers",
+    email: "owner@fixture.example",
+    // No record to read: only the number on the lead it was made from.
+    comes: ["Your number"],
+  });
+  // What comes with it is counted from its record: what it read, then what they told it.
+  const tables = world();
+  tables.tenant_config = [
+    {
+      tenant_id: WS,
+      config: {
+        brain: {
+          business_name: "Fixture Barbers",
+          system_prompt: "You answer for Fixture Barbers, a barber shop.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: withPreviewTaught(
+            {
+              hours: { mon: { open: "09:00", close: "18:00" } },
+              address: "12 Main St, Austin, TX 78701",
+              services: [{ name: "Fade" }, { name: "Beard trim" }],
+            },
+            "A fade is 30 dollars.",
+          ),
+        },
+      },
+    },
+  ];
+  assert.deepEqual((await findPreviewForSignup(TOKEN))?.comes, [
+    "2 services, your hours, your address and your number",
+    LEAD_PREVIEW_WORDS.signup.comesTold(1),
+  ]);
+  // One service, and nothing told: a sentence of one part, and no line for what they told it.
+  tables.tenant_config[0].config.brain.profile = { services: [{ name: "Fade" }, { name: " " }] };
+  assert.deepEqual((await findPreviewForSignup(TOKEN))?.comes, ["1 service and your number"]);
   world({ asked_count: 20 });
   assert.equal(
     (await findPreviewForSignup(TOKEN))?.business,

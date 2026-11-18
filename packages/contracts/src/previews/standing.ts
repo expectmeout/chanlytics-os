@@ -33,6 +33,21 @@ export const PREVIEW_LIMITS = {
   messageChars: 500,
   /** What its calls may speak in all: the rehearsal's own preview window, three minutes at most a call (L3). */
   callMs: REHEARSAL_LIMITS.previewMs,
+  /** The longest one call runs. */
+  aCallMs: REHEARSAL_LIMITS.callMs,
+} as const;
+
+/**
+ * When a preview's page says what is left, and when Make it mine leads: a count is said only near its end, and the
+ * page's one filled act is Call it until the business has tried it.
+ */
+export const PREVIEW_NEAR = {
+  /** Messages left at which the count is said. */
+  messages: 5,
+  /** Call time left at which it is said: less than one more whole call. */
+  callMs: REHEARSAL_LIMITS.callMs,
+  /** Messages sent at which Make it mine leads; a call or a thing told leads at once. */
+  triedMessages: 3,
 } as const;
 
 /** Why a preview could not be made, as its row keeps it (lead_previews.failed_why). */

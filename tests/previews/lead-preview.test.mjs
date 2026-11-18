@@ -88,6 +88,7 @@ test("starters ask only what it knows: a service, a day it is closed, where it i
     "Can you tell me about the fade?",
     "Are you open on Sunday?",
     "Where are you located?",
+    "Can someone call me back?",
   ]);
   assert.equal(
     previewStartersOf({ ...PROFILE, services: [{ name: "Swedish Massage" }] })[0],
@@ -133,15 +134,50 @@ test("what it knows, each fact with where it was read: the listing's hours, addr
     ],
   );
   const many = Array.from({ length: 9 }, (_, i) => ({ name: `S${i + 1}` }));
-  assert.equal(previewKnowsOf({ services: many }, null).at(-1).value, "S1, S2, S3, S4, S5, S6 and 3 more");
+  assert.equal(
+    previewKnowsOf({ services: many }, null).find((r) => r.key === "services").value,
+    "S1, S2, S3, S4, S5, S6 and 3 more",
+  );
   assert.deepEqual(previewKnowsOf(null, null), [], "nothing it does not know is said");
 });
 
-test("the page whole: starters only on an empty chat, the count left, and an ended page that shows nothing it kept", () => {
+test("a fact the listing never had is a row the business can add: its hours first, then what it does", () => {
+  // A plumber the finder found with a street and services, and no hours.
+  const rows = previewKnowsOf(
+    { address: "80 Made Up St, Brooklyn, NY 11225", services: [{ name: "Hydro Jetting" }] },
+    null,
+  );
+  assert.deepEqual(
+    rows.map((r) => [r.key, r.missing, r.fix]),
+    [
+      ["address", false, "value"],
+      ["services", false, "say"],
+      ["hours", true, "value"],
+    ],
+    "a list is put right by a sentence beside it; what it lacks comes last, and is typed as a value",
+  );
+  const hours = rows.at(-1);
+  assert.deepEqual([hours.value, hours.from], [W.missingWhy.hours, W.missing.google]);
+  const bare = previewKnowsOf({ address: "80 Made Up St" }, null).filter((r) => r.missing);
+  assert.deepEqual(
+    bare.map((r) => [r.key, r.from]),
+    [
+      ["hours", W.missing.google],
+      ["services", W.missing.site],
+    ],
+  );
+  assert.equal(
+    previewKnowsOf(PROFILE, null).some((r) => r.missing),
+    false,
+    "a record with both lacks neither",
+  );
+});
+
+test("the page whole: its questions while it is open to try, the count left, and an ended page that shows nothing it kept", () => {
   const fresh = previewPageOf(FACTS, NOW);
   assert.equal(fresh.state, "ready");
   assert.equal(fresh.left, 20);
-  assert.equal(fresh.starters.length, 3);
+  assert.equal(fresh.starters.length, 4);
   assert.equal(fresh.knows.length, 5);
   const talked = previewPageOf(
     {
@@ -154,12 +190,28 @@ test("the page whole: starters only on an empty chat, the count left, and an end
     },
     NOW,
   );
-  assert.deepEqual([talked.left, talked.starters, talked.turns.length], [19, [], 2]);
+  // Its questions stay offered once they have written: the page drops the ones already asked.
+  assert.deepEqual([talked.left, talked.starters.length, talked.turns.length], [19, 4, 2]);
   const spent = previewPageOf({ ...FACTS, asked_count: 20 }, NOW);
   assert.deepEqual([spent.state, spent.left, spent.starters], ["spent", 0, []]);
   const ended = previewPageOf({ ...FACTS, state: "ended", turns: [{ role: "user", content: "Hi" }] }, NOW);
   assert.deepEqual([ended.state, ended.turns, ended.knows, ended.starters], ["ended", [], [], []]);
   assert.equal(previewPageOf({ ...FACTS, state: "building" }, NOW).knows.length, 0);
+});
+
+test("Make it mine leads once they have tried it: a few messages, a call, or a thing told", () => {
+  assert.equal(previewPageOf(FACTS, NOW).leads, false);
+  assert.equal(previewPageOf({ ...FACTS, asked_count: 2 }, NOW).leads, false);
+  assert.equal(previewPageOf({ ...FACTS, asked_count: 3 }, NOW).leads, true);
+  assert.equal(previewPageOf({ ...FACTS, call_seconds: 54, call_count: 1 }, NOW).leads, true);
+  const told = { ...PROFILE, notes: [{ title: "The business told us", text: "Walk-ins until 5." }] };
+  assert.equal(previewPageOf({ ...FACTS, profile: told }, NOW).leads, true);
+  // What they did, as its sender reads it on the page they look at.
+  assert.equal(previewPageOf(FACTS, NOW).did, "");
+  assert.equal(
+    previewPageOf({ ...FACTS, asked_count: 3, call_seconds: 54, call_count: 1 }, NOW).did,
+    "3 messages · a call of a minute",
+  );
 });
 
 test("the page's words say the business by its name", () => {
