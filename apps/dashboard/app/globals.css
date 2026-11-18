@@ -342,22 +342,125 @@ html.in-app .auth-or {
 }
 
 /* Make it mine, from a preview: the way back over the title, and what comes with it as a short list over the form. */
+/* Make it mine, as its canvas draws it ("Their preview, redesigned", 7): the way back a round arrow, the heading and
+   the small lines centred, and what comes with it on the page's inset, each line ticked in green. */
 .auth-back {
-  margin: 0 0 14px;
-  font-size: var(--text-sm);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -6px 0 6px -10px;
+  border-radius: var(--radius-full);
 }
-.auth-comes {
-  margin: 0 0 20px;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-}
-.auth-comes ul {
-  margin: 6px 0 0;
-  padding: 0 0 0 18px;
+/* In the quiet ink, where every other link of the card wears the accent's. */
+.auth-claim > .auth-back {
   color: var(--ink-muted);
 }
-.auth-comes li + li {
+@media (hover: hover) {
+  .auth-claim > .auth-back:hover {
+    color: var(--ink);
+  }
+}
+.auth-claim h1 {
+  font-size: var(--text-hero);
+}
+/* Its presses round, its box a softer corner, as the board draws them. */
+.auth-claim button {
+  border-radius: var(--radius-full);
+}
+.auth-claim input {
+  border-radius: var(--radius-xl);
+}
+.auth-claim h1,
+.auth-claim .hint {
+  text-align: center;
+  text-wrap: balance;
+}
+/* It's yours (the canvas's 8): a tick in green on its soft ground, the heading large, what came with it counted, a
+   capsule each, then Continue and what happens next. */
+.auth-yours {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.auth-yours h1 {
+  margin: 0;
+  font-size: var(--text-3xl);
+}
+.auth-yours p {
+  max-width: 310px;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+  text-align: center;
+  text-wrap: balance;
+}
+.auth-done {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  margin-top: 24px;
+  border-radius: var(--radius-full);
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.auth-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.auth-counts > span {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--secondary-fill);
+  font-size: var(--text-aside);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.auth-comes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-size: var(--text-title);
+  line-height: var(--leading-snug);
+}
+.auth-comes > b {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.auth-comes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+.auth-comes li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+}
+.auth-comes li > svg {
   margin-top: 2px;
+  color: var(--ok-ink);
 }
 
 /* A button that reads as a link: the way to the code door, the way back from

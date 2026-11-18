@@ -88,6 +88,7 @@ const CARD = {
   yours: true,
   wanted: "Has a leaking water heater and wants someone out today.",
   notes: ["To do: Call Dan back about a time today.", "Gave their name as Dan"],
+  todo: true,
 };
 
 /** What the provider was asked, and how it answers a read of a call. */
@@ -202,6 +203,7 @@ test("a call's analysis is the card an Inbox would hold: how it ended, what the 
       yours: false,
       wanted: "Called to report a leaking water heater.",
       notes: [],
+      todo: false,
     },
   );
   // A to-do makes it theirs whatever the outcome says, and an outcome outside the six is not said.
@@ -227,6 +229,7 @@ test("a call nobody asked anything on says so; an analysis with nothing in it is
     yours: false,
     wanted: W.gotNothing,
     notes: [],
+    todo: false,
   });
 });
 

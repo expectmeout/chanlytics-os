@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * A lead's own preview, its conversation and the field under it (decision 0079; the redesign of 17 November 2026): each
- * line in the order it happened (what they asked, AI's answer with what a live conversation would do with it, a call
- * they made, a thing they told it), then the questions not yet asked and one field, which takes a customer's question
- * or, turned to telling, a thing the business tells it. Every word is contracts' (previews/words.ts).
+ * A lead's own preview, its conversation and the field under it (decision 0079; the redesign of 17 November 2026, drawn
+ * as its canvas draws it): each line in the order it happened, AI's words plain under its mark and theirs in a lozenge
+ * at the right (what they asked, AI's answer with what a live conversation would do with it, a call they made, a thing
+ * they told it); then the questions not yet asked, standing on the field, and the field itself, a capsule of the
+ * control layer's glass, which takes a customer's question or, turned to telling, a thing the business tells it. Every
+ * word is contracts' (previews/words.ts).
  */
 import type { ReactNode, SyntheticEvent } from "react";
 import {
@@ -23,7 +25,7 @@ import { PvCalled } from "./heard";
 import type { Call } from "./use-call";
 import type { Talk, TalkLine } from "./use-talk";
 
-/** AI's words: its mark, its name, and the words as the page's own. */
+/** AI's words: its mark and its name over them, and the words plain, as the page's own. */
 function PvAnswer({ text, at, children }: { text: string; at: number | "greeting"; children?: ReactNode }) {
   return (
     <li className="pv-line" data-testid={at === "greeting" ? "pv-greeting" : `pv-turn-${at}`}>
@@ -31,8 +33,39 @@ function PvAnswer({ text, at, children }: { text: string; at: number | "greeting
         <PvThree />
         {W.it}
       </span>
-      <p className="pv-answer">{text}</p>
+      <p className="pv-says">{text}</p>
       {children}
+    </li>
+  );
+}
+
+/** What they told it, as a card in the conversation: the words, that it uses them, and the question asked again. */
+function PvTold({ text, talk }: { text: string; talk: Talk }) {
+  return (
+    <li className="pv-line" data-testid="pv-told">
+      <Panel as="section" className="pv-told" aria-label={W.toldTitle}>
+        <span className="pv-told-head">
+          <Icon name="pencil" size={14} />
+          {W.toldTitle}
+          {talk.lastAsked ? (
+            <Button
+              size="touch"
+              className="pv-told-again"
+              disabled={talk.busy}
+              onClick={() => void talk.say(talk.lastAsked ?? "")}
+              data-testid="pv-ask-again"
+            >
+              <Icon name="refresh" size={14} />
+              {W.askAgain}
+            </Button>
+          ) : null}
+        </span>
+        <p className="pv-quote">{text}</p>
+        <span className="pv-ok">
+          <Icon name="check" size={15} />
+          {W.toldUses}
+        </span>
+      </Panel>
     </li>
   );
 }
@@ -49,43 +82,24 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
       </li>
     );
   if (line.kind === "call") return <PvCalled line={line} />;
-  if (line.kind === "told")
-    return (
-      <li className="pv-line" data-testid="pv-told">
-        <Panel variant="inset" className="pv-told">
-          <span className="pv-told-head">
-            <span className="pv-label">{W.toldTitle}</span>
-            {talk.lastAsked ? (
-              <Button
-                variant="soft"
-                size="touch"
-                disabled={talk.busy}
-                onClick={() => void talk.say(talk.lastAsked ?? "")}
-                data-testid="pv-ask-again"
-              >
-                <Icon name="refresh" size={14} />
-                {W.askAgain}
-              </Button>
-            ) : null}
-          </span>
-          <p className="pv-answer">{line.text}</p>
-          <span className="pv-ok">
-            <Icon name="check" size={14} />
-            {W.toldUses}
-          </span>
-        </Panel>
-      </li>
-    );
+  if (line.kind === "told") return <PvTold text={line.text} talk={talk} />;
   return (
     <PvAnswer text={line.text} at={at}>
+      {line.then?.taught ? (
+        <span className="pv-used" data-testid={`pv-used-${at}`}>
+          <Icon name="pencil" size={13} />
+          {W.fromTaught}
+        </span>
+      ) : null}
       {line.then ? (
         <p className="pv-then" data-tone={line.then.tone} data-testid={`pv-then-${at}`}>
-          {W.then[line.then.tone]}
+          <Icon name="send" size={14} />
+          <span>{W.then[line.then.tone]}</span>
         </p>
       ) : null}
       {last && line.then?.tone === "yours" && talk.canTell && !talk.telling ? (
-        <Button variant="soft" size="touch" onClick={talk.startTelling} data-testid="pv-tell-what">
-          <Icon name="pencil" size={14} />
+        <Button size="touch" onClick={talk.startTelling} data-testid="pv-tell-what">
+          <Icon name="pencil" size={15} />
           {W.tellWhat}
         </Button>
       ) : null}
@@ -94,9 +108,9 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
 }
 
 /**
- * The conversation: its greeting first, as their business, and each line after. Before anything is said it is marked
- * empty, and a phone, whose first screen holds Call it and the field, shows it once the conversation starts; a desk has
- * the room, and it speaks first there (decision 0079).
+ * The conversation: it speaks first, its greeting as their business (decision 0079), and each line after. Before
+ * anything is said it is marked empty: a desk draws it, and a phone where it has the room; a phone of a short screen
+ * keeps its first for Call it and the field (preview.css).
  */
 export function PvTalk({ vm, talk }: { vm: PreviewPageVM; talk: Talk }) {
   const newest = talk.lines.findLastIndex((line) => line.kind === "answer");
@@ -109,7 +123,7 @@ export function PvTalk({ vm, talk }: { vm: PreviewPageVM; talk: Talk }) {
       ))}
       {talk.busy && !talk.telling ? (
         <li className="pv-line" data-testid="pv-writing">
-          <span className="pv-line-by">
+          <span className="pv-wait">
             <PvThree live />
             {W.writing}
           </span>
@@ -119,18 +133,19 @@ export function PvTalk({ vm, talk }: { vm: PreviewPageVM; talk: Talk }) {
   );
 }
 
-/** Where its messages are all said: what that means, Make it mine beside it, and a call while its minutes last. */
+/** Where its messages are all said: what that means, what is left of its calls, Make it mine, and a call while it may. */
 function PvSpent({ token, call }: { token: string; call: Call }) {
   return (
-    <Panel className="pv-note" role="status" data-testid="pv-spent">
-      <p className="pv-answer">{W.spent}</p>
-      <span className="pv-note-acts">
+    <Panel className="pv-spent" role="status" data-testid="pv-spent">
+      <p className="pv-spent-words">{W.spent}</p>
+      <span className="pv-quiet">{call.leftWords}</span>
+      <span className="pv-spent-acts">
         <Button variant="primary" size="touch" href={previewMinePath(token)}>
           {W.mine}
         </Button>
         {call.used ? null : (
-          <Button variant="outline" size="touch" onClick={() => void call.start()}>
-            <Icon name="phone" size={14} />
+          <Button size="touch" onClick={() => void call.start()}>
+            <Icon name="phone" size={15} />
             {W.callStart}
           </Button>
         )}
@@ -152,21 +167,37 @@ function PvFieldPress({ talk, call, canCall }: { talk: Talk; call: Call; canCall
         onClick={() => void call.start()}
         data-testid="pv-call-again"
       >
-        <Icon name="phone" size={16} />
+        <Icon name="phone" size={18} />
       </Button>
     );
   return (
     <Button
       type="submit"
-      variant={words ? "primary" : "soft"}
+      variant={words ? "primary" : "secondary"}
       size="touch"
       iconOnly
       aria-label={talk.telling ? W.teachSend : W.send}
       disabled={talk.busy || !words}
       data-testid="pv-send"
     >
-      <Icon name="arrow-up" size={16} />
+      <Icon name="arrow-up" size={18} />
     </Button>
+  );
+}
+
+/** The questions it can answer that are not yet asked, standing on the field in one row that slides. */
+function PvStarters({ talk }: { talk: Talk }) {
+  return (
+    <>
+      <span className="pv-label pv-dock-label">{W.tryAsking}</span>
+      <div className="pv-starters" data-testid="pv-starters">
+        {talk.starters.map((question) => (
+          <Button key={question} size="touch" disabled={talk.busy} onClick={() => void talk.say(question)}>
+            {question}
+          </Button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -189,36 +220,22 @@ export function PvDock({ talk, call, canCall, token }: { talk: Talk; call: Call;
           <Button
             variant="soft"
             size="touch"
+            className="pv-telling-on"
             aria-label={W.tellingStop}
             onClick={talk.stopTelling}
             data-testid="pv-telling"
           >
             <Icon name="pencil" size={14} />
             {W.telling}
-            <Icon name="x" size={12} />
+            <Icon name="x" size={13} />
           </Button>
           <span className="pv-quiet">{W.tellingNote}</span>
         </div>
       ) : talk.starters.length ? (
-        <>
-          <span className="pv-label">{W.tryAsking}</span>
-          <div className="pv-starters" data-testid="pv-starters">
-            {talk.starters.map((question) => (
-              <Button
-                key={question}
-                variant="soft"
-                size="touch"
-                disabled={talk.busy}
-                onClick={() => void talk.say(question)}
-              >
-                {question}
-              </Button>
-            ))}
-          </div>
-        </>
+        <PvStarters talk={talk} />
       ) : null}
       <form className="pv-ask" onSubmit={onSend} aria-busy={talk.busy || undefined}>
-        <Panel variant="field" className="pv-ask-box">
+        <div className="pv-ask-box">
           <Field
             aria-label={talk.telling ? W.teachLabel : W.textLabel}
             placeholder={talk.telling ? W.teachLabel : W.textLabel}
@@ -240,9 +257,9 @@ export function PvDock({ talk, call, canCall, token }: { talk: Talk; call: Call;
             {...fieldProblem(talk.problem)}
           />
           <PvFieldPress talk={talk} call={call} canCall={canCall} />
-        </Panel>
+        </div>
         {talk.near ? (
-          <p className="pv-quiet" data-testid="pv-left">
+          <p className="pv-quiet pv-near" data-testid="pv-left">
             {talk.near}
           </p>
         ) : null}

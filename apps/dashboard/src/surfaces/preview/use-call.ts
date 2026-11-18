@@ -140,6 +140,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
   const [phase, setPhase] = useState<Phase>("idle");
   const [left, setLeft] = useState(leftMs);
   const [muted, setMuted] = useState(false);
+  const [talking, setTalking] = useState(false);
   const [trouble, setTrouble] = useState<string | null>(null);
   const session = useRef<CallSession | null>(null);
   // The call the page is on, a start under way (until the client holds the call, or failed to), and End pressed
@@ -160,6 +161,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     callId.current = null;
     const seconds = clock.stop();
     const lines = live.take();
+    setTalking(false);
     setPhase("idle");
     // What went wrong stays said until the next call starts: the provider tells an end after a failure too. A call
     // they left before it was joined went wrong in no way, whatever the client says of the start it was refused.
@@ -186,6 +188,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
       },
       onEnd: (reason) => over(reason?.startsWith("error_") ? W.dropped : null),
       onError: (kind, words) => over(troubleOf(kind, words)),
+      onTalking: setTalking,
     });
     starting.current = false;
     // Left while it was being joined: the call the client now holds is ended, and nothing of it is kept.
@@ -206,6 +209,8 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     phase,
     seconds: clock.seconds,
     muted,
+    /** AI is speaking on the call (else it is listening). */
+    talking,
     trouble,
     /** Its minutes are used: no call starts. */
     used: left < CALL_FLOOR_MS,

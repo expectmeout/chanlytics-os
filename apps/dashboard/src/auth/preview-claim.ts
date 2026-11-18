@@ -16,6 +16,10 @@ export interface SignupPreview {
   business: string;
   email: string | null;
   comes: readonly string[];
+  /** What came with it, counted, as It's yours says it once it is theirs. */
+  counts: readonly string[];
+  /** What its setup will leave out for what they did on the preview, in the page's words; null where nothing. */
+  skips: string | null;
 }
 
 /** Where this tab keeps which preview's sign-up it left for Google from, and when: the tab's own, gone when it closes. */

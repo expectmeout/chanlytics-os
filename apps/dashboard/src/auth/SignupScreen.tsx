@@ -24,6 +24,7 @@ import {
   type SignupPreview,
 } from "@/auth/preview-claim";
 import { RETURN_PREVIEW } from "@/auth/sign-in-return";
+import { YOURS_OPENS_MS, yoursCard } from "@/auth/PreviewYours";
 
 /**
  * Sign-up: a business name, a work email and a password. The account exists
@@ -59,6 +60,7 @@ import { RETURN_PREVIEW } from "@/auth/sign-in-return";
  */
 export default function SignupScreen({ preview }: { preview: SignupPreview | null }) {
   const s = useSignupState(preview);
+  if (preview && s.yours) return yoursCard(preview, s.yours);
   if (s.unsent) return unsentCard(s.unsent, s.email, preview);
   if (s.joined) return joinedCard(s.email);
   if (s.stage === "confirm") return confirmCard(s);
@@ -91,7 +93,16 @@ function useSignupState(preview: SignupPreview | null) {
   const [tz, setTz] = useState<string | undefined>(undefined);
   // From a preview's link, who is signed in already: undefined while it is asked, null for nobody.
   const [signedInAs, setSignedInAs] = useState<string | null | undefined>(undefined);
+  // The workspace a claim just made theirs, by its slug: It's yours stands until its setup opens.
+  const [yours, setYours] = useState<string | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
+
+  // Its setup opens by itself a moment after It's yours is drawn, as the card says it will.
+  useEffect(() => {
+    if (!yours) return;
+    const opens = setTimeout(() => openClaimed(yours), YOURS_OPENS_MS);
+    return () => clearTimeout(opens);
+  }, [yours]);
 
   useEffect(() => {
     fieldRef.current?.focus();
@@ -122,7 +133,7 @@ function useSignupState(preview: SignupPreview | null) {
           const claimed = await claimPreviewNow(preview.token);
           if (claimed.ok) {
             clearSurfaceCache();
-            openClaimed(claimed.workspace.slug);
+            setYours(claimed.workspace.slug);
             return;
           }
           setError(claimed.message);
@@ -147,6 +158,8 @@ function useSignupState(preview: SignupPreview | null) {
     posture: posture === null ? null : signupPostureFor(posture, !!preview),
     preview,
     signedInAs,
+    yours,
+    setYours,
     stage,
     setStage,
     joined,
@@ -290,7 +303,7 @@ function joinedCard(email: string) {
  * and the password they just chose is already theirs, which is why nothing
  * here asks for it again.
  */
-function confirmCard({ supabase, email, setStage, setError, preview }: SignupState) {
+function confirmCard({ supabase, email, setStage, setError, setYours, preview }: SignupState) {
   return (
     <AuthShell>
       <div className="auth-card" data-testid="signup-confirm">
@@ -305,11 +318,11 @@ function confirmCard({ supabase, email, setStage, setError, preview }: SignupSta
             if (error) return verifyCodeWords(error.message);
             clearSurfaceCache();
             // From a preview's link: signed in now, so it is made theirs and
-            // its first run opens. A claim refused goes home with the rest,
+            // It's yours says so before its first run opens. A claim refused goes home with the rest,
             // where the first screen asks it again and says why.
             const claimed = preview ? await claimPreviewNow(preview.token) : null;
             if (claimed?.ok) {
-              openClaimed(claimed.workspace.slug);
+              setYours(claimed.workspace.slug);
               return null;
             }
             // No workspace exists yet: the create screen opens next, with the
@@ -362,7 +375,7 @@ function claimCard(s: SignupState, preview: SignupPreview, email: string) {
     const r = await claimPreviewNow(preview.token);
     if (r.ok) {
       clearSurfaceCache();
-      openClaimed(r.workspace.slug);
+      s.setYours(r.workspace.slug);
       return;
     }
     s.setError(r.message);
@@ -441,18 +454,43 @@ function previewFormCard(
 ) {
   const words = LEAD_PREVIEW_WORDS.signup;
   return (
-    <AuthShell>
-      <div className="auth-card" data-testid="signup" data-posture={state.posture ?? "unknown"}>
-        <div className="auth-back">
-          <a href={`/preview/${encodeURIComponent(preview.token)}`}>{words.back}</a>
-        </div>
+    <AuthShell bare>
+      <div className="auth-card auth-claim" data-testid="signup" data-posture={state.posture ?? "unknown"}>
+        {/* The way back to their preview, a round arrow as its canvas draws it ("Their preview, redesigned", 7). */}
+        <a className="auth-back" href={`/preview/${encodeURIComponent(preview.token)}`} aria-label={words.back}>
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            aria-hidden="true"
+          >
+            <path d="m12 19-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
         <h1>{words.title(preview.business)}</h1>
         {preview.comes.length ? (
           <div className="auth-comes" data-testid="signup-comes">
             <b>{words.comes}</b>
             <ul>
               {preview.comes.map((line) => (
-                <li key={line}>{line}</li>
+                <li key={line}>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.3"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {line}
+                </li>
               ))}
             </ul>
           </div>
