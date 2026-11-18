@@ -29,7 +29,15 @@
   gap: 10px;
   height: 60px;
   padding: 4px 12px 0 14px;
-  background: var(--surface-page-fill);
+  /* The page's own ground, laid where the window lays it (the paper at a phone's top and the light under it, a screen
+     wide and tall from the window's top), over the paper whole: nothing is read through the bar, and it has no edge
+     against the light under it, where a bar of flat paper stood as a strip. */
+  background-color: var(--surface-page-fill);
+  background-image: var(--surface-page-top), var(--surface-page-light);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100vw 100vh;
+  background-size: 100vw 100lvh;
 }
 .pv-top-who {
   display: flex;
