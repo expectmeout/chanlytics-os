@@ -1,0 +1,9 @@
+{
+  "//": "A Cloudflare Worker that Wrangler bundles: no Node, no package of ours, the web's own types (fetch, Request, Web Crypto) and nothing installed for the runtime's.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src/**/*.ts", "proof/**/*.ts"]
+}

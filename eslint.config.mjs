@@ -158,6 +158,7 @@ const STRICT_AT_ERROR = {
 export const HELD_STRICT = ["@typescript-eslint/no-unnecessary-condition"];
 const BACKEND_TYPED = [
   "apps/edge/**/*.ts",
+  "apps/relay/**/*.ts",
   "packages/*/src/**/*.ts",
   "apps/dashboard/src/server/**/*.ts",
   "apps/dashboard/app/api/**/*.ts",
@@ -589,6 +590,8 @@ export default [
       // The video template is a project of its own, outside the workspace: its image's build checks and proves it
       // (tooling/video/README.md).
       "tooling/video/**",
+      // What Cloudflare's Wrangler leaves beside a Worker it ran on a laptop (apps/relay): its bundles, never ours.
+      "**/.wrangler/**",
     ],
   },
 
@@ -631,6 +634,34 @@ export default [
   {
     files: ["apps/edge/lib/shared/env.ts"],
     rules: { "no-restricted-syntax": "off" },
+  },
+  // The relay: a Cloudflare Worker (apps/relay/README.md). The web's own globals and nothing of Node's or ours, since
+  // Wrangler bundles it alone; and no console at all, since an address carries a ticket and a key must never be written.
+  {
+    files: ["apps/relay/**/*.ts"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: TYPED,
+      ecmaVersion: 2023,
+      sourceType: "module",
+      globals: { ...globals.serviceworker },
+    },
+    plugins: TS_PLUGINS,
+    rules: {
+      ...OUR_TYPED_TS_RULES,
+      "no-console": "error",
+      "@typescript-eslint/no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@chanlytics/*", "node:*"],
+              message: "The relay is bundled alone and runs in a Worker: it imports its own modules and nothing else.",
+            },
+          ],
+        },
+      ],
+    },
   },
   // The dashboard's server, its auth routes, Ask's modules and the packages log through the one logger too
   // (packages/channels log/, re-exported as src/server/shared/log.ts): one JSON object per line, named by its event,

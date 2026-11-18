@@ -43,6 +43,10 @@
     "apps/mobile": {
       "entry": ["src/**/*.ios.{ts,tsx}"]
     },
+    "apps/relay": {
+      "entry": ["src/index.ts", "proof/key-door.ts", "proof/relay-with-breaks.ts"],
+      "project": ["src/**/*.ts", "proof/**/*.ts"]
+    },
     "packages/*": {
       "entry": [
         "src/index.ts",
