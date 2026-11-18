@@ -17,6 +17,7 @@ export {
   keepRehearsalFix,
   keepRehearsalReview,
   keepTypedRehearsal,
+  listEndedRehearsalCalls,
   keepVoiceAgent,
   listActiveVoiceAgents,
   listVoiceAgentsBeforeANumber,

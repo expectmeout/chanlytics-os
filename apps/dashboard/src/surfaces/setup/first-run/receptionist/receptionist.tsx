@@ -23,7 +23,8 @@ import { gate, type FrameFlash } from "../../../frame-verbs";
 import { businessTabSave } from "../../shell";
 import { FrCheck } from "../check";
 import { brainOf } from "../inputs";
-import { FrSounds, useVoiceSample } from "./sounds";
+import { useVoiceSample } from "@/bridge/rehearse/voice-sample";
+import { FrSounds } from "./sounds";
 import { FrFound } from "../found";
 import { W } from "../words";
 

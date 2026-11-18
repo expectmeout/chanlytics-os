@@ -45,6 +45,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pv-top-acts {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+/* Light or dark: a round press beside Make it mine, its glyph the theme a press goes to. */
+.pv-page .pv-top-acts > .pv-theme {
+  border-radius: var(--radius-circle);
+}
+.pv-theme-light,
+.pv-theme-dark {
+  display: inline-grid;
+}
+:root[data-theme="dark"] .pv-theme-dark,
+:root:not([data-theme="dark"]) .pv-theme-light {
+  display: none;
+}
 
 .pv-cols {
   display: flex;
@@ -78,8 +96,14 @@
   object-fit: cover;
   opacity: 0.3;
   filter: var(--surface-control-blur);
-  mask-image: linear-gradient(to bottom, var(--ink) 40%, transparent);
+  /* It rises from nothing under the bar and falls away under the head, so it has no edge: a band cut off at the bar
+     read as a strip of another page. */
+  mask-image: linear-gradient(to bottom, transparent 56px, var(--ink) 42%, transparent 92%);
   pointer-events: none;
+}
+/* On the dark ground a third of a photo reads as grey over the page: fainter there, so it is light and not a band. */
+:root[data-theme="dark"] .pv-light {
+  opacity: 0.16;
 }
 .pv-who {
   position: relative;
@@ -151,6 +175,26 @@
   padding: 0 30px 0 26px;
   font-size: var(--text-xl);
 }
+/* Call it and, beside it, Hear its voice: a round press of the control layer's glass, as tall as Call it. */
+.pv-acts {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.pv-acts > .pv-go {
+  margin-top: 0;
+}
+/* Under the page's own name, so its size holds over the kit's for a press of a glyph alone. */
+.pv-page .pv-acts > .pv-hear {
+  width: 52px;
+  min-width: 52px;
+  height: 52px;
+  min-height: 52px;
+  padding: 0;
+  border-radius: var(--radius-circle);
+}
 .pv-made {
   max-width: 34ch;
   margin: 10px 0 0;
@@ -215,7 +259,25 @@
   padding: 0 16px;
   overflow-x: auto;
   scrollbar-width: none;
-  mask-image: linear-gradient(to right, var(--ink) calc(100% - 30px), transparent);
+  /* It fades at an edge only where more waits past it (slide.tsx says where it stands): at its start the right-hand
+     edge alone, once slid its left as well, at its end the left alone. */
+  --pv-fade-from: 0px;
+  --pv-fade-to: 30px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--ink) var(--pv-fade-from),
+    var(--ink) calc(100% - var(--pv-fade-to)),
+    transparent
+  );
+}
+.pv-facts-row[data-slid],
+.pv-starters[data-slid] {
+  --pv-fade-from: 30px;
+}
+.pv-facts-row[data-ended],
+.pv-starters[data-ended] {
+  --pv-fade-to: 0px;
 }
 .pv-facts-row > *,
 .pv-starters > * {
@@ -305,6 +367,10 @@
 .pv-foot {
   scroll-margin-bottom: 13rem;
 }
+/* Under a conversation it holds the height of the paper's fade over the field, so the last line stands clear of it. */
+.pv-talk:not([data-empty]) + .pv-foot {
+  height: 22px;
+}
 .pv-talk {
   display: flex;
   flex-direction: column;
@@ -331,6 +397,16 @@
 }
 .pv-line[data-mine] {
   align-items: flex-end;
+}
+/* A line that came on this visit rises into its place. */
+.pv-line[data-new] {
+  animation: pv-rise var(--duration-slow) var(--ease-out) both;
+}
+@keyframes pv-rise {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
 }
 .pv-line-by {
   display: inline-flex;
@@ -374,6 +450,39 @@
 .pv-then > :first-child {
   flex: none;
   margin-top: 1px;
+}
+/* An answer that came on this visit is written out: each word let in after the last (written.tsx). */
+.pv-word {
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.pv-word[data-in] {
+  opacity: 1;
+}
+/* What an answer took from the things they told it: lit in the fill their own words wear, so it reads as theirs. */
+.pv-yours {
+  margin: 0 -1px;
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  background: var(--selected-fill);
+  color: inherit;
+  box-decoration-break: clone;
+  transition: background-color var(--duration-slow) var(--ease-out);
+}
+.pv-yours[data-wait] {
+  background: none;
+}
+/* What stands under an answer: that it used what they told it, what a live conversation would do, Tell it what to say.
+   Under one being written they come once it has been. */
+.pv-after {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+.pv-line[data-new] > .pv-after {
+  animation: pv-rise var(--duration-slow) var(--ease-out) both;
+  animation-delay: calc(var(--duration-slow) * 4);
 }
 /* Under an answer that says a thing they told it: its glyph, the told card's own, and the words. */
 .pv-used {
@@ -535,6 +644,8 @@
 
 /* ---- Where the lead speaks: who sees it, said once over the field; the questions on the field; the field ---- */
 .pv-kept {
+  position: relative;
+  z-index: 2;
   margin: auto 0 0;
   padding: 0 28px 2px;
   font-size: var(--text-sm);
@@ -543,7 +654,8 @@
   text-align: center;
   text-wrap: balance;
 }
-/* It stays at a phone's foot as the conversation grows, the page's paper faded in under it so the lines pass beneath. */
+/* It stays at a phone's foot as the conversation grows, on the page's own paper whole, so nothing of the conversation
+   is read through what stands on it; the paper fades in over it, where the lines pass beneath. */
 .pv-dock {
   position: sticky;
   bottom: 0;
@@ -551,8 +663,16 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 0 calc(18px + env(safe-area-inset-bottom));
-  background: linear-gradient(to bottom, transparent, var(--surface-page-fill) 24px);
+  padding: 2px 0 calc(18px + env(safe-area-inset-bottom));
+  background: var(--surface-page-fill);
+}
+.pv-dock::before {
+  content: "";
+  position: absolute;
+  inset: -28px 0 auto;
+  height: 28px;
+  background: linear-gradient(to bottom, transparent, var(--surface-page-fill));
+  pointer-events: none;
 }
 .pv-dock-label {
   display: flex;
@@ -762,6 +882,21 @@ p.pv-known {
   color: var(--ink-dim);
   font-variant-numeric: tabular-nums;
 }
+/* The call's screen arrives, and the page arrives back from it, as a line of the conversation does. */
+.pv-call,
+.pv-cols[data-back] {
+  animation: pv-rise var(--duration-slow) var(--ease-out) both;
+}
+/* AI's mark on a call swells with its voice while it speaks (call.tsx); with no voice to read it keeps its pulse. */
+.pv-voice {
+  display: inline-grid;
+}
+.pv-voice[data-voiced] {
+  scale: calc(1 + var(--pv-voice, 0) * 0.16);
+}
+.pv-voice[data-voiced] > .pv-three[data-live] {
+  animation: none;
+}
 .pv-call-stage {
   display: flex;
   flex: 1 1 auto;
@@ -843,8 +978,9 @@ p.pv-known {
   font-weight: 500;
   color: var(--ink-muted);
 }
-/* A call's two presses: round, at the canvas's 68px. */
-.pv-disc {
+/* A call's two presses: round, at the canvas's 68px (under the page's own name, so the width holds over the kit's for
+   a press of a glyph alone: they stood 44 wide and 68 tall). */
+.pv-page .pv-call-act > .pv-disc {
   width: 68px;
   min-width: 68px;
   height: 68px;
@@ -978,8 +1114,11 @@ p.pv-known {
     inset: 0 0 auto;
     height: 18rem;
   }
-  .pv-go {
+  .pv-acts {
     align-self: stretch;
+  }
+  .pv-acts > .pv-go {
+    flex: 1 1 auto;
   }
   .pv-facts {
     display: none;
@@ -1045,7 +1184,9 @@ p.pv-known {
   .pv-chat-lines > :first-child {
     margin-top: 0;
   }
-  .pv-foot {
+  .pv-foot,
+  .pv-talk:not([data-empty]) + .pv-foot {
+    height: 0;
     scroll-margin-bottom: 0;
   }
   .pv-talk[data-empty] {
@@ -1059,6 +1200,9 @@ p.pv-known {
     position: static;
     padding: 12px 24px 22px;
     background: none;
+  }
+  .pv-dock::before {
+    content: none;
   }
   .pv-dock-label,
   .pv-starters,
@@ -1082,7 +1226,21 @@ p.pv-known {
 
 @media (prefers-reduced-motion: reduce) {
   .pv-three[data-live],
-  .pv-skel > i {
+  .pv-skel > i,
+  .pv-line[data-new],
+  .pv-line[data-new] > .pv-after,
+  .pv-call,
+  .pv-cols[data-back] {
     animation: none;
+  }
+  .pv-voice[data-voiced] {
+    scale: none;
+  }
+  .pv-word {
+    opacity: 1;
+    transition: none;
+  }
+  .pv-yours[data-wait] {
+    background: var(--selected-fill);
   }
 }

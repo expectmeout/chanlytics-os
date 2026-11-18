@@ -40,6 +40,22 @@ export interface CallHooks {
   onError(kind: "mic" | "refused" | "failed", words: string | null): void;
   /** The agent started or stopped speaking, where a page shows whose turn it is. */
   onTalking?(talking: boolean): void;
+  /**
+   * How loud the receptionist's voice is as it speaks, from 0 to 1, many times a second. The call's audio is asked for
+   * only by a page that takes this, since reading it costs the browser work.
+   */
+  onLevel?(level: number): void;
+}
+
+/** What a speaking voice's loudness is multiplied by, so it stands near the top of 0 to 1 and a pause near the foot. */
+const VOICE_GAIN = 4;
+
+/** A stretch of the voice as how loud it is, from 0 to 1: the root mean square of its samples, lifted. */
+export function voiceLevelOf(samples: Float32Array): number {
+  if (!samples.length) return 0;
+  let squares = 0;
+  for (const sample of samples) squares += sample * sample;
+  return Math.min(1, Math.sqrt(squares / samples.length) * VOICE_GAIN);
 }
 
 /** A call under way: muted or not, and ended by the person. */
@@ -107,7 +123,10 @@ export async function startCall(start: StartCall, hooks: CallHooks): Promise<Cal
     session = rc.createWebCall({
       // The agent is the workspace's, chosen by the edge: the client's own field is required, and not read by our route.
       agent_id: "rehearsal",
+      // The voice's audio, asked for only where a page draws how loud it is.
+      ...(hooks.onLevel ? { audio: { emitRawAudioSamples: true } } : {}),
       hooks: {
+        ...(hooks.onLevel ? { onAudio: (samples: Float32Array) => hooks.onLevel?.(voiceLevelOf(samples)) } : {}),
         onStatus: (s) => hooks.onStatus(s === "live" ? "live" : s === "ended" ? "ended" : "connecting"),
         onEnd: (e) => hooks.onEnd((e as { disconnection_reason?: string } | undefined)?.disconnection_reason ?? null),
         onAgentStartTalking: () => hooks.onTalking?.(true),

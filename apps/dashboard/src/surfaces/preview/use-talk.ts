@@ -4,8 +4,10 @@
  * A lead's own preview, its one conversation (decision 0079; the redesign of 17 November 2026): what they said, what it
  * answered, a call they made and a thing they told it, as one list of lines the page draws in the order they happened.
  * The messages are the row's (the page's view model); a call and a thing told join the list as they happen in this
- * visit, since neither is kept with a time of its own: opened again, a call's line is gone and what they told it is in
- * What it knows.
+ * visit, since neither is kept with a time of its own. Opened again, what they told it is in What it knows, and the
+ * calls of an earlier visit stand after the messages (the view model's `calls`), each read once for its words.
+ *
+ * A line that joined on this visit is `fresh`: the page draws it arriving, and writes a fresh answer out word by word.
  *
  * A call's line holds the words said on it, as the page last read them, and what the business would get after a real
  * one: asked for a few times once the call ends (the page's heard door), since the provider writes a call up a few
@@ -37,8 +39,8 @@ const AFTER_WAITS_MS = [2, 2, 3, 3, 4, 5, 6, 8, 10, 12, 15, 15].map((seconds) =>
 /** Reads that fail one after another before the page stops asking: a preview that ended, a network that is gone. */
 const AFTER_FAILS = 3;
 
-/** One line of the conversation. */
-export type TalkLine =
+/** One line of the conversation; `fresh` where it joined the list on this visit. */
+export type TalkLine = (
   | { kind: "said"; text: string }
   | { kind: "answer"; text: string; then: PreviewTurnVM["then"] }
   | {
@@ -53,13 +55,16 @@ export type TalkLine =
       /** Whether its write-up is still being waited for. */
       writing: boolean;
     }
-  | { kind: "told"; text: string };
+  | { kind: "told"; text: string }
+) & { fresh?: boolean };
 
-/** The row's turns as lines. */
-const talkLinesOf = (turns: readonly PreviewTurnVM[]): TalkLine[] =>
-  turns.map((turn) =>
+/** The row's turns as lines, then the calls of an earlier visit, which keep no place among them. */
+const talkLinesOf = (turns: readonly PreviewTurnVM[], calls: PreviewPageVM["calls"]): TalkLine[] => [
+  ...turns.map((turn): TalkLine =>
     turn.role === "user" ? { kind: "said", text: turn.text } : { kind: "answer", text: turn.text, then: turn.then },
-  );
+  ),
+  ...calls.map((call): TalkLine => ({ kind: "call", ...call, lines: [], got: null, writing: false })),
+];
 
 /** A call's line as it changes: the call it names, in the list where it stands. */
 type CallLine = Extract<TalkLine, { kind: "call" }>;
@@ -95,7 +100,7 @@ async function askForWriteUp(ask: {
 
 /** The conversation, and everything its field does. */
 export function useTalk(vm: PreviewPageVM, token: string) {
-  const [lines, setLines] = useState<TalkLine[]>(() => talkLinesOf(vm.turns));
+  const [lines, setLines] = useState<TalkLine[]>(() => talkLinesOf(vm.turns, vm.calls));
   const [left, setLeft] = useState(vm.left);
   const [told, setTold] = useState(vm.taught.length);
   const [telling, setTelling] = useState(false);
@@ -112,6 +117,17 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     };
   }, []);
 
+  // The calls of an earlier visit, each read once for its words: the row names the call, its own record holds what
+  // was said. A read that fails leaves the line as it is, with how long the call ran.
+  const earlier = vm.calls;
+  useEffect(() => {
+    for (const call of earlier)
+      void previewVerbs.heard(token, call.id).then((answer) => {
+        if (!open.current || !answer.ok || !answer.data.lines.length) return;
+        setLines((was) => withCallChanged(was, call.id, { lines: answer.data.lines, got: answer.data.got }));
+      });
+  }, [earlier, token]);
+
   const spent = vm.state === "spent" || left <= 0;
   const canTell = told < PREVIEW_TAUGHT.most;
   const questions = lines.filter((line) => line.kind === "said").map((line) => line.text);
@@ -122,7 +138,7 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     if (!sentence || busy || spent) return;
     setBusy(true);
     setProblem(null);
-    const asking: TalkLine = { kind: "said", text: sentence };
+    const asking: TalkLine = { kind: "said", text: sentence, fresh: true };
     setLines((was) => [...was, asking]);
     setText("");
     const answer = await previewVerbs.say(token, sentence);
@@ -135,7 +151,10 @@ export function useTalk(vm: PreviewPageVM, token: string) {
       setProblem(answer.message ?? W.failed);
       return;
     }
-    setLines((was) => [...was, { kind: "answer", text: answer.data.turn.text, then: answer.data.turn.then }]);
+    setLines((was) => [
+      ...was,
+      { kind: "answer", text: answer.data.turn.text, then: answer.data.turn.then, fresh: true },
+    ]);
     setLeft(answer.data.left);
   };
 
@@ -151,7 +170,7 @@ export function useTalk(vm: PreviewPageVM, token: string) {
       setProblem(answer.message ?? W.teachFailed);
       return;
     }
-    setLines((was) => [...was, { kind: "told", text: sentence }]);
+    setLines((was) => [...was, { kind: "told", text: sentence, fresh: true }]);
     setTold(answer.data.taught);
     setText("");
     setTelling(false);
@@ -183,7 +202,7 @@ export function useTalk(vm: PreviewPageVM, token: string) {
     /** A call that ended, as a line: its seconds as the page counted them, its words, and its write-up asked for. */
     endedCall: (call: CallEnded) => {
       setCalled(true);
-      setLines((was) => [...was, { kind: "call", ...call, got: null, writing: call.id !== null }]);
+      setLines((was) => [...was, { kind: "call", ...call, got: null, writing: call.id !== null, fresh: true }]);
       if (call.id) void writeUp(call.id);
     },
     /** Whether Make it mine leads: as the row said, or by what they have done in this visit. */

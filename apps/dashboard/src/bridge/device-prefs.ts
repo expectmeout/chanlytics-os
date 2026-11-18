@@ -34,6 +34,11 @@ export interface Prefs {
   look?: LookPref;
   sidebar: SidebarPref;
   inboxDensity: "compact" | "medium" | "rich";
+  /**
+   * The theme chosen on a stranger's page (a lead's own preview), and none until one is: read by the head's script for
+   * such a page alone, and carried through every save of the member's own so neither costs the other.
+   */
+  stranger?: Theme;
 }
 
 /** What the shell's chrome changes: the theme and the look from the account menu, the rail from ⌘B and its button. */
@@ -83,6 +88,22 @@ function keepPrefs(storage: PrefStorage, next: Prefs): Prefs {
     /* private mode etc. — prefs just don't persist */
   }
   return next;
+}
+
+/**
+ * The theme a stranger's page was put in (a lead's own preview, decision 0079; the review of 18 November 2026): kept
+ * beside the member's own under the one name, as `stranger`, so the head's script opens the next such page as they
+ * left it (contracts themeBootScript). The member's theme is not touched: whoever reads a preview is the business the
+ * email went to. A storage that refuses keeps nothing, and the page stays as it was put until it is closed.
+ */
+export function keepStrangerTheme(storage: PrefStorage, theme: Theme): void {
+  try {
+    const stored: unknown = JSON.parse(storage().getItem(DEVICE_PREFS_STORAGE) || "{}");
+    const kept = stored && typeof stored === "object" ? stored : {};
+    storage().setItem(DEVICE_PREFS_STORAGE, JSON.stringify({ ...kept, stranger: theme }));
+  } catch {
+    /* private mode etc.: the choice just does not persist */
+  }
 }
 
 /**

@@ -92,19 +92,28 @@ function useCanCall(): boolean {
 /** The page open to try: its head, what it knows, its conversation and its field; or its call. */
 function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: boolean }) {
   const talk = useTalk(vm, token);
-  const call = useCall(token, vm.call_left_ms, talk.endedCall);
+  // Back from a call: the page is drawn arriving, as the call's screen was.
+  const [back, setBack] = useState(false);
+  const call = useCall(token, vm.call_left_ms, (ended) => {
+    setBack(true);
+    talk.endedCall(ended);
+  });
   const canCall = useCanCall();
   // What it knows whole: drawn from its first press on, so it leaves as a sheet leaves.
   const [knows, setKnows] = useState<"never" | "open" | "closed">("never");
   const foot = useRef<HTMLDivElement | null>(null);
   const told = [...vm.taught, ...talk.lines.flatMap((line) => (line.kind === "told" ? [line.text] : []))];
+  // Whether their head is on screen: until it has scrolled away the bar does not say their name a second time.
+  const [headSeen, setHeadSeen] = useState(true);
 
-  // The newest line is brought into view as it arrives, and a call's card as it is written under its line.
+  // The newest line is brought into view as it arrives, and a call's card as it is written under its line; a page
+  // opened on what an earlier visit left stays at its top.
   const lines = talk.lines.length;
   const cards = talk.lines.filter((line) => line.kind === "call" && line.got).length;
+  const opened = useRef(lines);
   useEffect(() => {
-    if (lines > vm.turns.length) foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [lines, cards, vm.turns.length]);
+    if (lines > opened.current) foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [lines, cards]);
 
   if (call.phase !== "idle") return <PvCall vm={vm} call={call} />;
   return (
@@ -115,11 +124,11 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
           <span>{W.look}</span>
         </p>
       ) : (
-        <PvTop vm={vm} token={token} leads={talk.leads} started={talk.lines.length > 0} />
+        <PvTop vm={vm} token={token} leads={talk.leads} who={talk.lines.length > 0 && !headSeen} />
       )}
-      <div className="pv-cols">
+      <div className="pv-cols" data-back={back || undefined}>
         <aside className="pv-side">
-          <PvHead vm={vm} call={call} canCall={canCall} leads={talk.leads} look={look} />
+          <PvHead vm={vm} call={call} canCall={canCall} leads={talk.leads} look={look} onSeen={setHeadSeen} />
           <PvFacts rows={vm.knows} onOpen={look ? null : () => setKnows("open")} />
           <PvSideKnows vm={vm} token={token} look={look} />
         </aside>

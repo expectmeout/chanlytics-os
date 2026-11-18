@@ -9,6 +9,7 @@
  * while the call runs (the call tells the browser none of it): a read every two seconds, so a line shows a moment
  * after it is said.
  */
+import { useEffect, useRef, type RefObject } from "react";
 import { LEAD_PREVIEW_WORDS as W, PREVIEW_LIMITS, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
@@ -22,6 +23,43 @@ const THREE_PX = 100;
 const HEARD_SHOWN = 2;
 /** The glyph on a call's round press. */
 const DISC_GLYPH_PX = 24;
+
+/** How much of the way to the voice the mark goes at each frame: it swells and settles, and never jumps. */
+const VOICE_FOLLOW = 0.25;
+/** Under this the mark is at rest. */
+const VOICE_REST = 0.005;
+
+/**
+ * AI's mark on a call, moving with its voice (the review of 18 November 2026): while it speaks, the mark swells with
+ * how loud the voice is, read at each frame from the call (use-call's `level`) and eased, with no redraw asked for.
+ * Where a call gives no audio to read the level stays at nothing, and the mark keeps its own slow pulse (preview.css).
+ */
+function PvVoice({ on, level }: { on: boolean; level: RefObject<number> }) {
+  const mark = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const el = mark.current;
+    if (!on || !el) return undefined;
+    let shown = 0;
+    let frame = requestAnimationFrame(function draw() {
+      shown += (level.current - shown) * VOICE_FOLLOW;
+      if (shown > VOICE_REST) {
+        el.toggleAttribute("data-voiced", true);
+        el.style.setProperty("--pv-voice", shown.toFixed(3));
+      }
+      frame = requestAnimationFrame(draw);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeAttribute("data-voiced");
+      el.style.removeProperty("--pv-voice");
+    };
+  }, [on, level]);
+  return (
+    <span className="pv-voice" ref={mark}>
+      <PvThree live={on} size={THREE_PX} />
+    </span>
+  );
+}
 
 export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {
   const live = call.phase === "live";
@@ -37,7 +75,7 @@ export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {
         </span>
       </div>
       <div className="pv-call-stage">
-        <PvThree live={live && call.talking} size={THREE_PX} />
+        <PvVoice on={live && call.talking} level={call.level} />
         {live ? (
           <span className="pv-call-turn" data-talking={call.talking || undefined} data-testid="pv-call-turn">
             {call.talking ? W.speaking : W.listening}

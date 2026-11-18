@@ -141,6 +141,8 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
   const [left, setLeft] = useState(leftMs);
   const [muted, setMuted] = useState(false);
   const [talking, setTalking] = useState(false);
+  // How loud its voice is, as last heard: read by the call's mark at each frame, so no redraw is asked for it.
+  const level = useRef(0);
   const [trouble, setTrouble] = useState<string | null>(null);
   const session = useRef<CallSession | null>(null);
   // The call the page is on, a start under way (until the client holds the call, or failed to), and End pressed
@@ -161,6 +163,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     callId.current = null;
     const seconds = clock.stop();
     const lines = live.take();
+    level.current = 0;
     setTalking(false);
     setPhase("idle");
     // What went wrong stays said until the next call starts: the provider tells an end after a failure too. A call
@@ -189,6 +192,9 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
       onEnd: (reason) => over(reason?.startsWith("error_") ? W.dropped : null),
       onError: (kind, words) => over(troubleOf(kind, words)),
       onTalking: setTalking,
+      onLevel: (loud) => {
+        level.current = loud;
+      },
     });
     starting.current = false;
     // Left while it was being joined: the call the client now holds is ended, and nothing of it is kept.
@@ -211,6 +217,7 @@ export function useCall(token: string, leftMs: number, onEnded: (call: CallEnded
     muted,
     /** AI is speaking on the call (else it is listening). */
     talking,
+    level,
     trouble,
     /** Its minutes are used: no call starts. */
     used: left < CALL_FLOOR_MS,

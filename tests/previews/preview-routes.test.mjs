@@ -205,7 +205,32 @@ test("an answer that says a thing they told it is marked so, and kept so with it
   const told = await read(await post(message, { text: "How much is a fade?" }));
   assert.equal(told.body.data.turn.then.taught, true, JSON.stringify(told.body));
   assert.equal(row.turns[1].then.taught, true, "kept with the turn, so a page opened again says it too");
+  // Where it says it, for the page to light: their own words, from the answer's start up to its full stop.
+  assert.deepEqual(told.body.data.turn.then.spans, [[0, 20]]);
+  assert.deepEqual(row.turns[1].then.spans, [[0, 20]]);
   edgeAnswers = before;
+});
+
+test("the page's first line is the model's too: it greeted, so the first answer is no first contact; no name, no greeting", async () => {
+  const { tables } = world();
+  tables.tenants = [{ id: WS, name: "Fixture Barbers", slug: "fixture-barbers", logo_path: null, accent: null }];
+  await post(message, { text: "Are you open on Sunday?" });
+  assert.deepEqual(asked[0].body.cases[0].history, [
+    { role: "user", content: "Hi" },
+    { role: "assistant", content: W.textGreeting("Fixture Barbers", null) },
+  ]);
+  // The turns the row keeps come after it, and the door's twelve hold both: the greeting and the newest ten.
+  const turns = Array.from({ length: 16 }, (_, i) => ({ role: i % 2 ? "assistant" : "user", content: `t${i}` }));
+  const later = world({ turns, asked_count: 8 });
+  later.tables.tenants = tables.tenants;
+  setRateStore(memoryStore());
+  asked = [];
+  await post(message, { text: "And on Saturday?" });
+  const history = asked[0].body.cases[0].history;
+  assert.equal(history.length, 12);
+  assert.deepEqual(history[1], { role: "assistant", content: W.textGreeting("Fixture Barbers", null) });
+  assert.deepEqual(history[2], { role: "user", content: "t6" });
+  assert.deepEqual(history.at(-1), { role: "assistant", content: "t15" });
 });
 
 test("the turns before are the row's, twelve at most, as the eval door takes them", async () => {
