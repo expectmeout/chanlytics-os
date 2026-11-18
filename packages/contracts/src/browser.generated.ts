@@ -445,7 +445,7 @@ export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS
 export { previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewStartersOf, previewTurnsOf } from "./previews/lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./previews/line";
 export { PREVIEW_LIMITS, PREVIEW_NEAR, PREVIEW_STATES, previewClaimable, previewSlotOf, previewStateOf } from "./previews/standing";
-export { PREVIEW_STARTERS_SCHEMA, PREVIEW_STARTERS_SYSTEM, previewStartersAskOf, previewStartersWrittenOf } from "./previews/starters";
+export { previewStartersWrittenOf } from "./previews/starters";
 export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./previews/theirs";
 export { PREVIEW_TRIED_DAYS, previewSaidOf, previewTriedWords } from "./previews/tried";
 export { LEAD_PREVIEW_WORDS } from "./previews/words";

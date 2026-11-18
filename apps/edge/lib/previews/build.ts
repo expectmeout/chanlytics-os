@@ -29,11 +29,10 @@ import {
   withStoredKeysKept,
   type BrainConfig,
   type PreviewFailure,
-  type PreviewStartersKnown,
   recordOrEmpty,
 } from "@chanlytics/contracts";
 import { leadAsListing } from "./lead-as-listing";
-import { writePreviewStarters, type StartersWriter } from "./starters.js";
+import { writePreviewStarters, type StartersKnown, type StartersWriter } from "./starters.js";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db/workspace";
 import {
   findLeadForPreview,
@@ -62,7 +61,7 @@ interface BuildPorts {
 /** A preview's receptionist, and what its first questions are written from: the listing's kind, and that receptionist's record. */
 interface ReceptionistMade {
   brain: BrainConfig;
-  known: PreviewStartersKnown;
+  known: StartersKnown;
 }
 
 /** The receptionist from the lead's listing, with what its site said worn; why not, where the lead gives it no name. */
