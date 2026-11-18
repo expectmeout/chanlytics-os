@@ -35,7 +35,7 @@ export { answerFromV1, ASK_ANSWER_CAPS, callsAnswer, clip, needsAnswer, oneDoor,
 export { ASK_ATTACHED_MAX, ASK_SCOPE_KINDS, ASK_SURFACES, scopeFromRoute } from "./ask/ask";
 export { askCallOutcome, callJumpSub } from "./ask/calls";
 export { ASK_CITATION_KINDS, ASK_PAGE_ROUTES, ASK_ROW_WORDS, citationRoute, emptyReadSet, groundCitations, noteRows } from "./ask/citations";
-export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./ask/context";
+export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, askContentViewOf, isAskAdsView, isAskContentView, itemFocus } from "./ask/context";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./ask/fast-paths";
 export { ASK_ALONE_DAY_MAX, ASK_ALONE_UNDOS_MAX, FREEDOM_REASONS, freedomOf, rowOf } from "./ask/freedom";
 export { ASK_LANGUAGES, detectLanguage, messageLanguageOf, messageLanguagesNext, messageLanguagesOf } from "./ask/language";

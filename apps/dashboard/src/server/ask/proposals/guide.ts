@@ -6,7 +6,7 @@
  * Pure words and kinds: nothing here reads a workspace.
  */
 import type { AskProposal } from "@chanlytics/contracts";
-import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_ROUTE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 
 type Kind = AskProposal["kind"];
 
@@ -173,6 +173,13 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     ],
   },
   {
+    page: "Content",
+    route: CONTENT_ROUTE,
+    for: "The posts and videos made for the business, and the Library of its own photos and videos: a post or a video made, one put up on Instagram or Google, and photos and videos brought in from their website or Instagram by a link.",
+    verbs: ["post", "piece", "publish", "bring_in"],
+    pageOnly: [],
+  },
+  {
     page: "Reports",
     route: "reports",
     for: "How any period went: replies, calls, people, campaigns, reviews, cold email and AI, against the period before.",
@@ -193,10 +200,6 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
       "memory",
       "memory_change",
       "memory_forget",
-      "post",
-      "piece",
-      "publish",
-      "bring_in",
     ],
     pageOnly: [
       { what: "Connect WhatsApp, Google, a mailbox or a phone line", why: WHY.signIn },
