@@ -342,22 +342,60 @@ html.in-app .auth-or {
 }
 
 /* Make it mine, from a preview: the way back over the title, and what comes with it as a short list over the form. */
+/* Make it mine, as its canvas draws it ("Their preview, redesigned", 7): the way back a round arrow, the heading and
+   the small lines centred, and what comes with it on the page's inset, each line ticked in green. */
 .auth-back {
-  margin: 0 0 14px;
-  font-size: var(--text-sm);
-}
-.auth-comes {
-  margin: 0 0 20px;
-  font-size: var(--text-md);
-  line-height: var(--leading-snug);
-}
-.auth-comes ul {
-  margin: 6px 0 0;
-  padding: 0 0 0 18px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -6px 0 6px -10px;
+  border-radius: var(--radius-full);
   color: var(--ink-muted);
 }
-.auth-comes li + li {
+.auth-back:hover {
+  color: var(--ink);
+}
+.auth-claim h1,
+.auth-claim .hint {
+  text-align: center;
+  text-wrap: balance;
+}
+.auth-comes {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-2xl);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-size: var(--text-title);
+  line-height: var(--leading-snug);
+}
+.auth-comes > b {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.auth-comes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-muted);
+}
+.auth-comes li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+}
+.auth-comes li > svg {
   margin-top: 2px;
+  color: var(--ok-ink);
 }
 
 /* A button that reads as a link: the way to the code door, the way back from

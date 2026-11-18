@@ -1,13 +1,16 @@
 "use client";
 
-// Chanlytics — a lead's own preview, before they sign up (decision 0079; the redesign of 17 November 2026).
+// Chanlytics — a lead's own preview, before they sign up (decision 0079; the redesign of 17 November 2026, drawn as its
+// canvas draws it, "Their preview, redesigned").
 //
-// The page a cold email's link opens: AI's own home, made for the business. At the top their name, their mark or photo
-// and the one filled act, Call it; under it what it knows, each fact with where it was read; then one conversation
-// (what they asked, what it answered, a call, a thing they told it) and one field, with the questions it can answer
-// standing on it. Make it mine waits at the top, quiet until they have tried it. Light unless the visitor's device is
-// dark (contracts themeBootScript). Every word is contracts' (previews/words.ts); the page is drawn from its view model
-// (previewPageOf), which the server builds from the row its token names.
+// The page a cold email's link opens: AI's own home, made for the business, on the app's own glass (the look's lit
+// ground, its panes and its control layer). At the top their name, their mark or photo and the one filled act, Call it;
+// under it what it knows, each fact with where it was read; then one conversation (what they asked, what it answered,
+// a call, a thing they told it) and one field, a capsule of glass, with the questions it can answer standing on it. On
+// a phone it is one screen on the lit ground, the field at its foot; on a desk two panes, their card and the
+// conversation, each the window's height. Make it mine waits at the top, quiet until they have tried it. Light unless
+// the visitor's device is dark (contracts themeBootScript). Every word is contracts' (previews/words.ts); the page is
+// drawn from its view model (previewPageOf), which the server builds from the row its token names.
 //
 // The page has three views of itself: the page, the call (call.tsx) and What it knows whole (knows.tsx). A stranger
 // opens it from an email, on a phone, so nothing of the app's frame rides in: no sheet, no dialog, one document.
@@ -20,10 +23,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEAD_PREVIEW_WORDS as W, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
-import { Panel } from "../kit/panel/panel";
+import { Icon } from "../kit/icon/icon";
 import { PvCall } from "./call";
 import { PvFacts, PvHead, PvThree, PvTop } from "./head";
-import { PvKnows } from "./knows";
+import { PvKnows, PvSideKnows } from "./knows";
 import { PvDock, PvTalk } from "./talk";
 import { useCall } from "./use-call";
 import { useTalk } from "./use-talk";
@@ -34,37 +37,42 @@ import "./preview.css";
 /** How often a page that is being set up reads itself again. */
 const BUILDING_EVERY_MS = 4_000;
 /** AI's three on a page with one thing to say, in px. */
-const ALONE_THREE_PX = 56;
+const ALONE_THREE_PX = 64;
 
-/** A page with one thing to say: being set up, ended, someone's own now. */
+/** A page with one thing to say: being set up, while its rows are drawn in; ended; someone's own now. */
 function PvAlone({ vm }: { vm: PreviewPageVM }) {
   if (vm.state === "building")
     return (
-      <Panel as="section" className="pv-alone" role="status" data-testid="pv-building">
+      <section className="pv-alone" role="status" data-testid="pv-building">
         <PvThree live size={ALONE_THREE_PX} />
-        <h1 className="pv-name">{W.building.title(vm.business)}</h1>
-        <p className="pv-by">{W.building.sub}</p>
-      </Panel>
+        <h1 className="pv-alone-title">{W.building.title(vm.business)}</h1>
+        <p className="pv-ready">{W.building.sub}</p>
+        <span className="pv-skel" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+      </section>
     );
   if (vm.state === "taken")
     return (
-      <Panel as="section" className="pv-alone" data-testid="pv-taken">
+      <section className="pv-alone" data-testid="pv-taken">
         <PvThree size={ALONE_THREE_PX} />
-        <h1 className="pv-name">{W.taken.title(vm.business)}</h1>
-        <Button variant="primary" size="touch" href="/login">
+        <h1 className="pv-alone-title">{W.taken.title(vm.business)}</h1>
+        <Button variant="primary" size="touch" className="pv-go" href="/login">
           {W.taken.signIn}
         </Button>
-      </Panel>
+      </section>
     );
   return (
-    <Panel as="section" className="pv-alone" data-testid="pv-ended">
+    <section className="pv-alone" data-testid="pv-ended">
       <PvThree size={ALONE_THREE_PX} />
-      <h1 className="pv-name">{W.ended.title}</h1>
-      <p className="pv-by">{W.ended.body}</p>
-      <Button variant="primary" size="touch" href="/signup">
+      <h1 className="pv-alone-title">{W.ended.title}</h1>
+      <p className="pv-ready">{W.ended.body}</p>
+      <Button variant="primary" size="touch" className="pv-go" href="/signup">
         {W.ended.start}
       </Button>
-    </Panel>
+    </section>
   );
 }
 
@@ -98,28 +106,34 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
   return (
     <>
       {look ? (
-        <p className="pv-quiet pv-look" role="note" data-testid="pv-look">
-          {W.look}
-          {vm.did ? ` ${vm.did}.` : ""}
+        <p className="pv-lookbar" role="note" data-testid="pv-look">
+          <Icon name="eye" size={17} />
+          <span>
+            {W.look}
+            {vm.did ? ` ${vm.did}.` : ""}
+          </span>
         </p>
       ) : (
         <PvTop vm={vm} token={token} leads={talk.leads} started={talk.lines.length > 0} />
       )}
       <div className="pv-cols">
-        <div className="pv-col">
+        <aside className="pv-side">
           <PvHead vm={vm} call={call} canCall={canCall} leads={talk.leads} look={look} />
-          <PvFacts rows={vm.knows} onOpen={() => setKnows(true)} />
-        </div>
-        <div className="pv-col">
-          <PvTalk vm={vm} talk={talk} />
+          <PvFacts rows={vm.knows} onOpen={look ? null : () => setKnows(true)} />
+          <PvSideKnows vm={vm} token={token} look={look} />
+        </aside>
+        <section className="pv-chat">
+          <div className="pv-chat-lines">
+            <PvTalk vm={vm} talk={talk} />
+            <div className="pv-foot" ref={foot} />
+          </div>
           {look ? null : (
             <>
-              {talk.lines.length ? null : <p className="pv-quiet pv-kept">{W.kept}</p>}
+              {talk.lines.length ? null : <p className="pv-kept">{W.kept}</p>}
               <PvDock talk={talk} call={call} canCall={canCall} token={token} />
             </>
           )}
-          <div ref={foot} />
-        </div>
+        </section>
       </div>
     </>
   );

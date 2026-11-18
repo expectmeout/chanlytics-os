@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * A lead's own preview, What it knows whole (decision 0079; the redesign of 17 November 2026): every fact with where it
- * was read, each put right in place; one the listing never had, added the same way; its services, a list no sentence
- * replaces, taking what is off about them; and what the business told it. A view of the page, as the call is: the page
- * is a stranger's, opened from an email, so nothing of the app's frame rides in for a sheet. Every word is contracts'.
+ * A lead's own preview, What it knows (decision 0079; the redesign of 17 November 2026, drawn as its canvas draws it):
+ * every fact, each put right in place; one the listing never had, added the same way, in amber; its services, a list
+ * no sentence replaces, taking what is off about them; and what the business told it. Two shapes of one row: on a phone,
+ * What it knows whole, a view of the page grouped by where each fact was read (the page is a stranger's, opened from an
+ * email, so nothing of the app's frame rides in for a sheet); on a desk, the facts down their card beside the
+ * conversation, each with where it was read over it. Every word is contracts'.
  *
  * Putting a fact right is the page's not-right door: where they say what is right, the record takes it at once and the
  * row is theirs ("From you"); where they only say something is off, the line reaches whoever wrote to them.
@@ -14,18 +16,26 @@ import { LEAD_PREVIEW_WORDS as W, type PreviewKnowsRowVM, type PreviewPageVM } f
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
-import { Panel } from "../kit/panel/panel";
 import { previewVerbs } from "./verbs";
+
+/** The two shapes of a row: What it knows whole, its source the group's; or a desk's card, its source over its value. */
+type RowShape = "whole" | "side";
 
 /** What a row's press says: add what it lacks, put its value right, or say what is off about a list. */
 const knownPressOf = (row: PreviewKnowsRowVM, lacks: boolean): string =>
   lacks ? W.add : row.fix === "say" ? W.sayOff : W.fix;
 
-/** A row's press, which opens the box that puts it right: outlined where the fact is one it lacks. */
+/** A row's press, which opens the box that puts it right: in amber where the fact is one it lacks. */
 function PvKnownPress({ row, lacks, onOpen }: { row: PreviewKnowsRowVM; lacks: boolean; onOpen: () => void }) {
   const list = row.fix === "say";
   return (
-    <Button variant={lacks ? "outline" : "quiet"} size="touch" onClick={onOpen} data-testid={`pv-not-right-${row.key}`}>
+    <Button
+      variant={lacks ? "outline" : "quiet"}
+      size="touch"
+      className={lacks ? "pv-add" : undefined}
+      onClick={onOpen}
+      data-testid={`pv-not-right-${row.key}`}
+    >
       {lacks || list ? null : <Icon name="pencil" size={14} />}
       {knownPressOf(row, lacks)}
     </Button>
@@ -73,12 +83,25 @@ function PvKnownEdit(props: {
   );
 }
 
-/** What a row says under its value: where it was read, or that it is theirs now, or that what they said was heard. */
-const knownFromOf = (row: PreviewKnowsRowVM, theirs: string | null, thanked: boolean): string =>
-  theirs ? `${W.from.you} · ${W.fixed}` : thanked ? W.notRightThanks : row.from;
+/** What a row says over its value: its name, or on a desk's card where it was read, or that it is theirs now. */
+function knownNameOf(row: PreviewKnowsRowVM, shape: RowShape, theirs: string | null): string {
+  if (theirs) return `${W.from.you} · ${W.fixed}`;
+  if (shape === "whole") return row.label;
+  return row.missing ? `${row.label} · ${row.from}` : row.from;
+}
 
-/** One fact: its name, its value, where it was read, and its press; open, the box that puts it right. */
-function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: string; look: boolean }) {
+/** One fact: what it is, its value, and its press; open, the box that puts it right. */
+function PvKnownRow({
+  row,
+  token,
+  look,
+  shape,
+}: {
+  row: PreviewKnowsRowVM;
+  token: string;
+  look: boolean;
+  shape: RowShape;
+}) {
   const [open, setOpen] = useState(false);
   // A fact's own value is what is typed over; a list's, and one it lacks, start empty.
   const [said, setSaid] = useState(row.missing || row.fix === "say" ? "" : row.value);
@@ -104,16 +127,21 @@ function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: strin
     else setThanked(true);
   };
   const lacks = row.missing && theirs === null;
+  const testid = shape === "whole" ? `pv-knows-${row.key}` : `pv-side-${row.key}`;
   return (
-    <div className="pv-known" data-missing={lacks || undefined} data-testid={`pv-knows-${row.key}`}>
+    <div className="pv-known" data-missing={lacks || undefined} data-testid={testid}>
       <span className="pv-known-words">
-        <span className="pv-quiet">{row.label}</span>
-        <span className="pv-answer" data-testid={`pv-knows-value-${row.key}`}>
+        <span className="pv-known-name" role={theirs ? "status" : undefined}>
+          {knownNameOf(row, shape, theirs)}
+        </span>
+        <span className="pv-known-value" data-testid={`${testid}-value`}>
           {theirs ?? row.value}
         </span>
-        <span className="pv-quiet" role={theirs || thanked ? "status" : undefined}>
-          {knownFromOf(row, theirs, thanked)}
-        </span>
+        {thanked ? (
+          <span className="pv-known-name" role="status">
+            {W.notRightThanks}
+          </span>
+        ) : null}
       </span>
       {look || open || thanked ? null : <PvKnownPress row={row} lacks={lacks} onOpen={() => setOpen(true)} />}
       {open ? (
@@ -131,7 +159,18 @@ function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: strin
   );
 }
 
-/** What it knows, whole: what it lacks first, then each fact, then what they told it. */
+/** Its facts by where each was read, those it lacks first: one group a source, in the order the sources first come. */
+function groupsOf(rows: readonly PreviewKnowsRowVM[]): { from: string; missing: boolean; rows: PreviewKnowsRowVM[] }[] {
+  const groups: { from: string; missing: boolean; rows: PreviewKnowsRowVM[] }[] = [];
+  for (const row of [...rows.filter((r) => r.missing), ...rows.filter((r) => !r.missing)]) {
+    const group = groups.find((g) => g.from === row.from);
+    if (group) group.rows.push(row);
+    else groups.push({ from: row.from, missing: row.missing, rows: [row] });
+  }
+  return groups;
+}
+
+/** What it knows whole: what it lacks first, then each source's facts, then what they told it. */
 export function PvKnows({
   vm,
   told,
@@ -145,40 +184,61 @@ export function PvKnows({
   look: boolean;
   onDone: () => void;
 }) {
-  const rows = [...vm.knows.filter((row) => row.missing), ...vm.knows.filter((row) => !row.missing)];
   return (
     <section className="pv-knows" aria-labelledby="pv-knows-title" data-testid="pv-knows">
       <div className="pv-knows-head">
-        <h1 className="pv-name" id="pv-knows-title">
+        <h1 className="pv-knows-title" id="pv-knows-title">
           {W.knowsTitle}
         </h1>
-        <Button
-          variant="glass"
-          size="touch"
-          iconOnly
-          aria-label={W.knowsDone}
-          onClick={onDone}
-          data-testid="pv-knows-done"
-        >
-          <Icon name="x" size={14} />
+        <Button size="touch" iconOnly aria-label={W.knowsDone} onClick={onDone} data-testid="pv-knows-done">
+          <Icon name="x" size={16} />
         </Button>
       </div>
-      <p className="pv-by">{W.knowsSub}</p>
-      <Panel className="pv-known-list">
-        {rows.map((row) => (
-          <PvKnownRow key={row.key} row={row} token={token} look={look} />
-        ))}
-      </Panel>
+      <p className="pv-knows-sub">{W.knowsSub}</p>
+      {groupsOf(vm.knows).map((group) => (
+        <div key={group.from} className="pv-group">
+          <span className="pv-label">{group.from}</span>
+          <div className="pv-rows" data-missing={group.missing || undefined}>
+            {group.rows.map((row) => (
+              <PvKnownRow key={row.key} row={row} token={token} look={look} shape="whole" />
+            ))}
+          </div>
+        </div>
+      ))}
       {told.length ? (
-        <Panel className="pv-known-list" data-testid="pv-teach">
+        <div className="pv-group" data-testid="pv-teach">
           <span className="pv-label">{W.toldTitle}</span>
-          {told.map((line, at) => (
-            <p key={`${at}:${line}`} className="pv-answer" data-testid={`pv-taught-${at}`}>
-              {line}
-            </p>
-          ))}
-        </Panel>
+          <div className="pv-rows">
+            {told.map((line, at) => (
+              <p key={`${at}:${line}`} className="pv-known pv-known-value" data-testid={`pv-taught-${at}`}>
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * What it knows on a desk, down their card under Call it: each fact with where it was read over it and its press beside
+ * it, put right in place; the one it lacks last, in amber, with what its absence costs. Its sender looking presses
+ * nothing.
+ */
+export function PvSideKnows({ vm, token, look }: { vm: PreviewPageVM; token: string; look: boolean }) {
+  if (!vm.knows.length) return null;
+  const rows = [
+    ...vm.knows.filter((row) => !row.missing && row.key === "services"),
+    ...vm.knows.filter((row) => !row.missing && row.key !== "services"),
+    ...vm.knows.filter((row) => row.missing),
+  ];
+  return (
+    <section className="pv-side-knows" aria-label={W.knowsTitle} data-testid="pv-side-knows">
+      <h2 className="pv-label">{W.knowsTitle}</h2>
+      {rows.map((row) => (
+        <PvKnownRow key={row.key} row={row} token={token} look={look} shape="side" />
+      ))}
     </section>
   );
 }

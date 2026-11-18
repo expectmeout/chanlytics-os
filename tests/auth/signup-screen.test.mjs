@@ -348,7 +348,7 @@ test("from a preview's link: whose receptionist at once, the address it was sent
     assert.equal(textOf(find((n) => n.type === "button")), W.code, "the press asks for the code");
     // What comes with it, over the form, and the way back to the page they came from.
     assert.equal(textOf(byId("signup-comes")), `${W.comes}${COMES.join("")}`);
-    assert.equal(find((n) => n.type === "a" && textOf(n) === W.back).props.href, `/preview/${TOKEN}`);
+    assert.equal(find((n) => n.type === "a" && n.props["aria-label"] === W.back).props.href, `/preview/${TOKEN}`);
     assert.ok(textOf(card()).includes(W.lead) && textOf(card()).includes(LEAD_PREVIEW_WORDS.mineSub));
     // The form leads and Google follows it, as the card is read.
     const order = [];

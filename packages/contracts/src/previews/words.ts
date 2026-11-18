@@ -76,6 +76,9 @@ export const LEAD_PREVIEW_WORDS = {
   callStart: "Call it",
   connecting: "Connecting…",
   live: "On the call",
+  /** Under AI's three on the call's screen: whose turn it is. */
+  speaking: "Speaking",
+  listening: "Listening",
   end: "End the call",
   mute: "Mute",
   unmute: "Unmute",

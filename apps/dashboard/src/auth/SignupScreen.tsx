@@ -442,17 +442,42 @@ function previewFormCard(
   const words = LEAD_PREVIEW_WORDS.signup;
   return (
     <AuthShell>
-      <div className="auth-card" data-testid="signup" data-posture={state.posture ?? "unknown"}>
-        <div className="auth-back">
-          <a href={`/preview/${encodeURIComponent(preview.token)}`}>{words.back}</a>
-        </div>
+      <div className="auth-card auth-claim" data-testid="signup" data-posture={state.posture ?? "unknown"}>
+        {/* The way back to their preview, a round arrow as its canvas draws it ("Their preview, redesigned", 7). */}
+        <a className="auth-back" href={`/preview/${encodeURIComponent(preview.token)}`} aria-label={words.back}>
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            aria-hidden="true"
+          >
+            <path d="m12 19-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M19 12H5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
         <h1>{words.title(preview.business)}</h1>
         {preview.comes.length ? (
           <div className="auth-comes" data-testid="signup-comes">
             <b>{words.comes}</b>
             <ul>
               {preview.comes.map((line) => (
-                <li key={line}>{line}</li>
+                <li key={line}>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.3"
+                    aria-hidden="true"
+                  >
+                    <path d="M20 6 9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {line}
+                </li>
               ))}
             </ul>
           </div>

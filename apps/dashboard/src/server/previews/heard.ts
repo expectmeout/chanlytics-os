@@ -52,12 +52,19 @@ export function previewGotOf(analysis: PreviewCallAnalysis): PreviewGotVM | null
   if (!wanted && !lines.length) {
     // Nothing asked and nothing noted: a card only where the analysis itself said so.
     if (outcome !== "no_request") return null;
-    return { outcome: CALL_OUTCOME_WORDS.no_request, yours: false, wanted: LEAD_PREVIEW_WORDS.gotNothing, notes: [] };
+    return {
+      outcome: CALL_OUTCOME_WORDS.no_request,
+      yours: false,
+      wanted: LEAD_PREVIEW_WORDS.gotNothing,
+      notes: [],
+      todo: false,
+    };
   }
   return {
     outcome: outcome ? CALL_OUTCOME_WORDS[outcome] : null,
     yours: outcome === "callback_needed" || notes.todo !== null,
     wanted,
     notes: lines,
+    todo: notes.todo !== null,
   };
 }

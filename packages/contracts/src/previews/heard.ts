@@ -39,6 +39,8 @@ export interface PreviewGotVM {
   wanted: string;
   /** The to-do first, then what the caller gave about themselves. */
   notes: string[];
+  /** Whether the first of the notes is the to-do, which its glyph says apart from what they gave. */
+  todo: boolean;
 }
 
 /** What the page's read of a call answers: its words so far, whether it has ended, and what comes after it. */

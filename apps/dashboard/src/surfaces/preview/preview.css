@@ -1,40 +1,43 @@
-/* A lead's own preview (decision 0079; the redesign of 17 November 2026): one column on the product's paper at a
-   phone's width, two from the kit's 900px. The business at the top, what it knows, one conversation, and the field,
-   which stays at the foot. Layout here; every colour, size, radius, shadow and blur is a token, and every press is the
-   kit's Button at a thumb's size. */
+/* A lead's own preview (decision 0079; the redesign of 17 November 2026), drawn as its canvas draws it ("Their preview,
+   redesigned", tp.css over next.css, the app's Glass): on a phone one screen on the look's lit ground, their head, what
+   it knows in a row that slides, the conversation, and the field at the foot, a capsule of the control layer's glass,
+   with the questions it can answer standing on it; on a desk two panes, their card and the conversation, each the
+   window's height. Each length is the canvas's own; every colour, type size, radius, shadow and blur is a token (the
+   canvas's names are the app's: its pane, sec, sel and control are --surface-pane-*, --secondary-fill,
+   --selected-fill and --surface-control-*), and every press is the kit's Button. */
 
 .pv-page {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   width: 100%;
   max-width: 560px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: var(--space-3) var(--space-4) 0;
   color: var(--ink);
 }
 
-/* The bar that stays at the top as the page scrolls, on the page's own ground, so nothing is read through it. */
+/* ---- The bar that stays at the top, on the page's own paper, so nothing is read through it ---- */
 .pv-top {
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-4)) 0;
-  padding: var(--space-2) var(--space-4);
+  gap: 10px;
+  height: 60px;
+  padding: 4px 12px 0 14px;
   background: var(--surface-page-fill);
 }
 .pv-top-who {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
   min-width: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-read);
+  letter-spacing: -0.012em;
 }
 .pv-top-who > b {
   overflow: hidden;
@@ -43,47 +46,54 @@
   white-space: nowrap;
 }
 
-.pv-cols,
-.pv-col {
+.pv-cols {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: var(--space-4);
   min-width: 0;
 }
-.pv-cols,
-.pv-col:last-child {
-  flex: 1 1 auto;
-}
 
-/* ---- The head: their face, their name, what this is, Call it ---- */
-.pv-head {
+/* ---- Their head: their face, their name, what this is, Call it ---- */
+.pv-side {
   position: relative;
   isolation: isolate;
   display: flex;
   flex-direction: column;
+}
+.pv-head {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
+  padding: 0 26px;
   text-align: center;
 }
 /* Their photo, as the light behind the head: blurred until it is colour alone, and faint, so their name reads over
-   whatever the photo is. */
+   whatever the photo is; fading out under the head, as the canvas's poster does. */
 .pv-light {
   position: absolute;
   z-index: -1;
-  inset: calc(-1 * var(--space-3)) calc(-1 * var(--space-4)) auto;
-  width: calc(100% + 2 * var(--space-4));
-  height: 18rem;
+  inset: -60px 0 auto;
+  width: 100%;
+  height: 28rem;
   object-fit: cover;
   opacity: 0.3;
   filter: var(--surface-control-blur);
-  mask-image: radial-gradient(ellipse at 50% 30%, var(--ink) 15%, transparent 70%);
+  mask-image: linear-gradient(to bottom, var(--ink) 40%, transparent);
   pointer-events: none;
 }
 .pv-who {
   position: relative;
   display: inline-flex;
+  margin-top: 8px;
 }
-/* AI's three: ink at rest, the accent only while it works. Beside their face it sits on a disc at the foot. */
+/* Their face at the canvas's 64px, a step over the kit's page head. */
+.pv-who > :first-child {
+  width: 64px;
+  height: 64px;
+  font-size: var(--text-2xl);
+}
+/* AI's three: ink at rest, the accent only while it works. Beside their face it sits on a disc of the control layer's
+   glass at the foot. */
 .pv-three {
   display: inline-grid;
   place-items: center;
@@ -96,12 +106,13 @@
 }
 .pv-who > .pv-three {
   position: absolute;
-  right: calc(-1 * var(--space-2));
-  bottom: calc(-1 * var(--space-1));
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
+  right: -6px;
+  bottom: -4px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-full);
-  background: var(--surface-control-solid);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
   box-shadow: var(--surface-float-depth);
 }
 @keyframes pv-work {
@@ -110,113 +121,186 @@
   }
 }
 .pv-name {
-  margin: 0;
-  font-size: var(--text-2xl);
-  line-height: 1.2;
+  max-width: 330px;
+  margin: 12px 0 0;
+  font-size: var(--text-hero);
+  line-height: 1.17;
+  font-weight: 650;
+  letter-spacing: -0.022em;
   text-wrap: balance;
 }
-.pv-by {
-  max-width: 34ch;
-  margin: 0;
-  font-size: var(--text-base);
+.pv-ready {
+  max-width: 320px;
+  margin: 6px 0 0;
+  font-size: var(--text-read);
+  line-height: 1.4;
   color: var(--ink-muted);
+  text-wrap: balance;
+}
+/* Call it: the page's one filled act, a step over a thumb's press. */
+.pv-go {
+  gap: 10px;
+  height: 52px;
+  min-height: 52px;
+  margin-top: 16px;
+  padding: 0 30px 0 26px;
+  font-size: var(--text-xl);
+}
+.pv-made {
+  max-width: 34ch;
+  margin: 10px 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
   text-wrap: balance;
 }
 .pv-quiet {
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
 }
 .pv-label {
   margin: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-aside);
   font-weight: 600;
-  color: var(--ink-muted);
-}
-.pv-go {
-  min-width: 12rem;
-  margin-top: var(--space-2);
-}
-.pv-look {
-  text-align: center;
-  text-wrap: balance;
+  color: var(--ink-dim);
 }
 
-/* ---- What it knows, up front: one row that slides ---- */
+/* ---- What it knows, up front on a phone: one row of capsules that slides, fading at the right ---- */
 .pv-facts {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 4px;
+  margin-top: 14px;
 }
 .pv-facts-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 32px;
+  padding: 0 14px 0 22px;
 }
 .pv-facts-row,
 .pv-starters {
   display: flex;
-  gap: var(--space-2);
-  margin: 0 calc(-1 * var(--space-4));
-  padding: 0 var(--space-4);
+  gap: 8px;
+  padding: 0 16px;
   overflow-x: auto;
   scrollbar-width: none;
+  mask-image: linear-gradient(to right, var(--ink) calc(100% - 30px), transparent);
 }
 .pv-facts-row > *,
 .pv-starters > * {
   flex: none;
 }
+/* A fact: its glyph on a tile, what it is over where it was read; one it lacks, in amber. */
 .pv-fact {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
   height: auto;
-  min-height: 3.5rem;
+  min-height: 58px;
+  padding: 9px 16px 9px 9px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-bubble);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
   text-align: start;
+}
+.pv-fact[data-missing] {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+}
+.pv-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  box-sizing: border-box;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  color: var(--ink-muted);
+}
+.pv-fact[data-missing] .pv-tile {
+  color: var(--warn-ink);
 }
 .pv-fact-words {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  line-height: 1.25;
+  min-width: 0;
 }
 .pv-fact-words > b {
-  max-width: 14rem;
+  max-width: 15rem;
   overflow: hidden;
-  font-size: var(--text-sm);
+  font-size: var(--text-title);
+  line-height: 1.3;
   font-weight: 600;
+  color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .pv-fact-words > span {
-  font-size: var(--text-xs);
+  font-size: var(--text-label);
+  line-height: 1.33;
   font-weight: 400;
-  color: var(--ink-muted);
+  color: var(--ink-dim);
   white-space: nowrap;
 }
-.pv-fact-words > span[data-missing] {
+.pv-fact[data-missing] .pv-fact-words > span {
   font-weight: 600;
   color: var(--warn-ink);
 }
+/* The same facts down a desk's card (below); a phone has its row. */
+.pv-side-knows {
+  display: none;
+}
 
-/* ---- The conversation ---- */
+/* ---- The conversation: AI's words plain under its mark, theirs in a lozenge, the newest by the field ---- */
+/* On a phone its parts stand in the page's own column (a desk draws it as a pane, below), so the field's dock stays at
+   the screen's foot however little room the conversation has over it. */
+.pv-chat {
+  display: contents;
+}
+.pv-chat-lines {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  padding: 18px 18px 8px;
+}
+.pv-chat-lines > :first-child {
+  margin-top: auto;
+}
+/* The newest line is brought up over the field, which stays at a phone's foot. */
+.pv-foot {
+  scroll-margin-bottom: 13rem;
+}
 .pv-talk {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* Before anything is said a phone keeps its first screen for Call it and the field; a desk shows the greeting (below). */
+/* Before anything is said a phone keeps its first screen for Call it and the field; where it has the room, and on a
+   desk (below), it speaks first. */
 .pv-talk[data-empty] {
   display: none;
+}
+@media (max-width: 900px) and (min-height: 780px) {
+  .pv-talk[data-empty] {
+    display: flex;
+  }
 }
 .pv-line {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1);
+  gap: 7px;
 }
 .pv-line[data-mine] {
   align-items: flex-end;
@@ -224,322 +308,750 @@
 .pv-line-by {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
+  gap: 8px;
+  height: 18px;
+  font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--ink-dim);
 }
-.pv-answer {
+.pv-says {
   margin: 0;
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
   line-height: 1.5;
+  color: var(--ink);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+  text-wrap: pretty;
 }
 .pv-said {
-  max-width: 86%;
+  max-width: 286px;
   margin: 0;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-bubble) var(--radius-bubble) var(--radius-sm) var(--radius-bubble);
+  padding: 10px 15px;
+  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl);
   background: var(--selected-fill);
-  box-shadow: var(--selected-depth);
-  font-size: var(--text-base);
-  line-height: 1.45;
+  font-size: var(--text-md);
+  line-height: 1.35;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 .pv-then {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  max-width: 330px;
   margin: 0;
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
+}
+.pv-then > :first-child {
+  flex: none;
+  margin-top: 1px;
+}
+/* AI at work on an answer, and a card still being written. */
+.pv-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+/* A card in the conversation: what they told it, what a call left. */
+.pv-told,
+.pv-got {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 10px;
+  border-radius: var(--radius-sheet);
+}
+.pv-told-head,
+.pv-got-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.pv-told-again,
+.pv-got-how {
+  margin-left: auto;
+}
+.pv-quote {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: 1.42;
+  color: var(--ink);
+}
+.pv-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-aside);
+  line-height: 1.38;
+  font-weight: 600;
+  color: var(--ok-ink);
+}
+/* A call, as one line of the conversation: its glyph on a tile, how long it ran and who answered, and Read it. */
+.pv-line-call {
+  align-items: stretch;
 }
 .pv-called {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
-  align-self: stretch;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-lg);
-  background: var(--surface-inset-fill);
-  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  column-gap: 11px;
+  padding: 9px 6px 9px 9px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-bubble);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
 }
 .pv-called-words {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-  font-size: var(--text-sm);
-  text-align: start;
+}
+.pv-called-words > b {
+  font-size: var(--text-title);
+  line-height: 1.3;
+  font-weight: 600;
 }
 .pv-called-words > span {
-  font-size: var(--text-xs);
-  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
 }
 /* A call's words: who said each over what they said; the caller's own are quieter than AI's. */
 .pv-heard {
   display: flex;
   flex-direction: column;
-  align-self: stretch;
-  gap: var(--space-3);
+  gap: 12px;
   margin: 0;
-  padding: 0 var(--space-3);
+  padding: 4px 6px;
   list-style: none;
   text-align: start;
 }
 .pv-heard-line {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
 }
-.pv-heard-line[data-who="you"] > .pv-answer {
+.pv-heard-who {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+.pv-heard-words {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.pv-heard-line[data-who="you"] > .pv-heard-words {
   color: var(--ink-muted);
 }
-/* What you'd get: the card a real call leaves, its outcome beside its title. */
-.pv-got {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: var(--space-2);
-}
-.pv-got-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.pv-got-how {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--ok-ink);
-}
-.pv-got-how[data-yours] {
-  color: var(--warn-ink);
+/* What you'd get: what the caller wanted, the notes, each with its glyph, and where a real one lands. */
+.pv-got-wanted {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.44;
+  font-weight: 500;
+  color: var(--ink);
+  text-wrap: pretty;
 }
 .pv-got-notes {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
   margin: 0;
-  padding: 0 0 0 var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+.pv-got-notes > li {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 8px;
+  font-size: var(--text-title);
+  line-height: 1.43;
+  color: var(--ink-muted);
+}
+.pv-got-notes > li > :first-child {
+  margin-top: 2px;
+  color: var(--ink-dim);
+}
+.pv-got-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
   font-size: var(--text-sm);
-}
-.pv-told {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: var(--space-2);
-  width: 100%;
-}
-.pv-told-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.pv-ok {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--ok-ink);
-}
-.pv-kept {
-  margin-top: auto;
-  text-align: center;
-}
-/* The privacy line stands just over the field: its push to the foot is the field's, so the two never split the space. */
-.pv-kept + .pv-dock {
-  margin-top: 0;
+  line-height: 1.36;
+  color: var(--ink-dim);
 }
 
-/* ---- The field, which stays at the foot, on the page's own ground ---- */
+/* ---- Where the lead speaks: who sees it, said once over the field; the questions on the field; the field ---- */
+.pv-kept {
+  margin: auto 0 0;
+  padding: 0 28px 2px;
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
+  text-align: center;
+  text-wrap: balance;
+}
+/* It stays at a phone's foot as the conversation grows, the page's paper faded in under it so the lines pass beneath. */
 .pv-dock {
   position: sticky;
   bottom: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin: auto calc(-1 * var(--space-4)) 0;
-  padding: var(--space-2) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom));
-  background: var(--surface-page-fill);
+  gap: 8px;
+  padding: 8px 0 calc(18px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, transparent, var(--surface-page-fill) 24px);
+}
+.pv-dock-label {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 22px;
 }
 .pv-ask {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
+  padding: 0 12px;
 }
+/* The field: a capsule of the control layer's glass, its words at a step over the page's, its press at its end. */
 .pv-ask-box {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-2);
+  gap: 4px;
+  min-height: 58px;
+  padding: 7px 7px 7px 20px;
+  border-radius: var(--radius-3xl);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-control-depth);
+  font-size: var(--text-lg);
+}
+.pv-ask-box:focus-within {
+  box-shadow: var(--surface-control-depth), var(--focus-field);
 }
 .pv-ask-box > :first-child {
   flex: 1 1 auto;
+  align-self: center;
   min-width: 0;
 }
+.pv-near {
+  padding: 0 8px;
+  text-align: center;
+}
+/* Telling AI: the field's other mode, said once over it, with its x. */
 .pv-telling {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 10px;
+  padding: 0 16px;
 }
-.pv-note {
+.pv-telling-on {
+  flex: none;
+  border-color: var(--line-strong);
+  background: var(--selected-fill);
+  color: var(--ink);
+  font-weight: 600;
+}
+/* Its twenty said: the note in place of the field, on a pane of its own. */
+.pv-spent {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 10px;
+  margin: 0 12px;
+  padding: 14px 10px 10px 16px;
+  border-radius: var(--radius-sheet);
 }
-.pv-note-acts {
+.pv-spent-words {
+  margin: 0;
+  padding-right: 6px;
+  font-size: var(--text-read);
+  line-height: 1.45;
+}
+.pv-spent-acts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: 8px;
 }
 
-/* ---- What it knows, whole ---- */
+/* ---- Opened by its sender to look: what it is, on the page's inset, over the page ---- */
+.pv-lookbar {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  margin: 12px 12px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-xl);
+  background: var(--secondary-fill);
+  box-shadow: var(--surface-inset-depth);
+  font-size: var(--text-aside);
+  line-height: 1.38;
+  color: var(--ink-muted);
+}
+.pv-lookbar > :first-child {
+  margin-top: 1px;
+  color: var(--ink-dim);
+}
+
+/* ---- What it knows whole, grouped by where each fact was read, what it lacks first, in amber ---- */
 .pv-knows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding-bottom: var(--space-8);
+  padding: 12px 0 32px;
 }
 .pv-knows-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: 10px;
+  padding: 10px 14px 0 22px;
 }
-.pv-known-list {
+.pv-knows-title {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: var(--text-2xl);
+  line-height: 1.24;
+  font-weight: 650;
+  letter-spacing: -0.016em;
+}
+.pv-knows-sub {
+  margin: 0;
+  padding: 4px 22px 0;
+  font-size: var(--text-title);
+  line-height: 1.43;
+  color: var(--ink-dim);
+}
+.pv-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 7px;
+  padding: 14px 14px 0;
+}
+.pv-group > .pv-label {
+  padding: 0 8px;
+  font-size: var(--text-sm);
+}
+.pv-rows {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-bubble);
+  background: var(--surface-pane-fill);
+  box-shadow: var(--surface-pane-depth);
+}
+.pv-rows[data-missing] {
+  background-image: linear-gradient(var(--warn-soft), var(--warn-soft));
+  outline: 1px solid var(--warn-line);
+  outline-offset: -1px;
 }
 .pv-known {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  column-gap: var(--space-3);
+  column-gap: 8px;
+  margin: 0;
+  padding: 10px 6px 10px 14px;
+  border-bottom: 1px solid var(--line);
 }
-.pv-known + .pv-known {
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
+.pv-known:last-child {
+  border-bottom: 0;
+}
+p.pv-known {
+  display: block;
 }
 .pv-known-words {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 1px;
   min-width: 0;
 }
-.pv-known[data-missing] .pv-known-words > :last-child {
-  font-weight: 600;
+.pv-known-name {
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
+}
+.pv-known-value {
+  margin: 0;
+  font-size: var(--text-read);
+  line-height: 1.4;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+/* Tell it, on a fact it lacks: the raised ground ringed in amber, its words in amber's ink. */
+.pv-add {
+  border-color: var(--warn-line);
   color: var(--warn-ink);
+  font-weight: 600;
 }
 .pv-edit {
   display: flex;
   flex-direction: column;
   grid-column: 1 / -1;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  gap: 8px;
+  margin-top: 8px;
 }
 .pv-edit-acts {
   display: flex;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: 8px;
 }
 
-/* ---- The call, a screen of its own ---- */
+/* ---- The call: a screen of its own ---- */
 .pv-call {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
 }
 .pv-call-top {
   display: flex;
+  flex: none;
   align-items: center;
-  align-self: stretch;
-  gap: var(--space-3);
+  gap: 12px;
+  height: 64px;
+  margin-top: 4px;
+  padding: 0 20px;
+}
+.pv-call-who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pv-call-who > b {
+  overflow: hidden;
+  font-size: var(--text-md);
+  line-height: 1.3;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pv-call-who > span {
+  font-size: var(--text-aside);
+  line-height: 1.38;
+  color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
 }
 .pv-call-stage {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
-  align-self: stretch;
-  justify-content: center;
-  gap: var(--space-5);
   min-height: 0;
+  padding: 20px 26px 0;
   text-align: center;
 }
-/* The newest of what was said, under the three: centred as the stage is, each side's held to a few lines of type. */
-.pv-call-stage > .pv-heard {
+.pv-call-stage > .pv-ready {
+  margin-top: 18px;
+}
+/* Whose turn it is: the accent's words while AI speaks, quiet while it listens. */
+.pv-call-turn {
+  display: inline-flex;
   align-items: center;
-  text-align: center;
+  height: 24px;
+  margin-top: 18px;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink-dim);
 }
-.pv-call-stage > .pv-heard .pv-answer {
+.pv-call-turn[data-talking] {
+  color: var(--accent-ink);
+}
+/* The newest of what was said: the caller's quiet, AI's large, each held to a few lines; who said each is told to a
+   screen reader, as the sizes say it to the eye. */
+.pv-call-stage > .pv-heard {
+  align-self: stretch;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 0;
+  text-align: start;
+}
+.pv-call-stage .pv-heard-who {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.pv-call-stage .pv-heard-words {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
 }
+.pv-call-stage .pv-heard-line[data-who="you"] > .pv-heard-words {
+  font-size: var(--text-md);
+  line-height: 1.42;
+  color: var(--ink-dim);
+}
+.pv-call-stage .pv-heard-line[data-who="ai"] > .pv-heard-words {
+  font-size: var(--text-2xl);
+  line-height: 1.36;
+  font-weight: 500;
+  letter-spacing: -0.014em;
+}
+.pv-call > .pv-made {
+  max-width: none;
+  margin: 0;
+  padding-bottom: 12px;
+  text-align: center;
+}
 .pv-call-acts {
   display: flex;
-  gap: var(--space-4);
+  flex: none;
+  justify-content: center;
+  gap: 48px;
+  padding: 0 0 calc(24px + env(safe-area-inset-bottom));
 }
-
-/* ---- One thing to say: being set up, ended, someone's own ---- */
-.pv-alone {
+.pv-call-act {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-3);
-  margin: auto 0;
-  text-align: center;
+  gap: 8px;
+  font-size: var(--text-aside);
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+/* A call's two presses: round, at the canvas's 68px. */
+.pv-disc {
+  width: 68px;
+  min-width: 68px;
+  height: 68px;
+  min-height: 68px;
+  padding: 0;
+  border-radius: var(--radius-circle);
+}
+.pv-hang-up {
+  display: inline-grid;
+  rotate: 135deg;
 }
 
-/* ---- A desk: their business at the left, the conversation at the right ---- */
+/* ---- One thing to say: being set up, while its rows are drawn in; ended; someone's own ---- */
+.pv-alone {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 34px 40px;
+  text-align: center;
+}
+.pv-alone-title {
+  max-width: 320px;
+  margin: 12px 0 0;
+  font-size: var(--text-hero);
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.pv-alone > .pv-ready {
+  max-width: 300px;
+  margin: 0;
+  font-size: var(--text-md);
+}
+.pv-skel {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 8px;
+  margin-top: 26px;
+}
+.pv-skel > i {
+  display: block;
+  height: 52px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-bubble);
+  background: var(--secondary-fill);
+  animation: pv-wait calc(var(--duration-slow) * 4) var(--ease-in-out) infinite;
+}
+.pv-skel > i:nth-child(2) {
+  width: 86%;
+  animation-delay: var(--duration-slow);
+}
+.pv-skel > i:nth-child(3) {
+  width: 70%;
+  animation-delay: calc(var(--duration-slow) * 2);
+}
+@keyframes pv-wait {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ---- A desk: their card and the conversation, two panes of the look's glass, each the window's height ---- */
 @media (min-width: 901px) {
   .pv-page {
-    max-width: 1120px;
-    padding-top: var(--space-6);
+    max-width: none;
   }
-  .pv-cols {
-    display: grid;
-    grid-template-columns: 24rem minmax(0, 1fr);
-    align-items: start;
-    gap: var(--space-8);
+  .pv-page:has(> .pv-cols) {
+    height: 100dvh;
+    min-height: 40rem;
   }
-  /* The head stands beside the conversation on a desk, so the bar does not say whose page it is again. */
+  .pv-top {
+    height: 72px;
+    padding: 0 32px;
+    background: none;
+  }
+  /* Their card stands beside the conversation, so the bar never says whose page it is. */
   .pv-top-who {
     visibility: hidden;
   }
-  /* A desk has the room: it speaks first, before anything is said. */
+  .pv-lookbar {
+    width: min(1120px, calc(100% - 64px));
+    margin: 16px auto 0;
+  }
+  .pv-cols {
+    display: grid;
+    flex: 1 1 0;
+    grid-template-columns: 400px minmax(0, 1fr);
+    gap: 28px;
+    width: min(1120px, calc(100% - 64px));
+    min-height: 0;
+    margin: 12px auto 28px;
+  }
+  /* The kit's pane, drawn here on a desk alone (the Panel draws at every width, and a phone's page is the lit ground):
+     its fill, its depth, and its rim over its edge. */
+  .pv-side,
+  .pv-chat {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-radius: var(--surface-pane-radius);
+    background: var(--surface-pane-fill);
+    box-shadow: var(--surface-pane-depth);
+  }
+  .pv-side::after,
+  .pv-chat::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--surface-pane-rim);
+    mask:
+      linear-gradient(var(--ink) 0 0) content-box exclude,
+      linear-gradient(var(--ink) 0 0);
+    pointer-events: none;
+  }
+  .pv-side {
+    overflow: hidden;
+    padding: 26px 24px 18px;
+  }
+  .pv-head {
+    padding: 0;
+  }
+  .pv-light {
+    inset: 0 0 auto;
+    height: 18rem;
+  }
+  .pv-go {
+    align-self: stretch;
+  }
+  .pv-facts {
+    display: none;
+  }
+  /* What it knows down the card: each fact with where it was read over it, put right in place; the one it lacks, in
+     amber. */
+  .pv-side-knows {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    margin-top: 20px;
+    padding: 16px 0 16px;
+    border-top: 1px solid var(--line);
+    overflow-y: auto;
+    scrollbar-width: none;
+    /* A short window scrolls the facts inside the card, the last fading at its foot, so the card keeps its shape. */
+    mask-image: linear-gradient(to bottom, var(--ink) calc(100% - 24px), transparent);
+  }
+  .pv-side-knows > * {
+    flex: none;
+  }
+  .pv-side-knows > .pv-label {
+    padding: 0 2px 4px;
+  }
+  .pv-side-knows > .pv-known {
+    padding: 8px 0 8px 2px;
+    border-bottom: 0;
+  }
+  /* A long list of services is its first lines here, whole in What it knows and as its press opens it. */
+  .pv-side-knows .pv-known-value {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  .pv-side-knows > .pv-known[data-missing] {
+    margin-top: 6px;
+    padding: 9px 6px 9px 12px;
+    border-radius: var(--radius-xl);
+    background: var(--warn-soft);
+    outline: 1px solid var(--warn-line);
+    outline-offset: -1px;
+  }
+  .pv-side-knows > .pv-known[data-missing] .pv-known-name {
+    font-weight: 600;
+    color: var(--warn-ink);
+  }
+  .pv-chat {
+    overflow: hidden;
+    padding-top: 18px;
+  }
+  /* A short conversation starts at the top; its lines scroll inside the pane, the field at its foot. */
+  .pv-chat-lines {
+    min-height: 0;
+    padding: 12px 40px 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .pv-chat-lines > :first-child {
+    margin-top: 0;
+  }
+  .pv-foot {
+    scroll-margin-bottom: 0;
+  }
   .pv-talk[data-empty] {
     display: flex;
   }
-  /* A desk's page is lit to its top (a phone's is plain paper there), so the bar and the field's dock wear the page's own
-     light, fixed to the window as the page's is: nothing of either shows until a line scrolls under it. */
-  .pv-top,
+  .pv-kept {
+    margin: 0;
+    padding: 0 40px 4px;
+  }
   .pv-dock {
-    background-image: var(--surface-page-light);
-    background-attachment: fixed;
-    background-repeat: no-repeat;
+    position: static;
+    padding: 12px 24px 22px;
+    background: none;
   }
-  /* The head stands clear of the bar when the conversation scrolls. */
-  .pv-col:first-child {
-    position: sticky;
-    top: calc(var(--control-h-touch) + var(--space-6));
+  .pv-dock-label,
+  .pv-starters,
+  .pv-telling {
+    padding: 0 4px;
   }
-  .pv-col:last-child {
-    min-height: calc(100dvh - var(--space-20) - var(--space-6));
-  }
-  /* On a desk what it knows stands whole in its column: nothing to slide. */
-  .pv-facts-row {
-    flex-wrap: wrap;
+  .pv-ask,
+  .pv-spent {
     margin: 0;
     padding: 0;
-    overflow: visible;
+  }
+  .pv-spent {
+    padding: 14px 10px 10px 16px;
   }
   .pv-call,
   .pv-knows {
@@ -550,7 +1062,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pv-three[data-live] {
+  .pv-three[data-live],
+  .pv-skel > i {
     animation: none;
   }
 }
