@@ -7,6 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LEAD_PREVIEW_WORDS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
 
@@ -46,6 +47,9 @@ test("what it knows: each fact it holds, and its services by their count and the
     "address: 12 Main St, Austin, TX 78701; website: harbormovers.example; 5 services (Local moves, Packing, Storage, and more)",
   );
   assert.equal(previewFactsOf(row(), null).knows, null, "a record that could not be read says nothing it knows");
+  // Its hours are none of the listing's: the page shows them as lacking, and the writer is told nothing of them.
+  assert.ok(!/hours/.test(facts.knows), facts.knows);
+  assert.ok(!facts.knows.includes(LEAD_PREVIEW_WORDS.missingWhy.hours));
   assert.equal(
     previewFactsOf(row(), { ...PROFILE, services: [{ name: "Local moves" }] }).knows.endsWith(
       "1 service (Local moves)",
