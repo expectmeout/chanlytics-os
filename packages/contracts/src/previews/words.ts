@@ -136,14 +136,22 @@ export const LEAD_PREVIEW_WORDS = {
   signup: {
     title: (business: string) => `AI for ${business.trim()} is waiting for you`,
     // No password is asked from a preview's link (the canvas's call P10): the code that proves the address is the way in.
-    lead: "A code is emailed to you, so there is no password to choose. Everything it knows comes with it.",
+    lead: "A code is emailed to you, so there is no password to choose.",
+    /** Over the form: what becomes theirs with it, each line only what its record holds (previewComesOf). */
+    comes: "Everything it knows comes with it",
+    comesTold: (n: number) => (n === 1 ? "What you told it" : `The ${n} things you told it`),
+    /** The form's press: the code is what makes it theirs, so the press asks for the code. */
+    code: "Email me a code",
+    coding: "Emailing your code…",
+    /** Back to the page they came from. */
+    back: "Back to your preview",
     signedIn: (email: string) =>
       `You're signed in as ${email}. It becomes a workspace of yours, with everything it knows.`,
     claim: "Make it mine",
     claiming: "Making it yours…",
     other: "Use another account",
-    /** Under Google's button: it comes back to the one press. */
-    googleNext: "You'll make it yours on the next screen.",
+    /** Under Google's button: signed in with it, the preview is theirs with no second press. */
+    googleNext: "It's yours as soon as Google signs you in.",
   },
 
   building: {

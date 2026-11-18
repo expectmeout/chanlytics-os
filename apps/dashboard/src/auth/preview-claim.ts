@@ -7,11 +7,42 @@
 import { FIRST_RUN_ROUTE, SIGNUP_WORDS, appLink } from "@chanlytics/contracts";
 import { rememberWorkspace } from "@/bridge/workspace";
 
-/** A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, and the address it was sent to. */
+/**
+ * A preview's link as sign-up reads it (server/previews/claim.ts): whose receptionist, the address it was sent to, and
+ * what comes with it.
+ */
 export interface SignupPreview {
   token: string;
   business: string;
   email: string | null;
+  comes: readonly string[];
+}
+
+/** Where this tab keeps which preview's sign-up it left for Google from: the tab's own, gone when it closes. */
+const LEFT_FOR_GOOGLE = "chanlytics.preview.left-for-google";
+
+/**
+ * Kept as the tab leaves for Google from a preview's sign-up, so that coming back signed in makes the preview theirs
+ * with no second press. The tab's own storage and never the link's: a link somebody was sent cannot say it, so a person
+ * signed in who merely opens Make it mine is still asked.
+ */
+export function rememberLeftForGoogle(token: string): void {
+  try {
+    window.sessionStorage.setItem(LEFT_FOR_GOOGLE, token);
+  } catch {
+    // Storage switched off: they are asked the one press when they come back.
+  }
+}
+
+/** Whether this tab left for Google from this preview's sign-up: asked once, and forgotten as it is asked. */
+export function takeLeftForGoogle(token: string): boolean {
+  try {
+    const left = window.sessionStorage.getItem(LEFT_FOR_GOOGLE);
+    window.sessionStorage.removeItem(LEFT_FOR_GOOGLE);
+    return left === token;
+  } catch {
+    return false;
+  }
 }
 
 /** The workspace a claim made theirs, as /api/v1/workspaces lists one. */

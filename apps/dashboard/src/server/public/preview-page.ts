@@ -28,7 +28,7 @@ interface PreviewPageRead {
 }
 
 /** The preview workspace's record, or none where it cannot be read: the page says only what it knows. */
-async function profileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
+export async function previewProfileOf(db: Db, tenantId: TenantId): Promise<PreviewPageFacts["profile"]> {
   const row = await getTenantConfig(db, tenantId).catch(() => null);
   return parseTenantConfig(row?.config ?? null)?.brain?.profile ?? null;
 }
@@ -46,7 +46,7 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
   if (!row) return null;
   const ws = row.preview_tenant_id;
   const [look, profile, shown] = ws
-    ? await Promise.all([linkPageLookOf(db, ws), profileOf(db, ws), leadShownOf(db, row)])
+    ? await Promise.all([linkPageLookOf(db, ws), previewProfileOf(db, ws), leadShownOf(db, row)])
     : [NO_LOOK, null, { phone: null, photo: null }];
   return {
     row,

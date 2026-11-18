@@ -281,7 +281,8 @@ test("the code step confirms the address it was given, resends a confirmation, a
 
 const TOKEN = "TokenTokenTokenToken01";
 const CLAIM = "POST /api/v1/preview-claims";
-const FIXTURE = { token: TOKEN, business: "Fixture Barbers", email: "owner@fixture.example" };
+const COMES = ["2 services, your hours and your number", "What you told it"];
+const FIXTURE = { token: TOKEN, business: "Fixture Barbers", email: "owner@fixture.example", comes: COMES };
 const CLAIMED = {
   status: 200,
   body: {
@@ -340,11 +341,22 @@ test("from a preview's link: whose receptionist at once, the address it was sent
     );
     const google = find((n) => typeof n.type === "function" && n.type.name === "GoogleSignIn").props;
     assert.deepEqual(
-      [google.next, google.hint],
-      [`/preview/${TOKEN}/mine`, W.googleNext],
-      "Google comes back here, signed in, to the one press",
+      [google.next, google.hint, google.under],
+      [`/preview/${TOKEN}/mine`, W.googleNext, true],
+      "Google comes back here signed in, and stands under the form",
     );
-    assert.equal(textOf(find((n) => n.type === "button")), W.claim, "the press is Make it mine");
+    assert.equal(textOf(find((n) => n.type === "button")), W.code, "the press asks for the code");
+    // What comes with it, over the form, and the way back to the page they came from.
+    assert.equal(textOf(byId("signup-comes")), `${W.comes}${COMES.join("")}`);
+    assert.equal(find((n) => n.type === "a" && textOf(n) === W.back).props.href, `/preview/${TOKEN}`);
+    assert.ok(textOf(card()).includes(W.lead) && textOf(card()).includes(LEAD_PREVIEW_WORDS.mineSub));
+    // The form leads and Google follows it, as the card is read.
+    const order = [];
+    walk(card(), (n) => {
+      if (n.type === "form") order.push("form");
+      if (typeof n.type === "function" && n.type.name === "GoogleSignIn") order.push("google");
+    });
+    assert.deepEqual(order, ["form", "google"]);
     assert.ok(!textOf(card()).includes("Your clock"), "a preview keeps its business's own clock");
     // Keeping it takes no password (the canvas's call P10): the code that proves the address is the way in.
     assert.equal(
@@ -409,6 +421,52 @@ test("signed in, from a preview's link: one press makes it theirs; refused, the 
   assert.deepEqual([signedOut, reloaded], [1, 1], "signed out, and the page is the form again");
   delete globalThis.window.location.reload;
   preview = null;
+});
+
+test("back from Google, left for from this screen: it is theirs at once, with no second press; a link alone never says so", async () => {
+  // The tab's own storage, as a browser keeps it across the trip to Google and back.
+  const kept = new Map();
+  globalThis.window.sessionStorage = {
+    getItem: (k) => kept.get(k) ?? null,
+    setItem: (k, v) => void kept.set(k, v),
+    removeItem: (k) => void kept.delete(k),
+  };
+  auth = { session: null };
+  await openFromLink("open");
+  find((n) => typeof n.type === "function" && n.type.name === "GoogleSignIn").props.onLeave();
+  assert.deepEqual([...kept.values()], [TOKEN], "which preview this tab left from");
+
+  // Back, signed in: claimed without a press, and its first run opens.
+  auth = { session: { user: { email: "ada@example.com" } } };
+  await openFromLink("open", { [CLAIM]: CLAIMED });
+  await settle();
+  assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }]);
+  assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+  assert.equal(kept.size, 0, "asked once, and forgotten");
+
+  // Signed in and merely opening the link: asked the one press, as before.
+  await openFromLink("open", { [CLAIM]: CLAIMED });
+  await settle();
+  assert.equal(card().props["data-testid"], "signup-claim");
+  assert.deepEqual(postedTo("/api/v1/preview-claims"), [], "nothing claimed without a press");
+
+  // Left for Google from another preview's screen: this one is not claimed by it.
+  kept.set("chanlytics.preview.left-for-google", "OtherOtherOtherOther01");
+  await openFromLink("open", { [CLAIM]: CLAIMED });
+  await settle();
+  assert.deepEqual(postedTo("/api/v1/preview-claims"), []);
+
+  // A claim refused on the way back leaves the one press, with the door's words beside it.
+  kept.set("chanlytics.preview.left-for-google", TOKEN);
+  await openFromLink("open", {
+    [CLAIM]: { status: 409, body: { ok: false, error: { message: "Fixture Barbers is already set up." } } },
+  });
+  await settle();
+  assert.equal(card().props["data-testid"], "signup-claim");
+  assert.equal(said(), "Fixture Barbers is already set up.");
+  assert.equal(byId("signup-claim-press").props.disabled, false, "and it can be pressed");
+  assert.deepEqual(went, []);
+  delete globalThis.window.sessionStorage;
 });
 
 test("from a preview's link, someone who has an account signs in and comes back to Make it mine: the form's and the code step's Sign in carry the preview", async () => {

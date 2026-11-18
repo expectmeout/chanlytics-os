@@ -175,6 +175,36 @@ export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDispla
   return rows;
 }
 
+/** A list as a sentence's: "a, b and c". */
+const listed = (parts: readonly string[]): string =>
+  parts.length < 2 ? (parts[0] ?? "") : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+
+/**
+ * What comes with a preview once it is someone's own (L4), as Make it mine's page says it before they sign up: what it
+ * read, counted from the rows its page shows (previewKnowsOf), then what they told it. Only what its record holds, since
+ * the record is what becomes theirs: the conversation on its page and its calls are the preview's, and are not promised.
+ */
+export function previewComesOf(profile: PreviewPageFacts["profile"], phoneDisplay: string | null): string[] {
+  const known = new Set(
+    previewKnowsOf(profile, phoneDisplay)
+      .filter((row) => !row.missing)
+      .map((row) => row.key),
+  );
+  const services = (profile?.services ?? []).filter((service) => service.name.trim()).length;
+  const read = [
+    known.has("services") && services > 0 ? (services === 1 ? "1 service" : `${services} services`) : null,
+    known.has("hours") ? "your hours" : null,
+    known.has("address") ? "your address" : null,
+    known.has("phone") ? "your number" : null,
+  ].filter((part): part is string => part !== null);
+  const sentence = listed(read);
+  const told = previewTheirsOf(profile).taught.length;
+  return [
+    ...(sentence ? [`${sentence[0]?.toUpperCase()}${sentence.slice(1)}`] : []),
+    ...(told > 0 ? [LEAD_PREVIEW_WORDS.signup.comesTold(told)] : []),
+  ];
+}
+
 /** Make it mine's address (L4): the preview's own sign-up, read on the server, under the preview's public prefix. */
 export function previewMinePath(token: string): string {
   return `/preview/${encodeURIComponent(token)}/mine`;

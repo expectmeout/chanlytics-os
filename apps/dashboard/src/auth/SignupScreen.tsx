@@ -16,7 +16,13 @@ import { clearSurfaceCache } from "@/bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
-import { claimPreviewNow, openClaimed, type SignupPreview } from "@/auth/preview-claim";
+import {
+  claimPreviewNow,
+  openClaimed,
+  rememberLeftForGoogle,
+  takeLeftForGoogle,
+  type SignupPreview,
+} from "@/auth/preview-claim";
 import { RETURN_PREVIEW } from "@/auth/sign-in-return";
 
 /**
@@ -41,6 +47,10 @@ import { RETURN_PREVIEW } from "@/auth/sign-in-return";
  * in, and the link stands for an invite code. Once the code signs them in, the
  * preview is claimed rather than a workspace made. Someone already signed in
  * makes it theirs with one press. /signup draws it with no preview.
+ * Its form says what comes with it first, asks for the emailed code (the way
+ * in that needs nothing chosen), and offers Google under it; someone who left
+ * for Google from this screen comes back signed in and it is theirs at once,
+ * with no second press (preview-claim.ts keeps that in the tab).
  *
  * The screen is its parts: its state and its arrival (useSignupState), the
  * press (submitFor), and one card per outcome, in the order they win: the
@@ -97,11 +107,27 @@ function useSignupState(preview: SignupPreview | null) {
         setPosture(j?.data?.posture ?? (j?.data?.code_required ? "invite" : "open")),
       )
       .catch(() => setPosture("open"));
-    // From a preview's link: someone signed in already is asked one press rather than the form.
+    // From a preview's link: someone signed in already is asked one press rather than the form. Someone who left for
+    // Google from this screen is not asked again: back signed in, it is made theirs at once, and a claim refused
+    // leaves the one press with the door's words beside it.
     if (preview)
       void supabase.auth
         .getSession()
-        .then(({ data }) => setSignedInAs(data.session?.user.email ?? null))
+        .then(async ({ data }) => {
+          const signedIn = data.session?.user.email ?? null;
+          const back = takeLeftForGoogle(preview.token);
+          setSignedInAs(signedIn);
+          if (!signedIn || !back) return;
+          setBusy(true);
+          const claimed = await claimPreviewNow(preview.token);
+          if (claimed.ok) {
+            clearSurfaceCache();
+            openClaimed(claimed.workspace.slug);
+            return;
+          }
+          setError(claimed.message);
+          setBusy(false);
+        })
         .catch(() => setSignedInAs(null));
     // Once, on arrival: the preview is the page's, and does not change while it is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -373,29 +399,24 @@ function claimCard(s: SignupState, preview: SignupPreview, email: string) {
 function formCard(s: SignupState, submit: (e: React.SyntheticEvent) => Promise<void>) {
   const { posture, tz, error, preview } = s;
   const waiting = posture === "waitlist";
-  // From a preview's link, Google comes back here, signed in, to the one press.
-  const googleNext = preview ? previewMinePath(preview.token) : "/";
   const title = waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title;
   const lead = waiting ? SIGNUP_WORDS.waitlistLead : SIGNUP_WORDS.lead;
+  if (preview) return previewFormCard(s, preview, submit);
   return (
     <AuthShell>
       <div className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
-        <h1>{preview ? LEAD_PREVIEW_WORDS.signup.title(preview.business) : title}</h1>
-        <p>{preview ? LEAD_PREVIEW_WORDS.signup.lead : lead}</p>
+        <h1>{title}</h1>
+        <p>{lead}</p>
         {/* Google makes the account and the create screen names the workspace --
             and asks the invite code there, when sign-up is by invitation. Not on
             the waitlist: a list takes details, not accounts. */}
-        {posture !== null && !waiting && (
-          <GoogleSignIn
-            next={googleNext}
-            hint={preview ? LEAD_PREVIEW_WORDS.signup.googleNext : SIGNUP_WORDS.googleNext}
-          />
-        )}
+        {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
         {detailsForm(s, submit)}
         {/* The device clock is read to set the workspace's timezone. On the
-            waitlist there is no workspace yet, so saying so would be noise; a
-            preview keeps the clock it was set up with, its business's own. */}
-        {tz && !waiting && !preview && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
+            waitlist there is no workspace yet, so saying so would be noise. (A
+            preview keeps the clock it was set up with, its business's own, and
+            its own card says nothing of one.) */}
+        {tz && !waiting && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
         {posture === "invite" && <div className="hint">{SIGNUP_WORDS.codeRequired}</div>}
         <div role="alert" aria-live="assertive">
           {error && <div className="error">{error}</div>}
@@ -403,6 +424,53 @@ function formCard(s: SignupState, submit: (e: React.SyntheticEvent) => Promise<v
         <div className="hint">
           {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, s.email)}>Sign in</a>
         </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+/**
+ * The form from a preview's link: the way back to its page, whose AI is waiting, what comes with it, then the address
+ * and the emailed code (nothing to choose, so it leads), Google under it, and what it costs to try. A link stands for an
+ * invite code, so its door is open whatever the posture and the form waits only for the server to have said one.
+ */
+function previewFormCard(s: SignupState, preview: SignupPreview, submit: (e: React.SyntheticEvent) => Promise<void>) {
+  const W = LEAD_PREVIEW_WORDS.signup;
+  return (
+    <AuthShell>
+      <div className="auth-card" data-testid="signup" data-posture={s.posture ?? "unknown"}>
+        <div className="hint auth-back">
+          <a href={`/preview/${encodeURIComponent(preview.token)}`}>{W.back}</a>
+        </div>
+        <h1>{W.title(preview.business)}</h1>
+        {preview.comes.length ? (
+          <div className="auth-comes" data-testid="signup-comes">
+            <b>{W.comes}</b>
+            <ul>
+              {preview.comes.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {detailsForm(s, submit)}
+        <div className="hint">{W.lead}</div>
+        <div role="alert" aria-live="assertive">
+          {s.error && <div className="error">{s.error}</div>}
+        </div>
+        {s.posture !== null && (
+          <GoogleSignIn
+            under
+            // Google comes back here signed in, where the tab remembers it left from this screen.
+            next={previewMinePath(preview.token)}
+            hint={W.googleNext}
+            onLeave={() => rememberLeftForGoogle(preview.token)}
+          />
+        )}
+        <div className="hint">
+          {SIGNUP_WORDS.haveOne} <a href={signInHref(preview, s.email)}>Sign in</a>
+        </div>
+        <div className="hint">{LEAD_PREVIEW_WORDS.mineSub}</div>
       </div>
     </AuthShell>
   );
@@ -460,11 +528,11 @@ function detailsForm(s: SignupState, submit: (e: React.SyntheticEvent) => Promis
         </>
       )}
       <button disabled={busy || posture === null}>
-        {/* From a preview's link, the press is Make it mine: the code that follows makes it theirs. */}
+        {/* From a preview's link, the press asks for the code: typed in, it makes the preview theirs. */}
         {preview
           ? busy
-            ? LEAD_PREVIEW_WORDS.signup.claiming
-            : LEAD_PREVIEW_WORDS.signup.claim
+            ? LEAD_PREVIEW_WORDS.signup.coding
+            : LEAD_PREVIEW_WORDS.signup.code
           : busy
             ? waiting
               ? "Adding you…"

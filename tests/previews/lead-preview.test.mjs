@@ -8,11 +8,13 @@ import assert from "node:assert/strict";
 import {
   LEAD_PREVIEW_WORDS as W,
   PREVIEW_LIMITS,
+  previewComesOf,
   previewKnowsOf,
   previewPageOf,
   previewStartersOf,
   previewStateOf,
   previewTurnsOf,
+  withPreviewTaught,
 } from "@chanlytics/contracts";
 
 const NOW = new Date("2026-11-02T15:00:00Z");
@@ -233,4 +235,21 @@ test("the page carries their Google photo, and nothing where the lead has none",
   assert.equal(previewPageOf({ ...FACTS, photo_url: "http://lh3.googleusercontent.com/p/x" }, NOW).photo, null);
   // A page with nothing to try shows no photo.
   assert.equal(previewPageOf({ ...FACTS, photo_url: photo, state: "claimed" }, NOW).photo, null);
+});
+
+test("what comes with it: what it read, counted from the rows its page shows, then what they told it; nothing its record lacks", () => {
+  const profile = {
+    hours: { mon: { open: "09:00", close: "18:00" } },
+    address: "12 Main St, Austin, TX 78701",
+    services: [{ name: "Fade" }, { name: "Beard trim" }, { name: " " }],
+  };
+  assert.deepEqual(previewComesOf(profile, "+1 (512) 555-0142"), [
+    "2 services, your hours, your address and your number",
+  ]);
+  assert.deepEqual(previewComesOf({ services: [{ name: "Fade" }] }, null), ["1 service"]);
+  assert.deepEqual(previewComesOf({ address: "12 Main St" }, null), ["Your address"]);
+  assert.deepEqual(previewComesOf({ hours: profile.hours }, "+1 (512) 555-0142"), ["Your hours and your number"]);
+  const told = withPreviewTaught(withPreviewTaught(profile, "A fade is 30 dollars."), "We close early on holidays.");
+  assert.deepEqual(previewComesOf(told, null), ["2 services, your hours and your address", W.signup.comesTold(2)]);
+  assert.deepEqual(previewComesOf(null, null), [], "a record that could not be read promises nothing");
 });

@@ -442,7 +442,7 @@ export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABEL
 export { consentChangeWords } from "./people/person-timeline";
 export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { PREVIEW_AFTER_CALL_STATES, PREVIEW_WRITE_UP_MS, previewGotOf, previewHeardOf } from "./previews/heard";
-export { previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewStartersOf, previewTurnsOf } from "./previews/lead-preview";
+export { previewComesOf, previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewStartersOf, previewTurnsOf } from "./previews/lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./previews/line";
 export { PREVIEW_LIMITS, PREVIEW_NEAR, PREVIEW_STATES, previewClaimable, previewSlotOf, previewStateOf } from "./previews/standing";
 export { PREVIEW_TAUGHT, previewFactOf, previewTheirsOf, withPreviewFix, withPreviewTaught } from "./previews/theirs";

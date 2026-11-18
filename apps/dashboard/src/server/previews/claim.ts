@@ -4,8 +4,9 @@ import "server-only";
 /**
  * Make it mine (decision 0079, L4): a lead's own receptionist made a workspace of the person who claims it.
  *
- *   findPreviewForSignup  what sign-up says of a preview's link, asked by its token alone: the business's name and the
- *                     address the sender wrote to, while it can still be made theirs; else nothing, the same for a
+ *   findPreviewForSignup  what sign-up says of a preview's link, asked by its token alone: the business's name, the
+ *                     address the sender wrote to and what comes with it (contracts previewComesOf, from its record),
+ *                     while it can still be made theirs; else nothing, the same for a
  *                     token that names nothing. Make it mine's page draws it (app/preview/[token]/mine), and the
  *                     sign-up route asks it, for which a live link stands for an invite code (signupPostureFor)
  *   claimPreviewFor   the claim, signed in (POST preview-claims): preview_claim on the claimer's own session, then what
@@ -16,7 +17,9 @@ import "server-only";
 import {
   AppError,
   PreviewTokenSchema,
+  formatPhoneDisplay,
   previewClaimable,
+  previewComesOf,
   previewFirstRunMarks,
   previewStateOf,
 } from "@chanlytics/contracts";
@@ -29,6 +32,7 @@ import {
 } from "@chanlytics/db/campaigns";
 import { setMemberView } from "@chanlytics/db/notices";
 import { linkPageDb, linkPageLookOf } from "../public/link-page";
+import { previewProfileOf } from "../public/preview-page";
 import { recordWorkspaceBegun } from "../workspace/create";
 import { log } from "../shared/log";
 import type { RouteContext } from "../shared/with-route";
@@ -43,6 +47,8 @@ interface PreviewForSignup {
   business: string;
   /** The address the sender wrote to, filled in on the form; the person may change it. */
   email: string | null;
+  /** What becomes theirs with it, a line each: what it read, and what they told it. */
+  comes: string[];
 }
 
 /** A preview's row by its link, where it can still be made theirs; null for any other, or none. */
@@ -57,11 +63,18 @@ export async function findPreviewForSignup(token: string): Promise<PreviewForSig
   const db = linkPageDb();
   const row = await claimableRow(db, token);
   if (!db || !row?.preview_tenant_id) return null;
-  const [look, lead] = await Promise.all([
-    linkPageLookOf(db, row.preview_tenant_id),
+  const workspace = heldTenantId(row.preview_tenant_id);
+  const [look, lead, profile] = await Promise.all([
+    linkPageLookOf(db, workspace),
     findLeadForPreview(db, row.tenant_id, row.lead_id).catch(logAndGoOn("findLeadForPreview", null)),
+    previewProfileOf(db, workspace),
   ]);
-  return look.business ? { business: look.business, email: lead?.email ?? null } : null;
+  if (!look.business) return null;
+  return {
+    business: look.business,
+    email: lead?.email ?? null,
+    comes: previewComesOf(profile, formatPhoneDisplay(lead?.phone_e164 ?? null)),
+  };
 }
 
 /** The claim's refusal, in the door's own words: none found, someone's own already, ended, or the account's ten. */

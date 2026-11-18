@@ -8,6 +8,7 @@ export type {
   PreviewHeardLine,
 } from "./heard";
 export {
+  previewComesOf,
   previewFirstRunMarks,
   previewKnowsOf,
   previewMinePath,
