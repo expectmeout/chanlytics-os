@@ -22,7 +22,7 @@ import { LEAD_PREVIEW_WORDS } from "./words";
 export interface PreviewTurnVM {
   role: "user" | "assistant";
   text: string;
-  /** `taught`: the answer says a thing they told it (previews/theirs.ts previewAnswerUsesTaught), kept with the turn. */
+  /** `taught`: the answer says a thing they told it (the message door's rule, server/previews), kept with the turn. */
   then: { words: string; tone: "sends" | "waits" | "yours"; taught?: boolean } | null;
 }
 

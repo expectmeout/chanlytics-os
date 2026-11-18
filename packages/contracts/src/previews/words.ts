@@ -124,7 +124,7 @@ export const LEAD_PREVIEW_WORDS = {
   tellingStop: "Stop telling AI",
   tellingNote: "A price you give is yours to say.",
   toldUses: "It uses this from its next answer",
-  /** Under an answer that says a thing they told it (previews/theirs.ts previewAnswerUsesTaught). */
+  /** Under an answer that says a thing they told it (the message door marks it: server/previews/taught-answer.ts). */
   fromTaught: "From what you told it",
   askAgain: "Repeat the question",
   teachSub: "It uses it from its next answer. A price you give is yours to say.",

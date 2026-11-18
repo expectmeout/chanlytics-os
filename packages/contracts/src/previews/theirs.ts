@@ -75,40 +75,6 @@ export function withPreviewFix(profile: BusinessProfile, fact: PreviewFact, righ
   return { ...withoutListed(profile, fact), notes: [...others, { title, text: words }] };
 }
 
-/** A figure as an answer and a thing told share it: its digits alone, so "$1,450" and "1450" are one. */
-const figuresOf = (text: string): string[] =>
-  (text.match(/\d[\d,.:]*\d/g) ?? [])
-    .map((figure) => figure.replace(/[^\d]/g, ""))
-    .filter((digits) => digits.length > 1);
-
-/** A sentence as its words alone, for a run of them to be found in another. */
-const wordsOf = (text: string): string[] =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, "")
-    .split(/\s+/)
-    .filter(Boolean);
-
-/** How many of a thing told's words, in a row, an answer must carry to be said to say it. */
-const TAUGHT_RUN = 5;
-
-/**
- * Whether an answer says a thing they told it: it carries a figure one of them holds (a price, a time), or a run of
- * one's own words. Said under the answer ("From what you told it") only where this holds, so the page never credits
- * them with an answer the record would have given anyway.
- */
-export function previewAnswerUsesTaught(answer: string, taught: readonly string[]): boolean {
-  const figures = new Set(figuresOf(answer));
-  const answered = ` ${wordsOf(answer).join(" ")} `;
-  return taught.some((sentence) => {
-    if (figuresOf(sentence).some((figure) => figures.has(figure))) return true;
-    const words = wordsOf(sentence);
-    for (let at = 0; at + TAUGHT_RUN <= words.length; at += 1)
-      if (answered.includes(` ${words.slice(at, at + TAUGHT_RUN).join(" ")} `)) return true;
-    return false;
-  });
-}
-
 /** What a record holds of theirs: what they told it, in order, and each fact as they put it right. */
 export function previewTheirsOf(profile: Pick<BusinessProfile, "notes"> | null | undefined): {
   taught: string[];

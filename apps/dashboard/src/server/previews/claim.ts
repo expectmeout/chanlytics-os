@@ -89,7 +89,7 @@ function comesWith(profile: Parameters<typeof previewKnowsOf>[0], phoneDisplay: 
 }
 
 /** What It's yours counts of what came with it: its services, and the things they told it. */
-function countsOf(profile: Parameters<typeof previewKnowsOf>[0]): string[] {
+function yoursCountsOf(profile: Parameters<typeof previewKnowsOf>[0]): string[] {
   const words = LEAD_PREVIEW_WORDS.signup;
   const services = (profile?.services ?? []).filter((service) => service.name.trim()).length;
   const taught = previewTheirsOf(profile).taught.length;
@@ -129,7 +129,7 @@ export async function findPreviewForSignup(token: string): Promise<PreviewForSig
     business: look.business,
     email: lead?.email ?? null,
     comes: comesWith(profile, formatPhoneDisplay(lead?.phone_e164 ?? null)),
-    counts: countsOf(profile),
+    counts: yoursCountsOf(profile),
     skips: skipsOf(row),
   };
 }

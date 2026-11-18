@@ -173,7 +173,7 @@ preview theirs; the call's own client tells the browser none of its words). What
   over the page, loaded as See all is first pressed, so a stranger's first load carries no sheet. The call's screen
   says whose turn it is, Speaking or Listening, from the call client's own events.
 - **"From what you told it."** An answer is marked so, and kept so with its turn, only where it carries a figure one
-  of the things told holds, or a run of five of its words (contracts `previewAnswerUsesTaught`): the page never credits
+  of the things told holds, or a run of five of its words (`server/previews/taught-answer.ts`): the page never credits
   them with an answer the record would have given anyway. Nothing is asked of the model for it.
 - **It's yours.** A claim leaves the sign-up screen on the moment itself: that it is theirs, what came with it,
   counted from its record (its services, the things they told it; never its calls, which are not promised), and

@@ -13,7 +13,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   PREVIEW_TAUGHT,
-  previewAnswerUsesTaught,
   previewFactOf,
   previewKnowsOf,
   previewSaidOf,
@@ -23,6 +22,9 @@ import {
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { importSrc } from "../_source.mjs";
+
+// The rule the message door marks an answer by, read before the tests that run it are named.
+const { answerUsesTaught } = await importSrc("apps/dashboard/src/server/previews/taught-answer.ts");
 
 const PROFILE = {
   address: "12 Main St, Austin, TX 78701",
@@ -80,16 +82,16 @@ test("what it knows says theirs where they put it right, and what they told it",
 test("an answer is said to say a thing they told it only where it carries its figure or a run of its words", () => {
   const taught = ["A new water heater starts at $1,450, tank and labor.", "We don't do gas line work at all."];
   // Its figure, however it is written.
-  assert.equal(previewAnswerUsesTaught("A new one starts at $1,450, installed.", taught), true);
-  assert.equal(previewAnswerUsesTaught("It starts at 1450 dollars.", taught), true);
+  assert.equal(answerUsesTaught("A new one starts at $1,450, installed.", taught), true);
+  assert.equal(answerUsesTaught("It starts at 1450 dollars.", taught), true);
   // A run of its own words, whatever the case and the punctuation.
-  assert.equal(previewAnswerUsesTaught("Sorry, we don't do gas line work.", taught), true);
+  assert.equal(answerUsesTaught("Sorry, we don't do gas line work.", taught), true);
   // An answer the record would have given anyway is never credited to them.
-  assert.equal(previewAnswerUsesTaught("Yes, that's one of our services. Want a call back?", taught), false);
-  assert.equal(previewAnswerUsesTaught("We do gas ranges and water heaters.", taught), false);
+  assert.equal(answerUsesTaught("Yes, that's one of our services. Want a call back?", taught), false);
+  assert.equal(answerUsesTaught("We do gas ranges and water heaters.", taught), false);
   // A single digit is no figure, and nothing told credits nothing.
-  assert.equal(previewAnswerUsesTaught("We have 2 trucks.", ["We run 2 crews."]), false);
-  assert.equal(previewAnswerUsesTaught("A new one starts at $1,450.", []), false);
+  assert.equal(answerUsesTaught("We have 2 trucks.", ["We run 2 crews."]), false);
+  assert.equal(answerUsesTaught("A new one starts at $1,450.", []), false);
 });
 
 test("the sender's line says what they told it apart from what they said is not right", () => {

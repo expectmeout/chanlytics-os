@@ -25,7 +25,6 @@ import {
   SECOND_MS,
   UUID,
   heldTenantId,
-  previewAnswerUsesTaught,
   previewFactOf,
   previewStateOf,
   previewTheirsOf,
@@ -51,6 +50,7 @@ import { findRehearsalById } from "@chanlytics/db/facts";
 import { logAndGoOn } from "@chanlytics/log";
 import { linkPageDb } from "../public/link-page";
 import { previewProfileOf } from "../public/preview-page";
+import { answerUsesTaught } from "./taught-answer";
 import { changePreviewRecord } from "./theirs";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { WRITE_UP_MS, previewGotOf, previewHeardOf } from "./heard";
@@ -111,8 +111,8 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
   const history = previewTurnsOf(result.turns)
     .slice(-HISTORY_MAX)
     .map((t) => ({ role: t.role, content: t.text }));
-  // What they told it, read beside the answer: an answer that says one of them is marked so (contracts
-  // previewAnswerUsesTaught). A record that cannot be read holds nothing told, so nothing is marked.
+  // What they told it, read beside the answer: an answer that says one of them is marked so (taught-answer.ts). A
+  // record that cannot be read holds nothing told, so nothing is marked.
   const theirs = previewProfileOf(dbOrFail(), heldTenantId(result.preview_tenant_id)).then(
     (profile) => previewTheirsOf(profile).taught,
   );
@@ -124,7 +124,7 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
     log.warn("preview_message_failed", { tenant_id: result.preview_tenant_id, error: e });
     throw causedBy(new AppError("upstream_anthropic", W.failed, 502), e);
   }
-  const then = previewAnswerUsesTaught(vm.said, await theirs) ? { ...vm.then, taught: true } : vm.then;
+  const then = answerUsesTaught(vm.said, await theirs) ? { ...vm.then, taught: true } : vm.then;
   const kept = await recordPreviewSaid(dbOrFail(), result.id, text, { text: vm.said, then });
   if (!kept.ok) throw doorRefused(kept.reason);
   return {
