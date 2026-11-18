@@ -174,7 +174,7 @@ export function PvHead({
 }
 
 /** A fact's glyph, on its own small tile. */
-export function PvFactGlyph({ fact }: { fact: PreviewKnowsRowVM["key"] }) {
+function PvFactGlyph({ fact }: { fact: PreviewKnowsRowVM["key"] }) {
   return (
     <span className="pv-glyph" aria-hidden="true">
       <Icon name={FACT_GLYPH[fact]} size={18} />
@@ -214,7 +214,7 @@ function PvFact({ row, onOpen }: { row: PreviewKnowsRowVM; onOpen: (() => void) 
 }
 
 /** What it does leads, the proof it read their business; the one it lacks stands second, where a phone's width shows it. */
-export function factsInOrder(rows: readonly PreviewKnowsRowVM[]): PreviewKnowsRowVM[] {
+function factsInOrder(rows: readonly PreviewKnowsRowVM[]): PreviewKnowsRowVM[] {
   const known = [
     ...rows.filter((row) => !row.missing && row.key === "services"),
     ...rows.filter((row) => !row.missing && row.key !== "services"),
