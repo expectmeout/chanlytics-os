@@ -29,7 +29,7 @@ import {
   VOICE_SHELL_BEGIN,
   HANDOFF_VAR,
 } from "@chanlytics/channels/voice";
-import { EVENT_KINDS } from "@chanlytics/contracts";
+import { EVENT_KINDS, RETELL_MODELS } from "@chanlytics/contracts";
 import { readCode, readRaw, ROOT } from "../_source.mjs";
 
 const S = { fnSecret: "sealed-secret" };
@@ -42,8 +42,10 @@ test("the LLM body is the shell itself, so the converger plans nothing against i
   const body = voiceLlmCreateBody(S, FN_URL);
   assert.equal(body.general_prompt, VOICE_SHELL_PROMPT);
   assert.equal(body.begin_message, VOICE_SHELL_BEGIN);
-  assert.equal(body.model, VOICE_LLM_DEFAULTS.model);
-  assert.equal(body.model_temperature, 0);
+  // The model under the provider's model_config: it retires `model` and `model_temperature` on 31 January 2027.
+  assert.deepEqual(body.model_config, { type: "cascading", primary: { model: RETELL_MODELS.llm }, temperature: 0 });
+  assert.deepEqual(body.model_config, VOICE_LLM_DEFAULTS.model_config);
+  assert.ok(!("model" in body) && !("model_temperature" in body), "no retired name is sent");
   assert.equal(body.start_speaker, "agent");
   assert.deepEqual(planVoiceConvergence(body, desiredVoiceShell(FN_URL, { "x-fn-secret": S.fnSecret })).drift, []);
   assert.equal(voiceShellDrift(body, FN_URL).converged, true, "the diagnostic reads it as on the shell");
