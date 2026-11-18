@@ -1,0 +1,29 @@
+# The relay: one clip of a business's Google Drive, answered to Cloudflare Stream by its address (README.md beside this).
+#
+#   npx wrangler deploy                production's relay (src/index.ts); nothing deploys it until the app's key door exists
+#   npx wrangler deploy --env proof    the proof's relay (P1): the same handler, able to break one download off
+
+name = "chanlytics-footage-relay"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
+
+# An address carries a ticket, so nothing of a request is kept: no logs and no traces, here or in the proof.
+[observability]
+enabled = false
+
+# Production's two secrets and its key door's address are set once, by hand (README.md): TICKET_KEY, KEY_DOOR_SECRET, KEY_DOOR_URL.
+
+[env.proof]
+name = "chanlytics-footage-relay-proof"
+main = "proof/relay-with-breaks.ts"
+
+# The proof's key door is a Worker of the same account, reached by a binding: one Worker may not fetch another by its
+# workers.dev address. The address below is only what the relay calls the door; the binding carries the call.
+[env.proof.vars]
+KEY_DOOR_URL = "https://key-door.proof/key"
+
+[[env.proof.services]]
+binding = "KEY_DOOR"
+service = "chanlytics-footage-proof-door"

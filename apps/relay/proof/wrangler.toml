@@ -1,0 +1,22 @@
+# The proof's key door (P1 only; key-door.ts says why it exists). Deployed before the proof's relay, deleted after the proof:
+#
+#   npx wrangler deploy --config proof/wrangler.toml
+#   npx wrangler delete --config proof/wrangler.toml
+
+name = "chanlytics-footage-proof-door"
+main = "key-door.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = false
+
+# Its memory: one Durable Object, on SQLite storage (the kind every plan has).
+[[durable_objects.bindings]]
+name = "RUNS"
+class_name = "ProofRuns"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ProofRuns"]
