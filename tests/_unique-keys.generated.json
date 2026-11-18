@@ -1997,6 +1997,22 @@
       "where": null
     },
     {
+      "table": "media_sources",
+      "name": "media_sources_channel",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "channel_id"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "channel_id"
+        }
+      }
+    },
+    {
       "table": "memberships",
       "name": "memberships_pkey",
       "primary": true,

@@ -642,6 +642,7 @@
     "00637_sending_can_be_stopped_for_a_workspace.sql": "0267be31390a031dc874d38b6455fca3a57a2d699a765d2cfbd3e71590ba3bab",
     "00638_each_library_cap_is_counted_in_one_place.sql": "98e3825832eb246b55c3d66b45e42065eaf3b61374ce60a97ec40ddb0a4fa261",
     "00639_a_business_s_footage_has_its_sources.sql": "4ba4b0ba2bef929cab8df25ec5d8792125f8e69d1977c563c8812a2e70b75e46",
-    "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e"
+    "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e",
+    "00641_a_watched_folder_is_listed_and_kept_current.sql": "c77f5358e65597c0713bbc2bab7f7e8f80eabbea454f55805f8929bd5ea953d4"
   }
 }

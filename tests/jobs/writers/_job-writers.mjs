@@ -37,6 +37,29 @@ export const JOB_WRITERS = {
   "apps/edge/lib/files/piece-make.ts|piece_make": {
     ledger: "the step that would have written the next runs again: a start finds its machine kept and starts no second",
   },
+  "apps/edge/lib/files/sources/push.ts|source_read": {
+    clock: "sources",
+    why: "a signal's read that was never written is the floor's: every watched folder is read within the hour, signal or none",
+  },
+  "apps/edge/lib/files/sources/read.ts|source_walk": {
+    clock: "sources",
+    why: "a folder a read found is listed by the folder's next re-walk, which a change inside brings a day on at most",
+  },
+  "apps/edge/lib/files/sources/walk.ts|source_read": {
+    clock: "sources",
+    why: "the walk's end sets the folder's next read to now on its row, so the clock hands it that read",
+  },
+  "apps/edge/lib/files/sources/walk.ts|source_walk": {
+    clock: "sources",
+    why: "a walk that has written nothing for half an hour is taken up where its rows stand (sources_hand_out)",
+  },
+  "apps/edge/lib/files/sources/watch.ts|source_read": {
+    person: "Check now: nothing is left that looks read, and the press can be pressed again; the floor reads it anyway",
+  },
+  "apps/edge/lib/files/sources/watch.ts|source_walk": {
+    clock: "sources",
+    why: "a folder chosen whose first walk never began is handed it after half an hour (sources_hand_out)",
+  },
   "apps/edge/lib/files/upkeep.ts|file_look": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/upkeep.ts|file_purge": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/video-digest.ts|file_look": { clock: "health", why: "keepFilesMoving finds a file not moving" },

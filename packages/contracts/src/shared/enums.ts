@@ -219,6 +219,14 @@ export const JOB_KINDS = [
    * one job a workspace while one waits or runs: each due person's step is run or left. Payload {}: it asks what is due.
    */
   "sequence_occasions",
+  /**
+   * A watched folder kept current (00641, the footage sources plan): `source_walk` is one step of a walk of its tree (a
+   * first listing, a re-walk, a new folder's contents), payload { source_id, run, step, walk }, once a folder, run and
+   * step; `source_read` is one read of its provider's changes from the place its row keeps, payload { source_id }, once
+   * a folder while one waits or runs. Both in the bulk lane and written to be run again: every write is once an item.
+   */
+  "source_walk",
+  "source_read",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];

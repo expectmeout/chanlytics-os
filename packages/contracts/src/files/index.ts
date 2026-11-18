@@ -4,6 +4,7 @@ export {
   FILE_LISTEN_DOOR,
   FILE_PLAY_DOOR,
   FILE_VIDEO_START_DOOR,
+  SOURCES_DOOR,
 } from "./edge-doors";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files";
 export {
@@ -107,6 +108,21 @@ export {
   vttOf,
 } from "./sound";
 export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
+export { SOURCE_ITEM_STATES, SOURCE_WALK_KINDS } from "./sources";
+export type {
+  SourceChange,
+  SourceChanges,
+  SourceChannel,
+  SourceChannelAsk,
+  SourceChildren,
+  SourceFolder,
+  SourceItemKind,
+  SourceItemRecord,
+  SourceItemState,
+  SourceProviderContract,
+  SourceReply,
+  SourceWalkKind,
+} from "./sources";
 export { VIDEO_TILE_WORDS } from "./tile-words";
 export {
   clockOf,

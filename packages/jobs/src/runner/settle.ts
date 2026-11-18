@@ -544,6 +544,8 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   google_read: null,
   texts_read: null,
   sequence_occasions: null,
+  source_walk: null,
+  source_read: null,
   canary: null,
 };
 

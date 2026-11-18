@@ -20,12 +20,19 @@ export function placesKey(): string | null {
   return env.GOOGLE_PLACES_API_KEY || null;
 }
 
-/** The OAuth client for the Business Profile door, when the environment has all three parts. */
-export function profileClient(): OAuthClient | null {
+/**
+ * The one Google app every connection here uses (decision 0073), with the callback one of its doors returns to: null
+ * until the environment has the app's two parts and that callback.
+ */
+export function googleClientAt(redirectUri: string | undefined): OAuthClient | null {
   const clientId = env.GOOGLE_OAUTH_CLIENT_ID;
   const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET;
-  const redirectUri = env.GOOGLE_OAUTH_REDIRECT_URI;
   return clientId && clientSecret && redirectUri ? { clientId, clientSecret, redirectUri } : null;
+}
+
+/** The OAuth client for the Business Profile door, when the environment has all three parts. */
+export function profileClient(): OAuthClient | null {
+  return googleClientAt(env.GOOGLE_OAUTH_REDIRECT_URI);
 }
 
 /**
