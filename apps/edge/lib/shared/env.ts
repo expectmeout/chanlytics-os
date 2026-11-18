@@ -373,6 +373,20 @@ export const env = {
   get CLOUDFLARE_STREAM_KEY_JWK() {
     return trimmedEnv(process.env.CLOUDFLARE_STREAM_KEY_JWK);
   },
+  // A watched folder's clips (the footage sources plan): the video platform fetches each from the relay, a Cloudflare
+  // Worker that holds no Google grant. Without all three, a watched folder's photos come in and its videos wait.
+  /** The relay's address (https), where the video platform is sent for a clip: not a secret. */
+  get FOOTAGE_RELAY_URL() {
+    return trimmedEnv(process.env.FOOTAGE_RELAY_URL);
+  },
+  /** What a clip's ticket is signed with: the relay holds the same key (its TICKET_KEY); never logged. */
+  get FOOTAGE_TICKET_KEY() {
+    return trimmedEnv(process.env.FOOTAGE_TICKET_KEY);
+  },
+  /** What the relay knocks on the key door with (its KEY_DOOR_SECRET); never logged. */
+  get FOOTAGE_KEY_DOOR_SECRET() {
+    return trimmedEnv(process.env.FOOTAGE_KEY_DOOR_SECRET);
+  },
   /** The Gemini API key, made on a Google Cloud project with billing on, never a free one; never logged. */
   get GEMINI_API_KEY() {
     return trimmedEnv(process.env.GEMINI_API_KEY);

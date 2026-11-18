@@ -322,6 +322,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   instagram_read: "Reading a business's Instagram",
   file_purge: "Letting go of a removed file",
   video_digest: "Making a video ready",
+  source_take: "Bringing in a photo or a video from a business's folder",
   post_prepare: "Making a post ready on Instagram",
   post_publish: "Posting on Instagram",
   post_reconcile: "Asking Instagram whether a post went up",

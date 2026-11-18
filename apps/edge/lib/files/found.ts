@@ -30,7 +30,7 @@ import { noteImport } from "@chanlytics/db/imports";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { http } from "../shared/google/places.js";
-import { keepFoundVideo } from "./found-video.js";
+import { keepFoundVideo, type FoundVideoKept } from "./found-video.js";
 import { readPicturePrint } from "./prints.js";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
@@ -46,6 +46,8 @@ const BATCH_KEY_CHARS = 16;
 /** How many found pictures are read at once. */
 const FETCHES_AT_ONCE = 4;
 const FETCH_MS = 5 * SECOND_MS;
+/** How long what could not be kept rests before it is asked for again as its own batch: a blip's length. */
+const KEEP_AGAIN_MS = 60 * SECOND_MS;
 
 /** A found picture or video, as a job or an import part hands it: where it is, and what is known of it. */
 export interface FoundFile {
@@ -56,6 +58,8 @@ export interface FoundFile {
   shows?: FileShows | null;
   /** What to call it until the look does. Absent, the last word of its address. */
   name?: string;
+  /** A video's length, where its road says it (an Instagram reel's): it is let in by it at the door. */
+  seconds?: number | null;
 }
 
 const MIME_OF_KIND: Readonly<Record<string, FileMime>> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" };
@@ -145,7 +149,9 @@ function itemsOf(raw: unknown): FoundFile[] {
     const o = recordOrEmpty(i);
     if (typeof o.url !== "string" || !o.url) return [];
     const ref = typeof o.ref === "string" ? o.ref : o.url;
-    return [o.kind === "video" ? { url: o.url, ref, kind: "video" as const } : { url: o.url, ref }];
+    if (o.kind !== "video") return [{ url: o.url, ref }];
+    const seconds = typeof o.seconds === "number" && Number.isFinite(o.seconds) && o.seconds >= 0 ? o.seconds : null;
+    return [{ url: o.url, ref, kind: "video" as const, seconds }];
   });
 }
 
@@ -172,8 +178,11 @@ const ROAD_LEDGER: Readonly<Record<string, "website_media" | "instagram">> = {
   instagram: "instagram",
 };
 
+/** What became of one of a batch: a picture's fate or a video's, or that it could not be kept for now. */
+type BatchFate = FoundFate | FoundVideoKept | "failed";
+
 /** One picture of a batch, what became of it, or that it could not be kept for now, which the batch throws for at its end. */
-async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile): Promise<FoundFate | "failed"> {
+async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile): Promise<BatchFate> {
   const log = logger({ tenant_id: job.tenant_id });
   let file: FoundFile | null;
   try {
@@ -192,6 +201,7 @@ async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile
         url: file.url,
         ref: file.ref,
         name: firstNameOf(file.url, source),
+        seconds: file.seconds ?? null,
       });
     return await keepFoundFile(db, job.tenant_id, { source, status: "inbox", file });
   } catch (e) {
@@ -200,10 +210,33 @@ async function oneFound(db: Db, job: ClaimedJob, source: string, item: FoundFile
   }
 }
 
+/** How many of a batch's part met a fate. */
+const fatesMet = (fates: readonly BatchFate[], fate: BatchFate): number => fates.filter((f) => f === fate).length;
+
+/**
+ * What a batch left behind, as its road's line counts it (contracts content/sources.ts): videos with no room in the
+ * minutes, videos longer than AI can watch, and files a full Library stopped. Only what is not nothing is written.
+ */
+function leftCountsOf(left: { videos: number; long: number; files: number }): Record<string, number> {
+  return {
+    ...(left.videos > 0 ? { left_videos: left.videos } : {}),
+    ...(left.long > 0 ? { long_videos: left.long } : {}),
+    ...(left.files > 0 ? { left_files: left.files } : {}),
+  };
+}
+
 /**
  * file_fetch: a batch read a few at a time, and no read started past the deadline: what is left goes on as its own job. The
- * bell rings once, as soon as something waits on a person, and before anything can throw. Storage or the database failing
- * throws at the end, so the ledger tries again and nothing the site offered is lost to a blip; what was kept stays kept.
+ * bell rings once, as soon as something waits on a person, and before anything can throw.
+ *
+ * A video is let in by its length (00642): one with no room in the minutes, or longer than AI can watch, is passed over
+ * and the batch goes on, so the photos behind it still come. A full Library stops the batch, as it did. What was left
+ * either way is counted on the road's line, so the page says it.
+ *
+ * Each file is settled by one job, so what was left is counted once. A file Storage or the database could not keep is
+ * asked for again a minute on, as its own batch with whatever the deadline left, and nothing the site offered is lost
+ * to a blip; what was kept stays kept. Where nothing a batch reached could be kept it throws, and the ledger tries the
+ * same batch again.
  */
 export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Promise<void> {
   const source = String(job.payload.source);
@@ -211,17 +244,36 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
   const items = itemsOf(job.payload.items);
   let kept = 0;
   let keptVideos = 0;
-  let failed = 0;
+  const unkept: FoundFile[] = [];
+  const left = { videos: 0, long: 0, files: 0 };
   let full = false;
+  // The video platform's own account is out of storage: no other video of the batch is asked for, and the photos go on.
+  let videosStopped = false;
   let at = 0;
   for (; at < items.length && Date.now() < deadline && !full; at += FETCHES_AT_ONCE) {
     const part = items.slice(at, at + FETCHES_AT_ONCE);
-    const fates = await Promise.all(part.map((item) => oneFound(db, job, source, item)));
-    kept += fates.filter((f) => f === "kept").length;
+    const skipVideos = videosStopped;
+    const fates = await Promise.all(
+      part.map(async (item): Promise<BatchFate> =>
+        skipVideos && item.kind === "video" ? "stopped" : oneFound(db, job, source, item),
+      ),
+    );
+    kept += fatesMet(fates, "kept");
     keptVideos += fates.filter((f, i) => f === "kept" && part[i]?.kind === "video").length;
-    failed += fates.filter((f) => f === "failed").length;
+    unkept.push(...part.filter((_item, i) => fates[i] === "failed"));
+    left.videos += fatesMet(fates, "minutes");
+    left.long += fatesMet(fates, "long");
+    left.files += fatesMet(fates, "full");
     full = fates.includes("full");
+    videosStopped = videosStopped || fates.includes("stopped");
   }
+  const failed = unkept.length;
+  const reached = Math.min(at, items.length);
+  // Nothing it reached could be kept: nothing is settled, so the ledger tries this same batch again, whole.
+  if (failed > 0 && failed === reached && !full)
+    throw new Error(`file_fetch: ${failed} of ${items.length} could not be kept`);
+  // A full Library stopped the batch: what it never reached, and what it could not keep, was left too.
+  if (full) left.files += failed + (items.length - reached);
   const rang = job.payload.rang === true;
   if (kept > 0 && !rang) {
     await recordNotification(
@@ -235,9 +287,16 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
       db,
     );
   }
-  const goesOn = !full && at < items.length;
+  // What is still to settle goes on as its own batch: what could not be kept, and what the deadline left.
+  const rest = full ? [] : [...unkept, ...items.slice(reached)];
+  const goesOn = rest.length > 0;
   if (goesOn) {
-    await askForFoundFiles(db, job.tenant_id, { source, items: items.slice(at), rang: rang || kept > 0 });
+    await askForFoundFiles(db, job.tenant_id, {
+      source,
+      items: rest,
+      rang: rang || kept > 0,
+      afterMs: failed > 0 ? KEEP_AGAIN_MS : 0,
+    });
   }
   const ledger = ROAD_LEDGER[source];
   if (ledger)
@@ -245,18 +304,32 @@ export async function fetchFiles(db: Db, job: ClaimedJob, deadline: number): Pro
       tenantId: job.tenant_id,
       source: ledger,
       state: goesOn ? "running" : "done",
-      counts: { photos: kept - keptVideos, videos: keptVideos },
+      counts: { photos: kept - keptVideos, videos: keptVideos, ...leftCountsOf(left) },
       add: true,
     });
-  logger({ tenant_id: job.tenant_id }).info("file_fetch_done", { source, asked: items.length, kept, failed, full });
-  if (failed > 0) throw new Error(`file_fetch: ${failed} of ${items.length} could not be kept`);
+  logger({ tenant_id: job.tenant_id }).info("file_fetch_done", {
+    source,
+    asked: items.length,
+    kept,
+    failed,
+    full,
+    left_videos: left.videos,
+    long_videos: left.long,
+    left_files: left.files,
+    videos_stopped: videosStopped,
+  });
 }
 
 /** A batch asked for, once for what it holds: the same pictures found again are no second job. */
 export async function askForFoundFiles(
   db: Db,
   tenantId: TenantId,
-  { source, items, rang = false }: { source: string; items: readonly FoundFile[]; rang?: boolean },
+  {
+    source,
+    items,
+    rang = false,
+    afterMs = 0,
+  }: { source: string; items: readonly FoundFile[]; rang?: boolean; afterMs?: number },
 ): Promise<void> {
   if (items.length === 0) return;
   const batch = createHash("sha256")
@@ -271,11 +344,16 @@ export async function askForFoundFiles(
   await scheduleJobOnce(db, {
     tenantId,
     kind: "file_fetch",
-    dueAt: new Date(),
+    dueAt: new Date(Date.now() + afterMs),
     payload: {
       source,
       batch,
-      items: items.map((i) => ({ url: i.url, ref: i.ref, ...(i.kind === "video" ? { kind: "video" } : {}) })),
+      items: items.map((i) => ({
+        url: i.url,
+        ref: i.ref,
+        ...(i.kind === "video" ? { kind: "video" } : {}),
+        ...(i.kind === "video" && typeof i.seconds === "number" ? { seconds: i.seconds } : {}),
+      })),
       ...(rang ? { rang: true } : {}),
     },
   });

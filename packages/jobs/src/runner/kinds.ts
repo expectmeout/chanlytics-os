@@ -334,6 +334,21 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["file_id", "step"],
     never: [],
   },
+  // One item of a watched folder taken in (00642, the footage sources plan). Safe to run again at every step: an item is
+  // moved by a guarded write, a file is made once by its door, and a workspace's day counts an item once. A throw is the
+  // provider, the video platform or the database not answering: two minutes, then ten. One that ends for good puts its
+  // item back to wait or says it failed (settle.ts), and the folder's line tells its owner. The longest call is a photo's
+  // bytes read whole.
+  source_take: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 30 * SECOND_MS,
+    ids: ["item_id", "try"],
+    never: [],
+  },
   // A video made from a business's clips (00613, decision 0122): each step is safe to run again (a machine started twice is
   // two drawings and one is let go; a file begun twice is the one row), and a step that must wait puts its own next tick on the
   // ledger, so a throw is a fault of ours: tried once more two minutes on, while the machine still holds what it drew, then

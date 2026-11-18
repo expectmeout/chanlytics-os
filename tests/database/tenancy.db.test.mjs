@@ -1191,6 +1191,7 @@ const OTHER_TABLES = {
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
   job_kinds: "none", // each job kind's lane, once-only rule and pause (00526): platform-wide rows, the service role's alone
   piece_images: "none", // the machine image each edition of the video template is drawn on (00613): the service role's alone
+  source_days: "none", // what taking footage in cost the platform in a day (00642): no workspace on it; the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

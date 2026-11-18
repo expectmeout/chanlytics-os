@@ -4,6 +4,9 @@
  * presses. What is brought waits in the Library for their Keep, as everything found does. Pure.
  */
 import { asText, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
+import { agoWords, waitedLabel } from "../shared/time";
+import { recordOrEmpty } from "../shared/unknown";
+import { groupedPlural } from "../shared/words";
 import { CONTENT_LIBRARY_ROUTE } from "./address";
 import { siteHostOf } from "./sources";
 
@@ -67,6 +70,20 @@ export const BRING_IN_WORDS = {
       ? `AI reads ${siteHostOf(b.url)} for its photos${videos ? " and videos" : ""}. They wait in the Library for your approval.`
       : `AI brings in the newest posts${videos ? " and reels" : ""} of @${b.handle}. Only your own account: they wait in the Library for your approval.`,
   receipt: "AI is bringing them in. They wait in the Library for your approval.",
+  /** The account was read inside the day, so it is not read again: how long ago, and what that read brought in. */
+  readLately: (ago: string, photos: number, videos: number) => {
+    const brought = [photos ? groupedPlural(photos, "photo") : null, videos ? groupedPlural(videos, "video") : null]
+      .filter(Boolean)
+      .join(" and ");
+    return `AI read this account ${ago} and ${brought ? `brought in ${brought}` : "found nothing new"}. It reads an account once a day.`;
+  },
+  /** The account's read, asked for inside the day, is still on its way. */
+  stillReading: "AI is already reading this account. What it finds waits in the Library for your approval.",
+  /** The workspace's reads of the day are used: how long until the next may be asked for. */
+  readsUsed: (wait: string) =>
+    `AI has read Instagram as often as it can for you today. Paste the link again in ${wait}.`,
+  /** Every workspace's reads of the day are used: nothing the owner can change but to come back. */
+  readsPaused: "AI can't read Instagram right now. Paste the link again tomorrow.",
   /** Why a link is not brought in, for Ask to say in its own words. */
   refused: {
     player:
@@ -79,6 +96,26 @@ export const BRING_IN_WORDS = {
 } as const;
 
 /**
+ * What the card says once pressed, from the route's answer (the dashboard's server content/bring-in.ts): a read began
+ * (`fate` website or instagram); the account was read inside the day (`read_lately`, with `read_ms_ago`, whether that
+ * read is still on its way as `reading`, and the `photos` and `videos` it brought); or a day's reads are used
+ * (`wait`, with which budget `binds` and `wait_ms` until the next may be asked for). Never as a failure.
+ */
+function bringInReceiptOf(data: unknown): string {
+  const answer = recordOrEmpty(data);
+  const count = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+  if (answer.fate === "read_lately")
+    return answer.reading === true
+      ? BRING_IN_WORDS.stillReading
+      : BRING_IN_WORDS.readLately(agoWords(0, count(answer.read_ms_ago)), count(answer.photos), count(answer.videos));
+  if (answer.fate === "wait")
+    return answer.binds === "workspace_reads"
+      ? BRING_IN_WORDS.readsUsed(waitedLabel(count(answer.wait_ms)))
+      : BRING_IN_WORDS.readsPaused;
+  return BRING_IN_WORDS.receipt;
+}
+
+/**
  * The card: one press brings in what the link holds. Whoever may keep what is found (the Library's Keep, POST files/keep) may
  * press it, since a read of an Instagram is paid for; the route reads the link again, so a card changed by hand is read as it
  * stands.
@@ -88,6 +125,6 @@ export const bringInSpec: ProposalSpecAboveOperator = {
   doing: "bring in photos and videos from a link",
   gate: "settings",
   commit: ({ payload }) => ({ route: "POST content/bring-in", body: { link: asText(payload.link) } }),
-  receipt: () => BRING_IN_WORDS.receipt,
+  receipt: (_card, data) => bringInReceiptOf(data),
   open: () => CONTENT_LIBRARY_ROUTE,
 };

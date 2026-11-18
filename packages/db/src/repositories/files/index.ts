@@ -22,7 +22,7 @@ export {
   startFile,
   updateFileRow,
 } from "./doors";
-export type { FileFate, MediaFate, PrintFate, VideoFate } from "./doors";
+export type { FileFate, FoundVideoFate, MediaFate, PrintFate, VideoFate } from "./doors";
 export {
   countFilesKept,
   countFilesMade,
@@ -100,5 +100,23 @@ export type {
   PostRow,
 } from "./posts";
 export { listFilesUnprinted } from "./prints";
+export {
+  endSourceTake,
+  findSourceItem,
+  findSourceItemAnywhere,
+  findSourceTwin,
+  handOutSourceTakes,
+  holdSourceTakes,
+  listMediaHeld,
+  moveSourceTake,
+  recordVideoSourced,
+  removeFailedTake,
+  settleTakesFailed,
+  settleTakesPassed,
+  settleTakesReady,
+  spendSourceTake,
+  spendSourceUnits,
+} from "./source-takes";
+export type { SourcedVideoFate, SourceTakeItem } from "./source-takes";
 export { findGoogleSourceConnectionOfAccount } from "./sources";
 export { followPostCaption, movePostTime } from "./waiting-posts";

@@ -8,8 +8,14 @@
  * Each fact is said once (Ruben, 16 Nov 2026, "cleaner, less redundant"; docs/words.md, Say it once): a line is its glyph,
  * its name and its status, no second line saying what the glyph says; where one place alone brought something the title's
  * count is its count, so its line says it was checked; the input's example says what to paste, so no hint repeats it.
+ *
+ * What a read left behind is said too (the footage sources plan's F3, 18 Nov 2026): a video with no room in the
+ * workspace's minutes, a file a full Library stopped, a video longer than AI can watch. Once, after the card's own
+ * sentence, with the reason, which is the one thing the owner can change. Never as an error.
  */
+import { FILE_VIDEO_SECONDS_MAX } from "../files/kinds";
 import type { FilmShot } from "../imports/business-reads";
+import { MIN_MS, SECOND_MS } from "../shared/time";
 import { groupedPlural } from "../shared/words";
 
 export type ContentSourcePlace = "website" | "google_listing" | "instagram";
@@ -42,6 +48,13 @@ export interface ContentSourceDto {
   seen: ContentSourceSeen | null;
   /** Why it could not be read, in its own words for the owner; null where it was. */
   unread: string | null;
+  /**
+   * What its last read left behind (the ledger's counts, 00642), each zero where it left none: videos with no room in
+   * the workspace's minutes, videos longer than AI can watch, and files a full Library stopped.
+   */
+  left_videos: number;
+  long_videos: number;
+  left_files: number;
 }
 
 export interface ContentSourcesDto {
@@ -83,6 +96,9 @@ export interface ContentSourcesSaid {
   film: FilmSaid | null;
 }
 
+/** The longest video AI can watch, in minutes (files/kinds.ts FILE_VIDEO_SECONDS_MAX). */
+const VIDEO_MINUTES_MOST = (FILE_VIDEO_SECONDS_MAX * SECOND_MS) / MIN_MS;
+
 export const CONTENT_SOURCE_WORDS = {
   title: {
     unknown: (videos: boolean) => (videos ? "Where are your photos and videos?" : "Where are your photos?"),
@@ -121,6 +137,17 @@ export const CONTENT_SOURCE_WORDS = {
   ask: {
     /** An example of what to paste, never an instruction (docs/words.md, Placeholder); one line on a phone. */
     placeholder: "instagram.com/yourbusiness",
+  },
+  /** What a read left behind, each with its reason: an Instagram's videos are its reels. */
+  left: {
+    videos: (n: number, reels: boolean) =>
+      `${groupedPlural(n, reels ? "reel" : "video")} ${n === 1 ? "wasn't" : "weren't"} brought in: your videos are full.`,
+    files: (n: number) =>
+      `${groupedPlural(n, "file")} ${n === 1 ? "wasn't" : "weren't"} brought in: your Library is full.`,
+    long: (n: number) =>
+      n === 1
+        ? `1 video is longer than ${VIDEO_MINUTES_MOST} minutes, so AI can't watch it.`
+        : `${n.toLocaleString("en-US")} videos are longer than ${VIDEO_MINUTES_MOST} minutes, so AI can't watch them.`,
   },
   /** The + at the input's start, by its name (it carries no words of its own). */
   addFromPhone: "Add from your phone",
@@ -225,6 +252,24 @@ function whyNoneOf(read: readonly ContentSourceDto[]): string {
 }
 
 /**
+ * What the reads left behind, over every place, as one run of sentences; null where they left nothing. Videos are said
+ * only where the workspace takes videos, and as reels where only an Instagram left any.
+ */
+function leftSaidOf(places: readonly ContentSourceDto[], videos: boolean): string | null {
+  const sum = (of: (source: ContentSourceDto) => number): number => places.reduce((n, source) => n + of(source), 0);
+  const leftVideos = videos ? sum((source) => source.left_videos) : 0;
+  const longVideos = videos ? sum((source) => source.long_videos) : 0;
+  const leftFiles = sum((source) => source.left_files);
+  const reels = places.every((source) => source.place === "instagram" || source.left_videos === 0);
+  const sentences = [
+    leftVideos > 0 ? SOURCE_SAYS.left.videos(leftVideos, reels) : null,
+    leftFiles > 0 ? SOURCE_SAYS.left.files(leftFiles) : null,
+    longVideos > 0 ? SOURCE_SAYS.left.long(longVideos) : null,
+  ].filter(Boolean);
+  return sentences.length > 0 ? sentences.join(" ") : null;
+}
+
+/**
  * The card: its state, its words and its lines. Looking wins while any place is read; then what came in; then, where a place
  * was read and brought nothing, why; and nothing known, where no place was ever read or named.
  */
@@ -235,6 +280,7 @@ export function contentSourcesSaid(sources: ContentSourcesDto, videos: boolean):
   const film = filmSaidOf(sources.film, videos);
   const photos = sources.places.reduce((n, s) => n + s.photos, 0);
   const shown = sources.places.reduce((n, s) => n + (videos ? s.videos : 0), 0);
+  const left = leftSaidOf(sources.places, videos);
   if (sources.places.some((s) => s.reading))
     return {
       state: "looking",
@@ -248,7 +294,7 @@ export function contentSourcesSaid(sources: ContentSourcesDto, videos: boolean):
     return {
       state: "found",
       title: SOURCE_SAYS.found(photos, shown),
-      body: SOURCE_SAYS.body.found,
+      body: left ? `${SOURCE_SAYS.body.found} ${left}` : SOURCE_SAYS.body.found,
       lines: foundLinesOf(sources, lines),
       ask,
       film,
@@ -259,7 +305,8 @@ export function contentSourcesSaid(sources: ContentSourcesDto, videos: boolean):
     return {
       state: "none",
       title: SOURCE_SAYS.title.none,
-      body: `${SOURCE_SAYS.lookedAt(names)} ${whyNoneOf(read)}`,
+      // What was left is why nothing came, where something was: the reason the owner can change.
+      body: `${SOURCE_SAYS.lookedAt(names)} ${left ?? whyNoneOf(read)}`,
       lines,
       ask,
       film,

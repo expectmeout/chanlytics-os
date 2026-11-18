@@ -43,6 +43,7 @@ import { watchStream } from "../files/video-watch.js";
 import { watchSiteReader } from "../imports/site-reader-watch.js";
 import { errField } from "../shared/log.js";
 import { leadSourceClient, watchLeadPins, watchLeadPrices } from "../leads/sources.js";
+import { watchInstagramPin } from "../imports/instagram-read.js";
 import { listPausedJobKinds } from "@chanlytics/db/jobs";
 import { watchVoice } from "../voice/watch/voice-watch.js";
 import { env } from "../shared/env.js";
@@ -186,7 +187,8 @@ export async function sweepHealth({ db, L }: SweepTick): Promise<Response> {
   });
   // Each lead source's pinned build read by its id: one the provider deleted is paged before an owner's search meets
   // it (23 Oct 2026: a deleted pin refused every Maps search at its start, for weeks, unseen).
-  const pinsGone = await watchLeadPins(db, leadSourceClient());
+  // The Instagram actor's with them (00642): a pasted account is read at a pinned build too.
+  const pinsGone = (await watchLeadPins(db, leadSourceClient())) + (await watchInstagramPin(db, leadSourceClient()));
   // And once a day their prices, against the last read: the cards and the SQL ceiling are priced by hand (00506).
   const pricesPaged = await watchLeadPrices(db, leadSourceClient(), Date.now());
   // The page reader's credits: with none left every read of a business's website comes back empty, and nothing says why.

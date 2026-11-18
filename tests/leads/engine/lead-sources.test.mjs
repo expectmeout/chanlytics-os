@@ -19,6 +19,10 @@ const { recordPageContactsUnread, recordPagePlatformDay, recordPageSourceRefused
   pathToFileURL(path.join(ROOT, "apps/edge/lib/leads/sources.ts")).href
 );
 
+const { watchInstagramPin } = await import(
+  pathToFileURL(path.join(ROOT, "apps/edge/lib/imports/instagram-read.ts")).href
+);
+
 process.env.LEAD_TO = "ops@example.test";
 process.env.LEAD_FROM = "pager@example.test";
 
@@ -172,6 +176,30 @@ test("a pin whose id names another build pages that the two disagree; a latest i
   assert.equal(m.sent[0].subject, `[Chanlytics] A lead source's pin names two builds: ${CHECKER}`);
   assert.match(m.sent[0].body, /pinned to build 0\.1\.16, but the pin's id uw7qJdrXWOwYh9MUK names build 0\.1\.18\./);
   assert.match(m.sent[0].body, /Probe the actor's latest build with/);
+});
+
+test("the Instagram actor a pasted account is read by is pinned and watched the same way, and pages in its own words", async () => {
+  const INSTAGRAM = "apify/instagram-scraper";
+  const db = pagerMemory();
+  const m = mailbox();
+  const standing = provider({ OlhAMG6xbGzbdIKRQ: "0.0.867" }, { [INSTAGRAM]: "0.0.900" });
+  assert.equal(await watchInstagramPin(db, standing, { send: m.send, now: () => FIVE_AM }), 0);
+  assert.deepEqual(standing.asked, ["OlhAMG6xbGzbdIKRQ"], "its build is read by its id, and no latest is asked for");
+  assert.equal(await watchInstagramPin(db, null, { send: m.send }), 0, "no key on this deployment");
+  const gone = provider({}, { [INSTAGRAM]: "0.0.900" });
+  assert.equal(await watchInstagramPin(db, gone, { send: m.send, now: () => FIVE_AM }), 1);
+  assert.equal(m.sent[0].subject, `[Chanlytics] A photo source's pinned build is gone: ${INSTAGRAM}`);
+  assert.match(
+    m.sent[0].body,
+    /^apify\/instagram-scraper is pinned to build 0\.0\.867, and the provider no longer has it \(id OlhAMG6xbGzbdIKRQ\)\. Every read of an Instagram account that starts this actor is refused at its start/,
+  );
+  assert.match(m.sent[0].body, /Probe the latest build, 0\.0\.900, with one account's read \(a few posts\)/);
+  assert.match(
+    m.sent[0].body,
+    /videoDuration/,
+    "it names what a read takes of an item, so the next build is checked for it",
+  );
+  assert.match(m.sent[0].body, /pin its number and id in apps\/edge\/lib\/imports\/instagram-read\.ts/);
 });
 
 test("a build it cannot read skips that pin alone, and a deployment without the key checks nothing", async () => {

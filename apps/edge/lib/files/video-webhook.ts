@@ -17,6 +17,8 @@ import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { tellPieceMoved } from "./piece-make.js";
+import { clearUnheldCopy } from "./takes/copies.js";
+import { settleTakenVideo } from "./takes/word.js";
 
 /** A video's event is a few KB. */
 const STREAM_EVENT_BYTES_MAX = 64 * 1024;
@@ -59,6 +61,16 @@ export async function receiveStreamWebhook(request: Request): Promise<Response> 
           height: video.height,
         })
       : await markFileMediaFailed(db, video.uid, video.errorCode);
+  } catch (e) {
+    log.error("stream_webhook_unwritable", { error: errField(e) });
+    return refuse(503, "no_database");
+  }
+  // A clip a watched folder brought (00642): the item it came from is in, or waits to be fetched again. Not written is
+  // not heard, so Stream says it again, and a word heard twice settles what the first did not.
+  try {
+    await settleTakenVideo(db, fate, video.seconds);
+    // A take's copy that no row holds (its job died as the platform took the address): deleted, so it holds no minutes.
+    if (fate.fate === "unknown") await clearUnheldCopy(db, video);
   } catch (e) {
     log.error("stream_webhook_unwritable", { error: errField(e) });
     return refuse(503, "no_database");

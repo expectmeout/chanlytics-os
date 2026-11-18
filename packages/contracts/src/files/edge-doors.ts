@@ -68,7 +68,17 @@ export const FILE_VIDEO_START_DOOR = edgeDoor(
 export const FILE_BRING_IN_DOOR = edgeDoor(
   "/api/admin/files/bring-in",
   z.object({ tenant_id: DOOR_ID.optional(), link: z.string().max(500) }),
-  answerFields({ fate: z.string() }),
+  // `fate`: website or instagram (a read began), read_lately (the account was read inside the day: when, whether it
+  // is still on its way, and what it brought), or wait (a day's budget of reads binds: which, and until when).
+  answerFields({
+    fate: z.string(),
+    read_at: z.string(),
+    reading: z.boolean(),
+    photos: z.number(),
+    videos: z.number(),
+    binds: z.string(),
+    until: z.string(),
+  }),
 );
 
 /** POST /api/admin/files/play: the player's address for one video, under a token for an hour. */

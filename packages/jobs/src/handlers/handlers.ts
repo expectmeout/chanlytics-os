@@ -421,6 +421,13 @@ async function videoDigest(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await ctx.files.digest(job, ctx.deadline);
 }
 
+/** source_take: one item of a watched folder taken into the Library (00642), through what the edge injects. payload: { item_id, try } */
+async function sourceTake(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.takes) throw new Error("source_take: this runtime holds no taker");
+  const answer = await ctx.takes.take(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
 async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
@@ -541,6 +548,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   instagram_read: instagramRead,
   file_purge: filePurge,
   video_digest: videoDigest,
+  source_take: sourceTake,
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,

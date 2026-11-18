@@ -753,6 +753,12 @@
       "knock": "verifyTwilioSignature",
       "knock_in": "receiveSmsStatus in apps/edge/lib/sms/status.ts"
     },
+    "POST /api/sources/key": {
+      "wrapper": "door",
+      "verb": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts",
+      "knock": "knockIsRelays",
+      "knock_in": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts"
+    },
     "POST /api/stream-webhook": {
       "wrapper": "door",
       "verb": "receiveStreamWebhook in apps/edge/lib/files/video-webhook.ts",

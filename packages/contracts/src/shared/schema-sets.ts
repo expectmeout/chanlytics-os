@@ -86,6 +86,7 @@ import type {
   SOURCE_CONNECTION_HEALTHS,
   SOURCE_ITEM_KINDS,
   SOURCE_ITEM_STATES,
+  SOURCE_ITEM_WHYS,
   SOURCE_PROVIDERS,
 } from "../files/sources";
 import type {
@@ -317,4 +318,5 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof MEDIA_SOURCE_STATES>, SchemaSet<"media_sources.state">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_KINDS>, SchemaSet<"source_items.kind">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_STATES>, SchemaSet<"source_items.state">>>,
+  Holds<Exactly<Of<typeof SOURCE_ITEM_WHYS>, SchemaSet<"source_items.why">>>,
 ];
