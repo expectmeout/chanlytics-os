@@ -245,11 +245,13 @@ test(
         end;
         seen := seen || jsonb_build_object(
           'stale_write', stale,
-          'kept', public.source_credentials_get(c)->>'access_token',
-          'dropped', public.source_credentials_drop(c),
+          'kept', public.source_credentials_get(c)->>'access_token');
+        -- One statement each: a read in the statement that drops would see the row as that statement began.
+        seen := seen || jsonb_build_object('dropped', public.source_credentials_drop(c));
+        seen := seen || jsonb_build_object(
           'after', public.source_credentials_get(c),
-          'ref_after', (select credentials_ref from public.source_connections where id = c),
-          'dropped_again', public.source_credentials_drop(c));`);
+          'ref_after', (select credentials_ref from public.source_connections where id = c));
+        seen := seen || jsonb_build_object('dropped_again', public.source_credentials_drop(c));`);
     assert.deepEqual(s, {
       named: true,
       ref: true,
