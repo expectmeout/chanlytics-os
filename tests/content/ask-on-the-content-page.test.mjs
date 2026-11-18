@@ -31,12 +31,12 @@ const facts = {
 /** The cards Content's own pages commit, which the guide says on Content. */
 const CONTENT_VERBS = ["post", "piece", "publish", "bring_in"];
 
-test("a view is Content's by its first word, whichever of its tabs is shown", () => {
-  for (const view of ["content:all", "content:needs", "content:library"])
-    assert.equal(C.isAskContentView?.(view), true, view);
-  for (const view of [null, undefined, "", "content", "contents:all", "ads", "ads:example", "playbooks"])
-    assert.equal(C.isAskContentView?.(view), false, String(view));
-  assert.equal(C.askContentViewOf?.("library"), "content:library", "the page says its view through the same word");
+test("the view Content says is read by its address's own predicate, whichever of its tabs is shown", () => {
+  // The page says its view as its param with its tab (bridge/ask/context.ts contentContext): one predicate reads both.
+  for (const view of ["content", "content:all", "content:needs", "content:library"])
+    assert.equal(C.isContentParam(view), true, view);
+  for (const view of [null, undefined, "", "contents:all", "ads", "ads:example", "playbooks"])
+    assert.equal(C.isContentParam(view), false, String(view));
 });
 
 test("on Content the model is told it is on Content, and never that it is on Campaigns", () => {

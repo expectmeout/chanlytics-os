@@ -40,15 +40,7 @@ export {
   noteRows,
 } from "./citations";
 export type { AskCitation, AskCitationKind, AskReadSet, AskRowRef } from "./citations";
-export {
-  ASK_ADS_VIEW,
-  ASK_CONTEXT_MAX_ROWS,
-  ASK_CONTEXT_ROW_KINDS,
-  askContentViewOf,
-  isAskAdsView,
-  isAskContentView,
-  itemFocus,
-} from "./context";
+export { ASK_ADS_VIEW, ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, isAskAdsView, itemFocus } from "./context";
 export type { AskContextRowKind, PageContext, PageContextRow } from "./context";
 export { LLM_DOOR } from "./edge-doors";
 export { askIntent, callsToday, dayFromQuestion, quickAnswerOf } from "./fast-paths";

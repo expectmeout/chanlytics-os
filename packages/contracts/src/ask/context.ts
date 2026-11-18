@@ -43,19 +43,6 @@ export const ASK_ADS_VIEW = { today: "ads", example: "ads:example" } as const;
 export const isAskAdsView = (view: string | null | undefined): boolean =>
   view === ASK_ADS_VIEW.today || view === ASK_ADS_VIEW.example;
 
-/** The first word of every view Content says it shows (PageContext.view), before the tab it is on. */
-const ASK_CONTENT_VIEW = "content:";
-
-/**
- * What Content says it shows: its word, then its tab ("content:all", "content:needs", "content:library"). A word and
- * no fact, as the Ads view is.
- */
-export const askContentViewOf = (shown: string): string => `${ASK_CONTENT_VIEW}${shown}`;
-
-/** Whether a page's view is Content's, whichever of its tabs is shown. */
-export const isAskContentView = (view: string | null | undefined): boolean =>
-  typeof view === "string" && view.startsWith(ASK_CONTENT_VIEW);
-
 export interface PageContextRow {
   kind: AskContextRowKind;
   id: string;

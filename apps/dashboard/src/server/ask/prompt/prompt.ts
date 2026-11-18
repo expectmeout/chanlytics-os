@@ -12,7 +12,7 @@ import {
   fencedInline,
   promptSafeName,
   isAskAdsView,
-  isAskContentView,
+  isContentParam,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskColumn, AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
@@ -148,10 +148,14 @@ function rowName(r: AskScope): string {
 const CAMPAIGNS_LINE =
   "They are on Campaigns, which lists what goes out on its own as a customer reaches each moment of their journey (campaigns that run by themselves) and what they send themselves. Words that describe an offer, a promotion, a setup, or a message at a moment or to a list are campaigns to propose, as the rule \"Setting up campaigns is a few cards\" says. Pausing, resuming, renaming, or a new hour, cap, gap or cadence, new words, a step, a last day or its mode (how its sends are decided) of one that exists is a change to that campaign, by the id the page's rows carry, and cold email to leads is a campaign too. A question about results is answered from the page's rows: a campaign's numbers are its last 30 days, and a one-off send's are that send's own, however long ago it went.";
 
-/** What a turn on Campaigns is told, by the tab the page says it is on: Ads' line, Content's, or Campaigns' own. */
+/**
+ * What a turn on Campaigns is told, by the tab the page says it is on: Ads' line, Content's, or Campaigns' own. Content
+ * says its view as its own param with its tab ("content:all", "content:library": bridge/ask/context.ts), so the address's
+ * one predicate reads it.
+ */
 function campaignsLineOf(view: string | null | undefined): string {
   if (isAskAdsView(view)) return adsLine(view);
-  return isAskContentView(view) ? CONTENT_LINE : CAMPAIGNS_LINE;
+  return isContentParam(view) ? CONTENT_LINE : CAMPAIGNS_LINE;
 }
 
 /** Said once a card of the thread was approved since the last answer (A4): the shape is minutes old; campaigns are read. */

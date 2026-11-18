@@ -15,7 +15,6 @@ import {
   ASK_ADS_VIEW,
   ASK_CONTEXT_MAX_ROWS,
   ASK_SCOPE_KINDS,
-  askContentViewOf,
   contentPlaceOf,
   fileSaidOf,
   isAdsParam,
@@ -159,7 +158,7 @@ const contentContext = (param: string, view: unknown): Provided => {
   const shown = place?.list === "library" ? "library" : typeof view === "string" ? view : "all";
   const open = place?.open ? surfaceValue("content")?.dto.made.find((m) => m.file.id === place.open) : undefined;
   return {
-    view: askContentViewOf(shown),
+    view: `content:${shown}`,
     rows: [],
     ...(open ? { focus: { kind: "file", id: open.file.id, label: fileSaidOf(open.file.name) } } : {}),
   };
