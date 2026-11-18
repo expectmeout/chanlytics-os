@@ -9,6 +9,10 @@ import { NO_ACTION, defineRead, offeredTo, type ActTool, type ToolContext } from
 import { unread } from "../context/tool-reads";
 import { propose_call } from "../act/call";
 import { propose_deal } from "../act/deal";
+import { bringInAct } from "../act/files/bring-in";
+import { pieceAct } from "../act/files/piece";
+import { postAct } from "../act/files/post";
+import { publishAct } from "../act/files/publish";
 import { propose_follow_up } from "../act/follow-up";
 import { propose_lead_search } from "../act/leads/search";
 import { propose_leads } from "../act/leads/leads";
@@ -45,6 +49,10 @@ const ACT_TOOLS: readonly ActTool[] = [
   propose_review,
   propose_follow_up,
   rememberAct,
+  postAct,
+  pieceAct,
+  publishAct,
+  bringInAct,
 ];
 
 /** How a member asks for a kind of card: "tool with action", each that makes it and is offered to their role. */

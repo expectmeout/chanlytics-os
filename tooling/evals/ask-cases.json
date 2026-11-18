@@ -2475,5 +2475,20 @@
       "language": "en",
       "no_write": true
     }
+  },
+  {
+    "id": "content_link_is_brought_in",
+    "text": "instagram.com/yourbusiness",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns/content",
+      "view": "content:all"
+    },
+    "expect": {
+      "proposals_any": ["bring_in"],
+      "excludes": ["can't open", "cannot open", "Meta's own screen"],
+      "no_write": true
+    }
   }
 ]

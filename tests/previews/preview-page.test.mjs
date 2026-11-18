@@ -139,9 +139,16 @@ test("open, nothing said yet: their name, Call it and the microphone's line, wha
     assert.ok(has(html, id), id);
   for (const question of ["Can you tell me about the fade?", "Are you open on Sunday?", "Where are you located?"])
     assert.ok(said.includes(question), question);
-  // Nothing is counted before anything is tried, and no conversation is drawn before one starts.
+  // Nothing is counted before anything is tried.
   for (const gone of ["messages left", "of calls left", W.teachLeft(3), "chat"]) assert.ok(!said.includes(gone), gone);
-  for (const id of ["pv-chat", "pv-greeting", "pv-left", "pv-telling", "pv-called"]) assert.ok(!has(html, id), id);
+  for (const id of ["pv-left", "pv-telling", "pv-called", "pv-turn-0", "pv-writing"]) assert.ok(!has(html, id), id);
+  // It speaks first: its greeting, as their business, in a conversation marked empty, which a phone's stylesheet keeps
+  // off its first screen until the conversation starts and a desk shows (preview.css).
+  assert.match(html, /<ol[^>]*data-empty="true"[^>]*data-testid="pv-chat"/);
+  const greeting = previewPageOf(FACTS, NOW).greeting.replace(/\s+/g, " ").trim();
+  assert.ok(has(html, "pv-greeting") && said.includes(greeting), greeting);
+  // The privacy line comes just before the field, so it stands over it.
+  assert.ok(html.indexOf(W.kept) < html.indexOf('data-testid="pv-dock"'));
 });
 
 test("Call it is the page's one filled act until they have tried it; then Make it mine leads", () => {

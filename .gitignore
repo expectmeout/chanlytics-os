@@ -47,3 +47,7 @@ apps/dashboard/public/lead-map/
 
 # What check:debt writes as it measures a base (ci.yml's debt job)
 .debt/
+
+# Cloudflare's tool: its local state, and a Worker's local secrets (apps/relay)
+.wrangler/
+.dev.vars
