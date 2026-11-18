@@ -294,6 +294,17 @@ export interface JobContext {
   texts?: {
     read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
   };
+  /**
+   * A watched folder kept current (00641, the footage sources plan), as the edge holds the provider's grant. INJECTED; a
+   * source job in a runtime without it fails loudly. Each answers `skipped` when the folder is no longer one to read
+   * (stopped, paused, its walk another run's), and throws when the provider or the database gave no answer.
+   */
+  sources?: {
+    /** One step of a walk: pages of the tree listed and kept until `deadline`, then the next step put on the ledger. */
+    walk: (job: ClaimedJob, deadline: number) => Promise<{ walked: unknown } | { skipped: string }>;
+    /** One read of the folder's changes from the place its row keeps; no page starts after `deadline`. */
+    read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
+  };
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;

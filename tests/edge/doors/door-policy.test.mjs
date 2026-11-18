@@ -76,6 +76,7 @@ const KNOCKS = {
   websiteFormKeyMatches: { from: "apps/edge/lib/website/form-key.ts" }, // the key a workspace's website was given (00488)
   canaryKeyMatches: { from: "apps/edge/lib/voice/watch/voice-canary.ts" }, // the daily canary's own key (VOICE_CANARY_KEY), decision 0092
   knockIsRelays: { from: "apps/edge/lib/files/takes/key-door.ts" }, // the key only the footage relay holds (FOOTAGE_KEY_DOOR_SECRET), before a ticket is read (00642)
+  verifyChannelToken: { from: "apps/edge/lib/files/sources/channel.ts" }, // the token a Drive push channel was opened with, against its hash on the folder's row (00641)
 };
 const ADMIN_AUTH = KNOCKS.authorizeAdmin.from;
 

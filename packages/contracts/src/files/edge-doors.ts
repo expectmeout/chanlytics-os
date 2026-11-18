@@ -100,3 +100,43 @@ export const FILE_LISTEN_DOOR = edgeDoor(
   }),
   answerFields({ answer: z.string(), model: z.string(), wont: z.string() }),
 );
+
+/**
+ * POST /api/admin/sources: a business's footage sources (the footage sources plan): its Google Drive connected and
+ * disconnected, one level of the folder chooser, and a folder watched, read now, confirmed or stopped.
+ */
+export const SOURCES_DOOR = edgeDoor(
+  "/api/admin/sources",
+  z.object({
+    op: z.enum(["readiness", "connect", "disconnect", "folders", "watch", "check", "confirm", "stop"]),
+    tenant_id: DOOR_ID.optional(),
+    user_id: DOOR_ID.optional(),
+    /** A connect: Google's code, and PKCE's verifier where the consent was asked with its challenge. */
+    code: z.string().max(4096).optional(),
+    code_verifier: z.string().optional(),
+    connection_id: DOOR_ID.optional(),
+    source_id: DOOR_ID.optional(),
+    /** Where the chooser looks: the account's own Drive, its shared drives, what was shared with it, or a folder opened. */
+    place: z.enum(["mine", "drives", "shared", "folder"]).optional(),
+    folder_id: z.string().max(200).optional(),
+    page: z.string().max(4000).nullable().optional(),
+    include_subfolders: z.boolean().optional(),
+  }),
+  answerFields({
+    drive: z.boolean(),
+    oauth: z.object({ client_id: z.string(), redirect_uri: z.string() }).nullable(),
+    audience: z.string().nullable(),
+    /** Beside a refusal's code: which of its reasons it was. */
+    reason: z.string(),
+    rest_s: z.number(),
+    connection_id: z.string(),
+    resumed: z.number(),
+    removed: z.boolean(),
+    revoked: z.boolean(),
+    folders: z.array(z.object({ id: z.string(), name: z.string() })),
+    next_page: z.string().nullable(),
+    source_id: z.string(),
+    made: z.boolean(),
+    scheduled: z.boolean(),
+  }),
+);

@@ -334,6 +334,8 @@ const JOB_WORDS: Record<JobKind, string> = {
   google_read: "Reading a business's Google listing",
   texts_read: "Taking in texts a business's lines received while we could not",
   sequence_occasions: "Sending a person their step at its time",
+  source_walk: "Listing a business's watched folder",
+  source_read: "Reading what changed in a business's watched folder",
   canary: "The ledger's proof that it runs",
 };
 

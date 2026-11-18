@@ -279,6 +279,9 @@ function matches(row, filters, defaults = {}) {
                               // A run read by any of the dates its touches are counted at (db touches.ts): ISO
                               // timestamps sort as text, as `lt` reads them.
                               if (o === "gte") return cell(row, c) != null && cell(row, c) >= v;
+                              // A watched folder's read brought forward only where the one it holds is later
+                              // (db files/sources.ts pullSourceReadSooner): ISO timestamps, sorted as text.
+                              if (o === "gt") return cell(row, c) != null && cell(row, c) > v;
                               if (o === "eq") return String(cell(row, c)) === v;
                               // SQL's <>: a NULL is not unequal to anything, which is why a filter pairs it with
                               // `is.null` (the domains sweep: every hold but a complaint's, and no hold at all).
@@ -1022,6 +1025,8 @@ export const FAKE_JOB_KINDS = {
   google_read: [2, ["@tenant"], false],
   texts_read: [2, ["@tenant"], false],
   sequence_occasions: [2, ["@tenant"], false],
+  source_walk: [2, ["@tenant", "source_id", "run", "step"], false],
+  source_read: [2, ["@tenant", "source_id"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],

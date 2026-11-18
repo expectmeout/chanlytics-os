@@ -163,7 +163,15 @@ test("what Make it mine's page draws: whose receptionist and the address it was 
     email: "owner@fixture.example",
     // No record to read: only the number on the lead it was made from.
     comes: ["Your number"],
+    // Nothing to count; it was talked to and called, which its setup will leave out.
+    counts: [],
+    skips: LEAD_PREVIEW_WORDS.signup.yours.skips.heard,
   });
+  // Talked to and never called: its setup leaves out the meeting alone; never tried, nothing.
+  world({ call_count: 0, call_seconds: 0 });
+  assert.equal((await findPreviewForSignup(TOKEN))?.skips, LEAD_PREVIEW_WORDS.signup.yours.skips.met);
+  world({ asked_count: 0, call_count: 0, call_seconds: 0 });
+  assert.equal((await findPreviewForSignup(TOKEN))?.skips, null);
   // What comes with it is counted from its record: what it read, then what they told it.
   const tables = world();
   tables.tenant_config = [
@@ -189,6 +197,11 @@ test("what Make it mine's page draws: whose receptionist and the address it was 
   assert.deepEqual((await findPreviewForSignup(TOKEN))?.comes, [
     "2 services, your hours, your address and your number",
     LEAD_PREVIEW_WORDS.signup.comesTold(1),
+  ]);
+  // It's yours counts the same record: its services, and the things they told it.
+  assert.deepEqual((await findPreviewForSignup(TOKEN))?.counts, [
+    "2 services",
+    LEAD_PREVIEW_WORDS.signup.yours.taught(1),
   ]);
   // One service, and nothing told: a sentence of one part, and no line for what they told it.
   tables.tenant_config[0].config.brain.profile = { services: [{ name: "Fade" }, { name: " " }] };

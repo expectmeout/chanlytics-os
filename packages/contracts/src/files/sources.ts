@@ -19,6 +19,14 @@ export const SOURCE_CONNECTION_HEALTHS = ["ok", "needs_reconnect", "blocked_by_a
 /** Where a watched folder stands (media_sources.state): its column comment says each. */
 export const MEDIA_SOURCE_STATES = ["setting_up", "watching", "paused", "frozen", "stopped"] as const;
 
+/**
+ * The walk a watched folder has in flight (media_sources.walk_kind, 00641): the first listing of its whole tree, a
+ * re-walk that finds what its changes missed, or the contents of a folder that appeared or moved in.
+ */
+export const SOURCE_WALK_KINDS = ["snapshot", "reconcile", "subtree"] as const;
+
+export type SourceWalkKind = (typeof SOURCE_WALK_KINDS)[number];
+
 /** What an item under a watched folder is (source_items.kind): `other` is seen and passed over. */
 export const SOURCE_ITEM_KINDS = ["folder", "image", "video", "other"] as const;
 
@@ -38,6 +46,8 @@ export const SOURCE_ITEM_STATES = [
   "gone",
   "no_access",
 ] as const;
+
+export type SourceItemState = (typeof SOURCE_ITEM_STATES)[number];
 
 /**
  * Why an item stands where it does (source_items.why, held by 00642's check): the one list a screen has words for.
@@ -121,6 +131,8 @@ export interface SourceItemRecord {
   name: string;
   mime: string;
   modifiedAt: string | null;
+  /** When its provider first held it (an upload's moment), where the provider says. */
+  createdAt: string | null;
   checksum: string | null;
   bytes: number | null;
   /** A video's length, where the provider says: it may come some time after an upload. */
@@ -132,7 +144,8 @@ export interface SourceItemRecord {
 
 /**
  * One change as a provider's feed gives it: ids only, since the feed covers the whole account and a name is read only
- * for an item inside the watched folder. `removed` alone is "deleted, or no longer readable": the item's own record
+ * for an item inside the watched folder. `kind` is null where the feed names no type, or one a watched folder does
+ * not list (a document): such a change is never read. `removed` alone is "deleted, or no longer readable": the item's own record
  * says which.
  */
 export interface SourceChange {
@@ -156,9 +169,13 @@ export interface SourceChanges {
   cursor: string | null;
 }
 
-/** A push channel as the provider opened it: it ends by itself and is never renewed, only replaced. */
+/**
+ * A push channel as the provider opened it: it ends by itself and is never renewed, only replaced. `resourceId` is the
+ * provider's own name for what the channel watches, which it asks for, with our id, to close it.
+ */
 export interface SourceChannel {
   id: string;
+  resourceId: string;
   expiresAt: string;
 }
 
@@ -198,6 +215,8 @@ export interface SourceProviderContract {
   getItem(accessToken: string, itemId: string): Promise<SourceReply<SourceItemRecord>>;
   /** Opens a push channel on the folder's changes. */
   openChannel(accessToken: string, folder: SourceFolder, ask: SourceChannelAsk): Promise<SourceReply<SourceChannel>>;
+  /** Closes a push channel this account opened: one already gone answers `gone`. */
+  closeChannel(accessToken: string, channel: Pick<SourceChannel, "id" | "resourceId">): Promise<SourceReply<null>>;
   /** Where one item's bytes can be fetched from. */
   getBytesAddress(accessToken: string, itemId: string): Promise<SourceReply<SourceBytesAddress>>;
 }

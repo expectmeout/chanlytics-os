@@ -388,7 +388,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
   const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
   const dropNote = () => setMailboxNote(null);
-  // The address named "Left in your mailbox" (Today's Brought in links to it): the mailbox block opens its list.
+  // The address named "Left in your mailbox": the mailbox block opens its list.
   const leftOpen = named === MAILBOX_LEFT_ROW;
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
   // never finished, read once as this page opens: nothing a later press of Connect should bring back.

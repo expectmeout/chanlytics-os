@@ -183,6 +183,10 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   texts_read: { stopped: "Couldn't check the texts that came in while Chanlytics was away", to: "inbox" },
   // A workspace's occasions (00598). Not sent (kinds.ts: the platform's to mend), and the next minute tries again.
   sequence_occasions: { stopped: "Couldn't prepare a message for one person", to: "today" },
+  // A watched folder's walk and its read (00641). Not sent (kinds.ts: the platform's to mend), and the clock hands the
+  // folder another; a folder that cannot be read says so on its own row.
+  source_walk: { stopped: "Couldn't list your folder", to: CONTENT_LIBRARY_ROUTE },
+  source_read: { stopped: "Couldn't check your folder for new photos and videos", to: CONTENT_LIBRARY_ROUTE },
   canary: { stopped: "The background work's own check didn't finish", to: "today" },
 };
 

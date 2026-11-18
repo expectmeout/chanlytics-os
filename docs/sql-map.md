@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 77 | 0 |
-| the server's | 358 | 306 |
+| the server's | 363 | 311 |
 | computed column | 3 | 0 |
 | trigger | 104 | 74 |
-| all | 729 | 567 |
+| all | 734 | 572 |
 
 ## Called by nothing
 
@@ -608,7 +608,7 @@ being read is dropped by a migration.
 | `reply_was_typed` | the server's | the server | SQL `conversation_echo_settles`, `deadman_candidates` | Whether a person's reply on a thread at p_at was typed (00438): |
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
-| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ask_for_tick`, `sms_sweep_text_canary` and 18 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
+| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ask_for_tick`, `sms_sweep_text_canary` and 19 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
 | `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 6 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
@@ -707,10 +707,15 @@ being read is dropped by a migration.
 | `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00595): |
 | `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00594): |
 | `sole_proprietor_of` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | Whether a workspace's business on record has no tax id: |
+| `source_credentials_drop` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: deletes a footage account's token from Vault (00641). |
+| `source_credentials_get` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: a footage account's token from Vault, or null (00641). |
+| `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
 | `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00642, the footage sources plan's D15): |
 | `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00642, decision 0115): |
 | `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00642): |
 | `source_units_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A provider's units counted as they are spent (00642): |
+| `sources_hand_out` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | The footage clock's one statement (00641, decision 0115): |
+| `sources_sweep_ask` | the server's | the server | the clock, `sources-sweep` | The footage clock (00641): |
 | `stamp_email_complaint` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
 | `stamp_email_from_mailbox` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | An email sent from a connected mailbox, stamped (00424): |
 | `stamp_email_left_as` | the server's | the server | code `packages/db/src/repositories/email/email.ts` | How a person's email reply left (core deliver): |

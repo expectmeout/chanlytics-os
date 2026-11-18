@@ -4895,67 +4895,109 @@ export type Database = {
       }
       media_sources: {
         Row: {
+          busy_reads: number
           change_cursor: string | null
           channel_expires_at: string | null
           channel_id: string | null
+          channel_resource_id: string | null
           channel_token_hash: string | null
           connection_id: string
           created_at: string
           drive_id: string | null
           folder_id: string
           folder_name: string
+          hold_at: string | null
+          hold_confirmed_at: string | null
+          hold_count: number | null
           id: string
           include_subfolders: boolean
+          last_change_at: string | null
           last_error: string | null
           last_error_at: string | null
+          last_read_at: string | null
           next_read_at: string | null
+          next_walk_at: string | null
           read_gap_seconds: number | null
           reconciled_at: string | null
+          signalled_at: string | null
           state: string
           tenant_id: string
           updated_at: string
+          walk_kind: string | null
+          walk_run: number
+          walk_started_at: string | null
+          walk_touched_at: string | null
+          walk_units: number
         }
         Insert: {
+          busy_reads?: number
           change_cursor?: string | null
           channel_expires_at?: string | null
           channel_id?: string | null
+          channel_resource_id?: string | null
           channel_token_hash?: string | null
           connection_id: string
           created_at?: string
           drive_id?: string | null
           folder_id: string
           folder_name: string
+          hold_at?: string | null
+          hold_confirmed_at?: string | null
+          hold_count?: number | null
           id?: string
           include_subfolders?: boolean
+          last_change_at?: string | null
           last_error?: string | null
           last_error_at?: string | null
+          last_read_at?: string | null
           next_read_at?: string | null
+          next_walk_at?: string | null
           read_gap_seconds?: number | null
           reconciled_at?: string | null
+          signalled_at?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
+          walk_kind?: string | null
+          walk_run?: number
+          walk_started_at?: string | null
+          walk_touched_at?: string | null
+          walk_units?: number
         }
         Update: {
+          busy_reads?: number
           change_cursor?: string | null
           channel_expires_at?: string | null
           channel_id?: string | null
+          channel_resource_id?: string | null
           channel_token_hash?: string | null
           connection_id?: string
           created_at?: string
           drive_id?: string | null
           folder_id?: string
           folder_name?: string
+          hold_at?: string | null
+          hold_confirmed_at?: string | null
+          hold_count?: number | null
           id?: string
           include_subfolders?: boolean
+          last_change_at?: string | null
           last_error?: string | null
           last_error_at?: string | null
+          last_read_at?: string | null
           next_read_at?: string | null
+          next_walk_at?: string | null
           read_gap_seconds?: number | null
           reconciled_at?: string | null
+          signalled_at?: string | null
           state?: string
           tenant_id?: string
           updated_at?: string
+          walk_kind?: string | null
+          walk_run?: number
+          walk_started_at?: string | null
+          walk_touched_at?: string | null
+          walk_units?: number
         }
         Relationships: [
           {
@@ -7865,11 +7907,14 @@ export type Database = {
           gone_at: string | null
           id: string
           kind: string
+          length_until: string | null
+          missed_run: number | null
           modified_at: string | null
           name: string
           parent_id: string | null
           provider_id: string
           seconds: number | null
+          seen_run: number | null
           source_id: string
           state: string
           take_after: string | null
@@ -7877,6 +7922,8 @@ export type Database = {
           taken_at: string | null
           tenant_id: string
           updated_at: string
+          walk_page: string | null
+          walked_run: number | null
           why: string | null
         }
         Insert: {
@@ -7888,11 +7935,14 @@ export type Database = {
           gone_at?: string | null
           id?: string
           kind: string
+          length_until?: string | null
+          missed_run?: number | null
           modified_at?: string | null
           name: string
           parent_id?: string | null
           provider_id: string
           seconds?: number | null
+          seen_run?: number | null
           source_id: string
           state?: string
           take_after?: string | null
@@ -7900,6 +7950,8 @@ export type Database = {
           taken_at?: string | null
           tenant_id: string
           updated_at?: string
+          walk_page?: string | null
+          walked_run?: number | null
           why?: string | null
         }
         Update: {
@@ -7911,11 +7963,14 @@ export type Database = {
           gone_at?: string | null
           id?: string
           kind?: string
+          length_until?: string | null
+          missed_run?: number | null
           modified_at?: string | null
           name?: string
           parent_id?: string | null
           provider_id?: string
           seconds?: number | null
+          seen_run?: number | null
           source_id?: string
           state?: string
           take_after?: string | null
@@ -7923,6 +7978,8 @@ export type Database = {
           taken_at?: string | null
           tenant_id?: string
           updated_at?: string
+          walk_page?: string | null
+          walked_run?: number | null
           why?: string | null
         }
         Relationships: [
@@ -12553,6 +12610,22 @@ export type Database = {
       sms_sweep_text_canary: { Args: never; Returns: number }
       sms_sweep_texts: { Args: never; Returns: number }
       sole_proprietor_of: { Args: { p_tenant_id: string }; Returns: boolean }
+      source_credentials_drop: {
+        Args: { p_connection_id: string }
+        Returns: boolean
+      }
+      source_credentials_get: {
+        Args: { p_connection_id: string }
+        Returns: Json
+      }
+      source_credentials_put: {
+        Args: {
+          p_connection_id: string
+          p_if_refresh_token?: string
+          p_secret: Json
+        }
+        Returns: string
+      }
       source_take_spend: {
         Args: {
           p_bytes: number
@@ -12577,6 +12650,11 @@ export type Database = {
         Returns: number
       }
       source_units_spend: { Args: { p_units: number }; Returns: number }
+      sources_hand_out: {
+        Args: { p_spread_seconds: number; p_walk_stale_seconds: number }
+        Returns: Json
+      }
+      sources_sweep_ask: { Args: never; Returns: number }
       stamp_email_complaint: {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }
         Returns: boolean

@@ -1,7 +1,10 @@
 /**
  * The files domain: `@chanlytics/channels/files`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { driveSource, SourceKeyRefused, SourceUnanswered } from "./drive";
+export type { DriveFolderChoice, DriveFolderChoices, DrivePlace, DriveSource } from "./drive";
 export { readDriveBytes } from "./drive-bytes";
+export { DRIVE_READ_SCOPE, DRIVE_SCOPES, driveAuthorizeUrl, driveTokenRequest } from "./drive-sign-in";
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
 export { readRender, readRenderBytes, startRender, stopRender } from "./machine";

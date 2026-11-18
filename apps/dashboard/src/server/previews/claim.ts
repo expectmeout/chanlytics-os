@@ -51,6 +51,10 @@ interface PreviewForSignup {
   email: string | null;
   /** What becomes theirs with it, a line each: what it read, and what they told it. */
   comes: string[];
+  /** The same as It's yours counts it, once it is theirs: how many services, how many things they told it. */
+  counts: string[];
+  /** What its setup will leave out for what they did on the preview (previewFirstRunMarks), in the page's words. */
+  skips: string | null;
 }
 
 /** A list as a sentence's: "a, b and c". */
@@ -84,6 +88,24 @@ function comesWith(profile: Parameters<typeof previewKnowsOf>[0], phoneDisplay: 
   ];
 }
 
+/** What It's yours counts of what came with it: its services, and the things they told it. */
+function yoursCountsOf(profile: Parameters<typeof previewKnowsOf>[0]): string[] {
+  const words = LEAD_PREVIEW_WORDS.signup;
+  const services = (profile?.services ?? []).filter((service) => service.name.trim()).length;
+  const taught = previewTheirsOf(profile).taught.length;
+  return [
+    ...(services > 0 ? [words.comesRead.services(services)] : []),
+    ...(taught > 0 ? [words.yours.taught(taught)] : []),
+  ];
+}
+
+/** What a preview's setup will leave out once it is theirs, said by what they did on it; null where it leaves nothing. */
+function skipsOf(row: LeadPreviewRow): string | null {
+  const marks = previewFirstRunMarks(row);
+  if (!marks.length) return null;
+  return marks.length > 1 ? LEAD_PREVIEW_WORDS.signup.yours.skips.heard : LEAD_PREVIEW_WORDS.signup.yours.skips.met;
+}
+
 /** A preview's row by its link, where it can still be made theirs; null for any other, or none. */
 async function claimableRow(db: Db, token: string): Promise<LeadPreviewRow | null> {
   if (!db || !PreviewTokenSchema.safeParse(token).success) return null;
@@ -107,6 +129,8 @@ export async function findPreviewForSignup(token: string): Promise<PreviewForSig
     business: look.business,
     email: lead?.email ?? null,
     comes: comesWith(profile, formatPhoneDisplay(lead?.phone_e164 ?? null)),
+    counts: yoursCountsOf(profile),
+    skips: skipsOf(row),
   };
 }
 

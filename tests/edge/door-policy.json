@@ -347,6 +347,14 @@
         "aud": "/api/admin/signup-notify"
       }
     },
+    "POST /api/admin/sources": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/sources.ts",
+      "knock_args": {
+        "aud": "/api/admin/sources"
+      }
+    },
     "POST /api/admin/steer": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -639,6 +647,13 @@
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
+    "POST /api/cron/sources": {
+      "wrapper": "sweepDoor",
+      "sweep": "sources",
+      "verb": "sweepSources in apps/edge/lib/files/sources/sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
+    },
     "POST /api/cron/text-canary": {
       "wrapper": "sweepDoor",
       "sweep": "text_canary",
@@ -752,6 +767,22 @@
       "verb": "receiveSmsStatus in apps/edge/lib/sms/status.ts",
       "knock": "verifyTwilioSignature",
       "knock_in": "receiveSmsStatus in apps/edge/lib/sms/status.ts"
+    },
+    "POST /api/sources/drive": {
+      "wrapper": "door",
+      "verb": "receiveDriveSignal in apps/edge/lib/files/sources/push.ts",
+      "knock": "verifyChannelToken",
+      "knock_in": "receiveDriveSignal in apps/edge/lib/files/sources/push.ts",
+      "knock_args": {
+        "signal": {
+          "channelId": {
+            "expr": "channelId"
+          },
+          "token": {
+            "expr": "token"
+          }
+        }
+      }
     },
     "POST /api/sources/key": {
       "wrapper": "door",

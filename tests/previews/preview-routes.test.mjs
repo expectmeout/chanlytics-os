@@ -14,7 +14,7 @@
  */
 import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { LEAD_PREVIEW_WORDS as W } from "@chanlytics/contracts";
+import { LEAD_PREVIEW_WORDS as W, withPreviewTaught } from "@chanlytics/contracts";
 import { importSrc } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -178,6 +178,34 @@ test("a message: Try it's answer for the preview's workspace and no person, kept
   );
   assert.equal(row.turns.length, 2);
   assert.equal(row.turns[1].then.words, "It would send this right away.");
+});
+
+test("an answer that says a thing they told it is marked so, and kept so with its turn", async () => {
+  const { row, tables } = world();
+  tables.tenant_config = [
+    {
+      tenant_id: WS,
+      config: {
+        brain: {
+          business_name: "Fixture Barbers",
+          system_prompt: "You answer for Fixture Barbers, a barber shop.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: withPreviewTaught({ services: [{ name: "Fade" }] }, "A fade is 30 dollars."),
+        },
+      },
+    },
+  ];
+  const before = edgeAnswers;
+  edgeAnswers = () => {
+    const answer = before();
+    answer.results[0].text = "A fade is 30 dollars. Want to come by?";
+    answer.results[0].then.text = answer.results[0].text;
+    return answer;
+  };
+  const told = await read(await post(message, { text: "How much is a fade?" }));
+  assert.equal(told.body.data.turn.then.taught, true, JSON.stringify(told.body));
+  assert.equal(row.turns[1].then.taught, true, "kept with the turn, so a page opened again says it too");
+  edgeAnswers = before;
 });
 
 test("the turns before are the row's, twelve at most, as the eval door takes them", async () => {

@@ -509,6 +509,20 @@ async function textsRead(ctx: JobContext, job: ClaimedJob): Promise<void | { ski
   return "skipped" in answer ? answer : undefined;
 }
 
+/** source_walk: one step of a watched folder's walk, through what the edge injects (00641). payload: { source_id, run, step, walk } */
+async function sourceWalk(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.sources) throw new Error("source_walk: this runtime holds no footage reader");
+  const answer = await ctx.sources.walk(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
+/** source_read: one read of a watched folder's changes, through what the edge injects (00641). payload: { source_id } */
+async function sourceRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.sources) throw new Error("source_read: this runtime holds no footage reader");
+  const answer = await ctx.sources.read(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /**
  * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
  * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
@@ -560,6 +574,8 @@ const HANDLERS: Record<JobKind, Handler> = {
   google_read: googleRead,
   texts_read: textsRead,
   sequence_occasions: sequenceOccasions,
+  source_walk: sourceWalk,
+  source_read: sourceRead,
   canary,
 };
 

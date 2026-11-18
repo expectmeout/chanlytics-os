@@ -61,6 +61,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00538 added 'drafts', the five-minute sweep of the replies a hold is owed and has no draft of (decision 0093).
   // 00594 added 'texts', the ten-minute read of each line's received texts from Twilio, and 00595 'text_canary', the daily
   // text to the platform's own line (the inbound review of 3 Nov 2026, B2 and D6).
+  // 00641 added 'sources', the five-minute clock that hands each watched folder its read or its re-walk.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -103,6 +104,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "reach_out_check",
       "registration",
       "snoozes",
+      "sources",
       "sweep_voice_sessions",
       "text_canary",
       "texts",
@@ -189,6 +191,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "reach_out_check",
     "registration",
     "snoozes",
+    "sources",
     "sweep_voice_sessions",
     "text_canary",
     "texts",

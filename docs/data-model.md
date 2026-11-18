@@ -84,8 +84,8 @@ what the script writes.
 | [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailbox_senders`](#mailbox_senders) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailboxes`](#mailboxes) | `packages/db/src/repositories/campaigns/email-offers.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts` | on, 1 policy |
-| [`media_sources`](#media_sources) | none | on, 1 policy |
-| [`memberships`](#memberships) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 2 policies |
+| [`media_sources`](#media_sources) | `packages/db/src/repositories/files/sources.ts` | on, 1 policy |
+| [`memberships`](#memberships) | `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/files/sources.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts` | on, 2 policies |
 | [`messages`](#messages) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/lead-words.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/reach-out.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/channels/whatsapp.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/conversations/thread/messages.ts`, `packages/db/src/repositories/conversations/unfinished.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/intake.ts`, `packages/db/src/repositories/email/reconcile.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/email/sync.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/provider-events.ts`, `packages/db/src/repositories/jobs/jobs.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 3 policies |
 | [`model_prompts`](#model_prompts) | none | on, no policy, so only the service role reaches it |
 | [`model_turns`](#model_turns) | none | on, no policy, so only the service role reaches it |
@@ -133,7 +133,7 @@ what the script writes.
 | [`setup_choices`](#setup_choices) | `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
 | [`source_connections`](#source_connections) | `packages/db/src/repositories/files/sources.ts` | on, 1 policy |
 | [`source_days`](#source_days) | none | on, no policy, so only the service role reaches it |
-| [`source_items`](#source_items) | `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
+| [`source_items`](#source_items) | `packages/db/src/repositories/files/source-items.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/email/reconcile.ts` | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/templates/doors.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/campaigns/templates/templates.ts`, `packages/db/src/repositories/campaigns/templates/whatsapp.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
@@ -2364,7 +2364,7 @@ Foreign keys:
 
 One folder a business has Chanlytics watch (the footage sources plan, 00639): the connection that reads it, the folder's id and name at its provider, the shared drive's id where it sits in one, whether its subfolders count, its state, its own change cursor, when it is next read and at what gap, its push channel (the channel's id, a hash of its token, when it ends), when it was last reconciled, and what went wrong last. Many a workspace in the schema; how many a workspace may have is an entitlement. Members read; the service role writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/sources.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -2389,6 +2389,20 @@ One folder a business has Chanlytics watch (the footage sources plan, 00639): th
 | `last_error_at` | timestamp with time zone | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `channel_resource_id` | text | yes |  | The provider's own id for what the push channel watches: asked for, with the channel's id, to stop it. |
+| `last_read_at` | timestamp with time zone | yes |  |  |
+| `signalled_at` | timestamp with time zone | yes |  |  |
+| `last_change_at` | timestamp with time zone | yes |  |  |
+| `busy_reads` | integer | no | `0` | How many reads in a row found changes elsewhere in the account and none inside the folder: past the pace's count, the folder is read less often until something inside changes. |
+| `next_walk_at` | timestamp with time zone | yes |  |  |
+| `walk_run` | integer | no | `0` | The number of its newest walk: what an item's seen_run and missed_run, and a folder's walked_run, are counted in. |
+| `walk_kind` | text | yes |  | The walk in flight, or null when none is. snapshot: the first listing of the whole tree. reconcile: a re-walk that finds what the changes missed. subtree: the contents of a folder that appeared or moved in. |
+| `walk_started_at` | timestamp with time zone | yes |  |  |
+| `walk_touched_at` | timestamp with time zone | yes |  |  |
+| `hold_at` | timestamp with time zone | yes |  | When a read or a re-walk found more items gone at once than the pace lets leave: none was marked, and they wait for the next re-walk to agree or for a person to confirm (hold_confirmed_at). |
+| `hold_count` | integer | yes |  |  |
+| `hold_confirmed_at` | timestamp with time zone | yes |  |  |
+| `walk_units` | integer | no | `0` | The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often. |
 
 Foreign keys:
 
@@ -2401,7 +2415,7 @@ Foreign keys:
 
 ### memberships
 
-- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`
+- Owned by: `packages/db/src/repositories/ask/notice-days.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/files/sources.ts`, `packages/db/src/repositories/notices/member-alerts.ts`, `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/team.ts`
 - Primary key: `id`
 - Row-level security: on, 2 policies
 
@@ -3895,7 +3909,7 @@ What taking footage in cost the platform in a day (00642, the footage sources pl
 
 One item a provider holds under a watched folder, folders included, since they are the tree's index (the footage sources plan, 00639): the provider's id for it, its kind, its parent's id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.
 
-- Owned by: `packages/db/src/repositories/files/source-takes.ts`
+- Owned by: `packages/db/src/repositories/files/source-items.ts`, `packages/db/src/repositories/files/source-takes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3919,6 +3933,11 @@ One item a provider holds under a watched folder, folders included, since they a
 | `first_seen_at` | timestamp with time zone | no | `now()` |  |
 | `gone_at` | timestamp with time zone | yes |  |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `seen_run` | integer | yes |  | The last walk run (media_sources.walk_run) that found it, written only where its folder takes more than one step to list: a folder listed in one step is compared in memory, so a re-walk writes nothing on an item that did not change. |
+| `missed_run` | integer | yes |  | The walk run that did not find it where it was: asked of its provider when the run ends, and only then said gone, outside or no longer readable. |
+| `walked_run` | integer | yes |  | A folder's own: the last walk run that listed its contents whole. Null: never listed. |
+| `walk_page` | text | yes |  | A folder's own: the provider's token for the next page of its contents while a walk is part way through it. |
+| `length_until` | timestamp with time zone | yes |  | A video its provider has listed without its length (a fresh upload is measured a few minutes later): its own record is asked again until then, and it is not taken into the Library before. Null: its length is known, it is no video, or its provider made it more than the wait ago. |
 | `take_after` | timestamp with time zone | yes |  | When a waiting item may next be taken (00642): the start of the next day where a day's budget bound, later where the videos or the Library are full or its provider has not said its length. Null: now. |
 | `taken_at` | timestamp with time zone | yes |  | When its take last spent the day's budget (00642 source_take_spend): a workspace's takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried. |
 | `take_tries` | smallint | no | `0` | How many fetches of it failed (00642): the video platform could not prepare it, or its job stopped. Tried again twice, then failed. |

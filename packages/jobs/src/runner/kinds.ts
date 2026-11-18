@@ -477,6 +477,31 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: [],
     never: [],
   },
+  // A watched folder's walk and its read (00641, the footage sources plan). Nothing here puts words on a wire or moves a
+  // file's bytes: an item is listed and its state said. Each is written to be run again: every write is once an item, and
+  // the place in the provider's changes moves only after its page is kept. A folder or a grant that cannot be read says so
+  // on its own row and ends the job; a throw is the provider or the database not answering, tried again, and then the
+  // platform's to mend while the clock hands the folder another. The longest call is one page of a thousand items.
+  source_walk: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 15 * SECOND_MS,
+    ids: ["source_id", "run", "step"],
+    never: [],
+  },
+  source_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 15 * SECOND_MS,
+    ids: ["source_id"],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

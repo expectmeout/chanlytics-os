@@ -88,6 +88,7 @@ import type {
   SOURCE_ITEM_STATES,
   SOURCE_ITEM_WHYS,
   SOURCE_PROVIDERS,
+  SOURCE_WALK_KINDS,
 } from "../files/sources";
 import type {
   LEAD_CLOSED_REASONS,
@@ -316,6 +317,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof SOURCE_PROVIDERS>, SchemaSet<"source_connections.provider">>>,
   Holds<Exactly<Of<typeof SOURCE_CONNECTION_HEALTHS>, SchemaSet<"source_connections.health">>>,
   Holds<Exactly<Of<typeof MEDIA_SOURCE_STATES>, SchemaSet<"media_sources.state">>>,
+  Holds<Exactly<Of<typeof SOURCE_WALK_KINDS>, SchemaSet<"media_sources.walk_kind">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_KINDS>, SchemaSet<"source_items.kind">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_STATES>, SchemaSet<"source_items.state">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_WHYS>, SchemaSet<"source_items.why">>>,

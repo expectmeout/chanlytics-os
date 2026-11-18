@@ -39,6 +39,7 @@ type _EachCallAnswersItsReply = [
   Holds<Exactly<Answers<"listChanges">, SourceReply<SourceChanges>>>,
   Holds<Exactly<Answers<"getItem">, SourceReply<SourceItemRecord>>>,
   Holds<Exactly<Answers<"openChannel">, SourceReply<SourceChannel>>>,
+  Holds<Exactly<Answers<"closeChannel">, SourceReply<null>>>,
   Holds<Exactly<Answers<"getBytesAddress">, SourceReply<SourceBytesAddress>>>,
   // No call is left out above: a new one arrives with its line.
   Holds<
@@ -50,11 +51,14 @@ type _EachCallAnswersItsReply = [
       | "listChanges"
       | "getItem"
       | "openChannel"
+      | "closeChannel"
       | "getBytesAddress"
     >
   >,
   // A channel is asked for with our id, its token and where it calls, and nothing of the provider's.
   Holds<Exactly<Parameters<SourceProviderContract["openChannel"]>[2], SourceChannelAsk>>,
+  // It is closed by the two names its opening answered, and no more.
+  Holds<Exactly<Parameters<SourceProviderContract["closeChannel"]>[1], Pick<SourceChannel, "id" | "resourceId">>>,
 ];
 
 type _TheClosedSets = [

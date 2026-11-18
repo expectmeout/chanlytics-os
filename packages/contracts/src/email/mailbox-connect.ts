@@ -17,7 +17,7 @@ import { TRY_AGAIN_IN_A_MINUTE } from "../shared/words";
 /** What its owner chose as it connected (0086, 00499): its last six months brought in, or only what comes after. */
 export type MailboxHistory = SchemaSet<"mailbox_connections.history">;
 export const MAILBOX_CONNECT_WORDS: Record<string, string> = {
-  // Said whatever it brings: its row and the Brought in card say where its history stands (0086).
+  // Said whatever it brings: its row says where its history stands (0086).
   connected: "Connected: email from people comes into your Inbox.",
   reconnected: "Connected again: its emails go on where they waited.",
   declined: "Nothing was connected: the sign-in was cancelled.",
@@ -107,7 +107,7 @@ export interface MailboxHistoryLine {
 /**
  * Where one mailbox's history stands, on its row in Connections (0086): coming in (Stop), stopped by its owner
  * (Resume), stopped by a failure (Try again), or, chosen from now on and never brought, since when its mail comes (the
- * six months). The words are the ledger's own line for its row (importLineOf), so the row and the Brought in card never
+ * six months). The words are the ledger's own line for its row (importLineOf), so the row and the first run never
  * say one run two ways. Null where nothing is said: in (the Email card counts it), signed out (the row's Reconnect
  * starts it again), or no run of its own (a mailbox connected before 00499 brought its six months in on the
  * workspace's row).

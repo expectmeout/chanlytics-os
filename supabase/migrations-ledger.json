@@ -79,8 +79,7 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00641": "a watched folder is listed and kept current (the footage sync, branch files/footage-sync) holds this number and lands first; this line goes when its file is on main"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -644,6 +643,7 @@
     "00638_each_library_cap_is_counted_in_one_place.sql": "98e3825832eb246b55c3d66b45e42065eaf3b61374ce60a97ec40ddb0a4fa261",
     "00639_a_business_s_footage_has_its_sources.sql": "4ba4b0ba2bef929cab8df25ec5d8792125f8e69d1977c563c8812a2e70b75e46",
     "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e",
+    "00641_a_watched_folder_is_listed_and_kept_current.sql": "c77f5358e65597c0713bbc2bab7f7e8f80eabbea454f55805f8929bd5ea953d4",
     "00642_a_watched_folder_s_files_come_in.sql": "dbb1aa823f9cb035f43902280de6c07cc7cc793cc48002c0a19cafebcfe4872b"
   }
 }

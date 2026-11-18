@@ -130,6 +130,9 @@ const EVERY_CLOCK = {
   texts: "texts-sweep",
   // The daily text canary (00595): 14:00 and 14:15 UTC, always asking the edge, which says it is off until it is set.
   text_canary: "text-canary",
+  // A business's watched folders (00641): a five-minute clock that asks the edge only while a folder is watched, and
+  // records that it looked otherwise.
+  sources: "sources-sweep",
   // The receptionist's kept turns and the prompts they read (00401): nightly, thirty days on, judged by its run.
   purge_model_turns: "purge-model-turns",
   // A workspace's old settings (00402): nightly, 400 days after a version is replaced, judged by its run.
@@ -339,7 +342,7 @@ test(
     // healthy sweep that ran its minute was judged "the request timed out before the edge answered" (00363).
     const seen = rolledBack(`
     declare
-      t uuid; c uuid; v uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid;
+      t uuid; c uuid; v uuid; p uuid; s uuid; tpl uuid; pb uuid; b uuid; l uuid; sc uuid;
       tag text := substr(md5(random()::text), 1, 8);
       r record;
       cmd text;
@@ -361,6 +364,11 @@ test(
       insert into public.mailbox_connections (tenant_id, provider, provider_account, address, host, from_name)
            values (t, 'google', 'every-clock-' || tag, 'hello@every-clock-' || tag || '.example.com',
                    'every-clock-' || tag || '.example.com', 'Every clock');
+      -- sources: a folder the business has watched (00641).
+      insert into public.source_connections (tenant_id, provider, provider_account, email)
+           values (t, 'google', 'every-clock-' || tag, 'footage@every-clock-' || tag || '.example.com') returning id into sc;
+      insert into public.media_sources (tenant_id, connection_id, folder_id, folder_name, state)
+           values (t, sc, 'every-clock-' || tag, 'Every clock', 'watching');
       -- texts: a line that can text (00594).
       insert into public.lines (tenant_id, provider, e164, voice_state)
            values (t, 'twilio', '+1555019' || lpad((abs(hashtext(tag)) % 10000)::text, 4, '0'), 'none');

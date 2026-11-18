@@ -9,8 +9,9 @@
  * rehearsal's words from our webhook's writes instead. Every other request the client could make (a call stopped while
  * its start was in flight) answers nothing: a call nobody joins lapses at the provider, and is never counted.
  *
- * What the page hears: the call connecting, live and ended; why it ended; and a failure, told apart as the microphone
- * refused (the person can allow it, or type) or the call not made (the route's own words where it gave some).
+ * What the page hears: the call connecting, live and ended; why it ended; whether the agent is speaking; and a failure,
+ * told apart as the microphone refused (the person can allow it, or type) or the call not made (the route's own words
+ * where it gave some).
  */
 type Client = typeof import("retell-client-js-sdk");
 type Session = ReturnType<InstanceType<Client["RetellClient"]>["createWebCall"]>;
@@ -37,6 +38,8 @@ export interface CallHooks {
   onEnd(reason: string | null): void;
   /** `mic`: the browser refused the microphone. `refused`: our route said no, in `words`. `failed`: anything else. */
   onError(kind: "mic" | "refused" | "failed", words: string | null): void;
+  /** The agent started or stopped speaking, where a page shows whose turn it is. */
+  onTalking?(talking: boolean): void;
 }
 
 /** A call under way: muted or not, and ended by the person. */
@@ -107,6 +110,8 @@ export async function startCall(start: StartCall, hooks: CallHooks): Promise<Cal
       hooks: {
         onStatus: (s) => hooks.onStatus(s === "live" ? "live" : s === "ended" ? "ended" : "connecting"),
         onEnd: (e) => hooks.onEnd((e as { disconnection_reason?: string } | undefined)?.disconnection_reason ?? null),
+        onAgentStartTalking: () => hooks.onTalking?.(true),
+        onAgentStopTalking: () => hooks.onTalking?.(false),
         onError: (e) => {
           if (refused.words) hooks.onError("refused", refused.words);
           else hooks.onError(micRefused(e) ? "mic" : "failed", null);

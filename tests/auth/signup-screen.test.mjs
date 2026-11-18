@@ -282,7 +282,29 @@ test("the code step confirms the address it was given, resends a confirmation, a
 const TOKEN = "TokenTokenTokenToken01";
 const CLAIM = "POST /api/v1/preview-claims";
 const COMES = ["2 services, your hours and your number", "What you told it"];
-const FIXTURE = { token: TOKEN, business: "Fixture Barbers", email: "owner@fixture.example", comes: COMES };
+const COUNTS = ["2 services", "1 thing you told it"];
+const FIXTURE = {
+  token: TOKEN,
+  business: "Fixture Barbers",
+  email: "owner@fixture.example",
+  comes: COMES,
+  counts: COUNTS,
+  skips: LEAD_PREVIEW_WORDS.signup.yours.skips.heard,
+};
+
+/**
+ * It's yours, as a claim leaves the screen: that it is theirs, what came with it, counted, and what happens next;
+ * nothing opened until Continue is pressed (its setup opens by itself a moment later, on a timer no test waits for).
+ */
+function itIsYours() {
+  assert.equal(card().props["data-testid"], "signup-yours", "It's yours stands before its setup opens");
+  const drawn = textOf(card());
+  for (const line of [W.yours.title, W.yours.body("Fixture Barbers"), ...COUNTS, W.yours.next, W.yours.skips.heard])
+    assert.ok(drawn.includes(line), line);
+  assert.deepEqual(went, [], "nothing opened yet");
+  byId("signup-yours-go").props.onClick();
+  assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "Continue opens its first run");
+}
 const CLAIMED = {
   status: 200,
   body: {
@@ -348,7 +370,7 @@ test("from a preview's link: whose receptionist at once, the address it was sent
     assert.equal(textOf(find((n) => n.type === "button")), W.code, "the press asks for the code");
     // What comes with it, over the form, and the way back to the page they came from.
     assert.equal(textOf(byId("signup-comes")), `${W.comes}${COMES.join("")}`);
-    assert.equal(find((n) => n.type === "a" && textOf(n) === W.back).props.href, `/preview/${TOKEN}`);
+    assert.equal(find((n) => n.type === "a" && n.props["aria-label"] === W.back).props.href, `/preview/${TOKEN}`);
     assert.ok(textOf(card()).includes(W.lead) && textOf(card()).includes(LEAD_PREVIEW_WORDS.mineSub));
     // The form leads and Google follows it, as the card is read.
     const order = [];
@@ -389,7 +411,10 @@ test("from a preview's link, the code makes it theirs and opens its first run; a
     assert.equal(await step().onSubmit("123456"), null);
     assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }], "claimed once, signed in now");
     if (home) assert.deepEqual(went, ["/"], "home, where the first screen asks again and says why");
-    else assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+    else {
+      await settle();
+      itIsYours();
+    }
   }
 });
 
@@ -406,7 +431,7 @@ test("signed in, from a preview's link: one press makes it theirs; refused, the 
   byId("signup-claim-press").props.onClick();
   await settle();
   assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }]);
-  assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+  itIsYours();
 
   await openFromLink("open", {
     [CLAIM]: { status: 409, body: { ok: false, error: { message: "Fixture Barbers is already set up." } } },
@@ -436,12 +461,12 @@ test("back from Google, left for from this screen: it is theirs at once, with no
   find((n) => typeof n.type === "function" && n.type.name === "GoogleSignIn").props.onLeave();
   assert.match([...kept.values()].join(), new RegExp(`^\\d+:${TOKEN}$`), "which preview this tab left from, and when");
 
-  // Back, signed in: claimed without a press, and its first run opens.
+  // Back, signed in: claimed without a press, and It's yours stands before its first run opens.
   auth = { session: { user: { email: "ada@example.com" } } };
   await openFromLink("open", { [CLAIM]: CLAIMED });
   await settle();
   assert.deepEqual(postedTo("/api/v1/preview-claims"), [{ token: TOKEN }]);
-  assert.match(went[0] ?? "", /^\/w\/fixture-barbers\b.*start/, "its first run");
+  itIsYours();
   assert.equal(kept.size, 0, "asked once, and forgotten");
 
   // Signed in and merely opening the link: asked the one press, as before.

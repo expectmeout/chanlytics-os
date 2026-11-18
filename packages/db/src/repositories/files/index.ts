@@ -101,6 +101,23 @@ export type {
 } from "./posts";
 export { listFilesUnprinted } from "./prints";
 export {
+  countSourceItems,
+  insertSourceItems,
+  keepSourceItemFacts,
+  listFoldersToWalk,
+  listNewestListed,
+  listSourceChildren,
+  listSourceItemsAwaitingLength,
+  listSourceItemsByIds,
+  listSourceItemsMissed,
+  markFoldersUnseen,
+  markSourceItems,
+  moveSourceItems,
+  patchSourceFolders,
+  SOURCE_ITEM_AWAY,
+} from "./source-items";
+export type { SourceItemFacts, SourceItemPlace, SourceItemRow, SourceRef } from "./source-items";
+export {
   endSourceTake,
   findSourceItem,
   findSourceItemAnywhere,
@@ -118,5 +135,30 @@ export {
   spendSourceUnits,
 } from "./source-takes";
 export type { SourcedVideoFate, SourceTakeItem } from "./source-takes";
-export { findGoogleSourceConnectionOfAccount } from "./sources";
+export {
+  beginSourceWalk,
+  deleteSourceConnection,
+  dropSourceCredentials,
+  findGoogleSourceConnectionOfAccount,
+  findMediaSource,
+  findMediaSourceAnywhere,
+  findSourceConnection,
+  getSourceCredentials,
+  handOutSources,
+  isStillMember,
+  listMediaSourcesOf,
+  listMediaSourcesOfConnection,
+  listSourceConnectionsOf,
+  moveSourceCursor,
+  patchMediaSource,
+  patchSourceConnection,
+  patchSourceWalk,
+  pullSourceReadSooner,
+  putSourceCredentials,
+  saveBlockedSourceConnection,
+  saveMediaSource,
+  saveSourceConnection,
+  stampSourceSignal,
+} from "./sources";
+export type { MediaSourceRow, SourceConnectionRow } from "./sources";
 export { followPostCaption, movePostTime } from "./waiting-posts";

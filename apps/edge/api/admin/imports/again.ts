@@ -1,6 +1,6 @@
 /**
  * POST /api/admin/imports/again: Try again on a source of the imports ledger that stopped (decision 0073, R23), as the
- * first run's Bringing it in, Today's Brought in and Connections offer it.
+ * first run's Bringing it in, Today's setting-up card and Connections offer it.
  *
  * The door is the knock (authorizeAdmin: a token the dashboard minted for this door, the member and the workspace) and
  * the body (readBody); importAgain in lib/imports/again.ts is everything after.

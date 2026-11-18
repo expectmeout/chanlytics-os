@@ -129,6 +129,9 @@ export const JOB_PAYLOADS = {
   google_read: CARRIES_NOTHING,
   texts_read: CARRIES_NOTHING,
   sequence_occasions: CARRIES_NOTHING,
+  // `walk`: the kind of walk the step belongs to (contracts SOURCE_WALK_KINDS), which its first step begins.
+  source_walk: carrying({ source_id: z.string(), run: z.string(), step: z.string(), walk: z.string() }),
+  source_read: carrying({ source_id: z.string() }),
   canary: CARRIES_NOTHING,
 } satisfies Record<JobKind, z.ZodType>;
 

@@ -131,6 +131,15 @@ const ADS_ON_SCREEN = {
 export const AD_SCOPE_LINE =
   "It is an example on the page, made up, and no ad of theirs, and there is nothing to read about it: say so first, then answer about how ads would work here or what they can do today.";
 
+/**
+ * The Content line, in place of the Campaigns line on that page, in the turn's words as that line is (17 Nov 2026). Content is
+ * a tab of Campaigns, so a turn asked there was told that offers and promotions are campaigns to propose, and nothing said what
+ * a link is: an owner who pasted their Instagram into "Where are your photos?" was told AI can't open Instagram links, and to
+ * connect in Settings. It names no tool (the answer canvas, A3): its words are the ones the search finds Content's tools by.
+ */
+export const CONTENT_LINE =
+  "They are on Campaigns › Content, where the posts and videos made for the business are kept, with the Library of its own photos and videos. Words that describe a post or a video are a post or a video to propose. A link to their website or their Instagram account, or an @name, is where their own photos and videos are: propose bringing them in at once. What is brought in waits in the Library until they keep it. Never answer that you can't open a link: where one can't be brought in, the proposal's own answer says why. Connecting an Instagram account, to answer its messages or to post, is another thing, done in Settings › Connections: speak of it only when they ask to connect.";
+
 /** The Ads line with what the page shows now, by the word it said. These ride in a turn's words (prompt.ts turnWords), never in the rules. */
 export const adsLine = (view: string | null | undefined): string =>
   `${ADS_LINE} ${view === ASK_ADS_VIEW.example ? ADS_ON_SCREEN[ASK_ADS_VIEW.example] : ADS_ON_SCREEN[ASK_ADS_VIEW.today]}`;

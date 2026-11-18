@@ -35787,6 +35787,109 @@ COMMENT ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) IS 'Whether a wo
 
 
 --
+-- Name: source_credentials_drop(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_credentials_drop(p_connection_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'source-creds-' || p_connection_id::text;
+  v_id   uuid;
+begin
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then
+    return false;
+  end if;
+  delete from vault.secrets where id = v_id;
+  update public.source_connections set credentials_ref = null where id = p_connection_id;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION source_credentials_drop(p_connection_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_credentials_drop(p_connection_id uuid) IS 'Service-role only: deletes a footage account''s token from Vault (00641). Called when the account is disconnected, after the rule that gives a grant back to its provider was asked.';
+
+
+--
+-- Name: source_credentials_get(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_credentials_get(p_connection_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_ref    text;
+  v_secret text;
+begin
+  select credentials_ref into v_ref from public.source_connections where id = p_connection_id;
+  if v_ref is null then
+    return null;
+  end if;
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = v_ref;
+  if v_secret is null then
+    return null;
+  end if;
+  return v_secret::jsonb;
+end $$;
+
+
+--
+-- Name: FUNCTION source_credentials_get(p_connection_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_credentials_get(p_connection_id uuid) IS 'Service-role only: a footage account''s token from Vault, or null (00641).';
+
+
+--
+-- Name: source_credentials_put(uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_name text := 'source-creds-' || p_connection_id::text;
+  v_id   uuid;
+  v_now  text;
+begin
+  -- The row, held for the write: every write of this account's token takes it first, so a refresh's compare and its
+  -- write are one step against a reconnect's.
+  perform 1 from public.source_connections where id = p_connection_id for update;
+  if not found then
+    raise exception 'source_credentials_put: no such connection';
+  end if;
+  if p_if_refresh_token is not null then
+    select (decrypted_secret::jsonb)->>'refresh_token' into v_now from vault.decrypted_secrets where name = v_name;
+    if v_now is distinct from p_if_refresh_token then
+      raise exception 'source_credentials_put: the token changed since it was read' using errcode = '40001';
+    end if;
+  end if;
+  select id into v_id from vault.secrets where name = v_name;
+  if v_id is null then
+    perform vault.create_secret(p_secret::text, v_name, 'A footage account''s token: ' || p_connection_id::text);
+  else
+    perform vault.update_secret(v_id, p_secret::text);
+  end if;
+  update public.source_connections set credentials_ref = v_name where id = p_connection_id;
+  return v_name;
+end $$;
+
+
+--
+-- Name: FUNCTION source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) IS 'Service-role only: stores a footage account''s token in Vault under source-creds-<id> and points credentials_ref at it (00641). The only write path for the token. With p_if_refresh_token, only while the token stored still carries that refresh token, under a lock on the row every write takes; otherwise it raises 40001 and writes nothing (as 00423''s for a mailbox).';
+
+
+--
 -- Name: source_take_spend(uuid, uuid, bigint, bigint, bigint, bigint, integer, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -35994,6 +36097,111 @@ $$;
 --
 
 COMMENT ON FUNCTION public.source_units_spend(p_units bigint) IS 'A provider''s units counted as they are spent (00642): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
+
+
+--
+-- Name: sources_hand_out(integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_reads integer;
+  v_walks integer;
+  v_again integer;
+  v_begun integer;
+begin
+  -- A read for each folder whose time has come: one watched, or one frozen and asked after. The kind's own key holds
+  -- one a folder while one waits or runs, so a clock that knocks twice costs nothing. A read asked for soon after
+  -- the folder's last (its provider's signal, a fresh upload's length: due within one gap of that read) is handed at
+  -- once; a floor read is spread, so ten thousand folders due the same hour do not start together. A kind an
+  -- operator paused is handed nothing: what is due stays due on its row.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select s.tenant_id, 'source_read',
+         case when s.last_read_at is not null
+                   and s.next_read_at <= s.last_read_at
+                       + make_interval(secs => greatest(coalesce(s.read_gap_seconds, 300), 300))
+              then now()
+              else now() + make_interval(secs => abs(hashtext(s.id::text)::bigint) % greatest(p_spread_seconds, 1))
+         end,
+         jsonb_build_object('source_id', s.id::text)
+    from public.media_sources s
+   where s.state in ('watching', 'frozen') and s.next_read_at <= now()
+     and not exists (select 1 from public.job_kinds k where k.kind = 'source_read' and k.paused_at is not null)
+  on conflict do nothing;
+  get diagnostics v_reads = row_count;
+  -- A re-walk for each watched folder whose own is due and that has none in flight: its first step, of the run after
+  -- its newest.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select s.tenant_id, 'source_walk',
+         now() + make_interval(secs => abs(hashtext(s.id::text)::bigint) % greatest(p_spread_seconds, 1)),
+         jsonb_build_object('source_id', s.id::text, 'run', (s.walk_run + 1)::text, 'step', '0', 'walk', 'reconcile')
+    from public.media_sources s
+   where s.state = 'watching' and s.walk_kind is null and s.next_walk_at <= now()
+     and not exists (select 1 from public.job_kinds k where k.kind = 'source_walk' and k.paused_at is not null)
+  on conflict do nothing;
+  get diagnostics v_walks = row_count;
+  -- A walk whose steps stopped (a step failed for good, a write lost) is taken up where its rows say it stands: one
+  -- step an hour at most, named for the hour.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select s.tenant_id, 'source_walk', now(),
+         jsonb_build_object('source_id', s.id::text, 'run', s.walk_run::text,
+                            'step', 'again-' || (extract(epoch from date_trunc('hour', now()))::bigint)::text,
+                            'walk', s.walk_kind)
+    from public.media_sources s
+   where s.walk_kind is not null and s.state in ('setting_up', 'watching')
+     and s.walk_touched_at < now() - make_interval(secs => greatest(p_walk_stale_seconds, 1))
+     and not exists (select 1 from public.job_kinds k where k.kind = 'source_walk' and k.paused_at is not null)
+  on conflict do nothing;
+  get diagnostics v_again = row_count;
+  -- A folder chosen whose first walk never began (its first step's write was lost, or its account was connected
+  -- again before it had walked) is handed that step: its first listing, or a whole walk where it had walked before.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select s.tenant_id, 'source_walk', now(),
+         jsonb_build_object('source_id', s.id::text, 'run', (s.walk_run + 1)::text, 'step', '0',
+                            'walk', case when s.walk_run = 0 then 'snapshot' else 'reconcile' end)
+    from public.media_sources s
+   where s.state = 'setting_up' and s.walk_kind is null
+     and s.updated_at < now() - make_interval(secs => greatest(p_walk_stale_seconds, 1))
+     and not exists (select 1 from public.job_kinds k where k.kind = 'source_walk' and k.paused_at is not null)
+  on conflict do nothing;
+  get diagnostics v_begun = row_count;
+  return jsonb_build_object('reads', v_reads, 'walks', v_walks, 'again', v_again + v_begun);
+end $$;
+
+
+--
+-- Name: FUNCTION sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer) IS 'The footage clock''s one statement (00641, decision 0115): a source_read for each watched or frozen folder whose next read is due, a source_walk for each watched folder whose re-walk is due and that has none in flight, and a walk whose steps stopped, or that never began, taken up. A re-walk and a floor read are due within the spread by a hash of their folder, a read asked for soon after the folder''s last (a signal, a fresh upload''s length) at once; none is written while one waits or runs, and none for a kind an operator paused. Answers {reads, walks, again}. The service role''s.';
+
+
+--
+-- Name: sources_sweep_ask(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.sources_sweep_ask() RETURNS bigint
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'extensions'
+    AS $$
+begin
+  if exists (select 1 from public.media_sources s where s.state in ('setting_up', 'watching', 'frozen')) then
+    return public.request_sweep('sources', '/api/cron/sources');
+  end if;
+  insert into public.sweep_status (sweep, requested_at) values ('sources', now())
+  on conflict (sweep) do update set requested_at = excluded.requested_at;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION sources_sweep_ask(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.sources_sweep_ask() IS 'The footage clock (00641): calls the edge (/api/cron/sources), which hands each watched folder its read or its re-walk when one is due, only while a folder is watched; otherwise records that it looked.';
 
 
 --
@@ -41626,16 +41834,38 @@ CREATE TABLE public.media_sources (
     last_error_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    channel_resource_id text,
+    last_read_at timestamp with time zone,
+    signalled_at timestamp with time zone,
+    last_change_at timestamp with time zone,
+    busy_reads integer DEFAULT 0 NOT NULL,
+    next_walk_at timestamp with time zone,
+    walk_run integer DEFAULT 0 NOT NULL,
+    walk_kind text,
+    walk_started_at timestamp with time zone,
+    walk_touched_at timestamp with time zone,
+    hold_at timestamp with time zone,
+    hold_count integer,
+    hold_confirmed_at timestamp with time zone,
+    walk_units integer DEFAULT 0 NOT NULL,
+    CONSTRAINT media_sources_busy_reads_check CHECK ((busy_reads >= 0)),
     CONSTRAINT media_sources_change_cursor_check CHECK (((change_cursor IS NULL) OR (char_length(change_cursor) <= 4000))),
     CONSTRAINT media_sources_channel_id_check CHECK (((char_length(channel_id) >= 1) AND (char_length(channel_id) <= 200))),
     CONSTRAINT media_sources_channel_is_whole CHECK ((((channel_id IS NULL) = (channel_token_hash IS NULL)) AND ((channel_id IS NULL) = (channel_expires_at IS NULL)))),
+    CONSTRAINT media_sources_channel_resource_id_check CHECK (((char_length(channel_resource_id) >= 1) AND (char_length(channel_resource_id) <= 200))),
     CONSTRAINT media_sources_channel_token_hash_check CHECK ((channel_token_hash ~ '^[0-9a-f]{64}$'::text)),
     CONSTRAINT media_sources_drive_id_check CHECK (((char_length(drive_id) >= 1) AND (char_length(drive_id) <= 200))),
     CONSTRAINT media_sources_folder_id_check CHECK (((char_length(folder_id) >= 1) AND (char_length(folder_id) <= 200))),
     CONSTRAINT media_sources_folder_name_check CHECK (((char_length(folder_name) >= 1) AND (char_length(folder_name) <= 500))),
+    CONSTRAINT media_sources_hold_count_check CHECK ((hold_count > 0)),
+    CONSTRAINT media_sources_hold_is_whole CHECK (((hold_at IS NULL) = (hold_count IS NULL))),
     CONSTRAINT media_sources_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 300))),
     CONSTRAINT media_sources_read_gap_seconds_check CHECK ((read_gap_seconds > 0)),
-    CONSTRAINT media_sources_state_check CHECK ((state = ANY (ARRAY['setting_up'::text, 'watching'::text, 'paused'::text, 'frozen'::text, 'stopped'::text])))
+    CONSTRAINT media_sources_state_check CHECK ((state = ANY (ARRAY['setting_up'::text, 'watching'::text, 'paused'::text, 'frozen'::text, 'stopped'::text]))),
+    CONSTRAINT media_sources_walk_is_whole CHECK ((((walk_kind IS NULL) = (walk_started_at IS NULL)) AND ((walk_kind IS NULL) = (walk_touched_at IS NULL)))),
+    CONSTRAINT media_sources_walk_kind_check CHECK ((walk_kind = ANY (ARRAY['snapshot'::text, 'reconcile'::text, 'subtree'::text]))),
+    CONSTRAINT media_sources_walk_run_check CHECK ((walk_run >= 0)),
+    CONSTRAINT media_sources_walk_units_check CHECK ((walk_units >= 0))
 );
 
 
@@ -41658,6 +41888,48 @@ COMMENT ON COLUMN public.media_sources.state IS 'setting_up: chosen, its first w
 --
 
 COMMENT ON COLUMN public.media_sources.channel_token_hash IS 'The sha256, in hex, of the token the provider sends back with each signal: the token itself is never kept.';
+
+
+--
+-- Name: COLUMN media_sources.channel_resource_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.channel_resource_id IS 'The provider''s own id for what the push channel watches: asked for, with the channel''s id, to stop it.';
+
+
+--
+-- Name: COLUMN media_sources.busy_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.busy_reads IS 'How many reads in a row found changes elsewhere in the account and none inside the folder: past the pace''s count, the folder is read less often until something inside changes.';
+
+
+--
+-- Name: COLUMN media_sources.walk_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.walk_run IS 'The number of its newest walk: what an item''s seen_run and missed_run, and a folder''s walked_run, are counted in.';
+
+
+--
+-- Name: COLUMN media_sources.walk_kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.walk_kind IS 'The walk in flight, or null when none is. snapshot: the first listing of the whole tree. reconcile: a re-walk that finds what the changes missed. subtree: the contents of a folder that appeared or moved in.';
+
+
+--
+-- Name: COLUMN media_sources.hold_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.hold_at IS 'When a read or a re-walk found more items gone at once than the pace lets leave: none was marked, and they wait for the next re-walk to agree or for a person to confirm (hold_confirmed_at).';
+
+
+--
+-- Name: COLUMN media_sources.walk_units; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.walk_units IS 'The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often.';
 
 
 --
@@ -43444,6 +43716,11 @@ CREATE TABLE public.source_items (
     first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
     gone_at timestamp with time zone,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    seen_run integer,
+    missed_run integer,
+    walked_run integer,
+    walk_page text,
+    length_until timestamp with time zone,
     take_after timestamp with time zone,
     taken_at timestamp with time zone,
     take_tries smallint DEFAULT 0 NOT NULL,
@@ -43457,6 +43734,7 @@ CREATE TABLE public.source_items (
     CONSTRAINT source_items_seconds_check CHECK ((seconds >= (0)::numeric)),
     CONSTRAINT source_items_state_check CHECK ((state = ANY (ARRAY['listed'::text, 'waiting'::text, 'taking'::text, 'in'::text, 'too_big'::text, 'not_media'::text, 'let_go'::text, 'failed'::text, 'outside'::text, 'gone'::text, 'no_access'::text]))),
     CONSTRAINT source_items_take_tries_check CHECK ((take_tries >= 0)),
+    CONSTRAINT source_items_walk_page_check CHECK (((walk_page IS NULL) OR (char_length(walk_page) <= 4000))),
     CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'length'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
 );
 
@@ -43480,6 +43758,41 @@ COMMENT ON COLUMN public.source_items.kind IS 'folder: part of the tree. image, 
 --
 
 COMMENT ON COLUMN public.source_items.state IS 'listed: seen, not asked for. waiting: to be taken in. taking: on its way. in: a Library file (file_id). too_big: over a cap, never taken (why says which). not_media: not a photo or a video. let_go: its owner removed it from the Library, so the next read does not bring it back. failed: its taking failed for good. outside: moved out of the watched tree. gone: trashed or deleted at its provider (gone_at). no_access: the provider no longer lets it be read, which is never read as gone.';
+
+
+--
+-- Name: COLUMN source_items.seen_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.seen_run IS 'The last walk run (media_sources.walk_run) that found it, written only where its folder takes more than one step to list: a folder listed in one step is compared in memory, so a re-walk writes nothing on an item that did not change.';
+
+
+--
+-- Name: COLUMN source_items.missed_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.missed_run IS 'The walk run that did not find it where it was: asked of its provider when the run ends, and only then said gone, outside or no longer readable.';
+
+
+--
+-- Name: COLUMN source_items.walked_run; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.walked_run IS 'A folder''s own: the last walk run that listed its contents whole. Null: never listed.';
+
+
+--
+-- Name: COLUMN source_items.walk_page; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.walk_page IS 'A folder''s own: the provider''s token for the next page of its contents while a walk is part way through it.';
+
+
+--
+-- Name: COLUMN source_items.length_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.length_until IS 'A video its provider has listed without its length (a fresh upload is measured a few minutes later): its own record is asked again until then, and it is not taken into the Library before. Null: its length is known, it is no video, or its provider made it more than the wait ago.';
 
 
 --
@@ -46867,10 +47180,38 @@ CREATE UNIQUE INDEX mailboxes_tenant_uq ON public.mailboxes USING btree (tenant_
 
 
 --
+-- Name: media_sources_channel; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX media_sources_channel ON public.media_sources USING btree (channel_id) WHERE (channel_id IS NOT NULL);
+
+
+--
 -- Name: media_sources_one_a_folder; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE UNIQUE INDEX media_sources_one_a_folder ON public.media_sources USING btree (connection_id, folder_id);
+
+
+--
+-- Name: media_sources_read_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX media_sources_read_due ON public.media_sources USING btree (next_read_at) WHERE (state = ANY (ARRAY['watching'::text, 'frozen'::text]));
+
+
+--
+-- Name: media_sources_walk_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX media_sources_walk_due ON public.media_sources USING btree (next_walk_at) WHERE ((state = 'watching'::text) AND (walk_kind IS NULL));
+
+
+--
+-- Name: media_sources_walking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX media_sources_walking ON public.media_sources USING btree (walk_touched_at) WHERE (walk_kind IS NOT NULL);
 
 
 --
@@ -47963,6 +48304,20 @@ CREATE UNIQUE INDEX source_connections_one_account ON public.source_connections 
 --
 
 CREATE INDEX source_items_file ON public.source_items USING btree (tenant_id, file_id) WHERE (file_id IS NOT NULL);
+
+
+--
+-- Name: source_items_folders; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_folders ON public.source_items USING btree (source_id) WHERE (kind = 'folder'::text);
+
+
+--
+-- Name: source_items_length_awaited; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_length_awaited ON public.source_items USING btree (source_id, length_until) WHERE (length_until IS NOT NULL);
 
 
 --
@@ -59716,6 +60071,30 @@ GRANT ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION source_credentials_drop(p_connection_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_credentials_drop(p_connection_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_credentials_drop(p_connection_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION source_credentials_get(p_connection_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_credentials_get(p_connection_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_credentials_get(p_connection_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret jsonb, p_if_refresh_token text) TO service_role;
+
+
+--
 -- Name: FUNCTION source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59745,6 +60124,22 @@ GRANT ALL ON FUNCTION public.source_takes_release() TO service_role;
 
 REVOKE ALL ON FUNCTION public.source_units_spend(p_units bigint) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.source_units_spend(p_units bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION sources_sweep_ask(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.sources_sweep_ask() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.sources_sweep_ask() TO service_role;
 
 
 --
