@@ -18,7 +18,8 @@ import { Panel } from "../kit/panel/panel";
 import { previewVerbs } from "./verbs";
 
 /** What a row's press says: add what it lacks, put its value right, or say what is off about a list. */
-const pressOf = (row: PreviewKnowsRowVM): string => (row.missing ? W.add : row.fix === "say" ? W.sayOff : W.fix);
+const pressOf = (row: PreviewKnowsRowVM, lacks: boolean): string =>
+  lacks ? W.add : row.fix === "say" ? W.sayOff : W.fix;
 
 /** One fact: its name, its value, where it was read, and its press; open, the box that puts it right. */
 function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: string; look: boolean }) {
@@ -61,7 +62,7 @@ function PvKnownRow({ row, token, look }: { row: PreviewKnowsRowVM; token: strin
           data-testid={`pv-not-right-${row.key}`}
         >
           {lacks || row.fix === "say" ? null : <Icon name="pencil" size={14} />}
-          {pressOf(row)}
+          {pressOf(row, lacks)}
         </Button>
       )}
       {open ? (

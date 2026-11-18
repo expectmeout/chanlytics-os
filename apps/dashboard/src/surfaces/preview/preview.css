@@ -439,6 +439,10 @@
     align-items: start;
     gap: var(--space-8);
   }
+  /* The head stands beside the conversation on a desk, so the bar does not say whose page it is again. */
+  .pv-top-who {
+    visibility: hidden;
+  }
   .pv-col:first-child {
     position: sticky;
     top: var(--space-6);
