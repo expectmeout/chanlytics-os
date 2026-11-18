@@ -1,6 +1,7 @@
 /** Retell: agents. */
 
 import crypto from "node:crypto";
+import { recordOrEmpty } from "@chanlytics/contracts";
 import { answerObject } from "../../shared/provider-fetch";
 import { answered, retell, type RetellConfig } from "./calls";
 
@@ -214,7 +215,10 @@ export async function getConcurrency(cfg: RetellConfig): Promise<RetellConcurren
 export interface RetellLlmConfig {
   llm_id: string;
   version: number | null;
-  /** The text model behind the shell, and its temperature — provisioning parity, readable by the diagnostic. */
+  /**
+   * The text model behind the shell, and its temperature — provisioning parity, readable by the diagnostic. Read from
+   * the provider's `model_config` (llmModelOf); the names here are ours.
+   */
   model: string | null;
   model_temperature: number | null;
   general_prompt: string | null;
@@ -237,6 +241,21 @@ export function updateRetellLlm(
   return writeRetell(cfg, "PATCH", `/update-retell-llm/${encodeURIComponent(llmId)}`, patch);
 }
 
+/**
+ * A Retell LLM's text model and temperature as the provider answers them: under `model_config` (primary.model,
+ * temperature), and under the `model` and `model_temperature` it answers beside it until it retires them on 31 January
+ * 2027. The new name wins where both are answered, as the provider's own rule is for what it is sent.
+ */
+function llmModelOf(result: Record<string, unknown>): Pick<RetellLlmConfig, "model" | "model_temperature"> {
+  const config = recordOrEmpty(result.model_config);
+  const model = recordOrEmpty(config.primary).model ?? result.model;
+  const temperature = config.temperature ?? result.model_temperature;
+  return {
+    model: typeof model === "string" ? model : null,
+    model_temperature: typeof temperature === "number" ? temperature : null,
+  };
+}
+
 /** GET /get-retell-llm at a version. Null when the provider says no. */
 export async function getRetellLlm(
   cfg: RetellConfig,
@@ -251,8 +270,7 @@ export async function getRetellLlm(
   return {
     llm_id: str("llm_id") ?? llmId,
     version: typeof result.version === "number" ? result.version : null,
-    model: str("model"),
-    model_temperature: typeof result.model_temperature === "number" ? result.model_temperature : null,
+    ...llmModelOf(result),
     general_prompt: str("general_prompt"),
     begin_message: str("begin_message"),
     default_dynamic_variables:
