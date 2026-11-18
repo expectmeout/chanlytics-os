@@ -14,7 +14,7 @@
  *   settle   a day and a little after the ask, a run Meta said nothing more of is done: a phase with no chats sends
  *            nothing at all, and a row would otherwise read "Coming in" for ever.
  *
- * The ledger's rows are what the first run's "Your chats, coming in" (5B·i) and Today's "Brought in" read: the
+ * The ledger's rows are what the first run's "Your chats, coming in" (5B·i) and Today's setting-up card read: the
  * contacts as people; the chats as messages, their reach, and Meta's three parts (the day before, back to 90 days,
  * back to 180). A business that declined to share is told on the row in its words, never as a failure to retry.
  */

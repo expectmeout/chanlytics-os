@@ -2,7 +2,7 @@
  * What was brought in (decision 0073, R23; 0086): one row a workspace and source in the imports ledger, and one a mailbox
  * for what a mailbox brings (PER_MAILBOX_SOURCES), each source said once (sourceRowsOf), written by the jobs
  * that bring a connection's history in (Google's reviews, the calendar, the clients' file, the mailbox, the contacts,
- * WhatsApp's contacts and chats) and read by the first run's "Bringing it in", Today's "Brought in" and Connections'
+ * WhatsApp's contacts and chats) and read by the first run's "Bringing it in", Today's setting-up card and Connections'
  * sentences. Everything brought is "before Chanlytics": shown, never counted as today's, never answered, never a yes
  * (decision 0073, D15 and D16). Every sentence is here; the pages compose.
  */
@@ -10,8 +10,6 @@ import { billingDayWords } from "../workspace/billing/plans";
 import { groupedPlural } from "../shared/words";
 import { DAY_MS } from "../shared/time";
 import { viaWords } from "./csv";
-import { lensRoute } from "../reports/lenses";
-import { CONTENT_LIBRARY_ROUTE } from "../content/address";
 
 export const IMPORT_SOURCES = [
   "google_reviews",
@@ -109,7 +107,7 @@ export interface ImportRowDto {
   via: string | null;
 }
 
-/** One line of "Bringing it in" or "Brought in": what it is, what came, and where it stands. */
+/** One line of "Bringing it in": what it is, what came, and where it stands. */
 export interface ImportLineVM {
   source: ImportSource;
   title: string;
@@ -123,32 +121,12 @@ export interface ImportLineVM {
   share: number | null;
   /** What the mailbox read and set aside, said apart under the line: "195 newsletters, notices and pitches set aside". */
   aside: string | null;
-  /** Where the line opens: the page what came in is on (IMPORT_DOORS); null for WhatsApp's line waiting for Go live. */
-  door: string | null;
-  /** Where what was set aside is listed: Connections, its mailbox's "Left in your mailbox" open (MAILBOX_LEFT_ROUTE). */
-  asideDoor: string | null;
   /** The count `says` opens with ("414" of "414 emails · since Jun 7"), which a page may let glide as it grows. */
   count: number | null;
 }
 
-/** The page each source's line opens: what came in is People's, the Inbox's, the Calendar's or the Reviews lens's own. */
-const IMPORT_DOORS: Readonly<Record<ImportSource, string>> = {
-  google_reviews: lensRoute("reviews"),
-  calendar: "calendar",
-  clients_file: "clients",
-  mailbox: "inbox",
-  contacts: "clients",
-  whatsapp_contacts: "clients",
-  whatsapp_history: "inbox",
-  google_photos: CONTENT_LIBRARY_ROUTE,
-  website_media: CONTENT_LIBRARY_ROUTE,
-  instagram: CONTENT_LIBRARY_ROUTE,
-};
-
 /** The row of Connections a mailbox's "Left in your mailbox" is, as Settings' address names it (settings/frame/tabs.ts). */
 export const MAILBOX_LEFT_ROW = "left";
-/** Connections with "Left in your mailbox" open: where the Brought in card's set-aside line goes. */
-const MAILBOX_LEFT_ROUTE = "admin/integrations/left";
 
 export const IMPORT_WORDS = {
   titles: {
@@ -179,15 +157,20 @@ export const IMPORT_WORDS = {
   /** Said only while something is still coming in. */
   keepsGoing: "Keeps going if you leave.",
   bringing: (done: number, of: number) => `Bringing it in · ${done} of ${of}`,
-  allIn: "All in",
-  stoppedCount: (n: number) => `${n} stopped`,
+  /** Today's line while the business's history is still coming in, and how far it has come ("2 of 3 in"). */
+  historyComing: "Bringing in your history",
+  /** Its dot's name, for a reader. */
+  comingIn: "Coming in",
+  inSoFar: (done: number, of: number) => `${done} of ${of} in`,
+  /** Today's row for a source that stopped, Try again beside it: "Your inbox stopped coming in". */
+  stoppedComing: (title: string) => `${title} stopped coming in`,
+  /** Under it where the run kept nothing it can count. */
+  keptSoFar: "What came in is kept.",
   /** A run that stopped part way (IMPORT_STOPPED_WORDS.failed), said on its line with what it kept. */
   stoppedPartWay: "Stopped part way",
   setAside: (n: number) => `${n.toLocaleString("en-US")} newsletters, notices and pitches set aside`,
   /** The strangers who asked about the business's services and were never answered by email (decision 0080). */
   asked: (n: number) => `${n.toLocaleString("en-US")} asked about your services and never got an answer`,
-  /** Today's card, named for what it holds: the business's history from before Chanlytics. "Brought in" said how. */
-  card: "Your history",
   whatsappLater: "Contacts and chats, once you approve",
 } as const;
 
@@ -337,8 +320,6 @@ export function importLineOf(otherImport: ImportRowDto, tz: string): ImportLineV
     retry: otherImport.state === "failed" && !ONCE_ONLY.has(otherImport.source),
     share,
     aside,
-    door: IMPORT_DOORS[otherImport.source],
-    asideDoor: aside ? MAILBOX_LEFT_ROUTE : null,
     count: leadCountOf(otherImport),
   };
 }
@@ -482,7 +463,7 @@ const SAID_ORDER: readonly ImportSource[] = [
 ];
 
 /**
- * "Bringing it in" (the first run's step 4, 4·k) and Today's "Brought in" (T·g): a line per source the ledger holds, in
+ * "Bringing it in" (the first run's step 4, 4·k): a line per source the ledger holds, in
  * order, and WhatsApp's own waiting line where it was chosen and has not started (it starts at Go live). `done` and
  * `of` are the count for "Bringing it in · 2 of 6".
  */
@@ -504,77 +485,88 @@ export function importLinesOf(
       retry: false,
       share: null,
       aside: null,
-      door: null,
-      asideDoor: null,
       count: null,
     });
   const done = lines.filter((l) => l.state === "done").length;
   return { lines, done, of: lines.length, running: lines.some((l) => l.state === "running" || l.state === "queued") };
 }
 
-/** One of the Brought in card's facts, closed: what it counts (the page draws its glyph) and its words. */
-export interface BroughtInFactVM {
-  key: "people" | "mail" | "calendar";
-  text: string;
-}
-
-/** Where everything brought in stands, said once in the card's head: still coming, all in, or some stopped. */
-export interface BroughtInStateVM {
-  tone: "live" | "ok" | "stopped";
-  words: string;
-}
+/**
+ * What Content reads for itself: a profile's, a website's and an Instagram's photos and videos, read again as they
+ * change and said on Content's own card. Never the business's history from before Chanlytics, so never Today's.
+ */
+const CONTENT_SOURCES: ReadonlySet<ImportSource> = new Set<ImportSource>([
+  "google_photos",
+  "website_media",
+  "instagram",
+]);
 
 /**
- * Today's "Brought in" card (T-today): its title; where it all stands ("Bringing it in · 2 of 3", "All in",
- * "1 stopped"); and, closed, the people and the reviews, how far back email reached and the calendar, a short fact
- * each. Opened, it is the sources' own lines (importLinesOf). Null while nothing came.
+ * A stop trying again does not mend: the owner stopped it themselves (Connections' Resume picks it up), or what it came
+ * through is gone. Connections says each on its own row; Today asks for nothing it cannot give.
  */
-export function broughtInCardOf(
-  rows: readonly ImportRowDto[] | null | undefined,
-  count: number | null,
-  tz: string,
-): { title: string; state: BroughtInStateVM; facts: BroughtInFactVM[] } | null {
-  const sourceRows = sourceRowsOf(rows);
-  if (!sourceRows.length) return null;
-  const by = (s: ImportSource) => sourceRows.find((r) => r.source === s) ?? null;
-  const reviews = by("google_reviews");
-  const mail = by("mailbox");
-  const cal = by("calendar");
-  const first = joined(
-    count ? countOfPeople(count) : null,
-    reviews?.counts.reviews ? groupedPlural(reviews.counts.reviews, "review") : null,
-  );
-  const facts: BroughtInFactVM[] = [];
-  if (first) facts.push({ key: "people", text: first });
-  if (mail?.oldest) facts.push({ key: "mail", text: `Email ${since(mail.oldest, tz)}` });
-  if (cal && cal.counts.past !== undefined) facts.push({ key: "calendar", text: saysOf(cal, tz) });
-  const stopped = sourceRows.filter((r) => r.state === "failed").length;
-  const { done, of, running } = importLinesOf(sourceRows, tz);
+const NOT_MENDED_BY_TRYING: ReadonlySet<string> = new Set<string>([
+  IMPORT_STOPPED_WORDS.byYou,
+  IMPORT_STOPPED_WORDS.removed,
+  IMPORT_STOPPED_WORDS.numberGone,
+  IMPORT_STOPPED_WORDS.googleGone,
+]);
+
+/** A source that stopped where Try again can bring it in, as Today's setting-up card says it. */
+export interface HistoryStoppedVM {
+  source: ImportSource;
+  /** What happened: "Your inbox stopped coming in". */
+  name: string;
+  /** Why, where the run said a reason the owner acts on; else what it kept. */
+  says: string;
+}
+
+/** What Today says of the business's history while there is something to say. */
+export interface HistoryOnTodayVM {
+  /** While any of it is still coming in: one line, and how far it has come. */
+  coming: { name: string; says: string } | null;
+  stopped: HistoryStoppedVM[];
+}
+
+/** Whether Today offers Try again for a stopped source: one the press can start again (never the clients' file, added again from People). */
+const triedAgainFromToday = (r: ImportRowDto): boolean =>
+  r.state === "failed" &&
+  !ONCE_ONLY.has(r.source) &&
+  r.source !== "clients_file" &&
+  !(r.last_error && NOT_MENDED_BY_TRYING.has(r.last_error));
+
+/**
+ * The business's history on Today (18 Nov 2026, Ruben: a card of its own, "Your history · All in", was a fact with
+ * nothing to do beside the queue): rows in the setting-up card, and only while they help. One line while any of it is
+ * still coming in, and a row for each source that stopped where Try again can bring it in. Null otherwise: once it is all
+ * in, what came in is People's, the Inbox's, the Calendar's and Reviews' own, and Connections says each source on its row.
+ * Content's own reads (CONTENT_SOURCES) are never counted: a website read again each month brought the card back.
+ */
+export function historyOnTodayOf(rows: readonly ImportRowDto[] | null | undefined): HistoryOnTodayVM | null {
+  const history = sourceRowsOf(rows)
+    .filter((r) => !CONTENT_SOURCES.has(r.source))
+    .sort((a, b) => SAID_ORDER.indexOf(a.source) - SAID_ORDER.indexOf(b.source));
   const words = IMPORT_WORDS;
-  const state: BroughtInStateVM = stopped
-    ? { tone: "stopped", words: words.stoppedCount(stopped) }
-    : running
-      ? { tone: "live", words: words.bringing(done, of) }
-      : { tone: "ok", words: words.allIn };
-  return { title: words.card, state, facts };
-}
-
-/**
- * How long Today keeps its card after the last source finished: the day it finished, so All in is seen once. A week of
- * All in was a card with nothing to press beside the queue (the refined canvas, 31 Oct 2026); People, the Inbox and the
- * Calendar hold what came in, and Setup keeps the list.
- */
-const BROUGHT_IN_SHOWN_MS = DAY_MS;
-
-/**
- * Whether Today draws its card of the business's history (T-today, "Your history"): while anything is still coming in,
- * a source stopped, or within a day of the last one finishing. After that what came in is People's, the Inbox's and the
- * Calendar's own.
- */
-export function broughtInShown(rows: readonly ImportRowDto[] | null | undefined, nowMs: number): boolean {
-  const sourceRows = sourceRowsOf(rows);
-  if (!sourceRows.length) return false;
-  if (sourceRows.some((r) => r.state !== "done")) return true;
-  const last = Math.max(...sourceRows.map((r) => (r.finished_at ? Date.parse(r.finished_at) : 0)));
-  return Number.isFinite(last) && nowMs - last < BROUGHT_IN_SHOWN_MS;
+  const stopped = history.filter(triedAgainFromToday).map((r): HistoryStoppedVM => {
+    const kept = stoppedKept(r);
+    return {
+      source: r.source,
+      name: words.stoppedComing(words.titles[r.source]),
+      says:
+        r.last_error && r.last_error !== IMPORT_STOPPED_WORDS.failed
+          ? r.last_error
+          : kept
+            ? `${kept} kept`
+            : words.keptSoFar,
+    };
+  });
+  const coming = history.some((r) => r.state === "running" || r.state === "queued");
+  if (!coming && !stopped.length) return null;
+  const done = history.filter((r) => r.state === "done").length;
+  return {
+    coming: coming
+      ? { name: words.historyComing, says: joined(words.inSoFar(done, history.length), words.keepsGoing) }
+      : null,
+    stopped,
+  };
 }

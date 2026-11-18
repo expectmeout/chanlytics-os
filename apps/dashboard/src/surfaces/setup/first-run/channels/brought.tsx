@@ -2,21 +2,20 @@
  * What is coming in (decision 0073, R23, canvas 4 "Your dashboard, filling in" and 4·k "Bringing it in"): beside Where it
  * answers on a desk, People, the Inbox, the Calendar and Reviews as what came in counts them, and one press to the
  * sources one by one, each as the imports ledger says it stands: in (a tick), how far it has come (a bar, or its
- * parts), waiting for Go live, stopped with its Try again. Today's Brought in opens the same lines in place
- * (today/zones/brought-in.tsx, `ImportLines`), where each line is a door to the page what it brought is on, and what the
- * mailbox set aside a door to where it is listed; the first run's sheet keeps its owner on the step.
+ * parts), waiting for Go live, stopped with its Try again. With `doors`, each line is a door to the page what it brought
+ * is on, and what the mailbox set aside a door to where it is listed; the first run's sheet keeps its owner on the step.
  */
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { FirstRunChannelsVM, ImportLineVM, ImportSource } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "../model/first-run-helpers";
+import { useImportAgain } from "./import-again";
 // Each part from its own module, never the kit's index: the index brings every part on Base UI into the first run's
 // and Today's pages (+21 KB and +10 KB gzipped, #1854's first build), and the first run draws its buttons by class.
 import { Meter } from "../../../kit/meter/meter";
 import { Icon } from "../../../kit/icon/icon";
 import { useCountGlide } from "../../../kit/motion/use-count-glide";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { refusalToast, routeDoor, type FrameFlash } from "../../../frame-verbs";
-import { setupVerbs } from "../../surface";
+import type { FrameFlash } from "../../../frame-verbs";
 
 const IW = FIRST_RUN_HELPERS.importWords;
 
@@ -35,25 +34,11 @@ const SOURCE_GLYPH: Record<ImportSource, string> = {
 };
 
 /**
- * How long a pressed Try again says Starting while the run is not yet heard starting: the setup read hears the ledger's
- * row within ten seconds (setup/override.ts), so a press still unheard after this is offered again.
- */
-const STARTING_HOLD_MS = 30_000;
-
-/**
  * Where a line stands, at its end: Try again where it stopped (Starting, and still, once pressed), a tick once in, the
  * live dot while it reads with no bar to say how far, and otherwise its word ("Starting", "2 of 3", "At Go live").
  */
 function LineStand({ line, flash }: { line: ImportLineVM; flash: (f: FrameFlash) => void }): ReactNode {
-  const [pressedAt, setPressedAt] = useState<number | null>(null);
-  const starting = pressedAt !== null && Date.now() - pressedAt < STARTING_HOLD_MS;
-  const again = async () => {
-    setPressedAt(Date.now());
-    const r = await setupVerbs.importAgain(line.source);
-    if (r.ok) return;
-    setPressedAt(null);
-    flash(refusalToast(r, IW.stopped));
-  };
+  const { starting, again } = useImportAgain(line.source, flash);
   if (line.retry)
     return (
       <button
@@ -105,91 +90,50 @@ function LineSays({ line }: { line: ImportLineVM }): ReactNode {
 
 /**
  * One source's line: its glyph, what it is, what came, how far it has come, and where it stands; and under it what was
- * set aside. With `doors`, the line opens the page what it brought is on and what was set aside opens where it is
- * listed, each a link (a press inside a link is not one, so Try again stands beside it).
+ * set aside. The line is no door: the first run keeps its owner on the step.
  */
-function ImportLine({
-  line,
-  flash,
-  doors,
-}: {
-  line: ImportLineVM;
-  flash: (f: FrameFlash) => void;
-  doors: boolean;
-}): ReactNode {
-  const door = doors ? line.door : null;
-  const asideDoor = doors ? line.asideDoor : null;
-  const what = (
-    <>
-      <span className="fr-import-glyph" aria-hidden="true">
-        <Icon name={SOURCE_GLYPH[line.source]} size={16} />
-      </span>
-      <span className="fr-import-words">
-        <b className="fr-import-title">
-          {line.title}
-          {door ? <Icon name="chevron" size={12} className="fr-import-chevron" /> : null}
-        </b>
-        <LineSays line={line} />
-        {line.share !== null ? (
-          <Meter
-            className="fr-import-bar"
-            size="sm"
-            parts={[
-              { share: Math.max(0.001, line.share), color: "var(--accent)" },
-              { share: 1 - line.share, tone: "rest" },
-            ]}
-            aria-label={line.stand}
-          />
-        ) : null}
-      </span>
-    </>
-  );
+function ImportLine({ line, flash }: { line: ImportLineVM; flash: (f: FrameFlash) => void }): ReactNode {
   return (
     <li className="fr-import fr-source" data-state={line.state} data-testid={`fr-import-${line.source}`}>
-      {door ? (
-        <a className="fr-import-door" {...routeDoor(door)} data-testid={`fr-import-door-${line.source}`}>
-          {what}
-        </a>
-      ) : (
-        <span className="fr-import-door">{what}</span>
-      )}
+      <span className="fr-import-door">
+        <span className="fr-import-glyph" aria-hidden="true">
+          <Icon name={SOURCE_GLYPH[line.source]} size={16} />
+        </span>
+        <span className="fr-import-words">
+          <b className="fr-import-title">{line.title}</b>
+          <LineSays line={line} />
+          {line.share !== null ? (
+            <Meter
+              className="fr-import-bar"
+              size="sm"
+              parts={[
+                { share: Math.max(0.001, line.share), color: "var(--accent)" },
+                { share: 1 - line.share, tone: "rest" },
+              ]}
+              aria-label={line.stand}
+            />
+          ) : null}
+        </span>
+      </span>
       <LineStand line={line} flash={flash} />
-      {line.aside && asideDoor ? (
-        <a className="fr-import-aside" {...routeDoor(asideDoor)} data-testid={`fr-import-aside-${line.source}`}>
-          {line.aside}
-          <Icon name="chevron" size={12} />
-        </a>
-      ) : line.aside ? (
-        <span className="fr-import-aside">{line.aside}</span>
-      ) : null}
+      {line.aside ? <span className="fr-import-aside">{line.aside}</span> : null}
     </li>
   );
 }
 
-/**
- * The sources one by one, a line each: the first run's sheet and Today's card opened draw the same list. `doors`: each
- * line a link to its page, as Today's card draws them; the first run keeps its owner on the step.
- */
-export function ImportLines({
-  lines,
-  flash,
-  doors = false,
-}: {
-  lines: ImportLineVM[];
-  flash: (f: FrameFlash) => void;
-  doors?: boolean;
-}) {
+/** The sources one by one, a line each. */
+function ImportLines({ lines, flash }: { lines: ImportLineVM[]; flash: (f: FrameFlash) => void }) {
   return (
     <ul className="fr-imports" data-testid="fr-bringing-lines">
       {lines.map((l) => (
-        <ImportLine key={l.source} line={l} flash={flash} doors={doors} />
+        <ImportLine key={l.source} line={l} flash={flash} />
       ))}
     </ul>
   );
 }
 
 /** What it says under the sources: history on each person, never answered; and, while anything is coming, that it goes on. */
-export function ImportFoot({ running, className }: { running: boolean; className: string }) {
+function ImportFoot({ running, className }: { running: boolean; className: string }) {
   return (
     <p className={className}>
       {running ? `${IW.keepsGoing} ` : ""}

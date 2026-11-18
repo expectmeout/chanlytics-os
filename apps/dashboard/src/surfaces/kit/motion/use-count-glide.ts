@@ -1,6 +1,6 @@
 /**
  * A count that grows on screen as it is read again glides to its new value instead of jumping (Ruben, 27 Oct 2026: the
- * Brought in card's "214 emails so far" leapt by a hundred on each read). The first value is drawn as it is; a change
+ * first run's "214 emails so far" leapt by a hundred on each read). The first value is drawn as it is; a change
  * after it counts from what is shown to the new value over GLIDE_MS on the house's ease-out, a frame at a time, and is
  * whole numbers throughout. A change during a glide carries on from where the count stands.
  *

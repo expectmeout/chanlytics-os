@@ -600,7 +600,7 @@ interface EmailCardProps {
   flash: Flash;
   note: ConnectedMailboxesProps["note"];
   onNote: () => void;
-  /** The address named "Left in your mailbox" (Today's Brought in links to it): its list read and brought into view. */
+  /** The address named "Left in your mailbox": its list read and brought into view. */
   openLeft?: boolean;
 }
 

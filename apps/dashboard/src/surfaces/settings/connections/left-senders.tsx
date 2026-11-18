@@ -4,7 +4,7 @@
  * arrives, and nothing on the page's first load waits for it. "It's a person" brings a sender in (their mail from now on,
  * and their last six months with it); Undo takes back what was said of a sender. Its words are contracts'
  * (email/mailbox-senders.ts); who may change it is the block's own gate (the settings permission). Its own address
- * (`admin/integrations/left`, contracts MAILBOX_LEFT_ROW; Today's Brought in links to it) reads it at once and brings it
+ * (`admin/integrations/left`, contracts MAILBOX_LEFT_ROW) reads it at once and brings it
  * into view, as a press of Show would.
  */
 import { useEffect, useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
