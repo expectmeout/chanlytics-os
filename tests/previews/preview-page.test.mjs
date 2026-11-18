@@ -433,3 +433,56 @@ test("the call's screen shows the newest of what was said, its last two lines, o
   );
   assert.ok(!has(connecting, "pv-heard") && words(connecting).includes(W.mic));
 });
+
+test("the bar: light or dark beside Make it mine, and their name once only while their head is on screen", () => {
+  const started = draw({
+    asked_count: 1,
+    turns: turnsOf(["Are you open on Sunday?", "We're closed on Sunday.", "sends"]),
+  });
+  assert.ok(has(started, "pv-theme") && started.includes(`aria-label="${W.themeSwitch}"`));
+  assert.ok(started.indexOf('data-testid="pv-theme"') < started.indexOf('data-testid="pv-mine"'));
+  // As the page is drawn their head is on screen, so the bar does not say their name a second time.
+  assert.ok(!has(started, "pv-top-who"));
+  // Its sender looking has nothing to press, this among them.
+  assert.ok(!has(draw({}, true), "pv-theme"));
+});
+
+test("what an answer took from the things they told it is lit in it; one that kept no stretch stands plain", () => {
+  const answered = (then) =>
+    draw({
+      asked_count: 1,
+      turns: [
+        { role: "user", content: "How much is a fade?" },
+        { role: "assistant", content: "A fade is 30 dollars. Want to come by?", then },
+      ],
+    });
+  const lit = answered({ words: "An owner's sentence.", tone: "sends", taught: true, spans: [[0, 20]] });
+  assert.match(lit, /<mark class="pv-yours">A fade is 30 dollars<\/mark>\. Want to come by\?/);
+  assert.ok(has(lit, "pv-used-1"));
+  const plain = answered({ words: "An owner's sentence.", tone: "sends", taught: true });
+  assert.ok(!plain.includes("pv-yours") && has(plain, "pv-used-1"), "said under it, as before, with nothing lit");
+  // A line the row kept is drawn in place: only one that comes on this visit arrives, and is written out.
+  assert.ok(!lit.includes("data-new") && !lit.includes("pv-word"));
+});
+
+test("a visit after a call still shows it: its line after the messages, with how long it ran", () => {
+  const html = draw({
+    asked_count: 1,
+    call_seconds: 42,
+    call_count: 1,
+    turns: turnsOf(["Are you open on Sunday?", "We're closed on Sunday.", "sends"]),
+    calls: [{ id: "11111111-1111-4111-8111-111111111111", seconds: 42 }],
+  });
+  assert.ok(has(html, "pv-called") && words(html).includes(W.called(42)));
+  assert.ok(html.indexOf('data-testid="pv-turn-1"') < html.indexOf('data-testid="pv-called"'));
+  assert.ok(!has(draw({ asked_count: 1, turns: turnsOf(["Hello?", "Hi.", "sends"]) }), "pv-called"));
+});
+
+test("Hear its voice stands beside Call it, by its name; its sender looking has no press", () => {
+  const html = draw();
+  assert.match(html, new RegExp(`data-testid="pv-hear"[^>]*>.*?${W.hearVoice}</button>`, "s"));
+  assert.ok(html.indexOf('data-testid="pv-call-start"') < html.indexOf('data-testid="pv-hear"'));
+  // Its minutes used, there is no call to stand beside; its sender looking presses nothing.
+  assert.ok(!has(draw({ call_seconds: 360 }), "pv-hear"));
+  assert.ok(!has(draw({}, true), "pv-hear"));
+});

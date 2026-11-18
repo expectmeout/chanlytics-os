@@ -142,6 +142,11 @@ export const LEAD_PREVIEW_WORDS = {
   lookTried: "Tried it",
   lookTaught: (n: number) => (n === 1 ? "Told it 1 thing" : `Told it ${n} things`),
   mine: "Make it mine",
+  /** Beside Call it: its voice heard with no call, in the provider's own recording of it; and the same press, playing. */
+  hearVoice: "Hear its voice",
+  hearStop: "Stop",
+  /** The top bar's press that puts the page in the other theme, as a screen reader says it. */
+  themeSwitch: "Switch between light and dark",
   mineSub: "Free to try. You choose a plan when it starts answering your phone.",
 
   /** Sign-up, from Make it mine (L4): whose receptionist waits, and the one press of someone already signed in. */

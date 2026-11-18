@@ -48,9 +48,9 @@ import {
 } from "@chanlytics/db/campaigns";
 import { findRehearsalById } from "@chanlytics/db/facts";
 import { logAndGoOn } from "@chanlytics/log";
-import { linkPageDb } from "../public/link-page";
+import { linkPageDb, linkPageLookOf } from "../public/link-page";
 import { previewProfileOf } from "../public/preview-page";
-import { answerUsesTaught } from "./taught-answer";
+import { taughtSpansOf } from "./taught-answer";
 import { changePreviewRecord } from "./theirs";
 import { callEdge, edgeConfigured } from "../shared/edge";
 import { WRITE_UP_MS, previewGotOf, previewHeardOf } from "./heard";
@@ -94,6 +94,25 @@ function doorRefused(reason: PreviewRefusal): AppError {
   return new AppError("conflict", W.ended.title, 409);
 }
 
+/** What a customer opens a conversation with, as the model reads the page's first line: before its own greeting. */
+const OPENED_WITH = "Hi";
+
+/**
+ * The page's first line as turns the model reads. The page speaks first, as their business (previewPageOf's greeting),
+ * and no row keeps that line, so the model took the first question for a conversation's first and greeted a second time
+ * (the review of 18 November 2026). None where the business's name cannot be read: the page's greeting has no name then.
+ */
+function greetedTurnsOf(
+  business: string | null,
+  assistant: string | null,
+): { role: "user" | "assistant"; content: string }[] {
+  if (!business?.trim()) return [];
+  return [
+    { role: "user", content: OPENED_WITH },
+    { role: "assistant", content: W.textGreeting(business, assistant) },
+  ];
+}
+
 /** What a message comes back as: the answer, what a live chat would do with it, and how many it will still answer. */
 interface PreviewAnswer {
   turn: PreviewTurnVM;
@@ -108,14 +127,18 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
   const result = await openPreview(token, { calls: false });
   // One answer at a time a preview, from wherever it is asked: the row counts the twenty only once each is kept.
   await takeRate(`preview:${result.id}`, "preview_turn", undefined, true);
-  const history = previewTurnsOf(result.turns)
-    .slice(-HISTORY_MAX)
-    .map((t) => ({ role: t.role, content: t.text }));
-  // What they told it, read beside the answer: an answer that says one of them is marked so (taught-answer.ts). A
-  // record that cannot be read holds nothing told, so nothing is marked.
-  const theirs = previewProfileOf(dbOrFail(), heldTenantId(result.preview_tenant_id)).then(
-    (profile) => previewTheirsOf(profile).taught,
-  );
+  // Its record and its name, read before the answer is asked: the greeting is of both, and what they told it is the
+  // record's. Neither read can fail the answer: a record that cannot be read holds nothing told, a name none.
+  const db = dbOrFail();
+  const tenantId = heldTenantId(result.preview_tenant_id);
+  const [profile, look] = await Promise.all([previewProfileOf(db, tenantId), linkPageLookOf(db, tenantId)]);
+  const greeted = greetedTurnsOf(look.business, profile?.assistant_name ?? null);
+  const history = [
+    ...greeted,
+    ...previewTurnsOf(result.turns)
+      .slice(-(HISTORY_MAX - greeted.length))
+      .map((t) => ({ role: t.role, content: t.text })),
+  ];
   let vm;
   try {
     vm = await tryReceptionist(result.preview_tenant_id, null, text, history);
@@ -124,8 +147,11 @@ export async function previewMessage(token: string, raw: unknown): Promise<Previ
     log.warn("preview_message_failed", { tenant_id: result.preview_tenant_id, error: e });
     throw causedBy(new AppError("upstream_anthropic", W.failed, 502), e);
   }
-  const then = answerUsesTaught(vm.said, await theirs) ? { ...vm.then, taught: true } : vm.then;
-  const kept = await recordPreviewSaid(dbOrFail(), result.id, text, { text: vm.said, then });
+  // Where the answer says a thing they told it (taught-answer.ts), kept with the turn: the page says so under it and
+  // lights each stretch.
+  const spans = taughtSpansOf(vm.said, previewTheirsOf(profile).taught);
+  const then = spans.length ? { ...vm.then, taught: true, spans } : vm.then;
+  const kept = await recordPreviewSaid(db, result.id, text, { text: vm.said, then });
   if (!kept.ok) throw doorRefused(kept.reason);
   return {
     turn: { role: "assistant", text: vm.said, then },

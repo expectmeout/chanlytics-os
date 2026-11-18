@@ -144,6 +144,29 @@ export async function findRehearsalByCall(db: Db, retellCallId: string): Promise
   return data ? rehearsalOf(data) : null;
 }
 
+/**
+ * The workspace's newest spoken rehearsals that ended and spoke, oldest first, each by its id and its seconds: what a
+ * lead's preview draws its earlier calls from on a visit after them (decision 0079). `most` of them. A read that fails
+ * throws.
+ */
+export async function listEndedRehearsalCalls(
+  db: Db,
+  tenantId: TenantId,
+  most: number,
+): Promise<{ id: string; seconds: number }[]> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("rehearsals")
+    .select("id, seconds, created_at")
+    .eq("kind", "call")
+    // Ended, and spoken: a call still running or one nobody spoke on is no line of a conversation.
+    .not("ended_at", "is", null)
+    .gt("seconds", 0)
+    .order("created_at", { ascending: false })
+    .limit(most);
+  if (error) throw new DbFailure(error, "cannot read the rehearsals that ended");
+  return data.map((row) => ({ id: row.id, seconds: row.seconds ?? 0 })).reverse();
+}
+
 /** The review of a real call, where it has one. */
 export async function callReviewOf(db: Db, tenantId: TenantId, callId: string): Promise<RehearsalRow | null> {
   const { data, error } = await tenantDb(db, tenantId)

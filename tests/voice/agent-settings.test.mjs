@@ -26,6 +26,7 @@ import {
   newDraftNote,
   planVoiceConvergence,
   desiredVoiceShell,
+  getRetellLlm,
   CALL_FEEL,
   CALL_HANDBOOK,
   CALL_LIMITS,
@@ -293,6 +294,47 @@ test("the LLM's model and temperature are reported when they differ, and never p
     planVoiceConvergence({ ...desired, model: RETELL_MODELS.llm, model_temperature: 0 }, desired).notes,
     [],
   );
+});
+
+test("a line's model and temperature are read under the provider's model_config, and under the names it retires while it still answers them", async () => {
+  const desired = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
+  /** What the read makes of get-retell-llm's answer for an LLM on the shell, with the model answered as given. */
+  const read = async (model) => {
+    const real = globalThis.fetch;
+    globalThis.fetch = async () => Response.json({ llm_id: "llm_1", version: 1, ...desired, ...model });
+    try {
+      return await getRetellLlm({ apiKey: "a-key-nobody-holds" }, "llm_1", 1);
+    } finally {
+      globalThis.fetch = real;
+    }
+  };
+  const config = (model, temperature) => ({ type: "cascading", primary: { model, tier: "standard" }, temperature });
+
+  // As the provider answers from 31 January 2027: model_config alone. A line off the product's model is still named.
+  const after = await read({ model_config: config("claude-5.5-sonnet", 0.4) });
+  assert.deepEqual([after.model, after.model_temperature], ["claude-5.5-sonnet", 0.4]);
+  const notes = planVoiceConvergence(after, desired).notes;
+  assert.equal(notes.length, 2);
+  assert.ok(notes[0].includes("claude-5.5-sonnet") && notes[1].includes("0.4"), JSON.stringify(notes));
+
+  // As it answers until then: both. The new name is the one read, and a temperature of 0 is a temperature.
+  const both = await read({ model: "gpt-4.1", model_temperature: 1, model_config: config(RETELL_MODELS.llm, 0) });
+  assert.deepEqual([both.model, both.model_temperature], [RETELL_MODELS.llm, 0]);
+  assert.deepEqual(planVoiceConvergence(both, desired).notes, []);
+
+  // The retired names alone are still read; a model_config with no temperature leaves the retired one standing.
+  const before = await read({ model: "gpt-4.1", model_temperature: 0.2 });
+  assert.deepEqual([before.model, before.model_temperature], ["gpt-4.1", 0.2]);
+  const part = await read({
+    model_temperature: 0.2,
+    model_config: { type: "cascading", primary: { model: "gpt-4.1" } },
+  });
+  assert.deepEqual([part.model, part.model_temperature], ["gpt-4.1", 0.2]);
+
+  // Neither answered: nothing is made up, and nothing is noted.
+  const none = await read({});
+  assert.deepEqual([none.model, none.model_temperature], [null, null]);
+  assert.deepEqual(planVoiceConvergence(none, desired).notes, []);
 });
 
 test("how a call sounds is the product's on every line: a conversational persona that reads key details back, harder to cut off, a breath before the first word, listening sounds", () => {

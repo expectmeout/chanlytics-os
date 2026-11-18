@@ -414,6 +414,53 @@ html.in-app .auth-or {
   gap: 8px;
   margin-bottom: 10px;
 }
+/* It's yours arrives (the review of 18 November 2026): its mark grows in, the tick is drawn, and what came with it
+   lands after, one by one. A device that asks for less motion shows it whole. */
+.auth-done {
+  animation: auth-arrive var(--duration-slow) var(--ease-out) both;
+}
+.auth-done path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: auth-tick var(--duration-slow) var(--ease-out) var(--duration-base) forwards;
+}
+@keyframes auth-arrive {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+@keyframes auth-tick {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.auth-counts > span {
+  animation: auth-land var(--duration-slow) var(--ease-out) both;
+  animation-delay: calc(var(--duration-slow) + var(--duration-base));
+}
+.auth-counts > span:nth-child(2) {
+  animation-delay: calc(var(--duration-slow) + var(--duration-base) * 2);
+}
+.auth-counts > span:nth-child(n + 3) {
+  animation-delay: calc(var(--duration-slow) + var(--duration-base) * 3);
+}
+@keyframes auth-land {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-done,
+  .auth-done path,
+  .auth-counts > span {
+    animation: none;
+  }
+  .auth-done path {
+    stroke-dashoffset: 0;
+  }
+}
 .auth-counts > span {
   display: inline-flex;
   align-items: center;

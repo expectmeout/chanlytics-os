@@ -19,6 +19,7 @@ export {
   keepTypedRehearsal,
   keepVoiceAgent,
   listActiveVoiceAgents,
+  listEndedRehearsalCalls,
   listVoiceAgentsBeforeANumber,
   releaseRehearsalCall,
   reserveRehearsalCall,

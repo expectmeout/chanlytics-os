@@ -162,6 +162,21 @@ const AskConfigSchema = z
 /** What Stop everything keeps while it is on. */
 export type AskStopped = NonNullable<z.infer<typeof AskConfigSchema>["stopped"]>;
 
+/**
+ * What a lead's own preview keeps beside its receptionist (decision 0079): the questions its page offers first, written
+ * for the business as the preview was built (previews/starters.ts). A section of its own, never a key of `brain`:
+ * nothing here is told to the receptionist, and a build from before it leaves the section out and offers the questions
+ * it makes from the record. Read as words and held to the questions' rule where the page reads them
+ * (previewStartersWrittenOf), never here.
+ */
+const PreviewConfigSchema = z
+  .object({
+    // `.catch`: a stored value that is not a short list of short lines reads as none (the page's own questions), never
+    // as a config that cannot be parsed, which would leave the receptionist silent.
+    starters: z.array(z.string().max(200)).max(8).optional().catch(undefined),
+  })
+  .strip();
+
 export const TenantConfigSchema = z.object({
   brain: BrainConfigSchema.optional(),
   ask: AskConfigSchema.optional(),
@@ -171,6 +186,8 @@ export const TenantConfigSchema = z.object({
   calendar_grant: CalendarGrantConfigSchema.optional(),
   bookings: BookingsConfigSchema.optional(),
   features: FeaturesConfigSchema.optional(),
+  // `.catch`: a section that is not an object reads as none, for the same reason.
+  preview: PreviewConfigSchema.optional().catch(undefined),
 });
 export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 
