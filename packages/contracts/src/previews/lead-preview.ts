@@ -147,10 +147,13 @@ export function previewStartersOf(profile: PreviewPageFacts["profile"]): string[
  */
 function startersShownOf(previewPageFacts: Pick<PreviewPageFacts, "starters" | "profile">): string[] {
   const written = previewStartersWrittenOf(previewPageFacts.starters);
-  const made = previewStartersOf(previewPageFacts.profile);
-  if (written.length === 0) return made;
-  const asked = new Set(written.map((question) => question.toLowerCase()));
-  return [...written, ...made.filter((question) => !asked.has(question.toLowerCase()))].slice(0, PREVIEW_STARTERS_MOST);
+  const fromRecord = previewStartersOf(previewPageFacts.profile);
+  if (written.length === 0) return fromRecord;
+  const offered = new Set(written.map((question) => question.toLowerCase()));
+  return [...written, ...fromRecord.filter((question) => !offered.has(question.toLowerCase()))].slice(
+    0,
+    PREVIEW_STARTERS_MOST,
+  );
 }
 
 /** The services as a line: the first six, and how many more. */

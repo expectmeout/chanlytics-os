@@ -161,22 +161,19 @@ async function buildPreview(
   if (!result || result.state !== "building" || !result.preview_tenant_id) return { skipped: "not_building" };
   const preview = { ...result, preview_tenant_id: result.preview_tenant_id };
   try {
-    const made = await receptionistFromListing(db, preview, deadline, read);
-    if (typeof made === "string") {
-      await recordPreviewBuilt(db, result.id, false, made);
-      log.info("preview_build_failed", { preview_id: result.id, why: made });
+    const receptionist = await receptionistFromListing(db, preview, deadline, read);
+    if (typeof receptionist === "string") {
+      await recordPreviewBuilt(db, result.id, false, receptionist);
+      log.info("preview_build_failed", { preview_id: result.id, why: receptionist });
       return;
     }
-    const starters = await write(made.known, {
-      tenantId: preview.preview_tenant_id,
-      previewId: result.id,
-      deadline,
-    });
-    await writeReceptionist(db, preview.preview_tenant_id, made.brain, starters);
+    const { brain, known } = receptionist;
+    const starters = await write(known, { tenantId: preview.preview_tenant_id, previewId: result.id, deadline });
+    await writeReceptionist(db, preview.preview_tenant_id, brain, starters);
     await recordPreviewBuilt(db, result.id, true);
     log.info("preview_built", {
       preview_id: result.id,
-      services: made.brain.profile?.services?.length ?? 0,
+      services: brain.profile?.services?.length ?? 0,
       starters: starters.length,
     });
   } catch (e) {
