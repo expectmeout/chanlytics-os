@@ -208,6 +208,10 @@
   padding: 0;
   list-style: none;
 }
+/* Before anything is said a phone keeps its first screen for Call it and the field; a desk shows the greeting (below). */
+.pv-talk[data-empty] {
+  display: none;
+}
 .pv-line {
   display: flex;
   flex-direction: column;
@@ -344,6 +348,10 @@
 .pv-kept {
   margin-top: auto;
   text-align: center;
+}
+/* The privacy line stands just over the field: its push to the foot is the field's, so the two never split the space. */
+.pv-kept + .pv-dock {
+  margin-top: 0;
 }
 
 /* ---- The field, which stays at the foot, on the page's own ground ---- */
@@ -505,6 +513,10 @@
   /* The head stands beside the conversation on a desk, so the bar does not say whose page it is again. */
   .pv-top-who {
     visibility: hidden;
+  }
+  /* A desk has the room: it speaks first, before anything is said. */
+  .pv-talk[data-empty] {
+    display: flex;
   }
   /* A desk's page is lit to its top (a phone's is plain paper there), so the bar and the field's dock wear the page's own
      light, fixed to the window as the page's is: nothing of either shows until a line scrolls under it. */
