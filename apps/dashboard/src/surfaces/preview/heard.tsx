@@ -46,10 +46,7 @@ function PvGot({ got }: { got: PreviewGotVM }) {
       {got.notes.length ? (
         <ul className="pv-got-notes">
           {got.notes.map((note) => (
-            <li key={note}>
-              <Icon name="check" size={14} />
-              <span>{note}</span>
-            </li>
+            <li key={note}>{note}</li>
           ))}
         </ul>
       ) : null}

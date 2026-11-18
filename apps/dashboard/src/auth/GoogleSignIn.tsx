@@ -90,7 +90,7 @@ export default function GoogleSignIn({
 
   const or = (
     <div className="auth-or" aria-hidden="true">
-      {SIGNUP_WORDS.or}
+      {under ? SIGNUP_WORDS.orUnder : SIGNUP_WORDS.or}
     </div>
   );
   return (

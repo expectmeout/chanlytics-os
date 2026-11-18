@@ -260,6 +260,11 @@ body {
     filter: brightness(1.08);
   }
 }
+/* A press is a thumb high on every sign-in page: the type alone left it a pixel short on a phone. The buttons that
+   read as links keep their line, with the margin a finger gets round them below. */
+.auth-card button:not(.auth-linkbtn) {
+  min-height: var(--control-h-touch);
+}
 .auth-card button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

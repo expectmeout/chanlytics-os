@@ -317,14 +317,8 @@
   flex-direction: column;
   gap: var(--space-1);
   margin: 0;
-  padding: 0;
-  list-style: none;
+  padding: 0 0 0 var(--space-5);
   font-size: var(--text-sm);
-}
-.pv-got-notes > li {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
 }
 .pv-told {
   display: flex;
@@ -512,9 +506,18 @@
   .pv-top-who {
     visibility: hidden;
   }
+  /* A desk's page is lit to its top (a phone's is plain paper there), so the bar and the field's dock wear the page's own
+     light, fixed to the window as the page's is: nothing of either shows until a line scrolls under it. */
+  .pv-top,
+  .pv-dock {
+    background-image: var(--surface-page-light);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+  /* The head stands clear of the bar when the conversation scrolls. */
   .pv-col:first-child {
     position: sticky;
-    top: var(--space-6);
+    top: calc(var(--control-h-touch) + var(--space-6));
   }
   .pv-col:last-child {
     min-height: calc(100dvh - var(--space-20) - var(--space-6));

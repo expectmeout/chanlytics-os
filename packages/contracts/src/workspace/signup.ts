@@ -116,6 +116,8 @@ export const SIGNUP_WORDS = {
    * The provider's own words for its button, and ours for what follows it. */
   google: "Continue with Google",
   or: "or, with your work email",
+  /** The same line where Google stands under the form it shares a card with: the address was asked first. */
+  orUnder: "or",
   googleNext: "You'll name your workspace on the next screen.",
   googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
   firstWorkspaceCode:
