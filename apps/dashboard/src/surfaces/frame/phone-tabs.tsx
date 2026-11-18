@@ -68,7 +68,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
         label: t.label,
         href: href(t.route),
         glyph: <Glyph name={t.icon} size={18} />,
-        // Only the Inbox has a count, and it counts people who need you: amber, as the sidebar's is.
+        // Only the Inbox has a count, and it counts people who need you (on the glyph the kit draws it neutral).
         count: t.id === "inbox" && inboxNeeds > 0 ? inboxNeeds : null,
         tone: t.id === "inbox" ? "warn" : undefined,
         warm: () => warm(t.route),

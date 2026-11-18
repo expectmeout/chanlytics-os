@@ -5605,8 +5605,8 @@ a.list-row {
 .tab-bar-tab.active > .tab-bar-glyph {
   color: var(--tab-ink);
 }
-/* The count is the count on an icon (.tally-icon, below), on its glyph's top corner, as a phone's badge stands: set from
-   the place's corner, it covered the glyph's right half on a phone's narrow places (Ruben, 18 Nov 2026). */
+/* The count is the neutral count on an icon (.tally-icon, below), on its glyph's top corner, as a phone's badge stands:
+   set from the place's corner, it covered the glyph's right half on a phone's narrow places (Ruben, 18 Nov 2026). */
 .tab-bar-count {
   position: absolute;
   top: -6px;
@@ -6559,15 +6559,9 @@ textarea.rec-input,
   line-height: 1;
   color: var(--count-ink);
 }
-/* People who need you, counted on an icon (the phone's Inbox tab): amber, warn's own meaning, as the menu's count is
-   (Today with colour, D5, 17 Nov 2026). On a glyph a tint let its lines show through the figure, so the amber is whole,
-   the figure dark and a ring of the bar's glass lifts it off the glyph (Ruben, 18 Nov 2026). A count beside its words
-   stays the words' ink. */
-.tally-icon.tally-warn {
-  background: var(--warn);
-  box-shadow: var(--count-ring);
-  color: var(--count-warn-ink);
-}
+/* People who need you, counted on an icon (the phone's Inbox tab), are the neutral count too, with no ring: an amber tint
+   let the glyph's lines show through the figure, and the warn tone whole read too harsh on the bar (Ruben, 18 Nov 2026).
+   The menu's count, beside its words, keeps the amber (components.css .nav-badge.tally-warn). */
 
 /* ---- A tone's words read the tone's ink (the one-badge spec's rule) ----
    Where the house's rules still write a raw tone as words: a quiet destructive act, a menu's destructive item, what went
