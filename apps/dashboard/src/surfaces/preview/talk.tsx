@@ -93,12 +93,16 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
   );
 }
 
-/** The conversation: nothing until it starts, then its greeting first, as their business, and each line after. */
+/**
+ * The conversation: its greeting first, as their business, and each line after. Before anything is said it is marked
+ * empty, and a phone, whose first screen holds Call it and the field, shows it once the conversation starts; a desk has
+ * the room, and it speaks first there (decision 0079).
+ */
 export function PvTalk({ vm, talk }: { vm: PreviewPageVM; talk: Talk }) {
-  if (!talk.lines.length && !talk.busy) return null;
   const newest = talk.lines.findLastIndex((line) => line.kind === "answer");
+  const empty = !talk.lines.length && !talk.busy;
   return (
-    <ol className="pv-talk" role="log" aria-live="polite" data-testid="pv-chat">
+    <ol className="pv-talk" role="log" aria-live="polite" data-empty={empty || undefined} data-testid="pv-chat">
       <PvAnswer text={vm.greeting} at="greeting" />
       {talk.lines.map((line, at) => (
         <PvLine key={at} line={line} at={at} last={at === newest} talk={talk} />
