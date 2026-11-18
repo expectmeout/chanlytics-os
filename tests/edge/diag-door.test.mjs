@@ -423,12 +423,15 @@ const agentOnShell = (id, llm) => ({
   ...CALL_FEEL,
   handbook_config: { ...CALL_HANDBOOK },
 });
-/** The LLM as get-retell-llm returns it: the shell, with the secret header on its tools. */
+/**
+ * The LLM as get-retell-llm returns it: the shell, with the secret header on its tools, and the model under
+ * model_config alone, as the provider answers once it retires `model` and `model_temperature` (31 January 2027). The
+ * hand-typed line below (llm_old) still answers the retired name, which is read until then.
+ */
 const llmOnShell = (id) => ({
   llm_id: id,
   version: 1,
-  model: "claude-4.5-haiku",
-  model_temperature: 0,
+  model_config: { type: "cascading", primary: { model: "claude-4.5-haiku", tier: "standard" }, temperature: 0 },
   ...desiredVoiceShell(edgeFnUrl(), { "x-fn-secret": "fn-secret-nobody-may-see" }),
 });
 
