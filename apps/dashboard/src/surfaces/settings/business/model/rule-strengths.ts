@@ -235,10 +235,10 @@ export function rulesKept(rulesKeptInputs: RulesKeptInputs): string[] {
  *
  * Built inside a call marked pure, as STRENGTHS is: a template literal with a substitution in it is an
  * expression the bundler must keep at the top level, and this sentence belongs to one tab of the dashboard.
- * screen-word: "automated assistant" is the disclosure customers hear, said in its own words (decision 0051).
+ * screen-word: "AI assistant" is the disclosure customers hear, said in its own words (decision 0051).
  */
 export const RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() =>
-  `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an automated assistant.`)();
+  `${NO_FIELDS_COMPOSED_WORDS} Until they are, it isn't told these rules, only that it is an AI assistant.`)();
 
 /**
  * RULES_WITHOUT_FIELDS_WORDS, as the rules' sheet asks for it. It once named, for a receptionist with no booking link, the

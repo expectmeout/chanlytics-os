@@ -340,7 +340,7 @@ export function workspaceFacts(
   if (result.never_confirm_booking) guardrails.push("never confirms a booking itself");
   // Always (decision 0051): a call's greeting says it, a new text conversation opens with it, and it says so when asked.
   // screen-word: what callers hear, the owner's own words (docs/words.md, "Not on a screen")
-  guardrails.push("always says it is the business's automated assistant, never a person");
+  guardrails.push("always says it is the business's AI assistant, never a person");
   if (result.no_health_advice) guardrails.push("gives no health advice");
   return {
     businessName: cfg?.brain?.business_name || name,

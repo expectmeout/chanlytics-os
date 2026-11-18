@@ -2,7 +2,7 @@
  * How it sounds (decision 0073, canvas 2, 2·e, 2·f, 2·g): the panel beside Your receptionist on a desk, a sheet from its
  * one line on a phone. The voice (the eight on the list, each heard in the provider's own sample), the personality (the
  * four presets, written into the tone, with a reply said in it), the pace (R7: each call's voice speed), the name it
- * goes by (said beside "the automated assistant", never instead of it), and, where the first language the business
+ * goes by (said beside "the AI assistant", never instead of it), and, where the first language the business
  * speaks is not the voice's own, the voices that sound native to it.
  *
  * Every pick saves at once through the Business tab's one saver (a profile key each), as the voice's row on How it

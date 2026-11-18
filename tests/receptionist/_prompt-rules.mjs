@@ -23,17 +23,17 @@ export const SELLING_CALL_LINE =
   "Someone selling to the business (marketing, a listing, search rankings, card processing, any service they want the business to buy) is not a customer. Do not take a message for them, offer a call back or say the team will follow up: say the business does not take sales calls on this line, and use end_call. A recorded or automated message is nobody to answer: use end_call. If you are not sure they are selling, treat them as a customer.";
 
 /**
- * That it is the business's automated assistant (decision 0051), said to every prompt: always, and in text that it opens a
+ * That it is the business's AI assistant (decision 0051), said to every prompt: always, and in text that it opens a
  * conversation not already under way by saying so; on a call, what a seller is owed after it (SELLING_CALL_LINE). A
  * reach-out draft, which the owner sends as themselves, gets none of them.
  */
 export const ASSISTANT_LINES = {
   whatsapp: [
-    "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
-    'Unless the facts about them say "This conversation is already under way.", open your reply by saying, in a few words, that you are the business\x27s automated assistant.',
+    "You are the business's AI assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's AI assistant and offer to bring in a person.",
+    'Unless the facts about them say "This conversation is already under way.", open your reply by saying, in a few words, that you are the business\x27s AI assistant.',
   ],
   voice: [
-    "You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.",
+    "You are the business's AI assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's AI assistant and offer to bring in a person.",
     SELLING_CALL_LINE,
   ],
 };

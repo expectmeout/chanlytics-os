@@ -363,8 +363,8 @@ function describeAnswersChange(change: AskAnswersChange): string {
       return VISION_SWITCH_WORDS.saved(change.on);
     case "set_assistant_name": {
       const name = change.name.replace(/\s+/g, " ").trim();
-      // screen-word: "automated assistant" is what callers hear, said in its own words (decision 0051).
-      return name ? `It introduces itself as ${name}` : "It has no name: it says it's the automated assistant";
+      // screen-word: "AI assistant" is what callers hear, said in its own words (decision 0051).
+      return name ? `It introduces itself as ${name}` : "It has no name: it says it's the AI assistant";
     }
     case "set_phone_pace":
       return PHONE_PACE_WORDS.saved(change.pace).replace(/\.$/, "");

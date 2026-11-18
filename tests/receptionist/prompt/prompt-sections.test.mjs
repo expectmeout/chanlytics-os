@@ -16,13 +16,13 @@ import assert from "node:assert/strict";
 import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS, PROMPT_OPENINGS } from "@chanlytics/contracts";
 import { SELLING_CALL_LINE } from "../_prompt-rules.mjs";
 
-// The standing lines every prompt ends with (decision 0051): that it is the business's automated assistant, always, and
+// The standing lines every prompt ends with (decision 0051): that it is the business's AI assistant, always, and
 // in text that it opens a conversation not already under way by saying so; and that these rules win.
 const ASSISTANT_ALWAYS =
-  "- You are the business's automated assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's automated assistant and offer to bring in a person.";
+  "- You are the business's AI assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's AI assistant and offer to bring in a person.";
 const ASSISTANT_TEXT = [
   ASSISTANT_ALWAYS,
-  `- Unless the facts about them say "This conversation is already under way.", open your reply by saying, in a few words, that you are the business's automated assistant.`,
+  `- Unless the facts about them say "This conversation is already under way.", open your reply by saying, in a few words, that you are the business's AI assistant.`,
 ];
 // On a call alone (decision 0136): someone selling to the business is promised nothing, and a recording is ended.
 const SELLING_CALL = `- ${SELLING_CALL_LINE}`;

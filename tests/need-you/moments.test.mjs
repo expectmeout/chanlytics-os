@@ -215,7 +215,7 @@ test("what the owner says to a draft is theirs to give, a figure included, and g
   assert.match(framed, /Owner: "Tell them it's \$45"/);
   assert.match(framed, /theirs to give/);
   assert.match(framed, /Give no price or figure the owner did not state/);
-  assert.match(framed, /automated assistant, never a person/, "the one rule no message of theirs changes");
+  assert.match(framed, /AI assistant, never a person/, "the one rule no message of theirs changes");
   assert.doesNotMatch(
     framed,
     /rules in your instructions still hold/,

@@ -1,6 +1,6 @@
 /**
  * The business's own phone greeting (decision 0051): no cap and nothing refused, and one thing held where the line is
- * spoken: the caller is told it is an automated assistant. A line that never says so has the product's clause added;
+ * spoken: the caller is told it is an AI assistant. A line that never says so has the product's clause added;
  * one that denies it plays the standard greeting. The notes say what every other choice means, one at a time.
  */
 import { test } from "node:test";
@@ -58,19 +58,19 @@ test("a line that never says it is automated has the product's clause added, bef
   assert.deepEqual(
     greetingOf({ name: NAME, stored: "Thanks for calling {business}. How can I help?", paused: false }),
     {
-      text: "Thanks for calling Harbor Moving. I'm the automated assistant. How can I help?",
+      text: "Thanks for calling Harbor Moving. I'm the AI assistant. How can I help?",
       source: "owner_disclosed",
     },
   );
   assert.equal(
     greetingOf({ name: NAME, stored: "Welcome to {business}", paused: false }).text,
-    "Welcome to Harbor Moving. I'm the automated assistant.",
+    "Welcome to Harbor Moving. I'm the AI assistant.",
     "no closing question: the clause goes after it",
   );
   assert.equal(
     greetingOf({ name: NAME, stored: "Hola, gracias por llamar a {business}. ¿Cómo le puedo ayudar?", paused: false })
       .text,
-    "Hola, gracias por llamar a Harbor Moving. Soy el asistente automático. ¿Cómo le puedo ayudar?",
+    "Hola, gracias por llamar a Harbor Moving. Soy el asistente de IA. ¿Cómo le puedo ayudar?",
   );
 });
 
@@ -115,7 +115,7 @@ test("a bare word is no disclosure: a line that only mentions automation, paymen
   ]) {
     const g = greetingOf({ name: NAME, stored, paused: false });
     assert.equal(g.source, "owner_disclosed", stored);
-    assert.match(g.text, /I'm the automated assistant\. How can I help\?$/, stored);
+    assert.match(g.text, /I'm the AI assistant\. How can I help\?$/, stored);
   }
   assert.equal(statesAutomated("This is an automated line for {business}."), true, "a claim about who answers");
   assert.equal(statesAutomated("You've reached {business}'s AI."), true);
@@ -133,7 +133,7 @@ test("a Spanish disclosure that says it is no person is spoken as written; a Spa
   for (const name of ["La Piñata Salon", "Hola Beauty"]) {
     assert.equal(
       greetingOf({ name, stored: "Thanks for calling {business}. How can I help?", paused: false }).text,
-      `Thanks for calling ${name}. I'm the automated assistant. How can I help?`,
+      `Thanks for calling ${name}. I'm the AI assistant. How can I help?`,
       name,
     );
   }
@@ -177,8 +177,8 @@ test("the notes: one key each, in order, never a refusal", () => {
     greetingNotes({ stored, name: NAME, neverQuotePrices: true, namesMoney, namesPrice: violatesNoPrices }).find(
       (n) => n.key === "adds_ai",
     ).words;
-  assert.match(added("Hi, {business}. How can I help?"), /callers also hear “I'm the automated assistant.”/);
-  assert.match(added("Hola, gracias por llamar a {business}."), /callers also hear “Soy el asistente automático.”/);
+  assert.match(added("Hi, {business}. How can I help?"), /callers also hear “I'm the AI assistant.”/);
+  assert.match(added("Hola, gracias por llamar a {business}."), /callers also hear “Soy el asistente de IA.”/);
   assert.deepEqual(notesOf("Hi, I'm the automated assistant. Calls are not recorded."), ["denies_recording"]);
   assert.deepEqual(notesOf("Hi, I'm the automated assistant. We don’t record calls."), ["denies_recording"]);
   assert.deepEqual(

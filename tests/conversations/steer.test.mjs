@@ -32,7 +32,7 @@ test("the frame quotes the owner, asks for a rewrite that keeps what was right, 
   // The rules are said once, in the prompt, as the owner's switches set them (decision 0051): the frame says they hold,
   // and the one that is not a switch.
   assert.ok(f.includes("The rules in your instructions still hold"));
-  assert.ok(f.includes("you are the business's automated assistant, never a person"));
+  assert.ok(f.includes("you are the business's AI assistant, never a person"));
   assert.ok(!f.includes("do not quote or confirm a price"), "never a switch-dependent rule restated");
   assert.equal(
     whisperText(f),

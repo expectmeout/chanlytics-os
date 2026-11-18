@@ -12,7 +12,7 @@
  * wrong -- and is the shell's own default, below, so the two are one sentence.
  *
  * The standard line, with both disclosures: recording, and that this is an
- * automated assistant. The business may write its own (decision 0051,
+ * AI assistant. The business may write its own (decision 0051,
  * greeting-owner.ts greetingOf), which keeps the second whatever it says;
  * nothing typed into Retell is spoken, since begin_message is this variable.
  *
@@ -25,13 +25,13 @@ export function greetingFor(name: string | null, assistant: string | null = null
 }
 
 /**
- * Who answers, said with the disclosure: "I'm the automated assistant", or, where the owner named their receptionist
- * (profile.assistant_name, decision 0073), "I'm Ava, the automated assistant". A name is never said without the
+ * Who answers, said with the disclosure: "I'm the AI assistant", or, where the owner named their receptionist
+ * (profile.assistant_name, decision 0073), "I'm Ava, the AI assistant". A name is never said without the
  * disclosure beside it (decision 0051's one rule).
  */
 function iAm(assistant: string | null): string {
   const n = (assistant ?? "").replace(/\s+/g, " ").trim();
-  return n ? `I'm ${n}, the automated assistant` : "I'm the automated assistant";
+  return n ? `I'm ${n}, the AI assistant` : "I'm the AI assistant";
 }
 
 /**

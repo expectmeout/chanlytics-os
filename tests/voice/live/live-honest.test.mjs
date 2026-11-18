@@ -209,7 +209,7 @@ test("a call that is over says how it ended in the pill, by the ladder Conversat
   assert.equal(pillOf({}), "callback", "REGRESSION: the card said 'Ended' of a caller who asked for a call back");
   assert.equal(pillOf({ outcome: "answered" }), "handled", "a call simply handled is Handled, not Ended");
   // Hung up without a word (decision 0051: said from the transcript, whatever the greeting's length) ...
-  const silent = [{ role: "agent", content: "Hi, Harbor Moving. I'm the automated assistant. How can I help?" }];
+  const silent = [{ role: "agent", content: "Hi, Harbor Moving. I'm the AI assistant. How can I help?" }];
   assert.equal(
     pillOf({ outcome: "answered", duration_ms: 6_000, ended_at: iso(3_594_000), transcript_object: silent }),
     "abandoned",

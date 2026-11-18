@@ -1381,10 +1381,10 @@ test("every old tool's call, made by its new name and action, answers the bytes 
         "Connect your calendar under Settings › Business",
         "Add a calendar link under Settings › Hours & booking",
       )
-      // 11 Oct 2026 (decision 0051): saying it is an automated assistant is no longer a switch, and Ask says so.
+      // 11 Oct 2026 (decision 0051): saying it is an AI assistant is no longer a switch, and Ask says so.
       .replaceAll(
-        "says it is an automated assistant when asked",
-        "always says it is the business's automated assistant, never a person",
+        "says it is an AI assistant when asked",
+        "always says it is the business's AI assistant, never a person",
       );
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));

@@ -5,12 +5,12 @@
  * of each session. A call opens with the greeting, which says it (voice/greeting-owner.ts). A text conversation has no
  * opening of its own, and one conversation row holds a person's whole history, so a session is said here: a
  * conversation with no message in the last day starts again, and the receptionist opens its reply by saying it is the
- * business's automated assistant.
+ * business's AI assistant.
  *
  * Two halves that must agree, said from here so each has ONE spelling, as offers-ask.ts does:
  *
  *   - the rule the receptionist is told (compose.ts standingRules): unless the facts about them say the conversation is
- *     under way, open by saying it is the business's automated assistant;
+ *     under way, open by saying it is the business's AI assistant;
  *   - the fact it reads of the person each turn (disclosureFacts, said by describeLead in packages/db).
  *
  * The rule fails open: a reader that could not say (the eval, a lookup that failed) says nothing, and the receptionist

@@ -66,8 +66,8 @@ The product's AI is called **AI**. Chanlytics is the AI.
 - **In its answers AI says I,** for what it does and what it answered customers ("I answered 12 of 16 messages"). A
   reply that already went says when it went ("I replied at 12:57 AM"): "I sent" with no time reads as something done
   in that chat, which only a press on a card does.
-- **Not on a screen, so not bound:** the greeting callers hear keeps its "automated assistant" (decision 0051, the
-  owner's own words to callers); chanlytics.com may still describe the job ("an AI receptionist"); the code keeps `ask`
+- **Not on a screen, so not bound:** the greeting callers hear says "AI assistant" where the business wrote no line
+  of its own (decision 0051, amended 18 November 2026; the owner's own words to callers are the owner's); chanlytics.com may still describe the job ("an AI receptionist"); the code keeps `ask`
   and `receptionist` as names.
 
 | Today                                                   | Says                                    |

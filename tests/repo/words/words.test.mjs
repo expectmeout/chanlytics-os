@@ -103,7 +103,7 @@ test("an id's place, a developer's and a model's are not read", () => {
 });
 
 test("a line keeps its word when it says why, and so does everything under a marked declaration", () => {
-  const text = "It says it's the automated assistant";
+  const text = "It says it's the AI assistant";
   assert.deepEqual(said(`const a = "${text}";`), [text]);
   assert.deepEqual(said(`const a = "${text}"; // screen-word: what callers hear`), []);
   assert.deepEqual(said("// screen-word: what callers hear", `const a = "${text}";`), []);

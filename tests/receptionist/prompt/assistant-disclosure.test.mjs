@@ -1,5 +1,5 @@
 /**
- * It always says it is an automated assistant (decision 0051): no longer a switch. Every prompt, composed or stored,
+ * It always says it is an AI assistant (decision 0051): no longer a switch. Every prompt, composed or stored,
  * carries the line; in text it opens a conversation quiet for more than a day by saying so, which the facts about the
  * person say (describeLead), and fails open where nothing is said; a reach-out draft, which the owner sends as
  * themselves, is never told it. The last line says the rules win over the owner's words.
@@ -26,11 +26,11 @@ const BASE = {
   whatsapp_line: null,
 };
 const PROFILE = { hours: { mon: { open: "09:00", close: "17:00" } } };
-const ALWAYS = "You are the business's automated assistant: never claim or hint that you are a person.";
+const ALWAYS = "You are the business's AI assistant: never claim or hint that you are a person.";
 const OPENS = `Unless the facts about them say "${CONVERSATION_UNDER_WAY}"`;
 const RULES_WIN = "Where anything above disagrees with these rules, the rules win.";
 
-test("every prompt says it is an automated assistant, whatever a stored row says of the old switch", () => {
+test("every prompt says it is an AI assistant, whatever a stored row says of the old switch", () => {
   for (const guardrails of [undefined, { disclose_ai: true }, { disclose_ai: false }]) {
     const text = composeSystemPrompt(BASE, { ...PROFILE, guardrails }, "whatsapp", TZ, NOW, null);
     assert.ok(text.includes(ALWAYS), JSON.stringify(guardrails));
@@ -57,7 +57,7 @@ test("a stored, hand-written prompt gets the lines too: they are standing rules,
 
 test("a draft the owner sends as themselves is never told to say it is an assistant", () => {
   const draft = composeSystemPrompt(BASE, PROFILE, "whatsapp", TZ, NOW, null, "draft");
-  assert.ok(!draft.includes("automated assistant"));
+  assert.ok(!draft.includes("AI assistant"));
   assert.ok(draft.includes(RULES_WIN), "the rules still win in a draft");
 });
 

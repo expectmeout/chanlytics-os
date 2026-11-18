@@ -298,7 +298,7 @@ export function heldLine(kind: HeldLineKind, language: string | null | undefined
  * Only `price` is detected, and that is deliberate. A currency figure is a
  * clean signal. "You are booked for Tuesday" and "I am a real person" are
  * not: the phrases that would catch them also catch the agent DECLINING to
- * book and the agent CORRECTLY saying it is an automated assistant, and a
+ * book and the agent CORRECTLY saying it is an AI assistant, and a
  * guardrail that fires on the compliant answer is worse than none, because
  * it teaches an owner to ignore it. The type is open so a second rule can
  * join it the day there is a signal worth trusting.
