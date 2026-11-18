@@ -85,6 +85,12 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
   if (line.kind === "told") return <PvTold text={line.text} talk={talk} />;
   return (
     <PvAnswer text={line.text} at={at}>
+      {line.then?.taught ? (
+        <span className="pv-used" data-testid={`pv-used-${at}`}>
+          <Icon name="pencil" size={13} />
+          {W.fromTaught}
+        </span>
+      ) : null}
       {line.then ? (
         <p className="pv-then" data-tone={line.then.tone} data-testid={`pv-then-${at}`}>
           <Icon name="send" size={14} />

@@ -34,6 +34,18 @@ export function PvHeard({ lines, newest, id }: { lines: readonly PreviewHeardLin
   );
 }
 
+/** A to-do as the card says it: its name before the colon in the ink, as a label, then what is to be done. */
+function PvTodo({ words }: { words: string }) {
+  const colon = words.indexOf(": ");
+  if (colon < 0) return <>{words}</>;
+  return (
+    <>
+      <b>{words.slice(0, colon + 1)}</b>
+      {words.slice(colon + 1)}
+    </>
+  );
+}
+
 /** What the business would get after a real call like this one: how it ended, what the caller wanted, and the notes. */
 function PvGot({ got }: { got: PreviewGotVM }) {
   return (
@@ -54,7 +66,7 @@ function PvGot({ got }: { got: PreviewGotVM }) {
             <li key={note}>
               {/* The to-do's glyph, then a person's for what they gave about themselves. */}
               <Icon name={at === 0 && got.todo ? "check" : "user"} size={16} />
-              <span>{note}</span>
+              <span>{at === 0 && got.todo ? <PvTodo words={note} /> : note}</span>
             </li>
           ))}
         </ul>

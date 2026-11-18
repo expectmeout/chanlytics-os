@@ -19,15 +19,18 @@ import type { ReactNode } from "react";
  * thing you came to do). On a wide screen the panel earns its half by saying
  * what the product does, once.
  */
-export default function AuthShell({ children }: { children: ReactNode }) {
+export default function AuthShell({ children, bare = false }: { children: ReactNode; bare?: boolean }) {
   return (
     <div className="auth-split">
       <main className="auth-col">
         <div className="auth-colinner">
-          <div className="auth-mark">
-            <span className="auth-mark-dot" aria-hidden="true" />
-            <span className="auth-mark-name">Chanlytics</span>
-          </div>
+          {/* A preview's Make it mine opens on its way back and its own heading, as its canvas draws it: no mark. */}
+          {bare ? null : (
+            <div className="auth-mark">
+              <span className="auth-mark-dot" aria-hidden="true" />
+              <span className="auth-mark-name">Chanlytics</span>
+            </div>
+          )}
           {children}
           {/* One copy, for the three pages. Each door carried its own, which
               is three places to forget one when a platform review asks. */}

@@ -65,6 +65,11 @@ test("the chat as the row keeps it: each turn read for what it is, an answer wit
       then: { words: "It would send this right away.", tone: "sends" },
     },
     { role: "assistant", content: "No then here" },
+    {
+      role: "assistant",
+      content: "A fade is 30 dollars.",
+      then: { words: "It would send this right away.", tone: "sends", taught: true, other: "never read" },
+    },
     { role: "user", content: "Odd", then: { words: "not an answer's", tone: "sends" } },
     { role: "system", content: "never drawn" },
     { role: "assistant", content: 7 },
@@ -78,6 +83,12 @@ test("the chat as the row keeps it: each turn read for what it is, an answer wit
       then: { words: "It would send this right away.", tone: "sends" },
     },
     { role: "assistant", text: "No then here", then: null },
+    // An answer that said a thing they told it keeps its mark, and nothing else the row holds.
+    {
+      role: "assistant",
+      text: "A fade is 30 dollars.",
+      then: { words: "It would send this right away.", tone: "sends", taught: true },
+    },
     { role: "user", text: "Odd", then: null },
   ]);
   assert.deepEqual(previewTurnsOf(null), []);
@@ -137,6 +148,12 @@ test("what it knows, each fact with where it was read: the listing's hours, addr
   assert.equal(
     previewKnowsOf({ services: many }, null).find((r) => r.key === "services").value,
     "S1, S2, S3, S4, S5, S6 and 3 more",
+  );
+  // A long list is also said briefly, as how many it holds; a couple of services are their own names.
+  assert.equal(previewKnowsOf({ services: many }, null).find((r) => r.key === "services").short, "9 services");
+  assert.deepEqual(
+    rows.map((r) => r.short),
+    [null, null, null, null, null],
   );
   assert.deepEqual(previewKnowsOf(null, null), [], "nothing it does not know is said");
 });

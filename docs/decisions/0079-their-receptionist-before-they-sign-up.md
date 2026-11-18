@@ -166,6 +166,23 @@ preview theirs; the call's own client tells the browser none of its words). What
   second press: the tab remembers leaving, for a quarter of an hour, and a link alone never says so, so a person
   already signed in who opens Make it mine is still asked the one press.
 
+- **Drawn as the canvas draws it** (the same day, after the first build carried its order and not its look). On a
+  desk their card and the conversation are two panes of the look's glass, each the window's height, what it knows down
+  the card with each fact put right in place; on a phone one screen on the lit ground, the facts in a row that slides,
+  the field a capsule of the control layer's glass held at the screen's foot. What it knows whole is the kit's sheet
+  over the page, loaded as See all is first pressed, so a stranger's first load carries no sheet. The call's screen
+  says whose turn it is, Speaking or Listening, from the call client's own events.
+- **"From what you told it."** An answer is marked so, and kept so with its turn, only where it carries a figure one
+  of the things told holds, or a run of five of its words (contracts `previewAnswerUsesTaught`): the page never credits
+  them with an answer the record would have given anyway. Nothing is asked of the model for it.
+- **It's yours.** A claim leaves the sign-up screen on the moment itself: that it is theirs, what came with it,
+  counted from its record (its services, the things they told it; never its calls, which are not promised), and
+  Continue. Its setup opens by itself six seconds later, and the card says what that setup leaves out for what they
+  did on the preview (`previewFirstRunMarks`).
+
+Not drawn from the canvas, by choice: the coloured dot before a fact's source (the app's colours say a state, never
+where a fact came from, so a source is said in words).
+
 Not yet: a call's line and its card on a later visit (a call is kept with no place in the conversation's order, so a
 page opened again shows the messages and not the call); the sender's own read of what a lead said on a call; the
-moment after the claim ("It's yours"); the greeting as a recording, as before.
+greeting as a recording, as before.

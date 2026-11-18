@@ -129,6 +129,11 @@
   letter-spacing: -0.022em;
   text-wrap: balance;
 }
+/* A long name takes a smaller step, so it stands on two lines of a phone and the first screen keeps its field. */
+.pv-name[data-long] {
+  font-size: var(--text-2xl);
+  line-height: 1.22;
+}
 .pv-ready {
   max-width: 320px;
   margin: 6px 0 0;
@@ -165,6 +170,28 @@
   font-size: var(--text-aside);
   font-weight: 600;
   color: var(--ink-dim);
+}
+
+/* On its sender's look, under their name: that they tried it, then each part of what they did, a capsule each. */
+.pv-tried {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 0;
+}
+.pv-stat {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--secondary-fill);
+  font-size: var(--text-aside);
+  color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 /* ---- What it knows, up front on a phone: one row of capsules that slides, fading at the right ---- */
@@ -348,6 +375,15 @@
   flex: none;
   margin-top: 1px;
 }
+/* Under an answer that says a thing they told it: its glyph, the told card's own, and the words. */
+.pv-used {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.36;
+  color: var(--ink-dim);
+}
 /* AI at work on an answer, and a card still being written. */
 .pv-wait {
   display: inline-flex;
@@ -484,6 +520,10 @@
   margin-top: 2px;
   color: var(--ink-dim);
 }
+.pv-got-notes b {
+  font-weight: 600;
+  color: var(--ink);
+}
 .pv-got-foot {
   margin: 0;
   padding-top: 10px;
@@ -606,38 +646,18 @@
   color: var(--ink-dim);
 }
 
-/* ---- What it knows whole, grouped by where each fact was read, what it lacks first, in amber ---- */
+/* ---- What it knows whole, the rows of its sheet (the kit's, which draws its head): grouped by where each fact was
+   read, what it lacks first, in amber ---- */
 .pv-knows {
   display: flex;
   flex-direction: column;
-  padding: 12px 0 32px;
-}
-.pv-knows-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px 0 22px;
-}
-.pv-knows-title {
-  flex: 1 1 auto;
-  margin: 0;
-  font-size: var(--text-2xl);
-  line-height: 1.24;
-  font-weight: 650;
-  letter-spacing: -0.016em;
-}
-.pv-knows-sub {
-  margin: 0;
-  padding: 4px 22px 0;
-  font-size: var(--text-title);
-  line-height: 1.43;
-  color: var(--ink-dim);
+  gap: 14px;
+  padding: 4px 0 20px;
 }
 .pv-group {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 14px 14px 0;
 }
 .pv-group > .pv-label {
   padding: 0 8px;
@@ -1053,8 +1073,7 @@ p.pv-known {
   .pv-spent {
     padding: 14px 10px 10px 16px;
   }
-  .pv-call,
-  .pv-knows {
+  .pv-call {
     width: 100%;
     max-width: 560px;
     margin: 0 auto;

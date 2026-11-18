@@ -45,8 +45,11 @@ function previewNotRightWords(fact: string, sentence: string | null): string {
   return sentence ? `Says the ${name} ${isNot} right: “${sentence}”` : `Says the ${name} ${isNot} right`;
 }
 
-/** What a lead's trying came to: its messages and its calls, said as one line ("4 messages · a call of 2 minutes"). */
-export function previewTriedWords(fields: { asked_count: number; call_count: number; call_seconds: number }): string {
+/** What stands between the parts of what a lead's trying came to, said as one line. */
+export const TRIED_JOIN = " · ";
+
+/** What a lead's trying came to, part by part: its messages, then its calls ("4 messages", "a call of 2 minutes"). */
+export function previewTriedParts(fields: { asked_count: number; call_count: number; call_seconds: number }): string[] {
   const bits: string[] = [];
   if (fields.asked_count > 0) bits.push(fields.asked_count === 1 ? "1 message" : `${fields.asked_count} messages`);
   if (fields.call_count > 0) {
@@ -54,7 +57,12 @@ export function previewTriedWords(fields: { asked_count: number; call_count: num
     const length = min === 1 ? "a minute" : `${min} minutes`;
     bits.push(fields.call_count === 1 ? `a call of ${length}` : `${fields.call_count} calls, ${length} in all`);
   }
-  return bits.join(" · ");
+  return bits;
+}
+
+/** The same, said as one line ("4 messages · a call of 2 minutes"). */
+export function previewTriedWords(fields: { asked_count: number; call_count: number; call_seconds: number }): string {
+  return previewTriedParts(fields).join(TRIED_JOIN);
 }
 
 /** What they said is not right, as the row keeps it: each a line, the newest last, three at most. */

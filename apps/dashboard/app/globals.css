@@ -376,6 +376,56 @@ html.in-app .auth-or {
   text-align: center;
   text-wrap: balance;
 }
+/* It's yours (the canvas's 8): a tick in green on its soft ground, the heading large, what came with it counted, a
+   capsule each, then Continue and what happens next. */
+.auth-yours {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.auth-yours h1 {
+  margin: 0;
+  font-size: var(--text-3xl);
+}
+.auth-yours p {
+  max-width: 310px;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+  text-align: center;
+  text-wrap: balance;
+}
+.auth-done {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  margin-top: 24px;
+  border-radius: var(--radius-full);
+  background: var(--ok-soft);
+  color: var(--ok-ink);
+}
+.auth-counts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.auth-counts > span {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-inset-edge);
+  border-radius: var(--radius-full);
+  background: var(--secondary-fill);
+  font-size: var(--text-aside);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
 .auth-comes {
   display: flex;
   flex-direction: column;

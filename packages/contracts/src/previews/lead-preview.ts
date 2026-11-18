@@ -13,7 +13,7 @@ import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
 import { PREVIEW_LIMITS, PREVIEW_NEAR, previewStateOf, type PreviewPageState } from "./standing";
 import { previewTheirsOf } from "./theirs";
-import { previewTriedWords } from "./tried";
+import { TRIED_JOIN, previewTriedParts } from "./tried";
 import { LEAD_PREVIEW_WORDS } from "./words";
 
 /* ---- its page ---- */
@@ -22,19 +22,22 @@ import { LEAD_PREVIEW_WORDS } from "./words";
 export interface PreviewTurnVM {
   role: "user" | "assistant";
   text: string;
-  then: { words: string; tone: "sends" | "waits" | "yours" } | null;
+  /** `taught`: the answer says a thing they told it (previews/theirs.ts previewAnswerUsesTaught), kept with the turn. */
+  then: { words: string; tone: "sends" | "waits" | "yours"; taught?: boolean } | null;
 }
 
 /**
  * A fact it knows, and where it was read from, so a fix can name it; or one the listing and the site never had
  * (`missing`: its value is what its absence costs, its `from` where it was looked for), which the business can add.
  * `fix` says how it is put right: its value typed again, or, for a list no sentence replaces (its services), a
- * sentence said beside it.
+ * sentence said beside it. `short` is a long value said briefly, where a capsule or a row's name has no room for the
+ * whole of it: a list of services as how many there are ("17 services").
  */
 export interface PreviewKnowsRowVM {
   key: keyof typeof LEAD_PREVIEW_WORDS.rows;
   label: string;
   value: string;
+  short: string | null;
   from: string;
   missing: boolean;
   fix: "value" | "say";
@@ -62,6 +65,8 @@ export interface PreviewPageVM {
   leads: boolean;
   /** What they did with it, as one line for its sender's look ("3 messages · a call of a minute"), or none. */
   did: string;
+  /** The same, part by part, as that look draws it: its messages, then its calls. */
+  tried: string[];
 }
 
 /** What the page is drawn from: the row as its door keeps it, and the preview workspace's name, look and record. */
@@ -99,7 +104,7 @@ export function previewTurnsOf(raw: unknown): PreviewTurnVM[] {
     const then = o.then && typeof o.then === "object" ? (o.then as Record<string, unknown>) : null;
     const turn =
       o.role === "assistant" && then && typeof then.words === "string" && TURN_TONES.has(String(then.tone))
-        ? { words: then.words, tone: then.tone as Tone }
+        ? { words: then.words, tone: then.tone as Tone, ...(then.taught === true ? { taught: true } : {}) }
         : null;
     return [{ role: o.role, text: o.content, then: turn }];
   });
@@ -140,6 +145,7 @@ function servicesLine(services: readonly { name: string }[]): string {
 export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDisplay: string | null): PreviewKnowsRowVM[] {
   const words = LEAD_PREVIEW_WORDS;
   const rows: PreviewKnowsRowVM[] = [];
+  const servicesCount = (profile?.services ?? []).filter((service) => service.name.trim()).length;
   // A fact they put right is theirs, in their words, whatever the listing said (previews/theirs.ts).
   const { fixed } = previewTheirsOf(profile);
   const add = (key: PreviewKnowsRowVM["key"], listed: string | null | undefined, from: string) => {
@@ -151,6 +157,8 @@ export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDispla
       key,
       label: words.rows[key],
       value: value.trim(),
+      // A couple of services are their own names; more are how many there are.
+      short: key === "services" && !theirs && servicesCount > 2 ? words.signup.comesRead.services(servicesCount) : null,
       from: theirs ? words.from.you : from,
       missing: false,
       fix,
@@ -165,7 +173,15 @@ export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDispla
   const known = new Set(rows.map((row) => row.key));
   const lacks = (key: "hours" | "services", from: string) => {
     if (!known.has(key))
-      rows.push({ key, label: words.rows[key], value: words.missingWhy[key], from, missing: true, fix: "value" });
+      rows.push({
+        key,
+        label: words.rows[key],
+        value: words.missingWhy[key],
+        short: null,
+        from,
+        missing: true,
+        fix: "value",
+      });
   };
   // A record that could not be read says nothing about what it lacks.
   if (profile) {
@@ -197,6 +213,11 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
   const turns = state === "ended" || state === "taken" ? [] : previewTurnsOf(previewPageFacts.turns);
   const open = state === "ready" || state === "spent";
   const taught = previewTheirsOf(previewPageFacts.profile).taught;
+  const tried = previewTriedParts({
+    asked_count: previewPageFacts.asked_count,
+    call_count: previewPageFacts.call_count ?? (previewPageFacts.call_seconds > 0 ? 1 : 0),
+    call_seconds: previewPageFacts.call_seconds,
+  });
   return {
     state,
     business: previewPageFacts.business,
@@ -219,10 +240,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
       previewPageFacts.asked_count >= PREVIEW_NEAR.triedMessages ||
       previewPageFacts.call_seconds > 0 ||
       taught.length > 0,
-    did: previewTriedWords({
-      asked_count: previewPageFacts.asked_count,
-      call_count: previewPageFacts.call_count ?? (previewPageFacts.call_seconds > 0 ? 1 : 0),
-      call_seconds: previewPageFacts.call_seconds,
-    }),
+    did: tried.join(TRIED_JOIN),
+    tried,
   };
 }

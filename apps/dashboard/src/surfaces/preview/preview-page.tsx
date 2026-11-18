@@ -12,27 +12,31 @@
 // the visitor's device is dark (contracts themeBootScript). Every word is contracts' (previews/words.ts); the page is
 // drawn from its view model (previewPageOf), which the server builds from the row its token names.
 //
-// The page has three views of itself: the page, the call (call.tsx) and What it knows whole (knows.tsx). A stranger
-// opens it from an email, on a phone, so nothing of the app's frame rides in: no sheet, no dialog, one document.
+// The page has two views of itself, the page and the call (call.tsx), and one sheet over it on a phone: What it knows
+// whole (knows-sheet.tsx), the kit's own, loaded as See all is first pressed. A stranger opens the page from an email,
+// on a phone, so nothing of the app's frame rides in with its first load.
 //
 // The page's own script says it was drawn (previewVerbs.opened), once a load, so a mail scanner fetching the link is
 // no open. While it is being set up it reads itself again every few seconds. Opened by its sender to look (`look`, the
 // lead sheet's Open it), it counts nothing and presses nothing: what it has said, and what it knows.
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LEAD_PREVIEW_WORDS as W, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { PvCall } from "./call";
 import { PvFacts, PvHead, PvThree, PvTop } from "./head";
-import { PvKnows, PvSideKnows } from "./knows";
+import { PvSideKnows } from "./knows";
 import { PvDock, PvTalk } from "./talk";
 import { useCall } from "./use-call";
 import { useTalk } from "./use-talk";
 import { previewVerbs } from "./verbs";
 import "../kit/kit.css";
 import "./preview.css";
+
+/** What it knows whole, a sheet over the page: loaded with its first press, so a first load carries no sheet. */
+const PvKnowsSheet = lazy(() => import("./knows-sheet"));
 
 /** How often a page that is being set up reads itself again. */
 const BUILDING_EVERY_MS = 4_000;
@@ -85,12 +89,13 @@ function useCanCall(): boolean {
   return can;
 }
 
-/** The page open to try: its head, what it knows, its conversation and its field; or its call; or What it knows whole. */
+/** The page open to try: its head, what it knows, its conversation and its field; or its call. */
 function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: boolean }) {
   const talk = useTalk(vm, token);
   const call = useCall(token, vm.call_left_ms, talk.endedCall);
   const canCall = useCanCall();
-  const [knows, setKnows] = useState(false);
+  // What it knows whole: drawn from its first press on, so it leaves as a sheet leaves.
+  const [knows, setKnows] = useState<"never" | "open" | "closed">("never");
   const foot = useRef<HTMLDivElement | null>(null);
   const told = [...vm.taught, ...talk.lines.flatMap((line) => (line.kind === "told" ? [line.text] : []))];
 
@@ -102,16 +107,12 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
   }, [lines, cards, vm.turns.length]);
 
   if (call.phase !== "idle") return <PvCall vm={vm} call={call} />;
-  if (knows) return <PvKnows vm={vm} told={told} token={token} look={look} onDone={() => setKnows(false)} />;
   return (
     <>
       {look ? (
         <p className="pv-lookbar" role="note" data-testid="pv-look">
           <Icon name="eye" size={17} />
-          <span>
-            {W.look}
-            {vm.did ? ` ${vm.did}.` : ""}
-          </span>
+          <span>{W.look}</span>
         </p>
       ) : (
         <PvTop vm={vm} token={token} leads={talk.leads} started={talk.lines.length > 0} />
@@ -119,7 +120,7 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
       <div className="pv-cols">
         <aside className="pv-side">
           <PvHead vm={vm} call={call} canCall={canCall} leads={talk.leads} look={look} />
-          <PvFacts rows={vm.knows} onOpen={look ? null : () => setKnows(true)} />
+          <PvFacts rows={vm.knows} onOpen={look ? null : () => setKnows("open")} />
           <PvSideKnows vm={vm} token={token} look={look} />
         </aside>
         <section className="pv-chat">
@@ -135,6 +136,11 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
           )}
         </section>
       </div>
+      {knows === "never" ? null : (
+        <Suspense fallback={null}>
+          <PvKnowsSheet open={knows === "open"} onClose={() => setKnows("closed")} vm={vm} told={told} token={token} />
+        </Suspense>
+      )}
     </>
   );
 }

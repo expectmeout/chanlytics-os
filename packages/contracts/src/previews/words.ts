@@ -124,6 +124,8 @@ export const LEAD_PREVIEW_WORDS = {
   tellingStop: "Stop telling AI",
   tellingNote: "A price you give is yours to say.",
   toldUses: "It uses this from its next answer",
+  /** Under an answer that says a thing they told it (previews/theirs.ts previewAnswerUsesTaught). */
+  fromTaught: "From what you told it",
   askAgain: "Repeat the question",
   teachSub: "It uses it from its next answer. A price you give is yours to say.",
   teachLabel: "Tell it something a customer asks",
@@ -136,6 +138,9 @@ export const LEAD_PREVIEW_WORDS = {
 
   /** Over the page its sender opens to look at (Open it, `?look=1`): it counts nothing, so it answers nothing. */
   look: "You're looking as Chanlytics. Nothing here counts, so it answers nothing and can't be made yours.",
+  /** Under their name on that look: that they tried it, and how many things they told it. */
+  lookTried: "Tried it",
+  lookTaught: (n: number) => (n === 1 ? "Told it 1 thing" : `Told it ${n} things`),
   mine: "Make it mine",
   mineSub: "Free to try. You choose a plan when it starts answering your phone.",
 
@@ -166,6 +171,19 @@ export const LEAD_PREVIEW_WORDS = {
     other: "Use another account",
     /** Under Google's button: signed in with it, the preview is theirs with no second press. */
     googleNext: "It's yours as soon as Google signs you in.",
+    /** Once it is theirs (the canvas's 8), before its setup opens: what happened, what came with it, and what is next. */
+    yours: {
+      title: "It's yours.",
+      body: (business: string) => `AI for ${business.trim()} is in your Chanlytics now, with everything it knows.`,
+      taught: (n: number) => (n === 1 ? "1 thing you told it" : `${n} things you told it`),
+      go: "Continue",
+      next: "Setup opens by itself in a moment.",
+      /** What its setup leaves out for what they did on the preview (previewFirstRunMarks). */
+      skips: {
+        met: "It skips what you already did: meeting AI.",
+        heard: "It skips what you already did: meeting AI and hearing it answer.",
+      },
+    },
   },
 
   building: {

@@ -17,6 +17,7 @@ import {
 import { Button } from "../kit/button/button";
 import { Face } from "../kit/face/face";
 import { Icon } from "../kit/icon/icon";
+import { StatePill } from "../kit/pill/state-pill";
 import type { Call } from "./use-call";
 
 /** The glyph each fact wears. */
@@ -30,6 +31,8 @@ const FACT_GLYPH: Record<PreviewKnowsRowVM["key"], string> = {
 
 /** The glyph of Call it, a step over a press's own beside its larger words. */
 const CALL_GLYPH_PX = 19;
+/** A name past this many letters takes a smaller step, so it stands on two lines of a phone, not three. */
+const LONG_NAME_CHARS = 28;
 
 /** AI's mark, as every screen draws it: the three, in the accent only while it works. */
 export function PvThree({ live = false, size = 13 }: { live?: boolean; size?: number }) {
@@ -121,6 +124,25 @@ function PvCallIt({ call, canCall, leads }: { call: Call; canCall: boolean; lead
   );
 }
 
+/** A part of what they did, as a sentence starts: "A call of a minute". */
+const asStart = (words: string): string => `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
+
+/** On its sender's look, under their name: that they tried it, each part of what they did, and what they told it. */
+function PvTried({ vm }: { vm: PreviewPageVM }) {
+  if (!vm.tried.length && !vm.taught.length) return null;
+  return (
+    <p className="pv-tried" data-testid="pv-tried">
+      <StatePill kind="tone" value="ok" label={W.lookTried} lit />
+      {vm.tried.map((part) => (
+        <span key={part} className="pv-stat">
+          {asStart(part)}
+        </span>
+      ))}
+      {vm.taught.length ? <span className="pv-stat">{W.lookTaught(vm.taught.length)}</span> : null}
+    </p>
+  );
+}
+
 /** The business on top, so it reads as theirs. */
 export function PvHead({
   vm,
@@ -142,8 +164,10 @@ export function PvHead({
         <PvFace vm={vm} size="xl" />
         <PvThree />
       </span>
-      <h1 className="pv-name">{vm.business}</h1>
-      {look ? null : <p className="pv-ready">{W.ready}</p>}
+      <h1 className="pv-name" data-long={vm.business.length > LONG_NAME_CHARS || undefined}>
+        {vm.business}
+      </h1>
+      {look ? <PvTried vm={vm} /> : <p className="pv-ready">{W.ready}</p>}
       {look ? null : <PvCallIt call={call} canCall={canCall} leads={leads} />}
     </header>
   );
@@ -164,7 +188,7 @@ function PvFact({ row, onOpen }: { row: PreviewKnowsRowVM; onOpen: (() => void) 
     <>
       <PvFactGlyph fact={row.key} />
       <span className="pv-fact-words">
-        <b>{row.missing ? row.label : row.value}</b>
+        <b>{row.missing ? row.label : (row.short ?? row.value)}</b>
         <span>{row.from}</span>
       </span>
     </>

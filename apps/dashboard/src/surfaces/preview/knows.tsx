@@ -4,9 +4,9 @@
  * A lead's own preview, What it knows (decision 0079; the redesign of 17 November 2026, drawn as its canvas draws it):
  * every fact, each put right in place; one the listing never had, added the same way, in amber; its services, a list
  * no sentence replaces, taking what is off about them; and what the business told it. Two shapes of one row: on a phone,
- * What it knows whole, a view of the page grouped by where each fact was read (the page is a stranger's, opened from an
- * email, so nothing of the app's frame rides in for a sheet); on a desk, the facts down their card beside the
- * conversation, each with where it was read over it. Every word is contracts'.
+ * What it knows whole, the rows of a sheet over the page (knows-sheet.tsx), grouped by where each fact was read; on a
+ * desk, the facts down their card beside the conversation, each with where it was read over it. Every word is
+ * contracts'.
  *
  * Putting a fact right is the page's not-right door: where they say what is right, the record takes it at once and the
  * row is theirs ("From you"); where they only say something is off, the line reaches whoever wrote to them.
@@ -25,8 +25,25 @@ type RowShape = "whole" | "side";
 const knownPressOf = (row: PreviewKnowsRowVM, lacks: boolean): string =>
   lacks ? W.add : row.fix === "say" ? W.sayOff : W.fix;
 
+/**
+ * How a row's parts are named for a test, by its shape: a desk's card and What it knows whole both stand in the page
+ * once the sheet is open, so each names its own.
+ */
+const fixIdOf = (shape: RowShape, part: string, row: PreviewKnowsRowVM): string =>
+  `${shape === "whole" ? "pv-not-right" : "pv-side-fix"}${part}-${row.key}`;
+
 /** A row's press, which opens the box that puts it right: in amber where the fact is one it lacks. */
-function PvKnownPress({ row, lacks, onOpen }: { row: PreviewKnowsRowVM; lacks: boolean; onOpen: () => void }) {
+function PvKnownPress({
+  row,
+  lacks,
+  shape,
+  onOpen,
+}: {
+  row: PreviewKnowsRowVM;
+  lacks: boolean;
+  shape: RowShape;
+  onOpen: () => void;
+}) {
   const list = row.fix === "say";
   return (
     <Button
@@ -34,7 +51,7 @@ function PvKnownPress({ row, lacks, onOpen }: { row: PreviewKnowsRowVM; lacks: b
       size="touch"
       className={lacks ? "pv-add" : undefined}
       onClick={onOpen}
-      data-testid={`pv-not-right-${row.key}`}
+      data-testid={fixIdOf(shape, "", row)}
     >
       {lacks || list ? null : <Icon name="pencil" size={14} />}
       {knownPressOf(row, lacks)}
@@ -45,6 +62,7 @@ function PvKnownPress({ row, lacks, onOpen }: { row: PreviewKnowsRowVM; lacks: b
 /** The box that puts a fact right: what is right, or what is off about a list, then Cancel and Save. */
 function PvKnownEdit(props: {
   row: PreviewKnowsRowVM;
+  shape: RowShape;
   said: string;
   busy: boolean;
   problem: string | null;
@@ -62,7 +80,7 @@ function PvKnownEdit(props: {
         onValueChange={props.onSaid}
         readOnly={busy}
         maxLength={300}
-        data-testid={`pv-not-right-text-${row.key}`}
+        data-testid={fixIdOf(props.shape, "-text", row)}
         {...fieldProblem(props.problem)}
       />
       <span className="pv-edit-acts">
@@ -74,7 +92,7 @@ function PvKnownEdit(props: {
           variant="primary"
           size="touch"
           disabled={busy || !props.said.trim()}
-          data-testid={`pv-not-right-send-${row.key}`}
+          data-testid={fixIdOf(props.shape, "-send", row)}
         >
           {W.save}
         </Button>
@@ -86,7 +104,8 @@ function PvKnownEdit(props: {
 /** What a row says over its value: its name, or on a desk's card where it was read, or that it is theirs now. */
 function knownNameOf(row: PreviewKnowsRowVM, shape: RowShape, theirs: string | null): string {
   if (theirs) return `${W.from.you} · ${W.fixed}`;
-  if (shape === "whole") return row.label;
+  // Whole, a list is named by how many it holds ("17 services") over the list itself.
+  if (shape === "whole") return row.short ?? row.label;
   return row.missing ? `${row.label} · ${row.from}` : row.from;
 }
 
@@ -135,7 +154,8 @@ function PvKnownRow({
           {knownNameOf(row, shape, theirs)}
         </span>
         <span className="pv-known-value" data-testid={`${testid}-value`}>
-          {theirs ?? row.value}
+          {/* On a desk's card a list says how many it holds before the first of them. */}
+          {theirs ?? (shape === "side" && row.short ? `${row.short}: ${row.value}` : row.value)}
         </span>
         {thanked ? (
           <span className="pv-known-name" role="status">
@@ -143,10 +163,13 @@ function PvKnownRow({
           </span>
         ) : null}
       </span>
-      {look || open || thanked ? null : <PvKnownPress row={row} lacks={lacks} onOpen={() => setOpen(true)} />}
+      {look || open || thanked ? null : (
+        <PvKnownPress row={row} lacks={lacks} shape={shape} onOpen={() => setOpen(true)} />
+      )}
       {open ? (
         <PvKnownEdit
           row={row}
+          shape={shape}
           said={said}
           busy={busy}
           problem={problem}
@@ -172,37 +195,19 @@ function factGroupsOf(
   return groups;
 }
 
-/** What it knows whole: what it lacks first, then each source's facts, then what they told it. */
-export function PvKnows({
-  vm,
-  told,
-  token,
-  look,
-  onDone,
-}: {
-  vm: PreviewPageVM;
-  told: readonly string[];
-  token: string;
-  look: boolean;
-  onDone: () => void;
-}) {
+/**
+ * What it knows whole, as its sheet's rows (knows-sheet.tsx): what it lacks first, in amber, then each source's facts,
+ * then what they told it.
+ */
+export function PvKnownGroups({ vm, told, token }: { vm: PreviewPageVM; told: readonly string[]; token: string }) {
   return (
-    <section className="pv-knows" aria-labelledby="pv-knows-title" data-testid="pv-knows">
-      <div className="pv-knows-head">
-        <h1 className="pv-knows-title" id="pv-knows-title">
-          {W.knowsTitle}
-        </h1>
-        <Button size="touch" iconOnly aria-label={W.knowsDone} onClick={onDone} data-testid="pv-knows-done">
-          <Icon name="x" size={16} />
-        </Button>
-      </div>
-      <p className="pv-knows-sub">{W.knowsSub}</p>
+    <div className="pv-knows" data-testid="pv-knows-rows">
       {factGroupsOf(vm.knows).map((group) => (
         <div key={group.from} className="pv-group">
           <span className="pv-label">{group.from}</span>
           <div className="pv-rows" data-missing={group.missing || undefined}>
             {group.rows.map((row) => (
-              <PvKnownRow key={row.key} row={row} token={token} look={look} shape="whole" />
+              <PvKnownRow key={row.key} row={row} token={token} look={false} shape="whole" />
             ))}
           </div>
         </div>
@@ -219,7 +224,7 @@ export function PvKnows({
           </div>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }
 
