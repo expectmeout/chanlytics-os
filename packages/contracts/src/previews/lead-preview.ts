@@ -11,8 +11,9 @@ import type { BusinessProfile } from "../config/workspace-config/business-profil
 import { DAY_NAMES, DAYS } from "../config/workspace-config/config-rules";
 import { RECEPTIONIST_MET, REHEARSE_SKIPPED } from "../setup/put-off";
 import { SECOND_MS } from "../shared/time";
-import { PREVIEW_LIMITS, previewStateOf, type PreviewPageState } from "./standing";
+import { PREVIEW_LIMITS, PREVIEW_NEAR, previewStateOf, type PreviewPageState } from "./standing";
 import { previewTheirsOf } from "./theirs";
+import { previewTriedWords } from "./tried";
 import { LEAD_PREVIEW_WORDS } from "./words";
 
 /* ---- its page ---- */
@@ -24,12 +25,19 @@ export interface PreviewTurnVM {
   then: { words: string; tone: "sends" | "waits" | "yours" } | null;
 }
 
-/** A fact it knows, and where it was read from, so "Not right" can name it. */
+/**
+ * A fact it knows, and where it was read from, so a fix can name it; or one the listing and the site never had
+ * (`missing`: its value is what its absence costs, its `from` where it was looked for), which the business can add.
+ * `fix` says how it is put right: its value typed again, or, for a list no sentence replaces (its services), a
+ * sentence said beside it.
+ */
 export interface PreviewKnowsRowVM {
   key: keyof typeof LEAD_PREVIEW_WORDS.rows;
   label: string;
   value: string;
   from: string;
+  missing: boolean;
+  fix: "value" | "say";
 }
 
 export interface PreviewPageVM {
@@ -50,6 +58,10 @@ export interface PreviewPageVM {
   knows: PreviewKnowsRowVM[];
   /** What they told it, in the order they did (previews/theirs.ts): none on a page that is not open. */
   taught: string[];
+  /** Whether Make it mine leads: they have called it, told it something, or sent it a few messages. */
+  leads: boolean;
+  /** What they did with it, as one line for its sender's look ("3 messages · a call of a minute"), or none. */
+  did: string;
 }
 
 /** What the page is drawn from: the row as its door keeps it, and the preview workspace's name, look and record. */
@@ -65,6 +77,8 @@ export interface PreviewPageFacts {
   phone_display: string | null;
   /** The seconds its ended calls spoke (lead_previews.call_seconds). */
   call_seconds: number;
+  /** The calls it ended (lead_previews.call_count); absent where its reader does not carry it. */
+  call_count?: number;
   /** The lead's Google photo (leads.image_url), or none. */
   photo_url: string | null;
 }
@@ -96,9 +110,10 @@ const serviceAsAsked = (name: string): string =>
   /^[A-Z][a-z]/.test(name) && !/^[A-Z][a-z]+ [A-Z]/.test(name) ? `${name[0]?.toLowerCase()}${name.slice(1)}` : name;
 
 /**
- * Up to three questions a customer would ask that it can answer from what it knows: a service it lists, a day it is
- * closed (or its hours), where it is; and, where it knows less, the one every receptionist handles. Never a price (it
- * refuses one it was not given) and never a visit time (many businesses come to the customer).
+ * The questions a customer would ask that it can answer from what it knows, said the way a caller says them: a service
+ * it lists, a day it is closed (or its hours), where it is; and the one every business handles. Never a price (it
+ * refuses one it was not given) and never a visit time (many businesses come to the customer). The page offers the
+ * ones not yet asked.
  */
 export function previewStartersOf(profile: PreviewPageFacts["profile"]): string[] {
   const service = profile?.services?.find((s) => s.name.trim())?.name.trim();
@@ -111,7 +126,7 @@ export function previewStartersOf(profile: PreviewPageFacts["profile"]): string[
     profile?.address?.trim() ? "Where are you located?" : null,
     "Can someone call me back?",
   ];
-  return starters.filter((s): s is string => !!s).slice(0, 3);
+  return starters.filter((s): s is string => !!s);
 }
 
 /** The services as a line: the first six, and how many more. */
@@ -130,14 +145,33 @@ export function previewKnowsOf(profile: PreviewPageFacts["profile"], phoneDispla
   const add = (key: PreviewKnowsRowVM["key"], listed: string | null | undefined, from: string) => {
     const theirs = fixed[key];
     const value = theirs ?? listed;
-    if (value?.trim())
-      rows.push({ key, label: words.rows[key], value: value.trim(), from: theirs ? words.from.you : from });
+    if (!value?.trim()) return;
+    const fix = key === "services" ? "say" : "value";
+    rows.push({
+      key,
+      label: words.rows[key],
+      value: value.trim(),
+      from: theirs ? words.from.you : from,
+      missing: false,
+      fix,
+    });
   };
   add("hours", calendarHoursLines(profile?.hours ?? null).join(" · "), words.from.google);
   add("address", profile?.address, words.from.google);
   add("phone", phoneDisplay, words.from.google);
   add("website", profile?.website?.replace(/^https?:\/\//, "").replace(/\/$/, ""), words.from.google);
   add("services", servicesLine(profile?.services ?? []), words.from.site);
+  // What the listing and the site never had, and a business can add: its hours first, then what it does.
+  const known = new Set(rows.map((row) => row.key));
+  const lacks = (key: "hours" | "services", from: string) => {
+    if (!known.has(key))
+      rows.push({ key, label: words.rows[key], value: words.missingWhy[key], from, missing: true, fix: "value" });
+  };
+  // A record that could not be read says nothing about what it lacks.
+  if (profile) {
+    lacks("hours", words.missing.google);
+    lacks("services", words.missing.site);
+  }
   return rows;
 }
 
@@ -161,6 +195,8 @@ export function previewFirstRunMarks(fields: { asked_count: number; call_count: 
 export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): PreviewPageVM {
   const state = previewStateOf(previewPageFacts, now);
   const turns = state === "ended" || state === "taken" ? [] : previewTurnsOf(previewPageFacts.turns);
+  const open = state === "ready" || state === "spent";
+  const taught = previewTheirsOf(previewPageFacts.profile).taught;
   return {
     state,
     business: previewPageFacts.business,
@@ -169,7 +205,7 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
     turns,
     left: Math.max(0, PREVIEW_LIMITS.messages - previewPageFacts.asked_count),
     call_left_ms: Math.max(0, PREVIEW_LIMITS.callMs - previewPageFacts.call_seconds * SECOND_MS),
-    starters: state === "ready" && !turns.length ? previewStartersOf(previewPageFacts.profile) : [],
+    starters: state === "ready" ? previewStartersOf(previewPageFacts.profile) : [],
     greeting: LEAD_PREVIEW_WORDS.textGreeting(
       previewPageFacts.business,
       previewPageFacts.profile?.assistant_name ?? null,
@@ -178,6 +214,15 @@ export function previewPageOf(previewPageFacts: PreviewPageFacts, now: Date): Pr
       state === "ready" || state === "spent"
         ? previewKnowsOf(previewPageFacts.profile, previewPageFacts.phone_display)
         : [],
-    taught: state === "ready" || state === "spent" ? previewTheirsOf(previewPageFacts.profile).taught : [],
+    taught: open ? taught : [],
+    leads:
+      previewPageFacts.asked_count >= PREVIEW_NEAR.triedMessages ||
+      previewPageFacts.call_seconds > 0 ||
+      taught.length > 0,
+    did: previewTriedWords({
+      asked_count: previewPageFacts.asked_count,
+      call_count: previewPageFacts.call_count ?? (previewPageFacts.call_seconds > 0 ? 1 : 0),
+      call_seconds: previewPageFacts.call_seconds,
+    }),
   };
 }

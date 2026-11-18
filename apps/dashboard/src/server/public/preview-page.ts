@@ -61,6 +61,7 @@ export async function findPreviewPage(token: string, db: Db | null = linkPageDb(
       profile,
       phone_display: shown.phone,
       call_seconds: row.call_seconds,
+      call_count: row.call_count,
       photo_url: shown.photo,
     },
   };
