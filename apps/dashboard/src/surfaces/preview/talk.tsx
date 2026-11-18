@@ -13,6 +13,7 @@ import { Field, fieldProblem } from "../kit/field/field";
 import { Icon } from "../kit/icon/icon";
 import { Panel } from "../kit/panel/panel";
 import { PvThree } from "./head";
+import { PvCalled } from "./heard";
 import type { Call } from "./use-call";
 import type { Talk, TalkLine } from "./use-talk";
 
@@ -41,16 +42,7 @@ function PvLine({ line, at, last, talk }: { line: TalkLine; at: number; last: bo
         </p>
       </li>
     );
-  if (line.kind === "call")
-    return (
-      <li className="pv-line pv-called" data-testid="pv-called">
-        <Icon name="phone" size={16} />
-        <span className="pv-called-words">
-          <b>{W.called(line.seconds)}</b>
-          <span>{W.calledSub}</span>
-        </span>
-      </li>
-    );
+  if (line.kind === "call") return <PvCalled line={line} />;
   if (line.kind === "told")
     return (
       <li className="pv-line" data-testid="pv-told">

@@ -59,6 +59,15 @@ export const LEAD_PREVIEW_WORDS = {
   called: (seconds: number) =>
     `You called it · ${Math.floor(seconds / MINUTE_S)}:${String(Math.round(seconds % MINUTE_S)).padStart(2, "0")}`,
   calledSub: "AI answered as your business",
+  /** On a call's line: the press that opens the words said on it. */
+  readIt: "Read it",
+  /** The words of a call, named for a reader that cannot see them move. */
+  heardLabel: "What was said",
+  /** After a call: the card the business's Inbox would hold for a real one. */
+  gotTitle: "What you'd get",
+  gotWriting: "AI is writing up the call…",
+  gotNothing: "Nobody asked for anything on that call, so there is nothing for you to do.",
+  gotFoot: "On a real call, this lands in Chanlytics with their number, so you can call them back.",
   endShort: "End",
   callStart: "Call it",
   connecting: "Connecting…",

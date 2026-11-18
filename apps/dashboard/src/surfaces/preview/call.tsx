@@ -4,12 +4,14 @@
  * A lead's own preview, the call as a screen of its own (decision 0079, L3; the redesign of 17 November 2026): whose
  * call it is and where it stands, AI's three at work while it runs, the microphone's line while the browser asks, how
  * long a call may run, and its two presses, Mute and End. The call itself is the page's (use-call.ts): this draws it.
- * What was said is not shown: the call tells the browser none of it (its words are kept on the server).
+ * Under the three, the newest of what was said, as the page reads it from its own door while the call runs (the call
+ * tells the browser none of it): a read every two seconds, so a line shows a moment after it is said.
  */
 import { LEAD_PREVIEW_WORDS as W, MIN_MS, PREVIEW_LIMITS, SECOND_MS, type PreviewPageVM } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Icon } from "../kit/icon/icon";
 import { PvFace, PvThree } from "./head";
+import { PvHeard } from "./heard";
 import type { Call } from "./use-call";
 
 /** The seconds of a minute, for a call's clock. */
@@ -19,6 +21,8 @@ const clockOf = (seconds: number): string =>
   `${Math.floor(seconds / MINUTE_S)}:${String(seconds % MINUTE_S).padStart(2, "0")}`;
 /** The three on the call's screen, in px. */
 const THREE_PX = 88;
+/** The lines of the call its screen shows: the last thing each side said. */
+const HEARD_SHOWN = 2;
 
 export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {
   const live = call.phase === "live";
@@ -36,6 +40,7 @@ export function PvCall({ vm, call }: { vm: PreviewPageVM; call: Call }) {
       <div className="pv-call-stage">
         <PvThree live size={THREE_PX} />
         {live ? null : <p className="pv-by">{W.mic}</p>}
+        {live && call.heard.length ? <PvHeard lines={call.heard} newest={HEARD_SHOWN} /> : null}
       </div>
       <p className="pv-quiet">{W.callMax(PREVIEW_LIMITS.aCallMs)}</p>
       <div className="pv-call-acts">

@@ -86,11 +86,12 @@ function PvOpen({ vm, token, look }: { vm: PreviewPageVM; token: string; look: b
   const foot = useRef<HTMLDivElement | null>(null);
   const told = [...vm.taught, ...talk.lines.flatMap((line) => (line.kind === "told" ? [line.text] : []))];
 
-  // The newest line is brought into view as it arrives.
+  // The newest line is brought into view as it arrives, and a call's card as it is written under its line.
   const lines = talk.lines.length;
+  const cards = talk.lines.filter((line) => line.kind === "call" && line.got).length;
   useEffect(() => {
     if (lines > vm.turns.length) foot.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [lines, vm.turns.length]);
+  }, [lines, cards, vm.turns.length]);
 
   if (call.phase !== "idle") return <PvCall vm={vm} call={call} />;
   if (knows) return <PvKnows vm={vm} told={told} token={token} look={look} onDone={() => setKnows(false)} />;

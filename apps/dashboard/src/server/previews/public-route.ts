@@ -4,7 +4,7 @@ import "server-only";
  * The doors of a lead's own receptionist's page (decision 0079), app/api/v1/previews/[token]/…: public by a deliberate
  * edit to the proxy's PUBLIC_PREFIXES, so they do not go through withRoute (there is no session to verify). What each
  * keeps instead, as /api/v1/signup does: the same-origin check every mutating route makes, a bucket per network in the
- * shared limiter (preview_ip; a call's own, preview_call_ip), a body read for what it is, the token as the only authority, and one envelope back.
+ * shared limiter (preview_ip; a call's own, preview_call_ip; the read of a call's words, preview_heard_ip), a body read for what it is, the token as the only authority, and one envelope back.
  */
 import { NextResponse } from "next/server";
 import { AppError, err, ok, recordOrEmpty } from "@chanlytics/contracts";
@@ -39,7 +39,7 @@ async function fieldsOf(req: Request): Promise<Record<string, unknown>> {
  * the shared count or a refusal, never one this instance alone would hold.
  */
 export function previewRoute<T>(
-  door: { bucket: Extract<RateBucket, "preview_ip" | "preview_call_ip">; spends: boolean },
+  door: { bucket: Extract<RateBucket, "preview_ip" | "preview_call_ip" | "preview_heard_ip">; spends: boolean },
   run: (token: string, body: Record<string, unknown>) => Promise<T>,
 ): (req: Request, ctx: Ctx) => Promise<Response> {
   return async (req, ctx) => {

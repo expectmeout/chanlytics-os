@@ -246,6 +246,12 @@ export const RATE = {
   preview_turn: { limit: 1, windowMs: 5 * SECOND_MS, noun: "messages" },
   /** A call to a lead's own receptionist (decision 0079), per network: each is the provider's minutes; a preview has two. */
   preview_call_ip: { limit: 6, windowMs: HOUR_MS, noun: "calls" },
+  /**
+   * A preview call's words read back (the page asks every two seconds while a call runs, and a few times after it for
+   * its write-up), per network: a preview's six minutes are under two hundred reads, so six hundred an hour is three
+   * businesses at one desk. It reads a row and, once a call has ended, asks the provider nothing it bills.
+   */
+  preview_heard_ip: { limit: 600, windowMs: HOUR_MS, noun: "reads" },
   /** Each is a paid call to Google, made for an owner who typed a few words. */
   google_search: { limit: 20, windowMs: HOUR_MS, noun: "listing searches" },
   google_link: { limit: 10, windowMs: HOUR_MS, noun: "listing changes" },

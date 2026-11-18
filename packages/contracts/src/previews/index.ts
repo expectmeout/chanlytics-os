@@ -1,4 +1,12 @@
-export { PREVIEW_MAKE_DOOR, PREVIEWS_STANDING_DOOR } from "./edge-doors";
+export { PREVIEW_AFTER_CALL_DOOR, PREVIEW_MAKE_DOOR, PREVIEWS_STANDING_DOOR } from "./edge-doors";
+export { PREVIEW_AFTER_CALL_STATES, PREVIEW_WRITE_UP_MS, previewGotOf, previewHeardOf } from "./heard";
+export type {
+  PreviewAfterCallState,
+  PreviewCallAnalysis,
+  PreviewGotVM,
+  PreviewHeardDto,
+  PreviewHeardLine,
+} from "./heard";
 export {
   previewFirstRunMarks,
   previewKnowsOf,

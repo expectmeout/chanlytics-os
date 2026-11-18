@@ -23,6 +23,8 @@ async function pageBundle() {
     stdin: {
       contents:
         'export { PreviewPage } from "../../apps/dashboard/src/surfaces/preview/preview-page.tsx";\n' +
+        'export { PvCalled } from "../../apps/dashboard/src/surfaces/preview/heard.tsx";\n' +
+        'export { PvCall } from "../../apps/dashboard/src/surfaces/preview/call.tsx";\n' +
         'export { renderToStaticMarkup } from "react-dom/server";\n' +
         'export { createElement } from "react";\n',
       resolveDir: path.join(ROOT, "tests/previews"),
@@ -304,4 +306,74 @@ test("every press is the kit's, at a thumb's size", () => {
   const presses = [...html.matchAll(/<(?:button|a)\b[^>]*class="([^"]*)"/g)].map((m) => m[1]);
   assert.ok(presses.length >= 6, "the page has its presses");
   for (const classes of presses) assert.match(classes, /\bbtn-touch\b/, classes);
+});
+
+/* ---- A call's words and what it leaves (the redesign's steps 2 and 3) ---- */
+
+const HEARD = [
+  { who: "ai", text: "Thanks for calling Fixture Barbers. How can I help?" },
+  { who: "you", text: "Do you take walk-ins on Saturday?" },
+  { who: "ai", text: "We do, from ten until two." },
+];
+const GOT = {
+  outcome: "Needs a call back",
+  yours: true,
+  wanted: "Asked about a Saturday walk-in for two.",
+  notes: ["To do: Call back to confirm Saturday at 11.", "Gave their name as Ana"],
+};
+const called = (line) =>
+  page.renderToStaticMarkup(
+    page.createElement(page.PvCalled, {
+      line: { kind: "call", seconds: 72, id: "c1", lines: [], got: null, writing: false, ...line },
+    }),
+  );
+
+test("a call's line: how long it ran and who answered; its words wait behind Read it, a press a thumb can hit", () => {
+  const html = called({ lines: HEARD });
+  assert.ok(words(html).includes("You called it · 1:12"));
+  assert.ok(words(html).includes(W.calledSub));
+  const press = html.match(/<button[^>]*data-testid="pv-read-it"[^>]*>/)?.[0] ?? "";
+  assert.ok(press.includes("btn-touch"), press);
+  assert.ok(press.includes('aria-expanded="false"'), "closed until it is pressed");
+  assert.ok(!has(html, "pv-heard"), "the words are not drawn until then");
+  assert.ok(!has(called({}), "pv-read-it"), "a call whose words were never read has no press for them");
+});
+
+test("after a call: being written while the provider writes it up, then the card an Inbox would hold", () => {
+  const writing = called({ writing: true });
+  assert.ok(has(writing, "pv-got-writing"));
+  assert.ok(words(writing).includes(W.gotWriting));
+  assert.ok(!has(writing, "pv-got"));
+
+  const html = called({ lines: HEARD, got: GOT });
+  assert.ok(has(html, "pv-got") && !has(html, "pv-got-writing"));
+  const said = words(html);
+  for (const sentence of [W.gotTitle, GOT.outcome, GOT.wanted, ...GOT.notes, W.gotFoot])
+    assert.ok(said.includes(sentence), sentence);
+  assert.match(html, /data-testid="pv-got-how"/);
+  assert.match(html, /data-yours="true"[^>]*data-testid="pv-got-how"|data-testid="pv-got-how"[^>]*data-yours="true"/);
+
+  // Nothing left for them to do: the outcome is said without the mark of a thing that is theirs.
+  const done = called({ got: { ...GOT, outcome: "Question answered", yours: false, notes: [] } });
+  assert.ok(!/data-yours/.test(done));
+  // A write-up that never came: the line alone, and nothing said to have failed.
+  const none = called({ lines: HEARD });
+  assert.ok(!has(none, "pv-got") && !has(none, "pv-got-writing"));
+});
+
+test("the call's screen shows the newest of what was said, the last thing each side said, once the call is live", () => {
+  const vm = previewPageOf(FACTS, NOW);
+  const call = { phase: "live", seconds: 42, muted: false, heard: HEARD, end() {}, mute() {} };
+  const html = page.renderToStaticMarkup(page.createElement(page.PvCall, { vm, call }));
+  const said = words(html);
+  assert.ok(said.includes("We do, from ten until two.") && said.includes("Do you take walk-ins on Saturday?"));
+  assert.ok(!said.includes("How can I help?"), "an older line has given way");
+  assert.ok(said.includes(W.heardLabel) === false && html.includes(`aria-label="${W.heardLabel}"`));
+
+  const quiet = page.renderToStaticMarkup(page.createElement(page.PvCall, { vm, call: { ...call, heard: [] } }));
+  assert.ok(!has(quiet, "pv-heard"), "nothing said yet, nothing drawn");
+  const connecting = page.renderToStaticMarkup(
+    page.createElement(page.PvCall, { vm, call: { ...call, phase: "connecting" } }),
+  );
+  assert.ok(!has(connecting, "pv-heard") && words(connecting).includes(W.mic));
 });

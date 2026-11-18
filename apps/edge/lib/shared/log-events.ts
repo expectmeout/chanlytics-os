@@ -551,6 +551,7 @@ export const LOG_EVENTS = [
   "post_no_answer",
   "post_published",
   "post_tried_again",
+  "preview_after_call_failed",
   "preview_build_failed",
   "preview_build_off",
   "preview_built",
