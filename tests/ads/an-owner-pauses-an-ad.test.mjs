@@ -244,11 +244,15 @@ test("an Undo inside thirty seconds is kept, and lands once when Meta will take 
   answers.standing = [200, { effective_status: "ACTIVE" }];
   const later = Date.now() + 32_000;
   const log = logger({ tenant_id: T });
-  assert.deepEqual(await tellPending(w.db, log, who(), ACCOUNT, later), { told: 1, usage: null, revoked: false });
+  assert.deepEqual(await tellPending(w.db, log, who(), { accountId: ACCOUNT, nowMs: later }), {
+    told: 1,
+    usage: null,
+    revoked: false,
+  });
   assert.deepEqual(asked, ["set PAUSED", "standing", "set ACTIVE", "standing"]);
   assert.deepEqual([w.row.intent, w.row.platform_state], ["on", "ACTIVE"]);
   // And a second read finds nothing on its way.
-  assert.deepEqual(await tellPending(w.db, log, who(), ACCOUNT, later + 60_000), {
+  assert.deepEqual(await tellPending(w.db, log, who(), { accountId: ACCOUNT, nowMs: later + 60_000 }), {
     told: 0,
     usage: null,
     revoked: false,
@@ -295,7 +299,7 @@ test("a change that got no answer is never sent again: the next read says what s
   assert.deepEqual(await heard(await w.press("pause")), [200, { ok: true, outcome: "sent", version: 4 }]);
   assert.deepEqual(w.kept.told, [["paused", "unknown"]]);
   const log = logger({ tenant_id: T });
-  assert.deepEqual(await tellPending(w.db, log, who(), ACCOUNT, Date.now() + 120_000), {
+  assert.deepEqual(await tellPending(w.db, log, who(), { accountId: ACCOUNT, nowMs: Date.now() + 120_000 }), {
     told: 0,
     usage: null,
     revoked: false,

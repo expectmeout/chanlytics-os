@@ -460,3 +460,34 @@ it is said here.
 - **Kept 760 days**, about 25 months (`RETENTION_DAYS.ad_days`, `purge_ad_days` nightly, said on the privacy page).
 - **Not built here:** reach, which is not additive and nothing draws yet. And one real hourly read of a real account
   has not been timed: that waits for the saved sign-in, and is owed before the loop is relied on (the plan's 6.6).
+
+## As built, 19 November 2026 · The page, and Reports
+
+The last parts of step P1 (`supabase/migrations/00651_the_ads_page_counts_the_people_an_ad_brought.sql`, the readers
+in `apps/dashboard/src/server/readers/ads-page.ts`, the page in `apps/dashboard/src/surfaces/campaigns/ads/live/`).
+With an account connected, Campaigns › Ads is the owner's own ads: each with where it stands, what Meta says it spent,
+who Chanlytics counts it brought and who of them booked. Where it is not as first drawn, it is said here.
+
+- **The people are counted in the database, whole, and they are Reports' people.** `ad_people_in` is the one place the
+  page's people come from: a first moment in the window, reached the business in it, alive, not merged away, first
+  touch an ad. That is the set `people_series` counts under "An ad", written the same way, and a database test holds
+  the two equal: the page's ads plus the unnamed line is Reports › People's number.
+- **Booked is read from the visits record** (`appointments`, decision 0002), which holds the calendar feed's visits
+  too: a visit that starts after the first touch and is neither cancelled nor only asked for, theirs by the record's
+  own link or, where a visit names no person, by its number or address. A workspace with no visits in the record
+  shows no bookings.
+- **Two readers, not six.** `adsPage` answers the page, an ad's drawer and Reports › Ads from one read, so the three
+  cannot disagree; `adPeople` lists one ad's people, fifty at a time. `adAccounts` and `adChecks` are the card's one
+  reader (`adAccount`).
+- **The page is a new, small one beside the mockup, as the canvas draws it,** not the mockup re-fed: the mockup's model
+  is built on an ad made here (its offer, its area, its words), which an ad found in Meta does not have. A demo
+  session still draws the mockup. The mockup's pieces the plan lists to remove are not removed yet.
+- **A page counts thirty days,** the same thirty wherever it is drawn. Reports › Ads does not follow the report's
+  period yet.
+- **The page reads when it opens, when the owner comes back to the tab, and after a press.** It does not hear the
+  live feed yet: the tables are told (00650) and the kinds are declared, and registering the surface is owed.
+- **An ad's name** is its own once Chanlytics holds it (`ad_named` reads `ads.name` first), so a person's page, the
+  report and the Ads page say one name.
+- **Not built in this step:** AI's one line and the amber line for who is waiting (they arrive with the step that
+  makes an ad, and with 0048's waits), the page's keyboard cursor, and "their numbers" beyond spend, shown, taps and
+  Meta's own count.

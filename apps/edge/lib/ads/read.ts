@@ -160,7 +160,7 @@ async function daysOver(reading: Reading, range: { since: string; until: string 
       askMetaAds(
         log,
         "days",
-        callMetaAds(metaAdDaysRequest(signIn.token, signIn.appSecret, account.external_id, range, after)),
+        callMetaAds(metaAdDaysRequest(signIn.token, signIn.appSecret, account.external_id, { ...range, after })),
         (json) => parseMetaAdDays(json, account.currency),
       ),
     );
@@ -176,7 +176,8 @@ async function daysOver(reading: Reading, range: { since: string; until: string 
 const NAMED_MAX = 2 * META_IDS_MAX;
 
 /** What a whole read learned, as the door keeps it; or why it stopped. */
-async function learn(db: Db, app: MetaApp, reading: Reading, depth: ReadDepth, nowMs: number) {
+async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDepth; nowMs: number }) {
+  const { depth, nowMs } = at;
   const { signIn, account, log } = reading;
   const tenantId = account.tenant_id as TenantId;
   const described = await ask(reading, () => readMetaAccount(log, signIn, account.external_id));
@@ -300,13 +301,13 @@ export async function runAdRead(
     return out("revoked", reading.calls);
   };
   // The owner's presses still on their way go first: a pause must not wait behind a read (00652).
-  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, account.id, nowMs);
+  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, { accountId: account.id, nowMs });
   reading.usage = sent.usage;
   if (sent.revoked) return revoked();
   // A read asked for only to send a press, moments after the account's last read, has nothing new to read.
   if (sent.told > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
     return out("told", sent.told);
-  const learned = await learn(db, app, reading, depth, nowMs);
+  const learned = await learn(db, app, reading, { depth, nowMs });
   if (stopped(learned)) {
     if (learned.fault === "revoked") return revoked();
     await keepAdsRead(db, tenantId, account.id, failedRead(learned, nowMs));

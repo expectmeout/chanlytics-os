@@ -7,11 +7,13 @@ Written by `node tooling/scripts/gen/docs-tree.mjs`, never by hand; `docs/archit
 ```text
 apps/edge/api/
   admin/
+  ads/
   cron/
   jobs/
   mailbox/
   sources/
 apps/edge/lib/
+  ads/
   ai/
   billing/
   calendar/
@@ -64,6 +66,7 @@ apps/dashboard/src/
   surfaces/
   yes/
 apps/dashboard/src/server/
+  ads/
   ask/
   auth/
   calendar/
@@ -105,6 +108,7 @@ apps/mobile/src/
   shell/
   widgets/
 packages/channels/src/
+  ads/
   ai/
   email/
   files/

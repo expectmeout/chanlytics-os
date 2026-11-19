@@ -1264,6 +1264,26 @@
           "messages"
         ]
       }
+    },
+    {
+      "kind": "over-read",
+      "why": "The name of the ad a person first came through, once Chanlytics holds the ad (ad_named reads ads.name first: 00651; decision 0049, call 2). A person's page reads it with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). An ad's name moves only when its owner renames it at the platform, and the new one is said at the next read.",
+      "reads": {
+        "person": [
+          "ads"
+        ],
+        "reports_people": [
+          "ads"
+        ]
+      },
+      "heardWith": {
+        "person": [
+          "contacts"
+        ],
+        "reports_people": [
+          "messages"
+        ]
+      }
     }
   ]
 }

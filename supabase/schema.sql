@@ -47519,7 +47519,7 @@ CREATE UNIQUE INDEX ad_entries_one_a_ref ON public.ad_entries USING btree (tenan
 -- Name: ads_account; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX ads_account ON public.ads USING btree (tenant_id, account_id);
+CREATE INDEX ads_account ON public.ads USING btree (tenant_id, account_id, platform);
 
 
 --

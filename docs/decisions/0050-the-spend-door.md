@@ -276,3 +276,37 @@ page before the build.
 The Ads page is a mockup on sample data, and its sentences still say the calls as they stood: the line under its head,
 the toasts after a pause, an adopted ad's line in its drawer, and Disconnect in Settings › Connections. They change in
 a words change of their own, with their tests.
+
+## As built, 19 November 2026 · Pause, Resume and Disconnect (the Ads plan's step 2)
+
+The two presses call 9 leaves an owner on an ad made in Meta, and call 8's Disconnect
+(`supabase/migrations/00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql`,
+`00653_an_owner_disconnects_their_ad_account.sql`, the edge's `lib/ads/press.ts` and `tell.ts`).
+
+- **A press is kept, then told.** `ad_set_intent` keeps what the owner asked with the decision and the event, by the
+  ad's version: a stale press is refused, the same press twice is answered once. Meta is then told once. An ask newer
+  than the telling is a press on its way, which is all the state a pending press has.
+- **Meta's thirty seconds.** A press inside thirty seconds of the last change to that ad is kept, and the account's
+  read is asked for at the moment Meta will take it; that read sends the press before it reads. A press that takes
+  back one Meta was never told of sends nothing.
+- **What telling can come to.** Taken: the ad is read back, so the page says what Meta says. Slowed: Meta took
+  nothing, and the press stays on its way. No answer: marked sent and never sent again; the next read says what
+  stands. Refused: the ad is put back as Meta holds it, an `ad.press_refused` event says so, and the owner is told it
+  did not take. A sign-in Meta no longer takes marks the account.
+- **Resume, as C1 amends call 9.** `ad_may_resume` in the database and `adResumeRule` in contracts say the same: a
+  total, an end date still ahead, the budget to itself, something left, and paused by the ad's own switch. Anything
+  else is turned back on in Meta.
+- **`ADS_WRITES`** on the edge: `live` sends, `sandbox` does everything but the call, anything else is off, where a
+  press is refused before it is kept. The workspaces are `ADS_WORKSPACES`, the same list Connect reads (D7).
+- **Disconnect is never refused** (call 8, as amended). Asked to pause first, each running ad is paused and Meta told;
+  where Meta does not confirm one, nothing is disconnected and the owner is told which ad keeps running, and may then
+  disconnect anyway. A press on its way is let go with the account.
+
+### Amended here · Disconnect does not ask Meta to withdraw
+
+Call 8 says Disconnect "drops" Chanlytics' tokens, and the plan's C2 adds that Meta is asked to withdraw the sign-in
+and asked again until it confirms. This step does the first and not the second. The token is dropped the moment the
+account is let go, so Chanlytics can do nothing with it. Meta is not asked to withdraw it: Meta's own page documents
+the call, and it is not known whether withdrawing the ads sign-in would also end the same business's WhatsApp or
+Instagram connection, which share the Meta app. Until that is seen on a real account, the card says where the owner
+removes Chanlytics at Meta themselves, and `withdrawn_at` stays empty. This is Ruben's to confirm or change.

@@ -23,6 +23,7 @@ export const EDGE_ERROR_CODES = [
   "ad_account_taken",
   "ad_cant_resume",
   "ad_not_ready",
+  "ad_sign_in_lost",
   "ad_stale",
   "ads_writes_off",
   "already_registered",

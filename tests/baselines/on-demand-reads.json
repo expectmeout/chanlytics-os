@@ -434,5 +434,30 @@
     "kind": "on-open",
     "fresh": "Read once as a to-do's sheet opens on the person it is about.",
     "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/connect/use-account.ts GET ads/account": {
+    "kind": "on-open",
+    "fresh": "Read as the ad account's card is drawn (Campaigns › Ads, Settings › Connections), after each press on it (Connect, the one question, Disconnect), and again when the owner comes back to the tab from mending something at Meta; nothing of it is kept once the page goes.",
+    "why": "The card says where the connection stands, which moves when the owner acts on it here or at Meta, and each of those reads it again. The feed tells of ad_accounts since 00650; registering the Ads surface so the card hears it is owed (decision 0049, Hearing)."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/connect/use-account.ts GET ads/connect": {
+    "kind": "on-open",
+    "fresh": "Not a read of anything kept: the address of Meta's own sign-in window, built when the owner presses Connect.",
+    "why": "It answers a redirect to Meta with a signed state, and holds nothing a page draws."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/live/use-live.ts GET ads/page": {
+    "kind": "on-open",
+    "fresh": "Read as the Ads page comes to a workspace's own ads, when the account's card reads something new, after each Pause and Resume, when the owner comes back to the tab, and every few seconds while a press is on its way to Meta; nothing of it is kept once the page goes.",
+    "why": "Its numbers move once an hour, when the account is read at Meta, and at once after the owner's own press, which reads it again. The feed tells of ad_accounts and ads since 00650; registering the Ads surface so the page hears them is owed (decision 0049, Hearing)."
+  },
+  "apps/dashboard/src/surfaces/campaigns/ads/live/use-live.ts GET ads/people": {
+    "kind": "on-open",
+    "fresh": "Read as an ad's drawer opens, fifty people at a time, and again each time it is opened; nothing of it is kept once the drawer goes.",
+    "why": "It is the list behind a number the page already shows. A person who writes meanwhile is on it at the next opening, and their own page, which each row opens, hears the feed."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/ads-load.ts GET ads/page": {
+    "kind": "on-open",
+    "fresh": "Read as Reports' Ads lens is drawn for a workspace with its Ads on, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
+    "why": "The lens says the Ads page's own numbers over the same thirty days, which move once an hour. It is not Reports' surface, which follows the period Reports shows."
   }
 }

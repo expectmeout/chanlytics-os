@@ -10,7 +10,7 @@
  * A budget sits on the ad set or on the campaign above it (Meta holds it in one of the two), as an amount a day or a
  * total for the whole run. Money is converted here from Meta's own units, as an account's is (meta-account.ts).
  */
-import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
+import { isDayKey, recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { metaAccountId, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
@@ -226,8 +226,7 @@ export function metaAdDaysRequest(
   token: string,
   appSecret: string,
   accountId: string,
-  range: { since: string; until: string },
-  after?: string,
+  range: { since: string; until: string; after?: string | undefined },
 ): MetaRequest {
   return {
     url: metaGraphUrl(`${account(accountId)}/insights`, {
@@ -236,7 +235,7 @@ export function metaAdDaysRequest(
       time_range: JSON.stringify({ since: range.since, until: range.until }),
       fields: "ad_id,spend,impressions,inline_link_clicks,actions",
       limit: String(META_DAYS_PAGE),
-      ...(after ? { after } : {}),
+      ...(range.after ? { after: range.after } : {}),
       ...metaProofQuery(token, appSecret),
     }),
     method: "GET",
@@ -271,7 +270,7 @@ function dayOf(row: unknown, currency: string): MetaAdDay | null {
   const o = metaObject(row);
   const adId = metaText(valueAt(o, "ad_id"));
   const day = metaText(valueAt(o, "date_start"));
-  if (!o || !ID.test(adId) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  if (!o || !ID.test(adId) || !isDayKey(day)) return null;
   const actions = valueAt(o, "actions");
   const counted = new Map<string, number>(
     (Array.isArray(actions) ? actions : []).map((action) => {

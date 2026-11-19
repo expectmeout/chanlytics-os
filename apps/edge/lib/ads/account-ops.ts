@@ -276,7 +276,7 @@ async function chooseAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId:
     return refuse(400, "bad_request", "external_id is not one of the accounts to choose from");
   const secret = await readAdSecret(db, waiting.id);
   const signIn = await signInOf(db, app, waiting.id);
-  if (!secret || !signIn) return refuse(409, "no_token", "The sign-in was not kept. Connect again.");
+  if (!secret || !signIn) return refuse(409, "ad_sign_in_lost", "The sign-in was not kept. Connect again.");
   const read = await readMetaAccount(log, signIn, externalId);
   if (!read.ok) return refuse(502, "meta_refused", read.said);
   const account = read.value;

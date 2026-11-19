@@ -168,7 +168,7 @@ function refusalOf(answer: EdgeAnswer<EdgeRead<"/api/admin/ads/account">>, doing
       409,
     );
   if (code === "nothing_to_do") return new AppError("conflict", "That is already answered.", 409);
-  if (code === "no_token") return new AppError("conflict", "Meta's sign-in didn't last. Connect again.", 409);
+  if (code === "ad_sign_in_lost") return new AppError("conflict", "Meta's sign-in didn't last. Connect again.", 409);
   return new AppError("upstream_provider", `Couldn't ${doing} just now. Try again.`);
 }
 

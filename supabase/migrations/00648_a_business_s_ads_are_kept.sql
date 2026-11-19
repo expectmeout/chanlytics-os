@@ -192,7 +192,7 @@ create table if not exists public.ads (
 -- One row an ad at its platform, in a workspace: a read written twice is one row, and a first touch finds its ad.
 create unique index if not exists ads_one_at_its_platform on public.ads (tenant_id, platform, platform_ad_id);
 -- An account's ads: the page's list, and a read's own.
-create index if not exists ads_account on public.ads (tenant_id, account_id);
+create index if not exists ads_account on public.ads (tenant_id, account_id, platform);
 
 drop trigger if exists ads_set_updated_at on public.ads;
 create trigger ads_set_updated_at

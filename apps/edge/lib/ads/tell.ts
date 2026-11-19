@@ -115,9 +115,9 @@ export async function tellPending(
   db: Db,
   log: Log,
   who: { tenantId: TenantId; signIn: MetaSignIn; writes: AdsWrites },
-  accountId: string,
-  nowMs: number,
+  at: { accountId: string; nowMs: number },
 ): Promise<{ told: number; usage: MetaUsage | null; revoked: boolean }> {
+  const { accountId, nowMs } = at;
   let usage: MetaUsage | null = null;
   let told = 0;
   if (who.writes === "off") return { told, usage, revoked: false };
