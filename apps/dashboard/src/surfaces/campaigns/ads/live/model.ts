@@ -214,9 +214,9 @@ export function firstReadOf(account: AdsLiveDto["account"]): "reading" | "failed
   return account.read_failed ? "failed" : "reading";
 }
 
-/** The head: who booked, else how many ads, else what is known of the account's ads. */
-function headOf(dto: AdsLiveDto, came: number, booked: number, listed: number): LiveVM["head"] {
-  if (came > 0) return LIVE.booked(booked, came);
+/** The page's head: who booked, else how many ads, else what is known of the account's ads. */
+function liveHeadOf(dto: AdsLiveDto, brought: { came: number; booked: number }, listed: number): LiveVM["head"] {
+  if (brought.came > 0) return LIVE.booked(brought.booked, brought.came);
   if (dto.ads.length > 0) return LIVE.inAccount(listed);
   const first = firstReadOf(dto.account);
   if (first === "reading") return LIVE.reading;
@@ -242,7 +242,7 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
           ? `${spentWords} · ${LIVE.each(each.each, each.soFar)}`
           : spentWords;
   return {
-    head: headOf(dto, came, booked, ads.length),
+    head: liveHeadOf(dto, { came, booked }, ads.length),
     line,
     notice: noticeOf(dto, said),
     stale:
