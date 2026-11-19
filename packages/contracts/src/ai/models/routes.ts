@@ -410,7 +410,18 @@ export function readsAsModel(value: unknown): value is string {
 /**
  * The models behind a phone call, in Retell's own names (voice-provision.ts): its language model and its analysis; and
  * the analysis of a call only listened to (a lead's preview hearing its greeting, decision 0079), which has nothing to
- * write up. The provider bills a call's write-up flat, whatever its length (1.5 cents on `analysis`, nothing on this
- * one, read off two test calls' own bills on 18 November 2026), so a listen of eight seconds asks for the smallest.
+ * write up. The provider bills a call's write-up flat, whatever its length (1.5 cents on GPT-4.1, nothing on its
+ * smallest, read off two test calls' own bills on 18 November 2026), so a listen of eight seconds asks for the smallest.
+ *
+ * 18 and 19 November 2026, the write-up's model replayed before it moved (Ruben's word on the numbers): 36 real calls
+ * on three lines, each written up again at the provider by GPT-4.1 (every line's since 7 September) and by six others,
+ * and read against the call's own words. GPT-6 Luna, at a fifteenth of the list price, gave 33 of the 36 the ending
+ * GPT-4.1 gives and never differed on one that acts (a call back, a booking link sent, a voicemail); it caught the one
+ * call back, kept the caller's name, and wrote every Spanish call in English once asked to. The smallest wrote
+ * "voicemail" for people who hung up; GPT-5 mini and Claude 5.5 Haiku each got endings wrong; GPT-5.6 Luna missed the
+ * call back until it was said outright; GPT-6.1 Terra reads more into a call and opens more call backs. The fields'
+ * wording moved with the model (channels voice/shell/tools.ts CALL_ANALYSIS_FIELDS), and the converger holds every
+ * line to both (planAgentSettings). Not replayed, since no call on record has one: a customer of the business asking
+ * for a call back, and an email spelled out.
  */
-export const RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-4.1", listenAnalysis: "gpt-5-nano" } as const;
+export const RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-6-luna", listenAnalysis: "gpt-5-nano" } as const;

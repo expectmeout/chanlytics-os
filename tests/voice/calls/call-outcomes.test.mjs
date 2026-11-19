@@ -14,6 +14,7 @@ import {
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
   POLICY_COVERS,
+  RETELL_MODELS,
   callOutcomeWords,
   tidyCallSummary,
   toCallVM,
@@ -23,6 +24,7 @@ import { attentionRow } from "../../../apps/dashboard/src/surfaces/people/person
 import {
   normalizeCall,
   callSummaryLine,
+  agentSettingsDrift,
   planAgentSettings,
   CALL_ANALYSIS_FIELDS,
   VOICE_WEBHOOK_EVENTS,
@@ -259,6 +261,7 @@ test("the agent's analysis fields: each has a type, a name and a description; ea
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
     ...CALL_LIMITS,
+    post_call_analysis_model: RETELL_MODELS.analysis,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -295,6 +298,7 @@ test("an agent that has the five fields it had is told it lacks topic and langua
     webhook_timeout_ms: 20000,
     opt_in_signed_url: true,
     ...CALL_LIMITS,
+    post_call_analysis_model: RETELL_MODELS.analysis,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -409,6 +413,25 @@ test("the agent reader carries the analysis schema, so the diagnostic's drift is
       !planAgentSettings(a).drift.some((d) => d.includes("post_call_analysis_data")),
       "an agent that has the fields is not told it lacks them",
     );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("the agent reader carries the write-up's model, so the watch and the diagnostic say when a line is off the product's", async () => {
+  const realFetch = globalThis.fetch;
+  const answer = (agent) => async () =>
+    new Response(JSON.stringify({ agent_id: "agent_x", ...agent }), { status: 200 });
+  try {
+    globalThis.fetch = answer({ post_call_analysis_model: "another-model" });
+    const off = await getAgent({ apiKey: "k" }, "agent_x");
+    assert.equal(off.post_call_analysis_model, "another-model");
+    assert.ok(
+      agentSettingsDrift(off).drift.some((d) => d.includes("another-model")),
+      "the parsed agent's drift names the model the line is on",
+    );
+    globalThis.fetch = answer({});
+    assert.equal((await getAgent({ apiKey: "k" }, "agent_x")).post_call_analysis_model, null, "none named is null");
   } finally {
     globalThis.fetch = realFetch;
   }

@@ -9,7 +9,7 @@
  * provider key on a laptop, and the key lives here and nowhere else. This
  * endpoint plans the same agent-level settings the script does — the webhook
  * events, the webhook budget, signed recording links, the post-call analysis
- * fields, the silence reminders and the locales the agent listens for, from
+ * fields and the model that fills them in, the silence reminders and the locales the agent listens for, from
  * the languages its workspace speaks (packages/channels planAgentSettings) —
  * and, with { apply: true },
  * applies them the way the script does: a published version cannot change,
@@ -18,7 +18,7 @@
  * A draft that was already the latest takes the patch where it is and is never
  * published for it: it may hold edits made elsewhere, so the answer says so,
  * whether or not anything is applied. What differs from the product's defaults
- * and is the owner's (the voice, the post-call model) comes back as `notes`,
+ * and is the owner's (the voice) comes back as `notes`,
  * and is never changed here.
  * The LLM (the shell: the prompt, its placeholders and defaults, the four
  * tools) is converged here too since decision 0092, so the laptop converger

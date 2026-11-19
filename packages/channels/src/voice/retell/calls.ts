@@ -407,6 +407,8 @@ export interface RetellAgentConfig {
   /** The post-call analysis schema on the agent, as stored; the planner
    *  checks ours are on it (voice/shell/agent-plan.ts CALL_ANALYSIS_FIELDS). */
   post_call_analysis_data: unknown[] | null;
+  /** The model a call's write-up runs on, in the provider's name for it; null = it names none (the provider's default). */
+  post_call_analysis_model: string | null;
   /** How long a caller's silence waits before the agent speaks again, and how often; null = the provider's default. */
   reminder_trigger_ms: number | null;
   reminder_max_count: number | null;
@@ -448,6 +450,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     post_call_analysis_data: Array.isArray(result.post_call_analysis_data)
       ? listOrEmpty(result.post_call_analysis_data)
       : null,
+    post_call_analysis_model: str("post_call_analysis_model"),
     reminder_trigger_ms: num("reminder_trigger_ms"),
     reminder_max_count: num("reminder_max_count"),
     interruption_sensitivity: num("interruption_sensitivity"),
