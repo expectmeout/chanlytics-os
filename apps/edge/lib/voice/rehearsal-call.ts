@@ -18,6 +18,11 @@
  *   - The call webhook hands each delivery here (settleRehearsalEvent): the words so far on every transcript_updated, the
  *     whole and the seconds at its end. Nothing reaches the call pipeline.
  *   - The booking-link tool sends nothing and says the link is on the owner's screen (rehearsalToolCall).
+ *
+ * A call only listened to (`listen`, decision 0079: a lead's preview hearing its greeting with no microphone) is the
+ * same call through the same checks, with three things its own (callShapeOf): a minute at the most, its write-up on the
+ * provider's smallest model, and a row that says from the start that it is a listen. Its seconds count against the
+ * minutes as any call's do; its end tells the preview's row of no call, since nobody made one.
  */
 import { json, refuse } from "../shared/http.js";
 import { pg } from "../shared/pg.js";
@@ -44,6 +49,8 @@ import {
   rehearsalCallMs,
   turnsOfTranscript,
   REHEARSAL_LIMITS,
+  REHEARSAL_LISTEN,
+  RETELL_MODELS,
   SECOND_MS,
   isTenantId,
 } from "@chanlytics/contracts";
@@ -158,9 +165,23 @@ async function reserveStart(
   }
 }
 
+/**
+ * What a call only listened to changes of its start: a minute at the most (the provider's floor: the page leaves it as
+ * the greeting ends), its write-up on the provider's smallest model (nothing is said back to write up, and a write-up
+ * is billed flat a call), and its name in the call's own record at the provider. An ordinary call changes nothing.
+ */
+function callShapeOf(
+  listen: boolean,
+  allowance: Allowance,
+): { maxMs: number; analysisModel: string | null; named: Record<string, number> } {
+  return listen
+    ? { maxMs: REHEARSAL_LISTEN.callMs, analysisModel: RETELL_MODELS.listenAnalysis, named: { listen: 1 } }
+    : { maxMs: rehearsalCallMs(allowance), analysisModel: null, named: {} };
+}
+
 export async function startRehearsalCall(
   auth: Admitted,
-  body: Partial<{ tenant_id: string; user_id: string }>,
+  body: Partial<{ tenant_id: string; user_id: string; listen: boolean }>,
 ): Promise<Response> {
   const log = logger();
   const apiKey = env.RETELL_API_KEY;
@@ -207,7 +228,8 @@ export async function startRehearsalCall(
     return refuse(502, "provider_refused", "the receptionist could not be made at the provider");
   }
 
-  const maxMs = rehearsalCallMs(allowance);
+  const listen = body.listen === true;
+  const { maxMs, analysisModel, named } = callShapeOf(listen, allowance);
   const created = await createWebCall(
     { apiKey },
     {
@@ -216,10 +238,12 @@ export async function startRehearsalCall(
         variables: { ...plan.variables },
         voiceId: plan.voiceId,
         voiceSpeed: plan.voiceSpeed,
+        analysisModel,
         maxMs,
         metadata: {
           rehearsal_id: id,
           tenant_id: tenantId,
+          ...named,
           ...(plan.configVersion !== null ? { config_version: plan.configVersion } : {}),
         },
       }),
@@ -242,6 +266,7 @@ export async function startRehearsalCall(
       agentId: agent.agentId,
       configVersion: plan.configVersion,
       instructions: plan.variables.business_facts,
+      listen,
     });
   } catch (e) {
     // The call was made and nobody will join it: its token lapses unused, and it is never counted.
@@ -257,6 +282,7 @@ export async function startRehearsalCall(
     agent_id: agent.agentId,
     max_ms: maxMs,
     config_version: plan.configVersion,
+    listen,
   });
   return json(200, {
     ok: true,
@@ -306,13 +332,16 @@ export async function settleRehearsalEvent(
         : typeof call.end_timestamp === "number" && typeof call.start_timestamp === "number"
           ? call.end_timestamp - call.start_timestamp
           : 0;
+    // A call only listened to keeps the name its row was made with, whatever the provider says of its end: it is by
+    // that name that it is drawn as no call and holds no other call back (packages/db rehearsals.ts).
+    const listened = rehearsal.end_reason === REHEARSAL_LISTEN.ended;
     await endRehearsal(db, rehearsal.tenant_id, call.call_id, {
       turns,
       startedAt,
       endedAt:
         typeof call.end_timestamp === "number" ? new Date(call.end_timestamp).toISOString() : new Date().toISOString(),
       seconds: Math.max(0, ms) / 1000,
-      reason: call.disconnection_reason ?? null,
+      reason: listened ? REHEARSAL_LISTEN.ended : (call.disconnection_reason ?? null),
     });
     log.info("rehearsal_call_ended", {
       tenant_id: rehearsal.tenant_id,
@@ -322,7 +351,8 @@ export async function settleRehearsalEvent(
     });
     // A lead's own receptionist counts its calls on its row (decision 0079), once a call: on its first end, since the
     // provider tells an end twice (call_ended, then call_analyzed). Any other workspace is none, and nothing moves.
-    if (rehearsal.ended_at === null)
+    // Nor does a listen: nobody called, so the preview is not said to have been tried and its sender is told nothing.
+    if (rehearsal.ended_at === null && !listened)
       await recordPreviewCalled(db, rehearsal.tenant_id, Math.max(0, ms) / SECOND_MS).catch((e: unknown) =>
         log.warn("preview_called_failed", {
           tenant_id: rehearsal.tenant_id,

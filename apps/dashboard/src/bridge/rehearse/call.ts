@@ -1,5 +1,5 @@
 /**
- * A rehearsal's call in the browser (decision 0069, R2): the vendor's web client (retell-client-js-sdk 3.0.2), loaded on
+ * A rehearsal's call in the browser (decision 0069, R2): the vendor's web client (retell-client-js-sdk 3.0.3), loaded on
  * the press as a chunk of its own, joined to a call our edge made. This is the one module that imports it.
  *
  * The client asks for its call with one request (POST /v3/create-web-call), which is routed here to our own route
@@ -12,6 +12,11 @@
  * What the page hears: the call connecting, live and ended; why it ended; whether the agent is speaking; and a failure,
  * told apart as the microphone refused (the person can allow it, or type) or the call not made (the route's own words
  * where it gave some).
+ *
+ * A call only listened to (startListen; decision 0079, a lead's preview hearing its greeting) is the same client joined
+ * receive-only: the browser is asked for no microphone, the greeting plays, and the page leaves once the voice has gone
+ * quiet. The client tells a page nothing of when the agent stops speaking on this transport (proven on two calls, 18
+ * November 2026), so the voice's own level is what is read.
  */
 type Client = typeof import("retell-client-js-sdk");
 type Session = ReturnType<InstanceType<Client["RetellClient"]>["createWebCall"]>;
@@ -83,7 +88,11 @@ const micRefused = (e: unknown): boolean => {
 };
 
 /** The one request the client makes, answered by our route: its answer in the provider's shape, or its refusal. */
-function proxyFetch(start: StartCall, hooks: CallHooks, refused: { words: string | null }): typeof fetch {
+function proxyFetch(
+  start: StartCall,
+  hooks: Pick<CallHooks, "onStarted">,
+  refused: { words: string | null },
+): typeof fetch {
   return async (input) => {
     const url = String(typeof input === "string" || input instanceof URL ? input : input.url);
     if (!url.endsWith("/v3/create-web-call")) return new Response(null, { status: 204 });
@@ -147,4 +156,98 @@ export async function startCall(start: StartCall, hooks: CallHooks): Promise<Cal
       void session.end();
     },
   };
+}
+
+/* ------------------------------------------------------------------------------ a call only listened to -- */
+
+/** A level over this (the client's own measure of the voice, 0 to 1) is the voice: a quiet line reads under it. */
+const VOICE_HEARD = 0.01;
+/** How often the voice is read while a listen plays: on a timer, since a page nobody is looking at is given no frames. */
+const LISTEN_READ_MS = 50;
+/** The greeting is over once the voice has been quiet this long: the longest pause inside one was half a second. */
+const LISTEN_QUIET_MS = 1_200;
+/**
+ * How long a listen plays where its voice cannot be read at all (a browser that gives the client no level): about a
+ * greeting's length, and short of the line asking whether anyone is there.
+ */
+const LISTEN_UNREAD_MS = 9_000;
+/** The longest any listen plays. */
+const LISTEN_MOST_MS = 20_000;
+
+/**
+ * Whether a listen is over, `at` ms into the call, its voice last read at `lastAt` (null: never): once the voice has
+ * been quiet a little over a second; by the clock where no voice was ever read; and at its longest whatever is heard.
+ */
+function listenOver(at: number, lastAt: number | null): boolean {
+  if (at > LISTEN_MOST_MS) return true;
+  return lastAt === null ? at > LISTEN_UNREAD_MS : at - lastAt > LISTEN_QUIET_MS;
+}
+
+/** A listen under way: left by the person, or by the page going. */
+export interface ListenSession {
+  end(): void;
+}
+
+/**
+ * A call only listened to: joined receive-only, so the browser asks for no microphone, and left by itself once the
+ * greeting has been said (listenOver). `onDone` is told once, with whether it was played: false where the call was not
+ * made, could not be joined, or the browser refused to play it, which a page answers with the voice's sample instead.
+ * Null when the client could not be loaded or the join failed at once (told as not played).
+ */
+export async function startListen(start: StartCall, onDone: (played: boolean) => void): Promise<ListenSession | null> {
+  let client: Client;
+  try {
+    client = await load();
+  } catch {
+    onDone(false);
+    return null;
+  }
+  const rc = new client.RetellClient({
+    key: "rehearsal",
+    fetch: proxyFetch(start, { onStarted() {} }, { words: null }),
+  });
+  let session: Session | null = null;
+  let reading: ReturnType<typeof setInterval> | null = null;
+  let done = false;
+  const finish = (played: boolean) => {
+    if (done) return;
+    done = true;
+    if (reading) clearInterval(reading);
+    void session?.end();
+    onDone(played);
+  };
+  const live = () => {
+    if (reading || done) return;
+    const since = Date.now();
+    let lastAt: number | null = null;
+    // A browser that refuses to play it leaves a greeting nobody hears: said at once, so the page plays the sample.
+    session?.startAudioPlayback().catch(() => finish(false));
+    reading = setInterval(() => {
+      const at = Date.now() - since;
+      if ((session?.analyzerComponent?.calculateVolume() ?? 0) > VOICE_HEARD) lastAt = at;
+      if (listenOver(at, lastAt)) finish(true);
+    }, LISTEN_READ_MS);
+  };
+  // The client's receive-only switch (its transport's `listener`) is not among the options it lists for a caller's own
+  // join, and reaches the transport with them all the same. Held in a value of its own, so the join stays typed as the
+  // client types it; tests/previews/listen/its-greeting-heard-with-no-microphone.test.mjs holds that it is asked for.
+  const audio = { emitRawAudioSamples: true, listener: true };
+  try {
+    session = rc.createWebCall({
+      agent_id: "rehearsal",
+      audio,
+      hooks: {
+        onStatus: (s) => {
+          if (s === "live") live();
+        },
+        // An end before the call was live is a call nobody heard; one after it is the greeting's own.
+        onEnd: () => finish(reading !== null),
+        onError: () => finish(false),
+      },
+    });
+  } catch {
+    finish(false);
+    return null;
+  }
+  return { end: () => finish(reading !== null) };
 }

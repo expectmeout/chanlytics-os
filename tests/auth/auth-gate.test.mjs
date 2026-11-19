@@ -372,10 +372,10 @@ test("every /api/v1 route verifies the user itself", () => {
   // route()'s read() and write() are withRoute underneath: a route declared
   // through them verifies the user exactly as a bare withRoute does.
   //
-  // A lead's own receptionist's page's five doors (decision 0079) have no user to verify: they are public under the proxy's
-  // /api/v1/previews/ prefix, the token is the authority, and each is the page's own door, which makes the same-origin
-  // check and takes a bucket per network (server/previews/public-route.ts). Named here, and held to that door.
-  const PREVIEW_DOORS = ["message", "opened", "not-right", "tell", "call", "heard"].map((d) =>
+  // A lead's own receptionist's page's seven doors (decision 0079) have no user to verify: they are public under the
+  // proxy's /api/v1/previews/ prefix, the token is the authority, and each is the page's own door, which makes the
+  // same-origin check and takes a bucket per network (server/previews/public-route.ts). Named here, and held to that door.
+  const PREVIEW_DOORS = ["message", "opened", "not-right", "tell", "call", "listen", "heard"].map((d) =>
     path.join("app/api/v1/previews/[token]", d, "route.ts"),
   );
   for (const door of PREVIEW_DOORS)

@@ -3921,6 +3921,7 @@ Read with GET; takes no body.
 | --- | --- | --- | --- |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `listen` | boolean | no |  |
 
 ### `POST /api/admin/rehearsal/fix`
 

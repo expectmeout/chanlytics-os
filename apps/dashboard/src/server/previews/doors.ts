@@ -11,6 +11,9 @@ import "server-only";
  *   recordPreviewNotRightBy what the business said is not right, kept for the sender; the receptionist is never changed by it
  *   previewCall       a call in the browser to the preview's receptionist: the rehearsal's own (settings/rehearsal.ts,
  *                     the edge's call door), for the preview's workspace and no person, counted against its six minutes
+ *   previewListen     the same call, asked for as one nobody speaks on: the page joins it with no microphone, hears the
+ *                     greeting a caller hears and leaves; one at a time a preview (the preview_listen pace), its seconds
+ *                     counted against the same six minutes
  *   previewHeard      a call's words read back while it runs, and once it has ended what the business would get after a
  *                     real one: the rehearsal's own turns, and the write-up the edge reads from the provider
  *
@@ -228,11 +231,13 @@ interface PreviewCall {
   left_ms: number;
 }
 
-/** A call in the browser to the preview's receptionist, made at the provider, or why not in the page's words. */
-export async function previewCall(token: string): Promise<PreviewCall> {
-  const result = await openPreview(token, { calls: true });
+/** The call itself, for a preview open to be called: one a person speaks on, or (`listen`) one the page only hears. */
+async function startPreviewCall(
+  result: Awaited<ReturnType<typeof openPreview>>,
+  listen: boolean,
+): Promise<PreviewCall> {
   try {
-    const started = await startRehearsal(result.preview_tenant_id, null);
+    const started = await startRehearsal(result.preview_tenant_id, null, listen);
     return {
       rehearsal_id: started.rehearsal_id,
       call: started.call,
@@ -247,6 +252,23 @@ export async function previewCall(token: string): Promise<PreviewCall> {
     log.warn("preview_call_failed", { tenant_id: result.preview_tenant_id, error: e });
     throw causedBy(new AppError("upstream_retell", W.callFailed, 502), e);
   }
+}
+
+/** A call in the browser to the preview's receptionist, made at the provider, or why not in the page's words. */
+export async function previewCall(token: string): Promise<PreviewCall> {
+  return startPreviewCall(await openPreview(token, { calls: true }), false);
+}
+
+/**
+ * Their greeting, heard with no microphone (decision 0079): a call of the preview's own that the page only listens to,
+ * made as any of its calls is and left by the page once the greeting is said. One at a time a preview, from wherever it
+ * is asked; a refusal (its minutes used, a call running, the provider away) is the page's to answer with the voice's
+ * sample instead, so it is told in the call's own words and shown to nobody.
+ */
+export async function previewListen(token: string): Promise<PreviewCall> {
+  const result = await openPreview(token, { calls: true });
+  await takeRate(`preview:${result.id}`, "preview_listen", undefined, true);
+  return startPreviewCall(result, true);
 }
 
 /** The edge is asked for a write-up briefly: the page asks again in seconds. */
