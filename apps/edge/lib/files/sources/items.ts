@@ -31,6 +31,7 @@ import {
   askToTakeAgain,
   insertSourceItems,
   keepSourceItemFacts,
+  markFilesSuperseded,
   moveSourceItems,
   patchSourceFolders,
   SOURCE_ITEM_AWAY,
@@ -147,6 +148,7 @@ function planTaken(plan: PagePlan, ref: SourceRef, row: SourceItemRow, item: Sou
   const taken = itemFactsOf(ref, item);
   if (item.kind !== "folder" && bytesChanged(row, item)) {
     plan.retakes.push(taken);
+    if (row.file_id) plan.superseded.push(row.file_id);
     return;
   }
   const { tenant_id, source_id, provider_id, kind, parent_id, name } = taken;
@@ -168,6 +170,8 @@ interface PagePlan {
   letGo: string[];
   /** Known items the taking holds whose bytes are no longer the ones taken: asked for again, with these facts. */
   retakes: SourceItemFacts[];
+  /** The Library files those two let go of: marked superseded first, so the seven-day cleanup reads them by it. */
+  superseded: string[];
   /** Folders that are new to the tree, or back in it: their contents are still to be listed. */
   folders: string[];
 }
@@ -180,7 +184,16 @@ export function planPage(
   wanted: boolean,
 ): PagePlan {
   const byId = new Map(known.map((row) => [row.provider_id, row]));
-  const plan: PagePlan = { inserts: [], facts: [], places: [], moves: [], letGo: [], retakes: [], folders: [] };
+  const plan: PagePlan = {
+    inserts: [],
+    facts: [],
+    places: [],
+    moves: [],
+    letGo: [],
+    retakes: [],
+    superseded: [],
+    folders: [],
+  };
   const moves = new Map<string, { standing: Standing; providerIds: string[] }>();
   for (const item of items) {
     const row = byId.get(item.id);
@@ -196,7 +209,10 @@ export function planPage(
     const seen = withKnownLength(row, item);
     const facts = itemFactsOf(ref, seen);
     if (!keepsFacts(row, facts)) plan.facts.push(facts);
-    if (row.file_id && bytesChanged(row, seen)) plan.letGo.push(item.id);
+    if (row.file_id && bytesChanged(row, seen)) {
+      plan.letGo.push(item.id);
+      plan.superseded.push(row.file_id);
+    }
     const moved = movedStateOf(row, seen, wanted);
     if (!moved) continue;
     const key = `${moved.state}:${moved.why ?? ""}`;
@@ -226,6 +242,8 @@ interface PageKept {
  *
  * A row lets go of a file whose bytes changed BEFORE its new facts are kept: stopped between the two, the next listing
  * still sees the change. Written the other way round it would see none, and the old file would be called the item's.
+ * And the file is marked superseded before either (00654): its mark is what the seven-day cleanup reads it by, never
+ * that no origin is left.
  */
 export async function keepPage(db: Db, ref: SourceRef, plan: PagePlan, room: number): Promise<PageKept> {
   const inserts = plan.inserts.slice(0, Math.max(0, room));
@@ -234,6 +252,7 @@ export async function keepPage(db: Db, ref: SourceRef, plan: PagePlan, room: num
     db,
     inserts.map((row) => ({ ...row, first_seen_at: seenAt })),
   );
+  await markFilesSuperseded(db, ref.tenantId, plan.superseded);
   await moveSourceItems(db, ref, { providerIds: plan.letGo, from: LISTING_STATES, patch: { file_id: null } });
   await keepSourceItemFacts(db, plan.facts);
   await keepSourceItemFacts(db, plan.places);

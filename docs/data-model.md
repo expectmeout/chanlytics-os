@@ -56,7 +56,7 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/reports/screened.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
@@ -1441,7 +1441,7 @@ Foreign keys:
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1481,6 +1481,12 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `sound` | jsonb | yes |  | What was heard of a video (contracts files/sound.ts FileSound): its words, the note on how it sounds, or that it has none, each part naming the model that heard it. Written only by file_sound_keep. |
 | `sound_said` | text | yes |  | A video's sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep. |
 | `picture_print` | text | yes |  | What the picture looks like (00630): a 128-bit difference hash, 32 hex characters; a video's is its poster's. Twins are within 24 bits. Null until printed. |
+| `copy_state` | text | no | `'here'::text` | Where a video's copy at the video platform stands (00654, the footage sources plan's Availability): here; going, being let go; away, let go, and its folder can give it back; returning, being brought back; lost, its folder cannot give it back. Only a watched folder's clip is ever anything but here. |
+| `copy_why` | text | yes |  | Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, folder, videos_off, busy, unreadable, changed, failed, stopped). One of a closed set (contracts FILE_COPY_WHYS). |
+| `copy_used_at` | timestamp with time zone | yes |  | When the copy at the video platform was last used: played, shown to AI, cut into a video (00654). What is let go first is what was used longest ago. |
+| `copy_returned_at` | timestamp with time zone | yes |  | When a return of the copy last spent the day's budget (00654 file_copy_return_begin): a workspace's returns of a day are counted from it. |
+| `owner_uploaded` | boolean | no | `false` | Its owner uploaded it too (00654): a watched folder's file that an upload met as its twin, written by the upload's door. It is theirs from then on, as any upload: its copy is never let go, and a folder's cleanup never removes it. |
+| `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
 
 Foreign keys:
 
@@ -4063,6 +4069,7 @@ What taking footage in cost the platform in a day (00643, the footage sources pl
 | `units` | bigint | no | `0` |  |
 | `reads` | integer | no | `0` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `returns` | integer | no | `0` |  |
 
 ### source_items
 
@@ -4100,6 +4107,7 @@ One item a provider holds under a watched folder, folders included, since they a
 | `take_after` | timestamp with time zone | yes |  | When a waiting item may next be taken (00643): the start of the next day where a day's budget bound, later where the videos or the Library are full. Null: now. |
 | `taken_at` | timestamp with time zone | yes |  | When its take last spent the day's budget (00643 source_take_spend): a workspace's takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried. |
 | `take_tries` | smallint | no | `0` | How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed. |
+| `held_seconds` | numeric | yes |  | The room in the videos its take holds (00654): written as the take is judged to fit, counted toward the minutes while the item is being taken and has no file yet, for ten minutes at most. Null: none held. |
 
 Foreign keys:
 

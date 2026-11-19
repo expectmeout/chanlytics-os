@@ -352,6 +352,16 @@ export interface JobContext {
     take: (job: ClaimedJob, deadline: number) => Promise<{ took: string } | { skipped: string }>;
   };
   /**
+   * A watched clip's copy brought back to the video platform (00654, the footage sources plan's Availability), as the
+   * edge holds the provider's grant, the platform's key and the relay's ticket key. INJECTED like the takes; a
+   * copy_return job in a runtime without it fails loudly. Answers `skipped` when there is nothing to bring back (the
+   * copy is here, lost, or its folder is not being read), and throws when a provider or the database gave no answer.
+   */
+  copies?: {
+    /** One copy asked of the video platform again, or left away with why. Nothing is asked after `deadline`. */
+    bringBack: (job: ClaimedJob, deadline: number) => Promise<{ returned: string } | { skipped: string }>;
+  };
+  /**
    * A post on its way to Instagram (00611, decision 0121), as the edge holds it: the business's token lives in the vault
    * there. INJECTED like the files; a post job in a runtime without it fails loudly. Each answers `skipped` when the post
    * is no longer where its job expects it (pulled, held, already up), and throws when a try is worth repeating.

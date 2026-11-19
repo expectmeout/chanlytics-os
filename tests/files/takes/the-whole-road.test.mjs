@@ -16,6 +16,7 @@ import { resetBreakers } from "@chanlytics/channels/shared";
 import { at } from "../../_cron-doors-world.mjs";
 import { driveRefusal } from "../sources/_fake-drive.mjs";
 import { CONNECTION, ROOT, SOURCE, firstWalk, runJobs, schedule, setEnv, world } from "../sources/_world.mjs";
+import { copyDoors } from "../copies/_doors.mjs";
 import { takeDoors } from "./_doors.mjs";
 
 const TICKET_KEY = "ticket-key-for-this-file";
@@ -66,7 +67,7 @@ function road() {
   };
   w = world({
     tables: { files: [], files_let_go: [], source_days: [], events: [] },
-    rpcs: (tables) => takeDoors(tables, takes),
+    rpcs: (tables) => ({ ...takeDoors(tables, takes), ...copyDoors(tables, takes) }),
   });
   const stored = [];
   w.db.storage = {

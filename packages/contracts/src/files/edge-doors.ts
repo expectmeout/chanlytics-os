@@ -39,6 +39,11 @@ export const FILE_COPIES_DOOR = edgeDoor(
      * post is drawn from, where a moment above is only shown to a model for a turn.
      */
     frames: z.array(z.object({ key: z.string(), id: DOOR_ID, at: z.number() })).optional(),
+    /**
+     * Videos whose copies are asked back to the video platform now (the footage sources plan, "Warming"): the clips a
+     * video AI proposes names, so each is there by the time its owner presses Make it.
+     */
+    warm: z.array(DOOR_ID).optional(),
   }),
   answerFields({ copies: z.array(z.unknown()) }),
 );
@@ -81,11 +86,15 @@ export const FILE_BRING_IN_DOOR = edgeDoor(
   }),
 );
 
-/** POST /api/admin/files/play: the player's address for one video, under a token for an hour. */
+/**
+ * POST /api/admin/files/play: the player's address for one video, under a token for an hour. A watched folder's clip
+ * whose copy was let go answers no address: `copy` says where its copy stands (returning, away or lost: contracts
+ * FILE_COPY_STATES) and `why` the reason, one of FILE_COPY_WHYS. This press is what asks for it again.
+ */
 export const FILE_PLAY_DOOR = edgeDoor(
   "/api/admin/files/play",
   z.object({ tenant_id: DOOR_ID.optional(), id: DOOR_ID }),
-  answerFields({ player_url: z.string(), expires_at: z.string() }),
+  answerFields({ player_url: z.string(), expires_at: z.string(), copy: z.string(), why: z.string() }),
 );
 
 /** POST /api/admin/files/listen: Ask's question about a stretch of a video, put to the ear. */

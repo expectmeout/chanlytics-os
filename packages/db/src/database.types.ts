@@ -3061,6 +3061,10 @@ export type Database = {
         Row: {
           bytes: number
           claude_copy: Json | null
+          copy_returned_at: string | null
+          copy_state: string
+          copy_used_at: string | null
+          copy_why: string | null
           created_at: string
           created_by: string | null
           fingerprint: string
@@ -3079,6 +3083,7 @@ export type Database = {
           name: string
           owner_named: boolean
           owner_shelved: boolean
+          owner_uploaded: boolean
           picture_print: string | null
           ready_at: string | null
           removed_at: string | null
@@ -3089,6 +3094,7 @@ export type Database = {
           source: string
           source_ref: string | null
           status: string
+          superseded_at: string | null
           tenant_id: string
           updated_at: string
           who_in_it: string
@@ -3097,6 +3103,10 @@ export type Database = {
         Insert: {
           bytes: number
           claude_copy?: Json | null
+          copy_returned_at?: string | null
+          copy_state?: string
+          copy_used_at?: string | null
+          copy_why?: string | null
           created_at?: string
           created_by?: string | null
           fingerprint: string
@@ -3115,6 +3125,7 @@ export type Database = {
           name: string
           owner_named?: boolean
           owner_shelved?: boolean
+          owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
@@ -3125,6 +3136,7 @@ export type Database = {
           source: string
           source_ref?: string | null
           status: string
+          superseded_at?: string | null
           tenant_id: string
           updated_at?: string
           who_in_it?: string
@@ -3133,6 +3145,10 @@ export type Database = {
         Update: {
           bytes?: number
           claude_copy?: Json | null
+          copy_returned_at?: string | null
+          copy_state?: string
+          copy_used_at?: string | null
+          copy_why?: string | null
           created_at?: string
           created_by?: string | null
           fingerprint?: string
@@ -3151,6 +3167,7 @@ export type Database = {
           name?: string
           owner_named?: boolean
           owner_shelved?: boolean
+          owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
@@ -3161,6 +3178,7 @@ export type Database = {
           source?: string
           source_ref?: string | null
           status?: string
+          superseded_at?: string | null
           tenant_id?: string
           updated_at?: string
           who_in_it?: string
@@ -8192,6 +8210,7 @@ export type Database = {
           bytes: number
           day: string
           reads: number
+          returns: number
           takes: number
           units: number
           updated_at: string
@@ -8200,6 +8219,7 @@ export type Database = {
           bytes?: number
           day: string
           reads?: number
+          returns?: number
           takes?: number
           units?: number
           updated_at?: string
@@ -8208,6 +8228,7 @@ export type Database = {
           bytes?: number
           day?: string
           reads?: number
+          returns?: number
           takes?: number
           units?: number
           updated_at?: string
@@ -8222,6 +8243,7 @@ export type Database = {
           file_id: string | null
           first_seen_at: string
           gone_at: string | null
+          held_seconds: number | null
           id: string
           kind: string
           length_until: string | null
@@ -8250,6 +8272,7 @@ export type Database = {
           file_id?: string | null
           first_seen_at?: string
           gone_at?: string | null
+          held_seconds?: number | null
           id?: string
           kind: string
           length_until?: string | null
@@ -8278,6 +8301,7 @@ export type Database = {
           file_id?: string | null
           first_seen_at?: string
           gone_at?: string | null
+          held_seconds?: number | null
           id?: string
           kind?: string
           length_until?: string | null
@@ -9656,6 +9680,61 @@ export type Database = {
         }
         Returns: undefined
       }
+      file_copies_free_at: {
+        Args: { p_rest_seconds: number; p_tenant_id: string }
+        Returns: string
+      }
+      file_copies_let_go: {
+        Args: {
+          p_limit: number
+          p_rested_before: string
+          p_seconds: number
+          p_tenant_id: string
+          p_unused_before: string
+        }
+        Returns: Json
+      }
+      file_copy_gone: {
+        Args: { p_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      file_copy_origin: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: string
+      }
+      file_copy_return_begin: {
+        Args: {
+          p_id: string
+          p_platform_bytes_max: number
+          p_stale_seconds: number
+          p_tenant_id: string
+          p_units: number
+          p_units_max: number
+          p_workspace_returns_max: number
+        }
+        Returns: Json
+      }
+      file_copy_return_failed: {
+        Args: {
+          p_id: string
+          p_media_ref: string
+          p_tenant_id: string
+          p_why: string
+        }
+        Returns: boolean
+      }
+      file_copy_returning: {
+        Args: { p_id: string; p_media_ref: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      file_copy_settle: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      file_copy_standing: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: string
+      }
       file_found: {
         Args: {
           p_actor?: string
@@ -9749,6 +9828,7 @@ export type Database = {
         Returns: undefined
       }
       file_road_is_owners: { Args: { p_source: string }; Returns: boolean }
+      file_road_is_watched: { Args: { p_source: string }; Returns: boolean }
       file_search_words: {
         Args: {
           p_look: Json
@@ -9846,6 +9926,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      file_was_used: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       files_are_full: { Args: { p_tenant_id: string }; Returns: boolean }
       files_found: {
@@ -13055,6 +13139,10 @@ export type Database = {
         }
         Returns: string
       }
+      source_items_grace_end: {
+        Args: { p_grace_seconds: number; p_limit: number }
+        Returns: Json
+      }
       source_take_spend: {
         Args: {
           p_bytes: number
@@ -13316,6 +13404,8 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      video_seconds_free: { Args: { p_tenant_id: string }; Returns: number }
+      video_seconds_held: { Args: { p_tenant_id: string }; Returns: number }
       video_seconds_toward_cap: {
         Args: { p_tenant_id: string }
         Returns: number

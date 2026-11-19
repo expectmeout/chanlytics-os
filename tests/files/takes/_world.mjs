@@ -12,6 +12,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { fakeDb } from "../../_fake-db.mjs";
 import { at } from "../../_cron-doors-world.mjs";
+import { copyDoors } from "../copies/_doors.mjs";
 import { takeDoors } from "./_doors.mjs";
 
 export const TICKET_KEY = "ticket-key-for-this-file";
@@ -127,7 +128,8 @@ export function world({
     handOuts: [],
     unitWrites: [],
   };
-  const db = fakeDb(tables, {}, takeDoors(tables, w));
+  // 00654's doors beside 00643's: a take that meets full videos asks which copies may be let go for it.
+  const db = fakeDb(tables, {}, { ...takeDoors(tables, w), ...copyDoors(tables, w) });
   const bucket = { uploaded: [], removed: [] };
   db.storage = {
     from: () => ({
@@ -206,6 +208,16 @@ export function theWeb({ drive = {}, refuseCopy = null, driveSays = null, busyCo
     if (url.startsWith(`${STREAM_API}/`)) {
       const copy = copies.find((c) => url === `${STREAM_API}/${c.uid}`);
       if (copy && (init.method ?? "GET") === "DELETE") copy.deleted = true;
+      // Asked after by the sweep: one a case gave a state answers as the platform would; one it deleted is not there.
+      if (copy?.deleted && (init.method ?? "GET") === "GET")
+        return new Response(JSON.stringify({ success: false }), { status: 404 });
+      if (copy?.state && (init.method ?? "GET") === "GET") {
+        const result = { uid: copy.uid, readyToStream: copy.state === "ready", status: { state: copy.state } };
+        return new Response(JSON.stringify({ success: true, result }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
       return new Response(JSON.stringify({ success: true }), { status: 200 });
     }
     throw new Error(`nothing answers ${url}`);
@@ -264,6 +276,9 @@ export function theSync({ drive = {}, closed = null, silent = false, recordThrow
   };
   return opened;
 }
+
+/** The case's sync, for a world that runs another job through it (tests/files/copies). */
+export const theSyncNow = () => sync;
 
 /** One job run by the real handler, through the case's sync. */
 export const takeJob = (w, job) => sourceTaker(w.db, sync).take(job, Date.now() + 30_000);

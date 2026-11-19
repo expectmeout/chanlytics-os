@@ -42,6 +42,8 @@ import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import { env } from "../shared/env.js";
 import { errField, logger } from "../shared/log.js";
+import { ensureCopyOf } from "./copy/ensure.js";
+import { keepCopiesMoving } from "./copy/sweep.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
 import { makePiece, tellPieceMoved } from "./piece-make.js";
@@ -82,11 +84,14 @@ async function purgeFile(db: Db, job: ClaimedJob): Promise<void> {
     }
   }
   if (row && !row.removed_at) return;
-  if (row?.kind === "video" && row.media_ref) {
+  // Through the copy's door: whatever copy the row still holds at the video platform goes, wherever it stood (here,
+  // on its way out or back). One that was let go holds none, and nothing is asked of the platform for it.
+  const held = row?.kind === "video" ? await ensureCopyOf(db, row, "upkeep") : null;
+  if (held?.mediaRef) {
     // Stream first: the minutes are freed at once, and a video it no longer has (a 404) is gone already.
     const account = streamAccount();
     if (!account) throw new Error("file_purge: no Stream key to let the video go");
-    if (!(await deleteStreamVideo(account, row.media_ref))) throw new Error("file_purge: Stream kept the video");
+    if (!(await deleteStreamVideo(account, held.mediaRef))) throw new Error("file_purge: Stream kept the video");
   }
   const folder = fileFolderOf(job.tenant_id, fileId);
   const listed = await filesBucket(db).list(folder);
@@ -130,12 +135,14 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
     await tellPieceMoved(db, fate);
   };
   for (const video of waiting) {
-    if (!account || !video.media_ref) continue;
-    const read = await readStreamVideo(account, video.media_ref);
+    // Through the copy's door, as every reader of a video's copy: the id is its answer's.
+    const mediaRef = (await ensureCopyOf(db, video, "upkeep")).mediaRef;
+    if (!account || !mediaRef) continue;
+    const read = await readStreamVideo(account, mediaRef);
     if (read.ok && read.video.ready)
       await heard(
         await markFileMediaReady(db, {
-          mediaRef: video.media_ref,
+          mediaRef,
           seconds: read.video.seconds,
           width: read.video.width,
           height: read.video.height,
@@ -143,10 +150,10 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
         read.video.seconds,
       );
     else if (read.ok && read.video.state === "error")
-      await heard(await markFileMediaFailed(db, video.media_ref, read.video.errorCode));
+      await heard(await markFileMediaFailed(db, mediaRef, read.video.errorCode));
     // A video Stream no longer has, though it was sent: deleted there by hand, or lapsed. Its owner deletes the row.
     else if (!read.ok && read.gone && video.media_status === "processing")
-      await heard(await markFileMediaFailed(db, video.media_ref, "ERR_NOT_AT_STREAM"));
+      await heard(await markFileMediaFailed(db, mediaRef, "ERR_NOT_AT_STREAM"));
   }
   const stopped = await listVideosToDigestAgain(db, {
     triedBefore: new Date(nowMs - DAY_MS).toISOString(),
@@ -230,6 +237,10 @@ export async function keepFilesMoving(
       return { asked: 0, digests: 0 };
     });
     await keepPostsHonest(db, nowMs).catch((e: unknown) => log.error("files_sweep_failed", { error: errField(e) }));
+    // Copies on their way out or back that nothing finished, and what left a watched folder seven days ago (00654).
+    await keepCopiesMoving(db, nowMs).catch((e: unknown) =>
+      log.error("files_sweep_failed", { part: "copies", error: errField(e) }),
+    );
     return { looks: looks.length, purges: purges.length, videos: videos.asked + videos.digests };
   } catch (e) {
     log.error("files_sweep_failed", { error: errField(e) });

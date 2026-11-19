@@ -8,9 +8,11 @@
  *   200 { access_token, file_id }
  *
  * What it holds to: the knock carries the app's key, which only the relay has; the ticket is one the app signed and
- * has not ended; and the item it names is a clip being taken right now. A ticket for an item that is in, failed, gone
- * or anyone's photo opens nothing, however long it still has to run. The key comes from the sync's own reader, so the
- * refresh token never leaves Vault, and the key is written to no log and no address: only this answer's body.
+ * has not ended; and the item it names is a clip being fetched right now: one being taken, or the origin of a copy
+ * being brought back (00654), under the same ticket rule. A ticket for an item that is in with its copy at rest,
+ * failed, gone or anyone's photo opens nothing, however long it still has to run. The key comes from the sync's own
+ * reader, so the refresh token never leaves Vault, and the key is written to no log and no address: only this
+ * answer's body.
  *
  * The door is told what is asked (the method), so Google's units are counted here, where the relay spends them.
  * The relay reads a 403 or 404 as "refused", passes a 503 on to the video platform, which asks again, and anything
@@ -19,7 +21,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { RELAY_KEY_ASK, readRelayTicket, type RelayKeyAsk } from "@chanlytics/channels/files";
 import { isUuid } from "@chanlytics/contracts";
-import { findSourceItemAnywhere } from "@chanlytics/db/files";
+import { findSourceItemAnywhere, isCopyReturning, type SourceTakeItem } from "@chanlytics/db/files";
 import { env } from "../../shared/env.js";
 import { json, refuse } from "../../shared/http.js";
 import { errField, logger } from "../../shared/log.js";
@@ -51,6 +53,16 @@ async function keyAskOf(request: Request): Promise<RelayKeyAsk | null> {
   }
 }
 
+/**
+ * Whether the video platform may be fetching this item's bytes right now: its take is under way, or it is the origin
+ * of a Library file whose copy is being brought back.
+ */
+async function isBeingFetched(db: NonNullable<ReturnType<typeof pg>>, item: SourceTakeItem): Promise<boolean> {
+  if (item.kind !== "video") return false;
+  if (item.state === "taking") return true;
+  return item.file_id !== null && (await isCopyReturning(db, item.tenant_id, item.file_id));
+}
+
 export async function answerKeyDoor(request: Request, sync: TakeSync = takeSync): Promise<Response> {
   const secret = env.FOOTAGE_KEY_DOOR_SECRET;
   const ticketKey = env.FOOTAGE_TICKET_KEY;
@@ -68,8 +80,8 @@ export async function answerKeyDoor(request: Request, sync: TakeSync = takeSync)
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const item = isUuid(ticket.item) ? await findSourceItemAnywhere(db, ticket.item) : null;
-  // Only a clip being taken right now: one that is in, failed or gone opens nothing, whatever its ticket still says.
-  if (!item || item.kind !== "video" || item.state !== "taking") {
+  // Only a clip being fetched right now: one at rest, failed or gone opens nothing, whatever its ticket still says.
+  if (!item || !(await isBeingFetched(db, item))) {
     logger({ door: "source-key", ...(item ? { tenant_id: item.tenant_id } : {}) }).warn("source_key", {
       item: ticket.item,
       why: item ? `the item is ${item.state}` : "no such item",

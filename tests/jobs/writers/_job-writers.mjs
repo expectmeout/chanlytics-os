@@ -33,6 +33,10 @@ export const JOB_WRITERS = {
     why: "the cursor moves only after the page, so the sync reads the email back; the key holds it to one",
   },
   "apps/edge/lib/email/resend-event.ts|email_ingest": { provider: "answers 503, and the provider delivers it again" },
+  "apps/edge/lib/files/copy/ensure.ts|copy_return": {
+    person:
+      "whoever asked for the copy asks again: a file whose return was never written still says its copy is away, the door answers the next ask the same way, and that ask writes the job",
+  },
   "apps/edge/lib/files/found.ts|file_fetch": { ledger: "the website read or import that found them runs again" },
   "apps/edge/lib/files/piece-make.ts|piece_make": {
     ledger: "the step that would have written the next runs again: a start finds its machine kept and starts no second",

@@ -52,6 +52,7 @@ import { findFileForWork, filesBucket, keepFileSound, keepVideoSeconds, type Fil
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
+import { ensureCopyOf } from "./copy/ensure.js";
 import { hearNote, transcribe, type HeardFor } from "./hearing.js";
 import { findClaudeCopy } from "./look.js";
 import { keepPrint, downloadMade } from "./prints.js";
@@ -178,16 +179,16 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
   const keys = streamKeys();
   if (!keys) throw new Error("video_digest: Stream is not configured here");
   // A clip with no sound track is said so by its playback list: Stream answers its audio download with a 500, never with none.
-  const listToken = streamTokenOf(keys.signing, { uid: digest.row.media_ref ?? "", seconds: AUDIO_TOKEN_S });
+  const listToken = streamTokenOf(keys.signing, { uid: digest.video.mediaRef, seconds: AUDIO_TOKEN_S });
   if ((await readStreamSoundTrack(keys.signing.customerCode, listToken)) === false) {
     logger({ tenant_id: digest.row.tenant_id }).info("video_no_sound", { file: digest.row.id });
     await keepSound(digest, sound, { none: true }, null);
     return "look";
   }
-  let state = await askStreamAudio(keys.account, digest.row.media_ref ?? "");
+  let state = await askStreamAudio(keys.account, digest.video.mediaRef);
   while (state.status === "inprogress" && msLeft(digest) > AUDIO_POLL_MS) {
     await new Promise((resolve) => setTimeout(resolve, AUDIO_POLL_MS));
-    state = await readStreamAudio(keys.account, digest.row.media_ref ?? "");
+    state = await readStreamAudio(keys.account, digest.video.mediaRef);
   }
   if (state.status === "none") {
     logger({ tenant_id: digest.row.tenant_id }).info("video_no_sound", { file: digest.row.id });
@@ -198,7 +199,7 @@ async function audioStep(digest: Digest, sound: FileSound): Promise<VideoDigestS
   if (state.status !== "ready")
     throw new Error(`video_digest: the sound is not ready yet${state.status === "failed" ? ` (${state.error})` : ""}`);
   const token = streamTokenOf(keys.signing, {
-    uid: digest.row.media_ref ?? "",
+    uid: digest.video.mediaRef,
     seconds: AUDIO_TOKEN_S,
     downloadable: true,
   });
@@ -221,7 +222,7 @@ async function putCaptions(d: Digest, words: SoundWords): Promise<void> {
   const vtt = vttOf(words);
   const keys = streamKeys();
   if (!vtt || !keys || "none" in words) return;
-  const put = await putStreamCaptions(keys.account, d.row.media_ref ?? "", { language: words.language ?? "en", vtt });
+  const put = await putStreamCaptions(keys.account, d.video.mediaRef, { language: words.language ?? "en", vtt });
   if (!put) logger({ tenant_id: d.row.tenant_id }).warn("video_captions_failed", { file: d.row.id });
 }
 
@@ -312,11 +313,15 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
   }
   const row = await findFileForWork(db, job.tenant_id, fileId);
   // A removed or never-ready video has nothing to make ready: the job is done.
-  if (!row || row.removed_at || row.kind !== "video" || row.media_status !== "ready" || !row.media_ref) return;
+  if (!row || row.removed_at || row.kind !== "video" || row.media_status !== "ready") return;
+  // Through the copy's door: a digest is made from the copy at the video platform, and a late step of one whose copy
+  // was let go has nothing to read. It never brings a copy back: what it made the first time is in the file's folder.
+  const held = await ensureCopyOf(db, row, "digest");
+  if (held.copy !== "here") return;
   if (!(Number(row.seconds) > 0)) {
     // Stream's length is what the sheet is planned by: asked again where the webhook did not say it.
     const keys = streamKeys();
-    const read = keys ? await readStreamVideo(keys.account, row.media_ref) : null;
+    const read = keys ? await readStreamVideo(keys.account, held.mediaRef) : null;
     if (!read?.ok || !read.video.seconds) throw new Error("video_digest: the video's length is not known yet");
     row.seconds = read.video.seconds;
     // Kept on the row: known to this run alone, the page said no length and Ask's every closer look was refused as past the clip's end.
@@ -325,7 +330,7 @@ export async function digestVideo(db: Db, job: ClaimedJob, deadline: number): Pr
   const digest: Digest = {
     db,
     row,
-    video: { mediaRef: row.media_ref, width: row.width, height: row.height },
+    video: { mediaRef: held.mediaRef, width: row.width, height: row.height },
     deadline,
   };
   const sound = fileSoundOf(row.sound);

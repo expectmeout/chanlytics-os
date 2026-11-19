@@ -39,6 +39,7 @@ import type {
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
+import type { FILE_COPY_STATES, FILE_COPY_WHYS } from "../files/copy";
 import type { FILE_KINDS, FILE_MEDIA_STATUSES } from "../files/kinds";
 import type {
   FILE_LOOK_STATUSES,
@@ -171,6 +172,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof FILE_SOURCES>, SchemaSet<"files.source">>>,
   Holds<Exactly<Of<typeof FILE_STATUSES>, SchemaSet<"files.status">>>,
   Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
+  // Where a watched clip's copy at the video platform stands, and why (00654).
+  Holds<Exactly<Of<typeof FILE_COPY_STATES>, SchemaSet<"files.copy_state">>>,
+  Holds<Exactly<Of<typeof FILE_COPY_WHYS>, SchemaSet<"files.copy_why">>>,
 
   // A post on its way to a place (00611, decision 0121).
   // Where a post can be: the places a press sends it (POST_PLACES), and `hand`, one its owner put up themselves (00620).
