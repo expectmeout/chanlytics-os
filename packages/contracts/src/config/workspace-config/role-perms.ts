@@ -32,6 +32,7 @@ export const ROLE_PERMS: Record<
     export: boolean;
     find: boolean;
     add_files: boolean;
+    ads: boolean;
   }
 > = {
   // `settings` is the business details and who is alerted: PUT /settings is
@@ -53,6 +54,11 @@ export const ROLE_PERMS: Record<
   // team films the work on their own phones, so an operator adds too (Ruben,
   // 10 Nov 2026). Naming, shelving, filing and deleting a file stay `settings`:
   // who is in a picture is the owner's word.
+  // `ads` is spending on the owner's own ad account: connecting it, turning an
+  // ad on, pausing one, changing what it may spend (decision 0050, call 2). It
+  // is the owner's alone, a partner's never: the platform bills the owner.
+  // Nothing checks it until an ad account can be connected; has_permission()
+  // says the same from 00645, and lead-engine.db.test.mjs holds the two.
   owner: {
     approve: true,
     autonomy: true,
@@ -63,6 +69,7 @@ export const ROLE_PERMS: Record<
     export: true,
     find: true,
     add_files: true,
+    ads: true,
   },
   operator: {
     approve: true,
@@ -74,6 +81,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: false,
     add_files: true,
+    ads: false,
   },
   partner: {
     approve: true,
@@ -85,6 +93,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: true,
     add_files: true,
+    ads: false,
   },
   viewer: {
     approve: false,
@@ -96,6 +105,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: false,
     add_files: false,
+    ads: false,
   },
 };
 
