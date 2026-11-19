@@ -1,7 +1,8 @@
 # 0049 · Ads are records, and a person is counted once
 
-**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Step P0a is built
-(18 November 2026, migration 00644: an ad tap keeps what the ad said); the other steps are not. Four
+**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Steps P0a and P0b are built
+(18 November 2026: migration 00644, an ad tap keeps what the ad said; migration 00645, the `ads` permission, with the
+shared rules, the one Meta client and the one sign-in state helper); the other steps are not. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
@@ -9,7 +10,8 @@ Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 
 main when this was written (#1564 built both, 12 October 2026); each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
 paths below were read at it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 Amended on 18 November 2026 by "No click id yet, and totals counted whole" (below): calls 6 and 11, the shape of
-`ad_entries`, step P0a and one risk. Step P0a is written as it was built: "As built, 18 November 2026" (below) says
+`ad_entries`, step P0a and one risk. Steps P0a and P0b are written as they were built: the two "As built, 18 November
+2026" sections (below) say
 where that differs from what was first drawn.
 
 ## Context
@@ -274,3 +276,48 @@ where the code and the note would otherwise disagree.
   `media_type` and `source_url`. One from a click-to-Instagram ad carries `ads_context_data` with `ad_title` and a
   `photo_url` or a `video_url`, and no words and no link. Production held no message with an ad's referral on
   18 November 2026, so neither has been seen on a real delivery yet.
+
+## As built, 18 November 2026 · The shared rules, the permission and the one Meta client
+
+Step P0b was built on 18 November 2026 (`supabase/migrations/00645_an_owner_may_run_ads.sql`). Nothing a customer sees
+changes with it, and nothing checks the permission yet. Where it is not as this note first drew it, it is said here.
+
+- **The permission.** `ads` is the owner's alone in `ROLE_PERMS` and in SQL's `has_permission`, in one change. The
+  database test that holds the two equal (`tests/leads/engine/lead-engine.db.test.mjs`) needed no edit: it reads every
+  permission from `ROLE_PERMS`.
+- **Money.** `minorPerUnit(currency)` in `packages/contracts/src/ads/money.ts` reads how many minor units a currency
+  holds from the runtime's own currency table (a hundred to the dollar, one to the yen, a thousand to the dinar). The
+  constant that read every currency as a hundred is gone. An amount is said exact; only the cost for each person, an
+  average nobody approved, is rounded. Nothing stores an exponent: it is read from the code. The Shape's "currency and
+  its exponent" on `ad_accounts` therefore needs no column unless a platform's exponent ever differs from ISO 4217's.
+- **The badge.** `adStateOf` reads three words kept side by side, with the two facts that end a run (its last day, its
+  total): where Chanlytics is with making the ad (`draft`, `sending`, `failed`, `made`), what the owner asked (`on`,
+  `paused`, `ended`), and the platform's own word, kept as the platform gave it. In order: what Chanlytics is still
+  doing; a run that is over; what the platform will not run until the owner acts; then the platform's word against what
+  was asked. Every word Meta's reference lists for an ad (`effective_status`, twelve of them, read on Meta's page on
+  18 November 2026) is read, and a type test holds the list. A word Chanlytics does not know, and no word yet, are In
+  review, never On. Google's and TikTok's words join with the steps that read their ads. `draft` is in the rule's
+  answer and joins the page's own set with the step that draws drafts (0050, P2).
+- **Two readings that are not states.** The plan's "Couldn't confirm it's on" (its C7) and "Left in Meta" arrive with
+  the steps that can know them. Neither is in `adStateOf` yet.
+- **An ad account's badge.** `adAccountStateOf` reads the account's `status` and when its token runs out: not connected,
+  to be chosen, connected, or needing to be connected again (access taken back, or a token run out).
+- **Booked.** `bookedAfterTouch(touchAt, visits)` is in `packages/contracts/src/ads/`, and reads each visit's start and
+  its status in the record.
+- **The cost rule lives with Reports.** `adCostRule` is in `packages/contracts/src/reports/ad-cost.ts`, beside
+  `REPORT_MIN_N`, which it keeps. Reports leans on Ads (the lens's address), and a rule in `ads/` that read Reports'
+  minimum would have joined the two in a circle (decision 0110). Every reader takes it from the package's root, as
+  before. The Ads page's totals carry its answer, so the page has no cost rule of its own.
+- **Not moved in this step.** This note drew "the platform rules, the words" and "the record kinds declared once" in
+  `packages/contracts/src/ads/`. The page's models, rules and words have lived in the dashboard's own tree since they
+  were found to have one reader. They return as the server's reader becomes the second (step P1), and the record
+  kinds are declared with the tables that hold them.
+- **`providerFetch` did not learn `tiktok`.** It learns a provider with the step that first calls it.
+- **The one Meta client.** `packages/channels/src/meta/` (`@chanlytics/channels/meta`): the dialog, the code traded for
+  a business's token, what the token may do, whose it is, the proof every call carries, and the one reader of Graph's
+  error. Instagram's module keeps Instagram's own part and reads the rest from it. One wording differs: an error from
+  Meta that comes with no words of its own is said as "Meta refused the request" by the client's three parsers, where
+  it was "Instagram refused the request".
+- **The one sign-in state helper.** `packages/channels/src/tokens/sign-in-state.ts`, moved word for word out of
+  Google's module, so a state signed before a deploy proves itself after it. `signStateFor` and `verifyStateFor`
+  are what Instagram's and Meta's connects share, and what an ad account's connect will use.

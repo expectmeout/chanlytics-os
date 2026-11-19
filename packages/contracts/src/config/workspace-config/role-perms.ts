@@ -32,6 +32,7 @@ export const ROLE_PERMS: Record<
     export: boolean;
     find: boolean;
     add_files: boolean;
+    ads: boolean;
   }
 > = {
   // `settings` is the business details and who is alerted: PUT /settings is
@@ -53,6 +54,11 @@ export const ROLE_PERMS: Record<
   // team films the work on their own phones, so an operator adds too (Ruben,
   // 10 Nov 2026). Naming, shelving, filing and deleting a file stay `settings`:
   // who is in a picture is the owner's word.
+  // `ads` is spending on the owner's own ad account: connecting it, turning an
+  // ad on, pausing one, changing what it may spend (decision 0050, call 2). It
+  // is the owner's alone, a partner's never: the platform bills the owner.
+  // Nothing checks it until an ad account can be connected; has_permission()
+  // says the same from 00645, and lead-engine.db.test.mjs holds the two.
   owner: {
     approve: true,
     autonomy: true,
@@ -63,6 +69,7 @@ export const ROLE_PERMS: Record<
     export: true,
     find: true,
     add_files: true,
+    ads: true,
   },
   operator: {
     approve: true,
@@ -74,6 +81,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: false,
     add_files: true,
+    ads: false,
   },
   partner: {
     approve: true,
@@ -85,6 +93,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: true,
     add_files: true,
+    ads: false,
   },
   viewer: {
     approve: false,
@@ -96,6 +105,7 @@ export const ROLE_PERMS: Record<
     export: false,
     find: false,
     add_files: false,
+    ads: false,
   },
 };
 
@@ -155,8 +165,17 @@ export interface RoleTableRow {
   can: Record<Role, boolean>;
 }
 
-/** The permissions in the order the table says them, each in the product's words. */
-const ROLE_TABLE_LINES: readonly { perm: keyof (typeof ROLE_PERMS)[Role] | null; says: string; note?: string }[] = [
+/**
+ * The permissions in the order the table says them, each in the product's words. A line may belong to a part of the
+ * product (`part`): it is drawn only in a workspace that has that part, so no table names something its owner cannot
+ * open.
+ */
+const ROLE_TABLE_LINES: readonly {
+  perm: keyof (typeof ROLE_PERMS)[Role] | null;
+  says: string;
+  note?: string;
+  part?: "ads";
+}[] = [
   { perm: null, says: "See conversations, people and reports" },
   { perm: "approve", says: "Approve and send replies" },
   { perm: "autonomy", says: "Tune autonomy" },
@@ -165,16 +184,18 @@ const ROLE_TABLE_LINES: readonly { perm: keyof (typeof ROLE_PERMS)[Role] | null;
   { perm: "disconnect", says: "Connect and disconnect channels" },
   { perm: "find", says: "Find leads", note: "uses the month's allowance" },
   { perm: "export", says: "Export the customer list" },
+  { perm: "ads", says: "Run ads", part: "ads" },
   { perm: "billing", says: "Billing" },
   { perm: "team", says: "The team and its roles" },
 ];
 
 /**
  * The roles compared, a line a permission: Team's "Compare", drawn from ROLE_PERMS itself, so the table cannot say a
- * role may do what the gates refuse it. Seeing is every role's (a viewer "sees everything").
+ * role may do what the gates refuse it. Seeing is every role's (a viewer "sees everything"). `has` says which parts of
+ * the product the workspace has: where Ads is not open to it, the line for running ads is left out.
  */
-export function roleTable(): RoleTableRow[] {
-  return ROLE_TABLE_LINES.map((line) => ({
+export function roleTable(has: { ads: boolean }): RoleTableRow[] {
+  return ROLE_TABLE_LINES.filter((line) => line.part !== "ads" || has.ads).map((line) => ({
     says: line.says,
     note: line.note ?? null,
     can: Object.fromEntries(ROLES.map((r) => [r, line.perm === null ? true : ROLE_PERMS[r][line.perm]])) as Record<

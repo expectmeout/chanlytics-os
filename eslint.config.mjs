@@ -423,6 +423,7 @@ export const LIMITED_TREES = [
   "packages/channels/src/inbound",
   "packages/channels/src/instagram",
   "packages/channels/src/leads",
+  "packages/channels/src/meta",
   "packages/channels/src/shared",
   "packages/channels/src/tokens",
   "packages/channels/src/voice",

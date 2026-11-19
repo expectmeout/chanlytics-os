@@ -13,12 +13,14 @@
  */
 import { useState, type ReactNode } from "react";
 import { ROLES, roleSays, roleTable } from "@chanlytics/contracts";
+import { useAdsShown } from "../../campaigns/ads/shown";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 
-/** The roles compared: a line a permission, a column a role. */
+/** The roles compared: a line a permission, a column a role; running ads is a line only where the workspace has Ads. */
 function RolesCompare({ withPartner }: { withPartner: boolean }) {
   const roles = ROLES.filter((r) => r !== "partner" || withPartner);
+  const ads = useAdsShown();
   return (
     <div className="set-team-compare" id="team-roles-compare" data-testid="team-roles-compare">
       <table>
@@ -33,7 +35,7 @@ function RolesCompare({ withPartner }: { withPartner: boolean }) {
           </tr>
         </thead>
         <tbody>
-          {roleTable().map((row) => (
+          {roleTable({ ads }).map((row) => (
             <tr key={row.says}>
               <th scope="row">
                 {row.says}

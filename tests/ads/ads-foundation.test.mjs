@@ -4,7 +4,7 @@
  * (src/ads), the fixtures and the store the dashboard's (surfaces/campaigns/ads); the real code runs.
  *
  *   addresses  campaigns/ads, :ad:<id>, :new[:door], :new:<how>:<id>, :results; a word the view does not know is the page
- *   money      minor units and a currency; whole units from 10, cents under; two currencies are two sums, never converted
+ *   money      each currency's own minor units, said exact; only an average is rounded; two currencies are two sums
  *   examples   ten fixtures of AdsRead, each drawn by the one model; the default's figures tie to its daily rows
  *   verbs      a press carries the version it was drawn from; a stale one, and an ad made elsewhere, are refused; Undo restores
  *   gate       a real workspace's Campaigns chrome has no strip and takes an Ads address as the home
@@ -12,6 +12,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  aboutMoneyOf,
+  minorOfUnits,
   moneyOf,
   perDayOf,
   leftOfMoney,
@@ -72,13 +74,36 @@ test("an Ads address says the page, an ad open, the composer on a door or from a
   );
 });
 
-test("money is minor units in the account's currency: whole from 10, cents under, two currencies side by side", () => {
+/** An amount as the runtime writes it, with a plain space where it puts one that does not break. */
+const plain = (words) => words.replaceAll(String.fromCharCode(0xa0), " ");
+
+test("money is the currency's own minor units, said exact: a hundred to the dollar, one to the yen, a thousand to the dinar", () => {
+  assert.deepEqual(["USD", "GBP", "JPY", "KWD"].map(ads.minorPerUnit), [100, 100, 1, 1000]);
+  assert.equal(ads.minorPerUnit(""), 100, "a code that is no currency never throws");
+  assert.equal(ads.minorPerUnit("dollars"), 100);
   assert.equal(moneyOf(1400, "USD"), "$14");
   assert.equal(moneyOf(72000, "USD"), "$720");
   assert.equal(moneyOf(128400, "USD"), "$1,284");
   assert.equal(moneyOf(500, "USD"), "$5", "a whole number is whole");
-  assert.equal(moneyOf(550, "USD"), "$5.50", "cents under 10 where there are some");
+  assert.equal(moneyOf(550, "USD"), "$5.50");
+  assert.equal(moneyOf(128450, "USD"), "$1,284.50", "an amount an owner approved is never rounded to a unit");
   assert.equal(moneyOf(23000, "GBP"), "£230");
+  // A yen is its own smallest unit: 1,284 is ¥1,284, never ¥12.84 and never ¥13.
+  assert.equal(moneyOf(1284, "JPY"), "¥1,284");
+  assert.equal(perDayOf(1500, "JPY"), "¥1,500 a day");
+  // A dinar holds a thousand fils, and keeps three digits where there are some.
+  assert.equal(plain(moneyOf(1250, "KWD")), "KWD 1.250");
+  assert.equal(plain(moneyOf(15000, "KWD")), "KWD 15");
+  assert.deepEqual(
+    ["USD", "JPY", "KWD"].map((currency) => minorOfUnits(15, currency)),
+    [1500, 15, 15000],
+    "what an owner types is whole units of the account's own currency",
+  );
+  // Only an average nobody approved is rounded: the cost for each person, from 10 units up.
+  assert.equal(aboutMoneyOf(128450 / 3, "USD"), "$428");
+  assert.equal(aboutMoneyOf(2500 / 3, "USD"), "$8.33");
+  assert.equal(aboutMoneyOf(128450 / 3, "JPY"), "¥42,817");
+  assert.equal(plain(aboutMoneyOf(128450 / 3, "KWD")), "KWD 43");
   assert.equal(perDayOf(1500, "USD"), "$15 a day");
   assert.equal(leftOfMoney(30800, 72000, "USD"), "$308 left of $720");
   assert.equal(
@@ -98,15 +123,13 @@ test("money is minor units in the account's currency: whole from 10, cents under
     "never converted",
   );
   assert.equal(currencySymbol("GBP"), "£");
-  assert.equal(
-    ads.aboutADayAfter({
-      ad: EXAMPLE_READS.running().ads[0],
-      amountMinor: 90000,
-      endDay: "2026-10-31",
-      today: "2026-10-11",
-    }),
-    2300,
-  );
+  const running = EXAMPLE_READS.running().ads[0];
+  const after = (ad) => ads.aboutADayAfter({ ad, amountMinor: 90000, endDay: "2026-10-31", today: "2026-10-11" });
+  assert.equal(after(running), 2300);
+  // What is left of a total over the days left is a whole unit of the ad's own currency: a whole yen, a whole dinar.
+  const spent = running.days.reduce((all, d) => all + d.spendMinor, 0);
+  assert.equal(after({ ...running, currency: "JPY" }), Math.round((90000 - spent) / 21));
+  assert.equal(after({ ...running, currency: "KWD" }) % 1000, 0);
 });
 
 test("the rules are data: a daily amount's limits per platform, the schedule, and what a door needs", () => {

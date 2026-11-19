@@ -46,8 +46,7 @@ import {
   mailboxTokenRequest,
   sendFromMailbox,
 } from "@chanlytics/channels/email";
-import { fetchFromProvider } from "@chanlytics/channels/shared";
-import { unb64url } from "@chanlytics/channels/google";
+import { fetchFromProvider, unb64url } from "@chanlytics/channels/shared";
 import {
   connectMailbox,
   dropMailboxCredentials,

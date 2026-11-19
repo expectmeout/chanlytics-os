@@ -36,24 +36,15 @@ export type {
   InstagramRequest,
 } from "./graph";
 export {
-  META_GRAPH_VERSION,
   metaAccountRequest,
-  metaAppSecretProof,
   metaAssignedAccountsRequest,
-  metaBusinessRequest,
-  metaCodeRequest,
-  metaDebugTokenRequest,
-  metaDialogUrl,
   metaSubscribeRequest,
   metaUnsubscribeRequest,
   metaWebhookFieldsOf,
   parseMetaAccount,
   parseMetaAssignedAccounts,
-  parseMetaBusiness,
-  parseMetaDebugToken,
-  parseMetaToken,
 } from "./meta";
-export type { MetaAccount, MetaApp, MetaTokenFacts } from "./meta";
+export type { MetaAccount } from "./meta";
 export {
   metaContainerFields,
   metaContainerRequest,
