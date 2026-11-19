@@ -7,7 +7,8 @@
  * What the door converges, every agent a voice line answers in (or the one named): the LLM's shell (the prompt, its
  * placeholders and their spoken defaults, the four tools, with the shared secret's header only while the voice doors
  * still read it) and the agent's settings (the webhook and its events, the webhook budget, signed recording links, the
- * post-call analysis fields, the silence reminders, the locales its workspace speaks, the call's limits: twenty minutes
+ * post-call analysis fields and the model that fills them in, the silence reminders, the locales its workspace speaks,
+ * the call's limits: twenty minutes
  * a call, thirty seconds of silence, a week at the provider). A published version cannot change, so an apply lands the
  * patches on a new draft; --publish publishes it, so a number pinned to latest_published follows. --pin <number>, with
  * --agent, binds that number to latest_published; the door refuses it while the latest version is a draft.

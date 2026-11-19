@@ -30,6 +30,7 @@ import {
   CALL_HANDBOOK,
   CALL_LIMITS,
 } from "@chanlytics/channels/voice";
+import { RETELL_MODELS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { logLineOf } from "../_log-lines.mjs";
 
@@ -418,6 +419,7 @@ const agentOnShell = (id, llm) => ({
   opt_in_signed_url: true,
   ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  post_call_analysis_model: RETELL_MODELS.analysis,
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
   ...CALL_FEEL,
@@ -509,6 +511,7 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
           webhook_timeout_ms: 10000,
           opt_in_signed_url: false,
           post_call_analysis_data: [],
+          post_call_analysis_model: undefined,
           reminder_trigger_ms: undefined,
           reminder_max_count: undefined,
           interruption_sensitivity: undefined,
@@ -577,6 +580,10 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
       old.agent.drift.some((d) => d.includes("transcript_updated")) &&
         old.agent.drift.some((d) => d.includes("opt_in_signed_url")) &&
         old.agent.drift.some((d) => d.includes("reminded after 10000 ms")),
+    );
+    assert.ok(
+      old.agent.drift.some((d) => d.includes("write-up runs on the provider's default")),
+      "a line that names no write-up model is told whose it runs on",
     );
 
     assert.equal(

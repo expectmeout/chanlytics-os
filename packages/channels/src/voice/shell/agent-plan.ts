@@ -149,7 +149,7 @@ export interface AgentPlan {
   drift: string[];
   /** The PATCH body for update-agent, or null when nothing differs. */
   agentPatch: Record<string, unknown> | null;
-  /** What differs from the product's defaults and is reported, never changed: the voice and the post-call model. */
+  /** What differs from the product's defaults and is reported, never changed: the voice. */
   notes: string[];
 }
 
@@ -203,6 +203,15 @@ export function planAgentSettings(
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
       ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     ];
+  }
+  // The write-up's model is the product's, as its fields are: the words they ask in were proven on it (contracts
+  // RETELL_MODELS), and a line that names none runs on the provider's default, which is neither.
+  const writeUpModel = live.post_call_analysis_model ?? null;
+  if (writeUpModel !== RETELL_MODELS.analysis) {
+    drift.push(
+      `a call's write-up runs on ${writeUpModel ?? "the provider's default"}; the product's is ${RETELL_MODELS.analysis} (its fields ask in the words proven on that model)`,
+    );
+    patch.post_call_analysis_model = RETELL_MODELS.analysis;
   }
   // The call webhook's credential is Retell's signature; a `?key=` on the URL
   // is a secret in the provider's dashboard and in access logs, and the door
@@ -407,16 +416,12 @@ function planFirstSeconds(
   }
 }
 
-/** The agent's settings that differ from the product's defaults and stay as they are: the voice, the post-call model. */
+/** The agent's setting that differs from the product's default and stays as it is: the voice. */
 function agentNotes(live: LiveAgentSettings): string[] {
   const notes: string[] = [];
   if (live.voice_id && live.voice_id !== PHONE_VOICE_DEFAULT)
     notes.push(
       `voice is ${live.voice_id}; the product's default is ${PHONE_VOICE_DEFAULT} (a voice is the owner's: kept)`,
-    );
-  if (live.post_call_analysis_model && live.post_call_analysis_model !== RETELL_MODELS.analysis)
-    notes.push(
-      `post-call analysis runs on ${live.post_call_analysis_model}; the product's is ${RETELL_MODELS.analysis} (kept: a model change goes through the gate)`,
     );
   return notes;
 }
