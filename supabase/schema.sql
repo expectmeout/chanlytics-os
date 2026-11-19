@@ -8121,6 +8121,7 @@ CREATE FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permissio
          when 'export'     then array['owner']
          when 'find'       then array['owner', 'partner']
          when 'add_files'  then array['owner', 'operator', 'partner']
+         when 'ads'        then array['owner']
          else array[]::text[] end)
        -- A partner's seat, asked about the calling session, counts only once it showed its second factor (0013).
        and (m.role <> 'partner' or p_user is distinct from (select auth.uid()) or public.session_shows_second_factor())
@@ -8132,7 +8133,7 @@ $$;
 -- Name: FUNCTION has_permission(p_user uuid, p_tenant_id uuid, p_permission text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s. add_files (00596) is every role''s but a viewer''s.';
+COMMENT ON FUNCTION public.has_permission(p_user uuid, p_tenant_id uuid, p_permission text) IS 'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. A partner (0012) sets the workspace up: settings, disconnect and find beside what an operator has; billing, team and export stay the owner''s. add_files (00596) is every role''s but a viewer''s. ads (00645) is the owner''s alone: spending on their own ad account.';
 
 
 --

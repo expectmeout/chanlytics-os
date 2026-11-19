@@ -12,9 +12,7 @@
 import { MIN_MS, recordOrEmpty, valueAt, type InstagramPostKind } from "@chanlytics/contracts";
 import type { InstagramRequest } from "./graph";
 import { instagramErrorOf } from "./graph";
-import { META_GRAPH_VERSION, metaAppSecretProof } from "./meta";
-
-const META_GRAPH = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
+import { META_GRAPH, metaAppSecretProof } from "../meta/client";
 
 /** What every posting call carries: the business's token, the app's secret its proof is made with, and the account. */
 export interface MetaPoster {

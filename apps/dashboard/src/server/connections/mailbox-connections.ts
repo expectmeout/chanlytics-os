@@ -36,7 +36,7 @@ import {
   makeMailboxPkceChallenge,
   makeMailboxPkceVerifier,
 } from "@chanlytics/channels/email";
-import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
+import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";

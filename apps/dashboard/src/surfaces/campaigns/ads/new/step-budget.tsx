@@ -39,7 +39,7 @@ function OwnAmount({ vm, state, config, patch, setExtra }: StepProps) {
       // Whole units a day; anything else is no amount yet, said at the box.
       const whole = Math.floor(Number(text));
       setExtra({ ownText: text });
-      patch({ ownPerDayMinor: Number.isFinite(whole) && whole > 0 ? minorOfUnits(whole) : 0 });
+      patch({ ownPerDayMinor: Number.isFinite(whole) && whole > 0 ? minorOfUnits(whole, vm.currency) : 0 });
     },
     "data-testid": "ads-new-own",
   } as const;

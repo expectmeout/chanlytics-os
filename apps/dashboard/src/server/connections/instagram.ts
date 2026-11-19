@@ -7,7 +7,7 @@
  */
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
-import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
+import { verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -105,13 +105,8 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
   const ready = await instagramReadiness();
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Instagram is not available here yet.", 409);
-  const state = await signState(secret, {
-    t: member.tenantId,
-    u: ctx.userId,
-    n: newNonce(),
-    exp: Date.now() + STATE_TTL_MS,
-    p: PROVIDER,
-  });
+  const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
+  const state = await signStateFor(secret, signIn, Date.now());
   const url = instagramAuthorizeUrl({ clientId: ready.app.client_id, redirectUri: ready.app.redirect_uri }, state);
   return new Response(null, { status: 302, headers: { location: url } });
 }
@@ -131,13 +126,12 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, loginReturn.state, Date.now());
-  if (!proof.ok) return back("error", `state_${proof.reason}`);
-  if (proof.state.p !== PROVIDER) return back("error", "state_malformed");
-  if (proof.state.u !== ctx.userId) return back("error", "someone_else");
+  const expected = { provider: PROVIDER, userId: ctx.userId };
+  const proof = await verifyStateFor(secret, loginReturn.state, expected, Date.now());
+  if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: string;
   try {
-    const member = await getMemberContext(ctx, proof.state.t);
+    const member = await getMemberContext(ctx, proof.tenantId);
     slug = member.slug ?? null;
     if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
     tenantId = member.tenantId;

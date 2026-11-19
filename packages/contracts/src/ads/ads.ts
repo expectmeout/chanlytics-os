@@ -1,7 +1,7 @@
 /**
  * What an owner's ads are, as a reader will return them (the Ads page's DTO): the data of Campaigns › Ads, in the words the
- * rest of the product keeps. Money is an integer in the minor units of the account's currency, never a float and never
- * converted; a day is an ISO day (`2026-10-11`) and a moment an ISO timestamp with its offset; an id is Chanlytics' own (a
+ * rest of the product keeps. Money is an integer in the minor units of the account's currency (money.ts), never a float and
+ * never converted; a day is an ISO day (`2026-10-11`) and a moment an ISO timestamp with its offset; an id is Chanlytics' own (a
  * uuid) beside the platform's, and a person or a thread carries the id its own page opens by.
  *
  * Two shapes: `AdsRead`, what is true of this workspace now (its ads, accounts and people, read at one moment), and
@@ -14,6 +14,7 @@
  */
 import type { AppointmentWord } from "../journey/appointment-word";
 import { DAY_MS } from "../shared/time";
+import { minorPerUnit } from "./money";
 
 /** The three platforms an owner's own ad accounts live on. */
 export type AdPlatform = "meta" | "google" | "tiktok";
@@ -327,9 +328,6 @@ export interface AdsConfig {
   minPerDayMinor: Record<AdPlatform, number | null>;
 }
 
-/** A currency's minor units in one unit (cents in a dollar): the exponent every amount here is read by. */
-export const MINOR_PER_UNIT = 100;
-
 // ---------------------------------------------------------------------------------------------------------------------
 // Calendar arithmetic on ISO days (UTC noon, so no zone or daylight saving moves a day).
 
@@ -346,16 +344,17 @@ export const daysBetween = (first: string, second: string): number =>
 
 /**
  * About how much a day an ad spends once its amount or end moves: the amount itself for a daily budget; for a total, what is
- * left of it over the days left to its end (today included), in whole units, so "about $15 a day" follows a raise or a later
- * end.
+ * left of it over the days left to its end (today included), in whole units of the ad's own currency, so "about $15 a day"
+ * follows a raise or a later end.
  */
 export function aboutADayAfter(options: { ad: AdRead; amountMinor: number; endDay: string; today: string }): number {
   const { ad, amountMinor, endDay, today } = options;
   if (ad.budget.mode === "daily") return amountMinor;
   const spent = ad.days.reduce((all, d) => all + d.spendMinor, 0);
   const daysLeft = Math.max(1, daysBetween(today, endDay) + 1);
-  const units = Math.max(0, Math.round((amountMinor - spent) / daysLeft / MINOR_PER_UNIT));
-  return units * MINOR_PER_UNIT;
+  const perUnit = minorPerUnit(ad.currency);
+  const units = Math.max(0, Math.round((amountMinor - spent) / daysLeft / perUnit));
+  return units * perUnit;
 }
 
 /** What Edit changes in one press of Save: only the fields it moved. */

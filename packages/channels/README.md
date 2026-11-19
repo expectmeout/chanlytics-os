@@ -7,12 +7,14 @@ a provider's wire format and knows nothing about threads. No persistence and no 
 
 Each folder's `index.ts` is its entry: `@chanlytics/channels/lines` (decision 0110). There is no root.
 
-One folder a provider or domain: `whatsapp/`, `instagram/`, `lines/`, `voice/`, `email/` (with `email/mailbox/`),
-`google/`, `leads/`, `models/`, `site/`, `files/`, `inbound/`.
+One folder a provider or domain: `whatsapp/`, `instagram/`, `meta/` (the one Meta client: its sign-in, a business's
+token and what it may do, which Instagram reads and an ad account will), `lines/`, `voice/`, `email/` (with
+`email/mailbox/`), `google/`, `leads/`, `models/`, `site/`, `files/`, `inbound/`.
 
 - `shared/`: the one way a call leaves for a provider (`provider-fetch.ts`) and a fetch of an address a person typed
   (`public-fetch.ts`).
-- `log/` and `tokens/`: the platform's one logger, and its signed tokens.
+- `log/` and `tokens/`: the platform's one logger, and its signed tokens (the state a sign-in at any provider leaves
+  and comes back with is one of them, `tokens/sign-in-state.ts`).
 
 ## What it may import
 

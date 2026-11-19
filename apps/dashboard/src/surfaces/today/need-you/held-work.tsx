@@ -1,18 +1,21 @@
 /**
  * Your receptionist's reply counting down its veto window (decision 0071, E5): Today had a count of these and no row.
- * The row says what it will send and when, with Stop (the Inbox's Hold: POST messages/[id]/cancel-send), after which the
- * words are the member's to send as a reply; or Change it with Ask, which rewrites the held draft by an instruction
- * (contracts steerSpec, POST messages/[id]/steer) and lets the new one wait its turn. Left alone, it sends itself.
+ * The row says what it will send and when, with Stop (the Inbox's Hold: POST messages/[id]/cancel-send); or Change it
+ * with Ask, which rewrites the held draft by an instruction (contracts steerSpec, POST messages/[id]/steer) and lets the
+ * new one wait its turn. Left alone, it sends itself. Stop is a brake against a running clock, so it stays on Today;
+ * what follows it is a reply to a person, and that is written in their conversation (Today with colour, D8; Ruben's
+ * call, 18 Nov 2026: the stopped words were sent from Today): the row says nothing was sent, and its Reply opens the
+ * conversation with the stopped words in the box, to change and send.
  */
 import { useRef } from "react";
-import { NEED_YOU_WORDS as W, sendCountdown } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, addressOf, sendCountdown } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
+import { carryFromToday, carryReply } from "../../inbox/carried-reply";
 import { cancelSend } from "../../inbox/verbs";
 import { Button, Meter } from "../../kit";
 import { appNavigate } from "../shell";
 import { SayToAsk } from "./sheet/ask-line";
 import { Acts, Done, Note, Words, useTick, type WorkProps } from "./parts";
-import { ReplyWork } from "./reply-work";
 import { useRowState } from "./row-state";
 
 /** How often the receptionist's countdown is drawn again. */
@@ -32,7 +35,24 @@ export function HeldWork(p: WorkProps) {
   if (!held) return null;
   const wire = row.writes?.wire ?? row.channel;
 
-  if (stop === "held") return <ReplyWork {...p} row={{ ...row, prepared: held.text }} by={W.held.heldReply} />;
+  if (stop === "held") {
+    // Answered in their conversation, never on Today: the stopped words go with the press, into its reply box.
+    const to = row.conversationId ? addressOf({ kind: "conversation", id: row.conversationId }) : row.cta.to;
+    const replyThere = () => {
+      carryReply(to, held.text);
+      carryFromToday(to);
+      appNavigate(to);
+    };
+    return (
+      <Done
+        tone="rest"
+        words={W.held.stopped}
+        detail={W.held.unsent}
+        act={{ label: W.held.reply, onPress: replyThere }}
+        foot={p.foot}
+      />
+    );
+  }
   if (rewrite === "done") return <Done words={W.held.rewritten} foot={p.foot} />;
   const { seconds, share } = sendCountdown(held.sends_at_ms - first.current, held.sends_at_ms, now);
   if (stop === "gone" || seconds <= 0)

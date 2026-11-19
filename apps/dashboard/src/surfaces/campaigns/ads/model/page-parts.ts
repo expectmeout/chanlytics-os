@@ -1,6 +1,6 @@
 /**
- * The Ads page's folds that are not the ledger (page-only): the page's totals, the three tiles (Waiting on you, Coming, What
- * came back), the phone page's lines, "nothing connected" (v0), "connected, no ads yet" (and the account to choose), and the
+ * The Ads page's folds that are not the ledger (page-only; its totals are page-totals.ts's): the three tiles (Waiting on
+ * you, Coming, What came back), the phone page's lines, "nothing connected" (v0), "connected, no ads yet" (and the account to choose), and the
  * Ask line's one proposal. Apart from page.ts only for the file limit; page.ts hands every name a page needs on. Pure, like
  * the rest of the models.
  */
@@ -9,9 +9,9 @@ import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/c
 import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
 import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
-import { ADS_DEFAULT_CURRENCY, moneyOf, perDayOf, sumMoney, sumsOf } from "./money";
-import type { MoneyItem } from "./money";
+import { ADS_DEFAULT_CURRENCY, aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
 import type { AskVM } from "./page";
+import type { PageTotals } from "./page-totals";
 import {
   ADS_ASK_MIN,
   ADS_ASK_MIN_CALLS,
@@ -26,7 +26,6 @@ import {
   PLATFORMS,
   adAccountOf,
   adPersonWho,
-  costEach,
   countCtx,
   counted,
   dayOfIso,
@@ -61,24 +60,7 @@ import {
 import { ASK, CHOOSE, FIGURES, LEDGER, NO_ADS, PHONE, STANDING, TILES, V0, askWhy } from "./words-page";
 
 // ---------------------------------------------------------------------------------------------------------------------
-// The page's totals
-
-/** What the page adds up over the window, from the same rows every ad's own numbers come from. */
-export interface PageTotals {
-  /** What each ad spent, in its currency: summed by currency, never converted. */
-  spent: MoneyItem[];
-  /** Ads that have spent anything. */
-  spentAds: number;
-  /** People Chanlytics can count: calls are left out. */
-  touch: number;
-  wrote: number;
-  left: number;
-  booked: number;
-  /** What the ads whose people Chanlytics counts spent: the cost for each person divides this. */
-  eachSpend: MoneyItem[];
-  /** The cost for each person who booked, where the counted ads share one currency and enough booked; else null. */
-  each: MoneyItem | null;
-}
+// Which platforms are being read
 
 /** The platforms whose account is connected and in a read state: being read now, or the last read failed. */
 export const platformsRead = (read: AdsRead, how: "reading" | "failed"): AdPlatform[] =>
@@ -90,37 +72,6 @@ export const platformsRead = (read: AdsRead, how: "reading" | "failed"): AdPlatf
 /** Platforms as the owner says them where an account is meant: `Meta and Google`. */
 export const ownersOf = (platforms: readonly AdPlatform[]): string =>
   joinWords(platforms.map((p) => PLATFORM_OWNER[p]));
-
-/** An amount divided among `n`, where the amounts are in one currency; null where they are in several or `n` is nothing. */
-function perHead(items: readonly MoneyItem[], n: number, enough: (n: number) => boolean): MoneyItem | null {
-  const sums = sumsOf(items);
-  const one = sums.length === 1 ? sums[0] : undefined;
-  if (!one || n <= 0 || !enough(n)) return null;
-  return { minor: one.minor / n, currency: one.currency };
-}
-
-export function pageTotals(read: AdsRead): PageTotals {
-  const rows = read.ads.map((ad) => ({ ad, t: totalsOf(ad, read) }));
-  const mine = rows.filter((r) => counted(r.ad));
-  const byDoor = (door: AdDoor) => sum(mine.filter((r) => r.ad.door === door).map((r) => r.t.inTouch));
-  const booked = sum(mine.map((r) => r.t.booked));
-  const eachSpend = mine.map((r) => ({ minor: r.t.spentMinor, currency: r.ad.currency }));
-  const cost = costEach(sum(eachSpend.map((i) => i.minor)), booked);
-  return {
-    spent: rows.map((r) => ({ minor: r.t.spentMinor, currency: r.ad.currency })),
-    spentAds: rows.filter((r) => r.t.spentMinor > 0).length,
-    touch: sum(mine.map((r) => r.t.inTouch)),
-    wrote: byDoor("whatsapp"),
-    left: byDoor("form"),
-    booked,
-    eachSpend,
-    each: cost === null ? null : perHead(eachSpend, booked, () => true),
-  };
-}
-
-/** The cost for each person in touch, where no calendar says who booked: the same spend over the people counted. */
-export const eachInTouch = (pageTotals: PageTotals): MoneyItem | null =>
-  perHead(pageTotals.eachSpend, pageTotals.touch, () => true);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Tiles
@@ -340,7 +291,7 @@ export function phoneOf(
   reading: readonly AdPlatform[] = [],
 ): PhoneVM {
   const spent = sumMoney(pageTotals.spent);
-  const each = pageTotals.each === null ? null : moneyOf(pageTotals.each.minor, pageTotals.each.currency);
+  const each = pageTotals.each === null ? null : aboutMoneyOf(pageTotals.each.minor, pageTotals.each.currency);
   const line1 =
     reading.length > 0
       ? PHONE.line1Reading(pageTotals.touch, ownersOf(reading))

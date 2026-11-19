@@ -18,7 +18,8 @@ import { getGoogleReadiness, afterGoogle, callEdgeGoogle, stateSecret } from "@/
 import { load, readerContext } from "@/server/shared/reader";
 import { googleReader } from "@/server/readers/connections";
 import { getMemberContext, type RouteContext } from "@/server/shared/with-route";
-import { verifyState, authorizeUrl, newNonce, signState, STATE_TTL_MS, cleanReply } from "@chanlytics/channels/google";
+import { authorizeUrl, cleanReply } from "@chanlytics/channels/google";
+import { verifyState, newNonce, signState, STATE_TTL_MS } from "@chanlytics/channels/tokens";
 import { log } from "@/server/shared/log";
 import { requireUuid } from "@/server/shared/request-guards";
 import { recordDecision } from "@/server/shared/verbs";

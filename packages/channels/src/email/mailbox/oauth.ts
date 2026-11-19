@@ -6,7 +6,7 @@
  * Google asks the least that does the job: gmail.send (a sensitive scope: Google's review only) and gmail.readonly (a
  * restricted one: the review and its security assessment), never gmail.modify or the whole mailbox. Microsoft asks
  * Mail.Send and Mail.ReadWrite (a draft is made from the MIME, its Message-ID read, then sent), and offline_access for a
- * lasting grant. The state that rides the way out and back is google/oauth.ts's (signState, verifyState), with the
+ * lasting grant. The state that rides the way out and back is tokens/sign-in-state.ts's (signState, verifyState), with the
  * provider in it.
  *
  * Asked beside them, never required (decision 0073, R18 to R20): the owner's contacts and the people they wrote to, and

@@ -5,13 +5,13 @@
  * drawer-parts.ts's and drawer-edit.ts's (apart from this only for the file limit; this hands every name a page needs on).
  */
 import type { AdNeeds, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import { daysBetween, newAdFromRoute } from "@chanlytics/contracts";
+import { AD_SETTLE_DAYS, daysBetween, newAdFromRoute } from "@chanlytics/contracts";
 
 import { moneyOf, leftOfMoney, perDayOf } from "../money";
-import { ADS_PERMISSION_WARN_DAYS, ADS_SETTLE_DAYS, ADS_SOFT_NEEDS } from "../rules";
+import { ADS_PERMISSION_WARN_DAYS, ADS_SOFT_NEEDS } from "../rules";
 import {
   adAccountOf,
-  adStateOf,
+  adBadgeOf,
   areaWord,
   accountRows,
   dayOfIso,
@@ -186,9 +186,7 @@ function couldntFinishCallout(ad: AdRead): CalloutVM {
 
 /** Whether the numbers of an ad that ended are still settling, said once for the ad that ended and the one that spent its total. */
 function settleWords(ad: AdRead, read: AdsRead): string {
-  return settling([ad], read.today)
-    ? DRAWER.callout.settling(ADS_SETTLE_DAYS)
-    : DRAWER.callout.settled(ADS_SETTLE_DAYS);
+  return settling([ad], read.today) ? DRAWER.callout.settling(AD_SETTLE_DAYS) : DRAWER.callout.settled(AD_SETTLE_DAYS);
 }
 
 /** An ad that spent its total and stopped: what it brought (Google's calls are Google's count, never a number of people booked). */
@@ -349,7 +347,7 @@ export function adModel(ad: AdRead, read: AdsRead, config: AdsConfig, saved?: Ad
     id: ad.id,
     kicker: DRAWER.kicker(PLATFORM_WORD[ad.platform], DOOR[ad.door].label),
     name: ad.name,
-    state: adStateOf(ad, totals, read),
+    state: adBadgeOf(ad, totals, read),
     platform: ad.platform,
     door: ad.door,
     owner,

@@ -27,20 +27,22 @@ import {
   instagramUnsubscribeRequest,
   metaAccountRequest,
   metaAssignedAccountsRequest,
-  metaBusinessRequest,
-  metaCodeRequest,
-  metaDebugTokenRequest,
   metaSubscribeRequest,
   metaUnsubscribeRequest,
   metaWebhookFieldsOf,
   parseMetaAccount,
   parseMetaAssignedAccounts,
+} from "@chanlytics/channels/instagram";
+import {
+  metaBusinessRequest,
+  metaCodeRequest,
+  metaDebugTokenRequest,
   parseMetaBusiness,
   parseMetaDebugToken,
   parseMetaToken,
   type MetaApp,
   type MetaTokenFacts,
-} from "@chanlytics/channels/instagram";
+} from "@chanlytics/channels/meta";
 import { emitEvent, recordActivation } from "@chanlytics/db/events";
 import {
   findInstagramAccountRow,

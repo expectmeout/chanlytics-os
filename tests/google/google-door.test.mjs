@@ -29,8 +29,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
+import { b64url } from "@chanlytics/channels/shared";
 import {
-  b64url,
   PLACES_SEARCH_MASK,
   PLACES_DETAILS_MASK,
   PLACES_SEARCH_LIMIT,

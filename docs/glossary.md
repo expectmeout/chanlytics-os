@@ -237,6 +237,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `logo`             | A workspace's logo                                                            |
 | `look`             | A workspace's colours and mark, as an email or a page wears them              |
 | `messages`         | A message's way out: gates, batches and what became of it                     |
+| `meta`             | Meta's own sign-in and Graph, as every connection made through Meta speaks it |
 | `metrics`          | The numbers a workspace's day is told in                                      |
 | `mobile`           | The phone app's side of what it shares with the site                          |
 | `need-you`         | What waits on a person, on Today                                              |

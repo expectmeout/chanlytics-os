@@ -425,9 +425,9 @@
     "fresh": "A link the browser's own player reads as Play is pressed.",
     "why": "It is the call's recording, which does not change once it is stored."
   },
-  "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET ask/openings": {
+  "apps/dashboard/src/surfaces/booking-request.ts GET ask/openings": {
     "kind": "on-open",
-    "fresh": "Read each time Another time is pressed on a booking.",
+    "fresh": "Read each time Another time is pressed on a booking, and as Can't do it is pressed on a time asked for in its conversation.",
     "why": "What is open is asked as it is offered, and nothing goes to them until the owner has looked at it."
   },
   "apps/dashboard/src/surfaces/today/need-you/sheet/reads.ts GET conversations/[id]": {

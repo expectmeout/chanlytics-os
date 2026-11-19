@@ -12,17 +12,15 @@ import { createHmac } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
+  instagramErrorOf,
   instagramEventsOf,
-  metaAppSecretProof,
   metaAssignedAccountsRequest,
-  metaDialogUrl,
   metaWebhookFieldsOf,
   parseMetaAssignedAccounts,
-  parseMetaDebugToken,
-  parseMetaToken,
   readInstagramName,
   sendInstagramText,
 } from "@chanlytics/channels/instagram";
+import { metaAppSecretProof, metaDialogUrl, parseMetaDebugToken, parseMetaToken } from "@chanlytics/channels/meta";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { metaLinesOf } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
@@ -63,6 +61,19 @@ test("a call with the business's token carries appsecret_proof: the token's HMAC
 test("Meta's answers are read defensively: a token that never expires, granted permissions, the accounts shared", () => {
   assert.deepEqual(parseMetaToken({ access_token: "t", token_type: "bearer" }), { accessToken: "t", expiresInS: null });
   assert.throws(() => parseMetaToken({ error: { message: "Invalid code", code: 100 } }), /Invalid code/);
+  // An error that came with no words is said in the name of who asked: the one Meta client's, or Instagram's own reader.
+  assert.throws(() => parseMetaToken({ error: { code: 190 } }), /^Error: Meta refused the request$/);
+  assert.deepEqual(instagramErrorOf({ error: { code: 190, error_subcode: 460 } }), {
+    code: 190,
+    subcode: 460,
+    message: "Instagram refused the request",
+  });
+  assert.deepEqual(instagramErrorOf({ error_type: "OAuthException", code: 400, error_message: "Bad code" }), {
+    code: 400,
+    subcode: null,
+    message: "Bad code",
+  });
+  assert.equal(instagramErrorOf({ data: [] }), null);
   const facts = parseMetaDebugToken({
     data: {
       is_valid: true,

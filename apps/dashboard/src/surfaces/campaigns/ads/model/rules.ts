@@ -1,7 +1,7 @@
 /**
  * Every number the Ads page judges by and every rule a platform enforces, in one place (the platforms' docs, October 2026).
- * The page's own, like the models that read them. A cost is
- * said only of REPORT_MIN_N or more booked (Reports' minimum, reports/tiles.ts), never a number of its own.
+ * The page's own, like the models that read them. The cost for each person who booked is not here: it is one rule,
+ * contracts' adCostRule (reports/ad-cost.ts), with Reports' minimum and the days a platform's count still settles.
  *
  * The data the feature lanes read is here too: how an amount may change on each platform, whether "Only while you're open"
  * can be set, and which checks a door needs before Turn on. Nothing here is a word.
@@ -12,8 +12,6 @@ import type { AdCheckId, AdDoor, AdNeedsCode, AdPlatform } from "@chanlytics/con
 export const ADS_WINDOW_DAYS = 30;
 /** The newest days that are still counting: drawn lighter. */
 export const ADS_FRESH_DAYS = 3;
-/** Whether the last two weeks are still settling in what an ad has: a cost is `so far` until they are not. */
-export const ADS_SETTLE_DAYS = 14;
 /** An `on` ad that started fewer days ago than this is read as too early to judge (never stored). */
 export const TOO_EARLY_DAYS = 7;
 

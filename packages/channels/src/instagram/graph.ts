@@ -15,6 +15,8 @@
  * again blind).
  */
 import { utf8Bytes, recordOrEmpty, valueAt } from "@chanlytics/contracts";
+import { META_GRAPH, metaErrorOf } from "../meta/client";
+import type { MetaGraphError, MetaRequest } from "../meta/client";
 import { answerObject, fetchFromProvider, type ProviderReply, type SendOutcome } from "../shared/provider-fetch";
 import type { SendResult } from "../whatsapp/whatsapp";
 
@@ -34,13 +36,8 @@ const INSTAGRAM_PROFILE_TIMEOUT_MS = 2_500;
 /** The way in's calls (the code, the token, `/me`, the subscription), each read by a person waiting on a redirect. */
 const INSTAGRAM_CONNECT_TIMEOUT_MS = 10_000;
 
-/** One request, as the wire will make it. */
-export interface InstagramRequest {
-  url: string;
-  method: "GET" | "POST" | "DELETE";
-  headers?: Record<string, string>;
-  body?: string;
-}
+/** One request, as the wire will make it: the shape every call through Meta has (meta/client.ts). */
+export type InstagramRequest = MetaRequest;
 
 /** The app as the way in knows it: its Instagram app id, its secret, and the address Meta sends the person back to. */
 export interface InstagramApp {
@@ -51,7 +48,7 @@ export interface InstagramApp {
 
 /**
  * A business's account as a send needs it: its Instagram account id (`/me`'s user_id, or the id Meta lists it by), and its
- * token. An account connected through Meta (the Meta link, meta.ts) speaks on Facebook's host with the business's token,
+ * token. An account connected through Meta (the Meta link, meta.ts) speaks on Facebook's host (meta/client.ts META_GRAPH) with the business's token,
  * each call with its `appsecret_proof`; one connected through Instagram's own login on Instagram's.
  */
 export interface InstagramConfig {
@@ -63,12 +60,9 @@ export interface InstagramConfig {
   proof?: string;
 }
 
-/** Facebook's Graph, for an account connected through Meta: the version the Meta link speaks (meta.ts META_GRAPH_VERSION). */
-const FACEBOOK_GRAPH = "https://graph.facebook.com/v27.0";
-
 /** Where an account's calls go, and the proof its token carries there. */
 const graphHostOf = (cfg: Pick<InstagramConfig, "graph">): string =>
-  cfg.graph === "facebook" ? FACEBOOK_GRAPH : INSTAGRAM_GRAPH;
+  cfg.graph === "facebook" ? META_GRAPH : INSTAGRAM_GRAPH;
 const proofOf = (cfg: Pick<InstagramConfig, "proof">): Record<string, string> =>
   cfg.proof ? { appsecret_proof: cfg.proof } : {};
 
@@ -175,33 +169,11 @@ function instagramSendRequest(cfg: InstagramConfig, to: string, text: string): I
 const asText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");
 
 /** Graph's own error, when it gave one: its code, subcode and words. */
-export interface InstagramGraphError {
-  code: number | null;
-  subcode: number | null;
-  message: string;
-}
+export type InstagramGraphError = MetaGraphError;
 
-export function instagramErrorOf(json: unknown): InstagramGraphError | null {
-  const value = json && typeof json === "object" ? recordOrEmpty(json) : null;
-  const result = valueAt(value, "error");
-  if (!result || typeof result !== "object") {
-    // The token endpoints answer an error flat: { error_type, code, error_message }.
-    const flat = asText(valueAt(value, "error_message"));
-    return flat
-      ? {
-          code: typeof valueAt(value, "code") === "number" ? (valueAt(value, "code") as number) : null,
-          subcode: null,
-          message: flat,
-        }
-      : null;
-  }
-  const err = recordOrEmpty(result);
-  return {
-    code: typeof err.code === "number" ? err.code : null,
-    subcode: typeof err.error_subcode === "number" ? err.error_subcode : null,
-    message: asText(err.message) || asText(err.error_user_msg) || "Instagram refused the request",
-  };
-}
+/** The error an answer carries (meta/client.ts metaErrorOf), said as Instagram's where it came with no words of its own. */
+export const instagramErrorOf = (json: unknown): InstagramGraphError | null =>
+  metaErrorOf(json, "Instagram refused the request");
 
 /** What the code exchange gave: the short token, the account's app-scoped id, and what it was granted. */
 export interface InstagramCodeGrant {

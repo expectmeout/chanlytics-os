@@ -263,12 +263,17 @@ function foldChevron(short: boolean, toggle: () => void) {
   );
 }
 
+/** The fewest steps the progress is drawn for: one part alone says nothing of how far along the card is. */
+const STEPS_METERED_MIN = 2;
+
 /**
  * Going live as progress (Today with colour, D6, 17 Nov 2026): a part a step, done in the ok tone's green and still to do as
- * an outline, beside the card's title. None for the first run's own row, which says its steps itself.
+ * an outline, beside the card's title. Drawn from the first visit, before a step is done (Ruben's call, 18 Nov 2026: it
+ * was hidden until one was, and the empty parts are what say how short the list is). None for the first run's own row,
+ * which says its steps itself, nor for a card of one step.
  */
 function stepsMeter(card: SetupCardVM) {
-  if (card.start || card.done.length === 0) return null;
+  if (card.start || card.done.length + card.rows.length < STEPS_METERED_MIN) return null;
   const parts = [
     ...card.done.map(() => ({ share: 1, tone: "ok" as const })),
     ...card.rows.map(() => ({ share: 1, tone: "open" as const })),

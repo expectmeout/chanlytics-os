@@ -40,17 +40,6 @@ export function sheetSubOf(
   return [row.channel, (row.via ?? "").replace(/^Reach-out:\s*/i, ""), row.when].filter(Boolean).join(" · ");
 }
 
-/** A day of the open times as a press and a sentence say it: "Today", "Tomorrow", "Wed, Nov 11". */
-export function openDayWord(key: string, tz: string, nowMs: number): string {
-  if (key === dayPlusInZone(tz, nowMs, 0).key) return "Today";
-  if (key === dayPlusInZone(tz, nowMs, 1).key) return "Tomorrow";
-  const [y, m, d] = key.split("-").map(Number);
-  if (!y || !m || !d) return key;
-  return new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }).format(
-    Date.UTC(y, m - 1, d),
-  );
-}
-
 const lowered = (words: string): string => words.charAt(0).toLowerCase() + words.slice(1);
 
 /* ------------------------------------------------ a call */

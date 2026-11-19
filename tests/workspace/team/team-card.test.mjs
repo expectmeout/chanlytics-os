@@ -113,10 +113,15 @@ function workspace({
   team = [OWNER, ALEX],
   invites = [JAMIE, SAM],
   alerts = ["Ruben@RJCapital.example", "alex@example.com"],
+  features = null,
 } = {}) {
   setSurfaceValue("settings", {
     settings: {
-      config: { brain: {}, notifications: { escalation_emails: alerts, from: "Front desk" } },
+      config: {
+        brain: {},
+        notifications: { escalation_emails: alerts, from: "Front desk" },
+        ...(features ? { features } : {}),
+      },
       version: 7,
       role,
     },
@@ -367,7 +372,21 @@ test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity
   const toggle = byTestId(tree, "team-roles-compare-toggle");
   assert.equal(toggle.props["aria-expanded"], true);
   assert.equal(toggle.props["aria-controls"], table.props.id, "the press names the table it opens");
-  assert.equal(all(table, (n) => n.type === "tr").length, roleTable().length + 1, "a line a permission, and the head");
+  // This workspace has no Ads, so the line for running ads is not drawn.
+  const lines = roleTable({ ads: false });
+  assert.equal(all(table, (n) => n.type === "tr").length, lines.length + 1, "a line a permission, and the head");
+  assert.ok(!/Run ads/.test(textOf(table)));
+  // Where the workspace has Ads, the same table says who may run them: the owner alone.
+  workspace({ features: { ads_preview: true } });
+  const withAds = byTestId(draw(), "team-roles-compare");
+  assert.equal(all(withAds, (n) => n.type === "tr").length, lines.length + 2, "one line more");
+  const adsRow = all(withAds, (n) => n.type === "tr").find((row) => /^Run ads/.test(textOf(row)));
+  assert.deepEqual(
+    all(adsRow, (n) => n.type === "td").map((cell) => cell.props["data-can"] === "true"),
+    [true, false, false],
+    "Owner, and neither Operator nor Viewer",
+  );
+  workspace();
   assert.equal(byTestId(tree, "team-activity"), null, "Settings › Activity keeps the team's changes");
   assert.ok(
     !find(tree, (n) => n.type === MoreMenu && n.props.testid === "team-viewas"),

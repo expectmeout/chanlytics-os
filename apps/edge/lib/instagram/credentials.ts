@@ -15,7 +15,8 @@
  * or a read that failed (nothing sent and nothing failed: the job waits for a heartbeat that can read the Vault).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { metaAppSecretProof, sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
+import { sendInstagramText, type InstagramConfig } from "@chanlytics/channels/instagram";
+import { metaAppSecretProof } from "@chanlytics/channels/meta";
 import type { SendResult } from "@chanlytics/channels/whatsapp";
 import {
   listActiveChannelRows,
