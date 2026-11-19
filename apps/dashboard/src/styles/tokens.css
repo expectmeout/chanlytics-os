@@ -513,12 +513,20 @@
      white at 86%, which let the paper's grey through. */
   --surface-list-ground: oklch(1 0 0);
   --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 96%, transparent);
-  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 45%, transparent);
+  /* Softer edges against the white (Ruben, 18 Nov 2026: "the top color can be a bit less harsh and on bottom of page as
+     well"): the head lightens from the window's top down to the rows, where it was the paper and its pools whole until
+     the wash began, and the white holds to just over the tab bar and gives way under it. The paper itself still stands
+     at both edges, under the phone's bar and Safari's toolbar. The dark side keeps its own head, foot and glow. */
+  --surface-list-head: color-mix(in oklab, var(--surface-list-ground) 55%, transparent);
+  --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 84%, transparent);
+  --list-wash-foot: 220px;
+  --list-glow-foot: 96px;
   --surface-page-list: linear-gradient(
-    transparent calc(var(--list-wash-at) - 24px),
+    transparent env(safe-area-inset-top, 0px),
+    var(--surface-list-head) calc(var(--list-wash-at) - 24px),
     var(--surface-list-wash) calc(var(--list-wash-at) + 112px),
-    var(--surface-list-wash) calc(100dvh - 300px),
-    var(--surface-list-glow) calc(100dvh - 120px),
+    var(--surface-list-wash) calc(100dvh - var(--list-wash-foot)),
+    var(--surface-list-glow) calc(100dvh - var(--list-glow-foot)),
     transparent 100dvh
   );
   --surface-page-list-ground: linear-gradient(
@@ -706,7 +714,10 @@
   --pool-c-tint: oklch(0.76 0.135 293 / 0.12);
   --surface-list-ground: var(--bg);
   --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 70%, transparent);
+  --surface-list-head: transparent;
   --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 35%, transparent);
+  --list-wash-foot: 300px;
+  --list-glow-foot: 120px;
   --surface-page-light:
     radial-gradient(39% 40% at var(--pool-a-x) var(--pool-a-y), var(--pool-a-tint), transparent),
     radial-gradient(43% 36% at var(--pool-b-x) var(--pool-b-y), var(--pool-b-tint), transparent),
