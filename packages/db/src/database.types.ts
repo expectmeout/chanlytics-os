@@ -2829,6 +2829,7 @@ export type Database = {
           name: string
           owner_named: boolean
           owner_shelved: boolean
+          owner_uploaded: boolean
           picture_print: string | null
           ready_at: string | null
           removed_at: string | null
@@ -2839,6 +2840,7 @@ export type Database = {
           source: string
           source_ref: string | null
           status: string
+          superseded_at: string | null
           tenant_id: string
           updated_at: string
           who_in_it: string
@@ -2869,6 +2871,7 @@ export type Database = {
           name: string
           owner_named?: boolean
           owner_shelved?: boolean
+          owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
@@ -2879,6 +2882,7 @@ export type Database = {
           source: string
           source_ref?: string | null
           status: string
+          superseded_at?: string | null
           tenant_id: string
           updated_at?: string
           who_in_it?: string
@@ -2909,6 +2913,7 @@ export type Database = {
           name?: string
           owner_named?: boolean
           owner_shelved?: boolean
+          owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
           removed_at?: string | null
@@ -2919,6 +2924,7 @@ export type Database = {
           source?: string
           source_ref?: string | null
           status?: string
+          superseded_at?: string | null
           tenant_id?: string
           updated_at?: string
           who_in_it?: string
@@ -9314,6 +9320,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      file_copies_free_at: {
+        Args: { p_rest_seconds: number; p_tenant_id: string }
+        Returns: string
+      }
       file_copies_let_go: {
         Args: {
           p_limit: number
@@ -9556,6 +9566,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: Json
+      }
+      file_was_used: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
       }
       files_are_full: { Args: { p_tenant_id: string }; Returns: boolean }
       files_found: {

@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 78 | 0 |
-| the server's | 376 | 318 |
+| the server's | 378 | 318 |
 | computed column | 3 | 0 |
 | trigger | 105 | 75 |
-| all | 749 | 580 |
+| all | 751 | 580 |
 
 ## Called by nothing
 
@@ -179,6 +179,7 @@ being read is dropped by a migration.
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
 | `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
+| `file_copies_free_at` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | When a copy that may not be let go yet could be (00654): |
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
@@ -201,7 +202,7 @@ being read is dropped by a migration.
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
-| `file_road_is_watched` | the server's | the server | SQL `file_copies_let_go` | Whether a road is a watched folder (00654): |
+| `file_road_is_watched` | the server's | the server | SQL `file_copies_free_at`, `file_copies_let_go` and 3 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
@@ -213,6 +214,7 @@ being read is dropped by a migration.
 | `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). |
 | `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 2 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
+| `file_was_used` | the server's | the server | SQL `source_items_grace_end` | Whether a file was used (00654): |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
 | `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |

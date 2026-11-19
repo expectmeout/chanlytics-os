@@ -656,6 +656,6 @@
     "00645_an_owner_may_run_ads.sql": "4b4769cf17534f94d473dc97d8250a9ce05ba4fe745057d7046bd6f9a83df812",
     "00646_a_page_names_the_ad_someone_came_through.sql": "00940a01a5a3235f0088d5e935912de721fe9f676f7b19aa3e2a2faee5aa8d2c",
     "00647_a_visit_keeps_when_its_booking_arrived.sql": "29905baa10dbaff71088c8ab4fe98bbc76dab77cb8e78a1767c138ab0b0b71fc",
-    "00654_a_watched_clip_s_copy_is_let_go_and_brought_back.sql": "26715452aa37ae0e115a2f60d78540cdc2a978cbd43f00f901ed680b77705eca"
+    "00654_a_watched_clip_s_copy_is_let_go_and_brought_back.sql": "a1240d30633111498f254653965a04bdfc49a0d612557a39d18b705cb15a90a7"
   }
 }

@@ -111,6 +111,34 @@ export async function markCopiesGoing(
 }
 
 /**
+ * When a copy of the workspace that may not be let go yet could be (file_copies_free_at): the earliest end of a
+ * resting copy's rest, or `restSeconds` from now for one a look or a video being made still holds. Null where none
+ * ever may: what fills the minutes is the owner's own (uploads, made and found videos) or a folder no longer read.
+ */
+export async function findCopiesFreeAt(db: Db, tenantId: TenantId, restSeconds: number): Promise<Date | null> {
+  const { data, error } = await db.rpc("file_copies_free_at", { p_tenant_id: tenantId, p_rest_seconds: restSeconds });
+  if (error) throw new DbFailure(error, "cannot read when a copy may be let go");
+  return typeof data === "string" ? new Date(data) : null;
+}
+
+/**
+ * Files their folder's items are letting go of because the bytes there changed (new bytes are a new file): marked
+ * superseded, so the seven-day cleanup reads them by their own mark. Written BEFORE the items let go, so a listing
+ * stopped between the two marks again what it sees again. A file already marked keeps its first time.
+ */
+export async function markFilesSuperseded(db: Db, tenantId: TenantId, fileIds: readonly string[]): Promise<void> {
+  if (fileIds.length === 0) return;
+  const { error } = await db
+    .from("files")
+    .update({ superseded_at: new Date().toISOString() })
+    .eq("tenant_id", tenantId)
+    .in("id", [...fileIds])
+    .is("removed_at", null)
+    .is("superseded_at", null);
+  if (error) throw new DbFailure(error, "cannot mark the files their folder let go of");
+}
+
+/**
  * A copy marked going was deleted at the video platform (file_copy_gone): the file is away and holds no id there, and
  * what waited for room in the videos is due. Answers whether it was one.
  */

@@ -29,12 +29,12 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import { findFileForWork, recordVideoSourced, type SourcedVideoFate } from "@chanlytics/db/files";
+import { findCopiesFreeAt, findFileForWork, recordVideoSourced, type SourcedVideoFate } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import { env } from "../../shared/env.js";
 import { makeRoom } from "../copy/let-go.js";
 import { streamAccount } from "../video-keys.js";
-import { DRIVE_UNITS, RELAY_TICKET_MS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
+import { DRIVE_UNITS, LET_GO, RELAY_TICKET_MS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
 import {
   endTake,
   endUnread,
@@ -70,6 +70,18 @@ export async function findVideoRoad(db: Taking["db"], tenantId: TenantId): Promi
   return config !== null && videoPreviewOf(config) ? { account, relayUrl, ticketKey } : null;
 }
 
+/**
+ * When a clip that found the videos full is tried again (00654 file_copies_free_at): as soon as a copy that may not
+ * be let go yet could be (a minute after its rest ends, an hour at most), or a few times a day where none ever may.
+ * Freed room wakes it sooner either way: a video removed or a copy let go releases what waited for room.
+ */
+async function roomAfter(taking: Taking): Promise<Date> {
+  const now = Date.now();
+  const free = await findCopiesFreeAt(taking.db, taking.item.tenant_id, LET_GO.restMs / SECOND_MS);
+  if (!free) return new Date(now + TAKE_RESTS_MS.room);
+  return new Date(Math.max(free.getTime() + TAKE_RESTS_MS.afterRest, now + TAKE_RESTS_MS.afterRest));
+}
+
 /** What the door's answer means for the item, where it is not "write the row": null to go on. */
 async function endJudged(taking: Taking, judged: SourcedVideoFate, bytes: number): Promise<TakeEnd | null> {
   if (judged.fate === "here") return endTake(taking, { state: "in", fileId: judged.file_id, bytes });
@@ -81,7 +93,7 @@ async function endJudged(taking: Taking, judged: SourcedVideoFate, bytes: number
       park: "all",
     });
   if (judged.fate === "minutes")
-    return putBack(taking, { why: "room", until: new Date(Date.now() + TAKE_RESTS_MS.room), park: "videos" });
+    return putBack(taking, { why: "room", until: await roomAfter(taking), park: "videos" });
   // The door's own word for what the screen already refuses: a clip longer than AI can watch.
   if (judged.fate === "long") return endTake(taking, { state: "too_big", why: "seconds", bytes });
   return null;

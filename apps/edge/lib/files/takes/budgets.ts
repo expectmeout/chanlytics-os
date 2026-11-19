@@ -73,8 +73,16 @@ export const TAKE_HAND_OUT = {
 
 /** How long an item rests before it is tried again, by what it waits for. A day's budget rests until the day ends. */
 export const TAKE_RESTS_MS = {
-  /** The videos are full: room comes when a video is removed, so it is asked after a few times a day. */
+  /**
+   * The videos are full and no copy may ever be let go for them (uploads, made and found videos fill them): room
+   * comes when a video is removed, which releases what waits at once, so it is asked after a few times a day.
+   */
   room: 6 * HOUR_MS,
+  /**
+   * The videos are full and a copy may be let go once its rest ends (00654 file_copies_free_at): tried again this
+   * long after, so the copy has passed its rest whatever the two clocks say.
+   */
+  afterRest: MIN_MS,
   /** The Library is full. */
   libraryFull: 6 * HOUR_MS,
   /** The workspace takes no videos yet, or this deployment has no relay or video platform to send one through. */
@@ -127,7 +135,8 @@ export const LET_GO = {
   unusedMs: 2 * WEEK_MS,
   /**
    * A copy is not let go within this of its last use or of its arrival: a player's token lasts an hour, and a first
-   * watch of a large folder then turns over the sixty minutes an hour at a time, not a clip at a time.
+   * watch of a large folder then turns over the sixty minutes an hour at a time, not a clip at a time. A clip that
+   * found them full is tried again as the first rest ends (`TAKE_RESTS_MS.afterRest`), not a room's six hours.
    */
   restMs: HOUR_MS,
   /** The most copies one read of a folder lets go by age. */

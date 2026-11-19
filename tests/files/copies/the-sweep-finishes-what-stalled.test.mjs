@@ -9,10 +9,12 @@
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels/shared";
+import { at } from "../../_cron-doors-world.mjs";
 import {
   COPY_RETURN,
   LET_GO,
   NOW,
+  SOURCE,
   SOURCE_GRACE,
   T,
   copyId,
@@ -194,4 +196,94 @@ test("a file something used, or another origin holds, stays; its tombstone still
   for (const clip of all) assert.equal(w.file(clip.row.id).removed_at, null);
   assert.equal(w.item(second.id).state, "in", "the origin that still holds it is untouched");
   assert.equal(w.item(posted.origin.id), undefined);
+});
+
+/* ---------------------------------------------------- a file held by its own road, and one its folder superseded */
+
+test("the cleanup never removes a file its own road holds: an upload, a found file, or a watched one its owner uploaded", async () => {
+  // Each came in by another road first, or was uploaded too, and its folder's item was binned eight days ago.
+  const upload = watchedClip({ source: "upload" }, { state: "gone", gone_at: daysAgo(8) });
+  const found = watchedClip({ source: "instagram", status: "filed" }, { state: "gone", gone_at: daysAgo(8) });
+  const uploaded = watchedClip({ owner_uploaded: true }, { state: "outside", gone_at: daysAgo(8) });
+  const all = [upload, found, uploaded];
+  const w = world({ files: all.map((c) => c.row), items: all.map((c) => c.origin) });
+  theWeb({});
+  const done = await keepCopiesMoving(w.db, NOW);
+  assert.deepEqual([done.removed, done.kept, done.cleared], [0, 3, 3]);
+  for (const clip of all) assert.equal(w.file(clip.row.id).removed_at, null);
+  assert.deepEqual(w.tables.jobs, []);
+});
+
+const { planPage, keepPage } = await import(at("apps/edge/lib/files/sources/items.ts"));
+
+/** What Drive says of an item now: the same item, other bytes. */
+const recordOf = (item, over = {}) => ({
+  id: item.provider_id,
+  kind: item.kind,
+  parentId: item.parent_id,
+  name: item.name,
+  mime: "video/quicktime",
+  modifiedAt: "2026-11-18T10:00:00.000Z",
+  createdAt: "2026-11-10T10:00:00.000Z",
+  checksum: item.checksum,
+  bytes: Number(item.bytes),
+  seconds: Number(item.seconds),
+  addedBy: null,
+  trashed: false,
+  ...over,
+});
+
+test("a listing that sees new bytes marks the old file superseded as its item lets go of it", async () => {
+  const taken = watchedClip();
+  const away = watchedClip({}, { state: "gone", gone_at: daysAgo(1) });
+  const w = world({ files: [taken.row, away.row], items: [taken.origin, away.origin] });
+  const ref = { tenantId: T, sourceId: SOURCE };
+  const seen = [
+    recordOf(taken.origin, { checksum: "md5-of-an-edit" }),
+    recordOf(away.origin, { bytes: Number(away.origin.bytes) + 1 }),
+  ];
+  await keepPage(w.db, ref, planPage(ref, seen, [taken.origin, away.origin], true), 0);
+  for (const clip of [taken, away]) {
+    assert.ok(w.file(clip.row.id).superseded_at, "the old file is marked");
+    assert.equal(w.item(clip.origin.id).file_id, null, "and its item let go of it");
+    assert.equal(w.file(clip.row.id).removed_at, null, "it stays in the Library for now");
+  }
+  assert.equal(w.item(taken.origin.id).state, "waiting", "the new bytes are asked for as a new file");
+  // The same bytes seen again mark nothing: no file is let go.
+  const first = w.file(taken.row.id).superseded_at;
+  await keepPage(w.db, ref, planPage(ref, [seen[0]], [w.item(taken.origin.id)], true), 0);
+  assert.equal(w.file(taken.row.id).superseded_at, first);
+});
+
+test("seven days after it was superseded an unused file goes; one used, or held again, stays and loses its mark", async () => {
+  const unused = watchedClip({ superseded_at: daysAgo(8) }, { state: "listed", file_id: null });
+  const recent = watchedClip({ superseded_at: daysAgo(6) }, { state: "listed", file_id: null });
+  const posted = watchedClip({ superseded_at: daysAgo(8) }, { state: "listed", file_id: null });
+  const heldAgain = watchedClip({ superseded_at: daysAgo(8) });
+  const uploaded = watchedClip({ superseded_at: daysAgo(8), owner_uploaded: true }, { state: "listed", file_id: null });
+  const all = [unused, recent, posted, heldAgain, uploaded];
+  const w = world({
+    files: all.map((c) => c.row),
+    items: all.map((c) => c.origin),
+    posts: [{ id: "p1", tenant_id: T, file_id: posted.row.id }],
+  });
+  theWeb({});
+  const done = await keepCopiesMoving(w.db, NOW);
+  assert.deepEqual([done.removed, done.kept, done.cleared], [1, 3, 0]);
+  assert.ok(w.file(unused.row.id).removed_at, "unused, a week on: removed");
+  assert.deepEqual(
+    w.tables.jobs.map((job) => job.payload),
+    [{ file_id: unused.row.id, why: "remove" }],
+  );
+  assert.deepEqual(
+    w.tables.events.map((e) => e.data),
+    [{ file_id: unused.row.id, why: "source_changed" }],
+  );
+  assert.deepEqual(w.tables.files_let_go, [], "never written to the owner's own let-go list");
+  for (const kept of [posted, heldAgain, uploaded]) {
+    assert.equal(w.file(kept.row.id).removed_at, null);
+    assert.equal(w.file(kept.row.id).superseded_at, null, "judged once: its mark goes");
+  }
+  assert.equal(w.file(recent.row.id).removed_at, null, "inside its grace");
+  assert.ok(w.file(recent.row.id).superseded_at);
 });

@@ -775,3 +775,156 @@ test(
     assert.ok(stranger.error || stranger.data.length === 0);
   },
 );
+
+test(
+  "an upload that meets a watched folder's file marks it its owner's, and it is never let go or cleaned up",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const watched = await clip(ws, { copy_used_at: daysAgo(30) });
+    // The owner uploads the same clip from the phone: one file, now theirs.
+    const begun = ok(
+      await db.rpc("file_video_begin", {
+        p_tenant_id: ws.T,
+        p_id: randomUUID(),
+        p_media_ref: `copies-upload-${randomUUID()}`,
+        p_name: "clip",
+        p_mime: "video/quicktime",
+        p_bytes: 50_000_000,
+        p_fingerprint: watched.file.fingerprint,
+        p_seconds: 60,
+      }),
+      "the upload",
+    );
+    assert.deepEqual([begun.fate, begun.file_id], ["here", watched.file.id]);
+    const marked = await fileNow(watched.file.id);
+    assert.deepEqual([marked.owner_uploaded, marked.source, marked.copy_state], [true, "drive", "here"]);
+    assert.deepEqual(ok(await letGo(ws, { p_unused_before: new Date().toISOString() }), "by age"), []);
+    assert.equal(ok(await db.rpc("file_copies_free_at", { p_tenant_id: ws.T, p_rest_seconds: 3600 }), "free at"), null);
+    // Its folder's item binned eight days ago: its own upload holds it, and the cleanup keeps it.
+    ok(
+      await db
+        .from("source_items")
+        .update({ state: "gone", gone_at: daysAgo(8) })
+        .eq("id", watched.item.id),
+      "binned",
+    );
+    ok(await db.rpc("source_items_grace_end", { p_grace_seconds: WEEK_S, p_limit: 10_000 }), "the cleanup");
+    assert.equal((await fileNow(watched.file.id)).removed_at, null);
+    // A photo the same way, through the photo's door.
+    const [photo] = ok(
+      await db
+        .from("files")
+        .insert({
+          tenant_id: ws.T,
+          status: "filed",
+          source: "drive",
+          name: `photo-${stamp}`,
+          mime: "image/jpeg",
+          bytes: 1_000,
+          fingerprint: `copies-photo-${randomUUID()}`,
+          kind: "image",
+        })
+        .select("*"),
+      "a watched photo",
+    );
+    const found = ok(
+      await db.rpc("file_found", {
+        p_tenant_id: ws.T,
+        p_id: randomUUID(),
+        p_status: "filed",
+        p_source: "upload",
+        p_source_ref: null,
+        p_name: "photo",
+        p_mime: "image/jpeg",
+        p_bytes: 1_000,
+        p_fingerprint: photo.fingerprint,
+        p_width: 100,
+        p_height: 100,
+        p_shows: null,
+        p_edition: 1,
+      }),
+      "the photo's upload",
+    );
+    assert.deepEqual([found.fate, found.file_id], ["here", photo.id]);
+    assert.equal((await fileNow(photo.id)).owner_uploaded, true);
+    // A found road meeting the same file marks nothing: only the owner's own upload does.
+    const other = await clip(ws);
+    ok(
+      await db.rpc("file_found", {
+        p_tenant_id: ws.T,
+        p_id: randomUUID(),
+        p_status: "inbox",
+        p_source: "website",
+        p_source_ref: "https://example.com/a.jpg",
+        p_name: "x",
+        p_mime: "image/jpeg",
+        p_bytes: 1,
+        p_fingerprint: other.file.fingerprint,
+        p_width: 1,
+        p_height: 1,
+        p_shows: null,
+        p_edition: 1,
+      }),
+      "a found twin",
+    );
+    assert.equal((await fileNow(other.file.id)).owner_uploaded, false);
+  },
+);
+
+test(
+  "a full workspace's next try is when a resting copy's rest ends; none at all where nothing may ever go",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const usedAt = new Date(Date.now() - 20 * 60 * 1000);
+    await clip(ws, { copy_used_at: usedAt.toISOString() });
+    await clip(ws, { copy_used_at: daysAgo(3) });
+    const at = ok(await db.rpc("file_copies_free_at", { p_tenant_id: ws.T, p_rest_seconds: 3600 }), "free at");
+    assert.ok(Math.abs(Date.parse(at) - (usedAt.getTime() + 3_600_000)) < 2_000, "the resting copy's rest ends then");
+    const none = await workspace();
+    await video(none, { source: "upload", seconds: 3600 });
+    assert.equal(ok(await db.rpc("file_copies_free_at", { p_tenant_id: none.T, p_rest_seconds: 3600 }), "none"), null);
+  },
+);
+
+test(
+  "a superseded file goes a week on unless used or held; an item that holds it again clears its mark",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const unused = await clip(ws, { superseded_at: daysAgo(8) }, { state: "listed", file_id: null });
+    const held = await clip(ws, { superseded_at: daysAgo(8) }, { state: "listed", file_id: null });
+    // The item takes hold of it again (its new bytes were the same file after all): the mark goes by itself.
+    ok(
+      await db.from("source_items").update({ file_id: held.file.id, state: "in" }).eq("id", held.item.id),
+      "held again",
+    );
+    assert.equal((await fileNow(held.file.id)).superseded_at, null);
+    const posted = await clip(ws, { superseded_at: daysAgo(8) }, { state: "listed", file_id: null });
+    ok(
+      await db.from("posts").insert({
+        tenant_id: ws.T,
+        file_id: posted.file.id,
+        place: "hand",
+        kind: "reel",
+        status: "published",
+      }),
+      "a post of it",
+    );
+    const done = ok(
+      await db.rpc("source_items_grace_end", { p_grace_seconds: WEEK_S, p_limit: 10_000 }),
+      "the cleanup",
+    );
+    assert.ok(done.removed >= 1 && done.kept >= 1);
+    assert.notEqual((await fileNow(unused.file.id)).removed_at, null);
+    const event = ok(
+      await db.from("events").select("data").eq("tenant_id", ws.T).eq("kind", "file.removed"),
+      "the removal's event",
+    );
+    assert.ok(event.some((e) => e.data.file_id === unused.file.id && e.data.why === "source_changed"));
+    const kept = await fileNow(posted.file.id);
+    assert.deepEqual([kept.removed_at, kept.superseded_at], [null, null], "kept, and judged once");
+    assert.equal((await fileNow(held.file.id)).removed_at, null);
+  },
+);

@@ -54,6 +54,45 @@ export function copyDoors(tables, w) {
   const free = (tenantId) => CAP_SECONDS - videoSecondsOf(tables, w.nowMs, tenantId);
   const usedAt = (f) => Date.parse(f.copy_used_at ?? f.ready_at ?? f.created_at);
   const named = (plan, fileId) => JSON.stringify(plan ?? null).includes(fileId);
+  const reading = () =>
+    new Set(tables.media_sources.filter((s) => ["setting_up", "watching"].includes(s.state)).map((s) => s.id));
+  /** A copy that could ever be let go: a watched clip its owner did not upload, here, playable, its item in a folder read. */
+  const mayEverGo = (f, tenantId) =>
+    f.tenant_id === tenantId &&
+    f.kind === "video" &&
+    f.source === "drive" &&
+    !f.owner_uploaded &&
+    !f.removed_at &&
+    (f.copy_state ?? "here") === "here" &&
+    f.media_status === "ready" &&
+    f.media_ref &&
+    originsOf(f.tenant_id, f.id).some((i) => i.state === "in" && reading().has(i.source_id));
+  const makingNames = (f) =>
+    tables.pieces.some((p) => p.tenant_id === f.tenant_id && p.status === "making" && named(p.plan, f.id));
+  /** file_was_used: a post of it, a video made or being made that names it, a file made from it. */
+  const wasUsed = (tenantId, fileId) =>
+    tables.posts.some((p) => p.tenant_id === tenantId && p.file_id === fileId) ||
+    tables.pieces.some(
+      (p) => p.tenant_id === tenantId && ["making", "made"].includes(p.status) && named(p.plan, fileId),
+    ) ||
+    tables.files.some(
+      (m) => m.tenant_id === tenantId && m.id !== fileId && !m.removed_at && m.made && named(m.made, fileId),
+    );
+  /** The file goes as a twin does: removed, its purge on the ledger, and why on the Activity log. */
+  const removeFile = (file, why) => {
+    Object.assign(file, { removed_at: now(), updated_at: now() });
+    tables.jobs.push({
+      id: randomUUID(),
+      tenant_id: file.tenant_id,
+      kind: "file_purge",
+      state: "scheduled",
+      due_at: now(),
+      payload: { file_id: file.id, why: "remove" },
+    });
+    tables.events.push({ tenant_id: file.tenant_id, kind: "file.removed", data: { file_id: file.id, why } });
+  };
+  /** Held by its own road (an upload, a found road, its owner's upload of it) rather than only by a folder. */
+  const heldByItsRoad = (file) => file.source !== "drive" || file.owner_uploaded === true;
   const dayRow = () => {
     const day = pacificDay(w.nowMs);
     let row = tables.source_days.find((d) => d.day === day);
@@ -82,23 +121,13 @@ export function copyDoors(tables, w) {
       w.asked.push({ door: "file_copies_let_go", ...a });
       const short = a.p_seconds === null ? null : a.p_seconds - free(a.p_tenant_id);
       if (short !== null && short <= 0) return [];
-      const reading = new Set(
-        tables.media_sources.filter((s) => ["setting_up", "watching"].includes(s.state)).map((s) => s.id),
-      );
       const eligible = tables.files
         .filter(
           (f) =>
-            f.tenant_id === a.p_tenant_id &&
-            f.kind === "video" &&
-            f.source === "drive" &&
-            !f.removed_at &&
-            (f.copy_state ?? "here") === "here" &&
-            f.media_status === "ready" &&
-            f.media_ref &&
+            mayEverGo(f, a.p_tenant_id) &&
             (["done", "refused"].includes(f.look_status) || Date.parse(f.created_at) < w.nowMs - WEEK_MS) &&
             usedAt(f) < Date.parse(a.p_rested_before) &&
-            originsOf(f.tenant_id, f.id).some((i) => i.state === "in" && reading.has(i.source_id)) &&
-            !tables.pieces.some((p) => p.tenant_id === f.tenant_id && p.status === "making" && named(p.plan, f.id)),
+            !makingNames(f),
         )
         .sort((x, y) => usedAt(x) - usedAt(y) || x.id.localeCompare(y.id));
       const all = eligible.reduce((sum, f) => sum + Number(f.seconds ?? 0), 0);
@@ -115,6 +144,22 @@ export function copyDoors(tables, w) {
         going.push({ id: f.id, media_ref: f.media_ref, seconds: f.seconds ?? null });
       }
       return going;
+    },
+    // The copies that may not go yet but could: resting ones by the end of their rest, held ones a rest from now.
+    file_copies_free_at: (a) => {
+      w.asked.push({ door: "file_copies_free_at", ...a });
+      const rest = a.p_rest_seconds * 1000;
+      const times = tables.files
+        .filter((f) => mayEverGo(f, a.p_tenant_id))
+        .flatMap((f) => {
+          const resting = usedAt(f) >= w.nowMs - rest;
+          const held =
+            (!["done", "refused"].includes(f.look_status) && Date.parse(f.created_at) >= w.nowMs - WEEK_MS) ||
+            makingNames(f);
+          if (resting) return [usedAt(f) + rest];
+          return held ? [w.nowMs + rest] : [];
+        });
+      return times.length ? new Date(Math.min(...times)).toISOString() : null;
     },
     file_copy_gone: (a) => {
       const row = fileOf(a.p_tenant_id, a.p_id);
@@ -199,38 +244,39 @@ export function copyDoors(tables, w) {
         const file = item.file_id ? tables.files.find((f) => f.id === item.file_id && !f.removed_at) : null;
         if (file) {
           const held =
+            heldByItsRoad(file) ||
             tables.source_items.some(
               (o) => o.tenant_id === item.tenant_id && o.file_id === file.id && o.id !== item.id,
             ) ||
-            tables.posts.some((p) => p.tenant_id === item.tenant_id && p.file_id === file.id) ||
-            tables.pieces.some(
-              (p) => p.tenant_id === item.tenant_id && ["making", "made"].includes(p.status) && named(p.plan, file.id),
-            ) ||
-            tables.files.some(
-              (m) =>
-                m.tenant_id === item.tenant_id && m.id !== file.id && !m.removed_at && m.made && named(m.made, file.id),
-            );
+            wasUsed(item.tenant_id, file.id);
           if (held) done.kept += 1;
           else {
-            Object.assign(file, { removed_at: now(), updated_at: now() });
-            tables.jobs.push({
-              id: randomUUID(),
-              tenant_id: item.tenant_id,
-              kind: "file_purge",
-              state: "scheduled",
-              due_at: now(),
-              payload: { file_id: file.id, why: "remove" },
-            });
-            tables.events.push({
-              tenant_id: item.tenant_id,
-              kind: "file.removed",
-              data: { file_id: file.id, why: "source_gone" },
-            });
+            removeFile(file, "source_gone");
             done.removed += 1;
           }
         }
         tables.source_items.splice(tables.source_items.indexOf(item), 1);
         done.cleared += 1;
+      }
+      // A file superseded at its provider that long ago, by its own mark: the same terms, and one that stays loses it.
+      const superseded = tables.files
+        .filter(
+          (f) => f.superseded_at && !f.removed_at && Date.parse(f.superseded_at) < w.nowMs - a.p_grace_seconds * 1000,
+        )
+        .sort((x, y) => String(x.superseded_at).localeCompare(String(y.superseded_at)))
+        .slice(0, Math.max(a.p_limit, 1));
+      for (const file of superseded) {
+        const held =
+          heldByItsRoad(file) ||
+          tables.source_items.some((o) => o.tenant_id === file.tenant_id && o.file_id === file.id) ||
+          wasUsed(file.tenant_id, file.id);
+        if (held) {
+          file.superseded_at = null;
+          done.kept += 1;
+        } else {
+          removeFile(file, "source_changed");
+          done.removed += 1;
+        }
       }
       return done;
     },

@@ -6530,6 +6530,8 @@ begin
     perform public.file_copy_settle(old.tenant_id, old.file_id);
   end if;
   if new.file_id is not null and new.file_id is distinct from old.file_id then
+    -- An item holds it again: it is no longer a file its folder let go of, whatever its bytes did before.
+    update public.files f set superseded_at = null where f.id = new.file_id and f.superseded_at is not null;
     perform public.file_copy_settle(new.tenant_id, new.file_id);
   end if;
   return null;
@@ -6540,7 +6542,45 @@ end $$;
 -- Name: FUNCTION file_copies_follow_origin(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_follow_origin() IS 'A trigger on source_items (00654): an item that holds a Library file changed state, let go of the file or was deleted, so the file''s copy is settled by what its origins now say (file_copy_settle). However it happened: the sync marking it gone, a restore from the bin, a disconnect''s cascade.';
+COMMENT ON FUNCTION public.file_copies_follow_origin() IS 'A trigger on source_items (00654): an item that holds a Library file changed state, let go of the file or was deleted, so the file''s copy is settled by what its origins now say (file_copy_settle). However it happened: the sync marking it gone, a restore from the bin, a disconnect''s cascade. An item that comes to hold a file clears its superseded mark.';
+
+
+--
+-- Name: file_copies_free_at(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) RETURNS timestamp with time zone
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The copies that could be let go but may not yet: resting (used, or arrived, within the rest), or held by a look
+  -- not done or a video being made. One that may go now is left out: it was weighed, and it did not free enough.
+  select min(case
+               when coalesce(f.copy_used_at, f.ready_at, f.created_at) >= now() - make_interval(secs => p_rest_seconds)
+                 then coalesce(f.copy_used_at, f.ready_at, f.created_at) + make_interval(secs => p_rest_seconds)
+               else now() + make_interval(secs => p_rest_seconds)
+             end)
+    from public.files f
+   where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
+     and not f.owner_uploaded
+     and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
+     and exists (select 1 from public.source_items i
+                   join public.media_sources s on s.id = i.source_id
+                  where i.tenant_id = f.tenant_id and i.file_id = f.id and i.state = 'in'
+                    and s.state = any (array['setting_up', 'watching']))
+     and (coalesce(f.copy_used_at, f.ready_at, f.created_at) >= now() - make_interval(secs => p_rest_seconds)
+          or (f.look_status <> all (array['done', 'refused']) and f.created_at >= now() - interval '7 days')
+          or exists (select 1 from public.pieces p
+                      where p.tenant_id = f.tenant_id and p.status = 'making'
+                        and position(f.id::text in p.plan::text) > 0))
+$$;
+
+
+--
+-- Name: FUNCTION file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) IS 'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads, made and found videos, or folders no longer read. A take that found the videos full waits until then. The service role''s.';
 
 
 --
@@ -6565,12 +6605,14 @@ begin
     end if;
   end if;
   with eligible as (
-    -- Only what can come back is let go by itself: a watched folder's clip, playable, looked at (or past the week a
+    -- Only what can come back is let go by itself: a watched folder's clip its owner did not also upload, playable,
+    -- looked at (or past the week a
     -- look is tried again in), held by an item that is in, in a folder still being read; named by no video being
     -- made; and not used, or arrived, since the rest began.
     select f.id, f.seconds, coalesce(f.copy_used_at, f.ready_at, f.created_at) as used_at
       from public.files f
      where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
+       and not f.owner_uploaded
        and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
        and (f.look_status = any (array['done', 'refused']) or f.created_at < now() - interval '7 days')
        and coalesce(f.copy_used_at, f.ready_at, f.created_at) < p_rested_before
@@ -6618,7 +6660,7 @@ end $$;
 -- Name: FUNCTION file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip that is playable, looked at, held by an item that is in under a folder still being read, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
+COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip its owner did not also upload (owner_uploaded), playable, looked at, held by an item that is in under a folder still being read, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
 
 
 --
@@ -6916,6 +6958,11 @@ begin
            source_ref = case when p_source = 'google_profile' and f.source = 'google_listing' then p_source_ref else f.source_ref end,
            updated_at = now()
      where f.id = v_twin.id and (f.status <> 'filed' or (p_source = 'google_profile' and f.source = 'google_listing'));
+    -- A watched folder's file its owner uploaded too (00654): theirs from now on, and a folder's cleanup never removes it.
+    if p_source = 'upload' then
+      update public.files f set owner_uploaded = true, updated_at = now()
+       where f.id = v_twin.id and public.file_road_is_watched(f.source) and not f.owner_uploaded;
+    end if;
     return jsonb_build_object('fate', 'here', 'file_id', v_twin.id);
   end if;
   -- What a person removed is not brought back by the next read of the same place. A person may add it again.
@@ -6968,7 +7015,7 @@ end $_$;
 -- Name: FUNCTION file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text) IS 'The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word.';
+COMMENT ON FUNCTION public.file_found(p_tenant_id uuid, p_id uuid, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_width integer, p_height integer, p_shows text, p_edition integer, p_actor uuid, p_print text) IS 'The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). Answers {fate: kept, here or full, file_id}. No session reaches it: what the bytes are is never the browser''s word. An upload that meets a watched folder''s file as its twin marks it its owner''s (00654, owner_uploaded).';
 
 
 --
@@ -7805,6 +7852,10 @@ begin
   select f.id, f.media_status into v_twin, v_status from public.files f
    where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
   if found and v_status is distinct from 'uploading' then
+    -- A watched folder's clip its owner uploaded too (00654): theirs from now on, as any upload. Its copy is never let
+    -- go, and a folder's cleanup never removes it.
+    update public.files f set owner_uploaded = true, updated_at = now()
+     where f.id = v_twin and public.file_road_is_watched(f.source) and not f.owner_uploaded;
     return jsonb_build_object('fate', 'here', 'file_id', v_twin);
   end if;
   -- One whose bytes never all went, picked again where its upload could not go on: this one takes its place, and the purge
@@ -7838,7 +7889,7 @@ end $$;
 -- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
+COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s. An upload that meets a watched folder''s clip as its twin marks it its owner''s (00654, owner_uploaded).';
 
 
 --
@@ -7997,6 +8048,32 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) IS 'A watched folder''s clip on its way (00643), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}; judged to fit, its item holds that room until its row is written (00654, source_items.held_seconds). With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
+
+
+--
+-- Name: file_was_used(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_was_used(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- A post of it, a video made or being made that names it, or a file made from it (a post drawn from its moment).
+  select exists (select 1 from public.posts p where p.tenant_id = p_tenant_id and p.file_id = p_file_id)
+      or exists (select 1 from public.pieces p
+                  where p.tenant_id = p_tenant_id and p.status = any (array['making', 'made'])
+                    and position(p_file_id::text in p.plan::text) > 0)
+      or exists (select 1 from public.files m
+                  where m.tenant_id = p_tenant_id and m.id <> p_file_id and m.removed_at is null and m.made is not null
+                    and position(p_file_id::text in m.made::text) > 0)
+$$;
+
+
+--
+-- Name: FUNCTION file_was_used(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_was_used(p_tenant_id uuid, p_file_id uuid) IS 'Whether a file was used (00654): a post of it, a video made or being made that names it, or a file made from it. What the seven-day cleanup asks before it removes anything. Its doors''.';
 
 
 --
@@ -36445,6 +36522,7 @@ CREATE FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit i
     AS $$
 declare
   v_item    record;
+  v_file    public.files;
   v_removed integer := 0;
   v_kept    integer := 0;
   v_cleared integer := 0;
@@ -36463,36 +36541,58 @@ begin
   loop
     -- One at a time a workspace, as every door that files or removes takes it. One busy just now waits for the next turn.
     continue when not pg_try_advisory_xact_lock(hashtextextended(v_item.tenant_id::text || '|files', 42));
-    if v_item.file_id is not null
-       and exists (select 1 from public.files f where f.id = v_item.file_id and f.removed_at is null) then
-      if exists (select 1 from public.source_items o
-                  where o.tenant_id = v_item.tenant_id and o.file_id = v_item.file_id and o.id <> v_item.id)
-         or exists (select 1 from public.posts p
-                     where p.tenant_id = v_item.tenant_id and p.file_id = v_item.file_id)
-         or exists (select 1 from public.pieces p
-                     where p.tenant_id = v_item.tenant_id and p.status = any (array['making', 'made'])
-                       and position(v_item.file_id::text in p.plan::text) > 0)
-         or exists (select 1 from public.files m
-                     where m.tenant_id = v_item.tenant_id and m.id <> v_item.file_id and m.removed_at is null
-                       and m.made is not null and position(v_item.file_id::text in m.made::text) > 0) then
-        -- Another origin holds it, or a post or a video made here used it: it stays.
+    select * into v_file from public.files f where f.id = v_item.file_id and f.removed_at is null;
+    if found then
+      -- Held by another origin, or used: it stays. Its own road is an origin too: an upload, or a found road, holds it,
+      -- and so does its owner's upload of a watched file (owner_uploaded).
+      if not public.file_road_is_watched(v_file.source) or v_file.owner_uploaded
+         or exists (select 1 from public.source_items o
+                     where o.tenant_id = v_item.tenant_id and o.file_id = v_file.id and o.id <> v_item.id)
+         or public.file_was_used(v_item.tenant_id, v_file.id) then
         v_kept := v_kept + 1;
       else
         -- Removed as a twin is, never as a person removes one: nothing is written to files_let_go, so the same bytes
         -- put back in the folder come in again.
-        update public.files f set removed_at = now(), updated_at = now() where f.id = v_item.file_id;
+        update public.files f set removed_at = now(), updated_at = now() where f.id = v_file.id;
         insert into public.jobs (tenant_id, kind, due_at, payload)
-        values (v_item.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_item.file_id, 'why', 'remove'))
+        values (v_item.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_file.id, 'why', 'remove'))
         on conflict do nothing;
         insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
         values (v_item.tenant_id, 'file.removed', 'setup', 'workspace', v_item.tenant_id,
-                jsonb_build_object('file_id', v_item.file_id, 'why', 'source_gone'));
+                jsonb_build_object('file_id', v_file.id, 'why', 'source_gone'));
         v_removed := v_removed + 1;
       end if;
     end if;
     -- The tombstone has said what it had to: its row goes. A file it leaves with no origin says so (file_copy_settle).
     delete from public.source_items i where i.id = v_item.id;
     v_cleared := v_cleared + 1;
+  end loop;
+  -- A file its folder's item let go of when the bytes there changed (superseded_at), that long ago: the same terms. It
+  -- is read by its own mark, written as the item let go of it, never because no origin is left.
+  for v_file in
+    select f.* from public.files f
+     where f.superseded_at < now() - make_interval(secs => greatest(p_grace_seconds, 0)) and f.removed_at is null
+     order by f.superseded_at
+     limit greatest(p_limit, 1)
+     for update skip locked
+  loop
+    continue when not pg_try_advisory_xact_lock(hashtextextended(v_file.tenant_id::text || '|files', 42));
+    if not public.file_road_is_watched(v_file.source) or v_file.owner_uploaded
+       or exists (select 1 from public.source_items o where o.tenant_id = v_file.tenant_id and o.file_id = v_file.id)
+       or public.file_was_used(v_file.tenant_id, v_file.id) then
+      -- It stays, for good: judged once, its mark goes.
+      update public.files f set superseded_at = null where f.id = v_file.id;
+      v_kept := v_kept + 1;
+    else
+      update public.files f set removed_at = now(), updated_at = now() where f.id = v_file.id;
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (v_file.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_file.id, 'why', 'remove'))
+      on conflict do nothing;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (v_file.tenant_id, 'file.removed', 'setup', 'workspace', v_file.tenant_id,
+              jsonb_build_object('file_id', v_file.id, 'why', 'source_changed'));
+      v_removed := v_removed + 1;
+    end if;
   end loop;
   return jsonb_build_object('removed', v_removed, 'kept', v_kept, 'cleared', v_cleared);
 end $$;
@@ -36502,7 +36602,7 @@ end $$;
 -- Name: FUNCTION source_items_grace_end(p_grace_seconds integer, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) IS 'The seven-day cleanup (00654, the footage sources plan''s D3 as narrowed on 18 November): each item seen in its provider''s bin (gone) or moved out to a place its account can see (outside) p_grace_seconds ago, oldest first, p_limit at most. Its Library file is removed only if no other origin holds it and nothing used it (a post, a video made or being made, a file made from it), as a twin is removed: nothing is written to files_let_go. Then the item''s row is deleted. It reads tombstones only: an item that vanished (no_access) and a file with no origin are never touched. Answers {removed, kept, cleared}. The service role''s.';
+COMMENT ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) IS 'The seven-day cleanup (00654, the footage sources plan''s D3 as narrowed on 18 November): each item seen in its provider''s bin (gone) or moved out to a place its account can see (outside) p_grace_seconds ago, oldest first, p_limit at most. Its Library file is removed only if its own road is a watched folder''s, its owner did not also upload it, no other origin holds it and nothing used it (file_was_used), as a twin is removed: nothing is written to files_let_go. Then the item''s row is deleted. A file superseded at its provider p_grace_seconds ago (superseded_at) goes on the same terms, and one that stays loses its mark. It reads those two marks only: an item that vanished (no_access) and a file with no origin are never touched. Answers {removed, kept, cleared: tombstone rows deleted}. The service role''s.';
 
 
 --
@@ -40645,6 +40745,8 @@ CREATE TABLE public.files (
     copy_why text,
     copy_used_at timestamp with time zone,
     copy_returned_at timestamp with time zone,
+    owner_uploaded boolean DEFAULT false NOT NULL,
+    superseded_at timestamp with time zone,
     CONSTRAINT files_copy_shape CHECK ((((copy_state = 'here'::text) OR ((kind = 'video'::text) AND (source = 'drive'::text))) AND ((copy_state <> ALL (ARRAY['away'::text, 'lost'::text])) OR (media_ref IS NULL)) AND ((copy_why IS NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text]))))),
     CONSTRAINT files_copy_state_check CHECK ((copy_state = ANY (ARRAY['here'::text, 'going'::text, 'away'::text, 'returning'::text, 'lost'::text]))),
     CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'folder'::text, 'videos_off'::text, 'busy'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
@@ -40864,6 +40966,20 @@ COMMENT ON COLUMN public.files.copy_used_at IS 'When the copy at the video platf
 --
 
 COMMENT ON COLUMN public.files.copy_returned_at IS 'When a return of the copy last spent the day''s budget (00654 file_copy_return_begin): a workspace''s returns of a day are counted from it.';
+
+
+--
+-- Name: COLUMN files.owner_uploaded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.owner_uploaded IS 'Its owner uploaded it too (00654): a watched folder''s file that an upload met as its twin, written by the upload''s door. It is theirs from then on, as any upload: its copy is never let go, and a folder''s cleanup never removes it.';
+
+
+--
+-- Name: COLUMN files.superseded_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.superseded_at IS 'When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone''s, and the mark is cleared if an item holds it again. Null: never superseded.';
 
 
 --
@@ -47524,6 +47640,13 @@ CREATE UNIQUE INDEX files_one_name ON public.files USING btree (tenant_id, name)
 --
 
 CREATE INDEX files_removed ON public.files USING btree (removed_at) WHERE (removed_at IS NOT NULL);
+
+
+--
+-- Name: files_superseded; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_superseded ON public.files USING btree (superseded_at) WHERE ((superseded_at IS NOT NULL) AND (removed_at IS NULL));
 
 
 --
@@ -56345,6 +56468,14 @@ GRANT ALL ON FUNCTION public.file_copies_follow_origin() TO service_role;
 
 
 --
+-- Name: FUNCTION file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) TO service_role;
+
+
+--
 -- Name: FUNCTION file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -56629,6 +56760,14 @@ GRANT ALL ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric
 
 REVOKE ALL ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) TO service_role;
+
+
+--
+-- Name: FUNCTION file_was_used(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_was_used(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_was_used(p_tenant_id uuid, p_file_id uuid) TO service_role;
 
 
 --

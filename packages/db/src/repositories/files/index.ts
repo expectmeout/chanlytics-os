@@ -6,6 +6,7 @@ export {
   beginCopyReturn,
   endSourceGrace,
   failCopyReturn,
+  findCopiesFreeAt,
   findReturnAnywhere,
   isCopyReturning,
   keepCopyWait,
@@ -13,6 +14,7 @@ export {
   listCopiesMoving,
   markCopiesGoing,
   markCopyGone,
+  markFilesSuperseded,
   settleFileCopy,
   touchFileCopy,
 } from "./copies";

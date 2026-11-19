@@ -1360,6 +1360,8 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `copy_why` | text | yes |  | Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, folder, videos_off, busy, unreadable, changed, failed, stopped). One of a closed set (contracts FILE_COPY_WHYS). |
 | `copy_used_at` | timestamp with time zone | yes |  | When the copy at the video platform was last used: played, shown to AI, cut into a video (00654). What is let go first is what was used longest ago. |
 | `copy_returned_at` | timestamp with time zone | yes |  | When a return of the copy last spent the day's budget (00654 file_copy_return_begin): a workspace's returns of a day are counted from it. |
+| `owner_uploaded` | boolean | no | `false` | Its owner uploaded it too (00654): a watched folder's file that an upload met as its twin, written by the upload's door. It is theirs from then on, as any upload: its copy is never let go, and a folder's cleanup never removes it. |
+| `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
 
 Foreign keys:
 

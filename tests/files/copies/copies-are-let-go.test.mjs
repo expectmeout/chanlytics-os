@@ -255,3 +255,65 @@ test("a take holds its room from its judging, so two at the edge are not both ju
   Object.assign(w.item(second.id), { held_seconds: 90, state: "waiting" });
   assert.equal((await recordVideoSourced(w.db, { ...clip(first, 3), mediaRef: null })).fate, "room");
 });
+
+/* ------------------------------------------------------------------- full of resting copies: the wait is their rest */
+
+test("a clip that finds the videos full of resting copies waits for the first rest to end, not six hours", async () => {
+  // Six watched copies of ten minutes, each used within the hour: none may go yet, all of them will.
+  const resting = [50, 40, 30, 20, 10, 5].map((minutes) =>
+    watchedClip({ seconds: 600, copy_used_at: new Date(NOW - minutes * 60_000).toISOString() }),
+  );
+  const fresh = newClip(120);
+  const w = world({ files: resting.map((c) => c.row), items: [...resting.map((c) => c.origin), fresh.item] });
+  const drive = { ...driveOf(...resting), ...fresh.drive };
+  theSync({ drive });
+  const web = theWeb({ drive });
+  assert.deepEqual(await runTakes(w), [{ took: "waits:room" }]);
+  assert.deepEqual(platformSaw(web).deleted, [], "nothing may go before its rest ends");
+  const until = Date.parse(w.item(fresh.item.id).take_after);
+  // The copy used fifty minutes ago rests ten more; the clip is tried again a minute after that, and not six hours on.
+  const restEnds = NOW - 50 * 60_000 + LET_GO.restMs;
+  assert.ok(
+    until >= restEnds + 60_000 - 5_000 && until <= restEnds + 60_000 + 5_000,
+    "a minute after the first rest ends",
+  );
+  assert.ok(until - NOW < 60 * 60_000, "an hour at most");
+  // Then, the clock at that moment: the copy used longest ago goes, and the clip comes in.
+  w.nowMs = until;
+  const oldest = resting[0].row.media_ref;
+  const realNow = Date.now;
+  Date.now = () => until;
+  try {
+    assert.deepEqual(await runTakes(w), [{ took: "asked" }]);
+  } finally {
+    Date.now = realNow;
+  }
+  assert.deepEqual(platformSaw(web).deleted, [oldest]);
+});
+
+test("a clip that finds the videos full of what may never go waits six hours, as before", async () => {
+  const mine = [videoRow({ source: "upload", seconds: 3600 })];
+  const fresh = newClip(120);
+  const w = world({ files: mine, items: [fresh.item] });
+  theSync({ drive: fresh.drive });
+  theWeb({ drive: fresh.drive });
+  assert.deepEqual(await runTakes(w), [{ took: "waits:room" }]);
+  const until = Date.parse(w.item(fresh.item.id).take_after);
+  assert.ok(Math.abs(until - (NOW + 6 * 60 * 60_000)) < 60_000, "six hours");
+});
+
+test("a clip its owner also uploaded is theirs: never let go, by room or by age, and never waited on", async () => {
+  const uploaded = watchedClip({ seconds: 3000, copy_used_at: daysAgo(60), owner_uploaded: true });
+  const other = watchedClip({ seconds: 300, copy_used_at: daysAgo(30) });
+  const w = world({ files: [uploaded.row, other.row], items: [uploaded.origin, other.origin] });
+  const web = theWeb({});
+  const otherCopy = other.row.media_ref;
+  assert.equal(await letUnusedCopiesGo(w.db, T, SOON()), 1, "by age only the other one goes");
+  assert.deepEqual(platformSaw(web).deleted, [otherCopy]);
+  assert.equal(w.file(uploaded.row.id).copy_state, "here");
+  // By room: 3,000 of the sixty minutes are its owner's own, so a clip of 700 seconds finds nothing to free.
+  assert.equal(await makeRoom(w.db, T, 700, SOON()), false);
+  assert.equal(w.file(uploaded.row.id).copy_state, "here");
+  const { findCopiesFreeAt } = await import(at("packages/db/src/repositories/files/copies.ts"));
+  assert.equal(await findCopiesFreeAt(w.db, T, 3600), null, "and a full workspace does not wait on it");
+});
