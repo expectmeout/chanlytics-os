@@ -84,7 +84,28 @@ a page says; what an account shows is still to be seen when Connect first runs o
 
 ### Not looked at
 
-Any account, any ad, any token. Nothing here was seen on a real account.
+Any ad. Until 19 November nothing here was seen on a real account; what the first real Connect showed is below.
+
+### Seen on the first real Connect (19 November)
+
+Ruben's own sign-in, in his workspace, a new ad account made and shared in Meta's window. The edge's log of that
+Connect, read the same evening:
+
+- **Answered:** the code traded for the token and Meta's description of the token. No refusal was logged for `/me`'s
+  business or for a Page (a Page is read only where one was shared, and the log does not say whether one was).
+- **Refused:** the ad account, at its `business{id}` field: "(#100) Requires business_management permission to access
+  the field". The five permissions do not reach the business that owns an account, and the ad account's reference page
+  says nothing of that. The field is no longer asked; the business is `/me`'s.
+- **Not reached yet:** the list of Pages an account's ads ran from (asked only between two accounts), the list of what
+  the business shared (asked only where the token's description names nothing), the ads, their days, and joining the
+  account to the app's notices.
+
+Meta's reference pages, read again for every call step 2 makes, name a permission for two of them: an account's Pages
+(`pages_show_list` and `pages_manage_ads`) and a Page (`pages_read_engagement` and `pages_show_list` for what it owns,
+with "the business_management permission may be required" for a business's own user, which is what Chanlytics' token
+is: the first real Connect is when that shows). The named ones are among the five. The ad account's page names one only for `funding_source_details`, which is not asked. The pages for
+the ad, its creative, an account's days, the shared lists and the notices name none. So what they need beyond the five
+is seen only when they are first asked.
 
 ### To see on the first real account, found on review (19 November)
 

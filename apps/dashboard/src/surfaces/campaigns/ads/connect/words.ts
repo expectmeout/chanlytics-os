@@ -132,6 +132,11 @@ export const OUTCOME: Readonly<Record<string, NeedWords>> = {
     line: "Ads run from an ad account. If you have one, tick it when Meta asks. If you don't, making one in Meta is free.",
     act: "Make one in Meta",
   },
+  accounts_unreadable: {
+    title: "Couldn't read your ad account",
+    line: "Meta shared it, but didn't let Chanlytics read it, so nothing was kept. Connect again in a few minutes.",
+    act: "Connect again",
+  },
   ad_account_taken: {
     title: "This ad account is connected to another workspace",
     line: "An ad account works with one Chanlytics workspace at a time. Disconnect it there first, or use another.",

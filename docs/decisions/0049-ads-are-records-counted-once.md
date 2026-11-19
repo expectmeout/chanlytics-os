@@ -423,6 +423,15 @@ the five checks reads. Where it is not as first drawn, it is said here.
   `pages_read_engagement`, `pages_show_list`; made 19 November at Meta, ad accounts required, Pages not) and not
   `instagram_basic`. So a Page's Instagram account is asked only where the sign-in may read it: asked without the
   permission, the field can cost the whole answer. Where it may not, the card says nothing of Instagram.
+- **An account is asked only what those five reach** (the first real Connect, 19 November). Asked for the business that
+  owns it (`business{id}`), Meta refused the whole answer ("Requires business_management permission to access the
+  field"), and its reference page says nothing of that. The business is the sign-in's own (`/me`'s
+  `client_business_id`), kept with the token and on the row at Connect; a read writes its config key by key, so it
+  stands. `business_management` is not asked for: the product needs none of what it gives.
+- **A shared account Meta would not describe is not "none shared".** Where Meta refuses the list of what was shared, or
+  refuses every account on it that could be the one meant, Connect answers `accounts_unreadable` and the card says it
+  couldn't read the ad account, with Connect again; only where every shared account was read and none can run ads does
+  it say Meta shared none.
 
 ## As built, 19 November 2026 · Money has one count on every runtime
 

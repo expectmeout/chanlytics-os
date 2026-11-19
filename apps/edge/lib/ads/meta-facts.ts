@@ -65,14 +65,14 @@ const SHARED_MAX = 10;
 
 /**
  * The ids a sign-in reaches: the ones its own description named, or, where it named none, the list Meta keeps of what
- * the business shared. A list Meta would not give is no ids, said in the log: the caller then says nothing was shared.
+ * the business shared. Null where Meta would not give that list, said in the log: not knowing is not "none shared".
  */
 export async function sharedIds(
   log: Log,
   signIn: MetaSignIn,
   named: readonly string[],
   what: "accounts" | "pages",
-): Promise<string[]> {
+): Promise<string[] | null> {
   if (named.length > 0) return named.slice(0, SHARED_MAX);
   const { token, appSecret } = signIn;
   const listed =
@@ -89,7 +89,7 @@ export async function sharedIds(
           callMetaAds(metaAssignedPagesRequest(token, appSecret)),
           parseMetaPageIds,
         );
-  return listed.ok ? listed.value.slice(0, SHARED_MAX) : [];
+  return listed.ok ? listed.value.slice(0, SHARED_MAX) : null;
 }
 
 /** One ad account, as Meta describes it now. */
@@ -129,11 +129,13 @@ export const standingOf = (account: MetaAdAccount): AdStanding => ({
   funding: account.funded ? "ok" : "none",
 });
 
-/** The part of `ad_accounts.config` an account's own answer holds. */
+/**
+ * The part of `ad_accounts.config` an account's own answer holds. Not the business: that is the sign-in's, kept at
+ * Connect, and a read writes its config key by key, so it stands.
+ */
 export const accountConfigOf = (
   account: MetaAdAccount,
-): Pick<MetaAdConfig, "business_id" | "spend_limit_minor" | "min_daily_minor"> => ({
-  business_id: account.businessId,
+): Pick<MetaAdConfig, "spend_limit_minor" | "min_daily_minor"> => ({
   spend_limit_minor: account.spendLimitMinor,
   min_daily_minor: account.minDailyMinor,
 });

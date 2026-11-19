@@ -171,13 +171,16 @@ async function aiNumberOf(db: Db, tenantId: TenantId): Promise<string | null> {
   return data?.number_e164 ?? null;
 }
 
-/** Every ad account a sign-in shared, read, with whether the picked Page's ads have run from it. */
+/**
+ * Every ad account a sign-in shared, read, with whether the picked Page's ads have run from it, and how many Meta would
+ * not describe: a shared account that could not be read is not one that was never shared.
+ */
 async function accountsSeen(
   log: Log,
   signIn: MetaSignIn,
   accountIds: readonly string[],
   pageId: string | null,
-): Promise<AccountSeen[]> {
+): Promise<{ seen: AccountSeen[]; unread: number }> {
   const seen: AccountSeen[] = [];
   for (const id of accountIds) {
     const read = await readMetaAccount(log, signIn, id);
@@ -186,8 +189,11 @@ async function accountsSeen(
     const ran = accountIds.length > 1 && pageId !== null && (await runsPage(log, signIn, read.value.id, pageId));
     seen.push({ account: read.value, runsPage: ran });
   }
-  return seen;
+  return { seen, unread: accountIds.length - seen.length };
 }
+
+/** Support's words for a sign-in that shared an ad account Meta would not describe or list. */
+const UNREADABLE = "Meta would not describe the ad account that sign-in shared.";
 
 const choiceOf = ({ account, runsPage: ran }: AccountSeen): AdAccountChoice => ({
   external_id: account.id,
@@ -231,27 +237,40 @@ async function connectAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId
   const { secret, reach } = granted;
   const signIn: MetaSignIn = { token: secret.access_token, appSecret: app.clientSecret };
   const accountIds = await sharedIds(log, signIn, reach.accountIds, "accounts");
+  if (accountIds === null) {
+    log.info("ads_connect_refused", { at: "accounts", unread: "list" });
+    return refuse(502, "accounts_unreadable", UNREADABLE);
+  }
   if (accountIds.length === 0) {
     log.info("ads_connect_refused", { at: "accounts" });
     return refuse(409, "no_account", "That sign-in shared no ad account.");
   }
   const pages = [];
-  for (const id of await sharedIds(log, signIn, reach.pageIds, "pages")) {
+  for (const id of (await sharedIds(log, signIn, reach.pageIds, "pages")) ?? []) {
     const page = await readMetaPage(log, signIn, { id, instagram: readsInstagram(secret.scopes) });
     if (page.ok) pages.push(page.value);
   }
   const page = pickPage(pages, await aiNumberOf(db, by.tenantId));
-  const picked = pickAccount(await accountsSeen(log, signIn, accountIds, page?.id ?? null));
+  const { seen, unread } = await accountsSeen(log, signIn, accountIds, page?.id ?? null);
+  const picked = pickAccount(seen);
   if (picked === null) {
-    log.info("ads_connect_refused", { at: "accounts", shared: accountIds.length });
-    return refuse(409, "no_account", "No ad account that sign-in shared can run ads.");
+    log.info("ads_connect_refused", { at: "accounts", shared: accountIds.length, unread });
+    // Some could not be read: one of those may be the one meant, so it is not said that none can run ads.
+    return unread > 0
+      ? refuse(502, "accounts_unreadable", UNREADABLE)
+      : refuse(409, "no_account", "No ad account that sign-in shared can run ads.");
   }
-  const beside = { ...pageConfigOf(page), scopes: secret.scopes, user_id: secret.user_id };
+  const beside = {
+    ...pageConfigOf(page),
+    business_id: secret.business_id,
+    scopes: secret.scopes,
+    user_id: secret.user_id,
+  };
   const one = "one" in picked ? picked.one.account : null;
   const config: MetaAdConfig = {
     ...metaAdConfigOf(null),
     ...beside,
-    ...(one ? accountConfigOf(one) : { business_id: secret.business_id }),
+    ...(one ? accountConfigOf(one) : {}),
     choices: "ask" in picked ? picked.ask.map(choiceOf) : [],
   };
   const connected = await connectAdAccount(db, by, "meta", {

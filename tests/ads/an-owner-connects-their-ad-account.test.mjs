@@ -44,6 +44,16 @@ const A2 = "1200000000000042";
 const PAGE = "100200300400500";
 const AI_NUMBER = "+15550100142";
 
+/**
+ * A field the saved sign-in's five permissions do not reach, and Meta's answer to a question that names it: the whole
+ * answer is refused, as it was on the first real Connect (19 November 2026).
+ */
+const NOT_REACHED = /(^|,)business(\{|,|$)/;
+const NOT_REACHED_ANSWER = [
+  400,
+  { error: { message: "(#100) Requires business_management permission to access the field.", code: 100 } },
+];
+
 /** Meta, as the way in meets it: each endpoint answers as `answers` says, and what it was asked is kept. */
 let answers = {};
 const asked = [];
@@ -53,6 +63,7 @@ globalThis.fetch = async (url, init) => {
   asked.push(`${init?.method ?? "GET"} ${u.pathname.replace("/v27.0/", "")}`);
   const reply = (status, body, headers = {}) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
+  if (NOT_REACHED.test(u.searchParams.get("fields") ?? "")) return reply(...NOT_REACHED_ANSWER);
   const named = Object.keys(answers).find((key) => u.pathname.endsWith(`/${key}`));
   const [status, body, headers] = named
     ? answers[named]
@@ -73,7 +84,6 @@ const metaAccount = (id, over = {}) => ({
   funding_source: "9900000000000001",
   spend_cap: "0",
   min_daily_budget: 100,
-  business: { id: "583355900000001" },
   ...over,
 });
 
@@ -282,6 +292,53 @@ test("a sign-in that may not read ads keeps nothing; one that shared no ad accou
     asked.includes("GET me/assigned_ad_accounts"),
     "the list is asked for where the sign-in's own description names none",
   );
+});
+
+test("the account is asked only what the sign-in's permissions reach, and its business is the sign-in's own", async () => {
+  // Meta here refuses any question naming `business`, as it did on the first real Connect: the account is read all
+  // the same, and the business comes from /me.
+  const w = world();
+  assert.deepEqual((await heard(await run({ op: "connect", code: "the-code" })))[1].outcome, "connected");
+  assert.equal(w.tables.ad_accounts[0].config.business_id, "583355900000001");
+  // Where two are left to choose from, the business waits with them, and the answer keeps it.
+  const ask = world({ accounts: [A1, A2] });
+  await run({ op: "connect", code: "the-code" });
+  const [waiting] = ask.tables.ad_accounts;
+  assert.equal(waiting.config.business_id, "583355900000001");
+  await run({ op: "choose", external_id: A1 });
+  assert.deepEqual([waiting.status, waiting.config.business_id], ["connected", "583355900000001"]);
+  // A look again writes what the account says now, and the business stands.
+  await run({ op: "check" });
+  assert.equal(waiting.config.business_id, "583355900000001");
+});
+
+test("a shared ad account Meta will not describe is said as unread, never as none shared", async () => {
+  // Meta refuses the question about the one account shared: the owner is told it could not be read, and nothing is kept.
+  const one = world();
+  answers[`act_${A1}`] = [400, { error: { message: "(#100) Tried accessing nonexisting field", code: 100 } }];
+  const [status, body] = await heard(await run({ op: "connect", code: "the-code" }));
+  assert.deepEqual([status, body.error], [502, "accounts_unreadable"]);
+  assert.deepEqual(one.tables.ad_accounts, []);
+  // Meta, busy, gives no answer for one of two: the other is connected, and nothing is said of the one.
+  const two = world({ accounts: [A1, A2] });
+  answers[`act_${A2}`] = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
+  assert.deepEqual((await heard(await run({ op: "connect", code: "the-code" })))[1].outcome, "connected");
+  assert.equal(two.tables.ad_accounts[0].external_id, A1);
+  // The one read is closed and the other unread: the unread one may be the one meant, so it is not said that none can.
+  const closed = world({ accounts: [A1, A2] });
+  answers[`act_${A1}`] = [200, metaAccount(A1, { account_status: 101 })];
+  answers[`act_${A2}`] = [400, { error: { message: "(#100) Tried accessing nonexisting field", code: 100 } }];
+  assert.deepEqual((await heard(await run({ op: "connect", code: "the-code" })))[1].error, "accounts_unreadable");
+  assert.deepEqual(closed.tables.ad_accounts, []);
+  // Every account read, and every one closed: then none shared can run ads.
+  world({ accounts: [A1] });
+  answers[`act_${A1}`] = [200, metaAccount(A1, { account_status: 101 })];
+  assert.deepEqual((await heard(await run({ op: "connect", code: "the-code" })))[1].error, "no_account");
+  // The list of what was shared, refused: not knowing is not "none shared".
+  world({ accounts: [] });
+  answers.assigned_ad_accounts = [400, { error: { message: "(#100) Requires business_management", code: 100 } }];
+  const [listStatus, listBody] = await heard(await run({ op: "connect", code: "the-code" }));
+  assert.deepEqual([listStatus, listBody.error], [502, "accounts_unreadable"]);
 });
 
 test("two ad accounts: the one the Page's ads run from is connected; where neither says, the owner is asked", async () => {

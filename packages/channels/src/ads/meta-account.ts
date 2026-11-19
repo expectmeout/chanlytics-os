@@ -61,8 +61,14 @@ export function metaDecimalToMinor(amount: unknown, currency: string): number | 
 export const metaAccountId = (id: string): string => id.replace(/^act_/, "");
 const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
 
+/**
+ * What an account is asked for: only what the saved sign-in's five permissions reach. The business that owns it is not
+ * one: Meta answers a question naming `business` with "(#100) Requires business_management permission to access the
+ * field" and nothing else (the first real Connect, 19 November 2026), and its reference page says nothing of that. The
+ * business is the sign-in's own (`/me`'s client_business_id), kept with the token.
+ */
 const ACCOUNT_FIELDS =
-  "account_id,name,currency,timezone_name,account_status,funding_source,spend_cap,min_daily_budget,business{id}";
+  "account_id,name,currency,timezone_name,account_status,funding_source,spend_cap,min_daily_budget";
 
 /** One ad account as Meta describes it: its name, currency and zone, its standing, its payment method and its limit. */
 export function metaAdAccountRequest(token: string, appSecret: string, accountId: string): MetaRequest {
@@ -157,7 +163,6 @@ export interface MetaAdAccount {
   /** Its own spending limit at Meta; null where it has none (Meta says 0). */
   spendLimitMinor: number | null;
   minDailyMinor: number | null;
-  businessId: string | null;
 }
 
 /** An ad account, read. Throws, with Meta's words where it gave some, when the answer names no account. */
@@ -179,7 +184,6 @@ export function parseMetaAdAccount(json: unknown): MetaAdAccount {
     funded: metaText(valueAt(o, "funding_source")) !== "",
     spendLimitMinor: limit === null || limit === 0 ? null : limit,
     minDailyMinor: metaUnitsToMinor(valueAt(o, "min_daily_budget"), currency),
-    businessId: metaText(valueAt(metaObject(valueAt(o, "business")), "id")) || null,
   };
 }
 
