@@ -12,14 +12,20 @@ import { compareWords } from "./tiles";
 
 /**
  * The period's days as Today draws them, four counts a day in four lists, oldest first and today last: its customer
- * messages, what AI answered of them, its calls and its new people. Lists of numbers, so a month is a few hundred bytes
- * and Today still never carries the report.
+ * messages, what AI answered of them, its calls and its new people; and the week's bookings beside them. Lists of
+ * numbers, so a month is a few hundred bytes and Today still never carries the report.
  */
 export interface ReportHeadlineDaysDto {
   messages_in: number[];
   answered_ai: number[];
   calls: number[];
   new_contacts: number[];
+  /**
+   * What was booked on the period's last days, seven at most, oldest first and today last (decision 0141): a booking on
+   * the day it arrived, while it stands, each once. Absent from a server from before it, from a database that keeps no
+   * arrival yet (00647) and where it could not be read: Today then draws no week of bookings.
+   */
+  booked?: number[];
 }
 
 /** What `GET reports/headline` answers: counts over the period, and the calendar's line over the same days. */
@@ -57,16 +63,23 @@ export interface ReportHeadlineDayVM {
   answered: number;
   calls: number;
   newPeople: number;
+  /** What was booked that day; null for a day the server did not count, which is never a zero. */
+  booked: number | null;
 }
 
-/** The period's days, a day each, from the four lists the wire carries; none where the server said none. */
+/**
+ * The period's days, a day each, from the lists the wire carries; none where the server said none. The bookings are the
+ * period's last days alone, so they are read from the end: a day before them was not counted.
+ */
 function perDayOf(daily: ReportHeadlineDaysDto | undefined): ReportHeadlineDayVM[] {
   if (!daily) return [];
+  const uncounted = daily.messages_in.length - (daily.booked?.length ?? 0);
   return daily.messages_in.map((messages, at) => ({
     messages,
     answered: daily.answered_ai[at] ?? 0,
     calls: daily.calls[at] ?? 0,
     newPeople: daily.new_contacts[at] ?? 0,
+    booked: daily.booked?.[at - uncounted] ?? null,
   }));
 }
 

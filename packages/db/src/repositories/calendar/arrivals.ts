@@ -4,6 +4,9 @@
  * as the bell's notice does, and whether a booking can arrive in the workspace at all. The visits themselves, as they stand,
  * are the bell's own read (notices/notifications/feed.ts listBookedVisits). Read on the member's session, where RLS decides. A
  * read that fails throws.
+ *
+ * The days before today are counted from the moment each booking arrived, which its visit keeps (decision 0141:
+ * appointments/rows.ts stampVisitArrival writes it, notices/notifications/feed.ts listArrivedVisits reads it).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOKING_VIAS, DbFailure } from "@chanlytics/contracts";

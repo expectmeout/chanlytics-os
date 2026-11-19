@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00646": "taken by cm-ads-click (the ad a page names, #2440, open) when 00647 was numbered above it (19 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -647,6 +648,7 @@
     "00642_a_preview_s_first_questions_are_counted_apart.sql": "44e42551ebd8ba5c7603a50845f28873ce0c27a6cf0eb31e22acbadf61bc6155",
     "00643_a_watched_folder_s_files_come_in.sql": "0c7025bd6b9d821210584a0df2ae1215378cbbe8c80480443653feb8c4d3bc74",
     "00644_an_ad_tap_keeps_what_the_ad_said.sql": "1f78601704c56c312f7cf9d8879d0630fba06fbfcb9b6df32eed61a647cc25e7",
-    "00645_an_owner_may_run_ads.sql": "4b4769cf17534f94d473dc97d8250a9ce05ba4fe745057d7046bd6f9a83df812"
+    "00645_an_owner_may_run_ads.sql": "4b4769cf17534f94d473dc97d8250a9ce05ba4fe745057d7046bd6f9a83df812",
+    "00647_a_visit_keeps_when_its_booking_arrived.sql": "29905baa10dbaff71088c8ab4fe98bbc76dab77cb8e78a1767c138ab0b0b71fc"
   }
 }

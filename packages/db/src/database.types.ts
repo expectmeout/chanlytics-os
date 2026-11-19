@@ -299,6 +299,7 @@ export type Database = {
       appointments: {
         Row: {
           all_day: boolean
+          arrived_at: string | null
           client_email: string | null
           client_name: string | null
           client_phone: string | null
@@ -328,6 +329,7 @@ export type Database = {
         }
         Insert: {
           all_day?: boolean
+          arrived_at?: string | null
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null
@@ -357,6 +359,7 @@ export type Database = {
         }
         Update: {
           all_day?: boolean
+          arrived_at?: string | null
           client_email?: string | null
           client_name?: string | null
           client_phone?: string | null

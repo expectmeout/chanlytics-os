@@ -38,9 +38,11 @@ const WEEK_DAYS = 7;
 
 /**
  * Which of the period's days each figure's week is drawn from (Today with colour, D3, 17 Nov 2026), the same fact on the
- * days before. Booked has none: no read counts a day's bookings, and a week the database cannot say is not drawn.
+ * days before. A day's bookings are counted by the rule today's figure is (decision 0141), and are null for a day the
+ * server did not count: a server from before it, a database that keeps no arrival yet, a read that failed.
  */
-const WEEK_OF: Partial<Record<TodayFigureId, (day: HeadlineDay) => number>> = {
+const WEEK_OF: Record<TodayFigureId, (day: HeadlineDay) => number | null> = {
+  booked: (day) => day.booked,
   answered: (day) => day.answered,
   calls: (day) => day.calls,
   new: (day) => day.newPeople,
@@ -48,9 +50,12 @@ const WEEK_OF: Partial<Record<TodayFigureId, (day: HeadlineDay) => number>> = {
 
 /** A figure's week: the six days before today from Reports' headline, and today as the figure itself says it. */
 function weekOf(f: TodayFigureVM, perDay: readonly HeadlineDay[] | null): SparkColumn[] | null {
-  const pick = WEEK_OF[f.id];
-  if (!pick || !perDay || perDay.length < WEEK_DAYS || f.value === null) return null;
-  const week = [...perDay.slice(-WEEK_DAYS, -1).map((day) => ({ value: pick(day) })), { value: f.value }];
+  if (!perDay || perDay.length < WEEK_DAYS || f.value === null) return null;
+  const before = perDay.slice(-WEEK_DAYS, -1).map(WEEK_OF[f.id]);
+  const counted = before.filter((value) => value !== null);
+  // A day nobody counted leaves no week: a column is a fact or it is not drawn.
+  if (counted.length < before.length) return null;
+  const week = [...counted.map((value) => ({ value })), { value: f.value }];
   // A week of nothing draws nothing: a row of empty days says no more than the zero beside it.
   return week.some((day) => day.value > 0) ? week : null;
 }

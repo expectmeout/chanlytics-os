@@ -326,6 +326,7 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `expires_at` | timestamp with time zone | yes |  | When a request the receptionist took stops taking its slot (00443): the sooner of a day after it was asked and an hour before the slot. Null for every other row. |
 | `conversation_id` | uuid | yes |  | The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer. |
+| `arrived_at` | timestamp with time zone | yes |  | When this visit arrived as a customer's booking (decision 0141): the created_at of the appointment.changed event the one rule calls a booking arriving (contracts bookingArriving), stamped by core's visit_arrival subscriber, the later of two where a hold was added and then confirmed. Null for a visit that is no customer's booking: a member's own entry, the owner's own diary, a calendar's first read. A day's bookings are counted from it (the dashboard's server/metrics/bookings.ts). |
 
 Foreign keys:
 

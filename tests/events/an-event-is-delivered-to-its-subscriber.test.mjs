@@ -75,6 +75,15 @@ const READS = {
     data: { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
     created_at: "2026-10-06T00:00:00Z",
   },
+  // A booking that arrived, stamped on its visit with the event's own moment (decision 0141).
+  visit_arrival: {
+    kind: "appointment.changed",
+    category: "appointment",
+    subject_type: "appointment",
+    subject_id: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+    data: { change: "added", source: "booking_email", starts_at: "2999-10-12T15:00:00Z" },
+    created_at: "2026-10-06T00:00:00Z",
+  },
   // An appointment's change, handed to the door that enrols its person in what an occasion starts (decision 0119).
   occasion_enrol: {
     kind: "appointment.changed",
@@ -236,7 +245,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const tables = {
     ...(subscriber === "owner_notice" || subscriber === "reply_draft" ? heldThread() : {}),
     ...(subscriber === "consent_notice" ? aPerson() : {}),
-    ...(subscriber === "visit_notice" ? aBooking() : {}),
+    ...(subscriber === "visit_notice" || subscriber === "visit_arrival" ? aBooking() : {}),
     ...(subscriber === "team_notice" ? anAcceptedInvitation() : {}),
     ...(subscriber === "freed_time_offer" ? aCancellation() : {}),
     events: withEvent ? [rows.event({ id: E, tenant_id: T, ...read })] : [],
@@ -443,6 +452,7 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
       reply_draft: () => (w.tables.jobs ?? []).filter((j) => j.kind === "reply_draft").length,
       visit_reminder: () => w.reminded.length,
       occasion_enrol: () => w.enrolled.length,
+      visit_arrival: () => w.tables.appointments.filter((visit) => visit.arrived_at).length,
     };
     assert.ok(acted[subscriber]() > 0, `${subscriber}: the first run acted`);
     const once = JSON.stringify(w.tables);

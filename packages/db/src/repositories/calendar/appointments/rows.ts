@@ -132,6 +132,38 @@ export async function updateAppointment(
 
 /* ------------------------------------------------------- a booking the receptionist asks for (00443) */
 
+/**
+ * A visit stamped with the moment its booking arrived (appointments.arrived_at, 00647), by the service role: `atIso` is
+ * the ledger's own clock for the event that brought it. The later moment wins, so a hold added and then confirmed arrived
+ * when it was confirmed, and a second delivery of one event moves nothing: the row takes the moment where it has none,
+ * else where its own is sooner. Answers whether the row took it. A write that fails throws.
+ */
+export async function stampVisitArrival(
+  db: Db,
+  tenantId: TenantId,
+  appointmentId: string,
+  atIso: string,
+): Promise<boolean> {
+  const first = await db
+    .from("appointments")
+    .update({ arrived_at: atIso })
+    .eq("tenant_id", tenantId)
+    .eq("id", appointmentId)
+    .is("arrived_at", null)
+    .select("id");
+  if (first.error) throw new DbFailure(first.error, "cannot stamp when the visit arrived");
+  if (first.data.length > 0) return true;
+  const later = await db
+    .from("appointments")
+    .update({ arrived_at: atIso })
+    .eq("tenant_id", tenantId)
+    .eq("id", appointmentId)
+    .lt("arrived_at", atIso)
+    .select("id");
+  if (later.error) throw new DbFailure(later.error, "cannot stamp when the visit arrived");
+  return later.data.length > 0;
+}
+
 /** A booking the receptionist asks for (decision 0061), as booking_request_open takes it. */
 export interface BookingRequestOpen {
   tenantId: TenantId;

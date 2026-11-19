@@ -51,9 +51,29 @@ for (const [name, dto, period, booking] of MATRIX)
         answered: d.answered_ai,
         calls: d.calls,
         newPeople: d.new_contacts,
+        // The bookings ride beside the series, from the server's own count (decision 0141): none here, so none said.
+        booked: null,
       })),
     });
   });
+
+test("the week's bookings are the period's last days, read from the end; a day the server did not count is null, never a zero", () => {
+  const dto = headlineOf({ ...reportDto(), days: 30 }, "30d", CALENDAR);
+  const booked = (list) =>
+    toHeadlineVM(list ? { ...dto, daily: { ...dto.daily, booked: list } } : dto).perDay.map((day) => day.booked);
+  const days = dto.daily.messages_in.length;
+  const week = [1, 0, 2, 0, 0, 4, 3];
+  assert.ok(days > week.length, "a period longer than the week");
+  assert.deepEqual(booked(week).slice(-7), week, "the seven the server counted are the last seven days, today last");
+  assert.deepEqual(booked(week).slice(0, -7), Array(days - 7).fill(null), "a day before them was not counted");
+  assert.deepEqual(booked(null), Array(days).fill(null), "a server from before it, or a read that failed");
+  const month = toHeadlineVM({ ...dto, days: 3, daily: { ...dto.daily, messages_in: [0, 0, 0], booked: [5, 0, 1] } });
+  assert.deepEqual(
+    month.perDay.map((day) => day.booked),
+    [5, 0, 1],
+    "a month on its third day: every day counted",
+  );
+});
 
 test("what goes over the wire is counts, one ratio and the days as four lists of numbers, never a day of the series: a few hundred bytes", () => {
   const dto = headlineOf(reportDto(), "7d", CALENDAR);

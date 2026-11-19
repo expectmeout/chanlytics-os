@@ -16,6 +16,7 @@ export {
   openRequestOfThread,
   openRequestsOfThreads,
   recordOver,
+  stampVisitArrival,
   updateAppointment,
 } from "./appointments/rows";
 export type {

@@ -29,7 +29,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   reply_drafts: "af80977b5881c0c1",
   reports: "43d6fdb2d4f47f7d",
   reports_campaigns: "e2860e3713be5c03",
-  reports_headline: "a7eb12c96d1e8ead",
+  reports_headline: "cc9ed79ea1432968",
   reports_people: "12e24c4147bf2b2f",
   reports_receptionist: "284caefa984a9070",
   reports_reviews: "08da2c694947ffc8",

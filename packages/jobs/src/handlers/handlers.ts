@@ -20,7 +20,7 @@ import { logger, withRequestId, logAndGoOn } from "@chanlytics/log";
 import { CertainFailure, SUBSCRIBERS, type SubscriberPorts } from "@chanlytics/core";
 import { findFreedTimeFacts } from "@chanlytics/db/campaigns";
 import { findEventOfDelivery, isSubscriptionPaused, findDelivery, settleDelivery } from "@chanlytics/db/events";
-import { recordReachOutBookedFrom } from "@chanlytics/db/calendar";
+import { recordReachOutBookedFrom, stampVisitArrival } from "@chanlytics/db/calendar";
 import {
   listMembersPushed,
   pushNamesFor,
@@ -334,6 +334,9 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     bookedVisits: (tenantId, ids, nowMs, status) => listBookedVisits(ctx.db, tenantId, ids, nowMs, status),
     feedAdditionsWith: (tenantId, event) => listFeedAdditionsWith(ctx.db, tenantId, event),
     twinTold: (tenantId, appointmentId) => wasTwinTold(ctx.db, tenantId, appointmentId),
+    keepArrival: async (tenantId, appointmentId, at) => {
+      await stampVisitArrival(ctx.db, tenantId, appointmentId, at);
+    },
     memberJoined: (tenantId, invitationId) => findMemberJoined(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) =>
       wasNoticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
