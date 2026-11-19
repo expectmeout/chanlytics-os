@@ -22,10 +22,8 @@ import type { AdAccountRead, AdPlatform, AdRead, AdsConfig, AdsRead } from "@cha
 import { aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
 import { noAdsOf, ownersOf, pageAsk, phoneOf, platformsRead, tilesOf } from "./page-parts";
 import type { NoAdsVM, PhoneVM, TilesVM } from "./page-parts";
-import { v0Of } from "./page-v0";
-import type { V0VM } from "./page-v0";
-import { eachInTouch, pageTotals } from "./page-totals";
-import type { PageTotals } from "./page-totals";
+import { v0Of, type V0VM } from "./page-v0";
+import { eachInTouch, pageTotals, type PageTotals } from "./page-totals";
 import { ADS_ASK_MIN, ADS_GROUP_FROM } from "./rules";
 import {
   DASH,
