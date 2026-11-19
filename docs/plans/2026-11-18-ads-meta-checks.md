@@ -146,3 +146,105 @@ The same owner, the same evening, on the build with both fixes. From the edge's 
   the call matches nobody, and the next read marks the account all the same, within the hour.
 - **The ad account's own "allowed to run ads" list** is not asked for yet: an owner who loses that at Meta sees reads
   fail ("Couldn't update") and not the reason.
+
+## 19 November 2026 · Meta's own pages, read before an ad is made
+
+Read only, for step 4: Meta's public pages for developers, its public Ads Guide and its Music Guidelines. No sign-in
+was used and nothing was asked of Meta. Each line is what a page says. What an account does is seen at the paused-ad
+check, which waits for the Page to be linked to a WhatsApp number.
+
+### What they showed
+
+| Looked at | What it showed |
+|---|---|
+| Three versions of the words in one ad | Meta has three ways to put several texts in one ad, and as its pages read none fits an ad that opens WhatsApp. Dynamic Creative takes up to five texts and five headlines, shows any headline with any text, takes one ad for each part that says who sees it, and its page asks for a goal other than conversations. The flexible format is for Sales and App campaigns alone. The rules that pick a text by place or by language list older objectives, messaging not among them |
+| What one request can make | A campaign is its own request. An ad can carry its creative inside it. Requests sent together as one batch cannot carry the key that makes a create safe to repeat |
+| Where the amount sits | On the part that says who sees it, or on the campaign, never both. A total must have an end. A daily amount is taken only for a run longer than a day. Meta says a total is not passed "unless you change your delivery settings" |
+| Meta's least, and the shortest run | The account says its least for a day. The least is set for a day and holds for a total too: a five-day run needs five times it. No page names a shortest run for a total |
+| A new account's daily limit | Not readable. The ad account's page lists the account's own spending limit, what it has spent, its least for a day and its payment method. It lists nothing for a limit Meta itself puts on a new account's day |
+| How far a day may pass a daily amount | Two of Meta's pages disagree: its budgets page says a quarter, its page on sharing budget between parts says three quarters |
+| Meta's dry run | The campaign, the part that says who sees it, the creative and the ad each take one (`validate_only`): Meta runs its rules, makes nothing, and answers yes or with its own words. The ad's can also ask for Meta's own look at the words and the picture (`synchronous_ad_review`). A thing's dry run names what sits above it, so that must exist first |
+| An ad made paused | Still goes through Meta's check, then returns to paused |
+| A create sent twice | A create can carry a key of the sender's own. Sent again with the same key inside seven days, Meta answers with what the first made and makes nothing new. A change, a removal and a dry run take no key |
+| Meta's pace | Beside the score, an account takes at most 100 creates and changes a second. Nothing says a dry run costs less than a change |
+| Where an ad shows | Named on the part that says who sees it. Left unnamed, Meta uses every place it has and "may also automatically consider new positions or platforms". WhatsApp Status is a place of its own: on only when named, only beside Instagram stories, never with Dynamic Creative, and able to reach people whose age WhatsApp does not know unless that is switched off |
+| Instagram | An ad that shows on Instagram names an Instagram account. A Page linked to one has it. For a Page with none, Meta can make a hidden one |
+| Meta's automatic audience | Since v23 it must be said, on or off. On, Meta may look past what it was pointed at, and never past the area, the least age or the language. On, the least age is 18 to 25 and no most can be set |
+| The miles | A circle around a street address or a point, from 0.63 to 50 miles. It reaches people who live there or were there lately. Meta offers no other choice |
+| A declared ad | Every campaign says its kind, or says none. Meta's kinds: housing, employment, financial products and services (it replaced credit on 14 January 2025), social issues with elections and politics, and gambling and gaming. A declared kind names its country too. Housing, employment and financial products fix the ages at 18 to 65 and over, take no choice of gender and refuse a circle under 15 miles |
+| Meta's own changes to the picture and words | The one switch Meta's guide for these ads uses is retired since v22. Each change is now its own switch, in or out: fitting the picture to a place, touching it up, overlays, a generated background, moving the texts given between text and headline, translating, stickers, a comment under the ad. Music is added only where asked for. Showing the ad beside other advertisers' ads is a switch of its own |
+| A picture | Feeds: 4:5 is the shape Meta recommends, and Instagram takes anything from 1.91:1 to 4:5; at least 600 pixels wide; JPG or PNG up to 30 MB. Stories and Reels: 9:16, with the top 14%, the bottom 35% and 6% at each side kept free of words |
+| A video | MP4 or MOV up to 4 GB. The Ads Guide gives each place its own longest: 241 minutes in Facebook's feed, 60 in Instagram's feed and stories, 15 in Instagram Reels, 3 in Facebook stories, and from one second. Meta's page for developers still says 3 to 60 seconds for Instagram's feed. A video is never cropped by Meta; a picture can be |
+| The words | Text: 125 characters is what Meta recommends, and Reels shows about 44. Headline: 27 characters in Facebook's feed, 40 on Instagram and in stories. Longer words are not refused |
+| Licensed music | Meta's Music Guidelines, in force since 26 March 2024: music for commercial purposes is "prohibited unless you have obtained appropriate licenses", and a video without them may be muted, blocked or removed. Meta's page on Reels as ads asks for a reel "free of copyrighted music". The only music its pages for ads offer without a licence of the advertiser's own is music Meta adds itself, where asked |
+| Meta's own preview | Given for a creative that is not made yet, and for a made one. Its page asks for a person's sign-in, "not a Page access token" |
+| Whose sign-in makes an ad | Meta's guide for these ads asks for a Page's own sign-in, from someone allowed to advertise for the Page. Its page for the preview asks for a person's. Chanlytics holds the business's own. No page settles which of them an ad that opens WhatsApp takes |
+| What making a creative leaves | An unpublished post on the Page, which nobody is shown |
+| Meta's test ad account | Nothing in today's pages for its ads interface, and its old address answers not found |
+| The version | v27.0, out since 4 November 2026, with no end date listed yet. v25.0 ends on 23 February 2027 |
+
+### What it settles
+
+- **Three versions are three ads,** under one part that says who sees it and one total. One ad that holds three texts
+  would be Dynamic Creative, which shows a headline with a text nobody approved together, and whose page does not cover
+  an ad that looks for conversations.
+- **The amount sits where the plan put it,** as a total with an end date, on the part that says who sees it.
+- **A dry run exists for every part of an ad.** It cannot all come before anything exists: only the campaign's can.
+- **WhatsApp Status can be left out.** It is on only when named.
+- **The miles hold as a limit,** with Meta's automatic audience on or off, and so does the least age.
+- **A video with licensed music does not run as an ad** without the advertiser's own licence for it.
+- **A new account's daily limit cannot be read.**
+- **There is no test ad account to plan on.** Meta's own page for an ad says to keep ads paused while testing.
+
+### What it changes in the plan
+
+Each is written into [the plan](2026-11-18-ads.md) in the same change.
+
+1. **An ad made here is three ads at Meta,** one for each version, sharing one total. The owner still sees one ad.
+   Meta checks each version by itself, so it can turn down one and run two.
+2. **Each dry run comes just before its own make.** A refusal of the campaign leaves nothing. A refusal further down
+   leaves a paused, empty campaign, which is removed.
+3. **A total is never under the account's least for a day times its days.** That is the "starting amount" too.
+4. **The check against a new account's daily limit is Meta's dry run,** not a rule of ours: there is nothing to read.
+5. **The first version names where an ad shows:** the feed, stories and Reels, on Facebook, and on Instagram where the
+   Page's Instagram account is known. WhatsApp Status, Messenger, Threads and other apps are left out.
+6. **Meta's own changes are switched off one by one,** and read back, since the one switch is retired.
+7. **"Within 5 miles" means people who live there or were there lately.** The miles can be 1 to 50.
+8. **Adults only is the least age of 18,** which Meta keeps with its automatic audience on.
+9. **A picture is offered for an ad only in a shape Meta takes for the place:** 4:5 or square for the feed, 9:16 for
+   stories and Reels. A video only from 3 to 60 seconds, inside every place's own limits.
+10. **The first ad on a real account is on Ruben's own, paused.** The plan's "first on a test ad account" goes.
+
+### To decide with the job that makes an ad
+
+Meta's key for a create (above) lets a create that got no answer be sent again safely: the same key answers with what
+the first made. Decision 0050's call 6 says such a create is never sent again and is found by its tagged name. The key
+is the surer of the two for a create and does nothing for a switch, which takes none. The requests carry the key from
+now. Whether the job sends again with it is Ruben's to decide, since it changes a decided sentence.
+
+### What the paused-ad check sends, in order
+
+On Ruben's own ad account, with no card on file, so nothing can be charged. Each make is paused, and each is read back.
+
+1. A read of the account's least for a day, and of the Instagram account its Page is linked to.
+2. The campaign as a dry run: an ad that opens WhatsApp, declared as no special kind. Then the campaign itself.
+3. The part that says who sees it as a dry run: adults within the miles of the address, a total with its end, the
+   places named, the Page and its WhatsApp number. Then the part itself.
+4. The picture, placed in the account's library.
+5. One ad with its creative inside it as a dry run, with Meta's own look at the words asked for. Then the ad itself.
+6. One read of all three, compared with what was sent: the amount, the end, paused, no special kind, WhatsApp as where
+   it opens, and none of Meta's own changes on.
+7. The ad's own switch on, then paused again, while the campaign above it stays paused.
+
+It leaves a paused campaign, a picture in the account's library and an unpublished post on the Page. It goes through
+Meta's check of an ad, so its words and picture are ones the checks of the plan's section 5.1 pass.
+
+What it settles that no page does: whose sign-in Meta takes for an ad that opens WhatsApp; whether a dry run counts
+against the account's score; whether Meta refuses a total over a new account's day; the shortest run it takes; that
+an address alone, with no country, is enough for the area; that the Instagram account can be read with the sign-in
+Chanlytics holds; and that Meta's own preview answers to it.
+
+### Not looked at
+
+Any account, any ad, and any page behind a sign-in. Meta's help pages for advertisers answered a plain reader with
+nothing, so the sizes and the music rule are from its Ads Guide and its Music Guidelines, which did.
