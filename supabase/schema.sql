@@ -32,6 +32,79 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 
 --
+-- Name: ad_entry_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) RETURNS text
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad   text;
+  v_new  boolean;
+  v_said jsonb := '{}'::jsonb;
+  v_part text;
+begin
+  -- The message says which ad it came from, and whether it made its person: a person and the message that made them
+  -- are written in one transaction, so their created_at are one now() (00306's test).
+  select nullif(btrim(m.meta #>> '{referral,source_id}'), ''),
+         exists (select 1 from contacts c
+                  where c.id = m.contact_id and c.tenant_id = m.tenant_id and c.created_at = m.created_at)
+    into v_ad, v_new
+    from messages m
+   where m.id = p_message_id and m.tenant_id = p_tenant_id
+     and m.direction = 'inbound' and m.sender = 'customer'
+     and m.meta #>> '{referral,source_type}' = 'ad';
+  if v_ad is null or char_length(v_ad) > 200 then
+    return 'none';
+  end if;
+
+  insert into ad_entries (tenant_id, message_id, platform, platform_ad_id, kind, new_person)
+  values (p_tenant_id, p_message_id, 'meta', v_ad, 'chat', v_new)
+  on conflict (message_id) do nothing;
+  if p_said is null then
+    return 'opened';
+  end if;
+
+  -- Each part alone: a string within its bound is kept, anything else is dropped, and the rest stands. The edge has
+  -- read them by the same bounds already (channels first-touch.ts); nothing here trusts that it did.
+  if jsonb_typeof(p_said) = 'object' then
+    v_part := case when jsonb_typeof(p_said -> 'headline') = 'string' then p_said ->> 'headline' end;
+    if char_length(v_part) between 1 and 300 then
+      v_said := v_said || jsonb_build_object('headline', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'body') = 'string' then p_said ->> 'body' end;
+    if char_length(v_part) between 1 and 2000 then
+      v_said := v_said || jsonb_build_object('body', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'media_type') = 'string' then p_said ->> 'media_type' end;
+    if char_length(v_part) between 1 and 32 and v_part !~ '[[:space:]]' then
+      v_said := v_said || jsonb_build_object('media_type', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'link') = 'string' then p_said ->> 'link' end;
+    if char_length(v_part) between 1 and 2000 and v_part ~* '^https?://' and v_part !~ '[[:space:]]' then
+      v_said := v_said || jsonb_build_object('link', v_part);
+    end if;
+  end if;
+
+  update ad_entries
+     set said = v_said, said_at = now()
+   where tenant_id = p_tenant_id and message_id = p_message_id and said_at is null;
+  if found then
+    return 'kept';
+  end if;
+  return 'already';
+end $$;
+
+
+--
+-- Name: FUNCTION ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) IS 'The one door that writes an ad''s entry (decision 0049, 00644), by its message''s id. It opens the entry where the message''s referral is an ad and none stands (the ad and new_person read from the message''s own row), and, given what the ad said, keeps it: headline (300), body (2000), media_type (a word, 32) and link (a web address, 2000), each kept only as a string within its bound and dropped alone otherwise. The first words stand. Answers opened (no words given), kept, already (the entry has its words: a message delivered twice) or none (the message came from no ad). Runs as its caller: the first-touch trigger, and the service role (the edge, after the ingest).';
+
+
+--
 -- Name: add_person(uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -6023,13 +6096,14 @@ CREATE FUNCTION public.events_note_first_touch() RETURNS trigger
     AS $$
 declare
   v_word text := NEW.data ->> 'source';
-  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website') then v_word else 'manual' end;
+  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website', 'ad') then v_word else 'manual' end;
 begin
   perform public.person_set_first_touch(
     NEW.tenant_id,
     NEW.subject_id,
     v_via,
-    case when v_via = 'lead' then NEW.data ->> 'lead_id' end
+    case when v_via = 'lead' then NEW.data ->> 'lead_id'
+         when v_via = 'ad' then NEW.data ->> 'ad_ref' end
   );
   return null;
 exception when others then
@@ -6042,7 +6116,7 @@ end $$;
 -- Name: FUNCTION events_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one. The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website, ad; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one, and the ad''s (data.ad_ref, keyed by its platform: meta:<id>) for a person an ad''s own door added (0049, 00644). The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
 
 
 --
@@ -17180,6 +17254,13 @@ begin
     case when v_ad is not null then v_ad else NEW.meta ->> 'line' end,
     NEW.created_at
   );
+  if v_ad is not null then
+    begin
+      perform public.ad_entry_keep(NEW.tenant_id, NEW.id, null);
+    exception when others then
+      raise warning 'messages_note_first_touch: the ad entry: %', sqlerrm;
+    end;
+  end if;
   return null;
 exception when others then
   raise warning 'messages_note_first_touch: %', sqlerrm;
@@ -17191,7 +17272,7 @@ end $$;
 -- Name: FUNCTION messages_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad, on WhatsApp or Instagram; a post, a link or any other referral is the wire''s), with the line it came in on (meta.line). Never fails the insert: a failure is a warning.';
+COMMENT ON FUNCTION public.messages_note_first_touch() IS 'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad, on WhatsApp or Instagram; a post, a link or any other referral is the wire''s), with the line it came in on (meta.line). A message from an ad also has its entry opened (ad_entry_keep, 00644), whether or not it made the person, in a block of its own. Never fails the insert: a failure is a warning.';
 
 
 --
@@ -38583,6 +38664,60 @@ COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the no
 
 
 --
+-- Name: ad_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ad_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    ad_id uuid,
+    platform text NOT NULL,
+    platform_ad_id text NOT NULL,
+    kind text NOT NULL,
+    new_person boolean NOT NULL,
+    message_id uuid,
+    external_ref text,
+    said jsonb,
+    said_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ad_entries_chat_names_its_message CHECK (((kind <> 'chat'::text) OR (message_id IS NOT NULL))),
+    CONSTRAINT ad_entries_external_ref_check CHECK (((char_length(external_ref) >= 1) AND (char_length(external_ref) <= 200))),
+    CONSTRAINT ad_entries_kind_check CHECK ((kind = ANY (ARRAY['chat'::text, 'number'::text, 'call'::text]))),
+    CONSTRAINT ad_entries_platform_ad_id_check CHECK (((char_length(platform_ad_id) >= 1) AND (char_length(platform_ad_id) <= 200))),
+    CONSTRAINT ad_entries_platform_check CHECK ((platform = ANY (ARRAY['meta'::text, 'google'::text, 'tiktok'::text]))),
+    CONSTRAINT ad_entries_said_is_whole CHECK ((((said IS NULL) = (said_at IS NULL)) AND ((said IS NULL) OR (jsonb_typeof(said) = 'object'::text))))
+);
+
+
+--
+-- Name: TABLE ad_entries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ad_entries IS 'One row each time someone reaches a workspace through an ad (decision 0049, 00644): the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Its person is its message''s. Written by one door, ad_entry_keep: opened by the first-touch trigger in the message''s own transaction, its words kept by the edge afterwards. It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.';
+
+
+--
+-- Name: COLUMN ad_entries.ad_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_entries.ad_id IS 'The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049''s ads, a later step). Null until then, and for an ad Chanlytics cannot name.';
+
+
+--
+-- Name: COLUMN ad_entries.new_person; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_entries.new_person IS 'Whether the message that carried the ad is the one that made the person (00306''s test: the two rows share one created_at). False for a person who was already here and tapped an ad.';
+
+
+--
+-- Name: COLUMN ad_entries.said; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_entries.said IS 'What the ad said where it was tapped: headline, body, media_type (Meta''s word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge''s keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them.';
+
+
+--
 -- Name: ai_usage; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -44377,6 +44512,22 @@ ALTER TABLE ONLY public.events ATTACH PARTITION public.events_default DEFAULT;
 
 
 --
+-- Name: ad_entries ad_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_entries
+    ADD CONSTRAINT ad_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ad_entries ad_entries_tenant_id_id; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_entries
+    ADD CONSTRAINT ad_entries_tenant_id_id UNIQUE (tenant_id, id);
+
+
+--
 -- Name: ai_usage ai_usage_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -45902,6 +46053,27 @@ ALTER TABLE ONLY public.web_push_subscriptions
 
 ALTER TABLE ONLY public.workspace_notices_pending
     ADD CONSTRAINT workspace_notices_pending_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: ad_entries_ad; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ad_entries_ad ON public.ad_entries USING btree (tenant_id, platform, platform_ad_id, created_at DESC);
+
+
+--
+-- Name: ad_entries_one_a_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ad_entries_one_a_message ON public.ad_entries USING btree (message_id);
+
+
+--
+-- Name: ad_entries_one_a_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX ad_entries_one_a_ref ON public.ad_entries USING btree (tenant_id, platform, external_ref);
 
 
 --
@@ -50329,6 +50501,22 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, timezone, app
 
 
 --
+-- Name: ad_entries ad_entries_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_entries
+    ADD CONSTRAINT ad_entries_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: ad_entries ad_entries_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_entries
+    ADD CONSTRAINT ad_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ai_usage ai_usage_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52449,6 +52637,21 @@ ALTER TABLE ONLY public.web_push_subscriptions
 
 
 --
+-- Name: ad_entries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ad_entries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ad_entries ad_entries_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ad_entries_member_select ON public.ad_entries FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: ai_usage; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -54337,6 +54540,14 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) TO service_role;
 
 
 --
@@ -60677,6 +60888,14 @@ GRANT ALL ON FUNCTION public.workspace_tell_changes() TO service_role;
 
 REVOKE ALL ON FUNCTION public.workspace_tell_row_change() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.workspace_tell_row_change() TO service_role;
+
+
+--
+-- Name: TABLE ad_entries; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ad_entries TO authenticated;
+GRANT ALL ON TABLE public.ad_entries TO service_role;
 
 
 --

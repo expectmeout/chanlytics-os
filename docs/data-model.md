@@ -16,6 +16,7 @@ what the script writes.
 
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
+| [`ad_entries`](#ad_entries) | none | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
@@ -151,6 +152,38 @@ what the script writes.
 Named in a `.from("…")` in `packages/db/src` and not a table or view here: `media` (`packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/media.ts`, `packages/db/src/repositories/erasure/legs.ts`).
 
 ## Tables
+
+### ad_entries
+
+One row each time someone reaches a workspace through an ad (decision 0049, 00644): the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Its person is its message's. Written by one door, ad_entry_keep: opened by the first-touch trigger in the message's own transaction, its words kept by the edge afterwards. It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `ad_id` | uuid | yes |  | The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049's ads, a later step). Null until then, and for an ad Chanlytics cannot name. |
+| `platform` | text | no |  |  |
+| `platform_ad_id` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `new_person` | boolean | no |  | Whether the message that carried the ad is the one that made the person (00306's test: the two rows share one created_at). False for a person who was already here and tapped an ad. |
+| `message_id` | uuid | yes |  |  |
+| `external_ref` | text | yes |  |  |
+| `said` | jsonb | yes |  | What the ad said where it was tapped: headline, body, media_type (Meta's word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge's keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them. |
+| `said_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ad_entries_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ai_usage
 

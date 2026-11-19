@@ -94,6 +94,11 @@ const all = (strategy: ErasureStrategy, ...names: string[]): Record<string, Eras
 
 /** Table, then column, then its strategy: what the legs reach today, and what is plainly no one's. */
 export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string, ErasureStrategy>>>> = {
+  // What an ad said to a person who tapped it and wrote (00644, decision 0049): the ad's own headline, words and link,
+  // and the platform's id for the ad. None of it is the person's, and the row is theirs through its message: an entry
+  // names the message that carried it and goes when that message does, which an erasure deletes. An entry with no
+  // message (a form lead's, which nothing writes yet) will need a leg of its own, and its lead's id at the platform.
+  ad_entries: all(withPerson("erase_contact"), "platform_ad_id", "external_ref", "said"),
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
   // writer puts there. A failed call's reason (00469) is the API's error type, and its words, which name no one but go

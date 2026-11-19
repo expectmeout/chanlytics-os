@@ -4,7 +4,7 @@
  * wires this to the repositories. Config is passed in; env is never read here.
  */
 import { CONVERSATION_OPT_IN_PATTERN, MARKETING_OPT_IN_PATTERN, recordOrEmpty, valueAt } from "@chanlytics/contracts";
-import { REFERRAL_ID_MAX } from "./first-touch";
+import { adReferralOf, type Referral } from "./first-touch";
 import { asksToStop } from "../inbound/stop-request";
 import { answerObject, fetchFromProvider, type SendOutcome } from "../shared/provider-fetch";
 import { errField, logger } from "@chanlytics/log";
@@ -47,11 +47,19 @@ export interface WaRawMessage {
   /** Platform housekeeping (a customer changed their number). Not from a person. */
   system?: { body?: string; type?: string };
   /**
-   * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`) and says what
-   * it was (`source_type`). The rest of it (headline, link, click id) is never kept. This is the shape Meta documents,
-   * not one a message is trusted to have: `adReferralOf` reads it without assuming any of it.
+   * Present when the person came in through a click-to-WhatsApp ad or post: Meta names it (`source_id`), says what it
+   * was (`source_type`) and what it said (`headline`, `body`, `media_type`, `source_url`). Its click id is never read.
+   * This is the shape Meta documents, not one a message is trusted to have: `adReferralOf` (first-touch.ts) reads it
+   * without assuming any of it.
    */
-  referral?: { source_id?: string; source_type?: string };
+  referral?: {
+    source_id?: string;
+    source_type?: string;
+    headline?: string;
+    body?: string;
+    media_type?: string;
+    source_url?: string;
+  };
 }
 
 export interface WaChangeValue {
@@ -252,50 +260,11 @@ export interface NormalizedInbound {
   optIn: boolean;
   /** The words were the OFFERS ones specifically -- express written consent to be marketed to, which is a separate answer. */
   optInMarketing: boolean;
-  /** The ad or post this person clicked to write, when Meta says: its id and kind (K3). Null for a message with none. */
-  referral: { sourceId: string; sourceType: string | null } | null;
-}
-
-/**
- * What a referral's id may not hold: a control character (a NUL among them) or a lone surrogate. Postgres refuses both
- * inside the `p_meta` the id travels in (jsonb has no \u0000, and no lone surrogate is valid JSON), which would fail
- * `ingest_inbound`, make `pgIngest` throw IngestFailed and the door answer 503, and Meta would redeliver the same payload
- * for ever: the customer's message would never land. A whitespace control at either end is padding, trimmed before this
- * is asked; one inside the id is refused.
- */
-const UNSTORABLE_IN_ID = /[\p{Cc}\p{Cs}]/u;
-
-/**
- * What a referral's kind may be: Meta's own are the words `ad` and `post`, so a word of letters, digits, `_` and `-`, at
- * most 32 long. Anything else (a control character, a lone surrogate, a sentence, megabytes) is not a kind Meta sent and
- * is kept as none; the kind has no column to agree with, so the 32 is said here and nowhere else.
- */
-const REFERRAL_KIND = /^[\p{L}\p{N}_-]{1,32}$/u;
-
-/**
- * The ad or post a message came from (K3), read defensively. A click-to-WhatsApp referral's shape is Meta's to change
- * and unverified here, so nothing is assumed of `r`: it may be absent, not an object, or hold an id that is not a string.
- * Only the id and the kind are kept, and only when what they hold can always be written. The id is trimmed (padding is
- * not part of an id, and the trigger trims the same), then it is none when blank, longer than `REFERRAL_ID_MAX` (the one
- * length the column keeps, contracts first-touch.ts; never cut, a cut id would name another ad) or holding what
- * `UNSTORABLE_IN_ID` names: the stamp the database would refuse for it is the person's wire instead. The kind that is
- * not a plain word is null, and the id stands. Never throws, so a referral can cost a message nothing.
- */
-function adReferralOf(r: unknown): NormalizedInbound["referral"] {
-  if (typeof r !== "object" || r === null) return null;
-  return storableReferral("source_id" in r ? r.source_id : null, "source_type" in r ? r.source_type : null);
-}
-
-/**
- * A referral's id and kind as a message may carry them, by the rules above: the id trimmed and kept only when it can
- * always be written, the kind only when it is a plain word. Every wire's adapter reads its own referral through this
- * one rule (an Instagram DM's ad or link too, instagram/events.ts). Never throws.
- */
-export function storableReferral(rawId: unknown, rawKind: unknown): NormalizedInbound["referral"] {
-  const id = typeof rawId === "string" ? rawId.trim() : "";
-  if (id.length < 1 || id.length > REFERRAL_ID_MAX || UNSTORABLE_IN_ID.test(id)) return null;
-  const kind = typeof rawKind === "string" ? rawKind.trim() : "";
-  return { sourceId: id, sourceType: REFERRAL_KIND.test(kind) ? kind : null };
+  /**
+   * The ad or post this person clicked to write, when Meta says: its id and kind (K3), and what an ad said where it was
+   * tapped (first-touch.ts). Null for a message with none.
+   */
+  referral: Referral | null;
 }
 
 /**

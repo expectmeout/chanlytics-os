@@ -2,6 +2,63 @@
   "generated": "by tooling/scripts/gen/unique-keys.mjs from the replayed migrations; do not edit (supabase start, then corepack pnpm gen:db-types)",
   "keys": [
     {
+      "table": "ad_entries",
+      "name": "ad_entries_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_entries",
+      "name": "ad_entries_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_entries",
+      "name": "ad_entries_one_a_message",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "message_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_entries",
+      "name": "ad_entries_one_a_ref",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "platform"
+        },
+        {
+          "column": "external_ref"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ai_usage",
       "name": "ai_usage_pkey",
       "primary": true,

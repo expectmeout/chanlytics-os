@@ -1,6 +1,7 @@
 # 0049 · Ads are records, and a person is counted once
 
-**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended), nothing built. Four
+**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Step P0a is built
+(18 November 2026, migration 00644: an ad tap keeps what the ad said); the other steps are not. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
@@ -8,7 +9,8 @@ Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 
 main when this was written (#1564 built both, 12 October 2026); each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
 paths below were read at it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 Amended on 18 November 2026 by "No click id yet, and totals counted whole" (below): calls 6 and 11, the shape of
-`ad_entries`, step P0a and one risk. Nothing built.
+`ad_entries`, step P0a and one risk. Step P0a is written as it was built: "As built, 18 November 2026" (below) says
+where that differs from what was first drawn.
 
 ## Context
 
@@ -118,10 +120,13 @@ is the record. Money is `bigint` minor units beside a `currency`.
 - `ad_days`: key `(ad_id, day)`, the day in the account's zone, with `spend_minor`, `impressions`, `clicks`,
   `platform_results`, `read_at`, `settled`. Reach is not additive; it is read daily onto the ad and drawn only in the
   drawer's "their numbers".
-- `ad_entries`: one row each time someone reaches the workspace through an ad. `contact_id` (cascade), `ad_id` (null for
+- `ad_entries`: one row each time someone reaches the workspace through an ad. `contact_id` (cascade; not built: see "As
+  built", below), `ad_id` (null for
   an ad not yet adopted), `platform`, `platform_ad_id` (the raw reference), `kind` (`chat`, `number`, `call`), `new_person`
   (00306's test), `external_ref` (a form lead's id, unique with workspace and platform, so a replay does nothing),
-  and `said`: the referral's headline, body, media type and link, each bounded. `click_id` is not in the first
+  `message_id` (the message that carried it, one entry a message, so a delivery handled twice does nothing),
+  and `said`: the referral's headline, body, media type and link, each bounded, with `said_at`, the moment the words
+  arrived. `click_id` is not in the first
   migration: it arrives with the step that tells a platform who booked (0050, call 16; amended 18 November 2026).
 
 **Why `ad_entries` beside the columns.** `acquired_*` says first, once, which ad, and survives an erasure as a count. It
@@ -167,14 +172,15 @@ Each ships alone, in either deploy order.
 **P0a · Keep what the referral says (no page, no platform).** `adReferralOf` returns the same two fields plus the
 headline, body, media type and link, and no click id, each bounded and read defensively; anything odd is dropped field
 by field, and a
-bad referral still costs a message nothing. `persist.ts` keeps `meta.referral` exactly as now. After the ingest, the edge
+bad referral still costs a message nothing. `persist.ts` keeps `meta.referral` exactly as now. The database opens the
+entry itself, in the message's own transaction, where the first-touch stamp is written. After the ingest, the edge
 calls `ad_entry_keep` (keyed by the message id) with the rest. One migration holds `ad_entries`, that function, and the
-trigger taught `source: 'ad'`. There is no purge yet, since nothing is kept that ages out. A nightly reconcile finds
-people stamped `ad` with no entry and
-rebuilds one from the message's `source_id`, so a failed enrichment loses the ad's words and never a count, and each one
-that fails is counted. _Both orders:_
+trigger taught `source: 'ad'`. There is no purge yet, since nothing is kept that ages out. A failed enrichment loses
+the ad's words and never the entry or a count, and each one that fails is counted on its row: an entry with no
+`said_at` is one whose words never arrived. _Both orders:_
 an edge ahead of the migration gets `PGRST202` from `ad_entry_keep` and ignores it (the 00364 precedent); a database
-ahead of the edge has a table nothing writes. History accrues from the first click-to-WhatsApp after the step.
+ahead of the edge opens entries whose words never arrive. History accrues from the first click-to-WhatsApp after the
+step. _As built, 18 November 2026: a nightly reconcile was drawn here, rebuilding the entries whose keep had failed._
 
 **P0b · Contracts and the permission.** `packages/contracts/src/ads/` (states, money, `bookedAfterTouch`, `adCostRule`,
 the platform rules, the words), the record kinds declared once, the `ads` permission in `ROLE_PERMS` and in SQL's
@@ -236,3 +242,35 @@ Ruben, 18 November 2026, to nine changes found while the build plan for Ads was 
   business grows. Totals are counted in the database. The list of people stays paged. How the match is made in the
   database is the design of the step that builds it; what must hold is that the total is whole and agrees with the
   match the pages already use.
+
+## As built, 18 November 2026 · The entry is opened with the message
+
+Step P0a was built on 18 November 2026 (`supabase/migrations/00644_an_ad_tap_keeps_what_the_ad_said.sql`). Two things
+in it are not as this note first drew them. Each is the mechanism of a step and no call of Ruben's, so it is said here,
+where the code and the note would otherwise disagree.
+
+- **What was drawn.** The edge made the entry after the ingest, and a nightly reconcile found the people stamped `ad`
+  with no entry and rebuilt one.
+- **What was built.** One door writes the table, `ad_entry_keep`, by the message's id. The trigger that writes the
+  first-touch stamp (`messages_note_first_touch`) calls it in the message's own transaction, which opens the entry. The
+  edge calls it again after the ingest, with what the ad said. It reads the ad and `new_person` from the message's own
+  row, so either caller opens the same entry.
+- **Why.** The reconcile has to find its candidates among `messages` or `contacts`. That is a read of every workspace's
+  recent messages each night, or an index on one of the two busiest tables, which the runbook builds alone and
+  `CONCURRENTLY`. Opening the entry where the stamp is written needs no read and no clock, and leaves no hour in which
+  a person counted for an ad has no entry.
+- **What still holds.** One entry for each message, however often it is delivered. A failed keep loses the ad's words
+  and never the entry or a count. Each failure is counted: an entry with no `said_at` is one whose words never arrived,
+  and the edge logs `ad_entry_keep_failed`. `new_person` is 00306's test. Either deploy order.
+- **The shape: an entry names its message, and no person.** The Shape above drew `contact_id`. An entry made by a
+  message is that message's, so its person is the message's person, kept in one place. Two people combined then need
+  nothing moved, and an erasure, which deletes the person's messages, takes the entry with them. A column for the
+  person would be a second copy to keep true at every merge, and a second writer of the table (0031: one record, one
+  door). The step that adds an entry with no message (a form lead's) brings its own way to name its person.
+- **Two things the shape gained.** `message_id`, which is the key the door is called by, and `said_at`.
+- **No event of its own.** An entry is part of the message that carried it, whose door writes that message's events in
+  the same transaction. Nothing hears an entry (Hearing, above, names the records the Ads surface hears).
+- **Read on Meta's pages, not on a delivery.** A message from a click-to-WhatsApp ad carries `headline`, `body`,
+  `media_type` and `source_url`. One from a click-to-Instagram ad carries `ads_context_data` with `ad_title` and a
+  `photo_url` or a `video_url`, and no words and no link. Production held no message with an ad's referral on
+  18 November 2026, so neither has been seen on a real delivery yet.

@@ -40,3 +40,4 @@ export type {
   AdState,
   AdTheirs,
 } from "./ads";
+export type { AdSaid } from "./said";

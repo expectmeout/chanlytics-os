@@ -34,6 +34,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_entries: {
+        Row: {
+          ad_id: string | null
+          created_at: string
+          external_ref: string | null
+          id: string
+          kind: string
+          message_id: string | null
+          new_person: boolean
+          platform: string
+          platform_ad_id: string
+          said: Json | null
+          said_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          ad_id?: string | null
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          kind: string
+          message_id?: string | null
+          new_person: boolean
+          platform: string
+          platform_ad_id: string
+          said?: Json | null
+          said_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          ad_id?: string | null
+          created_at?: string
+          external_ref?: string | null
+          id?: string
+          kind?: string
+          message_id?: string | null
+          new_person?: boolean
+          platform?: string
+          platform_ad_id?: string
+          said?: Json | null
+          said_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_entries_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "ad_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage: {
         Row: {
           agrees: boolean | null
@@ -8560,6 +8620,10 @@ export type Database = {
       }
     }
     Functions: {
+      ad_entry_keep: {
+        Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
+        Returns: string
+      }
       add_person: {
         Args: {
           p_display_name: string

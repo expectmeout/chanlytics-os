@@ -1,14 +1,18 @@
 /**
  * The ad a person clicked to write (the Reports lenses spec, K3): Meta names it in messages[].referral, and the edge
- * keeps its id and kind, nothing else, and writes them with the line the message came in on into the inbound row's
- * meta, where the database's first-touch trigger (00306) reads them. A message with neither writes neither key.
+ * writes its id and kind, nothing else, with the line the message came in on into the inbound row's meta, where the
+ * database's first-touch trigger (00306) reads them. A message with neither writes neither key.
+ *
+ * What the ad said (decision 0049, step P0a) is read from the same referral, each part alone, and kept beside the
+ * message once it has landed (ad_entry_keep), never in its meta: nothing an advertiser typed can cost a customer's
+ * message its place. The click id is never read.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { normalizeInbound, inboundFromWhatsapp } from "@chanlytics/channels/whatsapp";
-import { REFERRAL_ID_MAX } from "../../packages/channels/src/whatsapp/first-touch.ts";
+import { AD_SAID_MAX, REFERRAL_ID_MAX } from "../../packages/channels/src/whatsapp/first-touch.ts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -29,20 +33,37 @@ const value = { metadata: { phone_number_id: "p1" }, contacts: [{ wa_id: FROM, p
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LINE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-test("the ad is kept by its id and kind, and nothing else of Meta's referral", () => {
+/** A referral that says nothing sound beyond its id and kind. */
+const bare = (sourceId, sourceType) => ({ sourceId, sourceType, said: null });
+
+test("the ad is read by its id, its kind and what it said, and never its click id", () => {
   const n = normalizeInbound(
     message({
       referral: {
         source_id: "120200000000001",
         source_type: "ad",
         headline: "Spring gel refills",
+        body: "Book a refill this week.",
+        media_type: "image",
         source_url: "https://fb.example/ad/1",
+        image_url: "https://cdn.example/ad-1.jpg",
         ctwa_clid: "click-id",
+        welcome_message: { text: "Hi! How can we help?" },
       },
     }),
     value,
   );
-  assert.deepEqual(n.referral, { sourceId: "120200000000001", sourceType: "ad" });
+  assert.deepEqual(n.referral, {
+    sourceId: "120200000000001",
+    sourceType: "ad",
+    said: {
+      headline: "Spring gel refills",
+      body: "Book a refill this week.",
+      media_type: "image",
+      link: "https://fb.example/ad/1",
+    },
+  });
+  assert.equal(JSON.stringify(n).includes("click-id"), false, "the click id is nowhere in what was read");
 });
 
 test("a message with no referral, a blank id or an id no column could keep has none", () => {
@@ -52,7 +73,7 @@ test("a message with no referral, a blank id or an id no column could keep has n
   assert.deepEqual(
     normalizeInbound(message({ referral: { source_id: "9".repeat(REFERRAL_ID_MAX), source_type: "ad" } }), value)
       .referral,
-    { sourceId: "9".repeat(REFERRAL_ID_MAX), sourceType: "ad" },
+    bare("9".repeat(REFERRAL_ID_MAX), "ad"),
     "the longest id the column keeps is kept",
   );
   assert.equal(
@@ -63,7 +84,7 @@ test("a message with no referral, a blank id or an id no column could keep has n
   );
   assert.deepEqual(
     normalizeInbound(message({ referral: { source_id: "77" } }), value).referral,
-    { sourceId: "77", sourceType: null },
+    bare("77", null),
     "a kind Meta did not say is none",
   );
 });
@@ -96,21 +117,17 @@ test("an id that holds a NUL, a lone surrogate or any control character is no re
     assertReadAsAlways(n);
   }
   const pair = normalizeInbound(message({ referral: { source_id: "ad-\u{1f600}-1", source_type: "ad" } }), value);
-  assert.deepEqual(
-    pair.referral,
-    { sourceId: "ad-\u{1f600}-1", sourceType: "ad" },
-    "a whole surrogate pair is a character",
-  );
+  assert.deepEqual(pair.referral, bare("ad-\u{1f600}-1", "ad"), "a whole surrogate pair is a character");
 });
 
 test("a padded id is trimmed, not refused: padding is not part of an id, and the database trims the same", () => {
   assert.deepEqual(
     normalizeInbound(message({ referral: { source_id: "  120200000000001  ", source_type: "ad" } }), value).referral,
-    { sourceId: "120200000000001", sourceType: "ad" },
+    bare("120200000000001", "ad"),
   );
   assert.deepEqual(
     normalizeInbound(message({ referral: { source_id: "\t120200000000001\r\n", source_type: "ad" } }), value).referral,
-    { sourceId: "120200000000001", sourceType: "ad" },
+    bare("120200000000001", "ad"),
     "tabs and newlines at the ends are padding too",
   );
   assert.equal(
@@ -131,7 +148,7 @@ test("a kind that is not a plain word is null and the id stands: a NUL, a lone s
     ["a markup tag", "<script>"],
   ]) {
     const n = normalizeInbound(message({ referral: { source_id: "77", source_type: kind } }), value);
-    assert.deepEqual(n.referral, { sourceId: "77", sourceType: null }, `a kind of ${what} is none`);
+    assert.deepEqual(n.referral, bare("77", null), `a kind of ${what} is none`);
     assertReadAsAlways(n);
   }
   for (const kind of ["ad", "post", "AD_2", "story-ad", "anuncio", "anúncio", "a".repeat(32), " ad "])
@@ -153,13 +170,15 @@ test("a referral Meta sent in a shape nobody checked is absent, and the message 
   }
   assert.deepEqual(
     normalizeInbound(message({ referral: { source_id: "77", source_type: 5 } }), value).referral,
-    { sourceId: "77", sourceType: null },
+    bare("77", null),
     "a kind that is not a string is none, and the id still stands",
   );
 });
 
-function world() {
+/** A database that lands every message as `m1` and answers the keep as `keepAnswer` says (a throw is its refusal). */
+function world(keepAnswer = () => "kept") {
   const metas = [];
+  const keeps = [];
   const db = fakeDb(
     {},
     {},
@@ -176,9 +195,13 @@ function world() {
           paused_until: null,
         };
       },
+      ad_entry_keep: (a) => {
+        keeps.push(a);
+        return keepAnswer(a);
+      },
     },
   );
-  return { db, metas };
+  return { db, metas, keeps };
 }
 
 test("pgIngest writes the line and the ad into the row's meta, beside the ingest's own key, and nothing for what a message does not have", async () => {
@@ -196,6 +219,124 @@ test("pgIngest writes the line and the ad into the row's meta, beside the ingest
     { raw_type: "text", line: LINE },
     { raw_type: "text" },
   ]);
+});
+
+const AD = {
+  source_id: "120200000000001",
+  source_type: "ad",
+  headline: "Spring gel refills",
+  body: "Book a refill this week.",
+  media_type: "video",
+  source_url: "https://fb.example/ad/1",
+  ctwa_clid: "click-id",
+};
+const saidBy = (referral) => normalizeInbound(message({ referral: { ...AD, ...referral } }), value).referral?.said;
+
+test("each part of what the ad said is kept or dropped alone: an odd one costs the others nothing", () => {
+  const sound = { headline: AD.headline, body: AD.body, media_type: "video", link: AD.source_url };
+  const without = (part) => Object.fromEntries(Object.entries(sound).filter(([key]) => key !== part));
+  assert.deepEqual(saidBy({}), sound);
+  for (const [what, referral, want] of [
+    ["a headline that is a number", { headline: 7 }, without("headline")],
+    ["a headline that is an object", { headline: { text: "x" } }, without("headline")],
+    ["a blank headline", { headline: "  \n " }, without("headline")],
+    ["no body", { body: undefined }, without("body")],
+    ["a kind of media that is a sentence", { media_type: "a video" }, without("media_type")],
+    ["a kind of media of megabytes", { media_type: "x".repeat(5 * 1024 * 1024) }, without("media_type")],
+    ["a link that is no web address", { source_url: "javascript:alert(1)" }, without("link")],
+    ["a link with a space in it", { source_url: "https://fb.example/ad 1" }, without("link")],
+    ["a link that is not a string", { source_url: ["https://fb.example/ad/1"] }, without("link")],
+    [
+      "a link past its bound, which is never cut",
+      { source_url: `https://fb.example/${"x".repeat(AD_SAID_MAX.link)}` },
+      without("link"),
+    ],
+  ])
+    assert.deepEqual(saidBy(referral), want, what);
+  assert.equal(
+    saidBy({ headline: null, body: 1, media_type: [], source_url: {} }),
+    null,
+    "an ad that said nothing sound said nothing, and its id and kind still stand",
+  );
+  assert.deepEqual(
+    normalizeInbound(
+      message({
+        referral: { source_id: "77", source_type: "ad", headline: [], body: 1, media_type: {}, source_url: 2 },
+      }),
+      value,
+    ).referral,
+    bare("77", "ad"),
+  );
+});
+
+test("the words of an ad are cleaned and cut to their bound, never refused: what Postgres could not store is not in them", () => {
+  assert.equal(saidBy({ headline: "  Spring\u0000 gel\ud800 refills\t " }).headline, "Spring  gel  refills");
+  assert.equal(saidBy({ body: "Line one\r\nLine two\rLine three" }).body, "Line one\nLine two\nLine three");
+  const long = saidBy({ headline: "h".repeat(AD_SAID_MAX.headline + 50), body: "b".repeat(5 * 1024 * 1024) });
+  assert.equal(long.headline, "h".repeat(AD_SAID_MAX.headline), "cut to its bound");
+  assert.equal(long.body, "b".repeat(AD_SAID_MAX.body), "megabytes cost their first characters");
+  const pairs = saidBy({ headline: "\u{1f600}".repeat(AD_SAID_MAX.headline + 1) }).headline;
+  assert.equal(Array.from(pairs).length, AD_SAID_MAX.headline, "counted in characters");
+  assert.equal(/[\ud800-\udbff](?![\udc00-\udfff])/.test(pairs), false, "and never cut through a pair");
+  const strings = Object.values(saidBy({ headline: "a\u0000b", body: "c\udc00d" }));
+  assert.equal(
+    strings.some((v) => typeof v === "string" && (v.includes("\u0000") || /[\ud800-\udfff]/.test(v))),
+    false,
+    "no NUL and no lone surrogate reaches the door",
+  );
+});
+
+test("after the message lands, what the ad said is kept by the id of the message; a post, a link and no referral keep nothing", async () => {
+  const w = world();
+  const out = await runPgIngest(w.db, T, inboundFromWhatsapp(message({ referral: AD }), value), LINE);
+  assert.equal(out.message_id, "m1");
+  assert.deepEqual(w.keeps, [
+    {
+      p_tenant_id: T,
+      p_message_id: "m1",
+      p_said: {
+        headline: "Spring gel refills",
+        body: "Book a refill this week.",
+        media_type: "video",
+        link: "https://fb.example/ad/1",
+      },
+    },
+  ]);
+  assert.deepEqual(
+    w.metas,
+    [{ raw_type: "text", line: LINE, referral: { source_id: "120200000000001", source_type: "ad" } }],
+    "and the meta of the message holds the id and the kind, as it always did",
+  );
+
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message({ referral: { source_id: "77", source_type: "ad" } }), value));
+  assert.deepEqual(w.keeps[1].p_said, {}, "an ad that said nothing is kept as having said nothing");
+
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message({ referral: { ...AD, source_type: "post" } }), value));
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message({ referral: { ...AD, source_type: undefined } }), value));
+  await runPgIngest(w.db, T, inboundFromWhatsapp(message(), value));
+  assert.equal(w.keeps.length, 2, "only an ad is an ad");
+});
+
+test("a keep that fails, is refused or finds no door costs the message nothing: it has landed, and the ingest answers as ever", async () => {
+  const refusals = [
+    () => {
+      throw Object.assign(new Error("Could not find the function public.ad_entry_keep"), { code: "PGRST202" });
+    },
+    () => {
+      throw Object.assign(new Error("unsupported Unicode escape sequence"), { code: "22P05" });
+    },
+    () => {
+      throw new Error("the connection dropped");
+    },
+    () => "none",
+    () => "already",
+  ];
+  for (const [i, answer] of refusals.entries()) {
+    const w = world(answer);
+    const out = await runPgIngest(w.db, T, inboundFromWhatsapp(message({ referral: AD }), value), LINE);
+    assert.equal(out?.message_id, "m1", `refusal ${i}: the message landed`);
+    assert.equal(w.keeps.length, 1, `refusal ${i}: asked once, never again`);
+  }
 });
 
 /**
@@ -244,7 +385,7 @@ test("the same hostile referral that the database would refuse never reaches it:
   // The double is faithful: handed the raw hostile referral (what an edge that kept it whole would write), it refuses,
   // and that refusal is what the door answers with a 503 for ever.
   const raw = refusingWorld();
-  const rawN = { ...inboundFromWhatsapp(message(), value), referral: { sourceId: "ad\u0000x", sourceType: "ad" } };
+  const rawN = { ...inboundFromWhatsapp(message(), value), referral: bare("ad\u0000x", "ad") };
   await assert.rejects(
     () => runPgIngest(raw.db, T, rawN, LINE),
     IngestFailed,

@@ -7,6 +7,8 @@
  * schema-sets.ts holds every hand-kept list to it at compile time.
  */
 export const SCHEMA_SETS = {
+  "ad_entries.kind": ["chat", "number", "call"],
+  "ad_entries.platform": ["meta", "google", "tiktok"],
   "ai_usage.outcome": ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"],
   "ai_usage.port": ["anthropic", "typesafe", "google", "elevenlabs"],
   "ai_usage.purpose": [

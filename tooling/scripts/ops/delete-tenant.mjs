@@ -68,6 +68,8 @@ const STREAM_CALL_MS = 10_000;
  * by backing that up. They are listed in the test's expected set all the same.
  */
 const TABLES = [
+  // What an ad said to each person who tapped it and wrote (00644, decision 0049).
+  "ad_entries",
   "ai_usage",
   "anthropic_profiles",
   "appointment_notices",
