@@ -315,7 +315,7 @@ in their business's name, in the voice their calls are answered in.
   preview's row is told of none (no count, Make it mine does not lead for it, its sender's bell does not ring), and a
   call made while its end is on its way is not held for it.
 - **Its write-up is the provider's smallest.** The provider bills a call's write-up flat, whatever the call's length:
-  1.5 cents on the model every line uses, on each of the account's last fourteen calls, a one-second hang-up among
+  1.5 cents on the model every line used then (GPT-4.1), on each of the account's last fourteen calls, a one-second hang-up among
   them; nothing on its smallest (`RETELL_MODELS.listenAnalysis`, sent as that one call's own). A listen has nothing to
   write up, and this is what takes a press from 2.8 cents to about half of that.
 - **Its limits.** One at a time a preview, from every network (`preview_listen`, ten seconds), and a bucket per

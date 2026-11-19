@@ -248,6 +248,9 @@ export const CALL_LIMITS = {
   data_storage_retention_days: 7,
 } as const;
 
+/** Said to each field the write-up answers in words, so a card reads in English whatever the caller spoke. */
+const IN_ENGLISH = "Write it in English, whatever language the caller spoke.";
+
 /**
  * What the agent's post-call analysis fills in after every call, in the
  * caller's own terms: what they wanted, how it ended, what a person should
@@ -260,13 +263,19 @@ export const CALL_LIMITS = {
  * (migration 00061): the first four as columns, the rest inside the analysis it
  * keeps whole (calls.analysis). The name and the address are suggestions for the
  * person's page, never applied to the contact by themselves.
+ *
+ * Three sentences here were earned on real calls, written up again on the models a write-up could run on (the replay
+ * of 18 and 19 November 2026, contracts RETELL_MODELS). The newer ones take each field at its word. A caller asking
+ * for a call back is a call back, said outright: without it one of them wrote a message left for the owner as "asked
+ * for nothing". A call nobody spoke on is `other`: the newer ones filed it under small talk. And what is written in
+ * words is written in English, as every card is: asked nothing, the product's model wrote one Spanish call in three
+ * in Spanish.
  */
 export const CALL_ANALYSIS_FIELDS = [
   {
     type: "string",
     name: "caller_wanted",
-    description:
-      "What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing.",
+    description: `What the caller wanted, in one short sentence in plain words, the way the business owner would say it. Start with the request itself, never with 'The user' or 'The caller'. Leave empty if they asked for nothing. ${IN_ENGLISH}`,
     examples: [
       "Asked whether Saturday at 10 is free.",
       "Wanted Tuesday's hours and a price.",
@@ -277,14 +286,13 @@ export const CALL_ANALYSIS_FIELDS = [
     type: "enum",
     name: "outcome",
     description:
-      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: the caller asked to be called back or left a message for someone, or a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
     choices: [...CALL_OUTCOMES],
   },
   {
     type: "string",
     name: "follow_up",
-    description:
-      "What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed.",
+    description: `What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed. ${IN_ENGLISH}`,
     examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."],
   },
   {
@@ -305,7 +313,7 @@ export const CALL_ANALYSIS_FIELDS = [
     name: "topic",
     // The classes a rule covers are said in the words the receptionist's prompt and its texts' intent say them
     // (POLICY_COVERS), so a call and a text read one meaning; only what no rule covers is said here.
-    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: a greeting or a chat with no request. other: none of these.`,
+    description: `What the call was mainly about. booking: ${POLICY_COVERS.booking}. pricing: ${POLICY_COVERS.faq}, when it is about what something costs. services: ${POLICY_COVERS.faq}, when it is about what the business offers. money: ${POLICY_COVERS.money}. hours: when the business is open. location: where it is or how to get there. complaint: they were unhappy about something. smalltalk: the caller greeted or chatted and asked for nothing. other: none of these, or the caller said nothing.`,
     choices: [...BRAIN_INTENTS],
   },
   {

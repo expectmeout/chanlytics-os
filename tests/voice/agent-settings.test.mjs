@@ -54,11 +54,17 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
     "max_call_duration_ms",
     "opt_in_signed_url",
     "post_call_analysis_data",
+    "post_call_analysis_model",
     "reminder_max_count",
     "reminder_trigger_ms",
     "webhook_events",
     "webhook_timeout_ms",
   ]);
+  assert.equal(
+    plan.agentPatch.post_call_analysis_model,
+    RETELL_MODELS.analysis,
+    "an agent that names no write-up model is on the provider's default, which is not the product's",
+  );
   assert.deepEqual(
     plan.agentPatch.post_call_analysis_data.map((f) => f.name),
     CALL_ANALYSIS_FIELDS.map((f) => f.name),
@@ -87,6 +93,7 @@ test("a converged agent plans nothing, and extra events are kept", () => {
     opt_in_signed_url: true,
     ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    post_call_analysis_model: RETELL_MODELS.analysis,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -107,6 +114,7 @@ test("a leftover ?key= on the call webhook's URL is drift, planned away to the b
     opt_in_signed_url: true,
     ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    post_call_analysis_model: RETELL_MODELS.analysis,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -145,6 +153,7 @@ test("retention is the product's week unless the converger is told a number, and
     opt_in_signed_url: true,
     ...CALL_LIMITS,
     post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+    post_call_analysis_model: RETELL_MODELS.analysis,
     reminder_trigger_ms: 4000,
     reminder_max_count: 2,
     ...CALL_FEEL,
@@ -192,6 +201,7 @@ const CONVERGED = {
   opt_in_signed_url: true,
   ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  post_call_analysis_model: RETELL_MODELS.analysis,
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
   ...CALL_FEEL,
@@ -267,19 +277,31 @@ test("a draft the converger did not make in this run is named, never published; 
   assert.ok(made.includes("A second run finds it as a draft it did not make"), "a re-run is not the way to publish it");
 });
 
-test("the voice, the models and the temperature are reported when they differ, and never planned", () => {
-  const owner = planAgentSettings({ ...CONVERGED, voice_id: "custom_voice_1", post_call_analysis_model: "gpt-5" });
-  assert.equal(owner.agentPatch, null, "a voice or a model is never changed by the converger");
+test("a line's voice is its owner's: reported when it differs, and never planned", () => {
+  const owner = planAgentSettings({ ...CONVERGED, voice_id: "custom_voice_1" });
+  assert.equal(owner.agentPatch, null, "a voice is never changed by the converger");
   assert.deepEqual(owner.drift, []);
-  assert.equal(owner.notes.length, 2);
+  assert.equal(owner.notes.length, 1);
   assert.ok(owner.notes[0].includes("custom_voice_1") && owner.notes[0].includes("kept"));
-  assert.ok(owner.notes[1].includes("gpt-5") && owner.notes[1].includes(RETELL_MODELS.analysis));
-  const ours = planAgentSettings({
-    ...CONVERGED,
-    voice_id: "minimax-Tamsin",
-    post_call_analysis_model: RETELL_MODELS.analysis,
-  });
-  assert.deepEqual(ours.notes, []);
+  assert.deepEqual(planAgentSettings({ ...CONVERGED, voice_id: "minimax-Tamsin" }).notes, []);
+});
+
+test("a call's write-up runs on the product's model on every line: another model, or none named, is drift and is planned onto it", () => {
+  // The write-up's model is the product's, as its fields are (the replay of 18 and 19 November 2026, contracts
+  // RETELL_MODELS): the wording the fields ask in was proven on that model, so a line on another reads it otherwise.
+  const other = planAgentSettings({ ...CONVERGED, post_call_analysis_model: "another-model" });
+  assert.deepEqual(other.agentPatch, { post_call_analysis_model: RETELL_MODELS.analysis });
+  assert.equal(other.drift.length, 1);
+  assert.ok(
+    other.drift[0].includes("another-model") && other.drift[0].includes(RETELL_MODELS.analysis),
+    "the drift names the model the line is on and the product's",
+  );
+  assert.deepEqual(other.notes, [], "what is planned is not also a note of something kept");
+  const none = planAgentSettings({ ...CONVERGED, post_call_analysis_model: null });
+  assert.deepEqual(none.agentPatch, { post_call_analysis_model: RETELL_MODELS.analysis });
+  assert.ok(none.drift[0].includes("the provider's default"), "a line that names none says whose model it runs on");
+  assert.equal(agentSettingsDrift({ ...CONVERGED, post_call_analysis_model: "another-model" }).converged, false);
+  assert.equal(planAgentSettings(CONVERGED).agentPatch, null);
 });
 
 test("the LLM's model and temperature are reported when they differ, and never planned", () => {

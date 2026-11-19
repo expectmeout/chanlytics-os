@@ -46,7 +46,7 @@ import {
   CALL_HANDBOOK,
   CALL_LIMITS,
 } from "@chanlytics/channels/voice";
-import { formatPhoneDisplay } from "@chanlytics/contracts";
+import { RETELL_MODELS, formatPhoneDisplay } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 // The doors read these at call time; each test file is its own process. No
@@ -846,6 +846,7 @@ const onSettings = (id, over = {}) => ({
   opt_in_signed_url: true,
   ...CALL_LIMITS,
   post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
+  post_call_analysis_model: RETELL_MODELS.analysis,
   reminder_trigger_ms: 4000,
   reminder_max_count: 2,
   ...CALL_FEEL,
@@ -859,6 +860,7 @@ const drifted = (id, over = {}) =>
     webhook_timeout_ms: 10000,
     opt_in_signed_url: false,
     post_call_analysis_data: [],
+    post_call_analysis_model: null,
     webhook_url: `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${FN_SECRET}`,
     reminder_trigger_ms: null,
     reminder_max_count: null,
@@ -882,6 +884,7 @@ const DRIFT_KEYS = [
   "webhook_timeout_ms",
   "opt_in_signed_url",
   "post_call_analysis_data",
+  "post_call_analysis_model",
   "webhook_url",
   "reminder_trigger_ms",
   "reminder_max_count",
