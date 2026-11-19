@@ -204,6 +204,25 @@ function allBroughtOf(dto: AdsLiveDto): { came: number; booked: number } {
   };
 }
 
+/**
+ * Where an account's first read stands: `reading` while one just connected has not been read, `failed` where its first
+ * read failed, null once it has been read (or where it is not connected). Until then nothing is known of its ads, and
+ * the page never says Meta shows none.
+ */
+export function firstReadOf(account: AdsLiveDto["account"]): "reading" | "failed" | null {
+  if (account.status !== "connected" || account.read_at !== null) return null;
+  return account.read_failed ? "failed" : "reading";
+}
+
+/** The head: who booked, else how many ads, else what is known of the account's ads. */
+function headOf(dto: AdsLiveDto, came: number, booked: number, listed: number): LiveVM["head"] {
+  if (came > 0) return LIVE.booked(booked, came);
+  if (dto.ads.length > 0) return LIVE.inAccount(listed);
+  const first = firstReadOf(dto.account);
+  if (first === "reading") return LIVE.reading;
+  return first === "failed" ? LIVE.notReadYet : LIVE.noAds;
+}
+
 /** The page. */
 export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
   const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
@@ -222,9 +241,8 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
         : each
           ? `${spentWords} · ${LIVE.each(each.each, each.soFar)}`
           : spentWords;
-  const head = came > 0 ? LIVE.booked(booked, came) : dto.ads.length > 0 ? LIVE.inAccount(ads.length) : LIVE.noAds;
   return {
-    head,
+    head: headOf(dto, came, booked, ads.length),
     line,
     notice: noticeOf(dto, said),
     stale:

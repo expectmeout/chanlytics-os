@@ -102,15 +102,14 @@ export function CardFacts({ facts }: { facts: ConnectCardVM["facts"] }) {
       {facts.map((fact) => (
         <div key={fact.label}>
           <dt>{fact.label}</dt>
-          <dd>
-            {fact.value}
+          {/* A fact with a door: the two side by side, and where they do not fit, the door under the fact, so no
+              mark between them is left hanging at the end of a line. */}
+          <dd className={fact.door ? "ads-conn-fact-door" : undefined}>
+            {fact.door ? <span>{fact.value}</span> : fact.value}
             {fact.door ? (
-              <>
-                {" · "}
-                <LinkButton href={fact.door.href} {...META_TAB} size="inherit" data-testid="ads-conn-limit">
-                  {fact.door.words}
-                </LinkButton>
-              </>
+              <LinkButton href={fact.door.href} {...META_TAB} size="inherit" data-testid="ads-conn-limit">
+                {fact.door.words}
+              </LinkButton>
             ) : null}
           </dd>
         </div>

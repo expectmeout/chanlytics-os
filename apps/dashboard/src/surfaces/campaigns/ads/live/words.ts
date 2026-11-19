@@ -20,6 +20,10 @@ export const LIVE = {
     rest: ads === 1 ? " is in your Meta account." : " are in your Meta account.",
   }),
   noAds: { strong: null, rest: "Meta shows no ads in this ad account yet." },
+  /** The head while an account just connected has not been read: nothing is known of its ads yet. */
+  reading: { strong: null, rest: "Reading your ads from Meta…" },
+  /** The head where its first read failed: what stood is nothing, and the clock asks again. */
+  notReadYet: { strong: null, rest: "Couldn't read your ads from Meta yet. Chanlytics tries again by itself." },
   /** Who is charged, said once under the head. */
   money:
     "Charged to your card by Meta, never through Chanlytics. Pause an ad and it stops. Meta still bills what it already showed.",
