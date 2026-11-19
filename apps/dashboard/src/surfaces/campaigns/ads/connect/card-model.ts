@@ -149,7 +149,7 @@ function factsOf(card: AdAccountCard): ConnectCardVM["facts"] {
 }
 
 /** What the page knows beside the server's answer. */
-export interface CardMoment {
+interface CardMoment {
   /** The word Meta's window came back with, where it connected nothing: `closed`, or the refusal's code. */
   outcome: string | null;
   /** Whether Meta's window is open, or the page is reading what it shared. */

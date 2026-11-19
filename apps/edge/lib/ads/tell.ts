@@ -50,7 +50,7 @@ export const mayTellNow = (toldAt: string | null, nowMs: number): boolean =>
   toldAt === null || nowMs - Date.parse(toldAt) >= CHANGE_EVERY_MS;
 
 /** What telling Meta came to. `slowed`: Meta took nothing and the press is still on its way. */
-export interface Told {
+interface Told {
   outcome: "told" | "refused" | "unknown" | "slowed" | "revoked" | "again" | "kept" | "not_found";
   usage: MetaUsage | null;
   /** Meta's own words where it refused. */

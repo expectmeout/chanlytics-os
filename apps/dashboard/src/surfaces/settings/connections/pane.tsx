@@ -45,6 +45,11 @@ type WaConfig = SignupDoor | null | undefined;
 const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
+/** A workspace's own ad account is the card Campaigns › Ads draws; a demo session draws the sample's rows. */
+function AdAccountCard({ flash }: { flash: (f: FrameFlash) => void }) {
+  return adsInPreview() ? <RealAdAccount /> : <AdAccounts flash={flash} />;
+}
+
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
   const o = googleVerbs.outcome();
@@ -514,8 +519,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       {connectionGroupsOf(rows).map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
       {adsShown && (
         <Suspense fallback={null}>
-          {/* A workspace's own ad account is the card Campaigns › Ads draws; a demo session draws the sample's rows. */}
-          {adsInPreview() ? <RealAdAccount /> : <AdAccounts flash={flash} />}
+          <AdAccountCard flash={flash} />
         </Suspense>
       )}
       {toastNode}

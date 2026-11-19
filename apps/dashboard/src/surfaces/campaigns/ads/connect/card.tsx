@@ -19,7 +19,7 @@ import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
 import { CARD, QUESTION } from "./words";
 
 /** What the card's presses do. */
-export interface CardActs {
+interface CardActs {
   /** Open Meta's own window. */
   connect: () => void;
   /** The owner's answer to the one question: the platform's id of the account they meant. */
@@ -59,7 +59,7 @@ function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) 
 }
 
 /** The one thing missing, or the one stop: what happened, what it stops, and its one act. */
-export function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
+function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
   return (
     <div
       className="ads-conn-need"

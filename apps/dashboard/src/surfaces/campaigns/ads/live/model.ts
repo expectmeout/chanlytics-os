@@ -329,7 +329,7 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
 }
 
 /** One ad as Reports › Ads lists it: Chanlytics' count, then Meta's spend, each a column of its own. */
-export interface LensRowVM {
+interface LensRowVM {
   id: string;
   name: string;
   /** Who wrote to AI from it, and who of them booked; a dash where its people are not counted. */
@@ -340,7 +340,7 @@ export interface LensRowVM {
   spent: string;
 }
 
-export interface LensVM {
+interface LensVM {
   head: string;
   figures: FigureVM[];
   rows: LensRowVM[];

@@ -191,6 +191,6 @@ export const LENS = {
   heads: { ad: "Ad", came: "Wrote to AI", booked: "Booked", each: "Each", spent: "Spent (Meta)" },
   unnamed: "An ad you run in Meta that Chanlytics can't name yet",
   counted:
-    "A person is counted once, for the ad they first wrote from. Booked means a visit on your calendar after that first message that wasn't cancelled.",
+    "A person is counted once, for the ad they first wrote from. Booked means something on your calendar after that first message that wasn't cancelled.",
   open: "Open Ads",
 } as const;

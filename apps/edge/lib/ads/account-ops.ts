@@ -79,7 +79,7 @@ type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
 
 /** What the door reads of its body. */
-export interface AdsAccountBody {
+interface AdsAccountBody {
   op?: string;
   tenant_id?: string;
   user_id?: string;
@@ -207,6 +207,9 @@ async function readSoon(db: Db, log: Log, externalId: string | null): Promise<vo
   });
 }
 
+/** Support's words for a database that has not run the Ads migrations: either deploy order, said once. */
+export const NO_ADS_DOORS = "The database has not been given the Ads doors yet.";
+
 /** The door's answer to what a connect came to. */
 function connectAnswer(log: Log, outcome: AdConnectOutcome, accountId: string | null): Response {
   if (outcome === "connected" || outcome === "choosing") {
@@ -217,7 +220,7 @@ function connectAnswer(log: Log, outcome: AdConnectOutcome, accountId: string | 
   if (outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
   if (outcome === "taken") return refuse(409, "ad_account_taken");
   if (outcome === "another_connected") return refuse(409, "ad_account_connected");
-  return refuse(503, "not_ready", "The database has not been given the Ads doors yet.");
+  return refuse(503, "not_ready", NO_ADS_DOORS);
 }
 
 async function connectAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId: string }, code: string) {
@@ -304,7 +307,7 @@ const FRESH_MS = 20_000;
  * Chanlytics looks again at a connected account: the account and its Page as Meta describes them now. Nothing is asked
  * where Meta's pace holds a call back or the last read is seconds old; a sign-in Meta no longer takes marks the account.
  */
-export async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: number): Promise<string> {
+async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: number): Promise<string> {
   const tenantId = account.tenant_id;
   const log = logger({ tenant_id: tenantId, account_id: account.id });
   if (account.status !== "connected" || account.external_id === null) return "not_connected";
@@ -366,7 +369,7 @@ async function disconnectAds(
   }
   const done = await disconnectAdAccount(db, by, live.id);
   if (done.outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
-  if (done.outcome === "no_door") return refuse(503, "not_ready", "The database has not been given the Ads doors yet.");
+  if (done.outcome === "no_door") return refuse(503, "not_ready", NO_ADS_DOORS);
   await dropAdSecret(db, live.id).catch((failure: unknown) => {
     // The account is disconnected and nothing reads its token again; one that could not be dropped is a line.
     log.error("ads_disconnect_held", { error: errField(failure) });

@@ -24,7 +24,7 @@ const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(
  * Meta's words for where an ad stands that mean it is not gone: every `effective_status` but ARCHIVED and DELETED.
  * The list asks for these by name, so what it answers does not depend on what Meta leaves out when asked for nothing.
  */
-export const META_LISTED_STATES = [
+const META_LISTED_STATES = [
   "ACTIVE",
   "PAUSED",
   "PENDING_REVIEW",

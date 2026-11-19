@@ -53,7 +53,7 @@ function Row({ row, onOpen }: { row: LiveRowVM; onOpen: (route: string) => void 
         }
         end={(place) => (
           <span className={cx(place, "ads-phone-end")}>
-            {row.badge ? <span className="ads-live-badge">{row.badge}</span> : null}
+            {row.badge ? <span className="ads-live-said">{row.badge}</span> : null}
             {row.endTop ? <span className="ads-phone-top tabular">{row.endTop}</span> : null}
             {row.endSub ? <span className="ads-phone-sub">{row.endSub}</span> : null}
           </span>

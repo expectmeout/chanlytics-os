@@ -19,7 +19,7 @@
   justify-items: end;
   gap: var(--space-1);
 }
-.ads-live-badge {
+.ads-live-said {
   font-size: var(--text-sm);
   color: var(--ink-dim);
 }

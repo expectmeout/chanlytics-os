@@ -71,7 +71,7 @@ export function useAdsLive(on: boolean, key: string): AdsLiveHere {
   return { dto: on ? dto : null, failed, again };
 }
 
-export interface AdPeopleHere {
+interface AdPeopleHere {
   people: AdPersonLiveDto[];
   state: "reading" | "read" | "failed";
   more: boolean;

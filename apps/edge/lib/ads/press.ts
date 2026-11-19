@@ -31,14 +31,14 @@ import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js"
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import { adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
+import { NO_ADS_DOORS, adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { adsWrites, mayTellNow, tellAd, type AdsWrites } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 
 /** What the door reads of its body. */
-export interface AdsPressBody {
+interface AdsPressBody {
   op?: string;
   tenant_id?: string;
   user_id?: string;
@@ -52,7 +52,7 @@ function refusalOf(kept: AdPressKept): Response {
   if (kept.outcome === "not_found") return refuse(404, "not_found");
   if (kept.outcome === "stale") return refuse(409, "ad_stale");
   if (kept.outcome === "cant_resume") return refuse(409, "ad_cant_resume");
-  if (kept.outcome === "no_door") return refuse(503, "not_ready", "The database has not been given the Ads doors yet.");
+  if (kept.outcome === "no_door") return refuse(503, "not_ready", NO_ADS_DOORS);
   return refuse(409, "ad_not_ready", `The ad is ${kept.outcome.replace("_", " ")}.`);
 }
 

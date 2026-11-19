@@ -5,14 +5,17 @@
  * happened, and the one thing to do. Never a code.
  */
 import "server-only";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, SECOND_MS } from "@chanlytics/contracts";
+
+/** How long a press waits for the edge: its own door, Meta's change and the ad read back. */
+const PRESS_WAIT_MS = 45 * SECOND_MS;
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 
 /** What a press came to, as the page reads it. */
-export interface AdPressed {
+interface AdPressed {
   /** told: Meta took it. sent: no answer yet. soon: sent when Meta will take it. took_back, same: nothing to send. */
   outcome: "told" | "sent" | "soon" | "took_back" | "same";
   version: number;
@@ -58,7 +61,7 @@ export async function pressAd(
   const answer: Answer = await callEdge(
     "/api/admin/ads/press",
     { op: press.op, tenant_id: member.tenantId, user_id: ctx.userId, ad_id: press.adId, version: press.version },
-    { workspace: member.tenantId, user: ctx.userId, timeoutMs: 45_000 },
+    { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
   );
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, press.op);

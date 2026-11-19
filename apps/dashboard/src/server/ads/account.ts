@@ -152,7 +152,7 @@ export async function handleAdsCallback(ctx: RouteContext, req: Request): Promis
 }
 
 /** What a press on the card came to, as the page reads it. */
-export interface AdAccountPressed {
+interface AdAccountPressed {
   outcome: string;
 }
 
@@ -199,7 +199,7 @@ export async function checkAdAccount(ctx: RouteContext, member: Member): Promise
 }
 
 /** What a disconnect came to: done, with the ads left running; or held, with the ads whose pause Meta did not confirm. */
-export interface AdAccountDisconnected {
+interface AdAccountDisconnected {
   outcome: "disconnected" | "not_paused";
   names: string[];
 }

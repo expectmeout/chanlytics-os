@@ -24,7 +24,7 @@ const holdsAccount = (account: AdAccountHere): boolean => {
   return status === "connected" || status === "revoked" || status === "disconnected";
 };
 
-export interface AdsConnection {
+interface AdsConnection {
   account: AdAccountHere;
   /** Whether an account is held: the page then draws the workspace's own ads. */
   held: boolean;

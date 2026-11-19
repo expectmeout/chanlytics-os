@@ -52,8 +52,10 @@ function useAdsLiveLens(on: boolean) {
     if (!on) return undefined;
     let live = true;
     const page = read("GET ads/page").catch(() => null);
-    void Promise.all([import("./ads-live"), page]).then(([lens, dto]) => {
-      if (live) setHeld({ Live: lens.AdsLiveLens, head: lens.adsLiveHead, dto });
+    const lens = import("./ads-live").then((m) => m.AdsLiveLens);
+    const head = import("./ads-live").then((m) => m.adsLiveHead);
+    void Promise.all([lens, head, page]).then(([drawn, said, dto]) => {
+      if (live) setHeld({ Live: drawn, head: said, dto });
     });
     return () => {
       live = false;
