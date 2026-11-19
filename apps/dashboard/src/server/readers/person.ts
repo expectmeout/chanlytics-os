@@ -28,6 +28,7 @@ import {
   findPersonRow,
   listSigners,
 } from "@chanlytics/db/people";
+import { readAdNamed } from "@chanlytics/db/ads";
 import { findPersonReplyMode } from "@chanlytics/db/workspace";
 import { readAllRows } from "@chanlytics/db/shared";
 import { listSequencesOfPerson } from "@chanlytics/db/campaigns";
@@ -51,6 +52,7 @@ import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
@@ -323,7 +325,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .limit(1)
         .maybeSingle(),
       // The owner's notes, their proposal link (00154) and what came before Chanlytics (00477), not in people_list.
-      sb.from("contacts").select("notes, proposal_url, before").eq("id", id).maybeSingle(),
+      sb.from("contacts").select("notes, proposal_url, before, acquired_via, acquired_ref").eq("id", id).maybeSingle(),
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
@@ -382,6 +384,14 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
     if (convs.error) throw new DbFailure(convs.error);
     if (calls.error) throw new DbFailure(calls.error);
     const { byConv, escalations, decisions } = thread;
+    // The ad they first came through, by its name (ad_named, 00646): one more read, for a person an ad brought alone.
+    // Never fatal: a read that fails leaves the ad unnamed, and they still came through one.
+    const firstAd =
+      own.data?.acquired_via === "ad"
+        ? await readAdNamed(sb, tenantId, own.data.acquired_ref).catch(
+            logAndGoOn("person ad name", { platform: null, name: null }),
+          )
+        : null;
 
     const person: PersonDetailDto = {
       row: {
@@ -413,6 +423,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       services: fromConfig.services,
       consult_first: fromConfig.consultFirst,
       added: cameFrom(added.data),
+      ...(firstAd ? { first_ad: firstAd } : {}),
       ...work,
     };
     return { data: { person }, rows: rowsOfPerson(person, personName(row)), stamp: readerStamp() };

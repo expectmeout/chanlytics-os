@@ -280,6 +280,69 @@ test("adding a person: the workspace must be named, a viewer is refused as a vie
   );
 });
 
+test("a person an ad brought is read with the ad's name: asked by their own reference, nobody else is asked about, and a name that cannot be read never fails the page (0049)", async () => {
+  const world = (over) => ({
+    memberships: both("viewer", "viewer"),
+    contacts: [contact(P1, A, over)],
+    contact_identities: [],
+    conversations: [],
+    calls: [],
+    policies: [],
+    events: [],
+    tenant_config: [{ tenant_id: A, config: {} }],
+    tenants: [],
+  });
+  const asked = [];
+  const read = async (over, answer) => {
+    const rpcs = {
+      people_list: (a) => (a.p_tenant_id === A && a.p_contact_id === P1 ? [personRow(P1)] : []),
+      ad_named: (a) => {
+        asked.push(a);
+        return answer(a);
+      },
+    };
+    return (await person.GET.run(get(inA), ctxFor(world(over), { id: P1 }, rpcs))).person;
+  };
+  const byAd = { acquired_via: "ad", acquired_ref: "120200000000031" };
+
+  const named = await read(byAd, () => ({ platform: "meta", name: "Spring colour offer" }));
+  assert.deepEqual(named.first_ad, { platform: "meta", name: "Spring colour offer" });
+  assert.deepEqual(
+    asked,
+    [{ p_tenant_id: A, p_ref: "120200000000031" }],
+    "asked once, of their workspace, by their reference",
+  );
+
+  // An ad no entry has words for: still an ad, with no name. A platform the page does not know is no platform.
+  assert.deepEqual((await read(byAd, () => ({ platform: "meta", name: null }))).first_ad, {
+    platform: "meta",
+    name: null,
+  });
+  assert.deepEqual((await read(byAd, () => ({ platform: "billboard", name: "  " }))).first_ad, {
+    platform: null,
+    name: null,
+  });
+  // An ad stamp with no reference is asked with none.
+  asked.length = 0;
+  await read({ acquired_via: "ad", acquired_ref: null }, () => ({ platform: null, name: null }));
+  assert.deepEqual(asked, [{ p_tenant_id: A, p_ref: "" }]);
+
+  // Nobody else is asked about: a person who wrote on WhatsApp, and one whose way in was never kept.
+  asked.length = 0;
+  for (const over of [{ acquired_via: "whatsapp", acquired_ref: null }, {}]) {
+    const plain = await read(over, () => assert.fail("no ad brought them"));
+    assert.equal(plain.first_ad, undefined);
+  }
+  assert.deepEqual(asked, []);
+
+  // The name is a line on the page, never the page: a read the database refuses leaves the ad unnamed.
+  const refused = await read(byAd, () => {
+    throw Object.assign(new Error("canceling statement due to statement timeout"), { code: "57014" });
+  });
+  assert.deepEqual(refused.first_ad, { platform: null, name: null });
+  assert.equal(refused.row.id, P1, "the person is still read");
+});
+
 test("one person in full: the row with both reply modes, the notes, where they came from, the booking link; a person not in the named workspace is a 404", async () => {
   const tables = {
     memberships: both("viewer", "viewer"),

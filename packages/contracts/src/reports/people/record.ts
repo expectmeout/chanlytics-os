@@ -43,8 +43,16 @@ export interface PeopleSeriesDto {
   /** The window (`now`) and the same number of days before it (`before`). */
   reached: { now: ReachedDto; before: ReachedDto };
   by_channel: { now: ByChannelDto; before: ByChannelDto };
-  /** The new people of the window by the door they came through (`acquired_via`); the values add up to `reached.now.new`. */
-  first_came: { by_via: Record<string, number> };
+  /**
+   * The new people of the window by the door they came through (`acquired_via`); the values add up to `reached.now.new`.
+   * `by_ad` (00646) is those an ad brought, a row an ad, the most first: its platform, its name where an entry kept what
+   * the ad said (null: an ad Chanlytics cannot name; those are one row a platform), and how many. The rows add up to
+   * `by_via.ad`. Absent from a database before it.
+   */
+  first_came: {
+    by_via: Record<string, number>;
+    by_ad?: { platform: string | null; name: string | null; n: number }[];
+  };
   /** The yeses and stops of the window by who gave them and what for; the period before is totals. */
   consent: { now: { yes: AnswersDto; stop: AnswersDto }; before: { yes: number; stop: number } };
   /** Addresses that stopped working in the window, a person once, by the first reason. */

@@ -5,7 +5,7 @@
  * code calls the door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, type AdSaid, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, SCHEMA_SETS, isOneOf, recordOrNull, type AdSaid, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import type { Database } from "../../types";
 
@@ -33,4 +33,34 @@ export async function keepAdEntry(
     throw new DbFailure(error, "ad_entry_keep");
   }
   return data === "kept" || data === "already" ? data : "none";
+}
+
+/** The ad a first touch names, as a page says it: its platform, and its name where an entry kept what the ad said. */
+export interface AdNamed {
+  platform: (typeof SCHEMA_SETS)["ad_entries.platform"][number] | null;
+  name: string | null;
+}
+
+/**
+ * The ad a person's first touch names (contacts.acquired_ref), read through ad_named (00646): the one place an ad gets
+ * its name until Chanlytics holds the ad itself. Under the caller's own row rules. A database that has not run 00646
+ * names no ad, which is what a page said before it (either deploy order).
+ */
+export async function readAdNamed(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  ref: string | null,
+): Promise<AdNamed> {
+  const { data, error } = await db.rpc("ad_named", { p_tenant_id: tenantId, p_ref: ref ?? "" });
+  if (error) {
+    if (isMissingDoor(error)) return { platform: null, name: null };
+    throw new DbFailure(error, "ad_named");
+  }
+  const named = recordOrNull(data);
+  const platform = named?.platform;
+  const name = named?.name;
+  return {
+    platform: isOneOf(SCHEMA_SETS["ad_entries.platform"], platform) ? platform : null,
+    name: typeof name === "string" && name.trim() ? name : null,
+  };
 }

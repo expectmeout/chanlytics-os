@@ -444,7 +444,7 @@ export { threadHeadFactOf, threadPersonFactsOf, toPersonRowVM } from "./people/p
 export { peopleRowOf } from "./people/person-row/with-follow-up";
 export { attentionOf, holderOf, NEW_WINDOW_DAYS, PEOPLE_TABS, PERSON_STATE_LABELS, personStanding, personStateFor, QUIET_AFTER_DAYS, stopToldBesideState } from "./people/person-state";
 export { consentChangeWords } from "./people/person-timeline";
-export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
+export { fromAdWords, PERSON_AD_ON, PERSON_AD_OWNER, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./people/person-words";
 export { previewFirstRunMarks, previewKnowsOf, previewMinePath, previewPageOf, previewStartersOf, previewTurnsOf } from "./previews/lead-preview";
 export { PREVIEW_LINE_WORDS, previewBuildSlow, previewLineOf } from "./previews/line";
 export { PREVIEW_LIMITS, PREVIEW_NEAR, PREVIEW_STATES, previewClaimable, previewSlotOf, previewStateOf } from "./previews/standing";

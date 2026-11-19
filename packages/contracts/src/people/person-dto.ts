@@ -271,6 +271,12 @@ export interface PersonDetailDto {
     title: string | null;
     ad?: { id: string; name: string; platform: "meta" | "google" | "tiktok" } | null;
   };
+  /**
+   * The ad they first got in touch through, where one brought them (contacts.acquired_via `ad`; decision 0049, call 2):
+   * its platform, and its name where an entry kept what the ad said (ad_named, 00646). A null name is an ad Chanlytics
+   * cannot name yet, said as "an ad you run in Meta". Absent or null where no ad brought them, and on an older read.
+   */
+  first_ad?: { platform: "meta" | "google" | "tiktok" | null; name: string | null } | null;
   /** The owner's notes on this person: the field 00157 superseded, still sent for a page loaded before it. */
   notes?: string | null;
   /**

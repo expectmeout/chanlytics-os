@@ -14,7 +14,7 @@ import { messageAt, type MessageDto } from "../../conversations/thread-dto";
 import { CONSENT_CHANNEL_WORDS } from "../../consent/channels";
 import type { PersonBeforeDto, PersonDetailDto } from "../person-dto";
 import { viaWords } from "../../imports/csv";
-import type { PersonCameFrom } from "../person-words";
+import { PERSON_AD_OWNER, type PersonCameFrom } from "../person-words";
 import { clockDate } from "../../shared/clock";
 import { formatterOnUse, isoMs } from "../../shared/time";
 import { samePhone } from "../../shared/phone";
@@ -34,6 +34,8 @@ interface ContactEvidence {
   listing: { phone: string | null; email: string | null } | null;
   /** The lead they were found as: when, whether a list of the owner's own brought it, and the reach-out's first send. */
   lead: { foundMs: number | null; ownList: boolean; firstSendMs: number | null } | null;
+  /** The ad they first came through, where one brought them: its name where Chanlytics knows it, and its platform. */
+  ad: NonNullable<PersonDetailDto["first_ad"]> | null;
 }
 
 /** The evidence, from the person read and People's first contact for them (the row's own, made exact by the read). */
@@ -57,6 +59,7 @@ export function contactEvidenceOf(personDetail: PersonDetailDto, first: ContactE
           firstSendMs: earliest((reachOut?.sends ?? []).map((x) => isoMs(x.sent_at))),
         }
       : null,
+    ad: personDetail.first_ad ?? null,
   };
 }
 
@@ -155,8 +158,30 @@ const firstLowered = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 /**
  * Where they came from, in one line (ORIGIN_WORDS), or null where nothing says: the wire they first reached you on and
  * its day (People's own first contact); a door's name and the day it added them; a lead's finding and our first email.
+ * Where an ad brought them, the line names it: after the wire they wrote on, or in place of "From an ad" for a person an
+ * ad's own form added.
  */
 export function personOriginOf(contactEvidence: ContactEvidence, tz: string, nowMs: number): string | null {
+  const ad = contactEvidence.ad;
+  const through = ad ? ORIGIN_WORDS.throughAd(ad.name, ad.platform ? PERSON_AD_OWNER[ad.platform] : null) : null;
+  const from = contactEvidence.first.cameFrom;
+  if (through !== null && from === "ad") {
+    const added = addedDayOf(contactEvidence, tz, nowMs);
+    return added ? `${through.charAt(0).toUpperCase()}${through.slice(1)} · ${added}` : null;
+  }
+  const line = originLineOf(contactEvidence, tz, nowMs);
+  return line !== null && through !== null ? `${line} · ${through}` : line;
+}
+
+/** The day a door added them, else People's own first contact for them, as a line says it; null where neither is known. */
+function addedDayOf(contactEvidence: ContactEvidence, tz: string, nowMs: number): string | null {
+  const ms = contactEvidence.added?.ms ?? null;
+  if (ms !== null) return clockDate(ms, tz, nowMs);
+  return contactEvidence.first.ts !== null ? firstLowered(contactEvidence.first.label) : null;
+}
+
+/** The line before any ad is named: the wire, the door or the finding, and its day. */
+function originLineOf(contactEvidence: ContactEvidence, tz: string, nowMs: number): string | null {
   const from = contactEvidence.first.cameFrom;
   if (!from) return null;
   const day = (t: number | null) => (t !== null ? clockDate(t, tz, nowMs) : null);
@@ -175,9 +200,7 @@ export function personOriginOf(contactEvidence: ContactEvidence, tz: string, now
     const wrote = day(contactEvidence.lead?.firstSendMs ?? null);
     return wrote ? `${sentence} · ${words.weWroteFirst(wrote)}` : sentence;
   }
-  const added =
-    day(contactEvidence.added?.ms ?? null) ??
-    (contactEvidence.first.ts !== null ? firstLowered(contactEvidence.first.label) : null);
+  const added = addedDayOf(contactEvidence, tz, nowMs);
   return added ? words[from](added) : null;
 }
 

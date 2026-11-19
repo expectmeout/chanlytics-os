@@ -109,6 +109,57 @@ test("the lead counts those with a way in kept, whichever row comes last", () =>
   assert.equal(some.muted, V0.more(4));
 });
 
+test("the people an ad brought are said by the ad: its name, or whose account it runs in where it has none (0049)", () => {
+  const withAds = (byVia, byAd) =>
+    pageV0Of(readOf(firstTouchOf(seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }))));
+  const spring = { platform: "meta", name: "Spring colour offer", n: 5 };
+  const unnamed = { platform: "meta", name: null, n: 2 };
+  assert.equal(
+    withAds({ ad: 7, whatsapp: 3 }, [spring, unnamed]).ads,
+    "5 people from Spring colour offer and 2 people from an ad you run in Meta.",
+  );
+  assert.equal(withAds({ ad: 5, whatsapp: 3 }, [spring]).ads, "5 people from Spring colour offer.");
+  assert.equal(
+    withAds({ ad: 3 }, [{ platform: null, name: null, n: 3 }]).ads,
+    "3 people from an ad you run.",
+    "an ad no reference names, on no platform Chanlytics can say",
+  );
+  // The report says the most first; the page keeps that order whatever order it was sent in.
+  assert.equal(
+    withAds({ ad: 7 }, [unnamed, spring]).ads,
+    "5 people from Spring colour offer and 2 people from an ad you run in Meta.",
+  );
+  assert.equal(withAds({ ad: 1 }, [{ ...spring, n: 1 }]).ads, "1 person from Spring colour offer.");
+  // The first three by name, the rest together.
+  const many = [6, 5, 4, 2, 1].map((n, i) => ({ platform: "meta", name: `Offer ${i + 1}`, n }));
+  assert.equal(
+    withAds({ ad: 18 }, many).ads,
+    "6 people from Offer 1, 5 people from Offer 2, 4 people from Offer 3 and 3 people from 2 other ads.",
+  );
+  assert.match(withAds({ ad: 17 }, many.slice(0, 4)).ads, / and 2 people from 1 other ad\.$/);
+});
+
+test("the page names no ad it cannot account for: a database that does not say, rows that do not add up, nobody from an ad", () => {
+  assert.equal(v0Of({ ad: 2, whatsapp: 3 }).ads, null, "a database before the report says which ad");
+  assert.deepEqual(firstTouchOf(seriesOf({ ad: 2 })).ads, []);
+  const short = seriesOf(
+    { ad: 7 },
+    { first_came: { by_via: { ad: 7 }, by_ad: [{ platform: "meta", name: "Spring", n: 5 }] } },
+  );
+  assert.equal(pageV0Of(readOf(firstTouchOf(short))).ads, null, "5 named of 7 counted: the page says the 7 alone");
+  const none = seriesOf(NO_AD, { first_came: { by_via: NO_AD, by_ad: [] } });
+  assert.equal(pageV0Of(readOf(firstTouchOf(none))).ads, null);
+  // A row the page cannot read is dropped, and a platform it does not know is no platform.
+  const odd = [
+    { platform: "billboard", name: "  ", n: 2 },
+    { platform: "meta", name: "Spring", n: 0 },
+    { platform: "meta", name: "Spring", n: Number.NaN },
+  ];
+  assert.deepEqual(firstTouchOf(seriesOf({ ad: 2 }, { first_came: { by_via: { ad: 2 }, by_ad: odd } })).ads, [
+    { platform: null, name: null, n: 2 },
+  ]);
+});
+
 test("the lead does not name one wire, since an ad on Instagram stamps the same way in", () => {
   assert.doesNotMatch(V0.lead(1, 2).rest, /WhatsApp/);
 });
@@ -193,6 +244,29 @@ function previewPage(answer, param = "ads") {
 }
 const landed = (what) => until(redrawWanted, what);
 const barLabels = (tree) => textOf(byTestId(tree, "ads-v0"));
+
+test("the page says which ads under its lead, once the counts land, and nothing there when no ad is named", async () => {
+  const byVia = { ad: 7, whatsapp: 3 };
+  const byAd = [
+    { platform: "meta", name: "Spring colour offer", n: 5 },
+    { platform: "meta", name: null, n: 2 },
+  ];
+  const p = previewPage(() => ({ series: seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }), now: null }));
+  assert.equal(byTestId(p.tree, "ads-v0-ads"), null, "not while it reads");
+  await landed("the counts");
+  const tree = p.draw();
+  assert.equal(
+    textOf(byTestId(tree, "ads-v0-lead")),
+    "7 of the 10 new people with a recorded way in first wrote from an ad.",
+  );
+  assert.equal(
+    textOf(byTestId(tree, "ads-v0-ads")),
+    "5 people from Spring colour offer and 2 people from an ad you run in Meta.",
+  );
+  const plain = previewPage(() => ({ series: seriesOf(byVia), now: null }));
+  await landed("the counts again");
+  assert.equal(byTestId(plain.draw(), "ads-v0-ads"), null);
+});
 
 test("the page reads its own counts once, says it is counting, then says them, in a note that calls them its own", async () => {
   const p = previewPage(() => ({ series: seriesOf(NO_AD), now: null }));

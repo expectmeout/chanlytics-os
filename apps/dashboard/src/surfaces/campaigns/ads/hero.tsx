@@ -55,6 +55,11 @@ function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
           {v0.lead.rest}
         </p>
       ) : null}
+      {v0.ads ? (
+        <p className="ads-hero-muted" data-testid="ads-v0-ads">
+          {v0.ads}
+        </p>
+      ) : null}
       {v0.muted ? <p className="ads-hero-muted">{v0.muted}</p> : null}
     </>
   );
