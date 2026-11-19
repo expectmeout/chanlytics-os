@@ -97,8 +97,8 @@ test.describe("The Inbox and Conversations on their paths", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const head = page.locator(".pg-head");
     await expect(head.getByRole("heading", { name: "Inbox" })).toBeVisible();
-    // The date and time stand in the top bar's row (the frame's head).
-    await expect(page.locator(".pg-dateline")).toBeVisible();
+    // The top bar's row says no date (Ruben, 19 Nov 2026: "not needed").
+    await expect(page.locator(".pg-dateline")).toHaveCount(0);
     await expect(head.locator(".pg-sentence")).toContainText(/need you|Nothing needs you/);
     // The page still stands under it, and the top bar leaves the name to the head.
     await expect(page.locator(".inbox")).toBeVisible();

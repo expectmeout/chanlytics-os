@@ -1,27 +1,27 @@
 /**
- * The frame's head in Glass (the interface kit's step 5.4). The canvases open every page the same way: the date and
- * time in the top bar's row, where Classic's crumbs stand; the page's name with its standing sentence under the bar;
- * and the capsule of views with the page's own act on the row under that. The frame (frame/app-shell.tsx)
- * leaves three empty places for them in Glass alone, and this draws into them, fed by what the page said
- * (standing.ts) and by the crumbs the frame drew. Classic has none of it: the frame leaves no place, and this draws
- * nothing, so the tree Classic draws is the tree it drew.
+ * The frame's head in Glass (the interface kit's step 5.4). The canvases open every page the same way: the top bar's
+ * row, where Classic's crumbs stand; the page's name with its standing sentence under the bar; and the capsule of views
+ * with the page's own act on the row under that. The frame (frame/app-shell.tsx) leaves three empty places for them in
+ * Glass alone, and this draws into them, fed by what the page said (standing.ts) and by the crumbs the frame drew.
+ * Classic has none of it: the frame leaves no place, and this draws nothing, so the tree Classic draws is the tree it drew.
+ *
+ * The top bar's row said the date and time until 19 Nov 2026 (Ruben: "it is not needed"); its place, still named the
+ * date's (`pg-dateline`), holds only a way back or a phone's quiet act now, and where it holds nothing a phone's name
+ * stands on the bell's line (components.css).
  *
  * Drawn beside the shell by FrameApp, in the same React tree, so the head's parts are the kit's TSX and the places
  * are the shell's markup: the shell draws no kit component of its own, and the kit knows nothing of the shell.
  */
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { knownZone } from "@/bridge/zone";
-import { pageDatelineParts, pageDatelineShort, useMinute } from "./dateline";
 import { watchFrameTop, watchPageEdges } from "./frame-top";
 import { watchPageGive } from "../motion/page-give";
-import { SAYS_WHEN } from "../says-when";
 import { PageHead } from "./page-head";
 import { crumbLabel, useCrumbsShown, useHeadHeldNow, useStandingSaid } from "./standing";
 import type { BackWay, ShownCrumb } from "./standing";
 import { navigate } from "../../frame-verbs";
 
-/** The places the frame leaves, by id: the dateline in the top bar, the head, the act beside the views, and under them. */
+/** The places the frame leaves, by id: the date's in the top bar, the head, the act beside the views, and under them. */
 const PLACES = { dateline: "pg-dateline", head: "pg-head", act: "pg-act", under: "pg-under" } as const;
 
 type Places = { [K in keyof typeof PLACES]: Element | null };
@@ -64,9 +64,6 @@ export function pagesOwnTop(): HTMLElement[] {
 
 /** Whether the places found are still in the document: the shell drawn again from nothing leaves them behind. */
 const stillThere = (p: Places): boolean => !!p.head && document.contains(p.head);
-
-/** How often the head asks for the business's zone while the workspace's read has not landed. */
-const ZONE_ASK_MS = 250;
 
 /** The kit's one breakpoint (kit.css): under it the frame's head is a phone's. */
 const PHONE_HEAD_QUERY = "(max-width: 900px)";
@@ -130,26 +127,14 @@ function BackButton({ back }: { back: BackWay }) {
 }
 
 /**
- * "Friday, October 2 · 4:02 PM" in the business's zone, in the top bar's row; the hour is a span of its own, which a
- * phone's head leaves out (kit.css: the phone boards say "FRIDAY, OCTOBER 2"). The zone is the workspace's, known once
- * its read lands (bridge/zone.ts); before that the head says the time in UTC and asks again until it is known,
- * so a page that opens before the read never keeps the wrong hour. Where the way back stands in the date's place
- * (useBackWay), it is drawn here instead.
+ * What stands in the top bar's row at its left, the place the date stood in: the way back, where the head offers it there
+ * (useBackWay), else on a phone the page's quiet act beside the bell; else nothing, and a phone's name takes the row
+ * (components.css). The date and time it said went on 19 Nov 2026 (Ruben: "it is not needed").
  */
-function PageDateline() {
+function TopPlace() {
   const { back, inDate } = useBackWay();
   const said = useStandingSaid();
   const phone = usePhoneHead();
-  const now = useMinute();
-  const [zone, setZone] = useState<string | null>(() => knownZone());
-  useEffect(() => {
-    if (zone) return undefined;
-    const ask = setInterval(() => {
-      const known = knownZone();
-      if (known) setZone(known);
-    }, ZONE_ASK_MS);
-    return () => clearInterval(ask);
-  }, [zone]);
   if (back && inDate)
     return (
       <>
@@ -158,19 +143,8 @@ function PageDateline() {
         {back.after ? <span className="pg-back-after">{back.after}</span> : null}
       </>
     );
-  // Today's phone head says the hour, the day short to leave room for Listen and the bell (Standing `dateHour`).
-  const hour = phone && !!said?.dateHour;
-  const { day, time } = (hour ? pageDatelineShort : pageDatelineParts)(now, zone ?? "UTC");
-  return (
-    <>
-      <p className="pg-dateline" data-hour={hour || undefined} {...SAYS_WHEN}>
-        {day}
-        <span className="pg-dateline-time"> · {time}</span>
-      </p>
-      {/* On a phone the page's quiet act stands in the date's row, beside the bell (components.css; Standing `beside`). */}
-      {phone && said?.beside ? <span className="pg-date-act">{said.beside}</span> : null}
-    </>
-  );
+  // On a phone the page's quiet act stands in the bar's row, beside the bell (components.css; Standing `beside`).
+  return phone && said?.beside ? <span className="pg-date-act">{said.beside}</span> : null;
 }
 
 /** The page's name and its sentence, and on a desk the way back above them: what the page said, else what the crumbs say. */
@@ -293,7 +267,7 @@ export function FrameHead({ look }: { look: string }) {
   if (!places || !places.head) return null;
   return (
     <>
-      {places.dateline && createPortal(<PageDateline />, places.dateline)}
+      {places.dateline && createPortal(<TopPlace />, places.dateline)}
       {createPortal(<GlassHead />, places.head)}
       {places.act && createPortal(<PageAct place={places.act} />, places.act)}
       {places.under && createPortal(<PageUnder />, places.under)}

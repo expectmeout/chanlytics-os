@@ -3216,39 +3216,38 @@ export const FAMILIES = [
   {
     family: "Page head",
     about:
-      "The kit's page head (surfaces/kit/head/page-head.tsx): the date and time in the mono face, the page's name light " +
-      "and large, and beside it the one sentence that says where the page stands; and the page's one quiet act after the " +
-      "name on its line (Today's Listen). A page draws it in Glass alone, " +
-      "inside Glass; Classic's top bar carries the name.",
+      "The kit's page head (surfaces/kit/head/page-head.tsx): the page's name light and large, and beside it the one " +
+      "sentence that says where the page stands; the day in the mono face over them where the page names it (the " +
+      "console's Home; the frame's head says no date); and the page's one quiet act after the name on its line (Today's " +
+      "Listen). A page draws it in Glass alone, inside Glass; Classic's top bar carries the name.",
     entries: [
       {
         id: "page-head",
         html:
-          `<header class="pg-head"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
-          `<div class="pg-line"><h1 class="pg-title">Inbox</h1>` +
+          `<header class="pg-head"><div class="pg-line"><h1 class="pg-title">Inbox</h1>` +
           `<p class="pg-sentence">4 need you · the oldest since 2:26 PM</p></div></header>`,
+      },
+      {
+        id: "page-head-dateline",
+        html:
+          `<header class="pg-head"><p class="pg-dateline">Friday, October 2</p>` +
+          `<div class="pg-line"><h1 class="pg-title">Home</h1>` +
+          `<p class="pg-sentence">3 workspaces need us</p></div></header>`,
       },
       {
         id: "page-head-stacked",
         html:
-          `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
+          `<header class="pg-head pg-head-stacked">` +
           `<div class="pg-line"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
           `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies, and Sam's reply window closes at 5:10 PM.</p></div></header>`,
       },
       {
         id: "page-head-beside",
         html:
-          `<header class="pg-head pg-head-stacked"><p class="pg-dateline">Friday, October 2<span class="pg-dateline-time"> · 4:02 PM</span></p>` +
+          `<header class="pg-head pg-head-stacked">` +
           `<div class="pg-line"><div class="pg-titled"><h1 class="pg-title">Good afternoon, Marisa</h1>` +
           `<span class="pg-beside"><button type="button" class="btn btn-sm">Listen</button></span></div>` +
           `<p class="pg-sentence"><b>3 need you.</b> Ask drafted 2 replies.</p></div></header>`,
-      },
-      {
-        id: "page-head-hour",
-        html:
-          `<header class="pg-head pg-head-stacked"><p class="pg-dateline" data-hour="true">Tue, Nov 3<span class="pg-dateline-time"> · 8:05 AM</span></p>` +
-          `<div class="pg-line"><h1 class="pg-title">Good morning, Marisa</h1>` +
-          `<p class="pg-sentence"><b>4 need you.</b> Ask drafted 2 replies.</p></div></header>`,
       },
       {
         id: "page-bartitle",

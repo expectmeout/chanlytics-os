@@ -2492,6 +2492,11 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   text-overflow: ellipsis;
   font-weight: var(--weight-medium);
 }
+/* The count alone, a phone's beside the bell (below); everywhere else the words say it. */
+.unmarked-bar-count {
+  display: none;
+  font-weight: var(--weight-medium);
+}
 .unmarked-bar-act {
   display: inline-flex;
   flex: none;
@@ -2732,15 +2737,16 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   }
 }
 
-/* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the date and time in the
-   top bar's row where Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with
-   the page's act at its right, as the canvases open every page. The frame leaves the places in Glass alone
+/* The head's places (the interface kit's step 5.4; kit/head/frame-head.tsx draws into them): the top bar's row where
+   Classic's crumbs stand, the page's name with its sentence under the bar, and the row of views with the page's act at
+   its right, as the canvases open every page. The frame leaves the places in Glass alone
    (surfaces/frame/shell-chrome.tsx), so Classic's tree is as it was. The head, the row and the panes keep to one gutter (--gutter-page). */
 .topbar .crumbs {
   display: none;
 }
-/* The date and time's place: laid over the top bar's left, at the page's gutter, so the bar's own markup is as it was
-   (the bar's height is its Glass one, above); the live island and the capsules keep the bar's right. */
+/* The date's place: laid over the top bar's left, at the page's gutter, so the bar's own markup is as it was (the bar's
+   height is its Glass one, above); the live island and the capsules keep the bar's right. It said the date and time
+   until 19 Nov 2026 (Ruben: "not needed"), and keeps the name: it holds a way back, or a phone's quiet act, or nothing. */
 .pg-dateline-slot {
   position: absolute;
   top: 28px;
@@ -2953,12 +2959,12 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
     top: 10px;
     height: 32px;
   }
-  /* The page's quiet act in the date's row, beside the bell (frame-head.tsx PageDateline; the Today canvas, 1 Nov 2026:
-     Listen): the date's place reaches across to the bell, the date at its left and the act at its right, and takes
-     presses there as the way back does. */
+  /* The page's quiet act in the bar's row, beside the bell (frame-head.tsx TopPlace; the Today canvas, 1 Nov 2026:
+     Listen): the date's place reaches across to the bell, the act at its right, and takes presses there as the way back
+     does. */
   .pg-dateline-slot:has(> .pg-date-act) {
     right: calc(var(--gutter-page) + 40px);
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--space-2);
   }
   .pg-date-act {
@@ -3345,6 +3351,134 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   }
   .pg-dateline-slot {
     left: calc(var(--gutter-page) + 40px);
+  }
+}
+
+/* A phone's name on the bell's line (Ruben, 19 Nov 2026: the date "is not needed", so the page's name, the strip of views
+   and the page move up). Where the bar's row holds no way back and no line of the shell's stands under the bar, and the
+   page's head stands in the frame's top (a pane's), the bar keeps only the 10px over the bell, and the name's 33px line
+   stands on the bell's 32. Today's head, which rides in its own scroll, the same (below). A tablet keeps its bar, which
+   holds the menu and Ask. */
+@media (max-width: 720px) {
+  .frame-top:has(> .pg-slot):has(> .pg-dateline-slot:empty):not(:has(> .shell-status-slot > *)) > .topbar {
+    height: 10px;
+    padding-top: 0;
+  }
+  .frame-top:has(> .pg-slot):has(> .pg-dateline-slot:empty):not(:has(> .shell-status-slot > *)) > .pg-slot {
+    margin-top: 0;
+  }
+  /* A page whose act stands on the name's row, with no strip of views: the act keeps 8px clear of the bell beside it, and
+     the row, as tall as the act's 36px, stands 2px up so its centre is the bell's. */
+  .frame-top:has(> .pg-slot):has(> .pg-dateline-slot:empty):not(:has(> .shell-status-slot > *))
+    > .pg-slot:not(:has(> nav)):has(> .pg-act-slot :is(button, a)) {
+    margin-top: -2px;
+    padding-top: 0;
+    padding-right: calc(var(--gutter-page) + 40px);
+  }
+  /* The call, the brief and the visits to mark stand beside the bell, on its line, so they never push the name down (Ruben,
+     19 Nov 2026). Each says the least that tells it there, its whole sentence its label's: the call is the dark island
+     with its dot and its clock (two or more, their count), the brief its glass with its bars and its clock, the visits to
+     mark the quiet line they are (no ground: Ruben, 11 Nov 2026), the ring, the count and the arrow. Where the page draws
+     Listen beside the bell, they take its place while they are up (the date's place stands down for them, above). Under a
+     way back, and over a thread's own head, they keep their row of their own, as before. */
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > :is(.live-bar, .unmarked-bar, .brief-bar) {
+    right: calc(var(--gutter-page) + 40px);
+    left: auto;
+    max-width: none;
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .live-bar
+    :is(.live-bar-text, .live-bar-calls, .live-bar-wave) {
+    display: none;
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .live-bar:not([data-count="1"])
+    .live-bar-text {
+    display: inline;
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .brief-bar
+    .brief-bar-text {
+    display: none;
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .unmarked-bar {
+    gap: 6px;
+    margin: 0;
+    padding: 0 var(--space-2);
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .unmarked-bar
+    .unmarked-bar-text {
+    display: none;
+  }
+  .app-root:not(:has(:is(.inbox, .conversations, .cm-split)[data-takeover]))
+    .frame-top:not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .unmarked-bar
+    .unmarked-bar-count {
+    display: inline;
+  }
+  /* The name keeps clear of them as it does of the bell. */
+  .frame-top:has(> :is(.live-bar, .unmarked-bar, .brief-bar)):not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after)))
+    > .pg-slot
+    > .pg-head-slot {
+    padding-right: 152px;
+  }
+  /* Today's head rides in the page's own scroll, not in the frame's top, and it moves up too (Ruben, 19 Nov 2026: "on
+     today page we should also move up the page / good morning, demo"): where the frame's top holds no head of a pane's,
+     no way back, no line of the shell's and no question before leaving (the leave band stands between the top and the
+     page), the bar keeps the 10px over the bell, so the column, which starts under the top (mobile.css), starts there,
+     and the greeting stands on the bell's line. It keeps clear of Listen and the bell, or of a call, a brief or the visits
+     to mark, as a pane's name does. */
+  .frame-top:not(:has(> .pg-slot)):has(+ .main-scroll):not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after))):not(
+      :has(> .shell-status-slot > *)
+    )
+    > .topbar {
+    height: 10px;
+    padding-top: 0;
+  }
+  .frame-top:not(:has(> .pg-slot)):has(+ .main-scroll):has(> .pg-dateline-slot > .pg-date-act)
+    + .main-scroll
+    > .pg-slot
+    > .pg-head-slot {
+    padding-right: 80px;
+  }
+  .frame-top:not(:has(> .pg-slot)):has(+ .main-scroll):has(> :is(.live-bar, .unmarked-bar, .brief-bar))
+    + .main-scroll
+    > .pg-slot
+    > .pg-head-slot {
+    padding-right: 152px;
+  }
+  /* The page goes under the top's 10px, so beside Listen and the bell nothing stood over what passed: the cards' words
+     ran behind the two circles. As the page goes under, the top's ground fades in down to the bell's foot (the bar's old
+     44px) and fades out under it, over the first 34px of the scroll, the greeting's own height: the greeting fades as it
+     leaves, and what follows it passes under ground, as on a pane. A browser that cannot tie a fade to the scroll keeps
+     the top's own fade at its edge. */
+  @supports (animation-timeline: scroll()) {
+    .frame-top:not(:has(> .pg-slot)):has(+ .main-scroll):not(:has(> .pg-dateline-slot > :is(.pg-back, .pg-back-after))):not(
+        :has(> .shell-status-slot > *)
+      )::after {
+      bottom: calc(-34px - var(--frame-top-fade));
+      mask-image: linear-gradient(#000 calc(100% - var(--frame-top-fade)), transparent);
+      animation: frame-top-ground linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 34px;
+    }
+  }
+}
+@keyframes frame-top-ground {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

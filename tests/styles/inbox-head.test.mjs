@@ -9,8 +9,7 @@ import { installStubReact } from "../_stub-react.mjs";
 
 installStubReact({ __surfaceState: () => "live" });
 const { inboxStanding } = await import("../../apps/dashboard/src/surfaces/inbox/pages/inbox-head.tsx");
-const { pageDateline, pageDatelineParts, pageDatelineShort } =
-  await import("../../apps/dashboard/src/surfaces/kit/head/dateline.ts");
+const { pageDateline, pageDatelineParts } = await import("../../apps/dashboard/src/surfaces/kit/head/dateline.ts");
 const { PageHead } = await import("../../apps/dashboard/src/surfaces/kit/head/page-head.tsx");
 
 // Friday 2 October 2026, 4:02 PM in New York (20:02 UTC).
@@ -48,16 +47,13 @@ const handled = (id) => ({ id, real: true, state: "done", needsYou: false, move:
 test("the dateline is the day and the time in the business's zone, not the machine's", () => {
   assert.equal(pageDateline(NOW, ZONE), "Friday, October 2 · 4:02 PM");
   assert.equal(pageDateline(NOW, "Asia/Tokyo"), "Saturday, October 3 · 5:02 AM");
-  // The day and the hour apart: a phone's head says the day alone (the canvases' phone boards; kit.css hides the hour's
-  // span), and the line is the two joined, so neither can drift from the other. Today's phone head says the hour, its day
-  // short to leave room for Listen and the bell (Standing `dateHour`; the Today canvas: "Tue, Nov 3 · 8:05 AM").
+  // The day and the hour apart: a head that names its date says the day alone (the console's Home), and the line is the
+  // two joined, so neither can drift from the other.
   assert.deepEqual(pageDatelineParts(NOW, ZONE), { day: "Friday, October 2", time: "4:02 PM" });
-  assert.deepEqual(pageDatelineShort(NOW, ZONE), { day: "Fri, Oct 2", time: "4:02 PM" });
 });
 
 test("the head says its date with formatters it keeps: every press draws it", () => {
   pageDatelineParts(NOW, ZONE);
-  pageDatelineShort(NOW, ZONE);
   const was = {
     day: Date.prototype.toLocaleDateString,
     time: Date.prototype.toLocaleTimeString,
@@ -74,7 +70,6 @@ test("the head says its date with formatters it keeps: every press draws it", ()
   });
   try {
     assert.deepEqual(pageDatelineParts(NOW + MIN, ZONE), { day: "Friday, October 2", time: "4:03 PM" });
-    assert.deepEqual(pageDatelineShort(NOW + MIN, ZONE), { day: "Fri, Oct 2", time: "4:03 PM" });
     assert.equal(built, 0, "none built after the first");
   } finally {
     Date.prototype.toLocaleDateString = was.day;
