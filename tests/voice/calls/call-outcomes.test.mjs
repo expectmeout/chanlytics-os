@@ -167,6 +167,19 @@ test("the call card: the request is the headline, the outcome, the to-do, the gi
       `a spelled address that is not one is not offered: ${JSON.stringify(analysis)}`,
     );
   }
+  // The write-up is asked for the address written as one (19 Nov 2026): asked for it "exactly as they spelled it out",
+  // the model wrote the spelling itself, which is no address, so the person's page was offered nothing.
+  const email = CALL_ANALYSIS_FIELDS.find((f) => f.name === "caller_email");
+  const [, spelled, written] = /'([^']+)' is (\S+@\S+?)\.(?:\s|$)/.exec(email.description) ?? [];
+  assert.ok(spelled && written, "the email field shows a spelled address and the address it is written as");
+  assert.ok(
+    !bullets({ caller_email: spelled }).some((b) => b.startsWith("Gave their email")),
+    "the spelling is no address",
+  );
+  assert.ok(
+    bullets({ caller_email: written }).includes(`Gave their email as ${written}`),
+    "what the field asks for is offered",
+  );
   assert.match(vm.snippet, /Asked for a gel manicure this Saturday around 10\./);
   const old = toCallVM({ ...dto, wanted: null, outcome: null, follow_up: null, caller_name: null }, ZONE, NOW);
   assert.equal(
