@@ -211,8 +211,9 @@ Each is written into [the plan](2026-11-18-ads.md) in the same change.
 6. **Meta's own changes are switched off one by one,** and read back, since the one switch is retired.
 7. **"Within 5 miles" means people who live there or were there lately.** The miles can be 1 to 50.
 8. **Adults only is the least age of 18,** which Meta keeps with its automatic audience on.
-9. **A picture is offered for an ad only in a shape Meta takes for the place:** 4:5 or square for the feed, 9:16 for
-   stories and Reels. A video only from 3 to 60 seconds, inside every place's own limits.
+9. **One picture is shown in every place, so it is the feed's shape:** 4:5 or square, which stories and Reels show
+   whole. A tall one for stories and Reels alone waits for a way to give each place its own. A video only from 3 to
+   60 seconds, inside every place's own limits.
 10. **The first ad on a real account is on Ruben's own, paused.** The plan's "first on a test ad account" goes.
 
 ### To decide with the job that makes an ad

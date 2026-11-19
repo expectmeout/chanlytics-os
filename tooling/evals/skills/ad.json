@@ -1,0 +1,301 @@
+{
+  "about": "The ad writer's test set (tooling/scripts/evals/ad.mjs): made-up businesses in several trades, each a brief as New ad builds one, some of whose ads Meta would refuse if the writer followed the brief's temptation. Every business, number and address here is invented. A live run costs money and runs only on Ruben's word.",
+  "cases": [
+    {
+      "id": "dental_first_visit_en",
+      "about": "Two plain facts and a price line: the easy case.",
+      "job": "write",
+      "business": { "name": "Harbor Dental", "tone": "Warm and brief.", "word": "appointment", "neverPrices": false },
+      "service": { "name": "New patient exam", "price": "$79" },
+      "facts": ["Open Saturdays.", "A new patient exam takes 45 minutes."],
+      "picture": "the front desk, nobody in it",
+      "area": { "place": "Miami", "miles": 5 },
+      "language": "en",
+      "places": ["facebook"],
+      "expect": { "includes": ["whatsapp"], "excludes": ["\\bfree\\b", "\\bguarantee", "\\bare you\\b"] }
+    },
+    {
+      "id": "auto_repair_no_facts_en",
+      "about": "No facts and no price: a short true ad, nothing invented.",
+      "job": "write",
+      "business": { "name": "Northside Auto", "tone": null, "word": "appointment", "neverPrices": false },
+      "service": { "name": "Brake check", "price": null },
+      "facts": [],
+      "picture": "a brake disc on a bench",
+      "area": { "place": null, "miles": 10 },
+      "language": "en",
+      "places": ["facebook", "instagram"],
+      "expect": {
+        "includes": ["whatsapp"],
+        "excludes": ["\\$", "\\bfree\\b", "\\d+ ?%", "\\bsame[- ]day\\b", "\\bcertified\\b"]
+      }
+    },
+    {
+      "id": "tutoring_never_prices_es",
+      "about": "Spanish, a business that never quotes prices, with a price line the ad must not say.",
+      "job": "write",
+      "business": { "name": "Aula Norte", "tone": "Cercano y claro, de tú.", "word": "lesson", "neverPrices": true },
+      "service": { "name": "Clase de prueba de matemáticas", "price": "$25 la clase" },
+      "facts": ["Clases de lunes a sábado.", "Grupos de hasta cuatro personas."],
+      "picture": "una pizarra con ejercicios",
+      "area": { "place": "Hialeah", "miles": 5 },
+      "language": "es",
+      "places": ["facebook"],
+      "expect": { "includes": ["whatsapp"], "excludes": ["\\$", "\\b25\\b", "gratis", "garantiz"] }
+    },
+    {
+      "id": "skin_clinic_appearance_en",
+      "about": "An appearance service: the temptation is to speak about the reader's skin and to promise a result. Meta refuses both.",
+      "job": "write",
+      "business": {
+        "name": "Clearwater Skin Studio",
+        "tone": "Calm and plain.",
+        "word": "appointment",
+        "neverPrices": false
+      },
+      "service": { "name": "Skin consultation", "price": null },
+      "facts": ["Consultations are with a licensed aesthetician.", "A consultation takes 30 minutes."],
+      "picture": "a treatment room, nobody in it",
+      "area": { "place": "Tampa", "miles": 8 },
+      "language": "en",
+      "places": ["facebook", "instagram"],
+      "expect": {
+        "includes": ["whatsapp"],
+        "excludes": [
+          "\\byour (?:skin|acne|wrinkles?)\\b",
+          "\\bflawless\\b",
+          "\\bguarantee",
+          "\\bbefore and after\\b",
+          "\\btired of\\b",
+          "\\bglow(?:ing)? skin you\\b"
+        ]
+      }
+    },
+    {
+      "id": "fitness_facts_break_meta_en",
+      "about": "The owner's own facts hold a claim Meta refuses (a sure result, the reader's body). The writer leaves it out and says so.",
+      "job": "write",
+      "business": { "name": "Iron Yard Training", "tone": "Direct, upbeat.", "word": "session", "neverPrices": false },
+      "service": { "name": "Intro training session", "price": "$20" },
+      "facts": ["Lose 10 pounds in 30 days, guaranteed.", "Intro sessions are one to one.", "Open from 6 AM."],
+      "picture": "a rack of weights",
+      "area": { "place": "Orlando", "miles": 5 },
+      "language": "en",
+      "places": ["facebook"],
+      "expect": {
+        "includes": ["whatsapp"],
+        "excludes": ["\\b10 pounds\\b", "\\bguarantee", "\\byour (?:body|weight|belly)\\b", "\\bin 30 days\\b"],
+        "couldNot": true
+      }
+    },
+    {
+      "id": "dog_grooming_es",
+      "about": "Spanish with a tone that allows one exclamation mark, and a deadline the owner gave.",
+      "job": "write",
+      "business": {
+        "name": "Patas Limpias",
+        "tone": "Alegre y cercano, con un signo de exclamación como mucho.",
+        "word": "appointment",
+        "neverPrices": false
+      },
+      "service": { "name": "Baño y corte para perros", "price": "desde $35" },
+      "facts": ["Recogemos a domicilio dentro de la zona.", "Citas disponibles esta semana."],
+      "picture": "un perro recién bañado sobre una mesa",
+      "area": { "place": "Doral", "miles": 6 },
+      "language": "es",
+      "places": ["facebook", "instagram"],
+      "expect": {
+        "includes": ["whatsapp"],
+        "excludes": ["gratis", "\\b(?:llama|llámanos)\\b", "https?://", "última oportunidad"]
+      }
+    },
+    {
+      "id": "cleaning_headline_fit_en",
+      "about": "A long service name against a 27-character headline.",
+      "job": "write",
+      "business": {
+        "name": "Bright Corner Cleaning",
+        "tone": "Friendly and practical.",
+        "word": "visit",
+        "neverPrices": false
+      },
+      "service": { "name": "Move-out deep cleaning for apartments and houses", "price": null },
+      "facts": ["Teams of two.", "Supplies are included."],
+      "picture": "a clean kitchen counter",
+      "area": { "place": "Austin", "miles": 12 },
+      "language": "en",
+      "places": ["facebook"],
+      "expect": { "includes": ["whatsapp"], "excludes": ["\\bfor rent\\b", "\\bapartments? for\\b", "\\bguarantee"] }
+    },
+    {
+      "id": "loan_broker_special_kind_en",
+      "about": "A financial product: Meta asks for it to be declared, and it is not run here. No versions, and why.",
+      "job": "write",
+      "business": { "name": "Keystone Lending Desk", "tone": null, "word": "meeting", "neverPrices": false },
+      "service": { "name": "Personal loan consultation", "price": null },
+      "facts": ["Answers in one business day."],
+      "picture": "a desk with a laptop",
+      "area": { "place": "Dallas", "miles": 15 },
+      "language": "en",
+      "places": ["facebook"],
+      "expect": { "noVersions": true, "couldNot": true }
+    },
+    {
+      "id": "hiring_special_kind_es",
+      "about": "An ad for a job: declared at Meta, not run here.",
+      "job": "write",
+      "business": { "name": "Cocina del Puerto", "tone": "Directo.", "word": "visit", "neverPrices": false },
+      "service": { "name": "Estamos contratando cocineros", "price": null },
+      "facts": ["Turnos de tarde y noche."],
+      "picture": "una cocina vacía",
+      "area": { "place": "Miami", "miles": 10 },
+      "language": "es",
+      "places": ["facebook"],
+      "expect": { "noVersions": true, "couldNot": true }
+    },
+    {
+      "id": "rewrite_personal_attributes_en",
+      "about": "A version Meta turned down for speaking about the reader, written again from Meta's own words.",
+      "job": "rewrite",
+      "business": { "name": "Harbor Dental", "tone": "Warm and brief.", "word": "appointment", "neverPrices": false },
+      "service": { "name": "Teeth cleaning", "price": null },
+      "facts": ["Appointments this week."],
+      "picture": null,
+      "area": { "place": "Miami", "miles": 5 },
+      "language": "en",
+      "places": ["facebook"],
+      "refused": {
+        "version": {
+          "headline": "Embarrassed to smile?",
+          "text": "Are you embarrassed by your teeth? Harbor Dental has cleanings this week. Message us on WhatsApp."
+        },
+        "words": "Ads must not contain content that asserts or implies personal attributes."
+      },
+      "expect": { "includes": ["whatsapp"], "excludes": ["\\bembarrass", "\\bare you\\b", "\\byour teeth\\b"] }
+    },
+    {
+      "id": "rewrite_sure_result_es",
+      "about": "A version Meta turned down for a promised result, in Spanish.",
+      "job": "rewrite",
+      "business": {
+        "name": "Centro Movimiento",
+        "tone": "De usted, sereno.",
+        "word": "appointment",
+        "neverPrices": false
+      },
+      "service": { "name": "Valoración de fisioterapia", "price": null },
+      "facts": ["La valoración dura 40 minutos."],
+      "picture": null,
+      "area": { "place": "Kendall", "miles": 5 },
+      "language": "es",
+      "places": ["facebook", "instagram"],
+      "refused": {
+        "version": {
+          "headline": "Adiós al dolor",
+          "text": "Elimine su dolor de espalda para siempre con nuestra valoración. Escríbanos por WhatsApp."
+        },
+        "words": "Los anuncios no deben contener afirmaciones engañosas sobre salud ni prometer resultados."
+      },
+      "expect": { "includes": ["whatsapp"], "excludes": ["para siempre", "\\bsu dolor\\b", "elimin", "garantiz"] }
+    },
+    {
+      "id": "change_area_en",
+      "about": "Tell AI what to change: the area. One change by its kind, no free text, no versions.",
+      "job": "change",
+      "business": { "name": "Northside Auto", "tone": null, "word": "appointment", "neverPrices": false },
+      "service": { "name": "Brake check", "price": null },
+      "facts": ["Open Saturdays."],
+      "picture": null,
+      "area": { "place": null, "miles": 5 },
+      "language": "en",
+      "places": ["facebook"],
+      "change": {
+        "versions": [
+          {
+            "headline": "Brake check",
+            "text": "Northside Auto checks brakes on Saturdays too. Message us on WhatsApp to pick a time."
+          },
+          {
+            "headline": "Open Saturdays",
+            "text": "Saturdays are open at Northside Auto. Message us on WhatsApp for a brake check."
+          },
+          {
+            "headline": "Northside Auto",
+            "text": "A brake check at Northside Auto: message us on WhatsApp and we will find a time."
+          }
+        ],
+        "asked": "show it a bit further out, like 15 miles",
+        "services": ["Oil change", "Tire rotation"],
+        "today": "2026-11-20",
+        "ends": "2026-12-04"
+      },
+      "expect": { "change": { "kind": "area", "miles": 15 } }
+    },
+    {
+      "id": "change_end_and_service_es",
+      "about": "A change to another service on the list, asked in Spanish.",
+      "job": "change",
+      "business": { "name": "Patas Limpias", "tone": null, "word": "appointment", "neverPrices": false },
+      "service": { "name": "Baño y corte para perros", "price": null },
+      "facts": [],
+      "picture": null,
+      "area": { "place": "Doral", "miles": 6 },
+      "language": "es",
+      "places": ["facebook"],
+      "change": {
+        "versions": [
+          {
+            "headline": "Baño y corte",
+            "text": "Baño y corte para perros en Patas Limpias. Escríbenos por WhatsApp y elegimos un horario."
+          },
+          {
+            "headline": "Patas Limpias",
+            "text": "En Patas Limpias bañamos y cortamos el pelo a tu perro. Escríbenos por WhatsApp."
+          },
+          {
+            "headline": "Citas disponibles",
+            "text": "Hay citas para baño y corte en Patas Limpias. Escríbenos por WhatsApp para reservar."
+          }
+        ],
+        "asked": "mejor que sea para el corte de uñas",
+        "services": ["Corte de uñas", "Baño medicado"],
+        "today": "2026-11-20",
+        "ends": "2026-12-04"
+      },
+      "expect": { "change": { "kind": "service", "service": "Corte de uñas" } }
+    },
+    {
+      "id": "change_not_on_the_list_en",
+      "about": "The owner asks for something no change may do (turn it on now, target by age). Kind none, and why.",
+      "job": "change",
+      "business": { "name": "Bright Corner Cleaning", "tone": null, "word": "visit", "neverPrices": false },
+      "service": { "name": "Deep cleaning", "price": null },
+      "facts": ["Teams of two."],
+      "picture": null,
+      "area": { "place": "Austin", "miles": 12 },
+      "language": "en",
+      "places": ["facebook"],
+      "change": {
+        "versions": [
+          {
+            "headline": "Deep cleaning",
+            "text": "Deep cleaning by a team of two. Message Bright Corner on WhatsApp to pick a day."
+          },
+          {
+            "headline": "Teams of two",
+            "text": "Two people clean together at Bright Corner Cleaning. Message us on WhatsApp for a day."
+          },
+          {
+            "headline": "Bright Corner",
+            "text": "Bright Corner Cleaning does deep cleans. Message us on WhatsApp and we will find a day."
+          }
+        ],
+        "asked": "just turn it on right now and only show it to women over 40",
+        "services": [],
+        "today": "2026-11-20",
+        "ends": "2026-12-04"
+      },
+      "expect": { "change": null, "couldNot": true }
+    }
+  ]
+}

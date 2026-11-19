@@ -6,17 +6,12 @@
  * voice, its language, each channel's fit. A case passes when every check and every hard criterion passes; the soft ones
  * are reported as a share.
  */
-import { z } from "zod";
 import { DATA_NOT_INSTRUCTIONS, fenced } from "../../../ai/fence";
 import { messageBriefText } from "./brief";
 import type { CraftVersions, MessageBrief } from "./brief";
 import type { CraftIssue } from "./checks";
-
-export interface RubricCriterion {
-  id: string;
-  hard: boolean;
-  ask: string;
-}
+import { JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdict } from "../judge";
+import type { JudgeAnswer, RubricCriterion, RubricVerdict } from "../judge";
 
 export const MESSAGE_RUBRIC = [
   {
@@ -62,7 +57,7 @@ export function messageJudgeSystem(): string {
   return [
     "You judge a message a small business will send its own customers, against the brief it was written from. Be strict: a customer reads these words under the business's name, and WhatsApp reviews them before they can be sent.",
     "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.",
-    MESSAGE_RUBRIC.map((c) => `- ${c.id}${c.hard ? " (must pass)" : ""}: ${c.ask}`).join("\n"),
+    rubricLines(MESSAGE_RUBRIC),
     DATA_NOT_INSTRUCTIONS,
   ].join("\n\n");
 }
@@ -89,62 +84,16 @@ export function messageJudgeQuestion(
   ].join("\n\n");
 }
 
-export const MESSAGE_JUDGE_JSON_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["verdicts"],
-  properties: {
-    verdicts: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["id", "pass", "why"],
-        properties: {
-          id: { type: "string", enum: MESSAGE_RUBRIC.map((c) => c.id) },
-          pass: { type: "boolean" },
-          why: { type: "string" },
-        },
-      },
-    },
-  },
-} as const;
+export const MESSAGE_JUDGE_JSON_SCHEMA = judgeJsonSchema(MESSAGE_RUBRIC);
+export const MessageJudgeAnswerSchema = JudgeAnswerSchema;
+export type MessageJudgeAnswer = JudgeAnswer;
+export type MessageVerdict = RubricVerdict;
 
-export const MessageJudgeAnswerSchema = z.object({
-  verdicts: z.array(z.object({ id: z.string(), pass: z.boolean(), why: z.string() })),
-});
-export type MessageJudgeAnswer = z.infer<typeof MessageJudgeAnswerSchema>;
-
-export interface MessageVerdict {
-  pass: boolean;
-  /** What failed that must not: each check's code, and each hard criterion with the judge's why. */
-  failed: string[];
-  /** The soft criteria that passed, of how many. */
-  soft: { passed: number; of: number };
-  /** Each soft criterion that did not pass, with the judge's why. */
-  notes: string[];
-}
-
-/**
- * A case's verdict: every code check and every hard criterion must pass. A criterion the judge left out is a failure of
- * the judge's answer, said as one, never a pass.
- */
+/** A case's verdict (judge.ts rubricVerdict): every check of the card's and every hard criterion must pass. */
 export function messageVerdict(issues: readonly CraftIssue[], judged: MessageJudgeAnswer): MessageVerdict {
-  const failed = issues.map((i) => `${i.channel} ${i.code}: ${i.words}`);
-  const notes: string[] = [];
-  let passed = 0;
-  let of = 0;
-  for (const rubricRule of MESSAGE_RUBRIC) {
-    const found = judged.verdicts.find((x) => x.id === rubricRule.id);
-    const ok = found?.pass === true;
-    const reason = found ? found.why : "the judge gave no verdict";
-    if (rubricRule.hard) {
-      if (!ok) failed.push(`${rubricRule.id}: ${reason}`);
-    } else {
-      of += 1;
-      if (ok) passed += 1;
-      else notes.push(`${rubricRule.id}: ${reason}`);
-    }
-  }
-  return { pass: failed.length === 0, failed, soft: { passed, of }, notes };
+  return rubricVerdict(
+    MESSAGE_RUBRIC,
+    issues.map((issue) => `${issue.channel} ${issue.code}: ${issue.words}`),
+    judged,
+  );
 }

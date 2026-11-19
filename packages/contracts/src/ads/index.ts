@@ -51,6 +51,28 @@ export type {
   AdTheirs,
 } from "./ads";
 export { bookedAfterTouch } from "./booked-after-touch";
+export {
+  AD_BOOKED_TO_FORECAST,
+  AD_DRAFT_MILES,
+  AD_RUN_DAYS,
+  AD_SPECIAL_KINDS,
+  adAmountIssue,
+  adDraftOf,
+  adEndIssue,
+  adLeastTotal,
+  adPictureIssue,
+  adSpecialKinds,
+} from "./draft";
+export type {
+  AdAmountIssue,
+  AdDraftInputs,
+  AdDraftMissing,
+  AdDraftParts,
+  AdPicture,
+  AdPictureIssue,
+  AdServiceFacts,
+  AdSpecialKind,
+} from "./draft";
 export { ADS_ACCOUNT_DOOR, ADS_PRESS_DOOR } from "./edge-doors";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
 export type {
