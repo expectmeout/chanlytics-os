@@ -5,7 +5,7 @@
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, byTestId, redrawWanted, textOf } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, redrawWanted, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 
@@ -163,4 +163,46 @@ test("Connect is one press: Meta's own window opens by the app's route, and the 
   const connected = byTestId(page.draw(), "ads-conn");
   assert.match(textOf(connected), /Harbor · US dollars/);
   assert.match(textOf(connected), /Harbor Nails/);
+  // Meta's limit and its door into Meta: two pieces that wrap apart, with no mark between them to hang at a line's end.
+  const limit = find(connected, (n) => n.props?.className === "ads-conn-fact-door");
+  assert.equal(textOf(limit), "NoneSet one in Meta");
+});
+
+test("Reports › Ads draws its four figures as every lens draws its strip: the kit's figure, four across", async () => {
+  const { AdsLiveLens } = await import(`${S}/surfaces/reports/lenses/ads-live.tsx`);
+  const { Figure } = await import(`${S}/surfaces/kit/figure/figure.tsx`);
+  const read = {
+    account: {
+      status: "connected",
+      name: "Harbor",
+      currency: "USD",
+      timezone: "America/New_York",
+      read_at: "2031-03-15T15:00:00Z",
+      read_failed: false,
+      revoked_at: null,
+      disconnected_at: null,
+    },
+    window: { from: "2031-02-14", to: "2031-03-15" },
+    today: "2031-03-15",
+    ads: [],
+    unnamed: { people: 0, booked: 0 },
+    elsewhere: { people: 0, booked: 0 },
+    can_press: true,
+  };
+  fresh();
+  const strip = byTestId(
+    again(() => AdsLiveLens({ dto: read })),
+    "ads-lens-figures",
+  );
+  assert.equal(strip.props.className, "rpt-figures quad");
+  const figures = all(strip, (n) => n.type === Figure);
+  assert.deepEqual(
+    figures.map((figure) => [figure.props.className, figure.props.value]),
+    [
+      ["rpt-cell", "0"],
+      ["rpt-cell", "0"],
+      ["rpt-cell", "—"],
+      ["rpt-cell", "$0"],
+    ],
+  );
 });

@@ -107,6 +107,34 @@ is: the first real Connect is when that shows). The named ones are among the fiv
 the ad, its creative, an account's days, the shared lists and the notices name none. So what they need beyond the five
 is seen only when they are first asked.
 
+### Seen on the first account connected (19 November, the third Connect)
+
+The same owner, the same evening, on the build with both fixes. From the edge's log and the live page:
+
+- **Connected, then read on the clock.** The connect wrote the account and its Page. The first full read ran about two
+  minutes later, on the job runner's tick: five calls (the account, its ads, its days, its Page, and joining it to
+  Meta's notices), no refusal logged, no ads and no days yet, 2% of Meta's allowance. The clock's sweep then ran every
+  five minutes with nothing to read. The read's time was not logged; `ads_read` and `ads_read_failed` now carry `ms`.
+  From the tick's own lines, it took under about twelve seconds.
+- **The Page needs no more than the five.** It was read and kept, and its check passed, so the Page reference's
+  "business_management may be required" did not apply to this sign-in. Instagram's own connection stayed on.
+- **An ad account made inside Meta's window can arrive turned off.** This one read as turned off at Connect, and Meta's
+  Account Quality said it had restricted it that day under its advertising standards, as made or used with automation
+  outside its rules. The owner asked Meta for a review, and about a quarter of an hour later the card's look again read
+  it as active and moved on to its next need, a card on file. The cause is not proven: the account was made in a
+  browser built into a desktop app, which names itself to every site, on a day a tool drove that browser through the
+  owner's Meta settings. Chanlytics never drives Meta's pages for an owner; the card's words for a turned-off account,
+  and its look again, were right.
+- **A Page not linked to a WhatsApp number** reads false on both WhatsApp checks, so no ad that opens WhatsApp can be
+  made on the account until it is. Step 4's check on a paused ad waits for that link.
+- **The account's own page at Meta.** Meta's pages document only the bare Account Quality page, which lands on Business
+  Support Home's overview with no account. Seen on this account, signed in as its owner: Meta's own link from that
+  overview opened `business-support-home/<business id>/<ad account id>/?business_id=<business id>` (with more query parts
+  of Meta's), which said why the account was restricted and offered the review; once lifted, the same path with only
+  `business_id` opened the account again. The turned-off notice's "Open Meta" now opens that path where both ids are
+  kept, and the bare page where the business is not. Seen on one account only.
+- **Not seen yet:** an ad's own fields, its days and its spend (the account has no ad), and Meta's notices arriving.
+
 ### To see on the first real account, found on review (19 November)
 
 - **Days of an ad archived inside the window.** Meta's insights page says a list at the ad level leaves archived and

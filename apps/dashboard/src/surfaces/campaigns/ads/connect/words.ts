@@ -174,7 +174,16 @@ export const QUESTION = {
 
 /** Where each act opens Meta. Each is Meta's own page for the thing; the account's id narrows it where Meta takes one. */
 export const META_DOOR = {
-  quality: "https://business.facebook.com/accountquality",
+  /**
+   * Where Meta says why it turned an ad account off, and where its review is asked for: the account's own page in
+   * Business Support Home where both ids are known, else the general one. Seen on one account on 19 November 2026,
+   * signed in as a person with access to its portfolio: Meta's own link from the overview opened this path, and the path
+   * with only `business_id` opened the same account again once it was lifted. `accountquality` lands on the overview.
+   */
+  quality: (businessId: string | null, accountId: string | null) =>
+    businessId && accountId
+      ? `https://business.facebook.com/business-support-home/${encodeURIComponent(businessId)}/${encodeURIComponent(accountId)}/?business_id=${encodeURIComponent(businessId)}`
+      : "https://business.facebook.com/accountquality",
   billing: (accountId: string | null) =>
     accountId === null
       ? "https://business.facebook.com/billing_hub/payment_settings"

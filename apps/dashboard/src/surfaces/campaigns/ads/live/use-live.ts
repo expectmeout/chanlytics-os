@@ -1,7 +1,8 @@
 /**
  * The Ads page's own read once an account is or was connected (GET ads/page), and one ad's people (GET ads/people).
- * Read where the page draws them: when it opens, when the owner comes back to the tab, after a press, and, while a
- * press is still on its way to Meta, every few seconds until Meta has been told. Where the read fails the page keeps
+ * Read where the page draws them: when it opens, when the owner comes back to the tab, after a press, while a press is
+ * still on its way to Meta every few seconds until Meta has been told, and while an account just connected waits for
+ * its first read, until it lands. Where the read fails the page keeps
  * what it last drew. A workspace that never connected an account answers null, and the page draws what is true with
  * nothing connected.
  */
@@ -9,9 +10,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SECOND_MS } from "@chanlytics/contracts";
 import type { AdPersonLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
+import { firstReadOf } from "./model";
 
 /** How often the page reads again while a press of the owner's is on its way to Meta. */
 const PENDING_EVERY_MS = 8 * SECOND_MS;
+/**
+ * How often it reads again while an account just connected waits for its first read: the clock reads it within a
+ * minute or two (the first real Connect's came two minutes after), and the page shows it without the owner leaving.
+ */
+const FIRST_READ_EVERY_MS = 15 * SECOND_MS;
 /** How soon after a read the owner coming back to the tab reads again. */
 const BACK_AFTER_MS = 30 * SECOND_MS;
 
@@ -60,13 +67,16 @@ export function useAdsLive(on: boolean, key: string): AdsLiveHere {
     return () => document.removeEventListener("visibilitychange", back);
   }, [on, again]);
 
-  // A press on its way to Meta: read again until Meta has been told.
+  // A press on its way to Meta, or an account's first read on its way here: read again until it has landed. A first
+  // read that failed waits for the clock, which tries again in minutes, and so does the page.
   const pending = dto?.ads.some((ad) => ad.pending !== null) ?? false;
+  const firstRead = dto ? firstReadOf(dto.account) === "reading" : false;
+  const every = pending ? PENDING_EVERY_MS : firstRead ? FIRST_READ_EVERY_MS : null;
   useEffect(() => {
-    if (!on || !pending) return undefined;
-    const timer = window.setInterval(again, PENDING_EVERY_MS);
+    if (!on || every === null) return undefined;
+    const timer = window.setInterval(again, every);
     return () => window.clearInterval(timer);
-  }, [on, pending, again]);
+  }, [on, every, again]);
 
   return { dto: on ? dto : null, failed, again };
 }

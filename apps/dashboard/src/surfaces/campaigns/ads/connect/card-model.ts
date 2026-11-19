@@ -104,7 +104,7 @@ function needOfChecks(card: AdAccountCard): NeedVM | null {
     };
   const words = needOf(missing.id, number);
   const how: Record<AdCardCheckId, NeedHow | null> = {
-    "account-active": { kind: "meta", href: META_DOOR.quality },
+    "account-active": { kind: "meta", href: META_DOOR.quality(card.business_id, card.external_id) },
     payment: { kind: "meta", href: META_DOOR.billing(card.external_id) },
     "page-linked": null,
     "whatsapp-linked": { kind: "meta", href: META_DOOR.whatsapp },
