@@ -60,7 +60,7 @@ async function workspace(tag) {
 
 /** An account as the edge hands it to the door: the platform's facts, read from its answers. */
 const facts = (over = {}) => ({
-  external_id: `1200${stamp}${++seq}`.slice(0, 18),
+  external_id: `1200${stamp}${++seq}`,
   name: "Harbor ads",
   currency: "USD",
   timezone: "America/New_York",
@@ -214,7 +214,7 @@ test("two that could both be right: the row waits, and the owner's answer finish
   assert.deepEqual(await secretOf(row.id), TOKEN, "the token waits with the question");
 
   const chosen = facts({
-    external_id: `1299${stamp}`.slice(0, 18),
+    external_id: `1299${stamp}`,
     name: "Harbor UK",
     currency: "GBP",
     config: { choices: [] },

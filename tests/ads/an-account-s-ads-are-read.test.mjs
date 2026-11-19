@@ -27,6 +27,7 @@ import {
 } from "@chanlytics/channels/ads";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
+import { minorPerUnit } from "@chanlytics/contracts";
 
 const ENV = ["META_APP_ID", "META_APP_SECRET", "META_ADS_CONFIG_ID", "META_ADS_REDIRECT_URI", "META_ADS_VERIFY_TOKEN"];
 for (const k of [...ENV, "SUPABASE_URL"]) delete process.env[k];
@@ -116,12 +117,12 @@ test("an ad is read with what it says and the budget it sits under, on the ad se
   });
   assert.deepEqual([onCampaign.startsAt, onCampaign.endsAt], [null, null]);
 
-  // Money is Meta's own units, converted: a yen is whole at Meta and whole in the world's list; a Colombian peso is
-  // whole at Meta and counted in hundredths by the list every other tree reads.
+  // Money is Meta's own units, converted: a yen is whole at Meta and whole for the house; a Colombian peso is whole
+  // at Meta and counted in the house's own minor units (contracts minorPerUnit, the runtime's list), whatever those are.
   const yen = parseMetaAds({ data: [metaAd(AD1)] }, "JPY").ads[0];
   assert.equal(yen.budget.minor, 7000);
   const pesos = parseMetaAds({ data: [metaAd(AD1)] }, "COP").ads[0];
-  assert.equal(pesos.budget.minor, 700000);
+  assert.equal(pesos.budget.minor, 7000 * minorPerUnit("COP"));
 });
 
 test("why Meta will not run an ad is kept in Meta's words, and nothing odd is guessed", () => {

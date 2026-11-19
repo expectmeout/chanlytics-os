@@ -16,6 +16,7 @@ const account = await import(at("packages/channels/src/ads/meta-account.ts"));
 const { callMetaAds, metaUsageOf } = await import(at("packages/channels/src/ads/meta-call.ts"));
 const { readMetaSignedRequest } = await import(at("packages/channels/src/ads/meta-signed.ts"));
 const { resetBreakers } = await import(at("packages/channels/src/shared/provider-fetch.ts"));
+const { minorPerUnit } = await import(at("packages/contracts/src/ads/money.ts"));
 
 const SECRET = "app-secret-for-this-file";
 
@@ -24,15 +25,16 @@ test("money: Meta's units become each currency's own minor units, and nothing el
   assert.equal(account.metaUnitsToMinor("7000", "USD"), 7000);
   // The yen is its own smallest unit on both sides.
   assert.equal(account.metaUnitsToMinor("7000", "JPY"), 7000);
-  // Meta counts the forint whole; the world's list counts a hundred fillér to it.
-  assert.equal(account.metaUnitsToMinor("7000", "HUF"), 700000);
-  assert.equal(account.metaUnitsToMinor(15, "TWD"), 1500);
-  // Meta counts the Bahraini dinar in hundredths; the world's list counts a thousand fils to it.
-  assert.equal(account.metaUnitsToMinor("250", "BHD"), 2500);
+  // Meta counts the forint whole, and the house counts it in its own minor units (contracts minorPerUnit, which reads
+  // the runtime's own list: Node 24 counts the forint whole, an older one in hundredths). The conversion follows it.
+  assert.equal(account.metaUnitsToMinor("7000", "HUF"), 7000 * minorPerUnit("HUF"));
+  assert.equal(account.metaUnitsToMinor(15, "TWD"), 15 * minorPerUnit("TWD"));
+  // Meta counts the Bahraini dinar in hundredths; the house counts a thousand fils to it.
+  assert.equal(account.metaUnitsToMinor("250", "BHD"), 2.5 * minorPerUnit("BHD"));
   // What an ad spent is a decimal of the currency itself.
   assert.equal(account.metaDecimalToMinor("12.34", "USD"), 1234);
   assert.equal(account.metaDecimalToMinor("1200", "JPY"), 1200);
-  assert.equal(account.metaDecimalToMinor("1.5", "BHD"), 1500);
+  assert.equal(account.metaDecimalToMinor("1.5", "BHD"), 1.5 * minorPerUnit("BHD"));
   for (const odd of [null, undefined, "", "-5", "1e9", "12.34.5", {}, []]) {
     assert.equal(account.metaUnitsToMinor(odd, "USD"), null, JSON.stringify(odd));
     assert.equal(account.metaDecimalToMinor(odd, "USD"), null, JSON.stringify(odd));

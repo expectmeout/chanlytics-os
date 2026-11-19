@@ -65,7 +65,7 @@ async function workspace(tag) {
       .insert({
         tenant_id: tenant,
         platform: "meta",
-        external_id: `1400${stamp}${++seq}`.slice(0, 18),
+        external_id: `1400${stamp}${++seq}`,
         name: "Harbor ads",
         currency: "USD",
         timezone: "America/New_York",
@@ -110,16 +110,20 @@ async function adopt(ws, platformAdId, over = {}) {
   );
 }
 
-/** Someone writes on WhatsApp for the first time, after tapping an ad where `adId` names one. */
-async function arrive(ws, adId) {
+/**
+ * Someone writes for the first time, after tapping an ad where `adId` names one: on WhatsApp by their number, or by
+ * email, known by their address alone.
+ */
+async function arrive(ws, adId, channel = "whatsapp") {
   seq += 1;
   const number = `+1555016${1000 + seq}`;
+  const address = `guest${seq}.${stamp}@example.com`;
   return ok(
     await db.rpc("ingest_inbound", {
       p_tenant_id: ws.tenant,
-      p_channel: "whatsapp",
-      p_identity_external_id: number.slice(1),
-      p_phone_e164: number,
+      p_channel: channel,
+      p_identity_external_id: channel === "email" ? address : number.slice(1),
+      p_phone_e164: channel === "email" ? null : number,
       p_wa_profile_name: null,
       p_message_external_id: `page.${stamp}.${seq}`,
       p_type: "text",
@@ -139,6 +143,7 @@ const visit = (ws, contactId, status, inHours = 24) =>
     contact_id: contactId,
     source: "booking_tool",
     status,
+    timezone: "America/New_York",
     starts_at: new Date(Date.now() + inHours * 3_600_000).toISOString(),
     ends_at: new Date(Date.now() + (inHours + 1) * 3_600_000).toISOString(),
   });
@@ -242,8 +247,15 @@ test("the page's people, with the unnamed line, are the people Reports counts un
 test("two records of one person, merged, are one person on the page and in the report", { skip }, async () => {
   const ws = await workspace("merge");
   await adopt(ws, "23850000000000811");
+  // The same person, first on WhatsApp and then by email, each after tapping the ad: two records until merged.
   const one = await arrive(ws, "23850000000000811");
-  const two = await arrive(ws, "23850000000000811");
+  const two = await arrive(ws, "23850000000000811", "email");
+  ok(
+    await db
+      .from("contacts")
+      .update({ email: `two.${stamp}@example.com` })
+      .eq("id", two.contact_id),
+  );
   assert.equal((await counts(ws)).ads[0].people, 2);
   ok(await ws.session.rpc("merge_people", { p_keep: one.contact_id, p_merge: two.contact_id }));
   const page = await counts(ws);

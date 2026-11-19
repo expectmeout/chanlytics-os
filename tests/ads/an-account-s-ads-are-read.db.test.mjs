@@ -50,7 +50,7 @@ async function connected(tag, over = {}) {
       .insert({
         tenant_id: tenant,
         platform: "meta",
-        external_id: `1300${stamp}${++seq}`.slice(0, 18),
+        external_id: `1300${stamp}${++seq}`,
         name: "Harbor ads",
         currency: "USD",
         timezone: "America/New_York",
