@@ -7,21 +7,19 @@
  * Google return the refresh token, and it does so on the first
  * authorization only — a reconnect goes through consent again on purpose.
  *
- * The state is the CSRF proof: the workspace, the person and a nonce,
- * signed with a secret the dashboard holds, checked on the way back before
- * the code is trusted. Everything here is pure or Web Crypto, so the tests
- * run it without a network.
+ * The state that rides the way out and back is the platform's own
+ * (tokens/sign-in-state.ts), as every provider's sign-in uses it. Everything
+ * here is pure, so the tests run it without a network.
  */
+import { recordOrEmpty } from "@chanlytics/contracts";
+import { unb64url } from "../shared/base64url";
 import type { PlacesRequest } from "./places";
-import { MIN_MS, utf8Bytes, recordOrEmpty } from "@chanlytics/contracts";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 /** Business Profile, plus the email so the card can say whose account it is. */
 export const PROFILE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/business.manage"] as const;
-/** How long the way to Google and back may take. */
-export const STATE_TTL_MS = 10 * MIN_MS;
 
 export interface OAuthClient {
   clientId: string;
@@ -122,24 +120,7 @@ export function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): 
   return grant.scope.split(/\s+/).includes(scope);
 }
 
-/* ------------------------------------------------------------ base64url */
-
 const dec = new TextDecoder();
-
-export function b64url(bytes: Uint8Array | string): string {
-  const b = typeof bytes === "string" ? utf8Bytes(bytes) : bytes;
-  let s = "";
-  for (const x of b) s += String.fromCharCode(x);
-  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-export function unb64url(text: string): Uint8Array {
-  const pad = text.length % 4 === 0 ? "" : "=".repeat(4 - (text.length % 4));
-  const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/") + pad);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
 
 /**
  * The id token's claims, read without verification: it arrived in the token
@@ -156,86 +137,4 @@ export function idTokenClaims(idToken: string | null | undefined): { email: stri
   } catch {
     return { email: null, sub: null };
   }
-}
-
-/* --------------------------------------------------------------- state */
-
-export interface OAuthState {
-  /** The workspace. */
-  t: string;
-  /** The person. */
-  u: string;
-  /** A nonce. */
-  n: string;
-  /** Expiry, epoch ms. */
-  exp: number;
-  /** Which provider a mailbox is being connected at (decision 0056); absent for Google Business Profile's. */
-  p?: string;
-  /** The mailbox being connected again, when it is a Reconnect: the account that comes back must be that one. */
-  m?: string;
-  /** 1 when the way out is a Microsoft admin's consent for their organisation, not a member's sign-in. */
-  a?: number;
-  /**
-   * Where the owner comes back to, when it is not the connection's own Settings page: `start`, the first run that asked
-   * (decision 0073: Where it answers' tiles, Your business's Connect Google).
-   */
-  b?: string;
-  /** 1 when the consent was asked with PKCE's challenge: the way back sends its verifier (an edge that passes it on). */
-  k?: number;
-  /** What the owner chose of a new mailbox's history (decision 0086): `from_now`, its six months not brought in. */
-  h?: string;
-}
-
-async function hmac(secret: string, data: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", utf8Bytes(secret), { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign",
-  ]);
-  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes(data));
-  return b64url(new Uint8Array(sig));
-}
-
-export async function signState(secret: string, oAuthState: OAuthState): Promise<string> {
-  const payload = b64url(JSON.stringify(oAuthState));
-  return `${payload}.${await hmac(secret, payload)}`;
-}
-
-/** The state back from Google: its signature, its expiry, then its claims — or the reason it is refused. */
-export async function verifyState(
-  secret: string,
-  state: string | null | undefined,
-  nowMs: number,
-): Promise<{ ok: true; state: OAuthState } | { ok: false; reason: "missing" | "malformed" | "signature" | "expired" }> {
-  if (!state) return { ok: false, reason: "missing" };
-  const [payload, sig, ...rest] = state.split(".");
-  if (!payload || !sig || rest.length) return { ok: false, reason: "malformed" };
-  const expected = await hmac(secret, payload);
-  if (expected.length !== sig.length || !timingSafeEqualStr(expected, sig)) return { ok: false, reason: "signature" };
-  let oAuthState: OAuthState;
-  try {
-    oAuthState = JSON.parse(dec.decode(unb64url(payload))) as OAuthState;
-  } catch {
-    // Not JSON: nothing to read.
-    return { ok: false, reason: "malformed" };
-  }
-  if (
-    typeof oAuthState.t !== "string" ||
-    typeof oAuthState.u !== "string" ||
-    typeof oAuthState.n !== "string" ||
-    typeof oAuthState.exp !== "number"
-  )
-    return { ok: false, reason: "malformed" };
-  if (oAuthState.exp < nowMs) return { ok: false, reason: "expired" };
-  return { ok: true, state: oAuthState };
-}
-
-function timingSafeEqualStr(a: string, b: string): boolean {
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export function newNonce(): string {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return b64url(b);
 }

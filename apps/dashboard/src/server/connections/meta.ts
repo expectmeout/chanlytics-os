@@ -7,8 +7,8 @@
  * (Google's: the state names its provider, and each callback refuses another's).
  */
 import { AppError, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
-import { metaDialogUrl } from "@chanlytics/channels/instagram";
-import { newNonce, signState, verifyState, STATE_TTL_MS } from "@chanlytics/channels/google";
+import { metaDialogUrl } from "@chanlytics/channels/meta";
+import { provenSignInState, signInStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -80,13 +80,8 @@ export async function startMetaConnect(ctx: RouteContext, member: Member): Promi
   const ready = await metaReadiness(member.tenantId);
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Meta is not available here yet.", 409);
-  const state = await signState(secret, {
-    t: member.tenantId,
-    u: ctx.userId,
-    n: newNonce(),
-    exp: Date.now() + STATE_TTL_MS,
-    p: PROVIDER,
-  });
+  const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
+  const state = await signInStateFor(secret, signIn, Date.now());
   const url = metaDialogUrl(
     { clientId: ready.app.client_id, configId: ready.app.config_id, redirectUri: ready.app.redirect_uri },
     state,
@@ -109,13 +104,12 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
   if (refused) return back("error", refused === "access_denied" ? "declined" : refused.slice(0, 60));
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
-  const proof = await verifyState(secret, loginReturn.state, Date.now());
-  if (!proof.ok) return back("error", `state_${proof.reason}`);
-  if (proof.state.p !== PROVIDER) return back("error", "state_malformed");
-  if (proof.state.u !== ctx.userId) return back("error", "someone_else");
+  const expected = { provider: PROVIDER, userId: ctx.userId };
+  const proof = await provenSignInState(secret, loginReturn.state, expected, Date.now());
+  if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: TenantId;
   try {
-    const member = await getMemberContext(ctx, proof.state.t);
+    const member = await getMemberContext(ctx, proof.tenantId);
     slug = member.slug ?? null;
     if (!ROLE_PERMS[member.role].settings) return back("error", "not_owner");
     tenantId = member.tenantId;

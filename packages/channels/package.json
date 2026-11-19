@@ -52,6 +52,12 @@
       "import": "./src/lines/index.ts",
       "default": "./src/lines/index.ts"
     },
+    "./meta": {
+      "types": "./src/meta/index.ts",
+      "bundled": "./dist/meta.js",
+      "import": "./src/meta/index.ts",
+      "default": "./src/meta/index.ts"
+    },
     "./shared": {
       "types": "./src/shared/index.ts",
       "bundled": "./dist/shared.js",

@@ -27,10 +27,9 @@ import {
   callInstagram,
   instagramErrorOf,
   instagramRefreshRequest,
-  metaDebugTokenRequest,
   parseInstagramToken,
-  parseMetaDebugToken,
 } from "@chanlytics/channels/instagram";
+import { metaDebugTokenRequest, parseMetaDebugToken } from "@chanlytics/channels/meta";
 import {
   listActiveInstagramAccounts,
   noteInstagramToken,

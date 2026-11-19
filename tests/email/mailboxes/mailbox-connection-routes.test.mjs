@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
 import { rows } from "../../_rows.mjs";
 import { MAILBOX_SCOPES, makeMailboxPkceChallenge, makeMailboxPkceVerifier } from "@chanlytics/channels/email";
-import { STATE_TTL_MS, newNonce, signState, verifyState } from "@chanlytics/channels/google";
+import { STATE_TTL_MS, newNonce, signState, verifyState } from "@chanlytics/channels/tokens";
 import { verifyEdgeToken } from "@chanlytics/channels/tokens";
 
 const SECRET = "state-secret-for-this-file";

@@ -17,7 +17,7 @@
  *   stopGmailWatch       the watch ended, when the mailbox is removed.
  */
 import { DAY_MS, listOrEmpty, recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
-import { b64url } from "../../google/oauth";
+import { b64url } from "../../shared/base64url";
 import { fetchFromProvider, type ProviderReply, type SendOutcome } from "../../shared/provider-fetch";
 import {
   FIND_SENT_LOOKS,

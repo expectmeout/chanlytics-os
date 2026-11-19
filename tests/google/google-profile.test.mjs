@@ -18,12 +18,7 @@ import {
   parseTokenResponse,
   grantHasScope,
   idTokenClaims,
-  b64url,
-  signState,
-  verifyState,
-  newNonce,
   PROFILE_SCOPES,
-  STATE_TTL_MS,
   accountsRequest,
   locationsRequest,
   reviewsRequest,
@@ -55,6 +50,8 @@ import {
   EVENT_KINDS,
   setupSteps,
 } from "@chanlytics/contracts";
+import { b64url } from "@chanlytics/channels/shared";
+import { signState, verifyState, newNonce, STATE_TTL_MS } from "@chanlytics/channels/tokens";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 

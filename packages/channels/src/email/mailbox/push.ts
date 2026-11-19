@@ -8,7 +8,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { HOUR_MS, listOrEmpty, recordOrEmpty, recordOrNull, valueAt } from "@chanlytics/contracts";
 import { fetchFromProvider } from "../../shared/provider-fetch";
-import { unb64url } from "../../google/oauth";
+import { unb64url } from "../../shared/base64url";
 
 type Deps = Parameters<typeof fetchFromProvider>[3];
 

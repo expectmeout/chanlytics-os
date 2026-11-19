@@ -10,7 +10,7 @@
 import { MIN_MS, repairMojibake } from "@chanlytics/contracts";
 import { addressOf, addressesOf, messageIdHeader } from "../header-values";
 import type { ReceivedEmail } from "../intake";
-import { unb64url } from "../../google/oauth";
+import { unb64url } from "../../shared/base64url";
 import type { ProviderReply } from "../../shared/provider-fetch";
 
 /** A received email from a mailbox, with the provider's thread it sits in and every report part's words. */
