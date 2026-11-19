@@ -509,8 +509,10 @@
      in color"). */
   --list-wash-line: 134px;
   --list-wash-at: calc(var(--frame-top-at, 0px) + var(--list-wash-line));
-  --surface-list-ground: oklch(0.993 0.002 275);
-  --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 86%, transparent);
+  /* White where the rows are, so they read clearly on a phone (Ruben, 18 Nov 2026: "a bit more white"); it was a near
+     white at 86%, which let the paper's grey through. */
+  --surface-list-ground: oklch(1 0 0);
+  --surface-list-wash: color-mix(in oklab, var(--surface-list-ground) 96%, transparent);
   --surface-list-glow: color-mix(in oklab, var(--surface-list-ground) 45%, transparent);
   --surface-page-list: linear-gradient(
     transparent calc(var(--list-wash-at) - 24px),
