@@ -43,7 +43,7 @@ import { logger } from "../shared/log.js";
  * WhatsApp or by text (contracts callLinkWays), so these name neither.
  */
 const CANNOT_SEE =
-  "I can't see the calendar right now. Offer to send the booking link — it shows the open times — or to have someone call back.";
+  "I can't see the calendar right now. Offer to send the booking link — it shows the open times — or to have someone call back, without saying when.";
 
 const NO_CALENDAR = "There is no calendar to check. Offer to send the booking link — it shows the open times.";
 
@@ -51,11 +51,11 @@ const NO_CALENDAR = "There is no calendar to check. Offer to send the booking li
  * The same two for a business with no booking link (the first run's decision 2): with nothing to send, a caller who
  * cannot be offered times is offered a call back, or has their details taken for the team.
  */
-const CANNOT_SEE_NO_LINK = "I can't see the calendar right now. Offer to have someone call back.";
+const CANNOT_SEE_NO_LINK = "I can't see the calendar right now. Offer to have someone call back, without saying when.";
 
 /** Spoken to a knock the door turned away: nothing was read, so only a call back is offered. */
 const KNOCK_REFUSED =
-  "I can't check the calendar just now. Take the caller's name and say someone will call them back.";
+  "I can't check the calendar just now. Take the caller's name and say someone will call them back, without saying when.";
 
 const NO_CALENDAR_NO_LINK = `There is no calendar to check. Take ${NO_LINK_DETAILS}, and say the team will follow up.`;
 

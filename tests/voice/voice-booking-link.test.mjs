@@ -203,7 +203,7 @@ test("the availability tool offers the link when there is no calendar, and when 
     assert.ok(none.includes("Offer to send the booking link — it shows the open times."), none);
     assert.doesNotMatch(none, /WhatsApp/, none);
     // A line nobody routes is nobody's business: nothing it could send is offered, only a call back.
-    assert.equal(blind, "I can't see the calendar right now. Offer to have someone call back.");
+    assert.equal(blind, "I can't see the calendar right now. Offer to have someone call back, without saying when.");
   } finally {
     setPg(null);
   }

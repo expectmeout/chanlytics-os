@@ -29,7 +29,8 @@ function stranger(req, res) {
     return send(
       200,
       JSON.stringify({
-        result: "I can't send anything just now. Take the caller's name and say someone will call them back.",
+        result:
+          "I can't send anything just now. Take the caller's name and say someone will call them back, without saying when.",
       }),
     );
   if (url.pathname === "/api/diag") return send(403, '{"ok":false}');

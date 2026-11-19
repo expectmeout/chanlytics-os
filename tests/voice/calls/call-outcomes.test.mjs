@@ -305,6 +305,21 @@ test("the agent's analysis fields: each has a type, a name and a description; ea
   assert.equal(none.agentPatch.post_call_analysis_data.length, CALL_ANALYSIS_FIELDS.length);
 });
 
+test("a caller who asked for anything sent but the booking link is a person's to-do and needs a call back, whatever AI said on the call", () => {
+  // A scripted call of 19 Nov 2026: AI promised a price list "on its way to your inbox", and the write-up took it at
+  // its word, "answered" with nothing to do, so the call reached nobody. A call sends nothing but the booking link.
+  const field = (name) => CALL_ANALYSIS_FIELDS.find((f) => f.name === name).description;
+  const ask = "asked for anything to be emailed, texted or sent to them other than the booking link";
+  const callBack = field("outcome").slice(
+    field("outcome").indexOf("callback_needed:"),
+    field("outcome").indexOf("voicemail:"),
+  );
+  assert.ok(callBack.includes(ask), "the ending a person acts on names such an ask");
+  assert.ok(callBack.includes("whatever the receptionist said on the call"), "and is not undone by a promise");
+  assert.ok(field("follow_up").includes(ask), "the to-do names it");
+  assert.ok(field("follow_up").includes("what to send and where"), "and says what to send, and where");
+});
+
 test("an agent that has the five fields it had is told it lacks topic and language, and the plan adds them without touching the rest", () => {
   const converged = {
     webhook_events: [...VOICE_WEBHOOK_EVENTS],

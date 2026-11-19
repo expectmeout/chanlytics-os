@@ -171,7 +171,8 @@ async function sentOutLoud(leg: LinkLeg, wamid: string | null): Promise<Response
  * this edge refused (Retell's own, unsigned, once the signature is required) went silent mid-call; voiceDoorAuth logs
  * the knock under the switch (11 Oct 2026). Only a call back is offered.
  */
-const KNOCK_REFUSED = "I can't send anything just now. Take the caller's name and say someone will call them back.";
+const KNOCK_REFUSED =
+  "I can't send anything just now. Take the caller's name and say someone will call them back, without saying when.";
 
 /** Spoken when this call already sent the link: it is on its way, and one more would be the same message twice. */
 const ALREADY_SENT =
