@@ -649,6 +649,8 @@
     "00644_an_ad_tap_keeps_what_the_ad_said.sql": "1f78601704c56c312f7cf9d8879d0630fba06fbfcb9b6df32eed61a647cc25e7",
     "00645_an_owner_may_run_ads.sql": "4b4769cf17534f94d473dc97d8250a9ce05ba4fe745057d7046bd6f9a83df812",
     "00646_a_page_names_the_ad_someone_came_through.sql": "00940a01a5a3235f0088d5e935912de721fe9f676f7b19aa3e2a2faee5aa8d2c",
-    "00647_a_visit_keeps_when_its_booking_arrived.sql": "29905baa10dbaff71088c8ab4fe98bbc76dab77cb8e78a1767c138ab0b0b71fc"
+    "00647_a_visit_keeps_when_its_booking_arrived.sql": "29905baa10dbaff71088c8ab4fe98bbc76dab77cb8e78a1767c138ab0b0b71fc",
+    "00648_a_business_s_ads_are_kept.sql": "71a9cc7bf00e141dd3094b8458bcab45660a30dc8bf41b3a97fc1845e8557882",
+    "00649_an_owner_connects_their_ad_account.sql": "b72a24e0e27e8f0093af2355aca9262d1497ad657cbbc8b7578f596a8583154b"
   }
 }

@@ -7,8 +7,17 @@
  * schema-sets.ts holds every hand-kept list to it at compile time.
  */
 export const SCHEMA_SETS = {
+  "ad_accounts.platform": ["meta", "google", "tiktok"],
+  "ad_accounts.status": ["choosing", "connected", "revoked", "disconnected"],
   "ad_entries.kind": ["chat", "number", "call"],
   "ad_entries.platform": ["meta", "google", "tiktok"],
+  "ads.budget_at": ["campaign", "set"],
+  "ads.budget_kind": ["total", "daily"],
+  "ads.door": ["whatsapp", "instagram", "messenger", "call", "form", "website", "other"],
+  "ads.intent": ["on", "paused", "ended"],
+  "ads.origin": ["chanlytics", "platform"],
+  "ads.platform": ["meta", "google", "tiktok"],
+  "ads.status": ["draft", "sending", "failed", "made"],
   "ai_usage.outcome": ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"],
   "ai_usage.port": ["anthropic", "typesafe", "google", "elevenlabs"],
   "ai_usage.purpose": [
@@ -73,7 +82,7 @@ export const SCHEMA_SETS = {
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
     "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list",
-    "appointment", "sequence",
+    "appointment", "sequence", "ad_account", "ad",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
@@ -84,6 +93,7 @@ export const SCHEMA_SETS = {
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
     "change_playbook", "mark_visit", "change_step", "leave_sequence", "make_sequence",
     "discard_sequence", "answer_booking_request", "return_to_sequence", "not_a_customer", "reply_anyway",
+    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

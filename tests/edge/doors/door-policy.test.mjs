@@ -77,6 +77,7 @@ const KNOCKS = {
   canaryKeyMatches: { from: "apps/edge/lib/voice/watch/voice-canary.ts" }, // the daily canary's own key (VOICE_CANARY_KEY), decision 0092
   knockIsRelays: { from: "apps/edge/lib/files/takes/key-door.ts" }, // the key only the footage relay holds (FOOTAGE_KEY_DOOR_SECRET), before a ticket is read (00643)
   verifyChannelToken: { from: "apps/edge/lib/files/sources/channel.ts" }, // the token a Drive push channel was opened with, against its hash on the folder's row (00641)
+  signedRequestOfMeta: { from: "apps/edge/lib/ads/deauthorize.ts" }, // Meta's signed request, under the Meta app's secret: a business removed the app (00649)
 };
 const ADMIN_AUTH = KNOCKS.authorizeAdmin.from;
 

@@ -15,6 +15,7 @@ export { EXPORT_HOLDS_WORDS, EXPORT_OF, EXPORT_SECTIONS, exportedSections, expor
 export { liveTablesOf, RECORD_KINDS } from "./activity/record-kinds";
 export { ACTIVITY_SUBJECT_HOMES } from "./activity/subjects";
 export { activityTone } from "./activity/tones";
+export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./ads/account";
 export { adRoute, ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";

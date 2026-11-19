@@ -3,7 +3,8 @@
 **Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Steps P0a and P0b are built
 (18 November 2026: migration 00644, an ad tap keeps what the ad said; migration 00645, the `ads` permission, with the
 shared rules, the one Meta client and the one sign-in state helper), and so is call 2's line on a page (migration
-00646: a person's page and the Ads page name the ad someone came through); the other steps are not. Four
+00646: a person's page and the Ads page name the ad someone came through). Of step P1 the records are built
+(19 November 2026: migration 00648, `ad_accounts`, `ads` and `ad_days`); the rest of it is not. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
@@ -345,3 +346,76 @@ kept.
 - **What the report counts, it counts as before.** The people report reaches on WhatsApp, SMS, email and calls. A
   person who first wrote on Instagram after tapping an ad is stamped `ad`, and is in neither the report's "An ad" nor
   this split until the report counts Instagram. That is the report's, and is not changed here.
+
+## As built, 19 November 2026 · The records under Connect
+
+The first part of step P1 was built on 19 November 2026 (`supabase/migrations/00648_a_business_s_ads_are_kept.sql`):
+three tables and an account's token, with no door yet. Nothing a customer sees changes with it. Where it is not as the
+Shape above first drew it, it is said here.
+
+- **No `credentials_ref`, and no column grant.** The Shape drew a pointer to the token on the account's row and a grant
+  that hid it from members. A token's secret is named for its account (`ad-creds-<account id>`), so the pointer said
+  nothing the id does not, and writing it made the token's function a second writer of the account. Three functions
+  keep the token (`ad_credentials_put`, `_get`, `_drop`), the service role's alone, and they write no table. A member
+  reads the whole row, and nothing on it says where a token is kept.
+- **Which account is which.** A workspace holds one live account a platform; one it disconnected stays, with its ads,
+  so what those ads brought keeps its name, and connecting the same account again finds its row. A platform's account
+  is held by one workspace while it is connected or its access was only taken back by the platform; the owner's
+  disconnect lets it go.
+- **`standing` and `config` are the platform's facts, not the checks.** `standing` holds typed words for what the
+  platform says of the account itself (for Meta: whether it is active, and whether it has a payment method). `config`
+  holds the platform's ids and facts beside it: the business, the Page the ads run as, the number that Page is linked
+  to, the account's own spending limit. The five checks a card draws (the plan's G2) are read from the two in one
+  place in contracts, with what Chanlytics knows itself: which number AI answers.
+- **An ad's `door` is wider than the three an ad made here can have.** An ad found in the owner's account can open a
+  website, Messenger or an Instagram chat. The column says what a tap opens (`whatsapp`, `instagram`, `messenger`,
+  `call`, `form`, `website`, `other`), and a page counts people only where the tap ends in a message Chanlytics
+  receives.
+- **The budget an ad sits under** (the plan's C1) is five columns: its kind and amount, what the platform says is left
+  of a total, whether the campaign or the part under it holds it, and whether other ads spend from it.
+- **Three words, and two moments.** `status`, `intent` and `platform_state` are as drawn. `intent_at` and `told_at`
+  say when the owner last asked and when the platform was last told: an ask newer than the telling is on its way,
+  which is how a change made inside Meta's thirty seconds for one ad is kept and sent later.
+- **Not in this file.** The offer's snapshot, `copy`, `area` and `approved` arrive with the step that makes an ad here
+  (0050, P2), and so does `ad_objects`. `ad_days` holds no reach: it is not additive, and reading it costs a call of
+  Meta's small allowance that nothing draws yet.
+- **An entry and its ad are joined when read,** by the platform and its own id for the ad, which both hold.
+  `ad_entries.ad_id` stays unwritten, so an entry keeps its one writer (0031).
+- **Kept 25 months** is a promise once something removes a day at that age: the purge arrives with the read that first
+  writes a day, and `RETENTION_DAYS` names it then.
+
+## As built, 19 November 2026 · Connect
+
+The second part of step P1 (`supabase/migrations/00649_an_owner_connects_their_ad_account.sql`, the edge's
+`lib/ads/`, the dashboard's `src/server/ads/` and the card in `src/surfaces/campaigns/ads/connect/`). An owner presses
+Connect, signs in at Meta in Meta's own window, and the card says which ad account and Page were found and what each of
+the five checks reads. Where it is not as first drawn, it is said here.
+
+- **Meta's window, and the page behind it waits.** Connect opens Meta's sign-in in a window of its own, with the app's
+  saved sign-in for ads. The Ads page stays where it was and the card says it is checking; when the window closes the
+  card reads again. A browser that opens no window is taken to Meta in the same tab and comes back to the same page.
+- **Three doors write the account,** each with its event in the same transaction, each the service role's:
+  `ad_account_connect` (the owner's sign-in and, where two accounts could both be meant, their answer),
+  `ad_account_read_keep` (what a look at Meta learned) and `ad_account_revoked` (Meta took access back). The connect
+  door asks the `ads` permission itself, whoever knocked.
+- **Which account is meant** is decided on the edge (`lib/ads/pick.ts`): the Page is the one the business shared, or,
+  of several, the one whose WhatsApp number is the number AI answers; the account is the one that has run that Page's
+  ads. Only where two accounts are left is the owner asked, once, and the row waits as `choosing` until they answer.
+- **An account another workspace holds is refused,** in words that say where to disconnect it. A second account beside
+  one connected is refused too: changing accounts is Disconnect, then Connect.
+- **Every call to Meta is sent once.** The ads interface counts every call against a small allowance (60 points an
+  account, decaying over five minutes), so a call that fails is not sent again by the client: the account keeps what
+  Meta said of its pace (`usage_pct`, `read_after`) and nothing asks before `read_after`. It has its own breaker name
+  (`meta_ads`), so a slow ads interface never holds back a customer's message.
+- **Money is converted in one place.** Meta counts some currencies in other units than the standard does (whole pesos
+  for COP, hundredths for BHD). The wire (`packages/channels/src/ads/meta-account.ts`) converts to the standard's
+  minor units, and nothing after it sees Meta's.
+- **"Link them" opens Meta.** Linking a Page to a WhatsApp number needs a code Meta sends to that number, so it is not
+  one press of ours. The card opens Meta's page for it and looks again when the owner is back.
+- **Meta's call when an owner removes Chanlytics** (`apps/edge/api/ads/deauthorize.ts`) is signed with the app's secret
+  and names the person at Meta, never the account. Every account that person connected is marked signed out, and the
+  next read of each confirms it.
+- **Where Connect shows** (D7) is a list on the edge, `ADS_WORKSPACES`, beside the saved sign-in's id
+  (`META_ADS_CONFIG_ID`) and the address Meta returns to (`META_ADS_REDIRECT_URI`). With any of the three unset the
+  card says the account is not connected and offers nothing.
+- **Activity has a family, Ads,** for the account's events and the presses to come.

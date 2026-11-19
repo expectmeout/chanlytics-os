@@ -18,6 +18,9 @@
  */
 export const EDGE_ERROR_CODES = [
   "accounts_unreadable",
+  "ad_account_connected",
+  "ad_account_not_owner",
+  "ad_account_taken",
   "already_registered",
   "already_sent",
   "already_subscribed",

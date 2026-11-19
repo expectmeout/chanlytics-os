@@ -19,6 +19,7 @@
 import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels/tokens";
 import {
   MIN_MS,
+  ADS_ACCOUNT_DOOR,
   LLM_DOOR,
   CALENDAR_FEED_DOOR,
   FREED_TIME_DOOR,
@@ -108,6 +109,7 @@ export function edgeUrl(): string {
  * that door's body, or it does not compile. The path stays a string at each call, where the reads trace follows it.
  */
 const EDGE_DOORS = [
+  ADS_ACCOUNT_DOOR,
   LLM_DOOR,
   CALENDAR_FEED_DOOR,
   FREED_TIME_DOOR,

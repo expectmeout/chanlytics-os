@@ -64,6 +64,9 @@ const PROVIDER_NAMES = [
   "cloudflare",
   // A video's sound, heard by Gemini (ai/gemini.ts): Google's, but not the Business Profile's breaker.
   "gemini",
+  // An owner's ads, read and paused at Meta's ads interface (ads/meta-call.ts): its own breaker, so a fault there
+  // never holds a WhatsApp or an Instagram call.
+  "meta_ads",
 ] as const;
 export type Provider = (typeof PROVIDER_NAMES)[number];
 

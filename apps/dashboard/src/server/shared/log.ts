@@ -25,6 +25,7 @@ import { observeDb } from "@chanlytics/db/shared";
 export const DASHBOARD_LOG_EVENTS = [
   "account_delete_failed",
   "account_delete_plan_not_ended",
+  "ads_connect_failed",
   "alert_test_failed",
   "ask_act_outcome_unsaved",
   "ask_act_unreached",

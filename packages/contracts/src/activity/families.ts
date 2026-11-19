@@ -23,6 +23,7 @@ export const ACTIVITY_FAMILIES = [
   "leads",
   "deals",
   "campaigns",
+  "ads",
   "calendar",
   "google",
   "connections",
@@ -43,6 +44,7 @@ const FAMILY_WORDS: Record<ActivityFamily, string> = {
   leads: "Leads",
   deals: "Deals",
   campaigns: "Campaigns",
+  ads: "Ads",
   calendar: "Calendar",
   google: "Google",
   connections: "Connections",
@@ -104,12 +106,17 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   answer_booking_request: "calendar",
   not_a_customer: "conversations",
   reply_anyway: "conversations",
+  connect_ad_account: "ads",
+  disconnect_ad_account: "ads",
+  pause_ad: "ads",
+  resume_ad: "ads",
 };
 
 /** The word an event kind is filed under: `message` of `message.sent`. */
 type EventPrefix = (typeof EVENT_KINDS)[number] extends `${infer P}.${string}` ? P : never;
 
 const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
+  ad_account: "ads",
   message: "conversations",
   conversation: "conversations",
   escalation: "conversations",

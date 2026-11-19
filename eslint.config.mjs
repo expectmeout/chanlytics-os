@@ -416,6 +416,7 @@ export const LIMITED_TREES = [
   "apps/edge/lib/support",
   "apps/edge/lib/website",
   "apps/edge/lib/whatsapp",
+  "packages/channels/src/ads",
   "packages/channels/src/ai",
   "packages/channels/src/email",
   "packages/channels/src/files",

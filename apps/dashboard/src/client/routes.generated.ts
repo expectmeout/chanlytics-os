@@ -30,6 +30,9 @@ export const ROUTES = {
   "DELETE workspaces/accent": { method: "DELETE", path: "/api/v1/workspaces/accent" },
   "DELETE workspaces/logo": { method: "DELETE", path: "/api/v1/workspaces/logo" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
+  "GET ads/account": { method: "GET", path: "/api/v1/ads/account" },
+  "GET ads/connect": { method: "GET", path: "/api/v1/ads/connect" },
+  "GET ads/connect/callback": { method: "GET", path: "/api/v1/ads/connect/callback" },
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
   "GET ask/memory": { method: "GET", path: "/api/v1/ask/memory" },
   "GET ask/morning": { method: "GET", path: "/api/v1/ask/morning" },
@@ -161,6 +164,8 @@ export const ROUTES = {
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
+  "POST ads/account/check": { method: "POST", path: "/api/v1/ads/account/check" },
+  "POST ads/account/choose": { method: "POST", path: "/api/v1/ads/account/choose" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/act": { method: "POST", path: "/api/v1/ask/act" },
   "POST ask/act/undo": { method: "POST", path: "/api/v1/ask/act/undo" },
@@ -436,6 +441,9 @@ export type Routes = {
   "DELETE workspaces/accent": typeof import("../../app/api/v1/workspaces/accent/route").DELETE;
   "DELETE workspaces/logo": typeof import("../../app/api/v1/workspaces/logo/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
+  "GET ads/account": typeof import("../../app/api/v1/ads/account/route").GET;
+  "GET ads/connect": typeof import("../../app/api/v1/ads/connect/route").GET;
+  "GET ads/connect/callback": typeof import("../../app/api/v1/ads/connect/callback/route").GET;
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
   "GET ask/memory": typeof import("../../app/api/v1/ask/memory/route").GET;
   "GET ask/morning": typeof import("../../app/api/v1/ask/morning/route").GET;
@@ -567,6 +575,8 @@ export type Routes = {
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
+  "POST ads/account/check": typeof import("../../app/api/v1/ads/account/check/route").POST;
+  "POST ads/account/choose": typeof import("../../app/api/v1/ads/account/choose/route").POST;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/act": typeof import("../../app/api/v1/ask/act/route").POST;
   "POST ask/act/undo": typeof import("../../app/api/v1/ask/act/undo/route").POST;

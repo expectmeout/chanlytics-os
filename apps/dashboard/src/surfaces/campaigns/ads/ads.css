@@ -505,42 +505,6 @@
   color: var(--ink-muted);
   text-decoration: none;
 }
-.ads-platforms {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
-}
-.ads-platform {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--space-3);
-  row-gap: 2px;
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--line);
-}
-.ads-platform > .ads-dot {
-  grid-row: 1 / span 2;
-}
-.ads-platform-name {
-  grid-column: 2;
-  font-size: var(--text-base);
-  font-weight: var(--weight-medium);
-  color: var(--ink);
-}
-.ads-platform-line {
-  grid-column: 2;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
-.ads-platform-word {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-  white-space: nowrap;
-}
 .ads-first {
   align-self: flex-start;
   width: min(100%, 560px);

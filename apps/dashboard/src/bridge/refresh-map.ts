@@ -696,6 +696,10 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  * decided, not forgotten: refresh-coverage.test.mjs holds every write in `routes.generated.ts` to one of the two.
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
+  // An ad account's card reads the account itself (surfaces/campaigns/ads/connect/use-account.ts): no surface holds it.
+  "POST ads/account/check":
+    "Chanlytics looked again at an ad account: its card reads the account once the look answers",
+  "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",
   // The door's answer names the calls it made, and the press re-reads each one's surfaces (bridge/ask/commit.ts tellDoorCalls).
   "POST ask/act":
     "a card acted on by the server: its answer names the calls it made, and the press reads again after each",

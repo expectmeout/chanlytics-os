@@ -14,6 +14,7 @@ const FAMILY_MARK: Record<ActivityFamily, string> = {
   leads: "search",
   deals: "deal",
   campaigns: "bolt",
+  ads: "tag",
   calendar: "calendar",
   google: "star",
   connections: "external",

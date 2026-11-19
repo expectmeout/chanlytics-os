@@ -91,6 +91,21 @@ export const env = {
   get META_REDIRECT_URI() {
     return trimmedEnv(process.env.META_REDIRECT_URI);
   },
+  /**
+   * Ads (decision 0049): the Meta app's saved sign-in that asks for a business's ad account, its Page and the ads
+   * permissions. Its own, since a saved sign-in's kind cannot be changed and WhatsApp's and Instagram's ask for other things.
+   */
+  get META_ADS_CONFIG_ID() {
+    return trimmedEnv(process.env.META_ADS_CONFIG_ID);
+  },
+  /** The dashboard's /api/v1/ads/connect/callback, exactly as the app's sign-in settings list it. */
+  get META_ADS_REDIRECT_URI() {
+    return trimmedEnv(process.env.META_ADS_REDIRECT_URI);
+  },
+  /** The workspaces Ads is offered in, by id, comma-separated; `*` for every one. Empty offers it nowhere. */
+  get ADS_WORKSPACES() {
+    return trimmedEnv(process.env.ADS_WORKSPACES);
+  },
 
   // Retell AI and the lines under it
   get RETELL_API_KEY() {

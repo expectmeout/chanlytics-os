@@ -356,12 +356,6 @@ export const V0 = {
   door: "See them in Reports › People",
   /** With nobody to see. */
   doorNobody: "See Reports › People",
-  platforms: {
-    meta: "Ads that open WhatsApp, and forms",
-    google: "Ads that ring your phone",
-    tiktok: "Short videos, with forms that collect a number",
-  } satisfies Record<AdPlatform, string>,
-  next: "Connecting an ad account comes next, Facebook and Instagram first.",
 };
 
 export const NO_ADS = {

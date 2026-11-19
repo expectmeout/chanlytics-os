@@ -24,6 +24,7 @@ import "./ads.css";
 import "./drawer/drawer.css";
 import "./new/new.css";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
 import { CHOOSE, HEAD } from "./model/words-page";
@@ -48,6 +49,12 @@ import {
 } from "../parts/ledger-keys";
 import { type CmView, useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
+import { ConnectCard } from "./connect/card";
+import { connectCard } from "./connect/card-model";
+import type { ConnectCardVM } from "./connect/card-model";
+import { CardSheet } from "./connect/card-sheet";
+import { useAdAccount } from "./connect/use-account";
+import type { AdAccountHere } from "./connect/use-account";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
 import { useFirstTouch } from "./first-touch";
@@ -80,8 +87,21 @@ function HeadSentence({ head }: { head: HeadVM }) {
   );
 }
 
-/** The head's acts: Ask (quiet) and New ad, the page's one primary, which is the owner's press. Nothing to create in v0. */
-function HeadActs({ mode, onNew, phone }: { mode: AdsVM["mode"]; onNew: () => void; phone: boolean }) {
+/** What the head's acts need: the page's mode, the coral button's word where the card gives one, and the two presses. */
+interface HeadActsProps {
+  mode: AdsVM["mode"];
+  phone: boolean;
+  /** Connect, or Connect again: the card's own word for the coral button, where an owner may press it. */
+  connect: string | null;
+  onConnect: () => void;
+  onNew: () => void;
+}
+
+/**
+ * The head's acts: Ask (quiet) and the page's one primary, which is the owner's press. Before any ad is read the
+ * primary is Connect, straight to Meta's own window (the Ads plan's D1 and D2); with ads on the page it is New ad.
+ */
+function HeadActs({ mode, onNew, phone, connect, onConnect }: HeadActsProps) {
   // Ask opens on this page, so its answer is about the ads and not about nothing.
   const onAsk = () => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } });
   // On a phone (and a tablet, which wears its head) the shell's ✦ is Ask's door, so the head holds New ad alone, first, and the frame draws it as it draws the
@@ -93,6 +113,11 @@ function HeadActs({ mode, onNew, phone }: { mode: AdsVM["mode"]; onNew: () => vo
           <Icon name="sparkle" size={13} /> {HEAD.ask}
         </Button>
       )}
+      {mode === "v0" && connect !== null ? (
+        <Button variant="primary" size="sm" onClick={onConnect} data-testid="ads-head-connect">
+          {connect}
+        </Button>
+      ) : null}
       {mode === "v0" ? null : (
         <Button
           variant="primary"
@@ -132,6 +157,8 @@ interface BodyProps {
   acts: PageActs;
   /** Where the counts of nothing connected stand. */
   touch: FirstTouchHere;
+  /** The ad account's card, drawn beside those counts. */
+  card: ReactNode;
 }
 
 /** Under the head, on a desk the money-calm line; on a phone the sentence, the muted line, then the money-calm line. */
@@ -188,7 +215,7 @@ function DeskRunning({ vm, ask, arrived, cursor, acts }: BodyProps) {
 /** The page's body: v0, an account to choose, the first ad's card, or the ads. */
 function AdsBody(p: BodyProps) {
   const { vm, phone, ask, arrived, acts } = p;
-  if (vm.v0) return <V0Page v0={vm.v0} touch={p.touch} />;
+  if (vm.v0) return <V0Page v0={vm.v0} touch={p.touch} card={p.card} />;
   if (vm.noAds) {
     return vm.noAds.choose.length > 0 ? (
       <ChooseCards choose={vm.noAds.choose} onChoose={acts.onChoose} />
@@ -256,6 +283,30 @@ function useAskKnowsThePage(today: boolean) {
   }, [today]);
 }
 
+/**
+ * The ad account's card as the page draws it, and the card opened from its caret. Null while the account is not read:
+ * the page then draws its counts alone, and the card arrives with its read.
+ */
+function useConnectCard(account: AdAccountHere, timezone: string) {
+  const [open, setOpen] = useState(false);
+  const vm: ConnectCardVM | null = connectCard(account.dto, {
+    outcome: account.outcome,
+    checking: account.checking,
+    timezone,
+  });
+  const card =
+    vm === null ? null : (
+      <>
+        <ConnectCard
+          vm={vm}
+          acts={{ connect: account.connect, choose: (id) => void account.choose(id), open: () => setOpen(true) }}
+        />
+        <CardSheet open={open} vm={vm} onClose={() => setOpen(false)} />
+      </>
+    );
+  return { vm, card };
+}
+
 /** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
 const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
@@ -270,6 +321,8 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const [hushed, setHushed] = useState<string | null>(null);
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
+  const account = useAdAccount(today);
+  const connect = useConnectCard(account, read.timezone);
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
@@ -328,7 +381,15 @@ export function AdsPage({ param, view }: AdsPageProps) {
         allowance={false}
         testid="ads-head"
         sub={<HeadSentence head={vm.head} />}
-        right={<HeadActs mode={vm.mode} onNew={acts.onNew} phone={phone} />}
+        right={
+          <HeadActs
+            mode={vm.mode}
+            onNew={acts.onNew}
+            phone={phone}
+            connect={connect.vm?.button ?? null}
+            onConnect={account.connect}
+          />
+        }
       />
       <PreviewNote said={today ? EXAMPLE.preview.today : undefined} />
       <AdsUnder vm={vm} phone={phone} />
@@ -340,7 +401,16 @@ export function AdsPage({ param, view }: AdsPageProps) {
         onExample={setExample}
       />
       <ReadNotes failed={vm.failed} onAgain={readAgain} />
-      <AdsBody vm={vm} phone={phone} ask={ask} arrived={keys.arrived} cursor={keys.cursor} acts={acts} touch={touch} />
+      <AdsBody
+        vm={vm}
+        phone={phone}
+        ask={ask}
+        arrived={keys.arrived}
+        cursor={keys.cursor}
+        acts={acts}
+        touch={touch}
+        card={connect.card}
+      />
       <AdDrawer
         id={address.ad}
         read={read}
