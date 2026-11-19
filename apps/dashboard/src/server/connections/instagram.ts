@@ -7,7 +7,7 @@
  */
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
-import { verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
+import { STATE_TTL_MS, verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -106,7 +106,7 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Instagram is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
-  const state = await signStateFor(secret, signIn, Date.now());
+  const state = await signStateFor(secret, signIn, Date.now(), STATE_TTL_MS);
   const url = instagramAuthorizeUrl({ clientId: ready.app.client_id, redirectUri: ready.app.redirect_uri }, state);
   return new Response(null, { status: 302, headers: { location: url } });
 }

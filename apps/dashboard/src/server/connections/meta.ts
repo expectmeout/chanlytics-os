@@ -8,7 +8,7 @@
  */
 import { AppError, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/meta";
-import { verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
+import { STATE_TTL_MS, verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -81,7 +81,7 @@ export async function startMetaConnect(ctx: RouteContext, member: Member): Promi
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Meta is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
-  const state = await signStateFor(secret, signIn, Date.now());
+  const state = await signStateFor(secret, signIn, Date.now(), STATE_TTL_MS);
   const url = metaDialogUrl(
     { clientId: ready.app.client_id, configId: ready.app.config_id, redirectUri: ready.app.redirect_uri },
     state,

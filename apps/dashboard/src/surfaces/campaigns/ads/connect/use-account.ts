@@ -16,7 +16,7 @@
  * no faster than every half minute (the edge keeps Meta's own pace beside this), and the card then reads what it found.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AdAccountDto } from "@chanlytics/contracts";
+import { HOUR_MS, type AdAccountDto } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
 import type { Disconnected } from "./disconnect-sheet";
 import { DISCONNECT } from "./words";
@@ -24,6 +24,43 @@ import { DISCONNECT } from "./words";
 /** The channel a window that came back from Meta says its word on, to every tab of the app. */
 const CHANNEL = "chanlytics-ads-connect";
 const WINDOW_NAME = "chanlytics-ads-connect";
+
+/**
+ * The mark a page leaves in the app's own storage while Meta's window is open: the window reads it on the way back and
+ * closes. Its name and its tie to the page are no proof, since a sign-in page may clear both (the first real Connect,
+ * 19 November 2026, came back to the Ads page inside Meta's window, and it stayed open). Good for as long as the way
+ * there and back may take, so a mark a page left behind never closes a tab of the owner's later.
+ */
+const WINDOW_MARK = "chanlytics.ads.connect-window.v1";
+const WINDOW_MARK_LIFE_MS = HOUR_MS;
+
+function markWindow(): void {
+  try {
+    window.localStorage.setItem(WINDOW_MARK, String(Date.now()));
+  } catch {
+    // A storage that refuses (a private window) costs the window's closing itself, never the Connect.
+  }
+}
+
+function dropWindowMark(): void {
+  try {
+    window.localStorage.removeItem(WINDOW_MARK);
+  } catch {
+    // Nothing was kept to drop.
+  }
+}
+
+/** Whether a page that came back from Meta is the window the page left its mark for. Taken, so one page closes. */
+function takeWindowMark(): boolean {
+  try {
+    const at = Number(window.localStorage.getItem(WINDOW_MARK));
+    window.localStorage.removeItem(WINDOW_MARK);
+    return at > 0 && Date.now() - at < WINDOW_MARK_LIFE_MS;
+  } catch {
+    // A storage that cannot be read holds no mark: the window's name and its tie to the page still say.
+    return false;
+  }
+}
 /** How often the page looks whether the owner is back with Meta's window gone, and how long after opening it first looks. */
 const WINDOW_POLL_MS = 500;
 const WINDOW_GRACE_MS = 1_500;
@@ -47,6 +84,8 @@ function returnedHere(): Returned | null {
     const outcome = query.get("connect");
     if (!outcome) return null;
     const returned: Returned = { outcome, why: query.get("why") };
+    // Taken before the word is said: the page that waits drops its mark once it hears it.
+    const marked = takeWindowMark();
     query.delete("connect");
     query.delete("why");
     const rest = query.toString();
@@ -58,8 +97,9 @@ function returnedHere(): Returned | null {
     const channel = new BroadcastChannel(CHANNEL);
     channel.postMessage(returned);
     channel.close();
-    // Only a window a script opened may close itself: the page the owner pressed Connect on stays.
-    if (window.name === WINDOW_NAME || window.opener !== null) window.close();
+    // Only Meta's window closes itself: the page the owner pressed Connect on stays, and a page that came back in the
+    // same tab (a browser that opened no window) left no mark.
+    if (marked || window.name === WINDOW_NAME || window.opener !== null) window.close();
     return returned;
   } catch {
     // An address that cannot be read says nothing came back: the card reads the account all the same.
@@ -156,9 +196,11 @@ export function useAdAccount(on: boolean): AdAccountHere {
 
   const connect = useCallback(() => {
     const url = api().url("GET ads/connect", { params: undefined });
+    markWindow();
     const opened = window.open(url, WINDOW_NAME, "popup,width=640,height=780");
-    // A browser that opens no second window follows the same way in this one.
+    // A browser that opens no second window follows the same way in this one, which then has no window to close.
     if (!opened) {
+      dropWindowMark();
       window.location.assign(url);
       return;
     }
@@ -174,6 +216,8 @@ export function useAdAccount(on: boolean): AdAccountHere {
     };
     const finish = (returned: Returned) => {
       stop();
+      // The window is done, by its word or closed before Meta finished: no mark is left for a page to come.
+      dropWindowMark();
       setOutcome(stopOf(returned));
       again();
     };

@@ -137,6 +137,11 @@ export const OUTCOME: Readonly<Record<string, NeedWords>> = {
     line: "Meta shared it, but didn't let Chanlytics read it, so nothing was kept. Connect again in a few minutes.",
     act: "Connect again",
   },
+  state_expired: {
+    title: "Connect took too long",
+    line: "Nothing was kept here, and what you set up in Meta is still there. Connect again to finish.",
+    act: "Connect again",
+  },
   ad_account_taken: {
     title: "This ad account is connected to another workspace",
     line: "An ad account works with one Chanlytics workspace at a time. Disconnect it there first, or use another.",

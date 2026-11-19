@@ -1,7 +1,7 @@
 /**
  * The state a sign-in at a provider leaves with and comes back with: the CSRF proof. The workspace, the person and a
- * nonce, signed with a secret the dashboard holds and good for ten minutes, checked on the way back before the code is
- * trusted. One helper for every provider a person signs in at (Google, a mailbox's, Instagram, Meta): each names itself in
+ * nonce, signed with a secret the dashboard holds and good for the time its sign-in may take (ten minutes for most),
+ * checked on the way back before the code is trusted. One helper for every provider a person signs in at (Google, a mailbox's, Instagram, Meta): each names itself in
  * the state, and each callback refuses another's.
  *
  * Pure or Web Crypto, so the tests run it without a network. It was Google's module's (google/oauth.ts) until an ad
@@ -11,7 +11,7 @@
 import { MIN_MS, utf8Bytes } from "@chanlytics/contracts";
 import { b64url, unb64url } from "../shared/base64url";
 
-/** How long the way to a provider and back may take. */
+/** How long the way to a provider and back may take, where nothing is made on the way. */
 export const STATE_TTL_MS = 10 * MIN_MS;
 
 const dec = new TextDecoder();
@@ -97,19 +97,21 @@ export function newNonce(): string {
 }
 
 /**
- * A state for one provider's sign-in: the workspace, the person signed in, a nonce and ten minutes, naming the provider
- * so no other provider's callback takes it.
+ * A state for one provider's sign-in: the workspace, the person signed in, a nonce and how long the way there and back
+ * may take (`lifeMs`, STATE_TTL_MS where nothing is made on the way), naming the provider so no other provider's callback
+ * takes it. The life is the caller's to say: an ad account's sign-in may make an ad account and a Page in Meta's window.
  */
 export function signStateFor(
   secret: string,
   signIn: { tenantId: string; userId: string; provider: string },
   nowMs: number,
+  lifeMs: number,
 ): Promise<string> {
   return signState(secret, {
     t: signIn.tenantId,
     u: signIn.userId,
     n: newNonce(),
-    exp: nowMs + STATE_TTL_MS,
+    exp: nowMs + lifeMs,
     p: signIn.provider,
   });
 }

@@ -233,13 +233,19 @@ test("what came back from Meta's window with nothing connected: what happened, a
       "connect",
     ],
   );
+  // Meta's window took longer than the way there and back may: nothing kept here, what was made in Meta stays.
+  const late = card(null, { outcome: "state_expired" });
+  assert.deepEqual(
+    [late.need.title, late.need.act.words, late.need.act.kind],
+    ["Connect took too long", "Connect again", "connect"],
+  );
   const taken = card(null, { outcome: "ad_account_taken" });
   assert.deepEqual(
     [taken.need.title, taken.need.act.words, taken.need.act.kind],
     ["This ad account is connected to another workspace", "Use another ad account", "connect"],
   );
   // Any other word a refusal carries is never shown: the card says what it means for the owner.
-  for (const code of ["exchange_failed", "edge_502", "state_expired", "XX000"]) {
+  for (const code of ["exchange_failed", "edge_502", "state_signature", "XX000"]) {
     const other = card(null, { outcome: code });
     assert.deepEqual([other.need.title, other.need.act], ["Couldn't connect", null]);
     assert.ok(!JSON.stringify(other).includes(code), `${code} never reaches the card`);
