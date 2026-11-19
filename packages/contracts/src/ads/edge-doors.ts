@@ -4,7 +4,7 @@ import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
 
 /**
  * POST /api/admin/ads/account: an owner's own ad account at Meta, connected from the code Meta's window handed back
- * (`connect`), the one of two chosen (`choose`), looked at again (`check`), or asked whether it can be connected here
+ * (`connect`), the one of two chosen (`choose`), looked at again (`check`), disconnected (`disconnect`), or asked whether it can be connected here
  * (`status`). `on` is whether this deployment offers Ads in the workspace; `outcome` is what an op came to.
  */
 export const ADS_ACCOUNT_DOOR = edgeDoor(
@@ -16,6 +16,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     code: z.string().optional(),
     /** `choose`: the platform's id of the account the owner meant. */
     external_id: z.string().optional(),
+    /** `disconnect`: whether the ads that are running are paused first. */
+    pause: z.boolean().optional(),
   }),
   answerFields({
     ready: z.boolean(),
@@ -25,6 +27,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     account_id: z.string(),
     /** `status`: whether an owner's presses reach the platform from this deployment: off, sandbox or live. */
     writes: z.string(),
+    /** `disconnect`: the ads left running, or the ones a pause could not be confirmed for (`not_paused`). */
+    names: z.array(z.string()),
   }),
 );
 

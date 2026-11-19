@@ -654,6 +654,7 @@
     "00649_an_owner_connects_their_ad_account.sql": "b72a24e0e27e8f0093af2355aca9262d1497ad657cbbc8b7578f596a8583154b",
     "00650_an_account_s_ads_are_read_on_a_clock.sql": "e6b6e1a999dbaa1dac040d9169fe6432f69d4b6d715b6b1dedc20ad6539b9faa",
     "00651_the_ads_page_counts_the_people_an_ad_brought.sql": "7fbbe509c592450bfaedb6ebb33aab49578e2a403ce7af64cd5f53f1f0585747",
-    "00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql": "e95fbaf7b041e7506bedba418bb2d915090f042187745ed57d39f8a632cf978c"
+    "00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql": "e95fbaf7b041e7506bedba418bb2d915090f042187745ed57d39f8a632cf978c",
+    "00653_an_owner_disconnects_their_ad_account.sql": "b9e7d7216ee3694714148cea1a6c72c6933906d3b958fca710ee2dae8776ff4f"
   }
 }

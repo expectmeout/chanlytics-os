@@ -77,6 +77,9 @@ const NOTIFICATION_DELIVERY = {
   post_stopped: "bell",
   // A lead tried the preview they were sent (00632): a line on the bell as it happens, written by the database.
   preview_tried: "bell",
+  // An ad account that needs its owner (00653): the platform signed Chanlytics out, or cannot charge for it. A line on
+  // the bell, written by the database as it learns it; Campaigns › Ads says the rest.
+  ad_account: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -347,6 +350,8 @@ export const BELL_LINE_KINDS = [
   "post_up",
   "post_stopped",
   "preview_tried",
+  // An ad account that needs its owner (00653): signed out by its platform, or a payment the platform cannot take.
+  "ad_account",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

@@ -700,6 +700,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // An ad's presses: the Ads page reads its own ads again once the press answers (surfaces/campaigns/ads/live).
   "POST ads/[id]/pause": "an owner paused an ad: the Ads page reads its ads again once the press answers",
   "POST ads/[id]/resume": "an owner turned an ad back on: the Ads page reads its ads again once the press answers",
+  "POST ads/account/disconnect":
+    "the owner disconnected their ad account: its card and the Ads page read the account once it answers",
   "POST ads/account/check":
     "Chanlytics looked again at an ad account: its card reads the account once the look answers",
   "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",

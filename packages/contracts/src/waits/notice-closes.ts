@@ -179,6 +179,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A lead who tried their preview is told at their first message and at their first call. Today keeps the lead.",
   },
+  ad_account: {
+    ends: "news",
+    why: "An ad account signed out by its platform, or one it cannot charge, is told once when it turns. Campaigns › Ads and the account's card say it for as long as it lasts, with the one thing to do.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

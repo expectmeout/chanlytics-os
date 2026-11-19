@@ -170,6 +170,7 @@ export const ROUTES = {
   "POST ads/[id]/resume": { method: "POST", path: "/api/v1/ads/[id]/resume" },
   "POST ads/account/check": { method: "POST", path: "/api/v1/ads/account/check" },
   "POST ads/account/choose": { method: "POST", path: "/api/v1/ads/account/choose" },
+  "POST ads/account/disconnect": { method: "POST", path: "/api/v1/ads/account/disconnect" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/act": { method: "POST", path: "/api/v1/ask/act" },
   "POST ask/act/undo": { method: "POST", path: "/api/v1/ask/act/undo" },
@@ -585,6 +586,7 @@ export type Routes = {
   "POST ads/[id]/resume": typeof import("../../app/api/v1/ads/[id]/resume/route").POST;
   "POST ads/account/check": typeof import("../../app/api/v1/ads/account/check/route").POST;
   "POST ads/account/choose": typeof import("../../app/api/v1/ads/account/choose/route").POST;
+  "POST ads/account/disconnect": typeof import("../../app/api/v1/ads/account/disconnect/route").POST;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/act": typeof import("../../app/api/v1/ask/act/route").POST;
   "POST ask/act/undo": typeof import("../../app/api/v1/ask/act/undo/route").POST;

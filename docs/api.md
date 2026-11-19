@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-411 handlers in 59 domains.
+412 handlers in 59 domains.
 
 ## activity
 
@@ -70,6 +70,14 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `external_id` | string | yes | matches `^\d{5,32}$` |
+
+### `POST /api/v1/ads/account/disconnect`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `pause` | boolean | yes |  |
 
 ### `GET /api/v1/ads/connect`
 
@@ -3677,6 +3685,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `code` | string | no |  |
 | `external_id` | string | no |  |
+| `pause` | boolean | no |  |
 
 ### `POST /api/admin/ads/press`
 

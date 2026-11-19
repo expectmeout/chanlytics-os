@@ -58,6 +58,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST ads/account/disconnect": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET ads/connect/callback": {
       "kind": "read",
       "scope": "account",

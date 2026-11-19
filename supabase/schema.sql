@@ -155,6 +155,62 @@ COMMENT ON FUNCTION public.ad_account_connect(p_tenant_id uuid, p_actor uuid, p_
 
 
 --
+-- Name: ad_account_disconnect(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row     public.ad_accounts;
+  v_running jsonb;
+begin
+  -- The owner alone disconnects an ad account (0050, call 2): asked here again, whoever knocked.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  select * into v_row from public.ad_accounts a
+   where a.id = p_account_id and a.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  if v_row.status = 'disconnected' then
+    return jsonb_build_object('outcome', 'already');
+  end if;
+  -- The ads the platform last said were running, by name: what the owner is told stays on, and can only be stopped there.
+  select coalesce(jsonb_agg(d.name order by d.name), '[]'::jsonb) into v_running
+    from public.ads d
+   where d.tenant_id = p_tenant_id and d.account_id = p_account_id
+     and d.status = 'made' and d.platform_state = 'ACTIVE';
+  -- Nothing is sent to the platform after a disconnect: a press still on its way is let go.
+  update public.ads d
+     set told_at = now()
+   where d.tenant_id = p_tenant_id and d.account_id = p_account_id
+     and d.intent_at is not null and (d.told_at is null or d.told_at < d.intent_at);
+  update public.ad_accounts a
+     set status = 'disconnected', disconnected_at = now(), read_after = null, next_read_at = null
+   where a.id = p_account_id;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad_account', p_account_id, 'disconnect_ad_account', 'user', p_actor,
+          jsonb_build_object('platform', v_row.platform, 'external_id', v_row.external_id, 'name', v_row.name,
+                             'left_running', v_running));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad_account.disconnected', 'setup', 'ad_account', p_account_id,
+          jsonb_build_object('platform', v_row.platform, 'why', 'owner', 'by', p_actor, 'left_running', v_running));
+  return jsonb_build_object('outcome', 'disconnected', 'left_running', v_running);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) IS 'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
+
+
+--
 -- Name: ad_account_read_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -167,6 +223,7 @@ declare
   v_standing jsonb;
   v_config   jsonb;
   v_moved    boolean;
+  v_unpaid   boolean;
 begin
   select * into v_row from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id
@@ -206,6 +263,20 @@ begin
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (p_tenant_id, 'ad_account.standing', 'setup', 'ad_account', p_account_id,
             jsonb_build_object('platform', v_row.platform, 'from', v_row.standing, 'to', v_standing));
+    -- The platform cannot charge for the account, and could before: said once on the bell, when it turns.
+    v_unpaid := (v_standing ->> 'funding' = 'none' or v_standing ->> 'account' = 'unsettled')
+            and not (v_row.standing ->> 'funding' = 'none' or v_row.standing ->> 'account' = 'unsettled');
+    if coalesce(v_unpaid, false) then
+      begin
+        insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
+        values (p_tenant_id, 'ad_account', 'Meta can''t charge your ad account',
+                'No ad can be turned on until it can, and Meta may stop the ones running. Add or fix the payment method in Meta. Chanlytics looks again when you come back.',
+                'campaigns/ads', 'ad_account', p_account_id::text);
+      exception when others then
+        -- The bell's line never costs a read what it learned.
+        raise warning 'ad_account_read_keep: %', sqlerrm;
+      end;
+    end if;
     return 'moved';
   end if;
   return 'kept';
@@ -216,7 +287,7 @@ end $$;
 -- Name: FUNCTION ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what a read of a connected ad account at its platform learned (00649, decision 0049). Given standing and config it writes them (config key by key over what stood), with the account''s name and zone where given, stamps the read, clears the last failure and keeps the platform''s pace (usage_pct, read_after); an ad_account.standing event only where what the account stands on or the facts beside it moved. Given error, a read that failed: its words and the pace are kept and what stood, stands. Answers moved, kept, failed, or not_connected for an account that is not connected, where nothing is written.';
+COMMENT ON FUNCTION public.ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what a read of a connected ad account at its platform learned (00649, 00653; decision 0049). Given standing and config it writes them (config key by key over what stood), with the account''s name and zone where given, stamps the read, clears the last failure and keeps the platform''s pace (usage_pct, read_after); an ad_account.standing event only where what the account stands on or the facts beside it moved, and a line on the bell the first time the platform cannot charge for it. Given error, a read that failed: its words and the pace are kept and what stood, stands. Answers moved, kept, failed, or not_connected for an account that is not connected, where nothing is written.';
 
 
 --
@@ -240,6 +311,15 @@ begin
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad_account.revoked', 'setup', 'ad_account', p_account_id,
           jsonb_build_object('platform', v_platform, 'how', left(coalesce(p_how, 'read'), 40)));
+  begin
+    insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
+    values (p_tenant_id, 'ad_account', 'Meta signed Chanlytics out of your ad account',
+            'Chanlytics can''t read or pause your ads until you connect again. An ad that was on keeps running, and Meta charges while it runs.',
+            'campaigns/ads', 'ad_account', p_account_id::text);
+  exception when others then
+    -- The bell's line never costs the account its mark.
+    raise warning 'ad_account_revoked: %', sqlerrm;
+  end;
   return true;
 end $$;
 
@@ -248,7 +328,7 @@ end $$;
 -- Name: FUNCTION ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text) IS 'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, decision 0049): the account is revoked, with when, and an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call). Its last numbers stay; nothing is read or changed until the owner connects again. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
+COMMENT ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text) IS 'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call), and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
 
 
 --
@@ -43523,7 +43603,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -56069,6 +56149,14 @@ GRANT USAGE ON SCHEMA public TO service_role;
 
 REVOKE ALL ON FUNCTION public.ad_account_connect(p_tenant_id uuid, p_actor uuid, p_platform text, p_account jsonb, p_secret jsonb, p_chosen boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_account_connect(p_tenant_id uuid, p_actor uuid, p_platform text, p_account jsonb, p_secret jsonb, p_chosen boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) TO service_role;
 
 
 --

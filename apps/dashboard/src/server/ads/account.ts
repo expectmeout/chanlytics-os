@@ -197,3 +197,29 @@ export async function checkAdAccount(ctx: RouteContext, member: Member): Promise
   if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "look again");
   return { outcome: typeof body.outcome === "string" ? body.outcome : "kept" };
 }
+
+/** What a disconnect came to: done, with the ads left running; or held, with the ads whose pause Meta did not confirm. */
+export interface AdAccountDisconnected {
+  outcome: "disconnected" | "not_paused";
+  names: string[];
+}
+
+/**
+ * `POST ads/account/disconnect`: the owner lets the ad account go. Asked to pause first, the edge pauses every running
+ * ad and disconnects only where Meta confirmed each; otherwise it answers `not_paused` with their names, and the owner
+ * decides again knowing they keep running. Never refused for the owner.
+ */
+export async function disconnectAdAccountNow(
+  ctx: RouteContext,
+  member: Member,
+  pause: boolean,
+): Promise<AdAccountDisconnected> {
+  const answer = await edgeAds({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId, pause }, 55_000);
+  const body = answer.body ?? {};
+  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "disconnect");
+  readyCache.delete(member.tenantId);
+  return {
+    outcome: body.outcome === "not_paused" ? "not_paused" : "disconnected",
+    names: Array.isArray(body.names) ? body.names.filter((name): name is string => typeof name === "string") : [],
+  };
+}

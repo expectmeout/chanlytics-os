@@ -17,7 +17,14 @@ import {
   type MetaUsage,
 } from "@chanlytics/channels/ads";
 import { SECOND_MS, type TenantId } from "@chanlytics/contracts";
-import { listPendingAds, markAdTold, type AdIntent, type AdPendingRow } from "@chanlytics/db/ads";
+import {
+  listPendingAds,
+  listRunningAds,
+  markAdTold,
+  setAdIntent,
+  type AdIntent,
+  type AdPendingRow,
+} from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "../shared/env.js";
@@ -124,4 +131,43 @@ export async function tellPending(
     told += 1;
   }
   return { told, usage, revoked: false };
+}
+
+/**
+ * Every ad of an account its platform last said was running, paused, for a disconnect that pauses first (the Ads
+ * plan's 4.9). Each is the owner's press like any other, kept by its door and told to Meta now. The names of the ones
+ * whose pause Meta did not confirm: with any left, the owner is told the ad keeps running before they disconnect.
+ */
+export async function pauseRunning(
+  db: Db,
+  log: Log,
+  who: { tenantId: TenantId; userId: string; signIn: MetaSignIn | null; writes: AdsWrites },
+  account: { id: string; read_after: string | null },
+): Promise<string[]> {
+  const running = await listRunningAds(db, who.tenantId, account.id);
+  const unconfirmed: string[] = [];
+  let usage: MetaUsage | null = null;
+  for (const ad of running) {
+    const held = account.read_after !== null && Date.parse(account.read_after) > Date.now();
+    const room = usage === null || usage.pct < ADS_USAGE_HOLD_PCT;
+    if (who.signIn === null || who.writes === "off" || held || !room) {
+      unconfirmed.push(ad.name);
+      continue;
+    }
+    const kept = await setAdIntent(db, who, { adId: ad.id, version: ad.version, intent: "paused" });
+    const sendable = kept.platformAdId !== null && (kept.outcome === "asked" || kept.outcome === "same");
+    if (!sendable || kept.platformAdId === null || !mayTellNow(kept.toldAt, Date.now())) {
+      unconfirmed.push(ad.name);
+      continue;
+    }
+    const told = await tellAd(
+      db,
+      log,
+      { tenantId: who.tenantId, signIn: who.signIn, writes: who.writes },
+      { id: ad.id, platform_ad_id: kept.platformAdId, intent: "paused" },
+    );
+    usage = told.usage ?? usage;
+    if (told.outcome !== "told") unconfirmed.push(ad.name);
+  }
+  return unconfirmed;
 }

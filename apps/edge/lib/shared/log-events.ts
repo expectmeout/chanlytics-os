@@ -41,6 +41,8 @@ export const LOG_EVENTS = [
   "ads_connect_refused",
   "ads_connected",
   "ads_deauthorize_unmatched",
+  "ads_disconnect_held",
+  "ads_disconnected",
   "ads_meta_refused",
   "ads_notice",
   "ads_pressed",

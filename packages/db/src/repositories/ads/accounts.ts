@@ -194,3 +194,42 @@ export async function mayRunAds(db: Db, tenantId: TenantId, userId: string): Pro
   if (error) throw new DbFailure(error, "may run ads");
   return data === true;
 }
+
+/** What a disconnect came to, and the ads its platform last said were running. */
+export interface AdDisconnected {
+  outcome: "disconnected" | "already" | "not_allowed" | "not_found" | "no_door";
+  leftRunning: string[];
+}
+
+/**
+ * An owner disconnects their ad account (ad_account_disconnect, 00653): marked disconnected, every press still on its
+ * way let go, the decision and the event kept, in one transaction. Never refused for the owner.
+ */
+export async function disconnectAdAccount(
+  db: Db,
+  by: { tenantId: TenantId; userId: string },
+  accountId: string,
+): Promise<AdDisconnected> {
+  const { data, error } = await db.rpc("ad_account_disconnect", {
+    p_tenant_id: by.tenantId,
+    p_actor: by.userId,
+    p_account_id: accountId,
+  });
+  if (error) {
+    if (isMissingDoor(error)) return { outcome: "no_door", leftRunning: [] };
+    throw new DbFailure(error, "ad_account_disconnect");
+  }
+  const answer = recordOrEmpty(data);
+  const outcome = (["disconnected", "already", "not_allowed", "not_found"] as const).find(
+    (one) => one === answer.outcome,
+  );
+  if (!outcome) throw new Error("ad_account_disconnect answered no outcome");
+  const running = Array.isArray(answer.left_running) ? answer.left_running : [];
+  return { outcome, leftRunning: running.filter((name): name is string => typeof name === "string") };
+}
+
+/** An account's token removed from Vault (ad_credentials_drop, 00648): after a disconnect, it opens nothing here. */
+export async function dropAdSecret(db: Db, accountId: string): Promise<void> {
+  const { error } = await db.rpc("ad_credentials_drop", { p_account_id: accountId });
+  if (error) throw new DbFailure(error, "ad_credentials_drop");
+}

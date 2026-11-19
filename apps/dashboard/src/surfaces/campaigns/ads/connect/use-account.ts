@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AdAccountDto } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
+import type { Disconnected } from "./disconnect-sheet";
+import { DISCONNECT } from "./words";
 
 /** The channel a window that came back from Meta says its word on, to every tab of the app. */
 const CHANNEL = "chanlytics-ads-connect";
@@ -81,6 +83,8 @@ export interface AdAccountHere {
   checking: boolean;
   connect: () => void;
   choose: (externalId: string) => Promise<string | null>;
+  /** The owner lets the account go, pausing what runs first where asked (disconnect-sheet.tsx). */
+  disconnect: (pause: boolean) => Promise<Disconnected>;
   again: () => void;
 }
 
@@ -195,5 +199,16 @@ export function useAdAccount(on: boolean): AdAccountHere {
     [again],
   );
 
-  return { dto: on ? dto : null, failed, outcome, checking, connect, choose, again };
+  const disconnect = useCallback(
+    async (pause: boolean): Promise<Disconnected> => {
+      const answer = await api()("POST ads/account/disconnect", { body: { pause } }).catch(() => null);
+      if (answer === null) return { outcome: "failed", why: DISCONNECT.failed };
+      if (!answer.ok) return { outcome: "failed", why: answer.message };
+      if (answer.data.outcome === "disconnected") again();
+      return answer.data;
+    },
+    [again],
+  );
+
+  return { dto: on ? dto : null, failed, outcome, checking, connect, choose, disconnect, again };
 }

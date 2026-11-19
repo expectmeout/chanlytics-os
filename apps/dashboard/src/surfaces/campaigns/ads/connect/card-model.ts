@@ -17,6 +17,7 @@ import {
   CARD,
   CHECK,
   CONNECT,
+  DISCONNECT,
   META_DOOR,
   NOT_ALLOWED,
   OUTCOME,
@@ -244,5 +245,5 @@ export function connectCard(dto: AdAccountDto | null, moment: CardMoment): Conne
   const before = cardBefore(dto, moment);
   return card.status === "revoked"
     ? { ...before, state: "signed-out", word: CARD.signedOut, button: dto.can_connect ? CONNECT.again : null }
-    : { ...before, state: "left" };
+    : { ...before, state: "left", says: [...before.says, { text: DISCONNECT.removeAtMeta, strong: false }] };
 }

@@ -34,6 +34,8 @@ import { callMetaAds } from "@chanlytics/channels/ads";
 import {
   askAdRead,
   connectAdAccount,
+  disconnectAdAccount,
+  dropAdSecret,
   findLiveAdAccount,
   keepAdAccountRead,
   markAdAccountRevoked,
@@ -71,7 +73,7 @@ import {
 } from "./meta-facts.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { pickAccount, pickPage, type AccountSeen } from "./pick.js";
-import { adsWrites } from "./tell.js";
+import { adsWrites, pauseRunning } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -83,6 +85,7 @@ export interface AdsAccountBody {
   user_id?: string;
   code?: string;
   external_id?: string;
+  pause?: boolean;
 }
 
 /** The Meta app's sign-in for ads as this deployment holds it, or null when any part is not set. */
@@ -336,6 +339,42 @@ export async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, now
   return outcome;
 }
 
+/**
+ * `disconnect`: the owner lets the account go (the Ads plan's 4.9; decision 0050, call 8, never refused). Asked to
+ * pause first, every running ad is paused and Meta told; where Meta does not confirm one, nothing is disconnected and
+ * the answer names it, so the owner is told it keeps running before they go on. Then the account is marked, every
+ * press on its way let go, and its token dropped: it opens nothing here from that moment. Meta itself is not asked to
+ * withdraw the sign-in here: whether that would also end another connection of the same business is not known yet,
+ * so the page says where the owner can remove Chanlytics at Meta themselves.
+ */
+async function disconnectAds(
+  db: Db,
+  app: MetaApp | null,
+  by: { tenantId: TenantId; userId: string },
+  pauseFirst: boolean,
+) {
+  const log = logger({ tenant_id: by.tenantId });
+  const live = await findLiveAdAccount(db, by.tenantId, "meta");
+  if (!live) return refuse(409, "nothing_to_do", "No ad account is connected.");
+  if (pauseFirst && live.status === "connected") {
+    const signIn = app ? await signInOf(db, app, live.id) : null;
+    const names = await pauseRunning(db, log, { ...by, signIn, writes: adsWrites() }, live);
+    if (names.length > 0) {
+      log.info("ads_disconnect_held", { unconfirmed: names.length });
+      return json(200, { ok: true, outcome: "not_paused", names });
+    }
+  }
+  const done = await disconnectAdAccount(db, by, live.id);
+  if (done.outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
+  if (done.outcome === "no_door") return refuse(503, "not_ready", "The database has not been given the Ads doors yet.");
+  await dropAdSecret(db, live.id).catch((failure: unknown) => {
+    // The account is disconnected and nothing reads its token again; one that could not be dropped is a line.
+    log.error("ads_disconnect_held", { error: errField(failure) });
+  });
+  log.info("ads_disconnected", { left_running: done.leftRunning.length });
+  return json(200, { ok: true, outcome: "disconnected", names: done.leftRunning });
+}
+
 /** `status`: whether the app's sign-in for ads is held here, whether Ads is offered in this workspace, and the app's public half. */
 function adsStatus(tenantId: string, app: MetaApp | null): Response {
   return json(200, {
@@ -359,6 +398,11 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
   if (!isTenantId(tenantId) || !UUID.test(userId)) return refuse(400, "bad_request", "tenant_id and user_id required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
+  // Letting an account go is never refused for its owner, whatever this deployment offers now (0050, call 8).
+  if (op === "disconnect") {
+    if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
+    return disconnectAds(db, app, { tenantId, userId }, body.pause === true);
+  }
   if (!app) return refuse(503, "no_app_credentials");
   if (!adsOfferedIn(tenantId)) return refuse(409, "meta_off", "Ads is not offered in this workspace yet.");
   // The owner alone, asked before anything is asked of Meta (decision 0050, call 2).
@@ -374,5 +418,5 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
     const live = await findLiveAdAccount(db, tenantId, "meta");
     return json(200, { ok: true, outcome: live ? await lookAgain(db, app, live, Date.now()) : "not_connected" });
   }
-  return refuse(400, "unknown_op", "op is status, connect, choose or check");
+  return refuse(400, "unknown_op", "op is status, connect, choose, check or disconnect");
 }

@@ -176,3 +176,37 @@ export const META_DOOR = {
   accounts: "https://business.facebook.com/latest/settings/ad_accounts",
   whatsapp: "https://business.facebook.com/latest/settings/whatsapp_account",
 } as const;
+
+const adsWord = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
+
+/** Disconnect, from the card's caret (the Ads plan's 4.9, as the canvas draws its screens). */
+export const DISCONNECT = {
+  title: "Disconnect Facebook and Instagram?",
+  running: (names: readonly string[]) =>
+    names.length === 1 ? `${names[0]} is running.` : `${adsWord(names.length)} are running.`,
+  pauseFirst: (n: number) =>
+    n === 1
+      ? "Pause it first and it stops. Meta still bills what it already showed."
+      : "Pause them first and they stop. Meta still bills what they already showed.",
+  stops: "Chanlytics stops reading your ads and can't make new ones.",
+  pauseAndGo: (n: number) => `Pause ${adsWord(n)} and disconnect`,
+  go: "Disconnect",
+  keep: "Keep it connected",
+  without: "Disconnect without pausing",
+  leaveTitle: (n: number) => (n === 1 ? "Disconnect and leave it running?" : "Disconnect and leave them running?"),
+  keepsRunning: (names: readonly string[]) =>
+    names.length === 1
+      ? `${names[0]} keeps running and Meta keeps charging`
+      : `${adsWord(names.length)} keep running and Meta keeps charging`,
+  onlyInMeta: (n: number) =>
+    n === 1
+      ? "After this it can only be stopped in Meta. It stays listed here as Left in Meta."
+      : "After this they can only be stopped in Meta. They stay listed here as Left in Meta.",
+  notConfirmed: "Meta didn't confirm the pause.",
+  anyway: "Disconnect anyway",
+  done: "Disconnected. Chanlytics no longer reads your ads.",
+  /** Where the owner removes Chanlytics at Meta themselves: said on the card once the account is let go. */
+  removeAtMeta:
+    "To remove Chanlytics at Meta too, open Business settings in Meta, then Integrations, then Connected apps.",
+  failed: "Couldn't disconnect just now. Nothing was changed. Try again.",
+} as const;

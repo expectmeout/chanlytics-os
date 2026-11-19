@@ -345,6 +345,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A lead tried the preview they were sent: good news, and its row names the lead to open, with their number. */
   preview_tried: { icon: "users", tone: "ok", action: "Open the lead", to: "clients/leads", own: true },
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
+  // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
+  ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

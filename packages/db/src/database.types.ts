@@ -8888,6 +8888,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ad_account_disconnect: {
+        Args: { p_account_id: string; p_actor: string; p_tenant_id: string }
+        Returns: Json
+      }
       ad_account_read_keep: {
         Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
         Returns: string

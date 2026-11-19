@@ -53,6 +53,8 @@ import { ConnectCard } from "./connect/card";
 import { connectCard } from "./connect/card-model";
 import type { ConnectCardVM } from "./connect/card-model";
 import { CardSheet } from "./connect/card-sheet";
+import { DisconnectSheet } from "./connect/disconnect-sheet";
+import { DISCONNECT } from "./connect/words";
 import { useAdAccount } from "./connect/use-account";
 import type { AdAccountHere } from "./connect/use-account";
 import { AdDrawer } from "./drawer/drawer";
@@ -289,13 +291,19 @@ function useAskKnowsThePage(today: boolean) {
  * The ad account's card as the page draws it, and the card opened from its caret. Null while the account is not read:
  * the page then draws its counts alone, and the card arrives with its read.
  */
-function useConnectCard(account: AdAccountHere, timezone: string) {
+function useConnectCard(account: AdAccountHere, timezone: string, running: readonly string[], onGone: () => void) {
   const [open, setOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [toast, flash] = useFrameToast();
   const vm: ConnectCardVM | null = connectCard(account.dto, {
     outcome: account.outcome,
     checking: account.checking,
     timezone,
   });
+  // Disconnect is the owner's, on an account that is connected or that Meta signed Chanlytics out of.
+  const status = account.dto?.meta?.status;
+  const mayLeave = account.dto?.can_connect === true && (status === "connected" || status === "revoked");
+  const fact = vm?.facts.at(0)?.value ?? null;
   const card =
     vm === null ? null : (
       <>
@@ -303,7 +311,33 @@ function useConnectCard(account: AdAccountHere, timezone: string) {
           vm={vm}
           acts={{ connect: account.connect, choose: (id) => void account.choose(id), open: () => setOpen(true) }}
         />
-        <CardSheet open={open} vm={vm} onClose={() => setOpen(false)} />
+        <CardSheet
+          open={open}
+          vm={vm}
+          onClose={() => setOpen(false)}
+          onDisconnect={
+            mayLeave
+              ? () => {
+                  setOpen(false);
+                  setLeaving(true);
+                }
+              : undefined
+          }
+        />
+        <DisconnectSheet
+          open={leaving}
+          account={fact}
+          running={running}
+          disconnect={account.disconnect}
+          onClose={() => setLeaving(false)}
+          onDone={() => {
+            setLeaving(false);
+            onGone();
+            flash({ msg: DISCONNECT.done });
+          }}
+          onFailed={(why) => flash({ tone: "warn", msg: why })}
+        />
+        {toast}
       </>
     );
   return { vm, card };
@@ -330,10 +364,11 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
   const account = useAdAccount(today);
-  const connect = useConnectCard(account, read.timezone);
   // With an account held, the page is the workspace's own ads, read from Meta (live/): no example is drawn.
   const held = today && holdsAccount(account);
   const live = useAdsLive(held, `${account.dto?.meta?.status ?? ""}:${account.dto?.meta?.read_at ?? ""}`);
+  const running = (live.dto?.ads ?? []).filter((ad) => ad.state === "on").map((ad) => ad.name);
+  const connect = useConnectCard(account, read.timezone, running, live.again);
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
