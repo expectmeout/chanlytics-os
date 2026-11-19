@@ -35,7 +35,7 @@ import {
   type AdsReadKept,
 } from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
-import { metaAdConfigOf, MIN_MS, SECOND_MS, type TenantId } from "@chanlytics/contracts";
+import { metaAdConfigOf, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../shared/log.js";
@@ -101,7 +101,11 @@ async function ask<T>(reading: Reading, question: () => Promise<Asked<T>>): Prom
   if (reading.usage !== null && reading.usage.pct >= ADS_USAGE_HOLD_PCT)
     return { stopped: true, fault: "slowed", usage: reading.usage };
   reading.calls += 1;
-  const asked = await question();
+  return heard(reading, await question());
+}
+
+/** What one answer came to, its usage kept on the reading: the answer read, or why the read stops. */
+function heard<T>(reading: Reading, asked: Asked<T>): T | Stopped {
   reading.usage = asked.usage ?? reading.usage;
   if (!asked.ok) return { stopped: true, fault: asked.fault, usage: asked.usage };
   return asked.value;
@@ -179,7 +183,7 @@ const NAMED_MAX = 2 * META_IDS_MAX;
 async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDepth; nowMs: number }) {
   const { depth, nowMs } = at;
   const { signIn, account, log } = reading;
-  const tenantId = account.tenant_id as TenantId;
+  const tenantId = account.tenant_id;
   const described = await ask(reading, () => readMetaAccount(log, signIn, account.external_id));
   if (stopped(described)) return described;
 
@@ -263,7 +267,7 @@ export async function runAdRead(
   job: ClaimedJob,
   deadline: number,
 ): Promise<{ read: ReadOut } | { skipped: string }> {
-  const tenantId = job.tenant_id as TenantId;
+  const tenantId = job.tenant_id;
   const accountId = typeof job.payload.account_id === "string" ? job.payload.account_id : "";
   const log = logger({ tenant_id: tenantId, account_id: accountId });
   const app = metaAdsApp();

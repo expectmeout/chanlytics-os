@@ -159,7 +159,7 @@ export const QUESTION = {
   group: "Ad account",
   runsPage: "Your Page's ads run from it",
   noPageAds: "Your Page's ads haven't run from it",
-  use: (name: string) => `Use ${name}`,
+  press: (name: string) => `Use ${name}`,
 } as const;
 
 /** Where each act opens Meta. Each is Meta's own page for the thing; the account's id narrows it where Meta takes one. */

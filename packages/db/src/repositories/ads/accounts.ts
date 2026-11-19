@@ -85,7 +85,7 @@ export async function listAdAccountsOfPlatformUser(
     .in("status", ["connected", "choosing"])
     .eq("config->>user_id", platformUserId);
   if (error) throw new DbFailure(error, "ad accounts of a platform's person");
-  return data.map((row) => ({ id: row.id, tenant_id: row.tenant_id as TenantId }));
+  return data.map((row) => ({ id: row.id, tenant_id: row.tenant_id }));
 }
 
 /** What a connect came to. */

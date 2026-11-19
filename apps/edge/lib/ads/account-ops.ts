@@ -305,7 +305,7 @@ const FRESH_MS = 20_000;
  * where Meta's pace holds a call back or the last read is seconds old; a sign-in Meta no longer takes marks the account.
  */
 export async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: number): Promise<string> {
-  const tenantId = account.tenant_id as TenantId;
+  const tenantId = account.tenant_id;
   const log = logger({ tenant_id: tenantId, account_id: account.id });
   if (account.status !== "connected" || account.external_id === null) return "not_connected";
   if (!mayAskMeta(account, nowMs)) return "waiting";

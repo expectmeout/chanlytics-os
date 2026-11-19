@@ -136,7 +136,5 @@ export async function listHeldAdIds(db: Db, tenantId: TenantId, accountId: strin
     .order("read_at", { ascending: false, nullsFirst: false })
     .limit(HELD_MAX);
   if (error) throw new DbFailure(error, "ads held for an account");
-  return data.flatMap((row) =>
-    row.platform_ad_id !== null && !GONE.includes(row.platform_state ?? "") ? row.platform_ad_id : [],
-  );
+  return data.flatMap((row) => (GONE.includes(row.platform_state ?? "") ? [] : row.platform_ad_id));
 }

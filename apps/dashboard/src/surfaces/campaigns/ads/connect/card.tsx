@@ -152,7 +152,7 @@ function CardQuestion({
       </div>
       {chosen ? (
         <Button size="sm" onClick={() => onChoose(chosen.id)} data-testid="ads-conn-use">
-          {QUESTION.use(chosen.title.split(" · ").at(0) ?? chosen.title)}
+          {QUESTION.press(chosen.title.split(" · ").at(0) ?? chosen.title)}
         </Button>
       ) : null}
     </div>

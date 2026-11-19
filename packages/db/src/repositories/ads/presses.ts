@@ -134,7 +134,7 @@ export async function listPendingAds(db: Db, tenantId: TenantId, accountId: stri
     .limit(PRESSED_MAX);
   if (error) throw new DbFailure(error, "an account's pending presses");
   return data.flatMap((row) => {
-    const pending = row.intent_at !== null && (row.told_at === null || row.told_at < row.intent_at);
+    const pending = row.told_at === null || row.told_at < row.intent_at;
     const intent = row.intent === "on" || row.intent === "paused" ? row.intent : null;
     return pending && intent !== null && row.platform_ad_id !== null
       ? [{ id: row.id, platform_ad_id: row.platform_ad_id, intent, told_at: row.told_at }]
