@@ -29,29 +29,38 @@
   gap: 10px;
   height: 60px;
   padding: 4px 12px 0 14px;
-  /* The page's own ground, laid where the window lays it (the paper at a phone's top and the light under it, a screen
-     wide and tall from the window's top), over the paper whole: nothing is read through the bar, and it has no edge
-     against the light under it, where a bar of flat paper stood as a strip. */
+}
+/* The bar's ground, once the page has scrolled (head.tsx says so): the page's own, laid where the window lays it (the
+   paper at a phone's top and the light under it, a screen wide and tall from the window's top), over the paper whole,
+   so nothing is read through the bar; and under it the same ground runs on and falls away over a run, so what passes
+   beneath dims into the page with no line where the bar ends (a fall of flat paper met the lit bar on one). At rest
+   neither is drawn: the light behind their head runs up under the bar, and nothing lies over it. */
+.pv-top::before,
+.pv-top::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
   background-color: var(--surface-page-fill);
   background-image: var(--surface-page-top), var(--surface-page-light);
   background-repeat: no-repeat;
   background-position: center top;
   background-size: 100vw 100vh;
   background-size: 100vw 100lvh;
-}
-/* Once the page has scrolled (head.tsx says so), the paper falls away under the bar over a run, so what passes beneath
-   dims into it: a bar that ended on a line cut the head's light off at its foot, and read as a change of ground. At
-   rest it is not drawn, so nothing lies over their head. */
-.pv-top::after {
-  content: "";
-  position: absolute;
-  inset: 100% 0 auto;
-  height: 44px;
-  background: linear-gradient(to bottom, var(--surface-page-fill), transparent);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--duration-base) var(--ease-out);
 }
+.pv-top::before {
+  inset: 0;
+}
+.pv-top::after {
+  inset: 100% 0 auto;
+  height: 44px;
+  /* The picture laid on from the bar's foot, where the bar's own leaves off. */
+  background-position: center -60px;
+  mask-image: linear-gradient(to bottom, var(--ink), transparent);
+}
+.pv-top[data-under]::before,
 .pv-top[data-under]::after {
   opacity: 1;
 }
@@ -109,25 +118,44 @@
   padding: 0 26px;
   text-align: center;
 }
-/* Their photo, as the light behind the head: blurred until it is colour alone, and faint, so their name reads over
-   whatever the photo is; fading out under the head, as the canvas's poster does. */
-.pv-light {
+/* The light behind their head: the page's own three pools (the look's light, tokens.css), gathered round their face, the
+   cool one to its left, the lilac to its right and the warm one behind their name, each easing out to nothing, so the
+   head reads as lit and has no edge. Their photo is their face alone: blurred behind the head (the canvas's D7) a real
+   listing's photo is pipes, a van or a collage, and it read as a grey smudge on the light ground and a muddy band on
+   the dark one (Ruben, 18 Nov 2026); the look's own light is the same on every preview and in both themes. */
+.pv-side::before {
+  content: "";
   position: absolute;
   z-index: -1;
+  /* From the window's top, under the bar, which lays no ground of its own at rest: the head and the bar are lit as one. */
   inset: -60px 0 auto;
-  width: 100%;
-  height: 28rem;
-  object-fit: cover;
-  opacity: 0.3;
-  filter: var(--surface-control-blur);
-  /* It rises from nothing under the bar and falls away under the head, so it has no edge: a band cut off at the bar
-     read as a strip of another page. */
-  mask-image: linear-gradient(to bottom, transparent 56px, var(--ink) 42%, transparent 92%);
+  height: 27rem;
+  background-image:
+    radial-gradient(
+      64% 34% at 50% 30%,
+      var(--pool-a-tint),
+      color-mix(in oklab, var(--pool-a-tint) 42%, transparent) 52%,
+      transparent
+    ),
+    radial-gradient(
+      38% 28% at 74% 22%,
+      var(--pool-c-tint),
+      color-mix(in oklab, var(--pool-c-tint) 42%, transparent) 52%,
+      transparent
+    ),
+    radial-gradient(
+      56% 30% at 50% 50%,
+      var(--pool-b-tint),
+      color-mix(in oklab, var(--pool-b-tint) 42%, transparent) 52%,
+      transparent
+    );
+  /* It falls away under the head, Call it still in its light, so nothing of it stands as a band over the facts. */
+  mask-image: linear-gradient(to bottom, var(--ink) 55%, transparent);
   pointer-events: none;
 }
-/* On the dark ground a third of a photo reads as grey over the page: fainter there, so it is light and not a band. */
-:root[data-theme="dark"] .pv-light {
-  opacity: 0.16;
+/* The dark side's pools are lit for a whole page: gathered round one head they are a step quieter. */
+:root[data-theme="dark"] .pv-side::before {
+  opacity: 0.7;
 }
 .pv-who {
   position: relative;
@@ -140,8 +168,9 @@
   height: 64px;
   font-size: var(--text-2xl);
 }
-/* AI's three: ink at rest, the accent only while it works. Beside their face it sits on a disc of the control layer's
-   glass at the foot. */
+/* AI's three: ink at rest, the accent only while it works. Beside their face it sits on a disc at the foot, of the
+   raised ground with the control layer's sheen: the dark side's glass is nearly clear, and over their photo the mark
+   went into the picture. */
 .pv-three {
   display: inline-grid;
   place-items: center;
@@ -159,7 +188,7 @@
   width: 28px;
   height: 28px;
   border-radius: var(--radius-full);
-  background-color: var(--surface-control-fill);
+  background-color: var(--bg-raised);
   background-image: var(--surface-control-sheen);
   box-shadow: var(--surface-float-depth);
 }
@@ -1086,8 +1115,8 @@ p.pv-known {
   .pv-top {
     height: 72px;
     padding: 0 32px;
-    background: none;
   }
+  .pv-top::before,
   .pv-top::after {
     content: none;
   }
@@ -1140,9 +1169,9 @@ p.pv-known {
   .pv-head {
     padding: 0;
   }
-  .pv-light {
+  .pv-side::before {
     inset: 0 0 auto;
-    height: 18rem;
+    height: 20rem;
   }
   .pv-acts {
     align-self: stretch;
