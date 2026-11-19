@@ -213,7 +213,8 @@ function requestActsOf(thread: Thread, onDecide: StatusProps["onDecide"]) {
  * The booking they asked for, as a card under the dock's line (the thread canvas, 1 Nov 2026): its day on a tile, its
  * hours and service, whether it still holds its time on the calendar, the door to that day, then Can't do it and Booked
  * it a thumb tall, half the width each, and what each does. Booked it drafts the confirmation into the box below; Can't
- * leaves the thread waiting on a reply (decision 0061).
+ * do it leaves the thread waiting on a reply (decision 0061), with an offer of the next open times in the box
+ * (thread-pane.tsx answerHere).
  */
 function RequestCard({ thread, onDecide }: { thread: Thread; onDecide: StatusProps["onDecide"] }) {
   const W = BOOKING_REQUEST_WORDS;

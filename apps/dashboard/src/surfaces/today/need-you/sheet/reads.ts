@@ -6,9 +6,10 @@
 import { useEffect, useState } from "react";
 import { dayInZone, type CalendarDayVM, type TodayRowSaid, saidOfMessages } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
+import { readOpenTimes, type OpenTime } from "../../../booking-request";
 import { surfaceValue } from "../../../surface-values";
 
-import { openDayWord, type OpenClock } from "./moment";
+import type { OpenClock } from "./moment";
 
 /** When the business is open, from the Calendar the page holds; null where it holds none, and the clock says nothing then. */
 export function openClockOf(): OpenClock | null {
@@ -56,16 +57,9 @@ export function useThreadSaid(conversationId: string | null): readonly TodayRowS
   return said;
 }
 
-/** One open time to offer: its words, its day's, and a word for the two together. */
-export interface OpenTime {
-  key: string;
-  time: string;
-  day: string;
-}
-
 /**
- * The open times a booking's Another time offers: the receptionist's own windows over the days ahead, each a time they could
- * have, from the first of each window, up to `max`. Null while it reads, none where the calendar has none to say.
+ * The open times a booking's Another time offers (booking-request.ts readOpenTimes, which the thread's Can't do it reads
+ * too): null while it reads, none where the calendar has none to say.
  */
 export function useOpenTimes(
   service: string | null,
@@ -75,30 +69,12 @@ export function useOpenTimes(
   const [read, setRead] = useState<{ times: readonly OpenTime[]; state: string } | null>(null);
   useEffect(() => {
     let live = true;
-    void api()("GET ask/openings", { query: { service: service ?? undefined } })
-      .then((r) => {
-        if (!live) return;
-        if (!r.ok) return setRead({ times: [], state: "unavailable" });
-        const { openings } = r.data;
-        const times: OpenTime[] = [];
-        for (const d of openings.days)
-          for (const w of d.windows)
-            if (times.length < max)
-              times.push({ key: `${d.key}-${w}`, time: windowStart(w), day: openDayWord(d.key, tz, Date.now()) });
-        setRead({ times, state: openings.state });
-      })
-      .catch(() => live && setRead({ times: [], state: "unavailable" }));
+    void readOpenTimes(service, max, tz).then((open) => {
+      if (live) setRead(open);
+    });
     return () => {
       live = false;
     };
   }, [service, max, tz]);
   return read;
-}
-
-/** The first time of a window: "2:30 – 4 PM" is "2:30 PM", "9 AM – 12 PM" is "9 AM". */
-function windowStart(window: string): string {
-  const [from = "", to = ""] = window.split(/\s*[–-]\s*/);
-  if (/[ap]m/i.test(from)) return from.trim();
-  const half = /[ap]m/i.exec(to)?.[0] ?? "";
-  return `${from.trim()} ${half}`.trim();
 }

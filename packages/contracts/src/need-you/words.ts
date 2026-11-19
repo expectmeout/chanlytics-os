@@ -251,7 +251,10 @@ export const NEED_YOU_WORDS = {
     by: (wire: string) => `AI · ${wire}`,
     stopIt: "Stop it",
     held: "Waits for you",
-    heldReply: "Written by AI",
+    /** Once stopped: what the row says, and the press that opens their conversation with the stopped words in its box. */
+    stopped: "Stopped",
+    unsent: "nothing was sent",
+    reply: "Reply",
     goesIn: (seconds: number) => `Going by itself in ${leftWords(seconds)}`,
     rewritten: "Rewritten. The new draft waits its turn.",
     gone: "It went before it could be stopped.",

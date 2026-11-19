@@ -16,13 +16,13 @@ import {
 } from "@chanlytics/contracts";
 import { afterSlotWords, dayStripOf, stripHour } from "./moment";
 import { commitVerb } from "@/bridge/verbs/commit";
-import { answerRequest } from "../../../booking-request";
+import { answerRequest, offerWords, type OpenTime } from "../../../booking-request";
 import { Button } from "../../../kit";
 import { appNavigate, gate } from "../../shell";
 import { SayToAsk } from "./ask-line";
 import { rewriteDraft } from "../drafts";
 import { Acts, Done, Going, Note, Words, startKind, type WorkProps } from "../parts";
-import { dayOfInstant, useOpenTimes, type OpenTime } from "./reads";
+import { dayOfInstant, useOpenTimes } from "./reads";
 import { useRowState } from "../row-state";
 import { holdAct, undoSend, useSend } from "../sends";
 
@@ -91,10 +91,6 @@ function Slot({ card }: { card: ReturnType<typeof bookingRequestCardOf> }) {
     </div>
   );
 }
-
-/** An open time as a sentence offers it: "4:30 PM tomorrow", "10:00 AM on Wed, Nov 11". */
-const offerWords = (t: OpenTime): string =>
-  /^(today|tomorrow)$/i.test(t.day) ? `${t.time} ${t.day.toLowerCase()}` : `${t.time} on ${t.day}`;
 
 /** A time to offer, as a press to pick it. */
 function TimePress({ time, on, onPress }: { time: OpenTime; on: boolean; onPress: () => void }) {

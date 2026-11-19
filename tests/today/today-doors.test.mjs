@@ -522,6 +522,14 @@ test("the card once it answers: Setup's own rows, WhatsApp first, folded to the 
     const rows = findAll(card, (n) => /^setup-row-/.test(n.props?.["data-testid"] ?? ""));
     assert.equal(rows[0].props["data-testid"], "setup-row-whatsapp", "WhatsApp leads: it sends the booking link");
     assert.ok(rows.length > 1, "and what else is left follows it");
+    // Its progress is drawn from the first visit, a part a step, the ones still to do as outlines (his call, 18 Nov 2026:
+    // it was hidden until a step was done, and the empty parts are what say how short the list is).
+    const steps = find(
+      card,
+      (n) => Array.isArray(n.props?.parts) && /(^| )tz-done( |$)/.test(n.props?.className ?? ""),
+    );
+    assert.ok(steps, "REGRESSION: the card's progress was hidden until a step was done");
+    assert.equal(steps.props.parts.filter((p) => p.tone === "open").length, rows.length, "a part for each step left");
     // The card's compact rows (canvas R10): the next one's act coral, the others outlined, each with its Skip.
     const verbs = rows.map((r) => find(r, (n) => n.props?.["data-testid"] === "setup-verb"));
     assert.equal(verbs[0].props.className, "setup-card-btn primary");

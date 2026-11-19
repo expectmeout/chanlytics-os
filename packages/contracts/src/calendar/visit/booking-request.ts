@@ -167,10 +167,14 @@ export const BOOKING_REQUEST_WORDS = {
     `You're booked for ${when}${service ? ` for ${articled(service)}` : ""}.`,
   booked_it: "Booked it",
   cant_it: "Can't",
-  /** The Inbox's request card (the thread canvas, 1 Nov 2026): its two answers, what they do, and the time it holds. */
+  /**
+   * The Inbox's request card (the thread canvas, 1 Nov 2026): its two answers, what they do, and the time it holds. Can't
+   * do it writes the offer of the next open times (Ruben's call, 18 Nov 2026: Today's Another time offered real open times,
+   * and a time asked for is answered in its conversation since Today with colour, where the box was left empty).
+   */
   cant_do_it: "Can't do it",
   card_foot:
-    "Booked it writes their confirmation into the box for you to send. Can't do it leaves the box to offer another time.",
+    "Booked it writes their confirmation into the box for you to send. Can't do it writes an offer of your next open times.",
   holds: "Open on your calendar",
   lapsed: "No longer held on your calendar",
   day: "Day",
@@ -204,6 +208,8 @@ export interface BookingRequestCardVM {
   hours: string;
   /** Its day and hours as the sheet heads them: "Tomorrow · 3:00 – 3:30 PM". */
   when: string;
+  /** Its start as a sentence to them says it: "tomorrow at 3:00 PM" (slotNear), which Can't do it's offer opens with. */
+  near: string;
   service: string | null;
   /** Whether it still takes its time on the calendar (it expires an hour before the slot, or a day after it was asked). */
   holds: boolean;
@@ -237,6 +243,7 @@ export function bookingRequestCardOf(
     dayLong: dateFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" }).format(at),
     hours: requestHoursOf(startMs, endMs, tz),
     when: `${capitalized(dayWordOf(startMs, tz, nowMs))} · ${requestHoursOf(startMs, endMs, tz)}`,
+    near: slotNear(startMs, tz, nowMs),
     service: row.service && row.service.trim() ? row.service.trim() : null,
     holds: !row.expires_at || Date.parse(row.expires_at) > nowMs,
     to: visitRoute(row.id, key),
