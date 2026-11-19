@@ -4,8 +4,9 @@
  * A person who taps an ad and writes arrives with the ad's referral. Its id and kind ride in the message's meta, where
  * the database stamps the person and opens the ad's entry in the message's own transaction (00306, 00644). What the ad
  * said (its headline, its words, its kind of media, its link) is kept here, in a call of its own after the ingest, so
- * nothing an advertiser typed can cost a customer's message its place: a keep that fails is one log line,
- * `ad_entry_keep_failed`, and an entry whose words never arrived, which is how the loss is counted. Never throws.
+ * nothing an advertiser typed can cost a customer's message its place. A keep that fails, or finds no entry to keep on,
+ * is one log line, `ad_entry_keep_failed`, and an entry whose words never arrived, which is how the loss is counted.
+ * Never throws.
  *
  * Either deploy order: a database that has not run 00644 has no door to call, and that is nothing to say.
  */
@@ -40,7 +41,8 @@ export async function keepWhatTheAdSaid(
   if (referral?.sourceType !== "ad") return;
   try {
     const kept = await keepAdEntry(db, tenantId, messageId, saidForTheDoor(referral.said));
-    if (kept === "none") logger({ tenant_id: tenantId }).warn("ad_entry_not_opened", { message: messageId });
+    if (kept === "none")
+      logger({ tenant_id: tenantId }).warn("ad_entry_keep_failed", { message: messageId, error: "no entry" });
   } catch (e) {
     logger({ tenant_id: tenantId }).error("ad_entry_keep_failed", { message: messageId, error: errField(e) });
   }

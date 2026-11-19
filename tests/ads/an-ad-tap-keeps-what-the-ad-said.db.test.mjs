@@ -2,13 +2,14 @@
  * 00644 on a real Postgres: an ad tap keeps what the ad said (decision 0049, step P0a).
  *
  * A message whose referral is an ad opens one entry (ad_entries) in its own transaction, whether or not it made the
- * person, and the edge keeps what the ad said on it afterwards (ad_entry_keep), each part alone. The writers are the
- * real ones: ingest_inbound, whose body this change does not restate, and the door the edge calls. What must hold: one
- * entry a message however often it is delivered; the first words stand; a part that is odd is dropped and the rest
- * kept; a person counted for an ad is counted for the first one, and a later tap adds an entry and moves no count; an
- * entry follows two people combined and goes with a person erased; a member reads their workspace's entries and writes
- * none; and a person an ad's own door added is stamped `ad`. Runs against the database `supabase start` builds on this
- * machine, never production.
+ * person, and the edge keeps what the ad said on it afterwards, each part alone, through the one door that writes the
+ * table (ad_entry_keep). The writers are the real ones: ingest_inbound, whose body this change does not restate, and
+ * the door the edge calls. What must hold: one entry a message however often it is delivered; the first words stand; a
+ * part that is odd is dropped and the rest kept; a person counted for an ad is counted for the first one, and a later
+ * tap adds an entry and moves no count; an entry is its message's, so it is read with the person who is kept when two
+ * are combined and goes with a person erased; a member reads their workspace's entries and writes none; and a person an
+ * ad's own door added is stamped `ad`. Runs against the database `supabase start` builds on this machine, never
+ * production.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -103,15 +104,22 @@ async function arrive({ channel = "whatsapp", meta = { raw_type: "text" }, numbe
 }
 const keep = (messageId, said, as = db) =>
   as.rpc("ad_entry_keep", { p_tenant_id: tenantId, p_message_id: messageId, p_said: said });
-const entriesOf = async (contactId) =>
-  ok(
+/** A person's entries, oldest first: those of their messages (an entry names its message, and no person). */
+const entriesOf = async (contactId) => {
+  const theirs = ok(await db.from("messages").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId));
+  if (theirs.length === 0) return [];
+  return ok(
     await db
       .from("ad_entries")
-      .select("contact_id, message_id, platform, platform_ad_id, kind, new_person, said, said_at, ad_id, external_ref")
+      .select("message_id, platform, platform_ad_id, kind, new_person, said, said_at, ad_id, external_ref")
       .eq("tenant_id", tenantId)
-      .eq("contact_id", contactId)
+      .in(
+        "message_id",
+        theirs.map((m) => m.id),
+      )
       .order("created_at"),
   );
+};
 const touchOf = async (contactId) => {
   const c = ok(await db.from("contacts").select("acquired_via, acquired_ref").eq("id", contactId).single());
   return [c.acquired_via, c.acquired_ref];
@@ -128,7 +136,6 @@ test(
       await entriesOf(r.contact_id),
       [
         {
-          contact_id: r.contact_id,
           message_id: r.message_id,
           platform: "meta",
           platform_ad_id: adId,
@@ -257,7 +264,7 @@ test("each part of what the ad said is kept or dropped alone, at the bounds the 
     { headline: "Kept" },
     "nothing but the four parts is kept: no click id",
   );
-  for (const odd of [null, 7, ["headline"], {}])
+  for (const odd of [7, ["headline"], {}])
     assert.deepEqual(
       await kept(odd),
       {},
@@ -285,27 +292,56 @@ test("an entry whose words never arrived says so, and that is how a failed keep 
   );
 });
 
-test("two people combined keep their entries: they follow the one who is kept", { skip: skipMember }, async () => {
-  const member = await ownerSession();
-  const adId = `1202${stamp}09`;
-  // The record that is merged away is the one the ad made, known by its address alone (as merge-people.db's own first
-  // case merges an email record into a phone one): the trigger reads a referral on any wire.
-  const tapped = await arrive({ channel: "email", meta: adMeta(adId) });
-  ok(
-    await db
-      .from("contacts")
-      .update({ email: `tapped.${stamp}@example.com` })
-      .eq("id", tapped.contact_id),
-  );
-  ok(await keep(tapped.message_id, { headline: "Follows the person" }));
-  const kept = await arrive();
-  ok(await member.rpc("merge_people", { p_keep: kept.contact_id, p_merge: tapped.contact_id }));
-  assert.deepEqual(await entriesOf(tapped.contact_id), [], "none left on the row that was merged away");
-  assert.deepEqual(
-    (await entriesOf(kept.contact_id)).map((e) => [e.message_id, e.platform_ad_id, e.said]),
-    [[tapped.message_id, adId, { headline: "Follows the person" }]],
-  );
-});
+test(
+  "the door opens the same entry whoever calls it: with no words it only opens, and the edge's call opens one the trigger did not",
+  { skip },
+  async () => {
+    const adId = `1202${stamp}13`;
+    const r = await arrive({ meta: adMeta(adId) });
+    assert.equal(ok(await keep(r.message_id, null)), "opened", "no words given: nothing is kept, and nothing is lost");
+    assert.equal((await entriesOf(r.contact_id))[0].said_at, null);
+
+    // As if the trigger's own call had failed: the entry is not there when the edge's call arrives.
+    ok(await db.from("ad_entries").delete().eq("message_id", r.message_id));
+    assert.equal(ok(await keep(r.message_id, { headline: "Opened by the edge" })), "kept");
+    assert.deepEqual(
+      (await entriesOf(r.contact_id)).map((e) => [e.platform, e.platform_ad_id, e.kind, e.new_person, e.said]),
+      [["meta", adId, "chat", true, { headline: "Opened by the edge" }]],
+      "the ad and whether it made the person are read from the message's own row",
+    );
+    assert.equal(
+      ok(await keep("00000000-0000-4000-8000-000000000000", { headline: "No such message" })),
+      "none",
+      "a message that is not there opens nothing",
+    );
+  },
+);
+
+test(
+  "two people combined keep their entries: they are read with the one who is kept",
+  { skip: skipMember },
+  async () => {
+    const member = await ownerSession();
+    const adId = `1202${stamp}09`;
+    // The record that is merged away is the one the ad made, known by its address alone (as merge-people.db's own first
+    // case merges an email record into a phone one): the trigger reads a referral on any wire.
+    const tapped = await arrive({ channel: "email", meta: adMeta(adId) });
+    ok(
+      await db
+        .from("contacts")
+        .update({ email: `tapped.${stamp}@example.com` })
+        .eq("id", tapped.contact_id),
+    );
+    ok(await keep(tapped.message_id, { headline: "Follows the person" }));
+    const kept = await arrive();
+    ok(await member.rpc("merge_people", { p_keep: kept.contact_id, p_merge: tapped.contact_id }));
+    assert.deepEqual(await entriesOf(tapped.contact_id), [], "none left with the row that was merged away");
+    assert.deepEqual(
+      (await entriesOf(kept.contact_id)).map((e) => [e.message_id, e.platform_ad_id, e.said]),
+      [[tapped.message_id, adId, { headline: "Follows the person" }]],
+    );
+  },
+);
 
 test("an erased person's entries go with them, and their count stays", { skip: skipMember }, async () => {
   const member = await ownerSession();
@@ -313,7 +349,11 @@ test("an erased person's entries go with them, and their count stays", { skip: s
   const r = await arrive({ meta: adMeta(adId) });
   ok(await keep(r.message_id, { headline: "Goes with the person" }));
   ok(await member.rpc("erase_contact", { p_contact_id: r.contact_id }));
-  assert.deepEqual(await entriesOf(r.contact_id), [], "what the ad said to them is gone with their messages");
+  assert.deepEqual(
+    ok(await db.from("ad_entries").select("id").eq("message_id", r.message_id)),
+    [],
+    "what the ad said to them is gone with their messages",
+  );
   assert.deepEqual(await touchOf(r.contact_id), ["ad", adId], "the count of who an ad brought keeps them (00306)");
 });
 

@@ -207,7 +207,6 @@ async function seed() {
   // What an ad said to them (00644, decision 0049): the entry names the message that carried the ad, and goes with it.
   await insert("ad_entries", {
     tenant_id: T,
-    contact_id: A,
     message_id: message,
     platform: "meta",
     platform_ad_id: `ad-${DIGITS}`,

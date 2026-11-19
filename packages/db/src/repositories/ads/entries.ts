@@ -1,7 +1,8 @@
 /**
- * An ad's entries (ad_entries, 00644; decision 0049): one row each time someone reaches a workspace through an ad. The
- * database opens the row itself, with the message that carried the ad (the first-touch trigger); what the ad said is
- * kept on it here, by the message's id, as the service role. The one place the door is called.
+ * An ad's entries (ad_entries, 00644; decision 0049): one row each time someone reaches a workspace through an ad. One
+ * door writes it, ad_entry_keep. The database calls it with the message that carried the ad (the first-touch trigger),
+ * which opens the row; what the ad said is kept on it here, by the message's id, as the service role. The one place
+ * code calls the door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure, type TenantId } from "@chanlytics/contracts";
@@ -18,8 +19,8 @@ export interface AdEntrySaid {
 
 /**
  * What became of the words: `kept` on the entry; `already` there (the message was delivered twice, and the first words
- * stand); `none`, the message opened no entry; or `no_door`, a database that has not run 00644 yet, where nothing is
- * kept and nothing is wrong (either deploy order).
+ * stand); `none`, the message came from no ad the database can read; or `no_door`, a database that has not run 00644
+ * yet, where nothing is kept and nothing is wrong (either deploy order).
  */
 export type AdEntryKept = "kept" | "already" | "none" | "no_door";
 

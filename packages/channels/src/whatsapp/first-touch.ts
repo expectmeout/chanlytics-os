@@ -110,7 +110,7 @@ function partsOrNothing(parts: AdSaid): AdSaid | null {
 
 /**
  * The ad or post a message came from (K3), read defensively. A click-to-WhatsApp referral's shape is Meta's to change
- * and unverified here, so nothing is assumed of `r`: it may be absent, not an object, or hold an id that is not a string.
+ * and unverified here, so nothing is assumed of it: it may be absent, not an object, or hold an id that is not a string.
  * The id and the kind are kept only when what they hold can always be written. The id is trimmed (padding is not part of
  * an id, and the trigger trims the same), then it is none when blank, longer than `REFERRAL_ID_MAX` (the one length the
  * column keeps; never cut, a cut id would name another ad) or holding what `UNSTORABLE_IN_ID` names: the stamp the
@@ -119,16 +119,16 @@ function partsOrNothing(parts: AdSaid): AdSaid | null {
  * Click to WhatsApp ad names them) is read part by part, each kept or dropped alone. Never throws, so a referral can
  * cost a message nothing.
  */
-export function adReferralOf(r: unknown): Referral | null {
-  if (!isObjectRecord(r)) return null;
+export function adReferralOf(referral: unknown): Referral | null {
+  if (!isObjectRecord(referral)) return null;
   return storableReferral(
-    r.source_id,
-    r.source_type,
+    referral.source_id,
+    referral.source_type,
     partsOrNothing({
-      headline: boundedWords(r.headline, AD_SAID_MAX.headline),
-      body: boundedWords(r.body, AD_SAID_MAX.body),
-      mediaType: plainWordOf(r.media_type),
-      link: linkOf(r.source_url),
+      headline: boundedWords(referral.headline, AD_SAID_MAX.headline),
+      body: boundedWords(referral.body, AD_SAID_MAX.body),
+      mediaType: plainWordOf(referral.media_type),
+      link: linkOf(referral.source_url),
     }),
   );
 }
