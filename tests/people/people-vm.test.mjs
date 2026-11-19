@@ -983,6 +983,22 @@ test("a person an ad brought: the line of where they came from names the ad, or 
     );
 });
 
+test('where they came from writes its day as a day is written ("Jul 14"); only a floor\'s "before" reads on in lower case', () => {
+  const origin = (rowOver) =>
+    toPersonVM({ ...detail(), row: row({ came_from: "whatsapp", ...rowOver }) }, ZONE, NOW).origin;
+  const day = { first_contact_at: "2026-07-14T12:00:00Z" };
+  assert.equal(origin(day), "Wrote on WhatsApp · Jul 14");
+  assert.equal(origin({ ...day, came_from: "call" }), "Phoned you · Jul 14");
+  assert.equal(origin({ ...day, came_from: "sms" }), "Texted you · Jul 14");
+  assert.equal(origin({ ...day, came_from: "email" }), "Wrote by email · Jul 14");
+  // No door's own day (nothing added them here): the day is People's first contact for them, written the same.
+  assert.equal(origin({ ...day, came_from: "manual" }), "Added by hand · Jul 14");
+  // Only history moved in with no time of its own: a floor, not a day, so its "Before" reads on within the line.
+  const floor = { first_contact_at: null, has_backfill: true, earliest_row_at: "2026-08-27T12:00:00Z" };
+  assert.equal(origin(floor), "Wrote on WhatsApp · before Aug 27");
+  assert.equal(origin({ ...floor, came_from: "manual" }), "Added by hand · before Aug 27");
+});
+
 test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {
   assert.deepEqual(contracts.PERSON_CAME_FROM_WORDS, {
     whatsapp: "WhatsApp",

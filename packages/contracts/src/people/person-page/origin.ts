@@ -153,7 +153,12 @@ function oursFirst(e: ContactEvidence): { call: true } | { on: string } | null {
 /** How our first written words went, in a sentence: as a yes is said for the three a yes covers, and a DM by its own words. */
 const FIRST_WRITTEN_ON: Record<WrittenChannel, string> = { ...CONSENT_CHANNEL_WORDS, instagram: "by Instagram DM" };
 
-const firstLowered = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
+/**
+ * People's first contact for them, as a line says it after its words: a day as a day is written ("Jul 14"), and a
+ * floor reading on within the line ("before Aug 27"). Only the floor's own word is lowered, never a month's name.
+ */
+const firstDayOf = (first: ContactEvidence["first"]): string =>
+  first.estimate ? `${first.label.charAt(0).toLowerCase()}${first.label.slice(1)}` : first.label;
 
 /**
  * Where they came from, in one line (ORIGIN_WORDS), or null where nothing says: the wire they first reached you on and
@@ -177,7 +182,7 @@ export function personOriginOf(contactEvidence: ContactEvidence, tz: string, now
 function addedDayOf(contactEvidence: ContactEvidence, tz: string, nowMs: number): string | null {
   const ms = contactEvidence.added?.ms ?? null;
   if (ms !== null) return clockDate(ms, tz, nowMs);
-  return contactEvidence.first.ts !== null ? firstLowered(contactEvidence.first.label) : null;
+  return contactEvidence.first.ts !== null ? firstDayOf(contactEvidence.first) : null;
 }
 
 /** The line before any ad is named: the wire, the door or the finding, and its day. */
@@ -188,7 +193,7 @@ function originLineOf(contactEvidence: ContactEvidence, tz: string, nowMs: numbe
   const words = ORIGIN_WORDS;
   if (from === "call" || from === "whatsapp" || from === "sms" || from === "email") {
     if (contactEvidence.first.ts === null) return null;
-    const when = firstLowered(contactEvidence.first.label);
+    const when = firstDayOf(contactEvidence.first);
     const ours = oursFirst(contactEvidence);
     if (ours) return "call" in ours ? words.weCalledFirst(when) : words.weWroteFirstOn(ours.on, when);
     return words[from](when);
