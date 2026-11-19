@@ -182,10 +182,10 @@ function CardWord({ vm, onOpen }: { vm: ConnectCardVM; onOpen: () => void }) {
   );
 }
 
-/** The ad account's card. */
-export function ConnectCard({ vm, acts }: { vm: ConnectCardVM; acts: CardActs }) {
+/** The ad account's card, under the name the page that draws it says it by (`title`). */
+export function ConnectCard({ vm, acts, title }: { vm: ConnectCardVM; acts: CardActs; title: string }) {
   return (
-    <Panel as="section" className="ads-conn" aria-label={CARD.name} data-state={vm.state} data-testid="ads-conn">
+    <Panel as="section" className="ads-conn" aria-label={title} data-state={vm.state} data-testid="ads-conn">
       <div className="ads-conn-head">
         <span
           className="ads-dot"
@@ -193,7 +193,7 @@ export function ConnectCard({ vm, acts }: { vm: ConnectCardVM; acts: CardActs })
           data-turning={vm.state === "checking" ? "true" : undefined}
           aria-hidden="true"
         />
-        <b>{CARD.name}</b>
+        <b>{title}</b>
         <CardWord vm={vm} onOpen={acts.open} />
       </div>
       {vm.says.map((said) => (

@@ -10,6 +10,11 @@ import type { AdCardCheckId } from "@chanlytics/contracts";
 
 export const CARD = {
   name: "Facebook and Instagram",
+  /**
+   * The card's name in Settings › Connections, where it sits under the Meta row of Instagram's messages: said as the
+   * ads, so the two are never read as one connection. On the Ads page the page already says it is ads.
+   */
+  inConnections: "Facebook and Instagram ads",
   notConnected: "Not connected",
   checking: "Checking",
   connected: "Connected",

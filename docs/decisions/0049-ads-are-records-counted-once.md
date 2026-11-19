@@ -441,6 +441,13 @@ the five checks reads. Where it is not as first drawn, it is said here.
   the window knew itself. The page now leaves a mark in the app's storage while the window is open, good for the same
   hour; the page that comes back with the mark takes it and closes. A browser that opens no window leaves none, so the
   owner's own tab never closes.
+- **In Settings › Connections the card stands in its group, under the Meta row.** It sat at the page's foot, after
+  Later, called "Facebook and Instagram" under a "Meta · Connected" row, and an owner saw two Meta connections they could
+  not tell apart (the first account connected, 19 November). It now stands as a row does: in Connected once an account
+  is connected or Meta signed Chanlytics out, Available before, under the Meta row where that row is in the same group,
+  and the group's count holds it. There it is called "Facebook and Instagram ads"; the Ads page keeps its own name. The
+  card keeps its one read: the pane keeps a place for it and the card is drawn into that place
+  (`settings/connections/ad-account-real.tsx`).
 
 ## As built, 19 November 2026 · Money has one count on every runtime
 
