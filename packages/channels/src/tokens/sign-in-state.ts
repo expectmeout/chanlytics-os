@@ -100,7 +100,7 @@ export function newNonce(): string {
  * A state for one provider's sign-in: the workspace, the person signed in, a nonce and ten minutes, naming the provider
  * so no other provider's callback takes it.
  */
-export function signInStateFor(
+export function signStateFor(
   secret: string,
   signIn: { tenantId: string; userId: string; provider: string },
   nowMs: number,
@@ -119,7 +119,7 @@ export function signInStateFor(
  * and naming the person signed in now. What it gives is the workspace it was made for; nothing of a sign-in is trusted
  * before this. A state made for another provider is `malformed`, as one that is no state at all.
  */
-export async function provenSignInState(
+export async function proveStateFor(
   secret: string,
   state: string | null | undefined,
   expected: { provider: string; userId: string },

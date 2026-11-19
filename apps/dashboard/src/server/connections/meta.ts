@@ -8,7 +8,7 @@
  */
 import { AppError, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/meta";
-import { provenSignInState, signInStateFor } from "@chanlytics/channels/tokens";
+import { proveStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -81,7 +81,7 @@ export async function startMetaConnect(ctx: RouteContext, member: Member): Promi
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Meta is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
-  const state = await signInStateFor(secret, signIn, Date.now());
+  const state = await signStateFor(secret, signIn, Date.now());
   const url = metaDialogUrl(
     { clientId: ready.app.client_id, configId: ready.app.config_id, redirectUri: ready.app.redirect_uri },
     state,
@@ -105,7 +105,7 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
   const expected = { provider: PROVIDER, userId: ctx.userId };
-  const proof = await provenSignInState(secret, loginReturn.state, expected, Date.now());
+  const proof = await proveStateFor(secret, loginReturn.state, expected, Date.now());
   if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: TenantId;
   try {

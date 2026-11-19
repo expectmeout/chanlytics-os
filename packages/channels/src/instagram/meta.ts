@@ -12,7 +12,7 @@
  * Meta's Unified Login pages (get started, authentication, webhooks setup) on 9 November 2026.
  */
 import { valueAt } from "@chanlytics/contracts";
-import { META_GRAPH, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { instagramErrorOf } from "./graph";
 
@@ -30,12 +30,10 @@ const FIELDS_BY_PERMISSION: ReadonlyArray<readonly [string, readonly string[]]> 
   ["instagram_manage_insights", ["story_insights"]],
 ];
 
-const query = (params: Record<string, string>): string => new URLSearchParams(params).toString();
-
 /** The Instagram professional accounts the business shared with the app in the dialog. */
 export function metaAssignedAccountsRequest(token: string, appSecret: string): MetaRequest {
   return {
-    url: `${META_GRAPH}/me/assigned_instagram_accounts?${query({ fields: "id,username", ...metaProofQuery(token, appSecret) })}`,
+    url: metaGraphUrl("me/assigned_instagram_accounts", { fields: "id,username", ...metaProofQuery(token, appSecret) }),
     method: "GET",
   };
 }
@@ -43,7 +41,10 @@ export function metaAssignedAccountsRequest(token: string, appSecret: string): M
 /** The account itself: its handle and name, for the row. */
 export function metaAccountRequest(token: string, appSecret: string, accountId: string): MetaRequest {
   return {
-    url: `${META_GRAPH}/${encodeURIComponent(accountId)}?${query({ fields: "id,username,name", ...metaProofQuery(token, appSecret) })}`,
+    url: metaGraphUrl(encodeURIComponent(accountId), {
+      fields: "id,username,name",
+      ...metaProofQuery(token, appSecret),
+    }),
     method: "GET",
   };
 }
@@ -62,10 +63,10 @@ export function metaSubscribeRequest(
   fields: readonly string[],
 ): MetaRequest {
   return {
-    url: `${META_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query({
+    url: metaGraphUrl(`${encodeURIComponent(accountId)}/subscribed_apps`, {
       subscribed_fields: fields.join(","),
       ...metaProofQuery(token, appSecret),
-    })}`,
+    }),
     method: "POST",
   };
 }
@@ -73,7 +74,7 @@ export function metaSubscribeRequest(
 /** The account's events no longer sent to this app (a disconnect). */
 export function metaUnsubscribeRequest(token: string, appSecret: string, accountId: string): MetaRequest {
   return {
-    url: `${META_GRAPH}/${encodeURIComponent(accountId)}/subscribed_apps?${query(metaProofQuery(token, appSecret))}`,
+    url: metaGraphUrl(`${encodeURIComponent(accountId)}/subscribed_apps`, metaProofQuery(token, appSecret)),
     method: "DELETE",
   };
 }

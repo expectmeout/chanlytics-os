@@ -15,16 +15,16 @@ interface TouchVisit {
   status: AppointmentStatus;
 }
 
-const momentOf = (at: number | string): number => (typeof at === "number" ? at : Date.parse(at));
+const instantMs = (at: number | string): number => (typeof at === "number" ? at : Date.parse(at));
 
 /**
  * Whether someone who first got in touch at `touchAt` has booked since, over every visit the record and the feed hold
  * for them. A first touch or a start that is not a time counts for nothing.
  */
 export function bookedAfterTouch(touchAt: number | string, visits: readonly TouchVisit[]): boolean {
-  const touchMs = momentOf(touchAt);
+  const touchMs = instantMs(touchAt);
   if (!Number.isFinite(touchMs)) return false;
   return visits.some(
-    (visit) => visit.status !== "cancelled" && visit.status !== "proposed" && momentOf(visit.start) > touchMs,
+    (visit) => visit.status !== "cancelled" && visit.status !== "proposed" && instantMs(visit.start) > touchMs,
   );
 }

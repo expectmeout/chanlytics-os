@@ -120,8 +120,6 @@ export function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): 
   return grant.scope.split(/\s+/).includes(scope);
 }
 
-const dec = new TextDecoder();
-
 /**
  * The id token's claims, read without verification: it arrived in the token
  * endpoint's own answer over TLS, so its issuer is not in question, and the
@@ -132,7 +130,7 @@ export function idTokenClaims(idToken: string | null | undefined): { email: stri
   try {
     const payload = (idToken ?? "").split(".")[1];
     if (payload === undefined) return { email: null, sub: null };
-    const c = JSON.parse(dec.decode(unb64url(payload))) as Record<string, unknown>;
+    const c = JSON.parse(new TextDecoder().decode(unb64url(payload))) as Record<string, unknown>;
     return { email: typeof c.email === "string" ? c.email : null, sub: typeof c.sub === "string" ? c.sub : null };
   } catch {
     return { email: null, sub: null };

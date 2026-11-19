@@ -7,7 +7,7 @@
  */
 import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
-import { provenSignInState, signInStateFor } from "@chanlytics/channels/tokens";
+import { proveStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -106,7 +106,7 @@ export async function startInstagramConnect(ctx: RouteContext, member: Member): 
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting Instagram is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
-  const state = await signInStateFor(secret, signIn, Date.now());
+  const state = await signStateFor(secret, signIn, Date.now());
   const url = instagramAuthorizeUrl({ clientId: ready.app.client_id, redirectUri: ready.app.redirect_uri }, state);
   return new Response(null, { status: 302, headers: { location: url } });
 }
@@ -127,7 +127,7 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
   const expected = { provider: PROVIDER, userId: ctx.userId };
-  const proof = await provenSignInState(secret, loginReturn.state, expected, Date.now());
+  const proof = await proveStateFor(secret, loginReturn.state, expected, Date.now());
   if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: string;
   try {

@@ -29,7 +29,8 @@ import type { AdDoor, AdPlatform, AdRead, AdTheirs, AdsConfig, AdsRead, AdsScope
 import { aboutMoneyOf, sumMoney } from "../model/money";
 import { adsModel } from "../model/page";
 import type { AdRowVM } from "../model/page";
-import { pageTotals, tilesOf } from "../model/page-parts";
+import { tilesOf } from "../model/page-parts";
+import { pageTotals } from "../model/page-totals";
 import type { TilesVM } from "../model/page-parts";
 import { DASH, PLATFORMS, adAccountOf, counted, readTime, started, sum, timeOf, totalsOf } from "../model/vm-base";
 import type { CellVM, FigureVM } from "../model/vm-base";

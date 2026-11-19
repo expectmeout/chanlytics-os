@@ -319,5 +319,5 @@ changes with it, and nothing checks the permission yet. Where it is not as this 
   Meta that comes with no words of its own is said as "Meta refused the request" by the client's three parsers, where
   it was "Instagram refused the request".
 - **The one sign-in state helper.** `packages/channels/src/tokens/sign-in-state.ts`, moved word for word out of
-  Google's module, so a state signed before a deploy proves itself after it. `signInStateFor` and `provenSignInState`
+  Google's module, so a state signed before a deploy proves itself after it. `signStateFor` and `proveStateFor`
   are what Instagram's and Meta's connects share, and what an ad account's connect will use.

@@ -52,6 +52,10 @@ export const metaProofQuery = (token: string, appSecret: string): Record<string,
 
 const query = (params: Record<string, string>): string => new URLSearchParams(params).toString();
 
+/** A Graph address: a path under META_GRAPH with its query. */
+export const metaGraphUrl = (path: string, params: Record<string, string>): string =>
+  `${META_GRAPH}/${path}?${query(params)}`;
+
 /** Facebook Login for Business's dialog with the app's configuration, and the signed state that brings the owner back. */
 export function metaDialogUrl(app: Pick<MetaApp, "clientId" | "configId" | "redirectUri">, state: string): string {
   return `${META_DIALOG}?${query({
@@ -69,12 +73,12 @@ export function metaCodeRequest(
   code: string,
 ): MetaRequest {
   return {
-    url: `${META_GRAPH}/oauth/access_token?${query({
+    url: metaGraphUrl("oauth/access_token", {
       client_id: app.clientId,
       client_secret: app.clientSecret,
       redirect_uri: app.redirectUri,
       code: code.trim().replace(/#_$/, ""),
-    })}`,
+    }),
     method: "GET",
   };
 }
@@ -82,7 +86,7 @@ export function metaCodeRequest(
 /** What a token may do and how long it lives, asked with the app's own token (`<app id>|<app secret>`). */
 export function metaDebugTokenRequest(app: Pick<MetaApp, "clientId" | "clientSecret">, token: string): MetaRequest {
   return {
-    url: `${META_GRAPH}/debug_token?${query({ input_token: token, access_token: `${app.clientId}|${app.clientSecret}` })}`,
+    url: metaGraphUrl("debug_token", { input_token: token, access_token: `${app.clientId}|${app.clientSecret}` }),
     method: "GET",
   };
 }
@@ -90,7 +94,7 @@ export function metaDebugTokenRequest(app: Pick<MetaApp, "clientId" | "clientSec
 /** The business the token belongs to: `/me` is its system user, and names the client's business portfolio. */
 export function metaBusinessRequest(token: string, appSecret: string): MetaRequest {
   return {
-    url: `${META_GRAPH}/me?${query({ fields: "client_business_id", ...metaProofQuery(token, appSecret) })}`,
+    url: metaGraphUrl("me", { fields: "client_business_id", ...metaProofQuery(token, appSecret) }),
     method: "GET",
   };
 }
