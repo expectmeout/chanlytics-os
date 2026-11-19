@@ -52,6 +52,8 @@ import { logger } from "../../shared/log.js";
 import { holdSource, markAway, itemStandingOf, unfoundMarkOf, type AwayMark } from "./away.js";
 import { keepPage, planPage } from "./items.js";
 import { agreesWithHold, isMassGone, nextWalkOf, SOURCE_PACE } from "./pace.js";
+import { keepUnitsSpent } from "../takes/ends.js";
+import { handOutTakesNow } from "../takes/hand-out.js";
 import { freezeSource, leaveRefusedKey, openSource, type OpenSource } from "./standing.js";
 import { SOURCE_WORDS } from "./words.js";
 
@@ -463,6 +465,9 @@ export async function runSourceWalk(
   } catch (error) {
     // A key its provider refused is settled before anything is paused; anything else is the job's to fail on.
     return leaveRefusedKey(opened.open, error);
+  } finally {
+    // What the step spent at its provider, on the day's count beside the takes' (00643 source_days), however it ended.
+    await keepUnitsSpent(db, opened.open.spent);
   }
 }
 
@@ -496,5 +501,7 @@ async function walkOpened(
       patch: { walk_units: walk.unitsBefore + open.spent.units },
     });
   open.log.info("source_walked", { source: open.source.id, run, kind: walk.kind, ...walk.out });
+  // A walk that ended asked for the newest of what it listed: its workspace's are handed their jobs now.
+  if (walk.out.ended) await handOutTakesNow(open.db, open.ref.tenantId);
   return { walked: walk.out };
 }

@@ -87,12 +87,17 @@ function edgeRefusal(edgeAnswer: EdgeAnswer, words: { failed: string; noPersona?
 /**
  * POST receptionist/rehearsals: a call in the browser, made at the provider, and the token the browser joins it with.
  * `userId` is the member who asked, or null for a lead's own receptionist called from its preview page (decision 0079).
+ * `listen` asks for a call nobody speaks on: that page hearing its greeting, which it joins with no microphone.
  */
-export async function startRehearsal(tenantId: TenantId, userId: string | null): Promise<RehearsalStartDto> {
+export async function startRehearsal(
+  tenantId: TenantId,
+  userId: string | null,
+  listen: boolean,
+): Promise<RehearsalStartDto> {
   if (!edgeConfigured()) throw new AppError("conflict", REHEARSE_WORDS.talk.notLive, 409);
   const answer = await callEdge(
     "/api/admin/rehearsal/call",
-    { tenant_id: tenantId, ...(userId ? { user_id: userId } : {}) },
+    { tenant_id: tenantId, ...(userId ? { user_id: userId } : {}), ...(listen ? { listen: true } : {}) },
     { workspace: tenantId, user: userId, timeoutMs: START_TIMEOUT_MS },
   );
   const body = answer.body;

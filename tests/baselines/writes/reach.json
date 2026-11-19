@@ -32,7 +32,7 @@
       }
     },
     "DELETE files/[id]": {
-      "changes": "files UPDATE · files_let_go INSERT · posts UPDATE",
+      "changes": "files UPDATE · files_let_go INSERT · posts UPDATE · source_items UPDATE",
       "tells": "files"
     },
     "DELETE files/[id]/google": {
@@ -352,7 +352,7 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE",
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files"
     },
     "PATCH files/[id]/posts": {
@@ -931,7 +931,7 @@
     },
     "POST content/bring-in": {
       "changes": "",
-      "doors": "imports",
+      "doors": "imports · source_days",
       "door": {
         "content": "campaigns/content, campaigns/content/library",
         "files": "admin/files"
@@ -1246,7 +1246,7 @@
       }
     },
     "POST files/[id]/done": {
-      "changes": "files INSERT UPDATE",
+      "changes": "files INSERT UPDATE · source_items UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar",
@@ -1254,24 +1254,24 @@
       }
     },
     "POST files/[id]/google": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE",
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
       "tells": "files",
       "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications · tenant_channels"
     },
     "POST files/[id]/instagram": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE",
+      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files",
       "doors": "tenant_channels"
     },
     "POST files/[id]/restore": {
-      "changes": "files UPDATE · files_let_go DELETE",
+      "changes": "files UPDATE · files_let_go DELETE · source_items UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"
       }
     },
     "POST files/keep": {
-      "changes": "files UPDATE",
+      "changes": "files UPDATE · source_items UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar",
@@ -1279,14 +1279,14 @@
       }
     },
     "POST files/post": {
-      "changes": "files INSERT UPDATE",
+      "changes": "files INSERT UPDATE · source_items UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"
       }
     },
     "POST files/video": {
-      "changes": "files UPDATE · pieces INSERT UPDATE",
+      "changes": "files UPDATE · pieces INSERT UPDATE · source_items UPDATE",
       "tells": "files",
       "missing": {
         "calendar_runs": "calendar"

@@ -242,12 +242,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What a watched folder holds (00639). A file's name and who added it can hold a person's name; an erasure of a person
   // the workspace serves does not reach a file in the business's own folder (its owner removing it there is the remedy,
-  // as for a picture in the Library), and both leave with the workspace. The provider's ids, the checksum, the
-  // provider's token for a folder's next page (00641) and our words for why it was passed over name nobody (its kind
-  // and state are closed sets).
+  // as for a picture in the Library), and both leave with the workspace. The provider's ids, the checksum and the
+  // provider's token for a folder's next page (00641) name nobody (its kind, its state and why it stands there are
+  // closed sets: 00643 made the reason one).
   source_items: {
     ...all(WITH_WORKSPACE, "name", "added_by"),
-    ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "why", "walk_page"),
+    ...all(NOT_PERSONAL, "provider_id", "parent_id", "checksum", "walk_page"),
   },
   // What the business's own profile and website say (00479): its services, prices, closures, rules and description, the
   // page it was read from, and our words for a read that failed. The business's public facts, not a customer's.

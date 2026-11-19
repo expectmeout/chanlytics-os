@@ -9,13 +9,16 @@
  *     and its end (`endRehearsal`); a review (`keepRehearsalReview`), a typed one when it is reviewed
  *     (`keepTypedRehearsal`), and a reviewed call (`keepCallReview`).
  *   - The free minutes are read as the window's spoken seconds (`getRehearsalSpokenMs`): a call still running counts whole.
+ *   - A call only listened to (contracts REHEARSAL_LISTEN: a lead's preview hearing its greeting) is a spoken one whose
+ *     row says `end_reason: listened` from the moment its call is made: its seconds count, it holds no other call back,
+ *     and it is no call anyone made (`listEndedRehearsalCalls` leaves it out).
  *   - The dashboard reads a rehearsal under the member's own session (RLS), and appends a fix kept from it
  *     (`keepRehearsalFix`) through its door, `rehearsal_fix_keep` (00481), on that session once the settings write has
  *     gone through.
  *   - `findVoiceAgent` / `keepVoiceAgent`: the agent before the number. The service role alone.
  * Every statement on a workspace's table goes through `tenantDb`, so none can reach another workspace's row by an id.
  */
-import { MIN_MS, recordOrEmpty, listOrEmpty, isOneOf, DbFailure } from "@chanlytics/contracts";
+import { MIN_MS, REHEARSAL_LISTEN, recordOrEmpty, listOrEmpty, isOneOf, DbFailure } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { platformWide, tenantDb } from "../../shared/tenant-db";
@@ -146,8 +149,8 @@ export async function findRehearsalByCall(db: Db, retellCallId: string): Promise
 
 /**
  * The workspace's newest spoken rehearsals that ended and spoke, oldest first, each by its id and its seconds: what a
- * lead's preview draws its earlier calls from on a visit after them (decision 0079). `most` of them. A read that fails
- * throws.
+ * lead's preview draws its earlier calls from on a visit after them (decision 0079). `most` of them. A call only
+ * listened to is none of them: nobody called. A read that fails throws.
  */
 export async function listEndedRehearsalCalls(
   db: Db,
@@ -161,6 +164,8 @@ export async function listEndedRehearsalCalls(
     // Ended, and spoken: a call still running or one nobody spoke on is no line of a conversation.
     .not("ended_at", "is", null)
     .gt("seconds", 0)
+    // SQL's <> is never true of a NULL, so the rows with no reason are asked for beside it.
+    .or(`end_reason.is.null,end_reason.neq.${REHEARSAL_LISTEN.ended}`)
     .order("created_at", { ascending: false })
     .limit(most);
   if (error) throw new DbFailure(error, "cannot read the rehearsals that ended");
@@ -185,14 +190,19 @@ export async function callReviewOf(db: Db, tenantId: TenantId, callId: string): 
  * The window's spoken rehearsals: each by its provider's seconds once it ended, a running one by `runningMs` (the whole
  * of a call's length), and whether one is still running (made within `runningMs` and not ended). `since` is the window's
  * start, or null for every one the workspace ever made (before its plan). `except` is the start asking, whose own
- * reservation is no other call. A read that fails throws.
+ * reservation is no other call. A call only listened to that has not said it ended counts its own most, and is no call
+ * still running: the page left it as its greeting ended, so the call a person makes next is not held for its end. A
+ * read that fails throws.
  */
 export async function getRehearsalSpokenMs(
   db: Db,
   tenantId: TenantId,
   options: { since: string | null; now: Date; runningMs: number; callMs: number; except: string | null },
 ): Promise<{ spentMs: number; running: boolean }> {
-  let query = tenantDb(db, tenantId).from("rehearsals").select("created_at, ended_at, seconds").eq("kind", "call");
+  let query = tenantDb(db, tenantId)
+    .from("rehearsals")
+    .select("created_at, ended_at, seconds, end_reason")
+    .eq("kind", "call");
   if (options.since) query = query.gte("created_at", options.since);
   if (options.except) query = query.neq("id", options.except);
   const { data, error } = await query;
@@ -202,8 +212,9 @@ export async function getRehearsalSpokenMs(
   for (const r of data ?? []) {
     if (r.ended_at || r.seconds !== null) spentMs += Math.max(0, r.seconds ?? 0) * 1000;
     else if (options.now.getTime() - Date.parse(r.created_at) < options.runningMs) {
-      running = true;
-      spentMs += options.callMs;
+      const listened = r.end_reason === REHEARSAL_LISTEN.ended;
+      if (!listened) running = true;
+      spentMs += listened ? REHEARSAL_LISTEN.callMs : options.callMs;
     }
   }
   return { spentMs, running };
@@ -280,7 +291,10 @@ export async function releaseRehearsalCall(db: Db, tenantId: TenantId, id: strin
   if (error) throw new DbFailure(error, "cannot give the rehearsal back");
 }
 
-/** The reserved rehearsal, named for the call the provider made: its call id, the agent, and what it was told. */
+/**
+ * The reserved rehearsal, named for the call the provider made: its call id, the agent, and what it was told; and, for a
+ * call only listened to (`listen`), how it ends, said now, so nothing waits on its end to know what it is.
+ */
 export async function keepRehearsalCall(
   db: Db,
   row: {
@@ -290,6 +304,7 @@ export async function keepRehearsalCall(
     agentId: string;
     configVersion: number | null;
     instructions: string;
+    listen?: boolean;
   },
 ): Promise<void> {
   const { data, error } = await tenantDb(db, row.tenantId)
@@ -299,6 +314,7 @@ export async function keepRehearsalCall(
       agent_id: row.agentId,
       config_version: row.configVersion,
       instructions: row.instructions,
+      ...(row.listen ? { end_reason: REHEARSAL_LISTEN.ended } : {}),
     })
     .eq("id", row.id)
     .eq("retell_call_id", startingCallId(row.tenantId))

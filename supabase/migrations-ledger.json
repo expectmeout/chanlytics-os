@@ -79,8 +79,7 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00643": "claimed by cm-footage-p3 (the footage plan's P3, the take, #2426), pushed before this file and not on main yet (18 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -646,6 +645,7 @@
     "00640_the_never_again_list_is_asked_once_a_read.sql": "65ecac00610f8e9e032fcc6d9aaa0d112a631abcccbc88c8314f77ef8b9c796e",
     "00641_a_watched_folder_is_listed_and_kept_current.sql": "c77f5358e65597c0713bbc2bab7f7e8f80eabbea454f55805f8929bd5ea953d4",
     "00642_a_preview_s_first_questions_are_counted_apart.sql": "44e42551ebd8ba5c7603a50845f28873ce0c27a6cf0eb31e22acbadf61bc6155",
+    "00643_a_watched_folder_s_files_come_in.sql": "0c7025bd6b9d821210584a0df2ae1215378cbbe8c80480443653feb8c4d3bc74",
     "00644_an_ad_tap_keeps_what_the_ad_said.sql": "478783f01b75c018c5be8693e91de62787739ba2849fd81d697976f5b72abf9a"
   }
 }

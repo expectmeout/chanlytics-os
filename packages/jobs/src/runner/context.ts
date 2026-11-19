@@ -334,6 +334,16 @@ export interface JobContext {
     piece: (job: ClaimedJob, deadline: number) => Promise<void>;
   };
   /**
+   * A watched folder's file taken into the Library (00643, the footage sources plan), as the edge holds the provider's
+   * grant, the video platform's key and the relay's ticket key. INJECTED like the files; a source_take job in a runtime
+   * without it fails loudly. Answers `skipped` when the item is no longer one to take (moved on by another writer, its
+   * folder not being read), and throws when a provider or the database gave no answer.
+   */
+  takes?: {
+    /** One item screened, proven and brought in, or put back to wait with why. No download starts after `deadline`. */
+    take: (job: ClaimedJob, deadline: number) => Promise<{ took: string } | { skipped: string }>;
+  };
+  /**
    * A post on its way to Instagram (00611, decision 0121), as the edge holds it: the business's token lives in the vault
    * there. INJECTED like the files; a post job in a runtime without it fails loudly. Each answers `skipped` when the post
    * is no longer where its job expects it (pulled, held, already up), and throws when a try is worth repeating.

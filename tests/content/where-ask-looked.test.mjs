@@ -18,6 +18,9 @@ const place = (over) => ({
   videos: 0,
   seen: null,
   unread: null,
+  left_videos: 0,
+  long_videos: 0,
+  left_files: 0,
   ...over,
 });
 const sources = (website = {}, listing = {}, instagram = {}, film = []) => ({
@@ -160,6 +163,56 @@ test("looked and nothing came: what was looked at, and why", () => {
   assert.equal(unread.state, "none");
   assert.match(unread.body, /couldn't read it/);
   assert.equal(unread.lines[0].status, "Couldn't read it");
+});
+
+test("ACCEPTANCE 25: what a read left behind is said once, after the card's own sentence, with why", () => {
+  const read = { address: "harborsalon", read_at: READ };
+  const some = contentSourcesSaid(sources({}, {}, { ...read, photos: 12, videos: 26, left_videos: 14 }), true);
+  assert.equal(some.state, "found");
+  assert.equal(some.title, "AI found 12 photos and 26 videos");
+  assert.equal(some.body, "Keep the ones that are yours. 14 reels weren't brought in: your videos are full.");
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, photos: 3, left_videos: 1 }), true).body,
+    "Keep the ones that are yours. 1 reel wasn't brought in: your videos are full.",
+  );
+  // Nothing came, and that is why: the reason takes the place of "there was nothing there".
+  const none = contentSourcesSaid(sources({}, {}, { ...read, left_videos: 9 }), true);
+  assert.equal(none.state, "none");
+  assert.equal(none.body, "AI looked at your Instagram. 9 reels weren't brought in: your videos are full.");
+  // A website's are videos, and so are two places' together.
+  const site = { address: "https://harbor.example", read_at: READ, photos: 4, left_videos: 2 };
+  assert.match(contentSourcesSaid(sources(site), true).body, /2 videos weren't brought in: your videos are full\.$/);
+  assert.match(
+    contentSourcesSaid(sources(site, {}, { ...read, left_videos: 3 }), true).body,
+    /5 videos weren't brought in: your videos are full\.$/,
+  );
+});
+
+test("a full Library and a video too long to watch are each said in their own words, and a read still running says neither", () => {
+  const read = { address: "harborsalon", read_at: READ, photos: 40 };
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, left_files: 1210 }), true).body,
+    "Keep the ones that are yours. 1,210 files weren't brought in: your Library is full.",
+  );
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, long_videos: 3 }), true).body,
+    "Keep the ones that are yours. 3 videos are longer than 10 minutes, so AI can't watch them.",
+  );
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, long_videos: 1, left_videos: 2, left_files: 1 }), true).body,
+    "Keep the ones that are yours. 2 reels weren't brought in: your videos are full. 1 file wasn't brought in: " +
+      "your Library is full. 1 video is longer than 10 minutes, so AI can't watch it.",
+  );
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, left_videos: 2, long_videos: 1 }), false).body,
+    "Keep the ones that are yours.",
+    "a workspace that takes no videos is told nothing of videos",
+  );
+  assert.equal(
+    contentSourcesSaid(sources({}, {}, { ...read, reading: true, left_videos: 2 }), true).body,
+    "What AI finds waits in the Library for your approval.",
+    "while it is read the count is still moving",
+  );
 });
 
 test("an Instagram pasted is a line of its own, by its handle", () => {

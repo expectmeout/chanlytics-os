@@ -37,7 +37,6 @@ export type Database = {
       ad_entries: {
         Row: {
           ad_id: string | null
-          contact_id: string
           created_at: string
           external_ref: string | null
           id: string
@@ -52,7 +51,6 @@ export type Database = {
         }
         Insert: {
           ad_id?: string | null
-          contact_id: string
           created_at?: string
           external_ref?: string | null
           id?: string
@@ -67,7 +65,6 @@ export type Database = {
         }
         Update: {
           ad_id?: string | null
-          contact_id?: string
           created_at?: string
           external_ref?: string | null
           id?: string
@@ -81,13 +78,6 @@ export type Database = {
           tenant_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "ad_entries_contact_id_same_workspace"
-            columns: ["tenant_id", "contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["tenant_id", "id"]
-          },
           {
             foreignKeyName: "ad_entries_message_id_same_workspace"
             columns: ["tenant_id", "message_id"]
@@ -7940,6 +7930,33 @@ export type Database = {
           },
         ]
       }
+      source_days: {
+        Row: {
+          bytes: number
+          day: string
+          reads: number
+          takes: number
+          units: number
+          updated_at: string
+        }
+        Insert: {
+          bytes?: number
+          day: string
+          reads?: number
+          takes?: number
+          units?: number
+          updated_at?: string
+        }
+        Update: {
+          bytes?: number
+          day?: string
+          reads?: number
+          takes?: number
+          units?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       source_items: {
         Row: {
           added_by: string | null
@@ -7960,6 +7977,9 @@ export type Database = {
           seen_run: number | null
           source_id: string
           state: string
+          take_after: string | null
+          take_tries: number
+          taken_at: string | null
           tenant_id: string
           updated_at: string
           walk_page: string | null
@@ -7985,6 +8005,9 @@ export type Database = {
           seen_run?: number | null
           source_id: string
           state?: string
+          take_after?: string | null
+          take_tries?: number
+          taken_at?: string | null
           tenant_id: string
           updated_at?: string
           walk_page?: string | null
@@ -8010,6 +8033,9 @@ export type Database = {
           seen_run?: number | null
           source_id?: string
           state?: string
+          take_after?: string | null
+          take_tries?: number
+          taken_at?: string | null
           tenant_id?: string
           updated_at?: string
           walk_page?: string | null
@@ -9358,6 +9384,7 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      file_road_is_owners: { Args: { p_source: string }; Returns: boolean }
       file_search_words: {
         Args: {
           p_look: Json
@@ -9430,6 +9457,7 @@ export type Database = {
           p_media_ref: string
           p_mime: string
           p_name: string
+          p_seconds?: number
           p_source: string
           p_source_ref: string
           p_status: string
@@ -9437,6 +9465,25 @@ export type Database = {
         }
         Returns: Json
       }
+      file_video_room: {
+        Args: { p_seconds: number; p_tenant_id: string }
+        Returns: string
+      }
+      file_video_sourced: {
+        Args: {
+          p_bytes: number
+          p_fingerprint: string
+          p_id: string
+          p_item_id: string
+          p_media_ref: string
+          p_mime: string
+          p_name: string
+          p_seconds: number
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      files_are_full: { Args: { p_tenant_id: string }; Returns: boolean }
       files_found: {
         Args: {
           p_limit: number
@@ -9466,6 +9513,16 @@ export type Database = {
           human_at: string
           who: string
         }[]
+      }
+      found_read_spend: {
+        Args: {
+          p_account: string
+          p_platform_max: number
+          p_source: string
+          p_tenant_id: string
+          p_workspace_max: number
+        }
+        Returns: Json
       }
       freed_time_taken: { Args: { p_batch_id: string }; Returns: number }
       get_channel_credentials: { Args: { p_channel_id: string }; Returns: Json }
@@ -12633,6 +12690,30 @@ export type Database = {
         }
         Returns: string
       }
+      source_take_spend: {
+        Args: {
+          p_bytes: number
+          p_item_id: string
+          p_platform_bytes_max: number
+          p_tenant_id: string
+          p_units: number
+          p_units_max: number
+          p_workspace_bytes_max: number
+          p_workspace_takes_max: number
+        }
+        Returns: Json
+      }
+      source_takes_hand_out: {
+        Args: {
+          p_in_flight: number
+          p_limit: number
+          p_stale_seconds: number
+          p_tenant_id: string
+          p_videos_max: number
+        }
+        Returns: number
+      }
+      source_units_spend: { Args: { p_units: number }; Returns: number }
       sources_hand_out: {
         Args: { p_spread_seconds: number; p_walk_stale_seconds: number }
         Returns: Json

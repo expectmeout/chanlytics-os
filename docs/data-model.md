@@ -53,7 +53,7 @@ what the script writes.
 | [`event_subscriptions`](#event_subscriptions) | `packages/db/src/repositories/events/delivery.ts` | on, no policy, so only the service role reaches it |
 | [`events`](#events) | `packages/db/src/repositories/ai/usage.ts`, `packages/db/src/repositories/ask/journal.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts`, `packages/db/src/repositories/campaigns/sequences/sent.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/events/events.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/ops/console.ts`, `packages/db/src/repositories/ops/health.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/reports/screened.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`, `packages/db/src/repositories/workspace/setup.ts` | on, 1 policy |
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts` | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
@@ -133,7 +133,8 @@ what the script writes.
 | [`sequences`](#sequences) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/sequences/reads.ts` | on, 2 policies |
 | [`setup_choices`](#setup_choices) | `packages/db/src/repositories/workspace/control-plane/capabilities.ts`, `packages/db/src/repositories/workspace/control-plane/config.ts` | on, 1 policy |
 | [`source_connections`](#source_connections) | `packages/db/src/repositories/files/sources.ts` | on, 1 policy |
-| [`source_items`](#source_items) | `packages/db/src/repositories/files/source-items.ts` | on, 1 policy |
+| [`source_days`](#source_days) | none | on, no policy, so only the service role reaches it |
+| [`source_items`](#source_items) | `packages/db/src/repositories/files/source-items.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`support_reports`](#support_reports) | `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`sweep_status`](#sweep_status) | `packages/db/src/repositories/email/reconcile.ts` | on, no policy, so only the service role reaches it |
 | [`templates`](#templates) | `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/templates/doors.ts`, `packages/db/src/repositories/campaigns/templates/page.ts`, `packages/db/src/repositories/campaigns/templates/templates.ts`, `packages/db/src/repositories/campaigns/templates/whatsapp.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
@@ -154,7 +155,7 @@ Named in a `.from("…")` in `packages/db/src` and not a table or view here: `me
 
 ### ad_entries
 
-One row each time someone reaches a workspace through an ad (decision 0049, 00644): the person, the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Opened by the first-touch trigger in the message's own transaction; its words kept by the edge afterwards (ad_entry_keep). It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
+One row each time someone reaches a workspace through an ad (decision 0049, 00644): the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Its person is its message's. Written by one door, ad_entry_keep: opened by the first-touch trigger in the message's own transaction, its words kept by the edge afterwards. It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
 
 - Owned by: none
 - Primary key: `id`
@@ -164,7 +165,6 @@ One row each time someone reaches a workspace through an ad (decision 0049, 0064
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `contact_id` | uuid | no |  |  |
 | `ad_id` | uuid | yes |  | The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049's ads, a later step). Null until then, and for an ad Chanlytics cannot name. |
 | `platform` | text | no |  |  |
 | `platform_ad_id` | text | no |  |  |
@@ -178,7 +178,6 @@ One row each time someone reaches a workspace through an ad (decision 0049, 0064
 
 Foreign keys:
 
-- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
 - `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
@@ -953,8 +952,8 @@ Foreign keys:
 | `consent_channels` | text[] | yes |  | The channels the yes about messages on their own visit covers (whatsapp, sms, email, in that order), kept by events_keep_consent_channels from each contact.consent_changed event by consent_channels_of's rule. NULL: none kept, a yes recorded before the channels were, which covers WhatsApp alone; empty: no yes. |
 | `marketing_channels` | text[] | yes |  | The channels the yes to offers covers (whatsapp, sms, email, in that order), kept the same way from the events that name purpose marketing. NULL: none kept, which reads as WhatsApp alone; empty: no yes. |
 | `offers_asked_at` | timestamp with time zone | yes |  | When the receptionist first asked this person for the yes to offers: the first outbound message that says YES OFFERS or SI OFERTAS, in any case and with or without the accent (messages_stamp_offers_asked). It asks once. |
-| `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a paid ad (a click-to-chat ad on WhatsApp or Instagram: a referral whose source_type is ad; a post, a link or any other referral is the wire's; and a person an ad's own door added, 00644), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business's own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
-| `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad the person first came through (Meta's own id for it from a message's referral; keyed by its platform, meta:<id>, from an ad's own door); null where nothing says. Never the person. |
+| `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a click-to-chat ad on WhatsApp or Instagram (a referral whose source_type is ad; a post, a link or any other referral is the wire's), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business's own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
+| `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad (Meta's source id) the person first came through; null where nothing says. Never the person. |
 | `lead_id` | uuid | yes |  | The business this person works at (0052): a lead, the newest that named them, set one way from leads (lead_tells_its_person) or by a member (person_join_lead). A lead is the business record; there is no businesses table. |
 | `lead_settled_at` | timestamp with time zone | yes |  | When a member said where this person works (person_join_lead, person_leave_lead): their lead_id then never moves by itself (0052). |
 | `name_source` | text | yes |  | Where display_name came from (0052): typed, import, calendar, signature, wire or lead. Null when no name was set (the WhatsApp name or the number shows) or for a name set before this, whose source is not known. The engine replaces only a strictly lower rank (person_name_rank) and never a settled name. |
@@ -1316,7 +1315,7 @@ Foreign keys:
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3922,11 +3921,28 @@ Foreign keys:
 | --- | --- | --- | --- | --- |
 | `source_connections_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
+### source_days
+
+What taking footage in cost the platform in a day (00643, the footage sources plan's budgets): the bytes moved from providers, the takes begun, the provider's units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role's alone.
+
+- Owned by: none
+- Primary key: `day`
+- Row-level security: on, no policy, so only the service role reaches it
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `day` | date | no |  |  |
+| `bytes` | bigint | no | `0` |  |
+| `takes` | integer | no | `0` |  |
+| `units` | bigint | no | `0` |  |
+| `reads` | integer | no | `0` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
 ### source_items
 
 One item a provider holds under a watched folder, folders included, since they are the tree's index (the footage sources plan, 00639): the provider's id for it, its kind, its parent's id, its name, when it was last modified, its checksum and size, its length in seconds where the provider says, who added it where the provider names them, when it was first seen, its state and why, the Library file it became, and when it was found gone. One row per source and provider id. Members read; the service role writes.
 
-- Owned by: `packages/db/src/repositories/files/source-items.ts`
+- Owned by: `packages/db/src/repositories/files/source-items.ts`, `packages/db/src/repositories/files/source-takes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3955,6 +3971,9 @@ One item a provider holds under a watched folder, folders included, since they a
 | `walked_run` | integer | yes |  | A folder's own: the last walk run that listed its contents whole. Null: never listed. |
 | `walk_page` | text | yes |  | A folder's own: the provider's token for the next page of its contents while a walk is part way through it. |
 | `length_until` | timestamp with time zone | yes |  | A video its provider has listed without its length (a fresh upload is measured a few minutes later): its own record is asked again until then, and it is not taken into the Library before. Null: its length is known, it is no video, or its provider made it more than the wait ago. |
+| `take_after` | timestamp with time zone | yes |  | When a waiting item may next be taken (00643): the start of the next day where a day's budget bound, later where the videos or the Library are full. Null: now. |
+| `taken_at` | timestamp with time zone | yes |  | When its take last spent the day's budget (00643 source_take_spend): a workspace's takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried. |
+| `take_tries` | smallint | no | `0` | How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed. |
 
 Foreign keys:
 

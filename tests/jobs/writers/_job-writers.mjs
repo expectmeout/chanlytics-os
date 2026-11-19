@@ -60,6 +60,10 @@ export const JOB_WRITERS = {
     clock: "sources",
     why: "a folder chosen whose first walk never began is handed it after half an hour (sources_hand_out)",
   },
+  "apps/edge/lib/files/takes/word.ts|file_purge": {
+    clock: "health",
+    why: "the failed clip is removed before its purge is written, and keepFilesMoving asks again for a removal not finished",
+  },
   "apps/edge/lib/files/upkeep.ts|file_look": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/upkeep.ts|file_purge": { clock: "health", why: "keepFilesMoving, the clock's own work" },
   "apps/edge/lib/files/video-digest.ts|file_look": { clock: "health", why: "keepFilesMoving finds a file not moving" },

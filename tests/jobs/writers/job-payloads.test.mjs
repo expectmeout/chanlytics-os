@@ -100,6 +100,7 @@ test("the shapes writers hand over are what their kind says", () => {
     file_purge: { file_id: "f", why: "sweep" },
     instagram_read: { handle: "harborsalon", step: "collect", try: "1", run_id: "r", dataset_id: "d" },
     video_digest: { file_id: "f", step: "sheet", edition: "1" },
+    source_take: { item_id: "i", try: "0" },
     post_prepare: { post_id: "p", attempt: "1" },
     post_publish: { post_id: "p", attempt: "1" },
     post_reconcile: { post_id: "p", attempt: "2" },

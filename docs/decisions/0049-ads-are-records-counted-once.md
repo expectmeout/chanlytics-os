@@ -120,7 +120,8 @@ is the record. Money is `bigint` minor units beside a `currency`.
 - `ad_days`: key `(ad_id, day)`, the day in the account's zone, with `spend_minor`, `impressions`, `clicks`,
   `platform_results`, `read_at`, `settled`. Reach is not additive; it is read daily onto the ad and drawn only in the
   drawer's "their numbers".
-- `ad_entries`: one row each time someone reaches the workspace through an ad. `contact_id` (cascade), `ad_id` (null for
+- `ad_entries`: one row each time someone reaches the workspace through an ad. `contact_id` (cascade; not built: see "As
+  built", below), `ad_id` (null for
   an ad not yet adopted), `platform`, `platform_ad_id` (the raw reference), `kind` (`chat`, `number`, `call`), `new_person`
   (00306's test), `external_ref` (a form lead's id, unique with workspace and platform, so a replay does nothing),
   `message_id` (the message that carried it, one entry a message, so a delivery handled twice does nothing),
@@ -244,23 +245,31 @@ Ruben, 18 November 2026, to nine changes found while the build plan for Ads was 
 
 ## As built, 18 November 2026 · The entry is opened with the message
 
-Step P0a was built on 18 November 2026 (`supabase/migrations/00644_an_ad_tap_keeps_what_the_ad_said.sql`). One thing in
-it is not as this note first drew it. It is the mechanism of a step and no call of Ruben's, so it is said here, where
-the code and the note would otherwise disagree.
+Step P0a was built on 18 November 2026 (`supabase/migrations/00644_an_ad_tap_keeps_what_the_ad_said.sql`). Two things
+in it are not as this note first drew them. Each is the mechanism of a step and no call of Ruben's, so it is said here,
+where the code and the note would otherwise disagree.
 
 - **What was drawn.** The edge made the entry after the ingest, and a nightly reconcile found the people stamped `ad`
   with no entry and rebuilt one.
-- **What was built.** The database opens the entry in the message's own transaction, in the trigger that writes the
-  first-touch stamp (`messages_note_first_touch`), and the edge's `ad_entry_keep` adds what the ad said to it.
+- **What was built.** One door writes the table, `ad_entry_keep`, by the message's id. The trigger that writes the
+  first-touch stamp (`messages_note_first_touch`) calls it in the message's own transaction, which opens the entry. The
+  edge calls it again after the ingest, with what the ad said. It reads the ad and `new_person` from the message's own
+  row, so either caller opens the same entry.
 - **Why.** The reconcile has to find its candidates among `messages` or `contacts`. That is a read of every workspace's
   recent messages each night, or an index on one of the two busiest tables, which the runbook builds alone and
   `CONCURRENTLY`. Opening the entry where the stamp is written needs no read and no clock, and leaves no hour in which
   a person counted for an ad has no entry.
 - **What still holds.** One entry for each message, however often it is delivered. A failed keep loses the ad's words
   and never the entry or a count. Each failure is counted: an entry with no `said_at` is one whose words never arrived,
-  and the edge logs `ad_entry_keep_failed`. `new_person` is the stamp's own answer. Either deploy order.
-- **Two things the shape gained.** `message_id`, which is the key the keep is called by, and `said_at`. An entry goes
-  with its message, which an erasure deletes; two people combined keep their entries (`ad_entries_follow_a_merge`).
+  and the edge logs `ad_entry_keep_failed`. `new_person` is 00306's test. Either deploy order.
+- **The shape: an entry names its message, and no person.** The Shape above drew `contact_id`. An entry made by a
+  message is that message's, so its person is the message's person, kept in one place. Two people combined then need
+  nothing moved, and an erasure, which deletes the person's messages, takes the entry with them. A column for the
+  person would be a second copy to keep true at every merge, and a second writer of the table (0031: one record, one
+  door). The step that adds an entry with no message (a form lead's) brings its own way to name its person.
+- **Two things the shape gained.** `message_id`, which is the key the door is called by, and `said_at`.
+- **No event of its own.** An entry is part of the message that carried it, whose door writes that message's events in
+  the same transaction. Nothing hears an entry (Hearing, above, names the records the Ads surface hears).
 - **Read on Meta's pages, not on a delivery.** A message from a click-to-WhatsApp ad carries `headline`, `body`,
   `media_type` and `source_url`. One from a click-to-Instagram ad carries `ads_context_data` with `ad_title` and a
   `photo_url` or a `video_url`, and no words and no link. Production held no message with an ad's referral on

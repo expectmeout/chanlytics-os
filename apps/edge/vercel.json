@@ -308,6 +308,9 @@
           "api/stream-webhook.ts": {
             "maxDuration": 15
           },
+          "api/sources/key.ts": {
+            "maxDuration": 20
+          },
           "api/admin/eval.ts": {
             "maxDuration": 180
           }

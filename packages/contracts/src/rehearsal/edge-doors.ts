@@ -24,10 +24,14 @@ export const REHEARSAL_AGENT_DOOR = edgeDoor(
   PLAIN_ANSWER,
 );
 
-/** POST /api/admin/rehearsal/call: a rehearsal call, started. */
+/**
+ * POST /api/admin/rehearsal/call: a rehearsal call, started. `listen` asks for one nobody speaks on (a lead's preview
+ * hearing its greeting, decision 0079): a field of the same door, since an edge that does not know it makes an ordinary
+ * call, which a page that only listens joins and leaves all the same.
+ */
 export const REHEARSAL_CALL_DOOR = edgeDoor(
   "/api/admin/rehearsal/call",
-  z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional() }),
+  z.object({ tenant_id: DOOR_ID.optional(), user_id: DOOR_ID.optional(), listen: z.boolean().optional() }),
   answerFields({
     rehearsal_id: z.string(),
     call: z.object({

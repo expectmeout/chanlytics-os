@@ -3,17 +3,21 @@
  */
 export { driveSource, SourceKeyRefused, SourceUnanswered } from "./drive";
 export type { DriveFolderChoice, DriveFolderChoices, DrivePlace, DriveSource } from "./drive";
+export { readDriveBytes } from "./drive-bytes";
 export { DRIVE_READ_SCOPE, DRIVE_SCOPES, driveAuthorizeUrl, driveTokenRequest } from "./drive-sign-in";
 export { fileFingerprintOf, FINGERPRINT_BYTES } from "./fingerprint";
 export { remadeLogo } from "./logo-png";
 export { readRender, readRenderBytes, startRender, stopRender } from "./machine";
 export type { RenderJob, RenderMachine, RenderState } from "./machine";
+export { readRelayTicket, RELAY_KEY_ASK, relayClipAddress, signRelayTicket } from "./relay-ticket";
+export type { RelayKeyAsk } from "./relay-ticket";
 export {
   askStreamAudio,
   askStreamToFetch,
   deleteStreamVideo,
   fetchStreamAudio,
   fetchStreamFrame,
+  listStreamVideosNamed,
   putStreamCaptions,
   readStreamAudio,
   readStreamSoundTrack,

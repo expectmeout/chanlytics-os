@@ -625,6 +625,13 @@ before(async () => {
   const edition = 1_000_000 + Math.floor(Math.random() * 1_000_000);
   await seed("piece_images", { edition, snapshot_id: `snap_${key}`, hash: "0123456789ab" }, null);
   probes.push(["piece_images", "edition", edition]);
+  // What taking footage in cost the platform in a day (00643): no workspace on it. A day long past, picked at random,
+  // so no other suite's day is touched.
+  const footageDay = new Date(Date.UTC(1990, 0, 1) + Math.floor(Math.random() * 3650) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  await seed("source_days", { day: footageDay, bytes: 1, takes: 1, units: 5 }, null);
+  probes.push(["source_days", "day", footageDay]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
@@ -1203,6 +1210,7 @@ const OTHER_TABLES = {
   event_subscriptions: "none", // who reacts to an event kind (00334): platform-wide rows, the service role's alone
   job_kinds: "none", // each job kind's lane, once-only rule and pause (00526): platform-wide rows, the service role's alone
   piece_images: "none", // the machine image each edition of the video template is drawn on (00613): the service role's alone
+  source_days: "none", // what taking footage in cost the platform in a day (00643): no workspace on it; the service role's alone
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()

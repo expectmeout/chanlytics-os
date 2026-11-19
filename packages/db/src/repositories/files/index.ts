@@ -22,7 +22,7 @@ export {
   startFile,
   updateFileRow,
 } from "./doors";
-export type { FileFate, MediaFate, PrintFate, VideoFate } from "./doors";
+export type { FileFate, FoundVideoFate, MediaFate, PrintFate, VideoFate } from "./doors";
 export {
   countFilesKept,
   countFilesMade,
@@ -117,6 +117,25 @@ export {
   SOURCE_ITEM_AWAY,
 } from "./source-items";
 export type { SourceItemFacts, SourceItemPlace, SourceItemRow, SourceRef } from "./source-items";
+export {
+  askToTakeAgain,
+  endSourceTake,
+  findSourceItem,
+  findSourceItemAnywhere,
+  findSourceTwin,
+  handOutSourceTakes,
+  holdSourceTakes,
+  listMediaHeld,
+  moveSourceTake,
+  recordVideoSourced,
+  removeFailedTake,
+  settleTakesFailed,
+  settleTakesPassed,
+  settleTakesReady,
+  spendSourceTake,
+  spendSourceUnits,
+} from "./source-takes";
+export type { SourcedVideoFate, SourceTakeItem } from "./source-takes";
 export {
   beginSourceWalk,
   deleteSourceConnection,

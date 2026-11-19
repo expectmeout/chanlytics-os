@@ -176,8 +176,14 @@ test("the clock hands each folder whose read is due one read, none twice, and as
   await watched();
   w.drive.calls.length = 0;
   w.source().next_read_at = new Date(Date.now() - 1000).toISOString();
-  assert.deepEqual(await answer(await knock(clockDoor, "sources")), [200, { ok: true, reads: 1, walks: 0, again: 0 }]);
-  assert.deepEqual(await answer(await knock(clockDoor, "sources")), [200, { ok: true, reads: 0, walks: 0, again: 0 }]);
+  assert.deepEqual(await answer(await knock(clockDoor, "sources")), [
+    200,
+    { ok: true, reads: 1, walks: 0, again: 0, takes: 0 },
+  ]);
+  assert.deepEqual(await answer(await knock(clockDoor, "sources")), [
+    200,
+    { ok: true, reads: 0, walks: 0, again: 0, takes: 0 },
+  ]);
   assert.equal(w.waiting("source_read").length, 1);
   assert.equal(w.drive.calls.length, 0, "the clock hands work out; it reads nothing");
   const refused = await knock(clockDoor, "sources", "not-the-key");
@@ -186,7 +192,13 @@ test("the clock hands each folder whose read is due one read, none twice, and as
 
 test("the clock hands a folder nothing while its read is not due, and a paused or stopped one nothing at all", async () => {
   await watched();
-  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], { ok: true, reads: 0, walks: 0, again: 0 });
+  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], {
+    ok: true,
+    reads: 0,
+    walks: 0,
+    again: 0,
+    takes: 0,
+  });
   for (const state of ["paused", "stopped"]) {
     Object.assign(w.source(), {
       state,
@@ -195,7 +207,7 @@ test("the clock hands a folder nothing while its read is not due, and a paused o
     });
     assert.deepEqual(
       (await answer(await knock(clockDoor, "sources")))[1],
-      { ok: true, reads: 0, walks: 0, again: 0 },
+      { ok: true, reads: 0, walks: 0, again: 0, takes: 0 },
       state,
     );
   }
@@ -205,9 +217,21 @@ test("a folder chosen whose first walk never began is handed it by the clock, on
   await watched();
   // The write of its first walk's first step was lost: the folder is still being set up, and nothing is on the ledger.
   Object.assign(w.source(), { state: "setting_up", walk_run: 0, updated_at: new Date().toISOString() });
-  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], { ok: true, reads: 0, walks: 0, again: 0 });
+  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], {
+    ok: true,
+    reads: 0,
+    walks: 0,
+    again: 0,
+    takes: 0,
+  });
   w.source().updated_at = new Date(Date.now() - 31 * MIN).toISOString();
-  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], { ok: true, reads: 0, walks: 0, again: 1 });
+  assert.deepEqual((await answer(await knock(clockDoor, "sources")))[1], {
+    ok: true,
+    reads: 0,
+    walks: 0,
+    again: 1,
+    takes: 0,
+  });
   const [job] = w.waiting("source_walk");
   assert.deepEqual(job.payload, { source_id: SOURCE, run: "1", step: "0", walk: "snapshot" });
   await runJobs(w);
@@ -256,4 +280,17 @@ test("a day of signals from a Drive busy with other work costs no more reads tha
   );
   const units = w.drive.units((call) => call.path === "/drive/v3/changes" || call.path.startsWith("/drive/v3/files/"));
   assert.ok(units <= allowed * 100 + 10, `${units} units for the day's reads, under ${allowed * 100 + 10}`);
+});
+
+test("the same turn asks for every workspace's takes: the floor under the hand-outs a take, a clip and a read ask for", async () => {
+  await watched();
+  w.handOuts.length = 0;
+  w.drive.calls.length = 0;
+  const [status, body] = await answer(await knock(clockDoor, "sources"));
+  assert.deepEqual([status, body.takes], [200, 0]);
+  assert.equal(w.handOuts.length, 1, "asked once a turn");
+  const [asked] = w.handOuts;
+  assert.equal(asked.p_tenant_id, null, "for every workspace, not one");
+  assert.ok(asked.p_in_flight > 0 && asked.p_limit > 0 && asked.p_videos_max > 0 && asked.p_stale_seconds > 0);
+  assert.equal(w.drive.calls.length, 0, "and still it reads nothing");
 });

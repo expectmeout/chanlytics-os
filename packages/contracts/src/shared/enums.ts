@@ -185,6 +185,8 @@ export const JOB_KINDS = [
   "file_purge",
   // A video made ready one step a run, each run again safely (00556, decision 0099 B): payload { file_id, step, edition }.
   "video_digest",
+  // One photo or clip of a watched folder taken into the Library (00643): payload { item_id, try }, once an item and a try.
+  "source_take",
   /**
    * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
    * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;

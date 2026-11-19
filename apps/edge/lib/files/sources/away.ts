@@ -51,7 +51,7 @@ export const unfoundMarkOf = (providerId: string): AwayMark => ({ providerId, st
 /** Marks that send their items to one state for one reason, with everything under them. */
 interface Leaving {
   state: AwayState;
-  why: string | null;
+  why: NonNullable<AwayMark["why"]> | null;
   ids: string[];
 }
 
