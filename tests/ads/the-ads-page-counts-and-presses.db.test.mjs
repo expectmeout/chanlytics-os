@@ -70,6 +70,9 @@ async function workspace(tag) {
         currency: "USD",
         timezone: "America/New_York",
         status: "connected",
+        // Not due: the ads clock, which another suite runs for every workspace at once, hands this account no read,
+        // so the reads this suite puts on the ledger itself are the only ones there.
+        next_read_at: new Date(Date.now() + 3_600_000).toISOString(),
       })
       .select("id")
       .single(),

@@ -478,6 +478,10 @@ it is said here.
 - **Meta's notices are heard at `/api/ads/meta`,** believed only under Meta's signature. A notice only says where to
   look: the account it names is asked for its read, no sooner than two minutes after its last, and what changed is read
   from Meta, never taken from the notice. An account is subscribed by its daily read, where its sign-in may change ads.
+- **The clock holds each workspace it hands a read to.** Its one statement takes, first, the lock a job's own
+  reference to its workspace takes. A workspace being removed at that moment is passed over; without it, one workspace
+  leaving in the same instant refused the statement, and with it every other account's read for that turn (CI met
+  this on 19 November, between two suites).
 - **A read that waits is brought forward, never doubled.** One read an account waits or runs at a time. Where a notice,
   a press that Meta will take in thirty seconds, or a change Meta gave no answer to asks for the read while one waits
   for a later moment (the clock spreads an hourly read over five minutes; a failing one waits longer), that read's

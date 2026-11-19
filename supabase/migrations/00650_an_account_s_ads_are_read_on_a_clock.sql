@@ -203,19 +203,30 @@ begin
   -- on the quick pace (its next read set within twenty minutes of its last), is handed at once; an hourly read is
   -- spread by a hash of the account, so ten thousand accounts due the same hour do not start together. A kind an
   -- operator paused is handed nothing: what is due stays due on its row.
+  --
+  -- Each account's workspace is held while its read is written (the lock a job's own reference to its workspace
+  -- takes, taken first). A workspace being removed at that moment is passed over, and one already removed is not
+  -- seen: without it, one workspace leaving in the same instant refused the statement, and with it every other
+  -- account's read for that turn of the clock.
+  with due as (
+    select a.id, a.tenant_id, a.read_at, a.next_read_at
+      from public.ad_accounts a
+      join public.tenants t on t.id = a.tenant_id
+     where a.status = 'connected' and a.external_id is not null
+       and coalesce(a.next_read_at, '-infinity'::timestamptz) <= now()
+       and (a.read_after is null or a.read_after <= now())
+       and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+       for key share of t skip locked
+  )
   insert into public.jobs (tenant_id, kind, due_at, payload)
-  select a.tenant_id, 'ad_read',
-         case when a.read_at is null or a.next_read_at is null
-                   or a.next_read_at <= a.read_at + interval '20 minutes'
+  select d.tenant_id, 'ad_read',
+         case when d.read_at is null or d.next_read_at is null
+                   or d.next_read_at <= d.read_at + interval '20 minutes'
               then now()
-              else now() + make_interval(secs => abs(hashtext(a.id::text)::bigint) % greatest(p_spread_seconds, 1))
+              else now() + make_interval(secs => abs(hashtext(d.id::text)::bigint) % greatest(p_spread_seconds, 1))
          end,
-         jsonb_build_object('account_id', a.id::text)
-    from public.ad_accounts a
-   where a.status = 'connected' and a.external_id is not null
-     and coalesce(a.next_read_at, '-infinity'::timestamptz) <= now()
-     and (a.read_after is null or a.read_after <= now())
-     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+         jsonb_build_object('account_id', d.id::text)
+    from due d
   on conflict do nothing;
   get diagnostics v_reads = row_count;
   return jsonb_build_object('reads', v_reads);
@@ -223,7 +234,7 @@ end $$;
 revoke all on function public.ads_hand_out(integer) from public, anon, authenticated;
 grant execute on function public.ads_hand_out(integer) to service_role;
 comment on function public.ads_hand_out(integer) is
-  'The ads clock''s one statement (00650, decision 0049): an ad_read for each connected ad account whose next read is due and that its platform is not holding back (read_after). An hourly read is due within the spread by a hash of its account, a first read and one on the quick pace at once; none is written while one waits or runs, and none while an operator has paused the kind. Answers {reads}. The service role''s.';
+  'The ads clock''s one statement (00650, decision 0049): an ad_read for each connected ad account whose next read is due and that its platform is not holding back (read_after). An hourly read is due within the spread by a hash of its account, a first read and one on the quick pace at once; none is written while one waits or runs, and none while an operator has paused the kind. Each account''s workspace is held while its read is written, and one being removed at that moment is passed over, so it never refuses the others'' reads. Answers {reads}. The service role''s.';
 
 create or replace function public.ads_read_ask(p_platform text, p_external_id text)
 returns integer
