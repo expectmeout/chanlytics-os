@@ -20,6 +20,7 @@ import { REQUEST_ID_HEADER, signEdgeToken } from "@chanlytics/channels/tokens";
 import {
   MIN_MS,
   ADS_ACCOUNT_DOOR,
+  ADS_PRESS_DOOR,
   LLM_DOOR,
   CALENDAR_FEED_DOOR,
   FREED_TIME_DOOR,
@@ -110,6 +111,7 @@ export function edgeUrl(): string {
  */
 const EDGE_DOORS = [
   ADS_ACCOUNT_DOOR,
+  ADS_PRESS_DOOR,
   LLM_DOOR,
   CALENDAR_FEED_DOOR,
   FREED_TIME_DOOR,

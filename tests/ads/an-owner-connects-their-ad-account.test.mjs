@@ -200,7 +200,10 @@ test("Ads is offered only in the workspaces this deployment lists, or in every o
 test("status says whether the app's sign-in for ads is held here and whether Ads is offered in this workspace", async () => {
   world();
   for (const k of ENV) delete process.env[k];
-  assert.deepEqual(await heard(await run({ op: "status" })), [200, { ok: true, ready: false, on: false }]);
+  assert.deepEqual(await heard(await run({ op: "status" })), [
+    200,
+    { ok: true, ready: false, on: false, writes: "off" },
+  ]);
   Object.assign(process.env, APP);
   assert.deepEqual(await heard(await run({ op: "status" })), [
     200,
@@ -208,6 +211,7 @@ test("status says whether the app's sign-in for ads is held here and whether Ads
       ok: true,
       ready: true,
       on: true,
+      writes: "off",
       app: { client_id: APP.META_APP_ID, config_id: APP.META_ADS_CONFIG_ID, redirect_uri: APP.META_ADS_REDIRECT_URI },
     },
   ]);

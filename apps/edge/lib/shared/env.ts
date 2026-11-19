@@ -106,6 +106,13 @@ export const env = {
   get ADS_WORKSPACES() {
     return trimmedEnv(process.env.ADS_WORKSPACES);
   },
+  /**
+   * Whether an owner's presses on an ad reach Meta from this deployment (the Ads plan's 6.2): `live` sends, `sandbox`
+   * does everything but the call, anything else (and unset) is off, where a press is refused before it is kept.
+   */
+  get ADS_WRITES() {
+    return trimmedEnv(process.env.ADS_WRITES);
+  },
   /** The token Meta's check of the ads notices' address must carry (/api/ads/meta); unset answers no check. */
   get META_ADS_VERIFY_TOKEN() {
     return trimmedEnv(process.env.META_ADS_VERIFY_TOKEN);

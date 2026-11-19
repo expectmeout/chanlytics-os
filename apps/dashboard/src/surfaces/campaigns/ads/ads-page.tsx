@@ -61,6 +61,8 @@ import { useFirstTouch } from "./first-touch";
 import type { FirstTouchHere } from "./first-touch";
 import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
+import { LiveAds } from "./live/live-ads";
+import { useAdsLive } from "./live/use-live";
 import { AdsPhone } from "./ledger/phone";
 import { NewAd } from "./new/new-ad";
 import { PreviewNote } from "./preview-note";
@@ -307,6 +309,12 @@ function useConnectCard(account: AdAccountHere, timezone: string) {
   return { vm, card };
 }
 
+/** Whether the workspace holds an ad account: connected, signed out by Meta, or let go with its ads kept. */
+const holdsAccount = (account: AdAccountHere): boolean => {
+  const status = account.dto?.meta?.status;
+  return status === "connected" || status === "revoked" || status === "disconnected";
+};
+
 /** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
 const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
@@ -323,6 +331,9 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const touch = useFirstTouch(today);
   const account = useAdAccount(today);
   const connect = useConnectCard(account, read.timezone);
+  // With an account held, the page is the workspace's own ads, read from Meta (live/): no example is drawn.
+  const held = today && holdsAccount(account);
+  const live = useAdsLive(held, `${account.dto?.meta?.status ?? ""}:${account.dto?.meta?.read_at ?? ""}`);
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
@@ -365,6 +376,25 @@ export function AdsPage({ param, view }: AdsPageProps) {
     });
     return true;
   };
+  if (held && live.dto)
+    return (
+      <LiveAds
+        dto={live.dto}
+        address={address}
+        view={view}
+        phone={phone}
+        timezone={read.timezone}
+        card={connect.card}
+        connect={{ word: connect.vm?.button ?? null, press: account.connect }}
+        nav={{ push: nav.push, close: nav.close }}
+        again={() => {
+          live.again();
+          account.again();
+        }}
+        flash={flash}
+        toast={toastNode}
+      />
+    );
   return (
     <div
       ref={view?.ref}

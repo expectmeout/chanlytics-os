@@ -414,6 +414,35 @@ COMMENT ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_
 
 
 --
+-- Name: ad_may_resume(text, text, text, timestamp with time zone, boolean, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- An ad made here is its owner's to turn back on. One made at the platform is, only where the platform holds a
+  -- total with an end date for it alone, something is left of it, its end has not passed, and it is paused by its own
+  -- switch (paused by its ad set or its campaign, turning the ad on would start nothing).
+  select coalesce(
+           p_origin = 'chanlytics'
+           or (    p_platform_state = 'PAUSED'
+               and p_budget_kind = 'total'
+               and p_ends_at is not null and p_ends_at > now()
+               and p_budget_shared is false
+               and coalesce(p_budget_left_minor, 0) > 0),
+           false)
+$$;
+
+
+--
+-- Name: FUNCTION ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint) IS 'Whether an ad may be turned back on from Chanlytics (00652; the Ads plan''s C1, amending decision 0050 call 9), from its row''s own facts: always for one made here; for one made at the platform, only where the platform holds a total with an end date for it alone (budget_kind total, ends_at ahead, budget_shared false, something left) and it is paused by its own switch. The rule the press''s door enforces; contracts adResumeRule says the same to the page.';
+
+
+--
 -- Name: ad_named(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -423,19 +452,21 @@ CREATE FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) RETURNS jsonb
     AS $$
   select jsonb_build_object(
            'platform', r.platform,
-           'name', (select e.said ->> 'headline'
-                      from public.ad_entries e
-                     where e.tenant_id = p_tenant_id
-                       and e.platform = r.platform
-                       and e.platform_ad_id = r.ad
-                       and e.said ? 'headline'
-                     order by e.created_at desc
-                     limit 1))
-    from (select case when p_ref ~ '^(meta|google|tiktok):.' then split_part(p_ref, ':', 1)
-                      when btrim(coalesce(p_ref, '')) = '' then null
-                      else 'meta' end as platform,
-                 case when p_ref ~ '^(meta|google|tiktok):.' then substr(p_ref, strpos(p_ref, ':') + 1)
-                      else nullif(btrim(p_ref), '') end as ad) r
+           'name', coalesce(
+                     (select a.name
+                        from public.ads a
+                       where a.tenant_id = p_tenant_id
+                         and a.platform = r.platform
+                         and a.platform_ad_id = r.ad),
+                     (select e.said ->> 'headline'
+                        from public.ad_entries e
+                       where e.tenant_id = p_tenant_id
+                         and e.platform = r.platform
+                         and e.platform_ad_id = r.ad
+                         and e.said ? 'headline'
+                       order by e.created_at desc
+                       limit 1)))
+    from public.ad_ref_parts(p_ref) r
 $$;
 
 
@@ -443,7 +474,318 @@ $$;
 -- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646): its platform, and its name, which is the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. A reference keyed by its platform (meta:<id>, google:<id>, tiktok:<id>) is read by its key; a bare id is one a WhatsApp or Instagram message carried, which is Meta''s; no reference at all names no platform. Until Chanlytics holds the ad itself, this is the one place an ad gets its name, so a person''s page and the people report cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides which entries are read.';
+COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform; one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+
+
+--
+-- Name: ad_people(uuid, uuid, integer, date, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid DEFAULT NULL::uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+                    'contact_id', x.contact_id, 'first_at', x.first_at, 'booked', x.booked,
+                    'display_name', x.display_name, 'wa_profile_name', x.wa_profile_name,
+                    'phone_e164', x.phone_e164)
+                  order by x.first_at desc), '[]'::jsonb)
+    from (select p.contact_id, p.first_at, p.booked, c.display_name, c.wa_profile_name, c.phone_e164
+            from public.ad_people_in(p_tenant_id, p_days, p_end) p
+            join contacts c on c.id = p.contact_id
+           where p.ad_id is not distinct from p_ad_id
+           order by p.first_at desc
+           limit least(greatest(coalesce(p_limit, 50), 1), 200)
+          offset greatest(coalesce(p_offset, 0), 0)) x
+$$;
+
+
+--
+-- Name: FUNCTION ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer) IS 'One ad''s people in a window, newest first, a page at a time (00651; decision 0049, call 5): who first got in touch through the ad, when, whether they have booked since, and what names them. The ones from an ad Chanlytics cannot name where p_ad_id is null. The same people ads_page_counts counts (ad_people_in). SECURITY INVOKER.';
+
+
+--
+-- Name: ad_people_in(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) RETURNS TABLE(contact_id uuid, first_at timestamp with time zone, ad_id uuid, booked boolean)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with win as (
+    -- The window people_series reads (00646): its days in the workspace's own zone, ending today or the earlier day asked.
+    select ((e.day - (e.days - 1))::timestamp) at time zone e.tz as start_at,
+           ((e.day + 1)::timestamp) at time zone e.tz as stop_at
+      from (select t.timezone as tz,
+                   least(greatest(coalesce(p_days, 30), 1), 90) as days,
+                   least(coalesce(p_end, (now() at time zone t.timezone)::date),
+                         (now() at time zone t.timezone)::date) as day
+              from tenants t
+             where t.id = p_tenant_id) e
+  ),
+  -- Who reached the business in the window, as the people report reads it: their own words, or a call that connected.
+  reached as (
+    select m.contact_id
+      from messages m, win w
+     where m.tenant_id = p_tenant_id
+       and coalesce(m.meta->>'backfill', 'false') <> 'true'
+       and m.created_at >= w.start_at and m.created_at < w.stop_at
+       and m.direction = 'inbound' and m.sender = 'customer'
+       and m.channel in ('whatsapp', 'sms', 'email')
+       and public.message_is_a_persons_words(m.meta)
+    union
+    select k.contact_id
+      from calls k, win w
+     where k.tenant_id = p_tenant_id
+       and k.started_at >= w.start_at and k.started_at < w.stop_at
+       and k.direction = 'inbound'
+       and public.call_connected(k.status, k.duration_ms)
+  ),
+  -- The new ones an ad brought: a first moment in the window, alive, not merged away, first touch an ad.
+  came as (
+    select c.id as contact_id, f.first_at, c.phone_e164, c.email, r.platform, r.ad
+      from public.contact_first_moments(p_tenant_id) f
+      join win w on f.first_at >= w.start_at and f.first_at < w.stop_at
+      join contacts c on c.id = f.contact_id
+     cross join lateral public.ad_ref_parts(c.acquired_ref) r
+     where c.tenant_id = p_tenant_id
+       and c.erased_at is null
+       and c.merged_into_contact_id is null
+       and c.acquired_via = 'ad'
+       and c.id in (select x.contact_id from reached x)
+  )
+  select x.contact_id, x.first_at, a.id,
+         exists (select 1
+                   from appointments v
+                  where v.tenant_id = p_tenant_id
+                    and v.starts_at > x.first_at
+                    and v.status not in ('cancelled', 'proposed')
+                    and (v.contact_id = x.contact_id
+                         or (v.contact_id is null
+                             and ((v.client_phone is not null and v.client_phone = x.phone_e164)
+                                  or (v.client_email is not null and lower(v.client_email) = lower(x.email))))))
+    from came x
+    left join ads a on a.tenant_id = p_tenant_id and a.platform = x.platform and a.platform_ad_id = x.ad
+$$;
+
+
+--
+-- Name: FUNCTION ad_people_in(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought in a window, a row a person (00651; decision 0049, calls 5 and 6): the same people people_series counts under "An ad" (a first moment in the window, reached the business in it, alive, not merged away, first touch an ad), each with the ad Chanlytics holds for their first touch (null where it holds none) and whether they have booked since: a visit in the record (appointments) that starts after their first touch and is neither cancelled nor only asked for, theirs by the record''s link or, where a visit names no person, by its number or address. Worked out when read, kept nowhere. SECURITY INVOKER: the caller''s RLS decides what is read.';
+
+
+--
+-- Name: ad_ref_parts(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_ref_parts(p_ref text) RETURNS TABLE(platform text, ad text)
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select case when p_ref ~ '^(meta|google|tiktok):.' then split_part(p_ref, ':', 1)
+              when btrim(coalesce(p_ref, '')) = '' then null
+              else 'meta' end,
+         case when p_ref ~ '^(meta|google|tiktok):.' then substr(p_ref, strpos(p_ref, ':') + 1)
+              else nullif(btrim(p_ref), '') end
+$$;
+
+
+--
+-- Name: FUNCTION ad_ref_parts(p_ref text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_ref_parts(p_ref text) IS 'A first touch''s reference (contacts.acquired_ref) as its platform and the platform''s id for the ad (00651, decision 0049 call 4): keyed by its platform (meta:<id>, google:<id>, tiktok:<id>) it is read by its key; a bare id is one a WhatsApp or Instagram message carried, which is Meta''s; no reference names no platform and no ad. The one reading of a reference: ad_named and the Ads page''s counts both ask it.';
+
+
+--
+-- Name: ad_set_intent(uuid, uuid, uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad      public.ads;
+  v_status  text;
+  v_pending boolean;
+begin
+  if p_intent not in ('on', 'paused') then
+    raise exception 'ad_set_intent: intent is on or paused' using errcode = '22023';
+  end if;
+  -- The owner alone pauses an ad or turns one back on (0050, call 2): asked here again, whoever knocked.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- One press at a time for an ad: two that arrive together are taken in turn, and the second sees the first.
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  select a.status into v_status from public.ad_accounts a where a.id = v_ad.account_id;
+  if v_status is distinct from 'connected' then
+    return jsonb_build_object('outcome', 'not_connected');
+  end if;
+  if v_ad.status <> 'made' or v_ad.platform_ad_id is null then
+    return jsonb_build_object('outcome', 'not_made');
+  end if;
+  v_pending := v_ad.intent_at is not null and (v_ad.told_at is null or v_ad.told_at < v_ad.intent_at);
+  -- The same press again: what was asked already stands. Answered once, changed once.
+  if v_ad.intent = p_intent then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version, 'pending', v_pending,
+                              'account_id', v_ad.account_id, 'platform_ad_id', v_ad.platform_ad_id);
+  end if;
+  if v_ad.version <> p_version then
+    return jsonb_build_object('outcome', 'stale', 'version', v_ad.version);
+  end if;
+  -- Turning back on an ad the platform holds paused is the press that can spend: the rule decides it. Taking back a
+  -- pause the platform was never told of spends nothing new, and is always the owner's.
+  if p_intent = 'on' and not v_pending
+     and not public.ad_may_resume(v_ad.origin, v_ad.platform_state, v_ad.budget_kind, v_ad.ends_at,
+                                  v_ad.budget_shared, v_ad.budget_left_minor) then
+    return jsonb_build_object('outcome', 'cant_resume', 'version', v_ad.version);
+  end if;
+
+  update public.ads a
+     set intent = p_intent,
+         intent_at = now(),
+         -- A press that takes back one the platform was never told of leaves nothing to tell.
+         told_at = case when v_pending then now() else a.told_at end,
+         version = a.version + 1
+   where a.id = p_ad_id;
+
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', p_ad_id, case p_intent when 'paused' then 'pause_ad' else 'resume_ad' end, 'user', p_actor,
+          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'took_back', v_pending,
+                             'left_minor', v_ad.budget_left_minor, 'ends_at', v_ad.ends_at));
+  if p_intent = 'paused' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.paused', 'ads', 'ad', p_ad_id,
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', p_actor));
+  else
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.resumed', 'ads', 'ad', p_ad_id,
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', p_actor,
+                               'left_minor', v_ad.budget_left_minor, 'ends_at', v_ad.ends_at));
+  end if;
+  return jsonb_build_object('outcome', 'asked', 'version', v_ad.version + 1, 'tell', not v_pending,
+                            'account_id', v_ad.account_id, 'platform_ad_id', v_ad.platform_ad_id,
+                            'told_at', v_ad.told_at);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) IS 'Service-role only: an owner pauses an ad or turns it back on (00652; decision 0050 calls 1, 2 and 9, the Ads plan''s C1). Keeps what was asked with when, bumps the ad''s version, and writes the decision (pause_ad, resume_ad) and the event (ad.paused, ad.resumed) in one transaction. Answers outcome: asked, with the new version and whether the platform is to be told (tell: false where the press took back one it was never told of); same where what was asked already stands (a repeated press, changed once); stale for a press drawn from an old version; cant_resume where ad_may_resume says no; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
+
+
+--
+-- Name: ad_tell_ask(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_asked integer;
+begin
+  -- The platform takes one change to an ad every thirty seconds. A press inside that time is kept, and its account's
+  -- read is asked for at the moment the platform will take it: that read sends it first. One waiting already is it.
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select a.tenant_id, 'ad_read',
+         greatest(now(), coalesce(d.told_at, '-infinity'::timestamptz) + interval '31 seconds',
+                  coalesce(a.read_after, '-infinity'::timestamptz)),
+         jsonb_build_object('account_id', a.id::text)
+    from public.ads d
+    join public.ad_accounts a on a.id = d.account_id
+   where d.id = p_ad_id and d.tenant_id = p_tenant_id and a.status = 'connected'
+     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+  on conflict do nothing;
+  get diagnostics v_asked = row_count;
+  return v_asked;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_tell_ask(p_tenant_id uuid, p_ad_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) IS 'Service-role only: an owner''s press that the platform will not take yet (00652). Puts the ad''s account''s ad_read on the ledger, due when the platform will take a change to that ad (thirty seconds after the last, and never before the platform allows a call); that read sends the press first. Nothing where a read waits already. Answers how many it asked for (0 or 1).';
+
+
+--
+-- Name: ad_told(uuid, uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text DEFAULT NULL::text, p_said text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad public.ads;
+begin
+  if p_asked not in ('on', 'paused') or p_outcome not in ('told', 'refused', 'unknown') then
+    raise exception 'ad_told: asked is on or paused, outcome told, refused or unknown' using errcode = '22023';
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return 'not_found';
+  end if;
+
+  if p_outcome = 'refused' then
+    -- The platform would not take the change: the ad stands as the platform holds it, and says so.
+    update public.ads a
+       set intent = case when a.intent = p_asked then (case p_asked when 'paused' then 'on' else 'paused' end)
+                         else a.intent end,
+           told_at = now(), intent_at = now(),
+           platform_state = coalesce(nullif(left(coalesce(p_platform_state, ''), 100), ''), a.platform_state)
+     where a.id = p_ad_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.press_refused', 'ads', 'ad', p_ad_id,
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'asked', p_asked,
+                               'said', nullif(left(coalesce(p_said, ''), 300), '')));
+    return 'refused';
+  end if;
+
+  -- Told, or sent with no answer (never sent again: the next read says what stands at the platform, decision 0050).
+  update public.ads a
+     set told_at = now(),
+         platform_state = coalesce(nullif(left(coalesce(p_platform_state, ''), 100), ''), a.platform_state)
+   where a.id = p_ad_id
+  returning * into v_ad;
+  if p_outcome = 'told' and v_ad.intent <> p_asked then
+    -- The owner pressed again while this one was on its way. Their newer ask is kept on its way where it could have
+    -- been made of the ad as the platform now holds it, and let go where it could not.
+    if v_ad.intent = 'paused'
+       or public.ad_may_resume(v_ad.origin, v_ad.platform_state, v_ad.budget_kind, v_ad.ends_at,
+                               v_ad.budget_shared, v_ad.budget_left_minor) then
+      update public.ads a set intent_at = clock_timestamp() + interval '1 millisecond' where a.id = p_ad_id;
+      return 'again';
+    end if;
+    update public.ads a set intent = p_asked, intent_at = now() where a.id = p_ad_id;
+    return 'kept';
+  end if;
+  return p_outcome;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) IS 'Service-role only: what telling a platform of an owner''s press came to (00652; decision 0050). told: when, and the platform''s word for the ad where it was read back. unknown: sent with no answer; it is never sent again, and the next read says what stands. refused: the platform would not take it; the ad is put back as the platform holds it and an ad.press_refused event says so with the platform''s words. A press made while this one was on its way answers again (kept on its way) or kept (let go: it could not have been made). Answers told, unknown, refused, again, kept or not_found.';
 
 
 --
@@ -541,6 +883,61 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ads_hand_out(p_spread_seconds integer) IS 'The ads clock''s one statement (00650, decision 0049): an ad_read for each connected ad account whose next read is due and that its platform is not holding back (read_after). An hourly read is due within the spread by a hash of its account, a first read and one on the quick pace at once; none is written while one waits or runs, and none while an operator has paused the kind. Answers {reads}. The service role''s.';
+
+
+--
+-- Name: ads_page_counts(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with win as (
+    select e.day - (e.days - 1) as from_day, e.day as to_day
+      from (select least(greatest(coalesce(p_days, 30), 1), 90) as days,
+                   least(coalesce(p_end, (now() at time zone t.timezone)::date),
+                         (now() at time zone t.timezone)::date) as day
+              from tenants t
+             where t.id = p_tenant_id) e
+  ),
+  by_ad as (
+    select p.ad_id, count(*) as people, count(*) filter (where p.booked) as booked
+      from public.ad_people_in(p_tenant_id, p_days, p_end) p
+     group by p.ad_id
+  ),
+  -- What each ad's platform says it spent in the same days: the platform's half, in the account's own days.
+  spent as (
+    select d.ad_id, sum(d.spend_minor)::bigint as spend_minor, sum(d.impressions)::bigint as impressions,
+           sum(d.clicks)::bigint as clicks, sum(d.platform_results)::bigint as platform_results,
+           bool_or(not d.settled) as settling
+      from ad_days d, win w
+     where d.tenant_id = p_tenant_id and d.day >= w.from_day and d.day <= w.to_day
+     group by d.ad_id
+  )
+  select jsonb_build_object(
+           'from', w.from_day,
+           'to', w.to_day,
+           'ads', coalesce((select jsonb_agg(jsonb_build_object('ad_id', b.ad_id, 'people', b.people,
+                                                                'booked', b.booked))
+                              from by_ad b where b.ad_id is not null), '[]'::jsonb),
+           'unnamed', jsonb_build_object(
+                        'people', coalesce((select b.people from by_ad b where b.ad_id is null), 0),
+                        'booked', coalesce((select b.booked from by_ad b where b.ad_id is null), 0)),
+           'spend', coalesce((select jsonb_agg(jsonb_build_object(
+                                       'ad_id', s.ad_id, 'spend_minor', s.spend_minor,
+                                       'impressions', s.impressions, 'clicks', s.clicks,
+                                       'platform_results', s.platform_results, 'settling', s.settling))
+                                from spent s), '[]'::jsonb))
+    from win w
+$$;
+
+
+--
+-- Name: FUNCTION ads_page_counts(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) IS 'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; and spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling). The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';
 
 
 --
@@ -55723,12 +56120,71 @@ GRANT ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, 
 
 
 --
+-- Name: FUNCTION ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO authenticated;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days integer, p_end date, p_limit integer, p_offset integer) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_people_in(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_ref_parts(p_ref text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_ref_parts(p_ref text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_ref_parts(p_ref text) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_ref_parts(p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_tell_ask(p_tenant_id uuid, p_ad_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) TO service_role;
 
 
 --
@@ -55746,6 +56202,15 @@ GRANT ALL ON FUNCTION public.add_person(p_tenant_id uuid, p_phone_e164 text, p_e
 
 REVOKE ALL ON FUNCTION public.ads_hand_out(p_spread_seconds integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ads_hand_out(p_spread_seconds integer) TO service_role;
+
+
+--
+-- Name: FUNCTION ads_page_counts(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
 
 
 --

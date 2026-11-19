@@ -62,12 +62,15 @@ import {
   type MetaSignIn,
 } from "./meta-facts.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
+import { adsWrites, tellPending } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
 
 /** No call is started with less than this left of a job: its answer and the one write end inside it. */
 const CALL_ROOM_MS = 25 * SECOND_MS;
+/** How lately an account was read that a read asked for only to send a press reads nothing more. */
+const FRESH_MS = 2 * MIN_MS;
 /** How long after a read that stopped the account is tried again, where Meta named no wait of its own. */
 const RETRY_MS = 15 * MIN_MS;
 
@@ -291,13 +294,21 @@ export async function runAdRead(
     calls: 0,
     usage: null,
   };
+  const revoked = async () => {
+    await markAdAccountRevoked(db, tenantId, account.id, "read");
+    log.info("ads_revoked", { how: "read" });
+    return out("revoked", reading.calls);
+  };
+  // The owner's presses still on their way go first: a pause must not wait behind a read (00652).
+  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, account.id, nowMs);
+  reading.usage = sent.usage;
+  if (sent.revoked) return revoked();
+  // A read asked for only to send a press, moments after the account's last read, has nothing new to read.
+  if (sent.told > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
+    return out("told", sent.told);
   const learned = await learn(db, app, reading, depth, nowMs);
   if (stopped(learned)) {
-    if (learned.fault === "revoked") {
-      await markAdAccountRevoked(db, tenantId, account.id, "read");
-      log.info("ads_revoked", { how: "read" });
-      return out("revoked", reading.calls);
-    }
+    if (learned.fault === "revoked") return revoked();
     await keepAdsRead(db, tenantId, account.id, failedRead(learned, nowMs));
     log.info("ads_read_failed", { fault: learned.fault, calls: reading.calls, usage_pct: learned.usage?.pct ?? null });
     return out("failed", reading.calls);

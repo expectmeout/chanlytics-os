@@ -8906,7 +8906,70 @@ export type Database = {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
         Returns: string
       }
+      ad_may_resume: {
+        Args: {
+          p_budget_kind: string
+          p_budget_left_minor: number
+          p_budget_shared: boolean
+          p_ends_at: string
+          p_origin: string
+          p_platform_state: string
+        }
+        Returns: boolean
+      }
       ad_named: { Args: { p_ref: string; p_tenant_id: string }; Returns: Json }
+      ad_people: {
+        Args: {
+          p_ad_id?: string
+          p_days?: number
+          p_end?: string
+          p_limit?: number
+          p_offset?: number
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      ad_people_in: {
+        Args: { p_days: number; p_end: string; p_tenant_id: string }
+        Returns: {
+          ad_id: string
+          booked: boolean
+          contact_id: string
+          first_at: string
+        }[]
+      }
+      ad_ref_parts: {
+        Args: { p_ref: string }
+        Returns: {
+          ad: string
+          platform: string
+        }[]
+      }
+      ad_set_intent: {
+        Args: {
+          p_actor: string
+          p_ad_id: string
+          p_intent: string
+          p_tenant_id: string
+          p_version: number
+        }
+        Returns: Json
+      }
+      ad_tell_ask: {
+        Args: { p_ad_id: string; p_tenant_id: string }
+        Returns: number
+      }
+      ad_told: {
+        Args: {
+          p_ad_id: string
+          p_asked: string
+          p_outcome: string
+          p_platform_state?: string
+          p_said?: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       add_person: {
         Args: {
           p_display_name: string
@@ -8918,6 +8981,10 @@ export type Database = {
         Returns: Json
       }
       ads_hand_out: { Args: { p_spread_seconds: number }; Returns: Json }
+      ads_page_counts: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
       ads_read_ask: {
         Args: { p_external_id: string; p_platform: string }
         Returns: number

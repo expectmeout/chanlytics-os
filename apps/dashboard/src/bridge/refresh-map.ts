@@ -697,6 +697,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
  */
 export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   // An ad account's card reads the account itself (surfaces/campaigns/ads/connect/use-account.ts): no surface holds it.
+  // An ad's presses: the Ads page reads its own ads again once the press answers (surfaces/campaigns/ads/live).
+  "POST ads/[id]/pause": "an owner paused an ad: the Ads page reads its ads again once the press answers",
+  "POST ads/[id]/resume": "an owner turned an ad back on: the Ads page reads its ads again once the press answers",
   "POST ads/account/check":
     "Chanlytics looked again at an ad account: its card reads the account once the look answers",
   "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",

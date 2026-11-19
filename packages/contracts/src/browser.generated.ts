@@ -19,6 +19,7 @@ export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, met
 export { adRoute, ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";
+export { AD_DOORS_COUNTED, adResumeRule } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
 export { adAccountStateOf, adStateOf } from "./ads/states";
 export { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS, anthropicActed, anthropicPaused, enforcementActionsOf, enforcementStatusOf, enforcementWords, MODEL_PAUSED_WORDS, modelStandingOf } from "./ai/anthropic-enforcement";

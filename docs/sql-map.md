@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 187 | 187 |
-| reader | 78 | 0 |
-| the server's | 375 | 322 |
+| reader | 82 | 0 |
+| the server's | 379 | 325 |
 | computed column | 3 | 0 |
 | trigger | 104 | 74 |
-| all | 747 | 583 |
+| all | 755 | 586 |
 
 ## Called by nothing
 
@@ -54,9 +54,17 @@ being read is dropped by a migration.
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
+| `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
+| `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
+| `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
+| `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
+| `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses an ad or turns it back on (00652; |
+| `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner's press that the platform will not take yet (00652). |
+| `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
+| `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, or a connect just finished (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, decision 0049). |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
@@ -91,7 +99,7 @@ being read is dropped by a migration.
 | `calendar_grant_note` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | The calendar read through a connected mailbox (decision 0073, R20): |
 | `calendars_due` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts`; SQL `calendars_hand_out` | The workspaces with a calendar to read (a feed's link, or a calendar read through a connected mailbox, 00478) never read or last read before p_before, never read first, then least recently read, each |
 | `calendars_hand_out` | the server's | the server | code `packages/db/src/repositories/jobs/sweeps.ts` | A calendar_read for each workspace whose calendar is due, judged by calendars_due (00569, decision 0115). |
-| `call_connected` | reader | a signed-in person, the server | SQL `contact_first_moments`, `metrics_summary` and 4 more; trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` |  |
+| `call_connected` | reader | a signed-in person, the server | SQL `ad_people_in`, `contact_first_moments` and 5 more; trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` |  |
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
@@ -120,7 +128,7 @@ being read is dropped by a migration.
 | `contact_email_change_clears_suppression` | trigger | a signed-in person, the server | trigger `contacts_email_change_clears_suppression on contacts` |  |
 | `contact_email_on_erase` | trigger | a signed-in person, the server | trigger `contacts_erase_clears_email on contacts` |  |
 | `contact_events_on_erase` | trigger | the server | trigger `contacts_erase_scrubs_events on contacts` |  |
-| `contact_first_moments` | reader | a signed-in person, the server | SQL `metrics_summary`, `people_series` and 1 more | A person's first reach-in, one row each: |
+| `contact_first_moments` | reader | a signed-in person, the server | SQL `ad_people_in`, `metrics_summary` and 2 more | A person's first reach-in, one row each: |
 | `contact_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | The calling member's own mark on a person of a workspace they belong to: |
 | `contact_proposal_on_erase` | trigger | a signed-in person, the server | trigger `contacts_erase_clears_proposal on contacts` |  |
 | `contact_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | What the calling member has seen of the people named, in a workspace they belong to: |
@@ -228,7 +236,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `caller_has_permission` and 29 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_set_intent` and 30 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -382,7 +390,7 @@ being read is dropped by a migration.
 | `merge_people` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/merge-people.ts`, `packages/contracts/src/people/person-merge.ts` and 1 more | An owner merges two records of one person (decision 0028): |
 | `message_call_back` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member calls back a send in its grace (00387): |
 | `message_carries_link` | reader | a signed-in person, the server | SQL `messages_note_booking_link` | Whether these words carry this link (K7): |
-| `message_is_a_persons_words` | reader | a signed-in person, the server | SQL `campaign_ledger`, `campaign_series` and 11 more | Whether an inbound message's words are a person's own: |
+| `message_is_a_persons_words` | reader | a signed-in person, the server | SQL `ad_people_in`, `campaign_ledger` and 12 more | Whether an inbound message's words are a person's own: |
 | `message_keep_cost` | the server's | the server | code `packages/db/src/repositories/channels/ingest.ts` | Keeps what a message cost to send on its outbound row (K8): |
 | `message_moment` | reader | a signed-in person, the server | SQL `has_relationship`, `people_list` and 3 more | When a message happened, whether it was spoken, and whether it came in with a history moved in, from its meta, channel_ts, created_at, type and status: |
 | `message_send_now` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member lets a held reply go now (00503): |

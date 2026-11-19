@@ -16,8 +16,9 @@ export {
   parseMetaTokenUser,
 } from "./meta-account";
 export type { MetaAdAccount, MetaPage } from "./meta-account";
-export { callMetaAds } from "./meta-call";
+export { callMetaAds, metaConfirmed } from "./meta-call";
 export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta-call";
+export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
 export {
   META_ADS_PAGE,
   META_DAYS_PAGE,

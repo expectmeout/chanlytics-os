@@ -71,6 +71,7 @@ import {
 } from "./meta-facts.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { pickAccount, pickPage, type AccountSeen } from "./pick.js";
+import { adsWrites } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -341,6 +342,7 @@ function adsStatus(tenantId: string, app: MetaApp | null): Response {
     ok: true,
     ready: !!app,
     on: adsOfferedIn(tenantId),
+    writes: adsWrites(),
     ...(app ? { app: { client_id: app.clientId, config_id: app.configId, redirect_uri: app.redirectUri } } : {}),
   });
 }

@@ -228,7 +228,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // 66: a thread said not to be a customer's is a warning, and one said to be after all is ok (00539).
 // 73: an owner's ad account (00649): connected, the one of two chosen, connecting it and turning an ad back on are
 // ok; access taken back by the platform, an account let go, disconnecting one and pausing an ad are warn.
-const TONED_KINDS = 73;
+// 76: an ad paused and a change Meta would not take are warn, an ad turned back on is ok (00652).
+const TONED_KINDS = 76;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

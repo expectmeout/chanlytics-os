@@ -30,6 +30,34 @@
       "rate": "settings",
       "spend": false
     },
+    "POST ads/[id]/pause": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/resume": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET ads/page": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET ads/people": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET ads/connect/callback": {
       "kind": "read",
       "scope": "account",

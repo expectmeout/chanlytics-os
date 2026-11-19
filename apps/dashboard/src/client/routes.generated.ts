@@ -33,6 +33,8 @@ export const ROUTES = {
   "GET ads/account": { method: "GET", path: "/api/v1/ads/account" },
   "GET ads/connect": { method: "GET", path: "/api/v1/ads/connect" },
   "GET ads/connect/callback": { method: "GET", path: "/api/v1/ads/connect/callback" },
+  "GET ads/page": { method: "GET", path: "/api/v1/ads/page" },
+  "GET ads/people": { method: "GET", path: "/api/v1/ads/people" },
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
   "GET ask/memory": { method: "GET", path: "/api/v1/ask/memory" },
   "GET ask/morning": { method: "GET", path: "/api/v1/ask/morning" },
@@ -164,6 +166,8 @@ export const ROUTES = {
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
+  "POST ads/[id]/pause": { method: "POST", path: "/api/v1/ads/[id]/pause" },
+  "POST ads/[id]/resume": { method: "POST", path: "/api/v1/ads/[id]/resume" },
   "POST ads/account/check": { method: "POST", path: "/api/v1/ads/account/check" },
   "POST ads/account/choose": { method: "POST", path: "/api/v1/ads/account/choose" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
@@ -444,6 +448,8 @@ export type Routes = {
   "GET ads/account": typeof import("../../app/api/v1/ads/account/route").GET;
   "GET ads/connect": typeof import("../../app/api/v1/ads/connect/route").GET;
   "GET ads/connect/callback": typeof import("../../app/api/v1/ads/connect/callback/route").GET;
+  "GET ads/page": typeof import("../../app/api/v1/ads/page/route").GET;
+  "GET ads/people": typeof import("../../app/api/v1/ads/people/route").GET;
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
   "GET ask/memory": typeof import("../../app/api/v1/ask/memory/route").GET;
   "GET ask/morning": typeof import("../../app/api/v1/ask/morning/route").GET;
@@ -575,6 +581,8 @@ export type Routes = {
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
+  "POST ads/[id]/pause": typeof import("../../app/api/v1/ads/[id]/pause/route").POST;
+  "POST ads/[id]/resume": typeof import("../../app/api/v1/ads/[id]/resume/route").POST;
   "POST ads/account/check": typeof import("../../app/api/v1/ads/account/check/route").POST;
   "POST ads/account/choose": typeof import("../../app/api/v1/ads/account/choose/route").POST;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;

@@ -41,9 +41,11 @@ async function edgeAds(
 /** Whether Connect can be offered in a workspace here, and the public half of the app the way out is built from. */
 interface AdsReadiness {
   offered: boolean;
+  /** Whether an owner's Pause and Resume do anything here: the edge's own switch is not off. */
+  presses: boolean;
   app: { client_id: string; config_id: string; redirect_uri: string } | null;
 }
-const NOT_OFFERED: AdsReadiness = { offered: false, app: null };
+const NOT_OFFERED: AdsReadiness = { offered: false, presses: false, app: null };
 /** The edge's word per workspace, kept READY_TTL_MS: the Ads page asks it on every open. */
 const readyCache = new Map<TenantId, { at: number; value: AdsReadiness }>();
 
@@ -61,7 +63,11 @@ async function adsReadiness(tenantId: TenantId, now = Date.now()): Promise<AdsRe
     typeof app?.client_id === "string" &&
     typeof app.config_id === "string" &&
     typeof app.redirect_uri === "string"
-      ? { offered: true, app: { client_id: app.client_id, config_id: app.config_id, redirect_uri: app.redirect_uri } }
+      ? {
+          offered: true,
+          presses: body.writes === "live" || body.writes === "sandbox",
+          app: { client_id: app.client_id, config_id: app.config_id, redirect_uri: app.redirect_uri },
+        }
       : NOT_OFFERED;
   readyCache.set(tenantId, { at: now, value });
   return value;
@@ -70,6 +76,11 @@ async function adsReadiness(tenantId: TenantId, now = Date.now()): Promise<AdsRe
 /** Whether Connect is offered in this workspace here: the card's reader asks it. */
 export async function adsOffered(tenantId: TenantId): Promise<boolean> {
   return (await adsReadiness(tenantId)).offered;
+}
+
+/** Whether an owner's Pause and Resume do anything in this workspace here: the page's reader asks it. */
+export async function adsPressesOn(tenantId: TenantId): Promise<boolean> {
+  return (await adsReadiness(tenantId)).presses;
 }
 
 /** `GET ads/connect`: a signed state naming the workspace, the person and this sign-in, then Meta's own window. */

@@ -23,5 +23,23 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     app: z.object({ client_id: z.string(), config_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
     outcome: z.string(),
     account_id: z.string(),
+    /** `status`: whether an owner's presses reach the platform from this deployment: off, sandbox or live. */
+    writes: z.string(),
   }),
+);
+
+/**
+ * POST /api/admin/ads/press: an owner pauses an ad (`pause`) or turns one back on (`resume`), carrying the version the
+ * press was drawn from. `outcome` says what it came to: told, sent, soon, took_back or same.
+ */
+export const ADS_PRESS_DOOR = edgeDoor(
+  "/api/admin/ads/press",
+  z.object({
+    op: z.string(),
+    tenant_id: DOOR_ID.optional(),
+    user_id: DOOR_ID.optional(),
+    ad_id: DOOR_ID.optional(),
+    version: z.number().int().optional(),
+  }),
+  answerFields({ outcome: z.string(), version: z.number() }),
 );
