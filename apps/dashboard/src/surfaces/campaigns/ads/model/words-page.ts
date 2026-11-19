@@ -333,6 +333,13 @@ export const V0 = {
     rest: " new people with a recorded way in first wrote from an ad.",
   }),
   more: (n: number) => `${n} more have no way in recorded.`,
+  /** Which ads they came through, under the lead: `5 people from Spring colour offer and 2 people from an ad you run in Meta.` */
+  byAd: (list: string) => `${list}.`,
+  fromAd: (n: number, ad: string) => `${peopleWord(n)} from ${ad}`,
+  /** An ad Chanlytics cannot name yet: by whose account it runs in, where that is known. */
+  unnamedAd: (owner: string | null) => (owner ? `an ad you run in ${owner}` : "an ad you run"),
+  /** The ads after the first few, together. */
+  otherAds: (n: number, ads: number) => `${peopleWord(n)} from ${ads} other ${ads === 1 ? "ad" : "ads"}`,
   emptyLead: "No one has written from an ad yet.",
   emptyLine: "When Meta names the ad in someone's first message, AI answers and they are counted here.",
   /** Read, and nobody at all: People's own answer for these days. */

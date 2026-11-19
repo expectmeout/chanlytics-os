@@ -193,6 +193,10 @@ function v0(): AdsRead {
         { label: "Text", n: 2, own: false, recorded: true },
         { label: "Not recorded", n: 2, own: false, recorded: false },
       ],
+      ads: [
+        { platform: "meta", name: "Spring colour offer", n: 4 },
+        { platform: "meta", name: null, n: 1 },
+      ],
     },
   };
 }

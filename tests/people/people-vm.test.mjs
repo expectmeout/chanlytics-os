@@ -22,6 +22,7 @@ import {
 // A namespace too: a word a change has not yet added to the module is missing from it, and a named import of it would
 // fail the whole file instead of the one test that reads it.
 import * as contracts from "@chanlytics/contracts";
+import { PLATFORM_OWNER } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -936,6 +937,50 @@ test("the offers answer in a word, as People's Offers column says it -- so a lis
     "No",
     "a STOP stops offers too",
   );
+});
+
+test("a person an ad brought: the line of where they came from names the ad, or whose account it runs in where Chanlytics cannot name it (0049)", () => {
+  const origin = (firstAd, over = {}, rowOver = {}) =>
+    toPersonVM(
+      {
+        ...detail(over),
+        row: row({ came_from: "whatsapp", ...rowOver }),
+        ...(firstAd === undefined ? {} : { first_ad: firstAd }),
+      },
+      ZONE,
+      NOW,
+    ).origin;
+  const plain = origin(undefined);
+  assert.match(plain, /^Wrote on WhatsApp · /);
+  assert.equal(origin(null), plain, "no ad brought them: the line is as it was");
+  assert.equal(
+    origin({ platform: "meta", name: "Spring colour offer" }),
+    `${plain} · from an ad (Spring colour offer)`,
+  );
+  assert.equal(origin({ platform: "meta", name: null }), `${plain} · from an ad you run in Meta`);
+  assert.equal(origin({ platform: "google", name: null }), `${plain} · from an ad you run in Google`);
+  assert.equal(origin({ platform: "tiktok", name: null }), `${plain} · from an ad you run in TikTok`);
+  assert.equal(origin({ platform: null, name: null }), `${plain} · from an ad you run`);
+  // A person an ad's own form added: the line begins with the ad, and keeps its day.
+  const added = { added: { at: iso(3 * D), source: "ad", title: null } };
+  const byForm = origin(undefined, added, { came_from: "ad" });
+  assert.match(byForm, /^From an ad · /);
+  const day = byForm.slice("From an ad · ".length);
+  assert.equal(
+    origin({ platform: "meta", name: "Spring colour offer" }, added, { came_from: "ad" }),
+    `From an ad (Spring colour offer) · ${day}`,
+  );
+  assert.equal(
+    origin({ platform: "meta", name: null }, added, { came_from: "ad" }),
+    `From an ad you run in Meta · ${day}`,
+  );
+  // Whose account an ad runs in is People's copy of the Ads page's three words: the line says the same names.
+  for (const platform of ["meta", "google", "tiktok"])
+    assert.equal(
+      origin({ platform, name: null }),
+      `${plain} · from an ad you run in ${PLATFORM_OWNER[platform]}`,
+      platform,
+    );
 });
 
 test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {

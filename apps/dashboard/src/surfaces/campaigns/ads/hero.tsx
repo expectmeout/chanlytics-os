@@ -10,7 +10,8 @@
 import type { AdPlatform } from "@chanlytics/contracts";
 import { GATE } from "./model/words";
 import { V0 } from "./model/words-page";
-import type { ChooseVM, NoAdsVM, V0VM } from "./model/page-parts";
+import type { ChooseVM, NoAdsVM } from "./model/page-parts";
+import type { V0VM } from "./model/page-v0";
 import { Button } from "../../kit/button/button";
 import { BarList } from "../../kit/charts/bar";
 import { EmptyState } from "../../kit/empty/empty";
@@ -53,6 +54,11 @@ function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
         <p className="ads-hero-lead" data-testid="ads-v0-lead">
           <b>{v0.lead.strong}</b>
           {v0.lead.rest}
+        </p>
+      ) : null}
+      {v0.ads ? (
+        <p className="ads-hero-muted" data-testid="ads-v0-ads">
+          {v0.ads}
         </p>
       ) : null}
       {v0.muted ? <p className="ads-hero-muted">{v0.muted}</p> : null}

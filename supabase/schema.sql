@@ -105,6 +105,39 @@ COMMENT ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_
 
 
 --
+-- Name: ad_named(uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+           'platform', r.platform,
+           'name', (select e.said ->> 'headline'
+                      from public.ad_entries e
+                     where e.tenant_id = p_tenant_id
+                       and e.platform = r.platform
+                       and e.platform_ad_id = r.ad
+                       and e.said ? 'headline'
+                     order by e.created_at desc
+                     limit 1))
+    from (select case when p_ref ~ '^(meta|google|tiktok):.' then split_part(p_ref, ':', 1)
+                      when btrim(coalesce(p_ref, '')) = '' then null
+                      else 'meta' end as platform,
+                 case when p_ref ~ '^(meta|google|tiktok):.' then substr(p_ref, strpos(p_ref, ':') + 1)
+                      else nullif(btrim(p_ref), '') end as ad) r
+$$;
+
+
+--
+-- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646): its platform, and its name, which is the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. A reference keyed by its platform (meta:<id>, google:<id>, tiktok:<id>) is read by its key; a bare id is one a WhatsApp or Instagram message carried, which is Meta''s; no reference at all names no platform. Until Chanlytics holds the ad itself, this is the one place an ad gets its name, so a person''s page and the people report cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides which entries are read.';
+
+
+--
 -- Name: add_person(uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -20419,6 +20452,18 @@ begin
      where np.is_now
      group by 1
   ),
+  -- The ones an ad brought, by the ad (00646): its platform, and its name where an entry kept what the ad said
+  -- (ad_named), so an ad whose id was written two ways is one row, and the ads nobody can name are one row a
+  -- platform. One lookup an ad, never one a person. The rows add up to first_came's `ad`.
+  first_ads as (
+    select public.ad_named(p_tenant_id, r.ref) as named, sum(r.n)::bigint as n
+      from (select c.acquired_ref as ref, count(*) as n
+              from new_people np
+              join contacts c on c.id = np.contact_id
+             where np.is_now and c.acquired_via = 'ad'
+             group by 1) r
+     group by 1
+  ),
 
   -- ---------------------------------------------------------------- the answers recorded
   -- One row a person, kind of message, answer and period: the earliest event's source. A purpose this lens has no word
@@ -20490,7 +20535,10 @@ begin
       'before', (select jsonb_build_object('whatsapp', s.whatsapp, 'sms', s.sms, 'email', s.email, 'voice', s.voice)
                    from channel_stats s where not s.is_now)),
     'first_came', jsonb_build_object(
-      'by_via', coalesce((select jsonb_object_agg(f.via, f.n) from first_came f), '{}'::jsonb)),
+      'by_via', coalesce((select jsonb_object_agg(f.via, f.n) from first_came f), '{}'::jsonb),
+      'by_ad', coalesce((select jsonb_agg(a.named || jsonb_build_object('n', a.n)
+                                         order by a.n desc, a.named ->> 'name', a.named ->> 'platform')
+                           from first_ads a), '[]'::jsonb)),
     'consent', jsonb_build_object(
       'now', jsonb_build_object(
         'yes', (select jsonb_build_object(
@@ -20527,7 +20575,7 @@ end $$;
 -- Name: FUNCTION people_series(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00394, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
+COMMENT ON FUNCTION public.people_series(p_tenant_id uuid, p_days integer, p_end date) IS 'Reports › People: who reached the business over p_days and the same number of days before them, as people and never as messages (distinct live people with an inbound message in their own words on WhatsApp, SMS or email, or an inbound call that connected; new where contact_first_moments, 00394, puts their first reach-in in the same period), on which channel, how the new ones first came (contacts.acquired_via, 00306; null is unknown) and, of those an ad brought, how many each ad did (`first_came.by_ad`, 00646: an ad by its platform and its name where an entry kept what the ad said, ad_named; the ads nobody can name are one row a platform; the rows add up to the count under `ad`), the yeses and stops recorded (contact.consent_changed events, one per person, kind of message and answer, a merge and a stop that ends a yes to offers left out; by source and kind of message in the window, in totals before it), the email addresses that stopped working (contact.email_suppressed events, once a person), and the steps done (person_notes with a day, done in the window) and how many on their day or before by the workspace''s own day. Counts only. SECURITY INVOKER: the caller''s RLS decides what a member reads. `p_end` (00360) is the window''s last day, in the workspace''s zone: null is today, and a day that has not come is read as today.';
 
 
 --
@@ -54564,6 +54612,15 @@ GRANT USAGE ON SCHEMA public TO service_role;
 
 REVOKE ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_role;
 
 
 --

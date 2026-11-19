@@ -302,9 +302,15 @@ export interface AdsRead {
   neverQuotePrices: boolean;
   /**
    * Before any ad: how new people first reached the business (People's first touch), or null where that has not been read. `own` is
-   * the way in that is an ad; `recorded` is false on the row of those whose way in was not kept.
+   * the way in that is an ad; `recorded` is false on the row of those whose way in was not kept. `ads` is the `own` row's
+   * people by the ad they came through: its platform, its name where Chanlytics knows it (null: an ad it cannot name), and
+   * how many. Empty where the database does not say.
    */
-  firstTouch: { since: string; rows: { label: string; n: number; own: boolean; recorded: boolean }[] } | null;
+  firstTouch: {
+    since: string;
+    rows: { label: string; n: number; own: boolean; recorded: boolean }[];
+    ads: { platform: AdPlatform | null; name: string | null; n: number }[];
+  } | null;
 }
 
 /** What the platforms return as choices and estimates; fixed per account, not per ad. */

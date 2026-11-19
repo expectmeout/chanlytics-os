@@ -4,7 +4,7 @@ import { routeOf } from "../address";
 import { CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
 import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { V0 } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
-import { firstTouchOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
+import { firstTouchOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-v0.ts";
 import { ASK_ADS_VIEW } from "../../packages/contracts/src/ask/context";
 
 /**

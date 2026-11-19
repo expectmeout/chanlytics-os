@@ -276,6 +276,78 @@ test(
 );
 
 test(
+  "the new people an ad brought are said by the ad: named where an entry kept its headline, one row where none did, adding up to An ad (00646)",
+  { skip },
+  async () => {
+    const w = await workspace("harbor-people-ads");
+    const spring = "120200000000031";
+    const quiet = "120200000000032";
+    // S1, S2 and S3 came through one ad (S3's reference keyed by its platform), Q through an ad no entry has words for,
+    // N through an ad no reference names, W through no ad. K came through the named ad a month ago: known, not new.
+    const refs = { S1: spring, S2: spring, S3: `meta:${spring}`, Q: quiet, N: null };
+    const who = {};
+    for (const key of [...Object.keys(refs), "W", "K"]) who[key] = await person(w);
+    const firsts = {};
+    for (const [i, key] of Object.keys(refs).entries()) {
+      [firsts[key]] = await insert("messages", [inbound(w, who[key], dayAt(2, 8 + i))]);
+    }
+    await insert("messages", [
+      inbound(w, who.W, dayAt(2, 15)),
+      inbound(w, who.K, dayAt(30, 10)),
+      inbound(w, who.K, dayAt(1, 10)),
+    ]);
+    for (const [key, ref] of Object.entries({ ...refs, K: spring })) {
+      ok(await db.from("contacts").update({ acquired_via: "ad", acquired_ref: ref }).eq("id", who[key].contact));
+    }
+    ok(await db.from("contacts").update({ acquired_via: "whatsapp" }).eq("id", who.W.contact));
+    // What each tap kept of the ad: an older headline, the one the ad has now, then a tap whose words held no headline.
+    const entry = (key, adId, at, words) => ({
+      tenant_id: w.tenantId,
+      platform: "meta",
+      platform_ad_id: adId,
+      kind: "chat",
+      new_person: true,
+      message_id: firsts[key].id,
+      said: words,
+      said_at: words ? at.toISOString() : null,
+      created_at: at.toISOString(),
+    });
+    await insert("ad_entries", [
+      entry("S1", spring, dayAt(2, 8), { headline: "Spring offer" }),
+      entry("S2", spring, dayAt(2, 9), { headline: "Spring colour offer", body: "From $45" }),
+      entry("S3", spring, dayAt(2, 10), { body: "Words, and no headline" }),
+      entry("Q", quiet, dayAt(2, 11), null),
+    ]);
+
+    const r = await series(w);
+    assert.deepEqual(r.first_came.by_via, { ad: 5, whatsapp: 1 });
+    assert.deepEqual(
+      r.first_came.by_ad,
+      [
+        { platform: "meta", name: "Spring colour offer", n: 3 },
+        { platform: "meta", name: null, n: 1 },
+        { platform: null, name: null, n: 1 },
+      ],
+      "an ad once however its id was written, by its newest headline; then the ads nobody can name, a row a platform",
+    );
+    assert.equal(
+      r.first_came.by_ad.reduce((sum, row) => sum + row.n, 0),
+      r.first_came.by_via.ad,
+      "the rows add up to the people counted under An ad",
+    );
+    // The name is the ad's in this workspace alone: another workspace's taps name nothing here.
+    const other = await workspace("harbor-people-ads-other");
+    const named = async (tenantId, ref) => ok(await db.rpc("ad_named", { p_tenant_id: tenantId, p_ref: ref }));
+    assert.deepEqual(await named(w.tenantId, spring), { platform: "meta", name: "Spring colour offer" });
+    assert.deepEqual(await named(w.tenantId, `meta:${spring}`), { platform: "meta", name: "Spring colour offer" });
+    assert.deepEqual(await named(other.tenantId, spring), { platform: "meta", name: null });
+    assert.deepEqual(await named(w.tenantId, `google:${spring}`), { platform: "google", name: null });
+    for (const none of [null, "", "  "])
+      assert.deepEqual(await named(w.tenantId, none), { platform: null, name: null });
+  },
+);
+
+test(
   "yeses and stops: one a person, a kind of message and an answer; a merge and a stop are no person's own; live people only",
   { skip },
   async () => {
@@ -419,7 +491,7 @@ test("a window that ended, a zone east of UTC, a workspace with nothing, an unkn
     now: { whatsapp: 0, sms: 0, email: 0, voice: 0 },
     before: { whatsapp: 0, sms: 0, email: 0, voice: 0 },
   });
-  assert.deepEqual(none.first_came, { by_via: {} });
+  assert.deepEqual(none.first_came, { by_via: {}, by_ad: [] });
   assert.deepEqual(none.consent, { now: { yes: noOne, stop: noOne }, before: { yes: 0, stop: 0 } });
   assert.deepEqual(none.email_stopped, { total: 0, by_reason: {} });
   assert.deepEqual(none.steps, { done: 0, on_time: 0 });

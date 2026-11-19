@@ -72,6 +72,17 @@ export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
   tiktok: "TikTok",
 };
 
+/**
+ * Whose account an ad runs in, as a page says it where the ad has no name it knows: `an ad you run in Meta` (ads/words.ts
+ * PLATFORM_OWNER is the Ads page's own; this is People's copy of three words, and tests/people/people-vm.test.mjs holds
+ * the two equal, through the line a person's page says).
+ */
+export const PERSON_AD_OWNER: Record<"meta" | "google" | "tiktok", string> = {
+  meta: "Meta",
+  google: "Google",
+  tiktok: "TikTok",
+};
+
 /** Where an ad brought someone, as a line under a name says it: `From an ad · Spring offer`, or `From an ad` where the ad is not known. */
 export const fromAdWords = (name: string | null): string => (name ? `From an ad · ${name}` : "From an ad");
 
