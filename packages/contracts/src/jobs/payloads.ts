@@ -95,7 +95,15 @@ export const JOB_PAYLOADS = {
   file_fetch: carrying({
     source: z.string(),
     batch: z.string(),
-    items: z.array(z.strictObject({ url: z.string(), ref: z.string(), kind: z.literal("video").optional() })),
+    // `seconds`: a video's length, where its road says it (an Instagram reel's), so it is let in by it at the door.
+    items: z.array(
+      z.strictObject({
+        url: z.string(),
+        ref: z.string(),
+        kind: z.literal("video").optional(),
+        seconds: z.number().optional(),
+      }),
+    ),
     rang: z.boolean().optional(),
   }),
   file_purge: carrying({ file_id: z.string(), why: z.string() }),
@@ -105,8 +113,11 @@ export const JOB_PAYLOADS = {
     try: z.string(),
     run_id: z.string().optional(),
     dataset_id: z.string().optional(),
+    // Only posts newer than this are asked for: when the account's last whole read began.
+    since: z.string().optional(),
   }),
   video_digest: carrying({ file_id: z.string(), step: z.string(), edition: z.string() }),
+  source_take: carrying({ item_id: z.string(), try: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   post_publish: carrying({ post_id: z.string(), attempt: z.string() }),
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string() }),

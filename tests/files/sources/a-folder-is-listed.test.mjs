@@ -8,7 +8,7 @@ import { test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { at } from "../../_cron-doors-world.mjs";
-import { ROOT, SOURCE, firstWalk, runJobs, schedule, setEnv, world } from "./_world.mjs";
+import { ROOT, SOURCE, T, firstWalk, runJobs, schedule, setEnv, world } from "./_world.mjs";
 
 setEnv();
 const { sweepSources } = await import(at("apps/edge/lib/files/sources/sweep.ts"));
@@ -532,4 +532,33 @@ test("a watched folder that cannot be read is frozen with nothing marked, and th
   await clockTurn(w);
   assert.equal(w.source().state, "watching");
   assert.equal(w.source().last_error, null);
+});
+
+test("a walk that ended asks for its workspace's takes at once, and what each job spent is on the day's line", async () => {
+  w = world();
+  smallTree(w.drive);
+  // The walk alone, before the read it hands the folder: what is asked for here is the walk's own doing.
+  schedule(w, "source_walk", { source_id: SOURCE, run: "1", step: "0", walk: "snapshot" }, [SOURCE, "1", "0"]);
+  const walked = await runJobs(w, { kinds: ["source_walk"] });
+  assert.equal(walked.at(-1).walked.ended, true);
+  assert.deepEqual(
+    w.handOuts.map((asked) => asked.p_tenant_id),
+    [T],
+    "asked once, as the walk ended, for the folder's own workspace: a first watch does not wait for the clock",
+  );
+  assert.deepEqual(
+    w.unitWrites,
+    walked.map((answer) => answer.walked.units),
+    "one write a job, of what that step spent",
+  );
+  const reads = await runJobs(w);
+  assert.deepEqual(w.unitWrites, [
+    ...walked.map((answer) => answer.walked.units),
+    ...reads.map((answer) => answer.read.units),
+  ]);
+  assert.equal(
+    w.unitWrites.reduce((sum, units) => sum + units, 0),
+    w.drive.units(),
+    "all of what Drive itself counted",
+  );
 });

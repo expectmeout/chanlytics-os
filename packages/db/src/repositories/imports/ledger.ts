@@ -31,7 +31,7 @@ export interface ImportLedgerRow {
 }
 
 /** The counts as numbers: a key the row holds that is not a number is left out, never read as zero. */
-function ledgerCountsOf(raw: unknown): Record<string, number> {
+export function ledgerCountsOf(raw: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
   for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && Number.isFinite(v)) out[k] = v;

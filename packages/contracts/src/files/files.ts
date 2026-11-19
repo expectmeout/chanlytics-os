@@ -166,6 +166,7 @@ export const FILE_WORDS = {
     website: "From your website",
     instagram: "From your Instagram",
     made: "Made with AI",
+    drive: "From your Google Drive",
   } satisfies Record<FileSource, string>,
   looking: "AI is looking at it",
   notRead: "AI couldn't read this one yet. It's still yours to use.",

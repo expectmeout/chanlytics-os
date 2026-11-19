@@ -121,6 +121,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "instagram_read",
       "file_purge",
       "video_digest",
+      "source_take",
       "post_prepare",
       "post_publish",
       "post_reconcile",

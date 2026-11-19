@@ -37,7 +37,16 @@ export const FILE_STATUSES = ["inbox", "filed", "set_aside"] as const;
 
 export type FileStatus = (typeof FILE_STATUSES)[number];
 
-export const FILE_SOURCES = ["upload", "google_profile", "google_listing", "website", "instagram", "made"] as const;
+export const FILE_SOURCES = [
+  "upload",
+  "google_profile",
+  "google_listing",
+  "website",
+  "instagram",
+  "made",
+  // What a watched Google Drive folder brought (00643, the footage sources plan).
+  "drive",
+] as const;
 
 export type FileSource = (typeof FILE_SOURCES)[number];
 

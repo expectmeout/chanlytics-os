@@ -119,6 +119,7 @@ export type {
   SourceItemKind,
   SourceItemRecord,
   SourceItemState,
+  SourceItemWhy,
   SourceProviderContract,
   SourceReply,
   SourceWalkKind,

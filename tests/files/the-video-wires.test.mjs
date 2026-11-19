@@ -106,8 +106,11 @@ test("a video as Stream describes it: ready, its length and size; -1 is unknown;
       duration: 24.5,
       input: { width: 1080, height: 1920 },
     }),
-    { uid: UID, state: "ready", ready: true, seconds: 24.5, width: 1080, height: 1920, errorCode: null },
+    { uid: UID, state: "ready", ready: true, seconds: 24.5, width: 1080, height: 1920, errorCode: null, name: null },
   );
+  // What we called it as we asked for it comes back with it: a take's copy is known by that.
+  assert.equal(stream.streamVideoOf({ uid: UID, meta: { name: "take:an-item" } }).name, "take:an-item");
+  assert.equal(stream.streamVideoOf({ uid: UID, meta: { name: 7 } }).name, null);
   const waiting = stream.streamVideoOf({
     uid: UID,
     status: { state: "inprogress" },
@@ -122,6 +125,49 @@ test("a video as Stream describes it: ready, its length and size; -1 is unknown;
   );
   assert.equal(stream.streamVideoOf({ uid: UID, status: { state: "something new" } }).state, "unknown");
   assert.equal(stream.streamVideoOf({ nope: 1 }), null);
+});
+
+test("an address Stream is asked to fetch: taken, refused, its storage spent, or as many as it prepares at once", async () => {
+  const video = { url: "https://relay.example/clip/i/clip.mov?ticket=t", name: "take:an-item" };
+  const taken = answers(ok({ success: true, result: { uid: UID, status: { state: "downloading" } } }));
+  assert.deepEqual(await stream.askStreamToFetch(ACCOUNT, video, { fetch: taken.fetch }), { ok: true, mediaRef: UID });
+  assert.equal(JSON.parse(taken.calls[0].init.body).meta.name, "take:an-item");
+  const refusal = (status, message) =>
+    new Response(JSON.stringify({ success: false, errors: [{ code: 10000, message }] }), {
+      status,
+      headers: { "content-type": "application/json" },
+    });
+  const said = async (status, message) => {
+    const reply = await stream.askStreamToFetch(ACCOUNT, video, { fetch: answers(refusal(status, message)).fetch });
+    return [reply.ok, reply.full, reply.busy];
+  };
+  assert.deepEqual(await said(400, "Invalid URL"), [false, false, false]);
+  assert.deepEqual(await said(400, "Storage capacity exceeded"), [false, true, false]);
+  // Its own limit on videos queued or encoding at once: nothing is wrong with the clip, and it is never "full".
+  assert.deepEqual(await said(429, "Too many videos, limit exceeded"), [false, false, true]);
+});
+
+test("the videos Stream holds under a name we gave are listed by it, and only those named exactly so", async () => {
+  const listed = answers(
+    ok({
+      success: true,
+      result: [
+        { uid: UID, status: { state: "ready" }, meta: { name: "take:item-1" } },
+        { uid: "f".repeat(32), status: { state: "ready" }, meta: { name: "take:item-12" } },
+      ],
+    }),
+  );
+  const found = await stream.listStreamVideosNamed(ACCOUNT, "take:item-1", { fetch: listed.fetch });
+  assert.deepEqual(
+    found.map((v) => v.uid),
+    [UID],
+    "its search matches a part of a name, so the rest are left out here",
+  );
+  assert.ok(listed.calls[0].url.endsWith("/stream?search=take%3Aitem-1"));
+  const silent = await stream.listStreamVideosNamed(ACCOUNT, "take:item-1", {
+    fetch: answers(new Response("upstream timed out", { status: 504 }), new Response("again", { status: 504 })).fetch,
+  });
+  assert.equal(silent, null, "no answer is not an empty list");
 });
 
 test("a read of a video Stream no longer has is gone; a delete of one is done", async () => {

@@ -45,6 +45,17 @@ function runBelievedOf(
 /** An import's states while it is on its way: queued, or running. */
 const ON_ITS_WAY: ReadonlySet<string> = new Set(["queued", "running"]);
 
+/** What a road's last read left behind, as its ledger's line counted it (00643); zeros for a road with no line. */
+function leftBy(
+  row: ImportLedgerRow | undefined,
+): Pick<ContentSourceDto, "left_videos" | "long_videos" | "left_files"> {
+  return {
+    left_videos: row?.counts.left_videos ?? 0,
+    long_videos: row?.counts.long_videos ?? 0,
+    left_files: row?.counts.left_files ?? 0,
+  };
+}
+
 /** What came in from one road, still here: photos and videos. */
 function cameFrom(found: readonly { source: string; kind: string }[], roads: readonly string[]) {
   const mine = found.filter((f) => roads.includes(f.source));
@@ -85,6 +96,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
     ...cameFrom(found, ["website"]),
     seen,
     unread: siteRun?.state === "failed" ? siteRun.last_error : null,
+    ...leftBy(siteRun),
   };
   const listing: ContentSourceDto = {
     place: "google_listing",
@@ -94,6 +106,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
     ...cameFrom(found, ["google_listing", "google_profile"]),
     seen: null,
     unread: photosRun?.state === "failed" ? photosRun.last_error : null,
+    ...leftBy(undefined),
   };
   const instagram: ContentSourceDto = {
     place: "instagram",
@@ -103,6 +116,7 @@ export async function readContentSources(db: Db, tenantId: TenantId, now: number
     ...cameFrom(found, ["instagram"]),
     seen: null,
     unread: instagramRun?.state === "failed" ? instagramRun.last_error : null,
+    ...leftBy(instagramRun),
   };
   return { places: [website, listing, instagram], film: filmShotsOf(site?.facts) };
 }

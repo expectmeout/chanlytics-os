@@ -37,7 +37,7 @@ import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
 import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
-import { endPiece, keepFileLook } from "@chanlytics/db/files";
+import { endPiece, endSourceTake, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
 import {
@@ -497,6 +497,17 @@ async function settlePiece(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed: await endPiece(db, pieceId, "unknown") }];
 }
 
+/**
+ * A take that will not finish (00643): its item stops saying it is being taken. One that had not begun a file waits to be
+ * tried again, or says it failed once its tries are spent; one whose file exists is the video platform's to finish, and is
+ * left as it stands, by the write's own guard.
+ */
+async function settleSourceTake(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const itemId = idFrom(job.payload, "item_id");
+  if (!itemId) return [{ what: "file", changed: false, error: "no item on the job" }];
+  return [{ what: "file", changed: await endSourceTake(db, job.tenant_id, itemId) }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
@@ -521,6 +532,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   file_look: settleFileLook,
   video_digest: settleVideoDigest,
   piece_make: settlePiece,
+  source_take: settleSourceTake,
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
@@ -562,6 +574,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   file_look: "file",
   video_digest: "file",
   piece_make: "file",
+  source_take: "file",
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",

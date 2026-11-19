@@ -156,6 +156,9 @@ const NOWHERE = {
     videos: 0,
     seen: null,
     unread: null,
+    left_videos: 0,
+    long_videos: 0,
+    left_files: 0,
   })),
   film: [],
 };
@@ -199,6 +202,35 @@ test("a place is read for half an hour after its run started and no longer, and 
   // A run that has said nothing for longer died: no "Looking", and nothing to wait for.
   assert.equal(instagram.reading, false);
   assert.equal(instagram.reading_until, null);
+});
+
+test("what a road's last read left behind is read from its line on the ledger, each place its own", async () => {
+  /** A road's run that ended, with what it counted. */
+  const ended = (source, counts) => ({
+    tenant_id: A,
+    source,
+    connection_id: null,
+    state: "done",
+    counts,
+    parts_done: 0,
+    parts_total: null,
+    oldest: null,
+    started_at: minutesAgo(50),
+    finished_at: minutesAgo(45),
+    last_error: null,
+    via: source === "instagram" ? "harborsalon" : null,
+  });
+  const { body } = await read({
+    imports: [
+      ended("instagram", { photos: 12, videos: 26, left_videos: 14, long_videos: 1 }),
+      ended("website_media", { photos: 3, videos: 0, left_files: 7 }),
+    ],
+  });
+  const left = (p) => [p.left_videos, p.long_videos, p.left_files];
+  const [website, listing, instagram] = body.sources.places;
+  assert.deepEqual(left(instagram), [14, 1, 0]);
+  assert.deepEqual(left(website), [0, 0, 7]);
+  assert.deepEqual(left(listing), [0, 0, 0], "a listing has no line of its own to count on");
 });
 
 test("what was made comes newest first, each with its own posts, and nothing that is not made here", async () => {

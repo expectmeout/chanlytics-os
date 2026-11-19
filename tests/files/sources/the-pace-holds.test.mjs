@@ -200,6 +200,8 @@ const row = (over = {}) => ({
   seconds: 30,
   added_by: null,
   length_until: null,
+  file_id: null,
+  take_tries: 0,
   ...over,
 });
 const movesOf = (plan) => plan.moves.map((move) => [move.standing.state, move.standing.why, move.providerIds]);
@@ -282,7 +284,7 @@ test("a video listed without its length is waited for a day from its upload, and
   ]);
 });
 
-test("an item that was away is here again, and one the taking holds keeps its state and its bytes' facts", () => {
+test("an item that was away is here again, and one the taking holds keeps its state while its bytes are the ones taken", () => {
   for (const away of ["gone", "outside", "no_access"]) {
     assert.deepEqual(
       movesOf(planPage(REF, [item()], [row({ state: away })], true)),
@@ -304,15 +306,14 @@ test("an item that was away is here again, and one the taking holds keeps its st
   assert.deepEqual(back.folders, ["folder-2"], "a folder back in the tree is listed again");
 
   for (const held of ["taking", "in", "let_go", "failed"]) {
-    const same = planPage(REF, [item({ checksum: "xyz", bytes: 1 })], [row({ state: held })], true);
-    assert.deepEqual([same.facts, same.places, same.moves], [[], [], []], `${held}: where it was, as it was called`);
-    const plan = planPage(
-      REF,
-      [item({ name: "renamed.MOV", checksum: "xyz", bytes: 1 })],
-      [row({ state: held })],
-      true,
+    const same = planPage(REF, [item()], [row({ state: held })], true);
+    assert.deepEqual(
+      [same.facts, same.places, same.moves, same.retakes, same.letGo],
+      [[], [], [], [], []],
+      `${held}: where it was, as it was called`,
     );
-    assert.deepEqual([plan.inserts, plan.facts, plan.moves], [[], [], []], held);
+    const plan = planPage(REF, [item({ name: "renamed.MOV" })], [row({ state: held })], true);
+    assert.deepEqual([plan.inserts, plan.facts, plan.moves, plan.retakes], [[], [], [], []], held);
     assert.deepEqual(
       plan.places,
       [
@@ -328,4 +329,65 @@ test("an item that was away is here again, and one the taking holds keeps its st
       `${held}: only where it sits and its name`,
     );
   }
+});
+
+test("new bytes are a new file: an item the taking holds is asked for again, with what its provider says of it now", () => {
+  for (const held of ["taking", "in", "let_go", "failed"]) {
+    // Seen by a re-walk or by a change, renamed or not: the bytes are what is asked about.
+    for (const wanted of [true, false]) {
+      const plan = planPage(
+        REF,
+        [item({ name: "renamed.MOV", checksum: "xyz", bytes: 1, seconds: 12 })],
+        [row({ state: held, file_id: "file-1" })],
+        wanted,
+      );
+      assert.deepEqual([plan.inserts, plan.facts, plan.places, plan.moves, plan.letGo], [[], [], [], [], []], held);
+      assert.deepEqual(
+        plan.retakes.map((facts) => [facts.provider_id, facts.name, facts.checksum, facts.bytes, facts.seconds]),
+        [["item-1", "renamed.MOV", "xyz", 1, 12]],
+        `${held}: asked for again with the new facts`,
+      );
+    }
+  }
+  // The same size under another checksum, or the other way round: either is other bytes.
+  assert.equal(planPage(REF, [item({ checksum: "xyz" })], [row({ state: "in" })], false).retakes.length, 1);
+  assert.equal(planPage(REF, [item({ bytes: 49_999_999 })], [row({ state: "in" })], false).retakes.length, 1);
+  // A folder holds no bytes: one the taking somehow held is never asked for.
+  const folder = planPage(
+    REF,
+    [item({ id: "folder-2", kind: "folder", checksum: null, bytes: null })],
+    [row({ provider_id: "folder-2", kind: "folder", state: "in" })],
+    false,
+  );
+  assert.deepEqual(folder.retakes, []);
+});
+
+test("a file that was in, left and is seen again is asked for at once, by a re-walk as by a change, and keeps its file", () => {
+  for (const away of ["gone", "outside", "no_access"]) {
+    for (const wanted of [true, false]) {
+      const back = planPage(REF, [item()], [row({ state: away, file_id: "file-1" })], wanted);
+      assert.deepEqual(movesOf(back), [["waiting", null, ["item-1"]]], `${away}, wanted ${wanted}`);
+      assert.deepEqual([back.letGo, back.retakes], [[], []], "the same bytes: the file it had is still its own");
+    }
+    // One that holds no file is as before: a re-walk only lists it.
+    assert.deepEqual(movesOf(planPage(REF, [item()], [row({ state: away })], false)), [["listed", null, ["item-1"]]]);
+    // Back with other bytes: it lets go of the file it held, and waits to be taken as a new one.
+    const other = planPage(REF, [item({ checksum: "xyz" })], [row({ state: away, file_id: "file-1" })], false);
+    assert.deepEqual([movesOf(other), other.letGo], [[["waiting", null, ["item-1"]]], ["item-1"]], away);
+  }
+  // One that came back before this was the rule sits listed with its file: the next listing asks for it.
+  assert.deepEqual(movesOf(planPage(REF, [item()], [row({ state: "listed", file_id: "file-1" })], false)), [
+    ["waiting", null, ["item-1"]],
+  ]);
+  // Already waiting with its file, and its bytes change before it is taken: no move, and the file is let go of.
+  const waiting = planPage(REF, [item({ checksum: "xyz" })], [row({ state: "waiting", file_id: "file-1" })], false);
+  assert.deepEqual([movesOf(waiting), waiting.letGo], [[], ["item-1"]]);
+  // A folder is never asked for, whatever its row holds.
+  const folder = planPage(
+    REF,
+    [item({ id: "folder-2", kind: "folder", checksum: null, bytes: null })],
+    [row({ provider_id: "folder-2", kind: "folder", state: "gone", checksum: null, bytes: null, file_id: "file-1" })],
+    false,
+  );
+  assert.deepEqual(movesOf(folder), [["listed", null, ["folder-2"]]]);
 });

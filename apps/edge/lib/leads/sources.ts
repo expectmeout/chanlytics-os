@@ -127,6 +127,34 @@ export function leadSourceClient(fetchImpl: typeof fetch = fetch): ApifyClient |
   return token ? apifyClient(fetchImpl, token) : null;
 }
 
+/** A pinned build the watch reads, with the words its page says: whose it is, what stops while it is gone, how it is pinned again. */
+export interface WatchedPin {
+  actor: string;
+  build: string;
+  buildId: string;
+  /** What kind of source it is, in a subject: "lead source". */
+  source: string;
+  /** What starts the actor, as a page says it: "search" in "Every search that starts this actor is refused". */
+  run: string;
+  /** How its next build is proved and where its number and id are written, after "Probe the latest build, n, ". */
+  probe: string;
+}
+
+/** The lead finder's pins, with a search's words. */
+const watchedLeadPins = (): WatchedPin[] =>
+  leadPins().map((pin) => ({
+    ...pin,
+    source: "lead source",
+    run: "search",
+    probe:
+      `with the card's own input (a few places), check its items read as the card reads them, then pin its number ` +
+      `and id in ${CARDS_FILE}.`,
+  }));
+
+/** Each health sweep: the lead finder's pins, watched (watchPins). Answers how many were gone. */
+export const watchLeadPins = (db: Db, apify: ApifyClient | null, pager: Omit<PagePorts, "db"> = {}): Promise<number> =>
+  watchPins(db, apify, watchedLeadPins(), pager);
+
 /**
  * Each health sweep: every pinned build read by its id, and a pin the provider no longer has (or whose id names another
  * build) paged, with the provider's latest to probe. A build's read is free and needs no key. The pins go out
@@ -134,15 +162,16 @@ export function leadSourceClient(fetchImpl: typeof fetch = fetch): ApifyClient |
  * sweep two of its timeouts at most (a build, then its latest), never two per pin. Answers how many were gone. Never
  * throws: a build that cannot be read is logged and that pin is skipped, so the sweep's other checks stand.
  */
-export async function watchLeadPins(
+export async function watchPins(
   db: Db,
   apify: ApifyClient | null,
+  pins: readonly WatchedPin[],
   pager: Omit<PagePorts, "db"> = {},
 ): Promise<number> {
   if (!apify) return 0;
   // Each pin in trouble, with its latest; null for one that stands or cannot be read.
   const troubles = await Promise.all(
-    leadPins().map(async (pin) => {
+    pins.map(async (pin) => {
       let number: string | null;
       try {
         number = await apify.buildNumberOf(pin.buildId);
@@ -162,22 +191,20 @@ export async function watchLeadPins(
     const [subject, what] =
       number === null
         ? [
-            `A lead source's pinned build is gone: ${pin.actor}`,
+            `A ${pin.source}'s pinned build is gone: ${pin.actor}`,
             `${pin.actor} is pinned to build ${pin.build}, and the provider no longer has it (id ${pin.buildId}). ` +
-              `Every search that starts this actor is refused at its start until it is pinned again.`,
+              `Every ${pin.run} that starts this actor is refused at its start until it is pinned again.`,
           ]
         : [
-            `A lead source's pin names two builds: ${pin.actor}`,
+            `A ${pin.source}'s pin names two builds: ${pin.actor}`,
             `${pin.actor} is pinned to build ${pin.build}, but the pin's id ${pin.buildId} names build ${number}. ` +
-              `A search starts at the number and this watch reads the id, so the two must name one build.`,
+              `A ${pin.run} starts at the number and this watch reads the id, so the two must name one build.`,
           ];
     await pageOperator(
       { db, ...pager },
       `lead_source_pin:${pin.actor}`,
       subject,
-      `${what}\n\nProbe ${latest ? `the latest build, ${latest},` : "the actor's latest build"} with the card's ` +
-        `own input (a few places), check its items read as the card reads them, then pin its number and id in ` +
-        `${CARDS_FILE}.\n`,
+      `${what}\n\nProbe ${latest ? `the latest build, ${latest},` : "the actor's latest build"} ${pin.probe}\n`,
     );
   }
   return gone;

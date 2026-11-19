@@ -50,6 +50,55 @@ export const SOURCE_ITEM_STATES = [
 export type SourceItemState = (typeof SOURCE_ITEM_STATES)[number];
 
 /**
+ * Why an item stands where it does (source_items.why, held by 00643's check): the one list a screen has words for.
+ * Read with the item's state. First why it waits, then why it was passed over, then why its take failed.
+ */
+export const SOURCE_ITEM_WHYS = [
+  /** A day's budget bound: it comes in tomorrow. */
+  "budget",
+  /** The workspace's videos are full. */
+  "room",
+  /** The Library is full. */
+  "library_full",
+  /** The workspace takes no videos yet, or this deployment cannot send one. */
+  "videos_off",
+  /** The video platform is preparing as many clips as it takes at once. */
+  "busy",
+  /** Its folder is not being read just now. */
+  "folder",
+  /** Its provider said "not now". */
+  "pace",
+  /** Its job ran out of time before a download could start. */
+  "deadline",
+  /** A fetch of it failed, and it is tried again. */
+  "retry",
+  /** Its take never ended (its job was lost), and it is taken again. */
+  "lost",
+  /** Not a photo or a video of a type the Library takes. */
+  "kind",
+  /** It holds no bytes. */
+  "empty",
+  /** A photo too small to use. */
+  "too_small",
+  /** Its bytes are not what its name says, or its provider would not give it. */
+  "unreadable",
+  /** Over the most bytes a photo or a video may have. */
+  "bytes",
+  /** A video longer than AI can watch. */
+  "seconds",
+  /** A photo of more pixels than one may have. */
+  "pixels",
+  /** Its job ended for good before it began a file. */
+  "stopped",
+  /** The video platform could not prepare it. */
+  "stream",
+  /** Its provider no longer shows it at all, and its bin never showed it: unreadable, never read as gone (the sync). */
+  "not_found",
+] as const;
+
+export type SourceItemWhy = (typeof SOURCE_ITEM_WHYS)[number];
+
+/**
  * What a provider's reply means to the read that asked. `pace` is "rest, then go on" (the provider's own limit, never
  * a refusal); `no_access` is a grant or an item the provider no longer lets be read, which is never read as `gone`.
  */
