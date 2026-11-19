@@ -27,7 +27,6 @@ import {
 } from "@chanlytics/channels/ads";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { fakeDb } from "../_fake-db.mjs";
-import { minorPerUnit } from "@chanlytics/contracts";
 
 const ENV = ["META_APP_ID", "META_APP_SECRET", "META_ADS_CONFIG_ID", "META_ADS_REDIRECT_URI", "META_ADS_VERIFY_TOKEN"];
 for (const k of [...ENV, "SUPABASE_URL"]) delete process.env[k];
@@ -42,7 +41,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const adopt = await import(at("apps/edge/lib/ads/adopt.ts"));
-const { runAdRead } = await import(at("apps/edge/lib/ads/read.ts"));
+const { runAdRead, retryMsOf } = await import(at("apps/edge/lib/ads/read.ts"));
 const { sweepAds } = await import(at("apps/edge/lib/ads/sweep.ts"));
 const { answerAdsNoticeCheck, receiveAdsNotice } = await import(at("apps/edge/lib/ads/notices.ts"));
 
@@ -117,12 +116,12 @@ test("an ad is read with what it says and the budget it sits under, on the ad se
   });
   assert.deepEqual([onCampaign.startsAt, onCampaign.endsAt], [null, null]);
 
-  // Money is Meta's own units, converted: a yen is whole at Meta and whole for the house; a Colombian peso is whole
-  // at Meta and counted in the house's own minor units (contracts minorPerUnit, the runtime's list), whatever those are.
+  // Money is Meta's own units, converted: a yen is whole at Meta and in ISO 4217; a Colombian peso is whole at Meta
+  // and holds a hundred centavos in ISO 4217, on every runtime.
   const yen = parseMetaAds({ data: [metaAd(AD1)] }, "JPY").ads[0];
   assert.equal(yen.budget.minor, 7000);
   const pesos = parseMetaAds({ data: [metaAd(AD1)] }, "COP").ads[0];
-  assert.equal(pesos.budget.minor, 7000 * minorPerUnit("COP"));
+  assert.equal(pesos.budget.minor, 700000);
 });
 
 test("why Meta will not run an ad is kept in Meta's words, and nothing odd is guessed", () => {
@@ -301,6 +300,12 @@ test("a budget two ads spend from is shared; an ad that is gone spends from none
   // The second ad was archived: the first has the budget to itself again.
   const [alone] = adopt.adRowsOf([parsed[0], { ...parsed[1], state: "ARCHIVED" }]);
   assert.equal(alone.budget_shared, false);
+  // A list cut short did not see every ad of the account: one that looks alone under its budget is not known to be,
+  // so nothing is said of it, and the rule never turns it back on (it asks for a plain no).
+  assert.deepEqual(
+    adopt.adRowsOf(parsed, false).map((row) => row.budget_shared),
+    [true, true, null],
+  );
   // No budget is said whole: none of its parts.
   const [none] = adopt.adRowsOf(parseMetaAds({ data: [metaAd(AD1, { adset: { id: "1234567" } })] }, "USD").ads);
   assert.deepEqual([none.budget_kind, none.budget_minor, none.budget_at, none.budget_shared], [null, null, null, null]);
@@ -406,7 +411,7 @@ const GOOD = () => ({
 });
 
 /** A workspace with one connected account, its token in a Vault in memory, and the doors a read writes through. */
-function world({ account = {}, ads = [] } = {}) {
+function world({ account = {}, ads = [], secret = { access_token: "the-business-token" } } = {}) {
   resetBreakers();
   Object.assign(process.env, APP);
   asked.length = 0;
@@ -439,7 +444,7 @@ function world({ account = {}, ads = [] } = {}) {
     tables,
     {},
     {
-      ad_credentials_get: () => ({ access_token: "the-business-token" }),
+      ad_credentials_get: () => secret,
       ads_read_keep: ({ p_account_id, p_read }) => {
         kept.reads.push(p_read);
         const row = tables.ad_accounts.find((r) => r.id === p_account_id);
@@ -614,6 +619,58 @@ test("a sign-in Meta no longer takes marks the account, and its last numbers are
   const { read } = await w.read();
   assert.deepEqual([read.outcome, w.kept.revoked, w.kept.reads], ["revoked", ["read"], []]);
   assert.deepEqual(await w.read(), { skipped: "the account is not connected" });
+});
+
+test("a connected account whose token is not kept is marked signed out: no try mends it, and Connect again does", async () => {
+  const w = world({ secret: null });
+  const { read } = await w.read();
+  assert.deepEqual([read.outcome, w.kept.revoked, w.kept.reads, whats()], ["revoked", ["no_token"], [], []]);
+  assert.deepEqual(await w.read(), { skipped: "the account is not connected" });
+});
+
+test("a read that keeps failing is tried less and less often, up to once a day, and a good read starts over", async () => {
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  const now = Date.parse("2026-11-19T12:00:00Z");
+  const ago = (ms) => new Date(now - ms).toISOString();
+  // Half as long as the account has gone without a good read: each try waits half again as long as the one before.
+  assert.equal(retryMsOf({ read_at: ago(10 * MIN), connected_at: null }, now), 15 * MIN, "never sooner than this");
+  assert.equal(retryMsOf({ read_at: ago(2 * HOUR), connected_at: null }, now), HOUR);
+  assert.equal(retryMsOf({ read_at: ago(3 * HOUR), connected_at: null }, now), 1.5 * HOUR);
+  assert.equal(retryMsOf({ read_at: ago(240 * HOUR), connected_at: null }, now), 24 * HOUR, "and never later");
+  // Before its first read, from when it was connected; with neither, the soonest.
+  assert.equal(retryMsOf({ read_at: null, connected_at: ago(4 * HOUR) }, now), 2 * HOUR);
+  assert.equal(retryMsOf({ read_at: null, connected_at: null }, now), 15 * MIN);
+
+  // Through a read: something Meta will keep refusing is not sent again a quarter of an hour on.
+  const w = world({ account: { read_at: new Date(Date.now() - 6 * HOUR).toISOString() } });
+  answers.ads = [400, { error: { message: "Unsupported get request", code: 100 } }];
+  const before = Date.now();
+  const { read } = await w.read();
+  const [kept] = w.kept.reads;
+  assert.deepEqual([read.outcome, kept.account.error, kept.account.read_after], ["failed", "refused", null]);
+  assert.ok(Date.parse(kept.next_read_at) >= before + 3 * HOUR - 1000, "three hours on, after six without a good read");
+  assert.ok(Date.parse(kept.next_read_at) <= Date.now() + 3 * HOUR + 1000);
+});
+
+test("a look back that reaches the most one read takes keeps what it read, settles nothing, and says so", async () => {
+  assert.equal((await world().read()).read.cut, null, "a whole read is cut short of nothing");
+  const w = world();
+  // Every page of days says there is another.
+  answers.days = [
+    200,
+    {
+      data: [{ ad_id: AD1, date_start: "2026-11-18", spend: "1.00", impressions: "10", inline_link_clicks: "1" }],
+      paging: { next: "https://graph.facebook.com/next", cursors: { after: "more" } },
+    },
+  ];
+  const { read } = await w.read();
+  assert.equal(whats().filter((what) => what === "days").length, adopt.ADS_PACE.maxDayPages);
+  assert.deepEqual([read.outcome, read.cut, read.days], ["kept", "days", adopt.ADS_PACE.maxDayPages]);
+  const [kept] = w.kept.reads;
+  assert.equal(kept.settled_before, undefined, "days it did not read whole are left open: their figures say so far");
+  assert.ok(kept.settle_at, "and the look back is next due tomorrow, never again every hour");
+  assert.equal(kept.ads.length, 2, "the ads and what Meta says of each are kept all the same");
 });
 
 test("a read is skipped where there is nothing to read with, and never asks Meta", async () => {

@@ -5,9 +5,11 @@
 --                           its way to the platform is let go with it (nothing is sent after a disconnect), and the
 --                           owner's decision and the event are kept, naming the ads left running. Never refused for
 --                           the owner: an ad still on is theirs to stop at the platform, and the page says so. The
---                           account's ads and what they brought stay.
+--                           account's ads and what they brought stay. One that still waited for the owner's
+--                           answer was never connected: it goes, with its token.
 --   notifications.kind      Gains ad_account: the bell's two lines for the connection.
---   ad_account_revoked      Re-made: the same, and a line on the bell that the platform signed Chanlytics out.
+--   ad_account_revoked      Re-made: the same, a line on the bell that the platform signed Chanlytics out, and every
+--                           press still on its way let go, so none is sent days later when the owner connects again.
 --   ad_account_read_keep    Re-made: the same, and a line on the bell the first time a read finds the platform cannot
 --                           charge for the account (no payment method, or a payment that failed).
 --
@@ -58,6 +60,16 @@ begin
   if v_row.status = 'disconnected' then
     return jsonb_build_object('outcome', 'already');
   end if;
+  if v_row.status = 'choosing' then
+    -- Signed in, and the one question never answered: no account was connected, so none is kept as let go. The row
+    -- that waited goes, with its token.
+    perform public.ad_credentials_drop(p_account_id);
+    delete from public.ad_accounts a where a.id = p_account_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.disconnected', 'setup', 'ad_account', p_account_id,
+            jsonb_build_object('platform', v_row.platform, 'why', 'not_chosen', 'by', p_actor));
+    return jsonb_build_object('outcome', 'disconnected', 'left_running', '[]'::jsonb);
+  end if;
   -- The ads the platform last said were running, by name: what the owner is told stays on, and can only be stopped there.
   select coalesce(jsonb_agg(d.name order by d.name), '[]'::jsonb) into v_running
     from public.ads d
@@ -84,7 +96,7 @@ end $$;
 revoke all on function public.ad_account_disconnect(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.ad_account_disconnect(uuid, uuid, uuid) to service_role;
 comment on function public.ad_account_disconnect(uuid, uuid, uuid) is
-  'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
+  'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. One that still waited to be chosen was never connected: its row goes with its token (why not_chosen). The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
 
 /* ----------------------------------------------------------------- 3. the platform took access back, on the bell -- */
 
@@ -95,18 +107,33 @@ security definer
 set search_path = public
 as $$
 declare
-  v_platform text;
+  v_row public.ad_accounts;
 begin
-  update public.ad_accounts a
-     set status = 'revoked', revoked_at = now()
+  select * into v_row from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id and a.status in ('connected', 'choosing')
-  returning a.platform into v_platform;
+   for update;
   if not found then
     return false;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad_account.revoked', 'setup', 'ad_account', p_account_id,
-          jsonb_build_object('platform', v_platform, 'how', left(coalesce(p_how, 'read'), 40)));
+          jsonb_build_object('platform', v_row.platform, 'how', left(coalesce(p_how, 'read'), 40),
+                             'was', v_row.status));
+  if v_row.status = 'choosing' then
+    -- Signed in, and the one question never answered: no account was connected, so there is none to mark and nothing
+    -- to ring the bell for. The row that waited goes, with the token that no longer opens anything.
+    perform public.ad_credentials_drop(p_account_id);
+    delete from public.ad_accounts a where a.id = p_account_id;
+    return true;
+  end if;
+  update public.ad_accounts a set status = 'revoked', revoked_at = now() where a.id = p_account_id;
+  -- Nothing can be sent while signed out, and nothing is sent later for it: a press still on its way is let go, so a
+  -- pause or a turning back on pressed today is never sent days on, when the owner connects again. The next read
+  -- after that says what the platform holds.
+  update public.ads d
+     set told_at = now()
+   where d.tenant_id = p_tenant_id and d.account_id = p_account_id
+     and d.intent_at is not null and (d.told_at is null or d.told_at < d.intent_at);
   begin
     insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
     values (p_tenant_id, 'ad_account', 'Meta signed Chanlytics out of your ad account',
@@ -120,7 +147,7 @@ begin
 end $$;
 
 comment on function public.ad_account_revoked(uuid, uuid, text) is
-  'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call), and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
+  'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, the platform''s own call, or no token kept), every press still on its way is let go, and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. One that still waited to be chosen was never connected: its row goes with its token, and the bell says nothing. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
 
 /* -------------------------------------------------------------- 4. what a read learned, and a payment problem -- */
 

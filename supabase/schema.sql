@@ -179,6 +179,16 @@ begin
   if v_row.status = 'disconnected' then
     return jsonb_build_object('outcome', 'already');
   end if;
+  if v_row.status = 'choosing' then
+    -- Signed in, and the one question never answered: no account was connected, so none is kept as let go. The row
+    -- that waited goes, with its token.
+    perform public.ad_credentials_drop(p_account_id);
+    delete from public.ad_accounts a where a.id = p_account_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad_account.disconnected', 'setup', 'ad_account', p_account_id,
+            jsonb_build_object('platform', v_row.platform, 'why', 'not_chosen', 'by', p_actor));
+    return jsonb_build_object('outcome', 'disconnected', 'left_running', '[]'::jsonb);
+  end if;
   -- The ads the platform last said were running, by name: what the owner is told stays on, and can only be stopped there.
   select coalesce(jsonb_agg(d.name order by d.name), '[]'::jsonb) into v_running
     from public.ads d
@@ -207,7 +217,7 @@ end $$;
 -- Name: FUNCTION ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) IS 'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
+COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) IS 'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. One that still waited to be chosen was never connected: its row goes with its token (why not_chosen). The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
 
 
 --
@@ -299,18 +309,33 @@ CREATE FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p
     SET search_path TO 'public'
     AS $$
 declare
-  v_platform text;
+  v_row public.ad_accounts;
 begin
-  update public.ad_accounts a
-     set status = 'revoked', revoked_at = now()
+  select * into v_row from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id and a.status in ('connected', 'choosing')
-  returning a.platform into v_platform;
+   for update;
   if not found then
     return false;
   end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad_account.revoked', 'setup', 'ad_account', p_account_id,
-          jsonb_build_object('platform', v_platform, 'how', left(coalesce(p_how, 'read'), 40)));
+          jsonb_build_object('platform', v_row.platform, 'how', left(coalesce(p_how, 'read'), 40),
+                             'was', v_row.status));
+  if v_row.status = 'choosing' then
+    -- Signed in, and the one question never answered: no account was connected, so there is none to mark and nothing
+    -- to ring the bell for. The row that waited goes, with the token that no longer opens anything.
+    perform public.ad_credentials_drop(p_account_id);
+    delete from public.ad_accounts a where a.id = p_account_id;
+    return true;
+  end if;
+  update public.ad_accounts a set status = 'revoked', revoked_at = now() where a.id = p_account_id;
+  -- Nothing can be sent while signed out, and nothing is sent later for it: a press still on its way is let go, so a
+  -- pause or a turning back on pressed today is never sent days on, when the owner connects again. The next read
+  -- after that says what the platform holds.
+  update public.ads d
+     set told_at = now()
+   where d.tenant_id = p_tenant_id and d.account_id = p_account_id
+     and d.intent_at is not null and (d.told_at is null or d.told_at < d.intent_at);
   begin
     insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
     values (p_tenant_id, 'ad_account', 'Meta signed Chanlytics out of your ad account',
@@ -328,7 +353,7 @@ end $$;
 -- Name: FUNCTION ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text) IS 'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call), and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
+COMMENT ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text) IS 'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, the platform''s own call, or no token kept), every press still on its way is let go, and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. One that still waited to be chosen was never connected: its row goes with its token, and the bell says nothing. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
 
 
 --
@@ -777,21 +802,35 @@ CREATE FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) RETURNS integ
     SET search_path TO 'public'
     AS $$
 declare
-  v_asked integer;
+  v_account uuid;
+  v_due     timestamptz;
+  v_asked   integer;
 begin
   -- The platform takes one change to an ad every thirty seconds. A press inside that time is kept, and its account's
-  -- read is asked for at the moment the platform will take it: that read sends it first. One waiting already is it.
-  insert into public.jobs (tenant_id, kind, due_at, payload)
-  select a.tenant_id, 'ad_read',
+  -- read is asked for at the moment the platform will take it: that read sends it first.
+  select a.id,
          greatest(now(), coalesce(d.told_at, '-infinity'::timestamptz) + interval '31 seconds',
-                  coalesce(a.read_after, '-infinity'::timestamptz)),
-         jsonb_build_object('account_id', a.id::text)
+                  coalesce(a.read_after, '-infinity'::timestamptz))
+    into v_account, v_due
     from public.ads d
     join public.ad_accounts a on a.id = d.account_id
-   where d.id = p_ad_id and d.tenant_id = p_tenant_id and a.status = 'connected'
-     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+   where d.id = p_ad_id and d.tenant_id = p_tenant_id and a.status = 'connected';
+  if not found
+     or exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null) then
+    return 0;
+  end if;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'ad_read', v_due, jsonb_build_object('account_id', v_account::text))
   on conflict do nothing;
   get diagnostics v_asked = row_count;
+  if v_asked = 0 then
+    -- A read waits already. Where it waits for a later moment (an hourly read, spread over the minutes after its
+    -- clock), it is brought forward to this one: the owner's press goes when the platform will take it, never later.
+    update public.jobs j
+       set due_at = v_due, updated_at = now()
+     where j.tenant_id = p_tenant_id and j.kind = 'ad_read' and j.state = 'scheduled'
+       and j.payload ->> 'account_id' = v_account::text and j.due_at > v_due;
+  end if;
   return v_asked;
 end $$;
 
@@ -800,7 +839,7 @@ end $$;
 -- Name: FUNCTION ad_tell_ask(p_tenant_id uuid, p_ad_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) IS 'Service-role only: an owner''s press that the platform will not take yet (00652). Puts the ad''s account''s ad_read on the ledger, due when the platform will take a change to that ad (thirty seconds after the last, and never before the platform allows a call); that read sends the press first. Nothing where a read waits already. Answers how many it asked for (0 or 1).';
+COMMENT ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) IS 'Service-role only: an owner''s press that the platform will not take yet (00652). Puts the ad''s account''s ad_read on the ledger, due when the platform will take a change to that ad (thirty seconds after the last, and never before the platform allows a call); that read sends the press first. A read that waits already for a later moment is brought forward to that one. Answers how many it put on the ledger (0 or 1).';
 
 
 --
@@ -1029,20 +1068,32 @@ CREATE FUNCTION public.ads_read_ask(p_platform text, p_external_id text) RETURNS
     SET search_path TO 'public'
     AS $$
 declare
-  v_asked integer;
+  v_account public.ad_accounts;
+  v_due     timestamptz;
+  v_asked   integer;
 begin
   -- The platform said something changed in this account. Its read, soon: never sooner than two minutes after its last
-  -- (a burst of notices is one read), nor than the platform allows. One waiting or running already is the read.
+  -- (a burst of notices is one read), nor than the platform allows.
+  select * into v_account from public.ad_accounts a
+   where a.platform = p_platform and a.external_id = p_external_id and a.status = 'connected';
+  if not found
+     or exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null) then
+    return 0;
+  end if;
+  v_due := greatest(now(), coalesce(v_account.read_at, '-infinity'::timestamptz) + interval '2 minutes',
+                    coalesce(v_account.read_after, '-infinity'::timestamptz));
   insert into public.jobs (tenant_id, kind, due_at, payload)
-  select a.tenant_id, 'ad_read',
-         greatest(now(), coalesce(a.read_at, '-infinity'::timestamptz) + interval '2 minutes',
-                  coalesce(a.read_after, '-infinity'::timestamptz)),
-         jsonb_build_object('account_id', a.id::text)
-    from public.ad_accounts a
-   where a.platform = p_platform and a.external_id = p_external_id and a.status = 'connected'
-     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+  values (v_account.tenant_id, 'ad_read', v_due, jsonb_build_object('account_id', v_account.id::text))
   on conflict do nothing;
   get diagnostics v_asked = row_count;
+  if v_asked = 0 then
+    -- One waits or runs already, and is the read. Where it waits for a later moment (the clock spreads an hourly read
+    -- over the minutes after its turn, and a read that failed waits longer each time), it is brought forward to this one.
+    update public.jobs j
+       set due_at = v_due, updated_at = now()
+     where j.tenant_id = v_account.tenant_id and j.kind = 'ad_read' and j.state = 'scheduled'
+       and j.payload ->> 'account_id' = v_account.id::text and j.due_at > v_due;
+  end if;
   return v_asked;
 end $$;
 
@@ -1051,7 +1102,7 @@ end $$;
 -- Name: FUNCTION ads_read_ask(p_platform text, p_external_id text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_read_ask(p_platform text, p_external_id text) IS 'Service-role only: a platform''s notice that something changed in an ad account, or a connect just finished (00650). Puts that account''s ad_read on the ledger, due no sooner than two minutes after its last read nor than the platform allows; nothing where one waits or runs already, where the account is not connected, or while the kind is paused. Answers how many it asked for (0 or 1).';
+COMMENT ON FUNCTION public.ads_read_ask(p_platform text, p_external_id text) IS 'Service-role only: a platform''s notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). Puts that account''s ad_read on the ledger, due no sooner than two minutes after its last read nor than the platform allows. Where one waits already for a later moment it is brought forward to this one; nothing where the account is not connected, or while the kind is paused. Answers how many it put on the ledger (0 or 1).';
 
 
 --

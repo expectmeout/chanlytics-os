@@ -292,6 +292,28 @@ test("a notice asks for one read, soon, and never sooner than two minutes after 
   assert.equal(ok(await db.rpc("ads_read_ask", { p_platform: "meta", p_external_id: "nobody's account" })), 0);
 });
 
+test(
+  "a read that waits for a later moment is brought forward by a notice; one due sooner is left",
+  { skip },
+  async () => {
+    // The clock handed this account its hourly read, spread to some minutes on. A notice then says something changed.
+    const ws = await connected("forward");
+    const later = new Date(Date.now() + 40 * 60_000).toISOString();
+    ok(
+      await db
+        .from("jobs")
+        .insert({ tenant_id: ws.tenant, kind: "ad_read", due_at: later, payload: { account_id: ws.account } }),
+    );
+    assert.equal(ok(await db.rpc("ads_read_ask", { p_platform: "meta", p_external_id: ws.external })), 0, "one waits");
+    const [job] = await readJobsOf(ws);
+    assert.ok(Date.parse(job.due_at) <= Date.now() + 5_000, "and is brought forward to now: an account never read");
+    // Asked again, it is not pushed back, and still one.
+    assert.equal(ok(await db.rpc("ads_read_ask", { p_platform: "meta", p_external_id: ws.external })), 0);
+    const jobs = await readJobsOf(ws);
+    assert.deepEqual([jobs.length, jobs[0].due_at], [1, job.due_at]);
+  },
+);
+
 test("a day goes 760 days on, and the ad stays", { skip }, async () => {
   const ws = await connected("purge");
   const old = new Date(Date.now() - 761 * 86_400_000).toISOString().slice(0, 10);

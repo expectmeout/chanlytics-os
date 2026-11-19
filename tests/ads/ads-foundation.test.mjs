@@ -79,6 +79,12 @@ const plain = (words) => words.replaceAll(String.fromCharCode(0xa0), " ");
 
 test("money is the currency's own minor units, said exact: a hundred to the dollar, one to the yen, a thousand to the dinar", () => {
   assert.deepEqual(["USD", "GBP", "JPY", "KWD"].map(ads.minorPerUnit), [100, 100, 1, 1000]);
+  // ISO 4217's own count, the same on every runtime: a runtime's currency table says a hundred to the forint and the
+  // Colombian peso in one version and one in the next, and an amount kept by the edge is said by a browser of any age.
+  assert.deepEqual(
+    ["HUF", "COP", "TWD", "IDR", "CLP", "ISK", "BHD", "CLF", "usd"].map(ads.minorPerUnit),
+    [100, 100, 100, 100, 1, 1, 1000, 10000, 100],
+  );
   assert.equal(ads.minorPerUnit(""), 100, "a code that is no currency never throws");
   assert.equal(ads.minorPerUnit("dollars"), 100);
   assert.equal(moneyOf(1400, "USD"), "$14");

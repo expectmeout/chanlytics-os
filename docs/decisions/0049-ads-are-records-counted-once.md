@@ -424,6 +424,16 @@ the five checks reads. Where it is not as first drawn, it is said here.
   `instagram_basic`. So a Page's Instagram account is asked only where the sign-in may read it: asked without the
   permission, the field can cost the whole answer. Where it may not, the card says nothing of Instagram.
 
+## As built, 19 November 2026 · Money has one count on every runtime
+
+Call 9 keeps an amount as whole minor units of its currency. `minorPerUnit` (contracts `ads/money.ts`) first read how
+many make a unit from the runtime's own currency table (Intl). That table moves between versions: the forint and the
+Colombian peso hold a hundred in the data Node 22 ships and one in Node 24's, which CI showed on this step's first
+run. An amount is kept by one runtime and read by another (the edge writes what an ad spent, a browser of any age
+says it), so an amount kept under one count and read under the other would be a hundred times off. The rule is now
+ISO 4217's own list, written in the module: the same on every runtime, before any real amount is kept. Nothing changes
+for a currency every table agrees on (the dollar, the euro, the pound, the yen).
+
 ## As built, 19 November 2026 · Reading
 
 The third part of step P1 (`supabase/migrations/00650_an_account_s_ads_are_read_on_a_clock.sql`, the wire in
@@ -440,6 +450,17 @@ it is said here.
 - **One door keeps a read, whole or not at all** (`ads_read_keep`): the account's facts, each ad, each day, the days
   now settled and the next read's time, in one transaction. A read that stops part way writes none of it: the account
   keeps why, the page keeps its last good numbers, and the read is due again in fifteen minutes or when Meta allows.
+- **A read that keeps failing is tried less and less often.** Its next try waits half as long as the account has gone
+  without a good read, from fifteen minutes up to a day, read from the account's own row (nothing counts the tries).
+  A call Meta refuses counts against the app, so one it will keep refusing is not sent every quarter of an hour. A
+  good read, or the owner's own look from the card, starts the hourly pace again, and the card's look asks for the
+  ads' read at once where the reads had been failing.
+- **A connected account whose token is not kept is marked signed out** (`how: no_token`): no try mends it, and the
+  page then says the one thing that does, Connect again.
+- **The most one read takes** is five hundred ads and three thousand ad-days. Past either it keeps what it read and
+  says what it could not vouch for (`cut` on the read's line): whether an ad has its budget to itself is left unsaid,
+  so it is never turned back on from here; and the days are left open, never marked settled, so a figure built on them
+  says "so far". The hourly read's three days always fit.
 - **Which ads are adopted** (the plan's G3): every ad Meta lists that is not archived or deleted, up to five hundred;
   every ad this workspace already holds that the list no longer names, asked for by name, so one archived since says
   so; and every ad a day in the window names, so one that ran and was archived is still counted.
@@ -457,6 +478,10 @@ it is said here.
 - **Meta's notices are heard at `/api/ads/meta`,** believed only under Meta's signature. A notice only says where to
   look: the account it names is asked for its read, no sooner than two minutes after its last, and what changed is read
   from Meta, never taken from the notice. An account is subscribed by its daily read, where its sign-in may change ads.
+- **A read that waits is brought forward, never doubled.** One read an account waits or runs at a time. Where a notice,
+  a press that Meta will take in thirty seconds, or a change Meta gave no answer to asks for the read while one waits
+  for a later moment (the clock spreads an hourly read over five minutes; a failing one waits longer), that read's
+  time is moved up to the ask's.
 - **`ad_days` is not on the live feed.** The Shape drew it as a table notice of its own. A read moves the account's
   `read_at` in the same transaction, and a page that hears the account reads the days again: one notice a read.
 - **Events.** `ad.state_changed`, only where Meta's word for an ad moved. An ad seen for the first time writes none: a
@@ -476,6 +501,11 @@ who Chanlytics counts it brought and who of them booked. Where it is not as firs
   page's people come from: a first moment in the window, reached the business in it, alive, not merged away, first
   touch an ad. That is the set `people_series` counts under "An ad", written the same way, and a database test holds
   the two equal: the page's ads plus the unnamed line is Reports › People's number.
+- **Every one of them is on the page, whichever ad holds them.** An ad the counts name that the account's list of
+  five hundred did not hold is read by its id and listed. An ad of an ad account the workspace connected before this
+  one is not this page's to list, and its money may be in another currency: its people are counted in the head and
+  said on one quiet line of their own ("came from an ad in an ad account you connected before this one"), and its
+  spend is in no sum.
 - **Booked is read from the visits record** (`appointments`, decision 0002), which holds the calendar feed's visits
   too: a visit that starts after the first touch and is neither cancelled nor only asked for, theirs by the record's
   own link or, where a visit names no person, by its number or address. A workspace with no visits in the record

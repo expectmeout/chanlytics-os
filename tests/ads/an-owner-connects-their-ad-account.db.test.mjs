@@ -286,6 +286,66 @@ test("access taken back, then another account connected: the first is let go, an
   assert.equal(await secretOf(first.account_id), null);
 });
 
+test(
+  "an account that still waits to be chosen was never connected: signed out or let go, its row goes with its token",
+  { skip },
+  async () => {
+    const ws = await workspace("waited");
+    const asking = () =>
+      connect(
+        ws,
+        facts({
+          external_id: null,
+          name: null,
+          currency: null,
+          timezone: null,
+          standing: {},
+          config: { choices: [{ external_id: "120000000000000011", name: "Harbor" }] },
+        }),
+      );
+    // The platform takes the sign-in back before the owner answers.
+    const waiting = await asking();
+    assert.equal(waiting.outcome, "choosing");
+    assert.equal(
+      ok(
+        await db.rpc("ad_account_revoked", {
+          p_tenant_id: ws.tenant,
+          p_account_id: waiting.account_id,
+          p_how: "platform",
+        }),
+      ),
+      true,
+    );
+    assert.deepEqual(await accountsOf(ws.tenant), [], "no account was connected, so none is left marked");
+    assert.equal(await secretOf(waiting.account_id), null);
+    const [marked] = await eventsOf(ws.tenant, "ad_account.revoked");
+    assert.deepEqual(
+      [marked.subject_id, marked.data.how, marked.data.was],
+      [waiting.account_id, "platform", "choosing"],
+    );
+    assert.deepEqual(
+      ok(await db.from("notifications").select("id").eq("tenant_id", ws.tenant).eq("kind", "ad_account")),
+      [],
+      "and the bell says nothing of an account nobody connected",
+    );
+
+    // The owner signs in again, and lets it go instead of answering.
+    const again = await asking();
+    const done = ok(
+      await db.rpc("ad_account_disconnect", {
+        p_tenant_id: ws.tenant,
+        p_actor: ws.owner.id,
+        p_account_id: again.account_id,
+      }),
+    );
+    assert.deepEqual(done, { outcome: "disconnected", left_running: [] });
+    assert.deepEqual(await accountsOf(ws.tenant), []);
+    assert.equal(await secretOf(again.account_id), null);
+    const [letGo] = await eventsOf(ws.tenant, "ad_account.disconnected");
+    assert.deepEqual([letGo.subject_id, letGo.data.why], [again.account_id, "not_chosen"]);
+  },
+);
+
 test("a read keeps what the platform said, key by key, and tells of it only where it moved", { skip }, async () => {
   const ws = await workspace("read");
   const { account_id: id } = await connect(ws, facts());

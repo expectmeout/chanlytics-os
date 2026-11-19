@@ -290,9 +290,14 @@ The two presses call 9 leaves an owner on an ad made in Meta, and call 8's Disco
   read is asked for at the moment Meta will take it; that read sends the press before it reads. A press that takes
   back one Meta was never told of sends nothing.
 - **What telling can come to.** Taken: the ad is read back, so the page says what Meta says. Slowed: Meta took
-  nothing, and the press stays on its way. No answer: marked sent and never sent again; the next read says what
-  stands. Refused: the ad is put back as Meta holds it, an `ad.press_refused` event says so, and the owner is told it
-  did not take. A sign-in Meta no longer takes marks the account.
+  nothing, and the press stays on its way. No answer: marked sent and never sent again; the account's read is asked
+  for at once and says what stands, the owner is told it is not known yet whether Meta took it, and no Undo is
+  offered on it. Refused: the ad is put back as Meta holds it, an `ad.press_refused` event says so, and the owner is
+  told it did not take. A sign-in Meta no longer takes marks the account.
+- **Nothing is sent late.** A press on its way is sent by its account's read, which is brought forward to the moment
+  Meta will take it, so a pause never waits behind an hourly read; a pause goes before a turning back on. When Meta
+  signs Chanlytics out, or the owner disconnects, every press still on its way is let go: none is sent days on, when
+  the owner connects again.
 - **Resume, as C1 amends call 9.** `ad_may_resume` in the database and `adResumeRule` in contracts say the same: a
   total, an end date still ahead, the budget to itself, something left, and paused by the ad's own switch. Anything
   else is turned back on in Meta.
@@ -300,7 +305,11 @@ The two presses call 9 leaves an owner on an ad made in Meta, and call 8's Disco
   press is refused before it is kept. The workspaces are `ADS_WORKSPACES`, the same list Connect reads (D7).
 - **Disconnect is never refused** (call 8, as amended). Asked to pause first, each running ad is paused and Meta told;
   where Meta does not confirm one, nothing is disconnected and the owner is told which ad keeps running, and may then
-  disconnect anyway. A press on its way is let go with the account.
+  disconnect anyway. A press on its way is let go with the account. Each of those pauses is one change and no read
+  back, so Meta's allowance for the account covers about fifteen ads in one go; past that the owner is told which
+  keep running, and pressing again five minutes on pauses the rest.
+- **An account still waiting for the owner's answer was never connected.** Signed out by Meta or let go by the owner
+  before the one question is answered, its row goes with its token, and the bell says nothing of it.
 
 ### Amended here · Disconnect does not ask Meta to withdraw
 

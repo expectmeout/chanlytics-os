@@ -77,7 +77,12 @@ export function useAdsConnection(on: boolean, timezone: string): AdsConnection {
           open={leaving}
           account={vm.facts.at(0)?.value ?? null}
           running={running}
-          disconnect={account.disconnect}
+          disconnect={async (pause) => {
+            const answer = await account.disconnect(pause);
+            // Some were paused and Meta did not confirm the rest: the page reads again, so it says which are still on.
+            if (answer.outcome === "not_paused") live.again();
+            return answer;
+          }}
           onClose={() => setLeaving(false)}
           onDone={() => {
             setLeaving(false);

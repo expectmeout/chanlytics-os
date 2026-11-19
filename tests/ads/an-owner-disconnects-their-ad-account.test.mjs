@@ -140,7 +140,7 @@ const heard = async (res) => [res.status, await res.json()];
 test("pausing first: the running ad is paused at Meta, then the account is let go and its token dropped", async () => {
   const w = world();
   assert.deepEqual(await heard(await w.disconnect(true)), [200, { ok: true, outcome: "disconnected", names: [] }]);
-  assert.deepEqual(asked, ["set", "standing"], "one ad was running: one change, read back");
+  assert.deepEqual(asked, ["set"], "one ad was running: one change, and no read back to spend the account's calls");
   assert.deepEqual(
     w.tables.ads.map((ad) => [ad.intent, ad.platform_state]),
     [

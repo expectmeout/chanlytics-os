@@ -6,8 +6,9 @@
  * Two halves, never one number (decision 0049, call 3): who an ad brought and who booked are Chanlytics' count; what
  * it spent is Meta's. The cost for each person who booked is Meta's spend on the ads whose people Chanlytics can
  * count, over the people who booked from them, shown from five booked and said "so far" while Meta's days still move
- * (contracts adCostRule). People from an ad Chanlytics cannot name are in the head's total and on one quiet line, so
- * the page always reconciles with Reports › People.
+ * (contracts adCostRule). People from an ad Chanlytics cannot name, and people from an ad of an ad account connected
+ * before this one, are in the head's total and each on one quiet line, so the page always reconciles with Reports ›
+ * People.
  */
 import { AD_DOORS_COUNTED, adCostRule, adRoute } from "@chanlytics/contracts";
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
@@ -174,15 +175,24 @@ function notesOf(dto: AdsLiveDto, rows: readonly AdLiveDto[]): string[] {
     connected && rows.some((ad) => ad.made_in_platform) ? LIVE.adoptedNote : null,
     ...uncounted.map((what) => LIVE.notCountedNote(what)),
     dto.unnamed.people > 0 ? LIVE.unnamed(dto.unnamed.people, dto.unnamed.booked) : null,
+    dto.elsewhere.people > 0 ? LIVE.elsewhere(dto.elsewhere.people, dto.elsewhere.booked) : null,
   ].flatMap((note) => note ?? []);
+}
+
+/** Everyone an ad brought in the window, and who of them booked: the listed ads', the unnamed and the ones elsewhere. */
+function allBroughtOf(dto: AdsLiveDto): { came: number; booked: number } {
+  const beside = [dto.unnamed, dto.elsewhere];
+  return {
+    came: [...dto.ads.map((ad) => ad.people), ...beside.map((one) => one.people)].reduce((sum, n) => sum + n, 0),
+    booked: [...dto.ads.map((ad) => ad.booked), ...beside.map((one) => one.booked)].reduce((sum, n) => sum + n, 0),
+  };
 }
 
 /** The page. */
 export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
   const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
   const ads = shown(dto);
-  const came = dto.ads.reduce((sum, ad) => sum + ad.people, 0) + dto.unnamed.people;
-  const booked = dto.ads.reduce((sum, ad) => sum + ad.booked, 0) + dto.unnamed.booked;
+  const { came, booked } = allBroughtOf(dto);
   const spent = dto.ads.reduce((sum, ad) => sum + ad.spend_minor, 0);
   const each = eachOf(dto.ads, dto, currency);
   const connected = dto.account.status === "connected";
@@ -353,8 +363,7 @@ const DASH = "—";
 export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
   const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
   const page = liveModel(dto, said);
-  const came = dto.ads.reduce((sum, ad) => sum + ad.people, 0) + dto.unnamed.people;
-  const booked = dto.ads.reduce((sum, ad) => sum + ad.booked, 0) + dto.unnamed.booked;
+  const { came, booked } = allBroughtOf(dto);
   const spent = dto.ads.reduce((sum, ad) => sum + ad.spend_minor, 0);
   const each = eachOf(dto.ads, dto, currency);
   const rows = shown(dto).map((ad): LensRowVM => {
@@ -368,19 +377,13 @@ export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
       spent: moneyOf(ad.spend_minor, currency),
     };
   });
-  const unnamed: LensRowVM[] =
-    dto.unnamed.people > 0
-      ? [
-          {
-            id: "unnamed",
-            name: LENS.unnamed,
-            came: String(dto.unnamed.people),
-            booked: String(dto.unnamed.booked),
-            each: DASH,
-            spent: DASH,
-          },
-        ]
-      : [];
+  // The people no listed ad holds, a row each: counted, with no spend of Meta's to set beside them.
+  const beside = (id: string, name: string, one: { people: number; booked: number }): LensRowVM[] =>
+    one.people > 0 ? [{ id, name, came: String(one.people), booked: String(one.booked), each: DASH, spent: DASH }] : [];
+  const unnamed = [
+    ...beside("unnamed", LENS.unnamed, dto.unnamed),
+    ...beside("elsewhere", LENS.elsewhere, dto.elsewhere),
+  ];
   return {
     head: `${page.head.strong ?? ""}${page.head.rest}`,
     figures: [
@@ -393,6 +396,12 @@ export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
       { label: LENS.spent, value: moneyOf(spent, currency) },
     ],
     rows: [...rows, ...unnamed],
-    notes: [LENS.counted, ...page.notes.filter((note) => note !== LIVE.adoptedNote)],
+    // The two quiet lines are rows of the table here, so they are not said twice.
+    notes: [
+      LENS.counted,
+      ...page.notes.filter(
+        (note) => note !== LIVE.adoptedNote && note !== LIVE.elsewhere(dto.elsewhere.people, dto.elsewhere.booked),
+      ),
+    ],
   };
 }

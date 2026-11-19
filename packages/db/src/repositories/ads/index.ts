@@ -17,7 +17,7 @@ export {
 export type { AdAccountReadKept, AdAccountRow, AdAccountToConnect, AdConnectOutcome, AdDisconnected } from "./accounts";
 export { keepAdEntry, readAdNamed } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
-export { findAd, listAdPeople, listAdsOfAccount, readAdsPageCounts } from "./page";
+export { findAd, listAdPeople, listAdsByIds, listAdsOfAccount, readAdsPageCounts } from "./page";
 export type { AdPersonRow, AdRow, AdsPageCounts } from "./page";
 export { askAdTell, listPendingAds, listRunningAds, markAdTold, setAdIntent } from "./presses";
 export type { AdIntent, AdPendingRow, AdPressKept, AdRunningRow } from "./presses";

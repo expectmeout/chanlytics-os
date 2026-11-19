@@ -84,6 +84,12 @@ export interface AdsLiveDto {
   ads: AdLiveDto[];
   /** The people from an ad Chanlytics cannot name: one quiet line, so the page's total reconciles with Reports. */
   unnamed: { people: number; booked: number };
+  /**
+   * The people from an ad Chanlytics holds for another ad account of this workspace (one connected before this one):
+   * its ads are not this page's to list, and its money may be in another currency, so only its people are said, on a
+   * quiet line of their own. With `ads` and `unnamed` they are everyone Reports counts under "An ad".
+   */
+  elsewhere: { people: number; booked: number };
   /** Whether this member may pause and resume here: the owner, on a connected account whose sign-in may change ads. */
   can_press: boolean;
 }

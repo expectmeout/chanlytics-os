@@ -15,7 +15,8 @@
 --                   the ad put back as the platform holds it, with an event that says so. A press made while the one
 --                   before it was on its way is kept on its way, or let go where it could not have been made.
 --   ad_tell_ask     A press the platform will not take yet (one change an ad every thirty seconds): its account's read
---                   is asked for at the moment it will, and that read sends it first.
+--                   is asked for at the moment it will, and that read sends it first. A read that waits already for a
+--                   later moment is brought forward: a pause never waits behind an hourly read.
 --
 -- An ask newer than the telling is on its way (ads.intent_at, ads.told_at, 00648): that is the only state a pending
 -- press has, so nothing is added to the ad's row.
@@ -213,25 +214,39 @@ security definer
 set search_path = public
 as $$
 declare
-  v_asked integer;
+  v_account uuid;
+  v_due     timestamptz;
+  v_asked   integer;
 begin
   -- The platform takes one change to an ad every thirty seconds. A press inside that time is kept, and its account's
-  -- read is asked for at the moment the platform will take it: that read sends it first. One waiting already is it.
-  insert into public.jobs (tenant_id, kind, due_at, payload)
-  select a.tenant_id, 'ad_read',
+  -- read is asked for at the moment the platform will take it: that read sends it first.
+  select a.id,
          greatest(now(), coalesce(d.told_at, '-infinity'::timestamptz) + interval '31 seconds',
-                  coalesce(a.read_after, '-infinity'::timestamptz)),
-         jsonb_build_object('account_id', a.id::text)
+                  coalesce(a.read_after, '-infinity'::timestamptz))
+    into v_account, v_due
     from public.ads d
     join public.ad_accounts a on a.id = d.account_id
-   where d.id = p_ad_id and d.tenant_id = p_tenant_id and a.status = 'connected'
-     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+   where d.id = p_ad_id and d.tenant_id = p_tenant_id and a.status = 'connected';
+  if not found
+     or exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null) then
+    return 0;
+  end if;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'ad_read', v_due, jsonb_build_object('account_id', v_account::text))
   on conflict do nothing;
   get diagnostics v_asked = row_count;
+  if v_asked = 0 then
+    -- A read waits already. Where it waits for a later moment (an hourly read, spread over the minutes after its
+    -- clock), it is brought forward to this one: the owner's press goes when the platform will take it, never later.
+    update public.jobs j
+       set due_at = v_due, updated_at = now()
+     where j.tenant_id = p_tenant_id and j.kind = 'ad_read' and j.state = 'scheduled'
+       and j.payload ->> 'account_id' = v_account::text and j.due_at > v_due;
+  end if;
   return v_asked;
 end $$;
 
 revoke all on function public.ad_tell_ask(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.ad_tell_ask(uuid, uuid) to service_role;
 comment on function public.ad_tell_ask(uuid, uuid) is
-  'Service-role only: an owner''s press that the platform will not take yet (00652). Puts the ad''s account''s ad_read on the ledger, due when the platform will take a change to that ad (thirty seconds after the last, and never before the platform allows a call); that read sends the press first. Nothing where a read waits already. Answers how many it asked for (0 or 1).';
+  'Service-role only: an owner''s press that the platform will not take yet (00652). Puts the ad''s account''s ad_read on the ledger, due when the platform will take a change to that ad (thirty seconds after the last, and never before the platform allows a call); that read sends the press first. A read that waits already for a later moment is brought forward to that one. Answers how many it put on the ledger (0 or 1).';

@@ -651,10 +651,10 @@
     "00646_a_page_names_the_ad_someone_came_through.sql": "00940a01a5a3235f0088d5e935912de721fe9f676f7b19aa3e2a2faee5aa8d2c",
     "00647_a_visit_keeps_when_its_booking_arrived.sql": "29905baa10dbaff71088c8ab4fe98bbc76dab77cb8e78a1767c138ab0b0b71fc",
     "00648_a_business_s_ads_are_kept.sql": "d789b37b3a9376b7faf63361d881b1187db215cdada1643268c1d3b58589af99",
-    "00649_an_owner_connects_their_ad_account.sql": "b72a24e0e27e8f0093af2355aca9262d1497ad657cbbc8b7578f596a8583154b",
-    "00650_an_account_s_ads_are_read_on_a_clock.sql": "e6b6e1a999dbaa1dac040d9169fe6432f69d4b6d715b6b1dedc20ad6539b9faa",
+    "00649_an_owner_connects_their_ad_account.sql": "ba1e99d44b199c52da33153a069cb8a67884552353cae2ef7cc35af45d40fd03",
+    "00650_an_account_s_ads_are_read_on_a_clock.sql": "a5643d2f1d191f141bcc30ff12dc39acf57fc0ea2ac100d8f28648f35e2007f1",
     "00651_the_ads_page_counts_the_people_an_ad_brought.sql": "7fbbe509c592450bfaedb6ebb33aab49578e2a403ce7af64cd5f53f1f0585747",
-    "00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql": "e95fbaf7b041e7506bedba418bb2d915090f042187745ed57d39f8a632cf978c",
-    "00653_an_owner_disconnects_their_ad_account.sql": "b9e7d7216ee3694714148cea1a6c72c6933906d3b958fca710ee2dae8776ff4f"
+    "00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql": "7a4fa8da19daa2a3e439c993a7f075612100eb9b8618dbaef26870d6ad1e151a",
+    "00653_an_owner_disconnects_their_ad_account.sql": "f802180db179ce56b02a48f78f2ed6f9b526f64d3a286232edb36e096ec16426"
   }
 }

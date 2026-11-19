@@ -31,6 +31,17 @@ export async function listAdsOfAccount(db: Db, tenantId: TenantId, accountId: st
 }
 
 /** One ad of the workspace's, by Chanlytics' own id. */
+/**
+ * Ads by their own ids, whichever account each is of: the ones a window's counts name that an account's list did not
+ * hold (an ad past the most a page lists, or one of an account connected before).
+ */
+export async function listAdsByIds(db: Db, tenantId: TenantId, adIds: readonly string[]): Promise<AdRow[]> {
+  if (adIds.length === 0) return [];
+  const { data, error } = await tenantDb(db, tenantId).from("ads").select("*").in("id", adIds.slice(0, ADS_MAX));
+  if (error) throw new DbFailure(error, "ads by their ids");
+  return data;
+}
+
 export async function findAd(db: Db, tenantId: TenantId, adId: string): Promise<AdRow | null> {
   const { data, error } = await tenantDb(db, tenantId).from("ads").select("*").eq("id", adId).maybeSingle();
   if (error) throw new DbFailure(error, "an ad by id");

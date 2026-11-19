@@ -10,12 +10,14 @@
  *   4. Meta is told, once, where it will take the change now: none to this ad in the last thirty seconds, and the
  *      account not held back. Otherwise the press waits, and the account's read sends it when Meta will take it.
  *
- * The answer's `outcome` says which: `told` (Meta took it), `sent` (no answer yet: never sent again, and the next read
- * says), `soon` (kept, and sent when Meta will take it), `took_back` (it undid a press Meta was never told of),
- * `same` (what was asked already stands). A refusal is a code, with Meta's own words for support in `detail`.
+ * The answer's `outcome` says which: `told` (Meta took it), `sent` (no answer came: never sent again, and the
+ * account's read is asked for at once, which says what stands at Meta), `soon` (kept, and sent when Meta will take
+ * it), `took_back` (it undid a press Meta was never told of), `same` (what was asked already stands). A refusal is a
+ * code, with Meta's own words for support in `detail`.
  */
 import { UUID, isTenantId, type TenantId } from "@chanlytics/contracts";
 import {
+  askAdRead,
   askAdTell,
   findAdAccount,
   keepAdAccountRead,
@@ -101,7 +103,11 @@ async function tellNow(
   if (told.outcome === "refused") return refuse(502, "meta_refused", told.said ?? undefined);
   // `again`: pressed again while this one was on its way; that newer ask is kept, and sent when Meta will take it.
   if (told.outcome === "again") return soon();
-  return answer(told.outcome === "unknown" ? "sent" : "told");
+  if (told.outcome !== "unknown") return answer("told");
+  // No answer came, so whether Meta took it is not known, and it is never sent again (decision 0050). What stands at
+  // Meta is read, and soon: the page then says which, within minutes and not at the hour's read.
+  if (account.external_id !== null) await askAdRead(db, "meta", account.external_id);
+  return answer("sent");
 }
 
 /** The door's ops: pause and resume. */

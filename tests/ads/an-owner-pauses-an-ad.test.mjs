@@ -44,7 +44,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { logger } = await import(at("apps/edge/lib/shared/log.ts"));
 const { runAdPress } = await import(at("apps/edge/lib/ads/press.ts"));
-const { tellPending, mayTellNow, adsWrites } = await import(at("apps/edge/lib/ads/tell.ts"));
+const { tellAd, tellPending, mayTellNow, adsWrites } = await import(at("apps/edge/lib/ads/tell.ts"));
 
 const auth = { ok: true, via: "token", workspace: T, user: U };
 
@@ -110,7 +110,7 @@ function world({ owner = true, ad = {}, account = {} } = {}) {
     ],
   };
   const row = tables.ads[0];
-  const kept = { decisions: [], told: [], tellAsks: 0, accountReads: [], revoked: [] };
+  const kept = { decisions: [], told: [], tellAsks: 0, readAsks: [], accountReads: [], revoked: [] };
   let tick = Date.now();
   const stamp = () => new Date((tick += 5)).toISOString();
   const mayResume = () =>
@@ -155,6 +155,7 @@ function world({ owner = true, ad = {}, account = {} } = {}) {
         return p_outcome;
       },
       ad_tell_ask: () => (kept.tellAsks += 1),
+      ads_read_ask: ({ p_platform, p_external_id }) => kept.readAsks.push(`${p_platform}:${p_external_id}`),
       ad_account_read_keep: ({ p_read }) => {
         kept.accountReads.push(p_read);
         tables.ad_accounts[0].read_after = p_read.read_after ?? null;
@@ -298,6 +299,8 @@ test("a change that got no answer is never sent again: the next read says what s
   answers.set = [503, { error: { message: "Service temporarily unavailable", code: 2 } }];
   assert.deepEqual(await heard(await w.press("pause")), [200, { ok: true, outcome: "sent", version: 4 }]);
   assert.deepEqual(w.kept.told, [["paused", "unknown"]]);
+  assert.deepEqual(w.kept.readAsks, ["meta:1200000000000061"], "the account's read is asked for at once: it says");
+  assert.equal(w.row.platform_state, "ACTIVE", "and nothing is claimed of the ad until it does");
   const log = logger({ tenant_id: T });
   assert.deepEqual(await tellPending(w.db, log, who(), { accountId: ACCOUNT, nowMs: Date.now() + 120_000 }), {
     told: 0,
@@ -305,6 +308,55 @@ test("a change that got no answer is never sent again: the next read says what s
     revoked: false,
   });
   assert.deepEqual(asked, ["set PAUSED"], "one call, whatever came of it");
+});
+
+test("a pause Meta took and that was not read back says paused; one turned back on waits for Meta's own word", async () => {
+  const log = logger({ tenant_id: T });
+  const quick = { ...who(), readBack: false };
+  const w = world();
+  const told = await tellAd(w.db, log, quick, { id: AD, platform_ad_id: META_AD, intent: "paused" });
+  assert.deepEqual([told.outcome, asked, w.row.platform_state], ["told", ["set PAUSED"], "PAUSED"]);
+  // Turned back on, Meta may be checking it again: what it stands at is Meta's to say, at the next read.
+  asked.length = 0;
+  const back = await tellAd(w.db, log, quick, { id: AD, platform_ad_id: META_AD, intent: "on" });
+  assert.deepEqual([back.outcome, asked, w.row.platform_state], ["told", ["set ACTIVE"], "PAUSED"]);
+});
+
+test("of the presses on their way, a pause goes before a turning back on, and of a kind the oldest first", async () => {
+  const w = world();
+  const long = new Date(Date.now() - 3_600_000).toISOString();
+  const waiting = (id, metaId, intent, askedAt) => ({
+    ...w.row,
+    id,
+    platform_ad_id: metaId,
+    intent,
+    intent_at: askedAt,
+    told_at: long,
+    platform_state: intent === "paused" ? "ACTIVE" : "PAUSED",
+  });
+  const at = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+  w.tables.ads.splice(
+    0,
+    1,
+    waiting("adadadad-6666-4000-8000-0000000000a1", "23850000000000091", "on", at(9)),
+    waiting("adadadad-6666-4000-8000-0000000000a2", "23850000000000092", "paused", at(2)),
+    waiting("adadadad-6666-4000-8000-0000000000a3", "23850000000000093", "paused", at(5)),
+  );
+  const order = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = new URL(String(url));
+    if ((init?.method ?? "GET") === "POST")
+      order.push(`${u.pathname.split("/").pop()} ${u.searchParams.get("status")}`);
+    return realFetch(url, init);
+  };
+  try {
+    const sent = await tellPending(w.db, logger({ tenant_id: T }), who(), { accountId: ACCOUNT, nowMs: Date.now() });
+    assert.equal(sent.told, 3);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.deepEqual(order, ["23850000000000093 PAUSED", "23850000000000092 PAUSED", "23850000000000091 ACTIVE"]);
 });
 
 test("a change Meta refuses puts the ad back as Meta holds it, and the owner is told it did not take", async () => {

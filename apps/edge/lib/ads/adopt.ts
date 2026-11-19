@@ -103,9 +103,11 @@ const GONE: readonly string[] = ["ARCHIVED", "DELETED"];
 
 /**
  * Each ad as the door keeps it. A budget is shared where another ad that is not gone sits under the same ad set or
- * campaign that holds it: what is left of it is then not this ad's alone (the plan's C1).
+ * campaign that holds it: what is left of it is then not this ad's alone (the plan's C1). `whole` says the read saw
+ * every ad of the account: where its list was cut short, an ad that looks alone under its budget is not known to be,
+ * so nothing is said of it (null), and it is never turned back on from here.
  */
-export function adRowsOf(ads: readonly MetaAd[]): AdReadRow[] {
+export function adRowsOf(ads: readonly MetaAd[], whole = true): AdReadRow[] {
   const under = new Map<string, number>();
   for (const ad of ads)
     if (ad.budget && !GONE.includes(ad.state)) under.set(ad.budget.holderId, (under.get(ad.budget.holderId) ?? 0) + 1);
@@ -119,7 +121,7 @@ export function adRowsOf(ads: readonly MetaAd[]): AdReadRow[] {
     budget_minor: ad.budget?.minor ?? null,
     budget_left_minor: ad.budget?.leftMinor ?? null,
     budget_at: ad.budget?.at ?? null,
-    budget_shared: ad.budget ? (under.get(ad.budget.holderId) ?? 0) > 1 : null,
+    budget_shared: ad.budget ? ((under.get(ad.budget.holderId) ?? 0) > 1 ? true : whole ? false : null) : null,
     starts_at: ad.startsAt,
     ends_at: ad.endsAt,
     platform_state: ad.state,

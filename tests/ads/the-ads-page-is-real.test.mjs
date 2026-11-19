@@ -19,7 +19,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { liveModel, sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { lensModel, liveModel, sheetModel } = await import(
+  at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts")
+);
 const { adResumeRule } = await import(at("packages/contracts/src/ads/live.ts"));
 
 const SAID = { timezone: "America/New_York" };
@@ -60,6 +62,7 @@ const page = (over = {}) => ({
   today: "2026-11-18",
   ads: [],
   unnamed: { people: 0, booked: 0 },
+  elsewhere: { people: 0, booked: 0 },
   can_press: true,
   ...over,
 });
@@ -87,6 +90,31 @@ const RUNNING = page({
     ad("autumn", { name: "Autumn offer", opens: "website", people: 0, spend_minor: 9600 }),
   ],
   unnamed: { people: 3, booked: 1 },
+});
+
+test("people from an ad of an ad account connected before are counted, on a line of their own, and never listed", () => {
+  const before = { people: 4, booked: 2 };
+  const vm = liveModel({ ...RUNNING, elsewhere: before }, SAID);
+  assert.deepEqual(vm.head, { strong: "28 of 118", rest: " new people from your ads have booked." });
+  assert.equal(vm.rows.length, liveModel(RUNNING, SAID).rows.length, "no row is drawn for an ad that is not here");
+  assert.equal(
+    vm.notes.at(-1),
+    "4 people came from an ad in an ad account you connected before this one, and 2 of them have booked.",
+  );
+  // Its money may be in another currency: none of it is in what was spent.
+  assert.equal(vm.line, liveModel(RUNNING, SAID).line);
+  // Reports' table gives them a row, counted, with no spend beside them, and does not say them twice.
+  const lens = lensModel({ ...RUNNING, elsewhere: before }, SAID);
+  assert.deepEqual(lens.rows.at(-1), {
+    id: "elsewhere",
+    name: "Ads in an ad account you connected before this one",
+    came: "4",
+    booked: "2",
+    each: "—",
+    spent: "—",
+  });
+  assert.equal(lens.figures[0].value, "118");
+  assert.ok(!lens.notes.some((note) => note.includes("connected before")));
 });
 
 test("the head counts everyone an ad brought, the unnamed among them, and says what Meta charged", () => {
@@ -392,4 +420,93 @@ test("Reports › Ads says the page's own numbers: Chanlytics' count in its colu
   const came = vm.rows.reduce((sum, row) => sum + (Number(row.came) || 0), 0);
   assert.equal(String(came), vm.figures[0].value);
   assert.match(vm.notes[0], /counted once, for the ad they first wrote from/);
+});
+
+test("the page's read lists the connected account's ads and counts the people of an account connected before beside them", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const kernel = await import(at("apps/dashboard/src/server/shared/reader.ts"));
+  const { adsPage } = await import(at("apps/dashboard/src/server/readers/ads-page.ts"));
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const T = "abababab-7777-4000-8000-000000000001";
+  const HERE = "acacacac-7777-4000-8000-000000000001";
+  const BEFORE = "acacacac-7777-4000-8000-000000000002";
+  const account = (id, over) => ({
+    id,
+    tenant_id: T,
+    platform: "meta",
+    name: "Harbor ads",
+    currency: "USD",
+    timezone: "America/New_York",
+    status: "connected",
+    config: { scopes: ["ads_read", "ads_management"] },
+    read_at: "2026-11-18T19:00:00Z",
+    read_error: null,
+    revoked_at: null,
+    disconnected_at: null,
+    ...over,
+  });
+  const held = (id, accountId, name) => ({
+    id,
+    tenant_id: T,
+    account_id: accountId,
+    platform: "meta",
+    origin: "platform",
+    name,
+    door: "whatsapp",
+    platform_ad_id: `2385${id.slice(-12)}`,
+    status: "made",
+    intent: "on",
+    platform_state: "ACTIVE",
+    platform_issue: null,
+    budget_kind: null,
+    budget_minor: null,
+    budget_left_minor: null,
+    budget_shared: null,
+    ends_at: null,
+    intent_at: null,
+    told_at: null,
+    version: 1,
+    created_at: "2026-11-01T12:00:00Z",
+  });
+  const mine = held("adadadad-7777-4000-8000-000000000001", HERE, "Spring offer");
+  const theirs = held("adadadad-7777-4000-8000-000000000002", BEFORE, "Last year's offer");
+  const tables = {
+    ad_accounts: [
+      account(HERE, {}),
+      account(BEFORE, { status: "disconnected", currency: "GBP", disconnected_at: "2026-11-10T12:00:00Z" }),
+    ],
+    ads: [mine, theirs],
+  };
+  const counts = {
+    from: "2026-10-20",
+    to: "2026-11-18",
+    ads: [
+      { ad_id: mine.id, people: 5, booked: 2 },
+      { ad_id: theirs.id, people: 3, booked: 1 },
+    ],
+    unnamed: { people: 1, booked: 0 },
+    spend: [
+      { ad_id: mine.id, spend_minor: 1200, impressions: 10, clicks: 1, platform_results: null, settling: false },
+      { ad_id: theirs.id, spend_minor: 99900, impressions: 10, clicks: 1, platform_results: null, settling: false },
+    ],
+  };
+  const ctx = {
+    supabase: fakeDb(tables, {}, { ads_page_counts: () => counts }),
+    userId: "bcbcbcbc-7777-4000-8000-000000000001",
+    email: "ada@example.com",
+    metadata: {},
+  };
+  const rc = kernel.readerContext(ctx, { tenantId: T, role: "operator" });
+  const { data } = await kernel.load(rc, adsPage, undefined);
+  assert.deepEqual(
+    data.ads.map((one) => [one.name, one.people, one.booked, one.spend_minor]),
+    [["Spring offer", 5, 2, 1200]],
+    "the other account's ad is not this page's to list, and its pounds are in no sum of dollars",
+  );
+  assert.deepEqual(data.elsewhere, { people: 3, booked: 1 });
+  assert.deepEqual(data.unnamed, { people: 1, booked: 0 });
+  // Everyone the counts hold is on the page: the equation with Reports › People holds whichever account an ad is of.
+  const everyone = counts.ads.reduce((sum, one) => sum + one.people, 0) + counts.unnamed.people;
+  assert.equal(liveModel(data, SAID).head.strong, `3 of ${everyone}`);
 });

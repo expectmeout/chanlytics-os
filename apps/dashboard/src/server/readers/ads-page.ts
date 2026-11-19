@@ -16,6 +16,7 @@ import {
 import {
   findAdAccountForPage,
   listAdPeople,
+  listAdsByIds,
   listAdsOfAccount,
   readAdsPageCounts,
   type AdAccountRow,
@@ -111,15 +112,42 @@ function adOf(row: AdRow, counts: AdsPageCounts | null, at: ReadAt): AdLiveDto {
   };
 }
 
+/**
+ * The ads a window's counts name that the account's own list did not hold, read by id: one of this account past the
+ * most a page lists joins the list; one of another account of the workspace (connected before this one) is not this
+ * page's to list, and its people are counted beside it. So the page's people are always everyone the counts hold.
+ */
+async function unlistedOf(
+  rc: { ctx: { supabase: Parameters<typeof listAdsByIds>[0] }; tenantId: Parameters<typeof listAdsByIds>[1] },
+  listed: readonly AdRow[],
+  counts: AdsPageCounts | null,
+  accountId: string,
+): Promise<{ more: AdRow[]; elsewhere: { people: number; booked: number } }> {
+  const held = new Set(listed.map((row) => row.id));
+  const named = counts === null ? [] : [...new Set([...counts.people.keys(), ...counts.spend.keys()])];
+  const missing = named.filter((id) => !held.has(id));
+  const rows = await listAdsByIds(rc.ctx.supabase, rc.tenantId, missing);
+  const more = rows.filter((row) => row.account_id === accountId);
+  const mine = new Set([...held, ...more.map((row) => row.id)]);
+  const elsewhere = { people: 0, booked: 0 };
+  for (const [id, one] of counts?.people ?? []) {
+    if (mine.has(id)) continue;
+    elsewhere.people += one.people;
+    elsewhere.booked += one.booked;
+  }
+  return { more, elsewhere };
+}
+
 const statusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
   row.status === "connected" || row.status === "revoked" || row.status === "disconnected" ? row.status : null;
 
 /**
  * GET ads/page, as the route answers it (decision 0049's adsPage): the workspace's ad account once it is or was
  * connected, each ad Chanlytics holds for it with what its platform says it spent and who Chanlytics counts it
- * brought, and the people from an ad it cannot name. Null where no account was ever connected: the page then draws
- * what is true with nothing connected. The people are the ones Reports › People counts under "An ad", so the page's
- * total and the report's agree, and AI reads the same answer.
+ * brought, the people from an ad it cannot name, and the people from an ad of an account connected before this one.
+ * Null where no account was ever connected: the page then draws what is true with nothing connected. The people are
+ * the ones Reports › People counts under "An ad", every one of them, so the page's total and the report's agree, and
+ * AI reads the same answer.
  */
 export const adsPage: Reader<undefined, AdsLiveDto | null> = {
   name: "ads-page",
@@ -128,11 +156,13 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     const account = await findAdAccountForPage(supabase, rc.tenantId, "meta");
     const status = account ? statusOf(account) : null;
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
-    const [rows, counts, presses] = await Promise.all([
+    const [listed, counts, presses] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
       status === "connected" && ROLE_PERMS[rc.role].ads ? adsPressesOn(rc.tenantId) : false,
     ]);
+    const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
+    const rows = [...listed, ...more];
     const nowMs = Date.now();
     const timezone = account.timezone ?? "UTC";
     const today = zoneDayKey(nowMs, timezone);
@@ -151,6 +181,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       today,
       ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs })),
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
+      elsewhere,
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
     };
     return { data, rows: [], stamp: readerStamp() };

@@ -85,3 +85,15 @@ a page says; what an account shows is still to be seen when Connect first runs o
 ### Not looked at
 
 Any account, any ad, any token. Nothing here was seen on a real account.
+
+### To see on the first real account, found on review (19 November)
+
+- **Days of an ad archived inside the window.** Meta's insights page says a list at the ad level leaves archived and
+  deleted ads out unless a filter names them. The read asks for no such filter, so an ad archived inside the thirty
+  days may bring no days, and is then not adopted by them. To see: whether its days arrive, and if not, the filter
+  Meta's page gives, tried on one call before it is relied on.
+- **Who Meta names when a business removes the app.** The address Meta calls names a person. The id kept at Connect is
+  the one Meta's description of the token gives, which for a business's own token may be another id. If the two differ
+  the call matches nobody, and the next read marks the account all the same, within the hour.
+- **The ad account's own "allowed to run ads" list** is not asked for yet: an owner who loses that at Meta sees reads
+  fail ("Couldn't update") and not the reason.

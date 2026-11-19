@@ -18,7 +18,8 @@
 --                          where what it stands on moved. The card's "Chanlytics looks again" is this, and so is the
 --                          account's part of every read to come.
 --   ad_account_revoked     The platform took access back: the account says so, with when. Its last numbers stay, and
---                          nothing is read or changed until the owner connects again.
+--                          nothing is read or changed until the owner connects again. One that still waited for the
+--                          owner's answer was never connected: it goes, with its token, and nothing is said of it.
 --
 -- The ledger learns two subjects (an ad account, an ad) and four verbs (connect and disconnect an ad account, pause and
 -- resume an ad). Each CHECK lists its whole set, as every widening does: the sets are contracts' DECISION_SUBJECTS and
@@ -248,22 +249,30 @@ security definer
 set search_path = public
 as $$
 declare
-  v_platform text;
+  v_row public.ad_accounts;
 begin
-  update public.ad_accounts a
-     set status = 'revoked', revoked_at = now()
+  select * into v_row from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id and a.status in ('connected', 'choosing')
-  returning a.platform into v_platform;
+   for update;
   if not found then
     return false;
   end if;
+  if v_row.status = 'choosing' then
+    -- Signed in, and the one question never answered: no account was connected, so there is none to mark. The row
+    -- that waited goes, with the token that no longer opens anything.
+    perform public.ad_credentials_drop(p_account_id);
+    delete from public.ad_accounts a where a.id = p_account_id;
+  else
+    update public.ad_accounts a set status = 'revoked', revoked_at = now() where a.id = p_account_id;
+  end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'ad_account.revoked', 'setup', 'ad_account', p_account_id,
-          jsonb_build_object('platform', v_platform, 'how', left(coalesce(p_how, 'read'), 40)));
+          jsonb_build_object('platform', v_row.platform, 'how', left(coalesce(p_how, 'read'), 40),
+                             'was', v_row.status));
   return true;
 end $$;
 
 revoke all on function public.ad_account_revoked(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function public.ad_account_revoked(uuid, uuid, text) to service_role;
 comment on function public.ad_account_revoked(uuid, uuid, text) is
-  'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, decision 0049): the account is revoked, with when, and an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call). Its last numbers stay; nothing is read or changed until the owner connects again. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
+  'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, decision 0049): the account is revoked, with when, and an ad_account.revoked event says how it was learned (a read the platform refused, or the platform''s own call). Its last numbers stay; nothing is read or changed until the owner connects again. One that still waited to be chosen was never connected: its row goes with its token. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';

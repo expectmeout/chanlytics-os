@@ -7,8 +7,14 @@
  * Meta's allowance for an account is small, so the read asks as little as tells it everything: one call for the
  * account, one a hundred ads, one for the ads its list no longer names, one five hundred ad-days. Every call is sent
  * once. A call Meta refuses ends the read: the account keeps why and the moment before which it is not asked again,
- * and the job ends well, so nothing sends the same calls again in the same breath. A sign-in Meta no longer takes
- * marks the account: access taken back.
+ * and the job ends well, so nothing sends the same calls again in the same breath. A read that keeps failing is tried
+ * less and less often, up to once a day: a call Meta refuses counts against the app, so one it will keep refusing is
+ * not sent every quarter of an hour. A sign-in Meta no longer takes, or one Chanlytics no longer holds, marks the
+ * account: access taken back, and the owner connects again.
+ *
+ * One read takes at most five hundred ads and three thousand ad-days. Past either it keeps what it read and says what
+ * it could not vouch for: whether an ad has its budget to itself is left unsaid (so it is never turned back on from
+ * here), and the days are left open, never marked settled, so a figure built on them says "so far".
  */
 import {
   callMetaAds,
@@ -35,7 +41,7 @@ import {
   type AdsReadKept,
 } from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
-import { metaAdConfigOf, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { DAY_MS, metaAdConfigOf, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../shared/log.js";
@@ -72,13 +78,26 @@ type Log = ReturnType<typeof logger>;
 const CALL_ROOM_MS = 25 * SECOND_MS;
 /** How lately an account was read that a read asked for only to send a press reads nothing more. */
 const FRESH_MS = 2 * MIN_MS;
-/** How long after a read that stopped the account is tried again, where Meta named no wait of its own. */
-const RETRY_MS = 15 * MIN_MS;
+/** The soonest, and the latest, an account whose read stopped is tried again. */
+const RETRY_SOONEST_MS = 15 * MIN_MS;
+const RETRY_LATEST_MS = DAY_MS;
+
+/**
+ * How long after a read that stopped the account is tried again: half as long as it has gone without a good read, so
+ * each try waits half again as long as the one before, from a quarter of an hour up to a day. Nothing counts the
+ * tries: the wait is read from the account's own last good read (or its connect, before the first), which a good read
+ * or the owner's own look moves, so the pace is the hourly one again from that moment.
+ */
+export function retryMsOf(account: { read_at: string | null; connected_at: string | null }, nowMs: number): number {
+  const sinceMs = Date.parse(account.read_at ?? account.connected_at ?? "");
+  const stale = Number.isFinite(sinceMs) ? nowMs - sinceMs : 0;
+  return Math.min(Math.max(stale / 2, RETRY_SOONEST_MS), RETRY_LATEST_MS);
+}
 
 /** Why a read stopped before it had everything. */
 interface Stopped {
   stopped: true;
-  fault: MetaAdsFault | "out_of_time" | "no_token";
+  fault: MetaAdsFault | "out_of_time";
   usage: MetaUsage | null;
 }
 
@@ -115,10 +134,17 @@ function heard<T>(reading: Reading, asked: Asked<T>): T | Stopped {
 const stopped = (value: unknown): value is Stopped =>
   typeof value === "object" && value !== null && "stopped" in value && value.stopped === true;
 
+/** A list read a page at a time: what it holds, and whether that is all of it or the most one read takes. */
+interface Listed<T> {
+  rows: T[];
+  whole: boolean;
+}
+
 /** Every ad Meta's list names for the account, a page at a time, up to the most one read takes. */
-async function listedAds(reading: Reading): Promise<MetaAd[] | Stopped> {
+async function listedAds(reading: Reading): Promise<Listed<MetaAd> | Stopped> {
   const { signIn, account, log } = reading;
   const ads: MetaAd[] = [];
+  let whole = false;
   for (let after: string | undefined; ads.length < ADS_PACE.maxAds;) {
     const page = await ask(reading, () =>
       askMetaAds(
@@ -130,10 +156,11 @@ async function listedAds(reading: Reading): Promise<MetaAd[] | Stopped> {
     );
     if (stopped(page)) return page;
     ads.push(...page.ads);
-    if (page.after === null) break;
-    after = page.after;
+    whole = page.after === null;
+    if (whole) break;
+    after = page.after ?? undefined;
   }
-  return ads;
+  return { rows: ads, whole };
 }
 
 /** Ads asked for by name: the ones this workspace holds, or that a day names, that Meta's list did not. */
@@ -155,11 +182,15 @@ async function namedAds(reading: Reading, ids: readonly string[]): Promise<MetaA
   return ads;
 }
 
-/** Meta's days for the account's ads over a range, a page at a time. */
-async function daysOver(reading: Reading, range: { since: string; until: string }): Promise<MetaAdDay[] | Stopped> {
+/** Meta's days for the account's ads over a range, a page at a time, up to the most one read takes. */
+async function daysOver(
+  reading: Reading,
+  range: { since: string; until: string },
+): Promise<Listed<MetaAdDay> | Stopped> {
   const { signIn, account, log } = reading;
   const days: MetaAdDay[] = [];
   let after: string | undefined;
+  let whole = false;
   for (let page = 0; page < ADS_PACE.maxDayPages; page += 1) {
     const some = await ask(reading, () =>
       askMetaAds(
@@ -171,27 +202,38 @@ async function daysOver(reading: Reading, range: { since: string; until: string 
     );
     if (stopped(some)) return some;
     days.push(...some.days);
-    if (some.after === null) break;
-    after = some.after;
+    whole = some.after === null;
+    if (whole) break;
+    after = some.after ?? undefined;
   }
-  return days;
+  return { rows: days, whole };
 }
 
 /** The most ads asked for by name in one read: two of Meta's calls. */
 const NAMED_MAX = 2 * META_IDS_MAX;
 
-/** What a whole read learned, as the door keeps it; or why it stopped. */
-async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDepth; nowMs: number }) {
+/** What a read could not vouch for, having reached the most it takes: every ad, every day, both, or nothing. */
+type ReadCut = "ads" | "days" | "ads_days" | null;
+
+/** What a read learned, as the door keeps it, and what it was cut short of; or why it stopped. */
+async function learn(
+  db: Db,
+  app: MetaApp,
+  reading: Reading,
+  at: { depth: ReadDepth; nowMs: number },
+): Promise<{ read: AdsReadKept; cut: ReadCut } | Stopped> {
   const { depth, nowMs } = at;
   const { signIn, account, log } = reading;
   const tenantId = account.tenant_id;
   const described = await ask(reading, () => readMetaAccount(log, signIn, account.external_id));
   if (stopped(described)) return described;
 
-  const listed = await listedAds(reading);
-  if (stopped(listed)) return listed;
-  const days = await daysOver(reading, rangeOf(depth, described.timezone, nowMs));
-  if (stopped(days)) return days;
+  const list = await listedAds(reading);
+  if (stopped(list)) return list;
+  const listed = list.rows;
+  const dayList = await daysOver(reading, rangeOf(depth, described.timezone, nowMs));
+  if (stopped(dayList)) return dayList;
+  const days = dayList.rows;
 
   // The ads this workspace holds, and the ones a day names, that Meta's list did not: asked for by name, so one
   // archived since still says so, and one that ran in the window is adopted (the plan's G3).
@@ -221,7 +263,8 @@ async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDe
         )
       : null;
 
-  const rows = adRowsOf(ads);
+  // Whether an ad has its budget to itself is only known where every ad of the account was seen.
+  const rows = adRowsOf(ads, list.whole);
   const read: AdsReadKept = {
     account: {
       name: described.name,
@@ -235,18 +278,20 @@ async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDe
     ads: rows,
     days: dayRowsOf(days, new Map(rows.map((row) => [row.platform_ad_id, row.door]))),
     next_read_at: nextReadOf(ads, nowMs),
-    ...(daily ? { settled_before: settledBeforeOf(described.timezone, nowMs) } : {}),
+    // Days are marked settled only by a look back that read every one of them: one cut short leaves them open.
+    ...(daily && dayList.whole ? { settled_before: settledBeforeOf(described.timezone, nowMs) } : {}),
     ...(daily ? { settle_at: nextSettleOf(described.timezone, nowMs) } : {}),
     ...(subscribed !== null && !stopped(subscribed) ? { notices: "subscribed" as const } : {}),
   };
-  return read;
+  const cut: ReadCut = list.whole ? (dayList.whole ? null : "days") : dayList.whole ? "ads" : "ads_days";
+  return { read, cut };
 }
 
 /** A read that stopped: the account keeps why and when it may be asked again, and what stood, stands. */
-function failedRead(stop: Stopped, nowMs: number): AdsReadKept {
-  const fault = stop.fault === "out_of_time" || stop.fault === "no_token" ? null : stop.fault;
+function failedRead(stop: Stopped, account: Reading["account"], nowMs: number): AdsReadKept {
+  const fault = stop.fault === "out_of_time" ? null : stop.fault;
   const after = readAfterOf(stop.usage, fault, nowMs);
-  const retryAt = new Date(nowMs + RETRY_MS).toISOString();
+  const retryAt = new Date(nowMs + retryMsOf(account, nowMs)).toISOString();
   return {
     account: { error: stop.fault, read_after: after, ...(stop.usage ? { usage_pct: stop.usage.pct } : {}) },
     next_read_at: after !== null && after > retryAt ? after : retryAt,
@@ -262,6 +307,8 @@ interface ReadOut {
   days: number;
   adopted: number;
   moved: number;
+  /** What the read could not vouch for, having reached the most one read takes; null for a whole one. */
+  cut: ReadCut;
 }
 
 /** ad_read as the job runner takes it: one account read at Meta, and what it learned kept. */
@@ -284,15 +331,16 @@ export async function runAdRead(
   if (!mayAskMeta(account, nowMs)) return { skipped: "Meta is holding this account back" };
   const depth = depthOf(account, nowMs);
   const out = (outcome: string, calls: number): { read: ReadOut } => ({
-    read: { outcome, depth, calls, ads: 0, days: 0, adopted: 0, moved: 0 },
+    read: { outcome, depth, calls, ads: 0, days: 0, adopted: 0, moved: 0, cut: null },
   });
 
   const signIn = await signInOf(db, app, account.id);
   if (!signIn) {
-    // A connected account with no token kept cannot be read: it says so, and is tried again at the slow pace.
-    await keepAdsRead(db, tenantId, account.id, failedRead({ stopped: true, fault: "no_token", usage: null }, nowMs));
-    log.error("ads_read_failed", { fault: "no_token" });
-    return out("failed", 0);
+    // A connected account whose token is not kept can never be read again, and no try mends it: it is marked as one
+    // whose access is gone, so its page says the one thing that does, Connect again.
+    await markAdAccountRevoked(db, tenantId, account.id, "no_token");
+    log.error("ads_revoked", { how: "no_token" });
+    return out("revoked", 0);
   }
   const reading: Reading = {
     log,
@@ -317,19 +365,20 @@ export async function runAdRead(
   const learned = await learn(db, app, reading, { depth, nowMs });
   if (stopped(learned)) {
     if (learned.fault === "revoked") return revoked();
-    await keepAdsRead(db, tenantId, account.id, failedRead(learned, nowMs));
+    await keepAdsRead(db, tenantId, account.id, failedRead(learned, reading.account, nowMs));
     log.info("ads_read_failed", { fault: learned.fault, calls: reading.calls, usage_pct: learned.usage?.pct ?? null });
     return out("failed", reading.calls);
   }
-  const kept = await keepAdsRead(db, tenantId, account.id, learned);
+  const kept = await keepAdsRead(db, tenantId, account.id, learned.read);
   const read: ReadOut = {
     outcome: kept.outcome,
     depth,
     calls: reading.calls,
-    ads: learned.ads?.length ?? 0,
-    days: learned.days?.length ?? 0,
+    ads: learned.read.ads?.length ?? 0,
+    days: learned.read.days?.length ?? 0,
     adopted: kept.adopted,
     moved: kept.moved,
+    cut: learned.cut,
   };
   log.info("ads_read", { ...read, usage_pct: reading.usage?.pct ?? null });
   return { read };

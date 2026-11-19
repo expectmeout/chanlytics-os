@@ -51,7 +51,7 @@ being read is dropped by a migration.
 | `ad_account_disconnect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner disconnects their ad account (00653; |
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
-| `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect` | Service-role only: deletes an ad account's token from Vault (00648). |
+| `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
@@ -66,7 +66,7 @@ being read is dropped by a migration.
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
-| `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, or a connect just finished (00650). |
+| `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, decision 0049). |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |

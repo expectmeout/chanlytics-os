@@ -337,6 +337,40 @@ test(
 );
 
 test(
+  "a press that waits for the platform brings its account's read forward, and a sign-out lets it go unsent",
+  { skip },
+  async () => {
+    const ws = await workspace("wait");
+    const ad = await adopt(ws, "23850000000000861");
+    // The clock handed the account its hourly read, some minutes on; then the owner pauses, inside the thirty seconds.
+    const later = new Date(Date.now() + 40 * 60_000).toISOString();
+    ok(
+      await db
+        .from("jobs")
+        .insert({ tenant_id: ws.tenant, kind: "ad_read", due_at: later, payload: { account_id: ws.account } }),
+    );
+    await press(ws, ad, "paused");
+    assert.equal(ok(await db.rpc("ad_tell_ask", { p_tenant_id: ws.tenant, p_ad_id: ad.id })), 0, "a read waits");
+    const jobs = ok(
+      await db.from("jobs").select("due_at").eq("tenant_id", ws.tenant).eq("kind", "ad_read").eq("state", "scheduled"),
+    );
+    assert.equal(jobs.length, 1, "still one read");
+    assert.ok(Date.parse(jobs[0].due_at) <= Date.now() + 5_000, "brought forward: a pause never waits for the hour");
+
+    // The platform signs Chanlytics out before that read runs. The press is let go: it is never sent days on, when
+    // the owner connects again.
+    const waiting = await adNow(ad);
+    assert.ok(waiting.intent_at > (waiting.told_at ?? ""), "on its way");
+    assert.equal(
+      ok(await db.rpc("ad_account_revoked", { p_tenant_id: ws.tenant, p_account_id: ws.account, p_how: "read" })),
+      true,
+    );
+    const now = await adNow(ad);
+    assert.ok(now.told_at >= now.intent_at, "nothing is left to send");
+  },
+);
+
+test(
   "Disconnect is the owner's and never refused: what was on its way is let go, and a sign-out rings the bell",
   { skip },
   async () => {

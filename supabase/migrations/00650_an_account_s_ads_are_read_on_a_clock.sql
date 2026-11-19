@@ -16,7 +16,8 @@
 --   ads_hand_out     the clock's one statement: an ad_read for each connected account whose time has come and that
 --                    the platform is not holding back.
 --   ads_read_ask     the platform said something changed in an account (its notice): that account's read, soon, and
---                    never sooner than two minutes after its last or than the platform allows.
+--                    never sooner than two minutes after its last or than the platform allows. One that waits already
+--                    for a later moment is brought forward to this one.
 --   ads_sweep_ask    the clock: asks the edge (/api/cron/ads) every five minutes while an account is connected.
 --   purge_ad_days    nightly: a platform's day for an ad goes 760 days on, about 25 months (contracts RETENTION_DAYS.ad_days).
 --   The live feed    a workspace is told when its ad account or an ad changes in what a page draws.
@@ -231,26 +232,38 @@ security definer
 set search_path = public
 as $$
 declare
-  v_asked integer;
+  v_account public.ad_accounts;
+  v_due     timestamptz;
+  v_asked   integer;
 begin
   -- The platform said something changed in this account. Its read, soon: never sooner than two minutes after its last
-  -- (a burst of notices is one read), nor than the platform allows. One waiting or running already is the read.
+  -- (a burst of notices is one read), nor than the platform allows.
+  select * into v_account from public.ad_accounts a
+   where a.platform = p_platform and a.external_id = p_external_id and a.status = 'connected';
+  if not found
+     or exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null) then
+    return 0;
+  end if;
+  v_due := greatest(now(), coalesce(v_account.read_at, '-infinity'::timestamptz) + interval '2 minutes',
+                    coalesce(v_account.read_after, '-infinity'::timestamptz));
   insert into public.jobs (tenant_id, kind, due_at, payload)
-  select a.tenant_id, 'ad_read',
-         greatest(now(), coalesce(a.read_at, '-infinity'::timestamptz) + interval '2 minutes',
-                  coalesce(a.read_after, '-infinity'::timestamptz)),
-         jsonb_build_object('account_id', a.id::text)
-    from public.ad_accounts a
-   where a.platform = p_platform and a.external_id = p_external_id and a.status = 'connected'
-     and not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null)
+  values (v_account.tenant_id, 'ad_read', v_due, jsonb_build_object('account_id', v_account.id::text))
   on conflict do nothing;
   get diagnostics v_asked = row_count;
+  if v_asked = 0 then
+    -- One waits or runs already, and is the read. Where it waits for a later moment (the clock spreads an hourly read
+    -- over the minutes after its turn, and a read that failed waits longer each time), it is brought forward to this one.
+    update public.jobs j
+       set due_at = v_due, updated_at = now()
+     where j.tenant_id = v_account.tenant_id and j.kind = 'ad_read' and j.state = 'scheduled'
+       and j.payload ->> 'account_id' = v_account.id::text and j.due_at > v_due;
+  end if;
   return v_asked;
 end $$;
 revoke all on function public.ads_read_ask(text, text) from public, anon, authenticated;
 grant execute on function public.ads_read_ask(text, text) to service_role;
 comment on function public.ads_read_ask(text, text) is
-  'Service-role only: a platform''s notice that something changed in an ad account, or a connect just finished (00650). Puts that account''s ad_read on the ledger, due no sooner than two minutes after its last read nor than the platform allows; nothing where one waits or runs already, where the account is not connected, or while the kind is paused. Answers how many it asked for (0 or 1).';
+  'Service-role only: a platform''s notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). Puts that account''s ad_read on the ledger, due no sooner than two minutes after its last read nor than the platform allows. Where one waits already for a later moment it is brought forward to this one; nothing where the account is not connected, or while the kind is paused. Answers how many it put on the ledger (0 or 1).';
 
 create or replace function public.ads_sweep_ask()
 returns bigint

@@ -59,11 +59,23 @@ interface Told {
 
 const SWITCH: Record<AdIntent, "PAUSED" | "ACTIVE"> = { paused: "PAUSED", on: "ACTIVE" };
 
+/** Whose press is told, and how. */
+interface Telling {
+  tenantId: TenantId;
+  signIn: MetaSignIn;
+  writes: AdsWrites;
+  /**
+   * Whether the ad is read back once Meta took the change. A disconnect that pauses many does not: each read back is
+   * one more of the account's few calls, and a pause Meta confirmed leaves no doubt what the ad's own switch says.
+   */
+  readBack?: boolean;
+}
+
 /** One press told to Meta, and what came of it kept (ad_told). Sent once. */
 export async function tellAd(
   db: Db,
   log: Log,
-  who: { tenantId: TenantId; signIn: MetaSignIn; writes: AdsWrites },
+  who: Telling,
   ad: Pick<AdPendingRow, "id" | "platform_ad_id" | "intent">,
 ): Promise<Told> {
   const { tenantId, signIn } = who;
@@ -91,7 +103,7 @@ export async function tellAd(
   if (sent.fault !== null || !metaConfirmed(sent.json))
     return done(await kept("refused", null, sent.said), sent.usage, sent.said);
   // Taken. What Meta now says of the ad, where its allowance leaves room to ask: else the next read says.
-  const room = sent.usage === null || sent.usage.pct < ADS_USAGE_HOLD_PCT;
+  const room = who.readBack !== false && (sent.usage === null || sent.usage.pct < ADS_USAGE_HOLD_PCT);
   const standing = room
     ? await askMetaAds(
         log,
@@ -101,15 +113,20 @@ export async function tellAd(
       )
     : null;
   const usage = standing?.usage ?? sent.usage;
-  return done(await kept("told", standing?.ok ? standing.value : null, null), usage, null);
+  // Not read back: a pause Meta confirmed is its own switch off, so the ad is not running, and the row says so now
+  // (the next read says which of Meta's words it is). What an ad turned back on stands at is Meta's to say: it may be
+  // checking it again.
+  const stands = standing?.ok ? standing.value : ad.intent === "paused" ? SWITCH.paused : null;
+  return done(await kept("told", stands, null), usage, null);
 }
 
 /** The most presses one read sends before it reads: each is a change, three of the account's allowance. */
 const TELL_MAX = 5;
 
 /**
- * An account's presses still on their way, sent before its read: each whose thirty seconds have passed, the oldest
- * wait first, while Meta's allowance leaves room. What it came to, for the read's line; `revoked` ends the read.
+ * An account's presses still on their way, sent before its read: each whose thirty seconds have passed, while Meta's
+ * allowance leaves room. A pause goes before a turning back on, since a pause stops money and waits for nothing; of
+ * a kind, the oldest ask first. What it came to, for the read's line; `revoked` ends the read.
  */
 export async function tellPending(
   db: Db,
@@ -121,7 +138,11 @@ export async function tellPending(
   let usage: MetaUsage | null = null;
   let told = 0;
   if (who.writes === "off") return { told, usage, revoked: false };
-  const pending = (await listPendingAds(db, who.tenantId, accountId)).filter((ad) => mayTellNow(ad.told_at, nowMs));
+  const pending = (await listPendingAds(db, who.tenantId, accountId))
+    .filter((ad) => mayTellNow(ad.told_at, nowMs))
+    .sort(
+      (a, b) => Number(b.intent === "paused") - Number(a.intent === "paused") || a.intent_at.localeCompare(b.intent_at),
+    );
   for (const ad of pending.slice(0, TELL_MAX)) {
     if (usage !== null && usage.pct >= ADS_USAGE_HOLD_PCT) break;
     const answer = await tellAd(db, log, who, ad);
@@ -163,7 +184,7 @@ export async function pauseRunning(
     const told = await tellAd(
       db,
       log,
-      { tenantId: who.tenantId, signIn: who.signIn, writes: who.writes },
+      { tenantId: who.tenantId, signIn: who.signIn, writes: who.writes, readBack: false },
       { id: ad.id, platform_ad_id: kept.platformAdId, intent: "paused" },
     );
     usage = told.usage ?? usage;

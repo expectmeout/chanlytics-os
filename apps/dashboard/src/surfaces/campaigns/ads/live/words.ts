@@ -87,6 +87,10 @@ export const LIVE = {
   unnamed: (came: number, booked: number) =>
     `${people(came)} came from an ad you run in Meta that Chanlytics can't name yet` +
     (booked > 0 ? `, and ${booked} of them ${booked === 1 ? "has" : "have"} booked.` : "."),
+  /** The people of an ad in an ad account this workspace connected before this one: counted, on a line of their own. */
+  elsewhere: (came: number, booked: number) =>
+    `${people(came)} came from an ad in an ad account you connected before this one` +
+    (booked > 0 ? `, and ${booked} of them ${booked === 1 ? "has" : "have"} booked.` : "."),
   /** Meta signed Chanlytics out (the plan's 4.8). */
   signedOut: {
     title: (day: string) => `Meta signed Chanlytics out on ${day}.`,
@@ -175,6 +179,11 @@ export const SHEET = {
   pausedSoon: (name: string) => `${name} will pause as soon as Meta takes the change.`,
   resumed: (name: string) => `${name} is back on.`,
   resumedSoon: (name: string) => `${name} will turn back on as soon as Meta takes the change.`,
+  /** Meta gave no answer to a change: whether it took it is not known yet, and Chanlytics reads what stands. */
+  pauseUnsure: (name: string) =>
+    `Meta didn't answer, so ${name} may still be on. Chanlytics is checking, and this page shows what Meta did in a few minutes.`,
+  resumeUnsure: (name: string) =>
+    `Meta didn't answer, so ${name} may still be paused. Chanlytics is checking, and this page shows what Meta did in a few minutes.`,
   failed: "Couldn't reach Meta just now. Nothing was changed. Try again.",
 } as const;
 
@@ -190,6 +199,7 @@ export const LENS = {
   spent: "Spent · Meta's number",
   heads: { ad: "Ad", came: "Wrote to AI", booked: "Booked", each: "Each", spent: "Spent (Meta)" },
   unnamed: "An ad you run in Meta that Chanlytics can't name yet",
+  elsewhere: "Ads in an ad account you connected before this one",
   counted:
     "A person is counted once, for the ad they first wrote from. Booked means something on your calendar after that first message that wasn't cancelled.",
   open: "Open Ads",

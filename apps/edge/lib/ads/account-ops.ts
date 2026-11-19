@@ -341,6 +341,9 @@ async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: num
     read_after: readAfterOf(usage, null, nowMs),
   });
   log.info("ads_account_checked", { outcome });
+  // The account's reads had been failing, and it answers again: its ads are read now, not when the wait that grew
+  // with each failed try runs out.
+  if (account.read_error !== null) await readSoon(db, log, account.external_id);
   return outcome;
 }
 

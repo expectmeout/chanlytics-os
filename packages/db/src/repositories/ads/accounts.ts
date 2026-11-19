@@ -35,6 +35,9 @@ export async function findLiveAdAccount(
   return data ?? null;
 }
 
+/** The most accounts of one platform a workspace's page looks through: one live, and the ones it let go before. */
+const PAGE_ACCOUNTS_MAX = 20;
+
 /**
  * The workspace's account on a platform as a page draws it: the live one, else the one most lately disconnected, whose
  * ads stay listed as left at the platform. Null where the workspace never connected one.
@@ -49,12 +52,13 @@ export async function findAdAccountForPage(
     .select("*")
     .eq("platform", platform)
     .order("disconnected_at", { ascending: false, nullsFirst: true })
-    .limit(1);
+    .limit(PAGE_ACCOUNTS_MAX);
   if (error) {
     if (error.code === "42P01" || error.code === "PGRST205") return null;
     throw new DbFailure(error, "ad account for the page");
   }
-  return data.at(0) ?? null;
+  // The live one is picked by what it is, not by where a null sorts: else the one let go last.
+  return data.find((row) => row.status !== "disconnected") ?? data.at(0) ?? null;
 }
 
 /** One account of the workspace's, by id. */
@@ -161,12 +165,16 @@ export async function keepAdAccountRead(
   return data === "moved" || data === "kept" || data === "failed" ? data : "not_connected";
 }
 
-/** The platform took access back (ad_account_revoked, 00649). True where the account was connected. */
+/**
+ * The platform took access back (ad_account_revoked, 00649), learned from a read it refused or from its own call; or
+ * the account's token is no longer kept, which leaves the owner the same one thing to do. True where the account was
+ * connected or waited to be chosen.
+ */
 export async function markAdAccountRevoked(
   db: Db,
   tenantId: TenantId,
   accountId: string,
-  how: "read" | "platform",
+  how: "read" | "platform" | "no_token",
 ): Promise<boolean> {
   const { data, error } = await db.rpc("ad_account_revoked", {
     p_tenant_id: tenantId,

@@ -113,6 +113,8 @@ export interface AdPendingRow {
   id: string;
   platform_ad_id: string;
   intent: AdIntent;
+  /** When the owner asked: the oldest ask of a kind is sent first. */
+  intent_at: string;
   told_at: string | null;
 }
 
@@ -137,7 +139,7 @@ export async function listPendingAds(db: Db, tenantId: TenantId, accountId: stri
     const pending = row.told_at === null || row.told_at < row.intent_at;
     const intent = row.intent === "on" || row.intent === "paused" ? row.intent : null;
     return pending && intent !== null && row.platform_ad_id !== null
-      ? [{ id: row.id, platform_ad_id: row.platform_ad_id, intent, told_at: row.told_at }]
+      ? [{ id: row.id, platform_ad_id: row.platform_ad_id, intent, intent_at: row.intent_at, told_at: row.told_at }]
       : [];
   });
 }

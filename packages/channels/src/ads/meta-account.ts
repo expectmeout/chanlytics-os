@@ -8,10 +8,10 @@
  * account, the Page, the system user, currency codes); each field is named where it is read.
  *
  * Money. Meta counts an amount in its own units for the currency, which it calls the offset: a hundredth of the
- * currency for most, the whole currency for eleven. Every other tree reads an amount in the house's own minor units
- * (contracts minorPerUnit, the runtime's own list of each currency's digits), which for several of those eleven differ
- * from Meta's, and differ between runtimes. So an amount is converted here, where Meta's answer is read, and nowhere
- * else.
+ * currency for most, the whole currency for eleven. Every other tree reads an amount in the currency's ISO 4217 minor
+ * units (contracts minorPerUnit, a list of its own, the same on every runtime), which for five of those eleven differ
+ * from Meta's: the forint, the Colombian peso, the colón, the rupiah and the Taiwan dollar are whole at Meta and hold a
+ * hundred in ISO 4217. So an amount is converted here, where Meta's answer is read, and nowhere else.
  */
 import { minorPerUnit, valueAt } from "@chanlytics/contracts";
 import type { AdAccountStanding } from "@chanlytics/contracts";
