@@ -295,6 +295,9 @@ export const TO_SEND_ALL_WORDS = {
   /** "12 emails handed to you, from 3 sequences"; one sequence (its first email and its nudge) says none. */
   sub: (n: number, from: number) =>
     `${plural(n, "email", "emails")} handed to you${from > 1 ? `, from ${from} campaigns` : ""}`,
+  /** The same in one fact, where its row is a line tall (the Inbox's Needs you, decision 0142), as Campaigns' list says it. */
+  short: (n: number, from: number) =>
+    `${plural(n, "email", "emails")} for you to send${from > 1 ? ` · ${from} campaigns` : ""}`,
   /** Today's one row for them: what waits, and from how many sequences to leads where more than one. */
   sentence: (n: number, from: number) =>
     `${plural(n, "email", "emails")} to send from your inbox${from > 1 ? `, from ${from} campaigns` : ""}, each written and checked.`,

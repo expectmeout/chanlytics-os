@@ -114,7 +114,26 @@ test("Older's Mark all done refused whole says why and stays to be pressed again
   answerWith(() => json(403, { ok: false, error: { code: "forbidden", message: "Not yours to give back." } }));
   flashes.length = 0;
   const olderOf = (tree) => rowsDrawn(tree).find((r) => testidOf(r) === "queue-older");
+  // It asks first, in the row's own place (decision 0142): the press is the question's while it stands, Not now changes
+  // nothing, and Yes is the press that goes.
   olderOf(draw(NeedYou)).props.cta.onClick();
+  const redraw = () => olderOf(again(() => W.React.createElement(NeedYou, {})));
+  const asked = redraw();
+  assert.equal(asked.props.cta, null, "the press is the question's now");
+  assert.deepEqual(
+    [asked.props.work.props.question, asked.props.work.props.yes, asked.props.work.props.no],
+    ["Mark all 2 done?", "Yes, mark 2 done", "Not now"],
+  );
+  wire.length = 0;
+  asked.props.work.props.onNo();
+  const kept = redraw();
+  assert.deepEqual(
+    [kept.props.work, wire.length],
+    [null, 0],
+    "Not now: nothing asked of the server, the row as it was",
+  );
+  kept.props.cta.onClick();
+  redraw().props.work.props.onYes();
   await until(
     () => flashes.length > 0,
     `the refusal said (the wire: ${wire.map((w) => w.method + " " + w.path).join(", ")})`,
@@ -125,6 +144,42 @@ test("Older's Mark all done refused whole says why and stays to be pressed again
   assert.equal(again_.props.work, null, "and nothing says they were marked done");
   setSurfaceValue("today", undefined);
   unmount();
+});
+
+test("Mark done says everyone it marked: a conversation nobody answered is archived, which has no undo, and is counted all the same", async () => {
+  const { handBackAll, handedBackWords } =
+    await import("../../../apps/dashboard/src/surfaces/today/need-you/sheet/hand-back.ts");
+  answerWith(() => json(200, { ok: true, data: { decision_id: "d1" } }));
+  // Dana asked for a person: her hold is handed back. Nobody answered Kai, who has no hold: Mark done archives him.
+  const dana = row("o1", "Dana Ruiz", { waitedMs: 9 * DAY });
+  const kai = row("o2", "Kai Moreno", { waitedMs: 9 * DAY, closes: "archive" });
+  wire.length = 0;
+  const both = await handBackAll([dana, kai]);
+  assert.deepEqual(
+    wire.map((w) => w.path.split("/").at(-1)),
+    ["hand-back", "archive"],
+    "each by its own verb",
+  );
+  assert.deepEqual([both.done, both.refused, !!both.undo], [2, 0, true]);
+  assert.equal(handedBackWords(both), "2 marked done", "REGRESSION: the archived one was left out of the count");
+  const alone = await handBackAll([kai]);
+  assert.deepEqual(
+    [alone.done, alone.refused, alone.undo],
+    [1, 0, null],
+    "REGRESSION: one such person alone read as none marked, and the page said, in red, that they couldn't be",
+  );
+  assert.equal(handedBackWords(alone), "Marked done");
+  // What the question before Mark all done says of them (contracts): what Undo will not bring back.
+  const ask = NEED_YOU_WORDS.oldDone.ask;
+  assert.equal(ask.detail(37, 0), "They leave your list, and AI answers them if they write again.");
+  assert.equal(
+    ask.detail(37, 14),
+    "They leave your list until they write again. Nobody answered 14 of them, so those are archived, and Undo won't bring them back.",
+  );
+  assert.equal(
+    ask.detail(2, 2),
+    "They leave your list until they write again. Nobody answered them, so they are archived, and Undo won't bring them back.",
+  );
 });
 
 test("Need you's model hears every read its rows come from, so the list, the page and the head redraw as one lands", () => {

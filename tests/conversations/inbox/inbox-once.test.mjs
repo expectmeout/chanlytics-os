@@ -389,6 +389,7 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
       words: one("ix-thread-preview"),
       wait: one("ix-thread-wait") ?? one("ix-wait"),
       time: one("ix-thread-time") !== null && one("ix-thread-wait") === null,
+      wakes: !!find(row, (n) => n?.props?.["data-testid"] === "thread-wakes"),
       foot: one("ix-thread-foot") !== null,
       text: textOf(row),
     };
@@ -422,7 +423,13 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
     "a quiet thread's row is the last thing that happened, and when",
   );
   const samRow = said("Sam Ortiz");
-  assert.ok(samRow.wait && !samRow.time, "a snoozed row says when it wakes, and not also when it last moved");
+  // A snoozed row stands in Waiting among the rest (decision 0142: it had a tab of its own), so it says the word, and its
+  // one time is when it wakes.
+  assert.ok(samRow.text.includes("Snoozed"), `a snoozed row says so, where no tab does: ${samRow.text}`);
+  assert.ok(
+    samRow.wakes && samRow.time && !samRow.wait,
+    "a snoozed row says when it wakes, once, and not also when it last moved",
+  );
 });
 
 test("an email in the thread is drawn as one: its subject said once over the first email, then over an email only where it changes, the envelope where it came another way than the reply goes; a WhatsApp bubble has no subject line", () => {

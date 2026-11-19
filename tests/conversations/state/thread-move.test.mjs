@@ -111,12 +111,13 @@ const STATES = [
     "auto_reply",
     "waiting",
   ],
+  // What a campaign or a sequence sent asks nothing of anyone here (decision 0142): its word, where nobody owes a move.
   [
     "a cold email went, they never wrote",
     dto({ ...never, messages: [m({ channel: "email", sender: "human", meta: cold, created_at: ago(4000) })] }),
     null,
     "no_reply",
-    "waiting",
+    "done",
   ],
   [
     "you wrote first, they never wrote",
@@ -136,7 +137,7 @@ const STATES = [
     }),
     null,
     "sent",
-    "waiting",
+    "done",
   ],
   ["no messages at all", dto({ ...never, messages: [] }), null, "nothing", "done"],
   ["a call that never connected", dto({ messages: [callNote(90)] }), null, "call", "done"],
@@ -244,19 +245,20 @@ const STATES = [
     "stopped",
     "done",
   ],
+  // Snoozed waits for its hour, in Waiting: it had a tab of its own (decision 0142).
   [
     "snoozed, nothing owed",
     dto({ state: "snoozed", snooze_until: ahead(900), messages: [inb(60), m({ created_at: ago(59) })] }),
     null,
     "snoozed",
-    "snoozed",
+    "waiting",
   ],
   [
     "snoozed, a request still open",
     dto({ state: "snoozed", snooze_until: ahead(900), messages: [inb(60)] }),
     esc("human_token", 59),
     "snoozed",
-    "snoozed",
+    "waiting",
   ],
   ["archived", dto({ state: "archived", messages: [inb(600), m({ created_at: ago(599) })] }), null, "archived", "out"],
   [

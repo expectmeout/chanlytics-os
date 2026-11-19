@@ -6639,8 +6639,8 @@ textarea.rec-input,
 /* The head as canvas E3 sets it (the review of 1 October 2026): the date a touch wider in its tracking, the name tight
    in its tracking and its leading, eight pixels between the date's row and the name and eight more to the sentence
    under it, which breathes a little; and on a phone (the kit's one breakpoint) the name alone at the boards' 30px,
-   semibold, under a date that says the day and not the hour (the phone boards: "FRIDAY, OCTOBER 2"; the hour is the
-   dateline's own span, frame-head.tsx). */
+   semibold. The frame's head says no date since 19 Nov 2026 (Ruben: "not needed"); a head given one (PageHead's
+   `dateline`, the console's Home) says the day alone. */
 .pg-head {
   gap: 8px;
 }
@@ -6663,13 +6663,6 @@ textarea.rec-input,
     letter-spacing: -0.03em;
     /* Over the pool of light, a step softer than the desk's name, as the phone boards blend the two (Ruben, 2 Oct 2026). */
     color: var(--ink-muted);
-  }
-  .pg-dateline-time {
-    display: none;
-  }
-  /* Today's phone head says the hour, its day short (frame-head.tsx, Standing `dateHour`; the Today canvas, 2 Nov 2026). */
-  .pg-dateline[data-hour] .pg-dateline-time {
-    display: inline;
   }
 }
 /* The name and the date as the phone boards draw them: the aurora flows through the letters. On the canvas the pools of
@@ -6726,7 +6719,7 @@ textarea.rec-input,
   }
 }
 /* What stands beside the name (PageHead `beside`: Today's Listen): on the name's line, after it, centred on its letters.
-   On a phone the frame stands it in the date's row instead, beside the bell (frame-head.tsx PageDateline; components.css). */
+   On a phone the frame stands it in the top bar's row instead, beside the bell (frame-head.tsx TopPlace; components.css). */
 .pg-titled {
   display: flex;
   flex-wrap: wrap;

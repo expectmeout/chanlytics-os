@@ -886,9 +886,25 @@ test("the sentences the queue and the card say about a playbook's run come from 
     // How its wait ends is the wait rule's (decision 0064): a customer batch's until its day ends.
     sentence: "3 people. Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
     status: ["Waiting for your approval"],
+    // Its one fact where its row is a line tall (the Inbox's Needs you, decision 0142).
+    short: "3 people · waiting for your approval",
   });
   // A reach-out's run writes to businesses, and says it is a reach-out (Reach out Part 5, PR 8).
   const reach = todayRunWords({ ...run, recipient_count: 44, audience: { kind: "reach_out", label: "Movers" } });
+  // The one fact, in the words Campaigns' list says it: what an OK sends and what the check holds apart; the emails
+  // handed to you; the emails a going run's check holds.
+  assert.equal(
+    todayRunWords({ ...run, recipient_count: 9, held: 7, audience: { kind: "reach_out" } }).waiting.short,
+    "2 wait for your approval · 7 held",
+  );
+  assert.equal(
+    todayRunWords({ ...run, recipient_count: 8, held: 7, audience: { kind: "reach_out" } }).waiting.short,
+    "1 waits for your approval · 7 held",
+  );
+  assert.equal(todayRunWords({ ...run, state: "sending", drafted: 14 }).drafted.short, "14 emails for you to send");
+  assert.equal(todayRunWords({ ...run, state: "sending", drafted: 1 }).drafted.short, "1 email for you to send");
+  assert.equal(todayRunWords({ ...run, state: "sending", held: 3 }).held.short, "3 emails wait for your approval");
+  assert.equal(w.late.short, "Too late to approve");
   // A reach-out's run has no day to pass: it waits until answered.
   assert.equal(
     reach.waiting.sentence,

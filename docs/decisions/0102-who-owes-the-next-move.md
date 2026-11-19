@@ -1,6 +1,7 @@
 # 0102 · A thread's word, its colour and its tab say who owes the next move
 
-**Status:** Built on the lane `inbox/who-owes-the-next-move`, 6 November 2026. No migration.
+**Status:** Built on the lane `inbox/who-owes-the-next-move`, 6 November 2026. No migration. Amended by 0142 (19 November 2026): three tabs,
+snoozed in Waiting, Set aside a fold of Handled, and a campaign's send nobody answered in Handled.
 
 ## Context
 

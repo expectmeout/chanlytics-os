@@ -101,8 +101,6 @@ export function useZonesStanding(): void {
     title: todayGreetingNow(),
     sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null, count > 0) : undefined,
     beside: listen ?? undefined,
-    // On a phone the date says the hour beside Listen and the bell (the canvas: "Tue, Nov 3 · 8:05 AM").
-    dateHour: true,
     // A desk's act is the day's four figures, at the head's right; a phone's stand in Today so far (foot.tsx).
     ...(!phone ? { act: <TodayHeadFigures /> } : {}),
   });

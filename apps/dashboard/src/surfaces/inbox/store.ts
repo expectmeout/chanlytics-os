@@ -12,7 +12,12 @@ import type { ConversationsSurface, InboxBucket, InboxSurface, Thread } from "./
 
 /* ------------------------------ what the surfaces hold ------------------------------ */
 
-/** The only lists real threads can reach (the Blueprint's honesty rule), in its tabs' words (contracts INBOX_BUCKET_WORDS). */
+/**
+ * The Inbox's three tabs, one question each (Ruben, 19 Nov 2026, decision 0142): yours to do, someone else's move or a
+ * clock's, and nobody's; in its tabs' words (contracts INBOX_BUCKET_WORDS). Snoozed had a tab that stood empty most days
+ * and stands in Waiting, which it is; what a reading set aside as not a customer's is a fold at Handled's head
+ * (pages/inbox-list.tsx asideFold), no tab to keep an eye on.
+ */
 export const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "escalated",
@@ -24,7 +29,7 @@ export const REAL_BUCKETS: InboxBucket[] = [
   {
     id: "waiting",
     label: INBOX_BUCKET_WORDS.waiting,
-    hint: "The next move is theirs, or a teammate's: your follow-up list",
+    hint: "The next move is theirs, a teammate's, or a snooze's: your follow-up list",
     icon: "users",
   },
   {
@@ -32,14 +37,6 @@ export const REAL_BUCKETS: InboxBucket[] = [
     label: INBOX_BUCKET_WORDS.done,
     hint: "Answered, closed or gone quiet: nothing for you to do",
     icon: "check",
-  },
-  { id: "snoozed", label: INBOX_BUCKET_WORDS.snoozed, hint: "Hidden until they wake", icon: "clock" },
-  {
-    id: "aside",
-    label: INBOX_BUCKET_WORDS.aside,
-    hint: "Not a customer's, as far as AI can tell: sales pitches and programs' mail",
-    icon: "archive",
-    onlyWithRows: true,
   },
 ];
 
