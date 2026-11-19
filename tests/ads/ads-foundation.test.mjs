@@ -75,7 +75,7 @@ test("an Ads address says the page, an ad open, the composer on a door or from a
 });
 
 /** An amount as the runtime writes it, with a plain space where it puts one that does not break. */
-const plain = (words) => words.replace(/ /g, " ");
+const plain = (words) => words.replaceAll(String.fromCharCode(0xa0), " ");
 
 test("money is the currency's own minor units, said exact: a hundred to the dollar, one to the yen, a thousand to the dinar", () => {
   assert.deepEqual(["USD", "GBP", "JPY", "KWD"].map(ads.minorPerUnit), [100, 100, 1, 1000]);

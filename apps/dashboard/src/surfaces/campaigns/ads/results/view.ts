@@ -26,7 +26,7 @@ import {
 } from "@chanlytics/contracts";
 import type { AdDoor, AdPlatform, AdRead, AdTheirs, AdsConfig, AdsRead, AdsScope } from "@chanlytics/contracts";
 
-import { aboutMoneyOf, moneyOf, sumMoney } from "../model/money";
+import { aboutMoneyOf, sumMoney } from "../model/money";
 import { adsModel } from "../model/page";
 import type { AdRowVM } from "../model/page";
 import { pageTotals, tilesOf } from "../model/page-parts";
