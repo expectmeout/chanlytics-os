@@ -226,7 +226,7 @@ Before a refusal can happen, the product checks for it and says what to change, 
 
 - **A count with one name is one count,** the same on every page that shows it. "Needs you" is counted once: Today, the
   menu's badge and the Inbox say the same number.
-- **A different count has a different name** ("No reply yet", "Waiting over a week"), never the same name with another
+- **A different count has a different name** ("No reply yet", "Older than a week"), never the same name with another
   rule behind it.
 - **A number says its time once, in words:** "Today", "New since you last looked" (a person's History), "Last 30
   days". Never a bare date and time ("Since Wed 2:32 PM").

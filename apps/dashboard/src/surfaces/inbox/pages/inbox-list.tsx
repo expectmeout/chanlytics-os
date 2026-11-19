@@ -15,8 +15,7 @@
  * of acts over it, its keys -- is pick.tsx, which Conversations draws too, and what an empty list says is list-empty.tsx.
  */
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END, NEED_YOU_WORDS, type TodayQueueRowVM } from "@chanlytics/contracts";
-import { AttnRow } from "../../kit/attention/attn-row";
+import { BAR_LINE_WORDS, NEEDS_YOU_LIST_END, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { ListFind, foldedLookup } from "../../kit/head/list-find";
 import { Icon } from "../../kit/icon/icon";
 import { Search } from "../../kit/search/search";
@@ -34,7 +33,7 @@ import { threadRows, useShownThreads } from "./list-rows";
 import { pickAll, pickArchiveAsk, pickBar, pickKeys } from "./pick";
 import { appNavigate, askOnScreenKey, setAskOnScreen } from "../shell";
 import { emptyThreads, unreadEscalated } from "./list-empty";
-import { olderOne } from "./older-one";
+import { asideFold, olderFold } from "./list-folds";
 import type { InboxBucket, InboxView, Thread } from "../types";
 
 /** How much of a row the desk draws: the phone ignores it. */
@@ -48,9 +47,12 @@ export type Density = "compact" | "medium" | "rich";
 interface NeedsYouDrawn {
   older: Thread[];
   olderRows: readonly TodayQueueRowVM[];
+  /** The counted people it holds no conversation of, over its conversations. */
   rows: readonly TodayQueueRowVM[];
+  /** What waits for an OK and is no conversation, under them with the runs (inbox-runs.tsx). */
+  approve: readonly TodayQueueRowVM[];
   why: (t: Thread) => string | null;
-  /** The one count's row of a folded conversation: what one person past a week is drawn from (older-one.tsx). */
+  /** The one count's row of a folded conversation: what one person past a week is drawn from (list-folds.tsx). */
   rowOf: (t: Thread) => TodayQueueRowVM | null;
 }
 
@@ -98,6 +100,8 @@ interface InboxListProps {
   flash?: (flash: Flash) => void;
   /** What Needs you draws beside its conversations, where Today has been read (NeedsYouDrawn). */
   needsYou?: NeedsYouDrawn | null;
+  /** What a reading set aside as not a customer's, folded at Handled's head (needs-you-list.ts ixSetAside). */
+  aside?: Thread[];
 }
 
 /** The props with what the caller left out filled in: what the destructuring's defaults did in the JSX. */
@@ -127,9 +131,11 @@ function listProps({
   toSendOpen = false,
   flash = () => undefined,
   needsYou = null,
+  aside = NO_THREADS,
 }: InboxListProps) {
   return {
     needsYou,
+    aside,
     threads,
     allThreads,
     buckets,
@@ -172,6 +178,9 @@ export interface ListCtx extends ReturnType<typeof listProps> {
   /** Whether Needs you's fold of whoever has waited past a week is open, and its press. */
   olderOpen: boolean;
   setOlderOpen: (v: boolean) => void;
+  /** Whether Handled's fold of what was set aside is open, and its press. */
+  asideOpen: boolean;
+  setAsideOpen: (v: boolean) => void;
   visible: Thread[];
   searching: boolean;
   multipleAgents: boolean;
@@ -250,7 +259,10 @@ export function InboxList(props: InboxListProps) {
   // buckets); otherwise the parent already scoped `threads` to bucket/view.
   const visible = visibleRows({ query, allThreads, threads });
   const shown = useShownThreads(visible, activeThreadId ?? null, base.density);
-  const fold = useOlderFold(base.needsYou?.older, activeThreadId ?? null, base.density);
+  const drawnAs = { openId: activeThreadId ?? null, density: base.density };
+  const fold = useListFold(base.needsYou?.older, { ...drawnAs, key: "inbox-older" });
+  // Open while the conversation on screen is one of its own: a link to one set aside opens on it, under its fold.
+  const asideFolded = useListFold(base.aside, { ...drawnAs, key: "inbox-aside", holdsOpen: true });
   // At a desk the first rows fade in as the list arrives, as People's do; on a phone they stand whole on the first frame
   // (kit/motion/use-rows-arrive.ts). The rows the window draws after, as the list is scrolled, come as they are. One ref
   // on the rows' element gives it to the kit and to the window.
@@ -312,8 +324,10 @@ export function InboxList(props: InboxListProps) {
     setShowViews,
     askArchive,
     setAskArchive,
-    olderOpen: fold.olderOpen,
-    setOlderOpen: fold.setOlderOpen,
+    olderOpen: fold.open,
+    setOlderOpen: fold.setOpen,
+    asideOpen: asideFolded.open,
+    setAsideOpen: asideFolded.setOpen,
     visible,
     searching,
     multipleAgents,
@@ -335,40 +349,64 @@ export function InboxList(props: InboxListProps) {
       {archiveAsk(L)}
       {/* Threads */}
       <div className="ix-threads" ref={swap}>
-        {threadsBody(L, { shown, olderShown: fold.olderShown, rowsRef, runsWaiting })}
+        {threadsBody(L, { shown, olderShown: fold.shown, asideShown: asideFolded.shown, rowsRef, runsWaiting })}
       </div>
     </div>
   );
 }
 
-/** Needs you's fold: whether it is open, and its conversations' rows, a list of their own drawn only while it is open. */
-function useOlderFold(older: Thread[] | undefined, openId: string | null, density: Density) {
-  // Whoever has waited past a week stands folded at Needs you's foot until the fold is pressed (olderFold).
-  const [olderOpen, setOlderOpen] = useState(false);
-  const olderShown = useShownThreads(olderOpen ? (older ?? NO_THREADS) : NO_THREADS, openId, density, "inbox-older");
-  return { olderOpen, setOlderOpen, olderShown };
+/**
+ * A fold of the list: whether it is open, and its conversations' rows, a list of their own drawn only while it is open.
+ * Whoever has waited past a week stands folded at Needs you's foot until the fold is pressed, and what a reading set aside
+ * at Handled's head, which stands open too while the conversation on screen is one of its own (`holdsOpen`). The folds
+ * themselves are list-folds.tsx's.
+ */
+function useListFold(
+  rows: Thread[] | undefined,
+  at: { openId: string | null; density: Density; key: string; holdsOpen?: boolean },
+) {
+  const [pressed, setOpen] = useState(false);
+  const held = rows ?? NO_THREADS;
+  const open = pressed || (!!at.holdsOpen && held.some((t) => t.id === at.openId));
+  const shown = useShownThreads(open ? held : NO_THREADS, at.openId, at.density, at.key);
+  return { open, setOpen, shown };
 }
 
 /**
- * The rows under the buckets: a sequence's line where the address names one; else, in Needs you, the rows of what the one
- * count holds that is no conversation here and the runs (inbox-runs.tsx), the conversations, the line that says that is
- * all of them, and the fold of whoever has waited past a week. A search finds conversations: the rest stand aside while one
- * is typed, and Needs you with any of them in it is not empty.
+ * The rows under the buckets: a sequence's line where the address names one; else, in Needs you, people first (decision
+ * 0142): whoever the one count holds that is no conversation here, the conversations, what waits for an OK (the runs and
+ * a search's question, inbox-runs.tsx), the line that says that is all of it, and the fold of whoever has waited past a
+ * week. Handled opens on the fold of what was set aside, where it holds any. A search finds conversations: the rest stand
+ * aside while one is typed, and Needs you with any of them in it is not empty.
  */
 function threadsBody(
   list: ListCtx,
-  drawn: { shown: ShownRows; olderShown: ShownRows; rowsRef: (el: HTMLDivElement | null) => void; runsWaiting: number },
+  drawn: {
+    shown: ShownRows;
+    olderShown: ShownRows;
+    asideShown: ShownRows;
+    rowsRef: (el: HTMLDivElement | null) => void;
+    runsWaiting: number;
+  },
 ) {
-  const whole = list.activeBucket === "escalated" && !list.searching && !list.activeView;
+  const plain = !list.searching && !list.activeView;
+  const whole = list.activeBucket === "escalated" && plain;
   const besides = whole && !list.fromLine;
-  const counted = list.needsYou?.rows ?? NONE_COUNTED;
+  const people = list.needsYou?.rows ?? NONE_COUNTED;
+  const approve = list.needsYou?.approve ?? NONE_COUNTED;
+  const others = drawn.runsWaiting > 0 || people.length > 0 || approve.length > 0;
   const empty = list.visible.length === 0;
   return (
     <>
       {list.fromLine}
-      {besides && <InboxRunsWaiting flash={list.flash} rows={counted} />}
+      {plain && !list.fromLine && asideFold(list, drawn.asideShown, threadRows)}
+      {besides && people.length > 0 && (
+        <div className="ix-runs" data-testid="inbox-people-away">
+          {people.map((r) => doorRow(r, (to) => appNavigate(to)))}
+        </div>
+      )}
       {!list.fromLine && unreadEscalated()}
-      {empty && !list.fromLine && !(besides && (drawn.runsWaiting > 0 || counted.length > 0)) && emptyThreads(list)}
+      {empty && !list.fromLine && !(besides && others) && emptyThreads(list)}
       {!empty && (
         <div
           ref={drawn.rowsRef}
@@ -380,66 +418,14 @@ function threadsBody(
           {threadRows(list, drawn.shown)}
         </div>
       )}
+      {besides && <InboxRunsWaiting flash={list.flash} rows={approve} />}
       {/* Under Needs you's last row, where nothing narrows the rows: that is all of them (the thread canvas's list). */}
       {!empty && whole && (
         <p className="ix-list-end" data-testid="inbox-list-end">
           {NEEDS_YOU_LIST_END}
         </p>
       )}
-      {besides && olderFold(list, drawn.olderShown)}
-    </>
-  );
-}
-
-/**
- * Whoever has waited past a week, at Needs you's foot, as Today draws them (today/need-you/older.tsx): one row, how many
- * and who, in no count and never the page's coral (the one count leaves them out: 0048, amended 2 Nov 2026), which opens
- * in place into their conversations' own rows, a list of its own, and the rows of those the Inbox holds no conversation
- * of. Nothing while nobody has.
- */
-function olderFold(list: ListCtx, shown: ShownRows) {
-  const older = list.needsYou?.older ?? NO_THREADS;
-  const away = list.needsYou?.olderRows ?? NONE_COUNTED;
-  const count = older.length + away.length;
-  // One person is their own row, as on Today (older-one.tsx): a fold of one hid who, what happened and Mark done.
-  if (count < 2) return count ? olderOne(list.needsYou, list) : null;
-  // Its own list: one tab stop, on the open row or its first, and the arrows walk its rows alone (pick.tsx).
-  const fold: ListCtx = {
-    ...list,
-    visible: older,
-    tabStopId: older.some((t) => t.id === list.activeThreadId) ? list.activeThreadId : older[0]?.id,
-    onRowKey: pickKeys({
-      rows: older,
-      onOpen: list.onSelectThread,
-      onToggle: list.onToggleSelect,
-      attr: "data-thread-id",
-    }),
-  };
-  return (
-    <>
-      <div className="ix-runs" data-testid="inbox-older">
-        <AttnRow
-          glyph="clock"
-          initials=""
-          name={NEED_YOU_WORDS.older.row(count)}
-          sentence={[...older.map((t) => t.who), ...away.map((r) => r.who)].join(", ")}
-          tone=""
-          testid="inbox-older-row"
-          onOpen={() => list.setOlderOpen(!list.olderOpen)}
-        />
-        {list.olderOpen ? away.map((r) => doorRow(r, (to) => appNavigate(to))) : null}
-      </div>
-      {list.olderOpen && older.length > 0 ? (
-        <div
-          ref={shown.listRef}
-          className="ix-thread-rows"
-          role="listbox"
-          aria-label={NEED_YOU_WORDS.group.old}
-          aria-multiselectable="true"
-        >
-          {threadRows(fold, shown)}
-        </div>
-      ) : null}
+      {besides && olderFold(list, drawn.olderShown, threadRows)}
     </>
   );
 }
@@ -447,18 +433,18 @@ function olderFold(list: ListCtx, shown: ShownRows) {
 /* --------------------------------- the parts --------------------------------- */
 
 /**
- * Buckets, the kit's sub-tabs. A real workspace has four, and they sit in one line of words, with no glyph: the glyph
- * said again what the label says, and a grid of two took two rows with the third alone on the second. Six seeded
- * buckets keep theirs. The canvases count a bucket only where there is something to count ("Snoozed" stands alone,
- * I1), and on a phone only the bucket that needs you says its figure.
+ * Buckets, the kit's sub-tabs. A real workspace has three (decision 0142), and they sit in one line of words, with no
+ * glyph: the glyph said again what the label says, and a grid of two took two rows with the third alone on the second.
+ * Six seeded buckets keep theirs. The canvases count a bucket only where there is something to count. A phone says each
+ * tab's figure, as a desk does: with three tabs the strip has room at 320px, and Waiting said none, so nothing told a
+ * phone whether it held anyone (Ruben, 19 Nov 2026; it kept Needs you's alone while there were five).
  */
 function bucketTabs(L: ListCtx) {
   const { buckets, activeBucket, onBucketChange } = L;
   const tabs = (
     <SubTabs
       label="Conversations by status"
-      className={buckets.length === 5 ? "ix-buckets ix-buckets-five" : "ix-buckets"}
-      quietCounts
+      className="ix-buckets"
       value={activeBucket}
       onSelect={onBucketChange}
       tabs={buckets.map((b) => ({
@@ -466,7 +452,7 @@ function bucketTabs(L: ListCtx) {
         label: b.label,
         hint: b.hint,
         tone: b.accent ? ("warn" as const) : undefined,
-        // A real inbox's words alone, its Set aside among them: with glyphs, four tabs ran past a desk's list.
+        // A real inbox's words alone: with glyphs, its tabs ran past a desk's list.
         glyph: buckets.length > 5 ? <Icon name={b.icon} size={13} /> : undefined,
         count: (b.count ?? 0) > 0 ? b.count : undefined,
       }))}

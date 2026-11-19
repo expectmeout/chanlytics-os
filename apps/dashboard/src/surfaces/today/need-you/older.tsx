@@ -4,12 +4,13 @@
  * opens them as any other row does, so a number can be looked at before it is let go: their conversation, where a reply
  * is written (Today with colour, D8, 17 Nov 2026), else a phone's sheet or a desk's place. Mark done stays one press here. It
  * was one row that opened nothing, its only press Mark all done, whoever it was. Several are one row, how many and who, with
- * Mark all done, which opens in place into each of them. Never the page's coral: nobody counts them, and "Nothing needs you"
- * stands over them.
+ * Mark all done, which asks first, and which opens in place into each of them. Never the page's coral: nobody counts them,
+ * and "Nothing needs you" stands over them.
  */
 import { useState } from "react";
 import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { AttnRow } from "../../kit/attention/attn-row";
+import { Confirm } from "../../kit/confirm/confirm";
 import { gate } from "../shell";
 import { NeedYouGroup } from "./groups";
 import { handBackAll, handedBackWords, type HandedBack } from "./sheet/hand-back";
@@ -105,6 +106,11 @@ function handedBoth(first: HandedBack, then: HandedBack): HandedBack {
  * Several past a week, one row: how many and who, with Mark all done, which hands each back to the receptionist, says what
  * it came to in place and keeps one Undo for all of them. Refused whole, it says why and the press stays to try again;
  * refused in part, it says what went and offers the press again for the rest, whose Undo joins the first's.
+ *
+ * It asks first, in the row's own place, as the Inbox's fold does (contracts NEED_YOU_WORDS oldDone.ask; Ruben, 19 Nov
+ * 2026, decision 0142): one press let all of them go, and a conversation nobody answered has no request to hand back, so
+ * it is archived, which Undo does not bring back. The question says how many of them that is. The press again for the
+ * rest goes at once: it was asked the first time.
  */
 function OlderSummary({
   rows,
@@ -120,14 +126,33 @@ function OlderSummary({
   onOpen: () => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const may = rows.some((r) => !!r.conversationId) && ctx.may;
+  const [asking, setAsking] = useState(false);
+  // Who the press can let go: those whose conversation is held; and, of them, those archived for having no request.
+  const going = rows.filter((r) => !!r.conversationId);
+  const archived = going.filter((r) => r.closes === "archive").length;
+  const may = going.length > 0 && ctx.may;
   const markAll = async () => {
     setBusy(true);
     const back = await handBackAll(rows);
     setBusy(false);
+    setAsking(false);
     if (!back.done) return ctx.flash({ tone: "danger", msg: <>{handedBackWords(back)}</> });
     onHanded(handed ? handedBoth(handed, back) : back);
   };
+  const ask = (
+    <Confirm
+      block
+      question={W.oldDone.ask.question(going.length)}
+      detail={W.oldDone.ask.detail(going.length, archived)}
+      yes={W.oldDone.ask.yes(going.length)}
+      no={W.oldDone.ask.no}
+      busy={busy}
+      busyLabel={W.oldDone.ask.busy}
+      onYes={() => void markAll()}
+      onNo={() => setAsking(false)}
+      testid="today-old-ask"
+    />
+  );
   const undoAll = handed?.undo;
   const undo = undoAll
     ? async () => {
@@ -148,24 +173,24 @@ function OlderSummary({
       ctaTestid="today-old-done"
       onOpen={handed ? undefined : onOpen}
       cta={
-        may && (!handed || handed.refused > 0)
+        may && !asking && (!handed || handed.refused > 0)
           ? {
               label: W.oldDone.act,
               kind: "ghost",
               busy,
-              onClick: () => void markAll(),
+              onClick: handed ? () => void markAll() : () => setAsking(true),
               gate: gate("approve", "mark them done"),
             }
           : null
       }
-      work={handed ? handedWork(handed, undo ? () => void undo() : null, busy) : null}
+      work={asking ? ask : handed ? handedWork(handed, undo ? () => void undo() : null, busy) : null}
     />
   );
 }
 
 /**
  * Older's group, at Reply's foot: one person drawn as themself, under the group's name, several as one row that opens into
- * each, which says what they are ("14 waiting over a week") and so takes no head over it. `bare` where nothing else is
+ * each, which says what they are ("14 older than a week") and so takes no head over it. `bare` where nothing else is
  * drawn above it: the row says what the group's name would, on a day whose head says nothing needs you.
  */
 export function OlderGroup({

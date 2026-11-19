@@ -270,7 +270,6 @@ const REAL_BUCKETS = [
   { id: "escalated", label: "Needs you", icon: "flag", accent: true },
   { id: "waiting", label: "Waiting", icon: "users" },
   { id: "done", label: "Handled", icon: "check" },
-  { id: "snoozed", label: "Snoozed", icon: "clock" },
 ];
 const inboxWith = (threads) => {
   setSurfaceValue("inbox", {
@@ -340,7 +339,7 @@ test("REGRESSION: a bucket picked is a list, never a conversation -- on a phone 
   // the thread open showed the rows of no list and no thread either.
   seen.list.onSelectThread(answered.id);
   assert.ok(takesOver(render()));
-  seen.list.onBucketChange("snoozed");
+  seen.list.onBucketChange("waiting");
   assert.equal(
     takesOver(render()),
     false,
@@ -362,16 +361,16 @@ test("REGRESSION: a bucket the member picked survives the next read -- picking a
   };
   try {
     const { seen, render } = page([rosa, answered]);
-    seen.list.onBucketChange("snoozed");
+    seen.list.onBucketChange("waiting");
     render();
-    assert.equal(seen.list.activeBucket, "snoozed", "the bucket picked");
+    assert.equal(seen.list.activeBucket, "waiting", "the bucket picked");
     assert.deepEqual(seen.list.threads, [], "with nothing in it");
     // A read lands, as one does every time the surface refreshes.
     landsARead();
     render();
     assert.equal(
       seen.list.activeBucket,
-      "snoozed",
+      "waiting",
       "REGRESSION: the read moved them to the first bucket with anything in it, so an empty one could not be looked at",
     );
   } finally {
@@ -393,8 +392,8 @@ test("the Needs you chip counts what needs you, the badge's number -- not every 
   assert.deepEqual(sentCounts, [], "and the page sends none");
   setSurfaceValue("today", undefined);
   assert.deepEqual(
-    [chip("waiting"), chip("done"), chip("snoozed")],
-    [2, 0, 0],
+    [chip("waiting"), chip("done")],
+    [2, 0],
     "and the chip counts what its own list holds: Waiting has the thread you took over and Ana's",
   );
   // The chip cannot say a number its list does not hold -- the two came apart once, three rows under a chip of two.
@@ -470,6 +469,13 @@ test("a campaign run waiting for your say is a row of Needs you: its chip counts
     const rows = all(tree, (n) => n.props?.testid === "brief-run-row");
     assert.equal(rows.length, 1, "the run is a row of Needs you");
     assert.equal(rows[0].props.name.startsWith("Win-back"), true, "called by its own name, less its day");
+    // Slim (decision 0142): its name, one fact and one verb. It said its state three times over four lines ("Campaign ·
+    // ready", "Waits for you to approve…", "Waiting for your approval") and stood two verbs under them.
+    assert.deepEqual(
+      [rows[0].props.meta, rows[0].props.sentence, rows[0].props.status, rows[0].props.also],
+      ["", "4 people · waiting for your approval", [], null],
+    );
+    assert.equal(rows[0].props.cta.label, "Approve all 4", "and its one verb is the act itself");
     // Its door is the run at its home under its sequence, which the frame opens over the Inbox (lanes 2 and 3).
     const went = [];
     const keepNav = globalThis.window.appNavigate;
@@ -785,8 +791,8 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
       "REGRESSION: Needs you's tab said 1 under a badge of 2, and 40 under a badge of 26",
     );
     assert.equal(seen.list.activeBucket, "escalated");
-    // The list under the tab: the conversations it holds, the rows of what it does not (the hold it could not read, the
-    // search's question), and the run.
+    // The list under the tab, people first (decision 0142): the person it holds no conversation of (the hold it could not
+    // read), the conversations it holds, then what waits for an OK, the search's question and the run.
     assert.deepEqual(
       seen.list.threads.map((t) => t.who),
       ["Rosa Díaz", "Sam Lee"],
@@ -794,11 +800,16 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
     );
     assert.deepEqual(
       seen.list.needsYou.rows.map((r) => r.who),
-      ["Unknown", "Dentists in Austin"],
+      ["Unknown"],
+      "the person whose hold could not be read is a row over the conversations",
+    );
+    assert.deepEqual(
+      seen.list.needsYou.approve.map((r) => r.who),
+      ["Dentists in Austin"],
       "REGRESSION: the search waiting for an answer was counted by the badge and drawn nowhere in the Inbox",
     );
     assert.equal(
-      seen.list.threads.length + seen.list.needsYou.rows.length + 1,
+      seen.list.threads.length + seen.list.needsYou.rows.length + seen.list.needsYou.approve.length + 1,
       chip("escalated"),
       "every row under the tab is one it counts, the run among them, and nothing it counts is missing",
     );
@@ -807,7 +818,7 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
       ["Olga Reyes"],
       "REGRESSION: Olga, ten days on, was in the tab's number and none of Today's",
     );
-    assert.equal(chip("snoozed"), 1, "Sam is still in Snoozed, where his snooze puts him");
+    assert.equal(chip("waiting"), 1, "Sam is in Waiting too, where his snooze puts him (decision 0142)");
 
     // Drawn: the search is a row with its one door, the week-old wait one folded row, opened in place.
     fresh();
@@ -816,6 +827,24 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
     const search = all(tree, (n) => n.props?.testid === "queue-search");
     assert.equal(search.length, 1, "the search's question is a row of Needs you, as on Today");
     assert.equal(search[0].props.cta.label, "Answer");
+    // People first (decision 0142): whoever the count holds that is no conversation here stands over the conversations,
+    // what waits for an OK (the search's question, the run) under them, then the line that ends the list. The run's row
+    // and the question stood over everyone, four lines and a row of verbs each.
+    const partOf = (n) =>
+      n.props?.["data-testid"] === "inbox-people-away"
+        ? "people"
+        : n.props?.role === "listbox"
+          ? "conversations"
+          : n.props?.["data-testid"] === "inbox-runs-waiting"
+            ? "to approve"
+            : n.props?.["data-testid"] === "inbox-list-end"
+              ? "end"
+              : null;
+    assert.deepEqual(
+      all(tree, (n) => partOf(n) !== null).map(partOf),
+      ["people", "conversations", "to approve", "end"],
+      "people, their conversations, what waits for an OK, and that is all of it",
+    );
     // One person past a week is their own row, as Today draws them: who, and Mark done beside. A fold of one hid both.
     assert.equal(all(tree, (n) => n.props?.testid === "inbox-older-row").length, 0, "one person is no fold");
     const one = all(tree, (n) => n.props?.testid === "inbox-older-one");
@@ -833,6 +862,18 @@ test("one number: Needs you's tab says the badge's number, and its list holds ex
     const pressed = again(() => InboxList({ ...seen.list, onSelectThread: (id) => opened.push(id) }));
     find(pressed, (n) => n.props?.testid === "inbox-older-one").props.onOpen();
     assert.deepEqual(opened, [olgaNow.id], "a press on her row opens her conversation");
+    // Three or more that wait for an OK are one line, which opens in place into them (decision 0142): two fit under the
+    // conversations, more pushed the fold of who has waited off a phone's screen.
+    const { InboxRunsWaiting } = await import(`${S}/surfaces/inbox/pages/inbox-runs.tsx`);
+    const [q] = seen.list.needsYou.approve;
+    const more = [q, { ...q, id: "s2", who: "Vets in Reno" }, { ...q, id: "s3", who: "Movers in Tulsa" }];
+    fresh();
+    const runs = () => again(() => InboxRunsWaiting({ flash() {}, rows: more }));
+    const line = find(runs(), (n) => n.props?.testid === "inbox-approve-fold");
+    assert.equal(line.props.name, "4 to approve", "the three questions and the run, in Today's words for them");
+    assert.equal(all(runs(), (n) => n.props?.testid === "queue-search").length, 0, "folded until it is pressed");
+    line.props.onOpen();
+    assert.equal(all(runs(), (n) => n.props?.testid === "queue-search").length, 3, "opened in place, each its own row");
   } finally {
     setSurfaceValue("today", undefined);
     setSurfaceValue("broadcasts", undefined);
@@ -859,7 +900,23 @@ test("several past a week fold into one row at Needs you's foot, which opens in 
     assert.equal(all(tree, (n) => n.props?.testid === "inbox-older-one").length, 0, "two are a fold, not a row each");
     const fold = all(tree, (n) => n.props?.testid === "inbox-older-row");
     assert.equal(fold.length, 1, "one row folds whoever waited past a week");
-    assert.equal(fold[0].props.name, "2 waiting over a week", "in Today's words for them");
+    assert.equal(fold[0].props.name, "2 older than a week", "in Today's words for them");
+    // Mark all done at its right, as Today's fold has: the Inbox's had no press but opening each of them. It asks
+    // first, in the row's own place: one press let every one of them go.
+    assert.equal(fold[0].props.cta?.label, "Mark all done");
+    fold[0].props.cta.onClick();
+    const asked = find(draw(), (n) => n.props?.testid === "inbox-older-row");
+    assert.equal(asked.props.cta, null, "the press is the question's now");
+    assert.deepEqual(
+      [asked.props.work.props.question, asked.props.work.props.detail, asked.props.work.props.yes],
+      ["Mark all 2 done?", "They leave your list, and AI answers them if they write again.", "Yes, mark 2 done"],
+    );
+    asked.props.work.props.onNo();
+    assert.equal(
+      find(draw(), (n) => n.props?.testid === "inbox-older-row").props.work,
+      null,
+      "Not now: nothing was marked, and the row is as it was",
+    );
     const option = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
     assert.equal(option("Olga Reyes"), null, "folded: her conversation is not drawn until it is opened");
     fold[0].props.onOpen();
@@ -869,7 +926,7 @@ test("several past a week fold into one row at Needs you's foot, which opens in 
       "opened in place: each conversation's own row, under the fold",
     );
     assert.equal(
-      find(tree, (n) => n.props?.role === "listbox" && n.props?.["aria-label"] === "Waiting over a week") !== null,
+      find(tree, (n) => n.props?.role === "listbox" && n.props?.["aria-label"] === "Older than a week") !== null,
       true,
       "in a list of its own, named for a screen reader",
     );

@@ -44,7 +44,7 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
     waiting: {
       icon: "users",
       title: "Nothing waiting",
-      body: "Conversations where the next move is theirs, or a teammate's, show here.",
+      body: "Conversations where the next move is theirs or a teammate's show here, and the ones you snooze.",
     },
     done: isReal
       ? {
@@ -59,17 +59,12 @@ function emptyWords(isReal: boolean): Record<string, EmptyWords> {
           body: "Handled conversations archive after 7 days. Every transcript stays in Conversations.",
           cta: { label: "Open Conversations", to: "conversations" },
         },
-    snoozed: isReal
-      ? {
-          icon: "clock",
-          title: "Nothing snoozed",
-          body: "Snooze hides a conversation from this list. AI keeps answering it.",
-        }
-      : {
-          icon: "clock",
-          title: "7 snoozed, all sleeping",
-          body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00.",
-        },
+    // The mockup's own list: a real workspace's snoozed conversations stand in Waiting (decision 0142).
+    snoozed: {
+      icon: "clock",
+      title: "7 snoozed, all sleeping",
+      body: "They come back when they wake. Next: Elena's win-back, tomorrow 10:00.",
+    },
     needs: {
       icon: "check",
       title: "Nothing needs you",

@@ -153,7 +153,7 @@ test("several are one row, how many and who, with Mark all done, and a press ope
   );
   assert.deepEqual(
     opened.map((n) => n.props.name),
-    ["2 waiting over a week", "Dana Ruiz", "Kai Moreno"],
+    ["2 older than a week", "Dana Ruiz", "Kai Moreno"],
   );
   opened[0].props.onOpen();
   setSurfaceValue("today", undefined);
@@ -321,7 +321,7 @@ test("grouped by what the owner does (docs/words.md): one Reply head over everyo
 test("the drawn row's words reach a reader", () => {
   setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz")]));
   const group = all(draw(NeedYou), (n) => n.props?.["data-testid"] === "today-group-old")[0];
-  assert.equal(group.props["aria-label"], "Waiting over a week", "no head drawn over it, its name for a reader alone");
+  assert.equal(group.props["aria-label"], "Older than a week", "no head drawn over it, its name for a reader alone");
   assert.match(textOf(group), /Dana Ruiz/);
   setSurfaceValue("today", undefined);
   unmount();
