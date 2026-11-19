@@ -419,6 +419,10 @@ the five checks reads. Where it is not as first drawn, it is said here.
   (`META_ADS_CONFIG_ID`) and the address Meta returns to (`META_ADS_REDIRECT_URI`). With any of the three unset the
   card says the account is not connected and offers nothing.
 - **Activity has a family, Ads,** for the account's events and the presses to come.
+- **The saved sign-in asks five permissions** (`ads_read`, `ads_management`, `pages_manage_ads`,
+  `pages_read_engagement`, `pages_show_list`; made 19 November at Meta, ad accounts required, Pages not) and not
+  `instagram_basic`. So a Page's Instagram account is asked only where the sign-in may read it: asked without the
+  permission, the field can cost the whole answer. Where it may not, the card says nothing of Instagram.
 
 ## As built, 19 November 2026 · Reading
 

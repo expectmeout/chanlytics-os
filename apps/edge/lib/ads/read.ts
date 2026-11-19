@@ -57,6 +57,7 @@ import {
   pageConfigOf,
   readMetaAccount,
   readMetaPage,
+  readsInstagram,
   standingOf,
   type Asked,
   type MetaSignIn,
@@ -204,7 +205,9 @@ async function learn(db: Db, app: MetaApp, reading: Reading, at: { depth: ReadDe
   // Once a day: the Page as Meta describes it now, and Meta's notices subscribed where they are not.
   const daily = depth !== "recent";
   const pageId = metaAdConfigOf(account.config).page_id;
-  const page = daily && pageId !== null ? await ask(reading, () => readMetaPage(log, signIn, pageId)) : null;
+  const instagram = readsInstagram(metaAdConfigOf(account.config).scopes);
+  const page =
+    daily && pageId !== null ? await ask(reading, () => readMetaPage(log, signIn, { id: pageId, instagram })) : null;
   const mayChange = metaAdConfigOf(account.config).scopes.includes("ads_management");
   const subscribed =
     daily && account.notices_at === null && mayChange

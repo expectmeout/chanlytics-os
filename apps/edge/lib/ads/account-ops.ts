@@ -66,6 +66,7 @@ import {
   pageConfigOf,
   readMetaAccount,
   readMetaPage,
+  readsInstagram,
   runsPage,
   sharedIds,
   standingOf,
@@ -236,7 +237,7 @@ async function connectAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId
   }
   const pages = [];
   for (const id of await sharedIds(log, signIn, reach.pageIds, "pages")) {
-    const page = await readMetaPage(log, signIn, id);
+    const page = await readMetaPage(log, signIn, { id, instagram: readsInstagram(secret.scopes) });
     if (page.ok) pages.push(page.value);
   }
   const page = pickPage(pages, await aiNumberOf(db, by.tenantId));
@@ -327,7 +328,8 @@ async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: num
     return "failed";
   }
   const pageId = metaAdConfigOf(account.config).page_id;
-  const page = pageId === null ? null : await readMetaPage(log, signIn, pageId);
+  const instagram = readsInstagram(metaAdConfigOf(account.config).scopes);
+  const page = pageId === null ? null : await readMetaPage(log, signIn, { id: pageId, instagram });
   const usage = page?.usage ?? read.usage;
   const outcome = await keepAdAccountRead(db, tenantId, account.id, {
     name: read.value.name,

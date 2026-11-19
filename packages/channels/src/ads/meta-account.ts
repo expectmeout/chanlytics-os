@@ -103,11 +103,19 @@ export function metaAssignedPagesRequest(token: string, appSecret: string): Meta
   };
 }
 
-/** A Page: its name, the WhatsApp number it is linked to, and the Instagram account it is linked to. */
-export function metaPageRequest(token: string, appSecret: string, pageId: string): MetaRequest {
+/**
+ * A Page: its name, the WhatsApp number it is linked to, and, where the sign-in may read Instagram accounts
+ * (`instagram_basic`), the Instagram account it is linked to. Asked without that permission, the field can cost the
+ * whole answer, so it is left out and the Page is read all the same.
+ */
+export function metaPageRequest(
+  token: string,
+  appSecret: string,
+  page: { id: string; instagram: boolean },
+): MetaRequest {
   return {
-    url: metaGraphUrl(encodeURIComponent(pageId), {
-      fields: "id,name,whatsapp_number,instagram_business_account{username}",
+    url: metaGraphUrl(encodeURIComponent(page.id), {
+      fields: `id,name,whatsapp_number${page.instagram ? ",instagram_business_account{username}" : ""}`,
       ...metaProofQuery(token, appSecret),
     }),
     method: "GET",

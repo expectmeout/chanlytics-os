@@ -37,6 +37,7 @@ function cardOf(row: AdAccountRow, aiNumber: string | null): AdAccountCard {
     ai_number: aiNumber,
     checks: adCardChecksOf({ standing, config, aiNumber }),
     can_pause: config.scopes.includes("ads_management"),
+    reads_instagram: config.scopes.includes("instagram_basic"),
     choices: config.choices,
   };
 }

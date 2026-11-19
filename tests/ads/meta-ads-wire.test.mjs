@@ -259,3 +259,11 @@ test("Meta's signed request is trusted only where the app's secret signed it", (
   assert.equal(readMetaSignedRequest(signedRequest({ algorithm: "HMAC-SHA256" }), [SECRET]), null, "names nobody");
   assert.equal(readMetaSignedRequest(signedRequest({ user_id: "61550000000001", algorithm: "none" }), [SECRET]), null);
 });
+
+test("a Page's Instagram account is asked only where the sign-in may read it", async () => {
+  const { metaPageRequest } = await import(at("packages/channels/src/ads/meta-account.ts"));
+  const fields = (instagram) =>
+    new URL(metaPageRequest("tok", "secret", { id: "100200300400500", instagram }).url).searchParams.get("fields");
+  assert.equal(fields(false), "id,name,whatsapp_number");
+  assert.equal(fields(true), "id,name,whatsapp_number,instagram_business_account{username}");
+});

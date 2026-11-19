@@ -109,6 +109,7 @@ test("Connect is one press: Meta's own window opens by the app's route, and the 
         ok: true,
       })),
       can_pause: true,
+      reads_instagram: true,
       choices: [],
     },
   };

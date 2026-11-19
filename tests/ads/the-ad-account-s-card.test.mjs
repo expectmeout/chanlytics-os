@@ -44,6 +44,7 @@ const account = (over = {}) => ({
   ai_number: "+15550100142",
   checks: READY,
   can_pause: true,
+  reads_instagram: true,
   choices: [],
   ...over,
 });
@@ -284,4 +285,11 @@ test("the five checks are read from what is kept of the account and the number A
     scopes: ["ads_read"],
     user_id: null,
   });
+});
+
+test("the card says nothing of an Instagram account where the sign-in may not read one", () => {
+  const unread = card(account({ reads_instagram: false, instagram_handle: null }));
+  assert.equal(unread.quiet, "Reading your ads and Pause need only the connection.");
+  const read = card(account({ reads_instagram: true, instagram_handle: null }));
+  assert.match(read.quiet, /No Instagram account is linked to your Page/);
 });

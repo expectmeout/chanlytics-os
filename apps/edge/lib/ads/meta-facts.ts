@@ -101,9 +101,16 @@ export const readMetaAccount = (log: Log, signIn: MetaSignIn, accountId: string)
     parseMetaAdAccount,
   );
 
-/** One Page, as Meta describes it now. */
-export const readMetaPage = (log: Log, signIn: MetaSignIn, pageId: string): Promise<Asked<MetaPage>> =>
-  askMetaAds(log, "page", callMetaAds(metaPageRequest(signIn.token, signIn.appSecret, pageId)), parseMetaPage);
+/** Whether a sign-in may read the Instagram account a Page is linked to. */
+export const readsInstagram = (scopes: readonly string[]): boolean => scopes.includes("instagram_basic");
+
+/** One Page, as Meta describes it now: its Instagram account too, where the sign-in may read it. */
+export const readMetaPage = (
+  log: Log,
+  signIn: MetaSignIn,
+  page: { id: string; instagram: boolean },
+): Promise<Asked<MetaPage>> =>
+  askMetaAds(log, "page", callMetaAds(metaPageRequest(signIn.token, signIn.appSecret, page)), parseMetaPage);
 
 /** Whether a Page's ads have run from an ad account. A list Meta would not give is read as no. */
 export async function runsPage(log: Log, signIn: MetaSignIn, accountId: string, pageId: string): Promise<boolean> {

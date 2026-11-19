@@ -153,6 +153,8 @@ export interface AdAccountCard {
   checks: { id: AdCardCheckId; ok: boolean | null }[];
   /** Whether the sign-in may pause and resume an ad. */
   can_pause: boolean;
+  /** Whether the sign-in may read the Page's Instagram account: where not, the card says nothing of one. */
+  reads_instagram: boolean;
   /** The accounts to choose from, the likelier first, while one is to be chosen. */
   choices: AdAccountChoice[];
 }

@@ -178,6 +178,12 @@ function cardBefore(dto: AdAccountDto, moment: CardMoment): ConnectCardVM {
   };
 }
 
+/** The opened card's quiet line, and the Page's Instagram account where Chanlytics may read it. */
+function quietOf(card: AdAccountCard): string {
+  if (card.instagram_handle !== null) return `${CARD.needsOnly} ${CARD.instagram(card.instagram_handle)}`;
+  return card.reads_instagram ? `${CARD.needsOnly} ${CARD.noInstagram}` : CARD.needsOnly;
+}
+
 /** The card once an account is connected: who Meta charges, what is ready, and the one thing missing. */
 function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMoment): ConnectCardVM {
   const met = card.checks.filter((check) => check.ok === true).length;
@@ -196,7 +202,7 @@ function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMomen
     need,
     checks: checksOf(card, false),
     connectedOn: connected === null ? null : CARD.connectedOn(connected),
-    quiet: `${CARD.needsOnly} ${card.instagram_handle === null ? CARD.noInstagram : CARD.instagram(card.instagram_handle)}`,
+    quiet: quietOf(card),
     stale: card.read_failed && updated !== null ? CARD.couldntUpdate(updated) : null,
     button: null,
   };
