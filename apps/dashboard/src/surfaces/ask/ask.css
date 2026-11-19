@@ -1023,12 +1023,23 @@ body.ask-open .tb-ask .tb-ask-face {
   align-items: center;
   gap: 9px;
   min-height: 40px;
-  padding: 4px 4px 4px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--surface-inset-fill);
+  border-radius: var(--radius-sm);
   font-size: var(--text-aside);
   line-height: 1.4;
   color: var(--ink);
+}
+/* A record kept as one line has no card around it (the Keep shape): the sunken ground is all the surface it has. In a
+   card, what became of it is one plain line on the card's own ground. The line is reached as where focus lands
+   (`ask-landing`, card-parts.tsx): a rule of a page's own names no card. */
+.ask-quiet .ask-landing {
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-inset-fill);
+}
+/* A press that did not go through is amber, the app's colour for what needs a look, and never wears a tick
+   (`data-state`, AskCardReceipt). */
+.ask-landing[data-state="failed"] {
+  color: var(--warn-ink);
 }
 .ask-card-said {
   flex: 1;
@@ -1041,6 +1052,19 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-card-receipt .ok {
   color: var(--ok-ink);
 }
+/* Done draws its check once, as a press in this tab lands (`data-foot`, card.tsx): the glyph is 13.8 long. A card drawn
+   again from what the conversation kept is still. */
+@media (prefers-reduced-motion: no-preference) {
+  .ask-told[data-foot] .ok path {
+    stroke-dasharray: 14;
+    animation: ask-check 280ms var(--ease-out) both;
+  }
+}
+@keyframes ask-check {
+  from {
+    stroke-dashoffset: 14;
+  }
+}
 .ask-card-undo {
   margin-left: auto;
 }
@@ -1052,8 +1076,7 @@ body.ask-open .tb-ask .tb-ask-face {
   color: var(--ink-muted);
 }
 /* What became of a card, where focus lands after a press (surfaces/ask/card.tsx): always in the card, so what fills it is
-   announced; empty it takes back the card's gap. Approve while its press runs, dimmed as the kit's button that cannot be
-   pressed, keeping the focus a disabled button would drop. */
+   announced; empty it takes back the card's gap. */
 .ask-told:empty {
   margin-top: -10px;
 }
@@ -1063,9 +1086,58 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-landing:focus-visible {
   box-shadow: var(--focus-ring);
 }
+/* While its press runs the press keeps its strength and says what it is doing (words.ts `pressing`): dimmed, it read as
+   a button that could not be pressed. It keeps the focus a disabled button would drop, and the card holds a second
+   press (`held`). */
 .ask-press[aria-busy="true"] {
-  opacity: 0.6;
   cursor: default;
+}
+/* The press gives under the finger and comes back: the one movement a press makes. The kit's own transitions are named
+   again, since this list replaces the button's. Nothing gives while it works: a second movement could look like a
+   second send. */
+@media (prefers-reduced-motion: no-preference) {
+  .ask-press {
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out),
+      opacity var(--duration-fast) var(--ease-out),
+      scale 140ms var(--ease-out);
+  }
+  .ask-press:active:not([aria-busy="true"]) {
+    scale: 0.97;
+  }
+}
+/* ---- The foot in reach (the AI chat's feel, D6) ----
+   A card whose end is below the view keeps its foot at the bottom of the view, and settles it at its own end once that
+   comes into view: its acts while it waits, and what a press in this tab made of it, where the press was (`data-foot`,
+   card-parts.tsx and card.tsx: a rule of a page's own names no card). The insets of the ground are the card's own: its
+   padding at the sides, its gap above, the foot's rest below. The card is glass, so a foot standing over the card's
+   body (`data-pinned`, hooks.ts useAskFoot) wears the pane's solid ground and a hairline; at rest it wears nothing. No
+   blur: the window behind it is already one. */
+.ask-line-body [data-foot] {
+  position: sticky;
+  bottom: 8px;
+  z-index: 1;
+}
+.ask-line-body [data-foot]::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -10px -12px -8px -14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-pane-solid);
+  opacity: 0;
+  pointer-events: none;
+}
+/* At once, never faded in: for the length of a fade the card's words would read through its acts. */
+.ask-line-body [data-foot][data-pinned]::before {
+  opacity: 1;
+}
+/* In dark the glass card reads lighter than the pane's solid, so the bar takes the inset's solid, which sits nearer it
+   (Ruben, 19 Nov 2026, between the two drawn on a phone). */
+[data-theme="dark"] .ask-line-body [data-foot]::before {
+  background: var(--surface-inset-solid);
 }
 /* Cards side by side (surfaces/ask/card.tsx AskCards, and a plan's steps): one open, the rest folded to their head, what
    they share said once over them. The head is the press: a folded card's whole face, with the card's own padding. */
@@ -1860,17 +1932,18 @@ body.ask-open .tb-ask .tb-ask-face {
 .ask-line-body.dim .ask-hero {
   visibility: hidden;
 }
-/* Latest (D7): over the field, and over the next questions when they stand. */
+/* Latest (D7): over the field, over the next questions when they stand, and over a card's foot while one stands at the
+   bottom of the thread (`--ask-foot`, hooks.ts useAskFoot). */
 .ask-latest {
   position: absolute;
   z-index: 2;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 84px);
+  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + var(--ask-foot, 0px) + 84px);
   translate: -50% 0;
   animation: wash-in 160ms var(--ease-out) both;
 }
 .ask-latest[data-over-next="1"] {
-  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 126px);
+  bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + var(--ask-foot, 0px) + 126px);
 }
 
 @media (max-width: 720px) {
@@ -2111,8 +2184,10 @@ body.ask-open .tb-ask .tb-ask-face {
   }
   .ask-card-receipt {
     min-height: 44px;
-    padding: 6px 6px 6px 12px;
     font-size: var(--text-base);
+  }
+  .ask-quiet .ask-landing {
+    padding: 6px 6px 6px 12px;
   }
   .ask-card-receipt .btn {
     height: 32px;

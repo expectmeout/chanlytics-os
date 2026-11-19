@@ -290,6 +290,85 @@ export const useAskLatest = (bodyRef: RefObject<HTMLElement | null>, on: boolean
   return shown;
 };
 
+// The foot in reach (the AI chat's feel, D6): a card whose end is below the view keeps its acts, and what a press here made
+// of it, at the bottom of the view (ask.css, `position: sticky`). CSS cannot say when a sticky part has left its place, so
+// this reads it, once a frame, as the thread scrolls, changes or is resized. A foot standing higher than its card places
+// it is over the card's body and wears `data-pinned` (its ground); the window is told how much of the view that bar takes
+// (`--ask-foot`), so Latest stands over it. A data attribute and a custom property, which React leaves alone.
+/** A card's foot, as its parts mark it (card-parts.tsx, card.tsx). */
+const AH_FEET = "[data-foot]";
+/** The card's own gap between its parts, which is also the room the foot's ground takes over it (ask.css `.ask-card`). */
+const AH_CARD_GAP = 10;
+/**
+ * Whether a foot stands over its card's body: higher than its place under the part before it. A sticky part says where
+ * it stands, never where it belongs; the part before it is in the flow, so its end is the one honest measure.
+ */
+export const ahFootPinned = ({ footTop, prevBottom }: { footTop: number; prevBottom: number }) =>
+  footTop + 1 < prevBottom + AH_CARD_GAP;
+/** Marks the feet that stand over their cards, and returns how much of the view's foot they take. */
+const ahMarkFeet = (body: HTMLElement): number => {
+  const viewBottom = body.getBoundingClientRect().bottom;
+  let taken = 0;
+  for (const foot of body.querySelectorAll<HTMLElement>(AH_FEET)) {
+    const before = foot.previousElementSibling;
+    const rect = foot.getBoundingClientRect();
+    const pinned =
+      !!before &&
+      rect.height > 0 &&
+      ahFootPinned({ footTop: rect.top, prevBottom: before.getBoundingClientRect().bottom });
+    // A card still below the view counts too (its foot is already lifted to its top): it takes nothing of the view yet.
+    if (pinned) {
+      foot.dataset.pinned = "true";
+      taken = Math.max(taken, viewBottom - rect.top + AH_CARD_GAP);
+    } else delete foot.dataset.pinned;
+  }
+  return Math.max(0, Math.round(taken));
+};
+export const useAskFoot = (bodyRef: RefObject<HTMLElement | null>, on: boolean) => {
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!on || !body || !body.addEventListener || !("querySelectorAll" in body)) return undefined;
+    const line = typeof body.closest === "function" ? body.closest<HTMLElement>(".ask-line") : null;
+    let frame = 0;
+    const look = () => {
+      frame = 0;
+      const taken = ahMarkFeet(body);
+      line?.style.setProperty("--ask-foot", `${taken}px`);
+    };
+    const lookSoon = () => {
+      if (!frame) frame = requestAnimationFrame(look);
+    };
+    body.addEventListener("scroll", lookSoon, { passive: true });
+    // What moves a foot without a scroll: an answer arriving, a picture loading, the keys rising, a press swapping the foot.
+    const sized = typeof ResizeObserver === "function" ? new ResizeObserver(lookSoon) : null;
+    let parts = -1;
+    const watchParts = () => {
+      if (!sized || body.children.length === parts) return;
+      parts = body.children.length;
+      sized.disconnect();
+      sized.observe(body);
+      for (const part of body.children) sized.observe(part);
+    };
+    const changed =
+      typeof MutationObserver === "function"
+        ? new MutationObserver(() => {
+            watchParts();
+            lookSoon();
+          })
+        : null;
+    changed?.observe(body, { childList: true, subtree: true });
+    watchParts();
+    look();
+    return () => {
+      body.removeEventListener("scroll", lookSoon);
+      sized?.disconnect();
+      changed?.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+      line?.style.removeProperty("--ask-foot");
+    };
+  }, [bodyRef, on]);
+};
+
 // A phone's field focused: the field and the three slide to where the screen made room for the keys (moved here
 // from the Line, whose hooks call them).
 // The keyboard's own beat on iOS: what it takes to rise, and what the field and the three take to reach their places.

@@ -190,7 +190,7 @@ const AskFixActs = ({
 }) => {
   const pl = p.payload || {};
   return (
-    <div className="ask-card-actions">
+    <div className="ask-card-actions" data-foot="acts">
       {typeof pl.to === "string" && pl.door ? (
         <Button variant="primary" size="sm" onClick={() => onNav(pl.to as string)} data-testid="ask-card-door">
           {pl.door as string}
@@ -207,15 +207,28 @@ const AskFixActs = ({
 // and Not now only on an idea of Ask's own: a card the member asked for is ignored, or changed by saying so. A role that may
 // not press it reads why in the press's place (contracts' words, through gateTitle); the route re-checks. A plan's send that
 // waits for a step says so in the kit's state pill in the press's place (`waits`). A card of the one thing to fix before a
-// campaign can reach anyone commits nothing: its door stands in the press's place. While a press runs the press says so and
-// keeps its focus: `disabled` would drop it on the page, and the press itself is held by the card (`held`).
+// campaign can reach anyone commits nothing: its door stands in the press's place. While its press runs the press says what
+// it is doing (`pressing`, words.ts), at full strength, and keeps its focus: `disabled` would drop it on the page, and the
+// press itself is held by the card (`held`). The row is the card's foot (`data-foot`): it stays in reach while the card
+// runs on below the view (ask.css, hooks.ts useAskFoot).
 /** Whether this person may press a card of this kind: its gate, as its Approve reads it. */
 export const mayPressCard = (proposal: AskProposal): boolean => canDo(PROPOSAL_GATE[proposal.kind] || "approve");
+
+/** What the press says: what it is doing while its own press runs, the house's wait while another's holds it, else what it does. */
+const pressSays = (
+  p: AskProposal,
+  t: LineWords,
+  at: { busy: boolean; acting: boolean; press: { label: string } | null },
+): string => {
+  if (at.busy) return at.acting ? t.pressing(askPressOf(p)) : t.working;
+  return at.press ? at.press.label : t.press(askPressOf(p), askPressCount(p));
+};
 
 export const AskCardActs = ({
   p,
   t,
   busy,
+  acting = false,
   waits,
   hideOpen,
   onApprove,
@@ -229,6 +242,7 @@ export const AskCardActs = ({
   p: AskProposal;
   t: LineWords;
   busy: boolean;
+  acting?: boolean;
   waits: string | null;
   hideOpen: boolean;
   onApprove: () => void;
@@ -248,7 +262,7 @@ export const AskCardActs = ({
   if (p.kind === "fix") return <AskFixActs p={p} t={t} busy={busy} onDismiss={onDismiss} onNav={onNav} />;
   const mayPress = canDo(gateKey);
   return (
-    <div className="ask-card-actions">
+    <div className="ask-card-actions" data-foot="acts">
       {waits ? (
         <span className="pill" data-testid="ask-card-waits">
           {waits}
@@ -272,7 +286,7 @@ export const AskCardActs = ({
           data-testid="ask-card-approve"
           {...gate(gateKey, "press this card")}
         >
-          {busy ? t.working : press ? press.label : t.press(askPressOf(p), askPressCount(p))}
+          {pressSays(p, t, { busy, acting, press })}
         </Button>
       )}
       {p.kind === "reply" && pl.conversation_id ? (
@@ -339,7 +353,8 @@ export const AskRing = ({ from, until, onDone }: { from: number; until: number; 
   );
 };
 
-// After the act, one line on the sunken ground: what happened, and the undo the verb has while it is still true (`open`,
+// After the act, one plain line on the card's own ground, which says its state (`data-state`: a press that did not go
+// through is amber, ask.css): what happened, and the undo the verb has while it is still true (`open`,
 // contracts askUndoOpen). A send that can still be taken back leads with its clock and says Undo, its own words the
 // button's title; the ring's end takes the Undo with it. Undoing a new playbook deletes it, so that undo asks first.
 // Focus lands on it after a press (`landRef`, AskCard), since what was pressed has gone.
@@ -381,7 +396,7 @@ export const AskCardReceipt = ({
     setArmed(false);
   };
   return (
-    <div className="ask-card-receipt ask-landing" ref={landRef} tabIndex={-1}>
+    <div className="ask-card-receipt ask-landing" ref={landRef} tabIndex={-1} data-state={state}>
       {clock ? (
         <AskRing from={doneAt} until={until} onDone={() => setEnded(true)} />
       ) : (
