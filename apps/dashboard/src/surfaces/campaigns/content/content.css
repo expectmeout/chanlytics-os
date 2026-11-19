@@ -180,6 +180,15 @@
     margin-top: 0;
   }
 }
+/* Between a phone and a desk the list scrolls in a box of its own, and a box that scrolls clips: its cards stand a pixel in
+   from each side there, so the outline drawn a pixel outside them is whole. A phone's list clips nothing (mobile.css), and
+   a desk's holds them 16px in; here the card stood at the list's very edges and lost its outline down both sides (the
+   widths the phone's fix of 18 Nov 2026 did not reach). */
+@media (min-width: 721px) and (max-width: 900px) {
+  .cnv > .cm-list {
+    padding-inline: 1px;
+  }
+}
 
 /* On a desk the grid keeps the room and the open piece stands narrow beside it, a piece being taller than it is wide.
    Sequences' split is the other way round: a narrow list and a wide record. */
