@@ -29,6 +29,7 @@ const without = (...ids) => READY.map((check) => (ids.includes(check.id) ? { ...
 const account = (over = {}) => ({
   id: "acc-1",
   external_id: "1200000000000042",
+  business_id: null,
   status: "connected",
   standing: "active",
   name: "Harbor",
@@ -160,6 +161,14 @@ test("one thing missing: the rest folds into a count, and the first check not me
 test("an account Meta turned off, one it could not charge, and one the sign-in may only look at", () => {
   const off = card(account({ standing: "disabled", checks: without("account-active") }));
   assert.deepEqual([off.need.title, off.need.act.words], ["Meta has this ad account turned off", "Open Meta"]);
+  // "Open Meta" opens the account's own page, where Meta says why and the review is asked for, where both ids are kept;
+  // Meta's general page where the business is not.
+  assert.equal(
+    card(account({ standing: "disabled", checks: without("account-active"), business_id: "583355900000001" })).need.act
+      .href,
+    "https://business.facebook.com/business-support-home/583355900000001/1200000000000042/?business_id=583355900000001",
+  );
+  assert.equal(off.need.act.href, "https://business.facebook.com/accountquality");
   const unpaid = card(account({ standing: "unsettled", checks: without("account-active") }));
   assert.deepEqual(
     [unpaid.need.title, unpaid.need.act.words],

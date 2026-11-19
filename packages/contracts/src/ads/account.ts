@@ -128,6 +128,8 @@ export interface AdAccountCard {
   status: "choosing" | "connected" | "revoked" | "disconnected";
   /** The platform's own id for the account, bare: what a door to the platform's page for it is built from. */
   external_id: string | null;
+  /** The business portfolio the sign-in belongs to, at the platform; with `external_id`, the door to the account's own standing. */
+  business_id: string | null;
   /** Where the account stands at its platform; null where it has not said, or said a word Chanlytics does not know. */
   standing: AdAccountStanding | null;
   /** The account's name at its platform, and its currency (ISO 4217); null while one is to be chosen. */

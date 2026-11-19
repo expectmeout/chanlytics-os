@@ -127,9 +127,12 @@ The same owner, the same evening, on the build with both fixes. From the edge's 
   and its look again, were right.
 - **A Page not linked to a WhatsApp number** reads false on both WhatsApp checks, so no ad that opens WhatsApp can be
   made on the account until it is. Step 4's check on a paused ad waits for that link.
-- **Account Quality's address.** Meta's pages give only the bare page; whether it takes an ad account to land on, as
-  the billing page does, is on no page. The notice's "Open Meta" keeps the bare page until an owner's address bar shows
-  the shape, and is not tried with a tool (above).
+- **The account's own page at Meta.** Meta's pages document only the bare Account Quality page, which lands on Business
+  Support Home's overview with no account. Seen on this account, signed in as its owner: Meta's own link from that
+  overview opened `business-support-home/<business id>/<ad account id>/?business_id=<business id>` (with more query parts
+  of Meta's), which said why the account was restricted and offered the review; once lifted, the same path with only
+  `business_id` opened the account again. The turned-off notice's "Open Meta" now opens that path where both ids are
+  kept, and the bare page where the business is not. Seen on one account only.
 - **Not seen yet:** an ad's own fields, its days and its spend (the account has no ad), and Meta's notices arriving.
 
 ### To see on the first real account, found on review (19 November)

@@ -20,6 +20,7 @@ function cardOf(row: AdAccountRow, aiNumber: string | null): AdAccountCard {
   return {
     id: row.id,
     external_id: row.external_id,
+    business_id: config.business_id,
     standing: standing.account ?? null,
     status:
       row.status === "choosing" || row.status === "revoked" || row.status === "disconnected" ? row.status : "connected",
