@@ -274,7 +274,7 @@ const IN_ENGLISH = "Write it in English, whatever language the caller spoke.";
  * offers only one), and with the example, the address five times in five.
  * A fifth came from a scripted call of 19 November: asked to email a price list, AI said it was on its way, and the
  * write-up believed it, "answered" with nothing to do. A call sends nothing but the booking link (contracts
- * NOTHING_ELSE_IS_SENT), so any other ask is a person's to do and a call back, whatever was said on the call.
+ * CALL_RULES), so any other ask is a person's to do and a call back, whatever was said on the call.
  */
 export const CALL_ANALYSIS_FIELDS = [
   {
