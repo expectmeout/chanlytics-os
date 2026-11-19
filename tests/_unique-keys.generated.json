@@ -3455,6 +3455,18 @@
       "where": null
     },
     {
+      "table": "source_days",
+      "name": "source_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "source_items",
       "name": "source_items_pkey",
       "primary": true,

@@ -6804,6 +6804,8 @@ CREATE FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_w
 declare
   v_row  public.files;
   v_made boolean := false;
+  v_room text;
+  v_left text;
 begin
   select * into v_row from public.files f where f.media_ref = p_media_ref;
   if not found then
@@ -6817,6 +6819,42 @@ begin
   -- Delivered again: what was done is done.
   if v_row.media_status in ('ready', 'failed') then
     return jsonb_build_object('fate', 'repeated', 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+  end if;
+  -- A video whose road never said its length is judged by it now (00643), by the one rule every road's door asks: one
+  -- longer than AI can watch, or with no room left in the minutes, is passed over. It is removed as a twin is (nothing
+  -- a person kept: it only just arrived), keeping why and the length it turned out to have, and its purge lets the
+  -- copy go. A found one is counted on its road's line, so the owner is told, and a long one is let go by its road's
+  -- name for it, so the next read of the same place does not fetch it again. A watched folder's clip (its provider
+  -- had not measured it) is its item's to settle: the caller ends the item as too long, or has it wait for room.
+  if v_row.seconds is null and p_seconds is not null
+     and v_row.source in ('website', 'google_profile', 'google_listing', 'instagram', 'drive') then
+    v_room := public.file_video_room(v_row.tenant_id, p_seconds);
+    if v_room <> 'room' then
+      update public.files f
+         set removed_at = now(), updated_at = now(), seconds = p_seconds,
+             media_error = case v_room when 'long' then 'too_long' else 'no_room' end
+       where f.id = v_row.id;
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (v_row.tenant_id, 'file_purge', now(), jsonb_build_object('file_id', v_row.id, 'why', 'remove'))
+      on conflict do nothing;
+      if v_room = 'long' and v_row.source <> 'drive' then
+        insert into public.files_let_go (tenant_id, fingerprint) values (v_row.tenant_id, v_row.fingerprint)
+        on conflict do nothing;
+      end if;
+      -- What its road's line counts it as (contracts content/sources.ts): too long to watch, or left for want of room.
+      -- And it is one video fewer that came: the line counted it as it was let in.
+      v_left := case v_room when 'long' then 'long_videos' else 'left_videos' end;
+      update public.imports i
+         set counts = i.counts || jsonb_build_object(
+               v_left, coalesce((i.counts ->> v_left)::numeric, 0) + 1,
+               'videos', greatest(coalesce((i.counts ->> 'videos')::numeric, 0) - 1, 0))
+       where i.tenant_id = v_row.tenant_id and i.connection_id is null
+         and i.source = case v_row.source when 'website' then 'website_media' when 'instagram' then 'instagram' end;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (v_row.tenant_id, 'file.removed', 'setup', 'workspace', v_row.tenant_id,
+              jsonb_build_object('file_id', v_row.id, 'why', v_room));
+      return jsonb_build_object('fate', 'passed', 'why', v_room, 'tenant_id', v_row.tenant_id, 'file_id', v_row.id);
+    end if;
   end if;
   update public.files f
      set media_status = 'ready',
@@ -6844,7 +6882,7 @@ end $$;
 -- Name: FUNCTION file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). Answers {fate: ready, repeated, gone or unknown, tenant_id, file_id, made}. The service role''s.';
+COMMENT ON FUNCTION public.file_media_ready(p_media_ref text, p_seconds numeric, p_width integer, p_height integer) IS 'The video platform says a video is playable (00556): found by its id there, made a file whether or not the browser said done, and its digest''s first step put on the ledger. A video made here is its piece made (00613: `made`). A video whose road never said its length (a found one, or a watched folder''s clip its provider had not measured) is judged by it here (00643, file_video_room): one too long or with no room is passed over and removed, a found one counted on its road''s line. Answers {fate: ready, repeated, gone, unknown or passed (why: long or minutes), tenant_id, file_id, made}. The service role''s.';
 
 
 --
@@ -7006,6 +7044,26 @@ COMMENT ON FUNCTION public.file_restore(p_tenant_id uuid, p_id uuid) IS 'A membe
 
 
 --
+-- Name: file_road_is_owners(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_road_is_owners(p_source text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  -- An upload, and each provider a folder is watched at (contracts SOURCE_PROVIDERS).
+  select p_source in ('upload', 'drive')
+$$;
+
+
+--
+-- Name: FUNCTION file_road_is_owners(p_source text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_road_is_owners(p_source text) IS 'Whether a road is the owner''s own word (00643): an upload, which they put there, and a watched folder, which they confirmed. A found road is nobody''s word until a Keep. The one place that says so. Its doors''.';
+
+
+--
 -- Name: file_search_words(text, jsonb, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -7104,13 +7162,13 @@ CREATE FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels num
     SET search_path TO 'public'
     AS $$
   select case
-    -- A twin a person kept or set aside: a road brings nothing new; an upload is the person's word for it again.
-    when twin.status <> 'inbox' then case when p_source = 'upload' then 'both_stay' else 'new_goes' end
+    -- A twin a person kept or set aside: a road brings nothing new; the owner's own word is their word for it again.
+    when twin.status <> 'inbox' then case when public.file_road_is_owners(p_source) then 'both_stay' else 'new_goes' end
     -- A waiting twin a post already uses stays where it is.
     when exists (select 1 from public.posts p where p.file_id = twin.id) then
-      case when p_source = 'upload' or p_status = 'filed' then 'both_stay' else 'new_goes' end
-    -- An upload, or a road that files what it brings (the owner's connected profile), over a twin that only waited.
-    when p_source = 'upload' or p_status = 'filed' then 'twin_goes'
+      case when public.file_road_is_owners(p_source) or p_status = 'filed' then 'both_stay' else 'new_goes' end
+    -- The owner's own word, or a road that files what it brings (their connected profile), over a twin that only waited.
+    when public.file_road_is_owners(p_source) or p_status = 'filed' then 'twin_goes'
     -- Two that wait: the bigger stays, and the one already here where they are alike.
     when coalesce(p_pixels, 0) > coalesce(twin.width::numeric * twin.height, 0) then 'twin_goes'
     else 'new_goes'
@@ -7124,7 +7182,7 @@ $$;
 -- Name: FUNCTION file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) IS 'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. Its doors''.';
+COMMENT ON FUNCTION public.file_twin_fate(p_source text, p_status text, p_pixels numeric, p_twin_id uuid) IS 'Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: new_goes, twin_goes or both_stay. The owner''s own word (file_road_is_owners, 00643: an upload or a watched folder) is never the one that goes. Its doors''.';
 
 
 --
@@ -7271,16 +7329,16 @@ COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media
 
 
 --
--- Name: file_video_found(uuid, uuid, text, text, text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: file_video_found(uuid, uuid, text, text, text, text, text, text, text, numeric); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) RETURNS jsonb
+CREATE FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric DEFAULT NULL::numeric) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_twin uuid;
-  v_used numeric;
+  v_room text;
 begin
   if p_source not in ('website', 'google_profile', 'google_listing', 'instagram') then
     raise exception 'file_video_found: % is not a road', p_source using errcode = '22023';
@@ -7299,23 +7357,24 @@ begin
      where f.id = v_twin and p_status = 'filed' and f.status = 'inbox';
     return jsonb_build_object('fate', 'here', 'file_id', v_twin);
   end if;
-  -- What a person removed is not brought back by the next read of the same place.
+  -- What a person removed, or what was passed over as too long, is not brought back by the next read of the same place.
   if exists (select 1 from public.files_let_go g where g.tenant_id = p_tenant_id and g.fingerprint = p_fingerprint) then
     return jsonb_build_object('fate', 'here', 'file_id', null);
   end if;
-  -- contracts FILES_MAX.
-  if public.files_toward_cap(p_tenant_id) >= 1000 then
+  if public.files_are_full(p_tenant_id) then
     return jsonb_build_object('fate', 'full', 'file_id', null);
   end if;
-  -- contracts FILE_VIDEO_MINUTES_MAX: a found video's length is the platform's to say, so what is known is counted.
-  v_used := public.video_seconds_toward_cap(p_tenant_id);
-  if v_used >= 60 * 60 then
-    return jsonb_build_object('fate', 'minutes', 'file_id', null);
+  -- Let in by its length where its road says it; one whose road does not is let in on what is known, and judged when
+  -- the video platform says its length (file_media_ready).
+  v_room := public.file_video_room(p_tenant_id, p_seconds);
+  -- No copy named: only the judging was asked for, before the video platform is.
+  if v_room <> 'room' or p_media_ref is null then
+    return jsonb_build_object('fate', v_room, 'file_id', null);
   end if;
   insert into public.files (id, tenant_id, status, source, source_ref, name, mime, bytes, fingerprint, kind, media_ref,
-                            media_status)
+                            media_status, seconds)
   values (p_id, p_tenant_id, p_status, p_source, p_source_ref, public.file_free_name(p_tenant_id, p_name), p_mime, 0,
-          p_fingerprint, 'video', p_media_ref, 'uploading');
+          p_fingerprint, 'video', p_media_ref, 'uploading', p_seconds);
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
           jsonb_build_object('file_id', p_id, 'source', p_source, 'kind', 'video'));
@@ -7324,10 +7383,118 @@ end $$;
 
 
 --
--- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) IS 'A found video on its way (00626), once the video platform is fetching it from its address: the row, uploading, at its road''s status, so the platform''s word alone can finish it. Its twin is by fingerprint (the road''s name for it, hashed). Answers {fate: kept, here, full or minutes, file_id}. The service role''s.';
+COMMENT ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric) IS 'A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). With no copy named it only judges, before the video platform is asked: {fate: room, here, full, minutes or long}. With one it writes the row, uploading, at its road''s status and with its length, so the platform''s word alone can finish it: {fate: kept, file_id}. Its twin is by fingerprint (the road''s name for it, hashed). The service role''s.';
+
+
+--
+-- Name: file_video_room(uuid, numeric); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) RETURNS text
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select case
+    -- contracts FILE_VIDEO_SECONDS_MAX: longer than AI can watch.
+    when p_seconds > 10 * 60 then 'long'
+    -- contracts FILE_VIDEO_MINUTES_MAX: a video's own length must fit. One whose road never said its length is let in
+    -- on what is known, and judged by its length when the video platform says it (file_media_ready).
+    when p_seconds is null and public.video_seconds_toward_cap(p_tenant_id) >= 60 * 60 then 'minutes'
+    when public.video_seconds_toward_cap(p_tenant_id) + coalesce(p_seconds, 0) > 60 * 60 then 'minutes'
+    else 'room'
+  end
+$$;
+
+
+--
+-- Name: FUNCTION file_video_room(p_tenant_id uuid, p_seconds numeric); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) IS 'Whether a video of this length may come in (00643): long (over ten minutes, more than AI can watch), minutes (the workspace''s sixty would be passed; with no length known, only where they are already full) or room. The one place a video is let in by its length, whichever road brought it. Its doors''.';
+
+
+--
+-- Name: file_video_sourced(uuid, uuid, uuid, text, text, text, bigint, numeric, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_held text;
+  v_twin uuid;
+  v_room text;
+begin
+  -- One at a time, as every door that names or files takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  -- Asked again after a lost answer: the same answer, with the copy the row holds, which may not be this call's.
+  select f.media_ref into v_held from public.files f where f.tenant_id = p_tenant_id and f.id = p_id;
+  if found then
+    return jsonb_build_object('fate', 'kept', 'file_id', p_id, 'media_ref', v_held);
+  end if;
+  -- The same clip already here, by its bytes' fingerprint whichever road brought it: one file, and one more origin.
+  select f.id into v_twin from public.files f
+   where f.tenant_id = p_tenant_id and f.fingerprint = p_fingerprint and f.removed_at is null;
+  if found then
+    return jsonb_build_object('fate', 'here', 'file_id', v_twin);
+  end if;
+  -- What a person removed is not brought back by the next read of the same place.
+  if exists (select 1 from public.files_let_go g where g.tenant_id = p_tenant_id and g.fingerprint = p_fingerprint) then
+    return jsonb_build_object('fate', 'let_go', 'file_id', null);
+  end if;
+  if public.files_are_full(p_tenant_id) then
+    return jsonb_build_object('fate', 'full', 'file_id', null);
+  end if;
+  -- The clip's own length must fit, as every video's: long, minutes or room.
+  v_room := public.file_video_room(p_tenant_id, p_seconds);
+  -- No copy named: only the judging was asked for, before the video platform is.
+  if v_room <> 'room' or p_media_ref is null then
+    return jsonb_build_object('fate', v_room, 'file_id', null);
+  end if;
+  -- Filed at once: confirming the watch was the business's word for what the folder holds.
+  insert into public.files (id, tenant_id, status, source, name, mime, bytes, fingerprint, kind, media_ref, media_status,
+                            seconds)
+  values (p_id, p_tenant_id, 'filed', 'drive', public.file_free_name(p_tenant_id, p_name), p_mime, p_bytes,
+          p_fingerprint, 'video', p_media_ref, 'uploading', p_seconds);
+  -- The item is this file's origin from the same moment, so a take run again finds the file it began.
+  update public.source_items i set file_id = p_id, updated_at = now()
+   where i.tenant_id = p_tenant_id and i.id = p_item_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'file.added', 'setup', 'workspace', p_tenant_id,
+          jsonb_build_object('file_id', p_id, 'source', 'drive', 'kind', 'video'));
+  return jsonb_build_object('fate', 'kept', 'file_id', p_id, 'media_ref', p_media_ref);
+end $$;
+
+
+--
+-- Name: FUNCTION file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) IS 'A watched folder''s clip on its way (00643), a sibling of file_video_found that takes the clip''s size and length. With no copy named it only judges, before the video platform is asked: {fate: room, here, let_go, full, minutes or long}. With one it writes the row, uploading and filed, and makes the item its origin: {fate: kept, file_id, media_ref}. Its twin is by its bytes'' fingerprint, as an upload''s. The service role''s.';
+
+
+--
+-- Name: files_are_full(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.files_are_full(p_tenant_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- contracts FILES_MAX.
+  select public.files_toward_cap(p_tenant_id) >= 1000
+$$;
+
+
+--
+-- Name: FUNCTION files_are_full(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.files_are_full(p_tenant_id uuid) IS 'Whether a workspace''s Library holds its thousand files (00643): the number in one place for the doors that ask it here (file_video_sourced, file_video_found). Its doors''.';
 
 
 --
@@ -7501,6 +7668,81 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
               then hold_s end as ai_hold_s
     from firsts
 $$;
+
+
+--
+-- Name: found_read_spend(uuid, text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- The platform's day is Google's, as a take's is: one row holds both.
+  v_day   date := (now() at time zone 'America/Los_Angeles')::date;
+  v_until timestamptz := (v_day + 1)::timestamp at time zone 'America/Los_Angeles';
+  v_row   public.imports;
+  v_reads jsonb;
+  v_last  timestamptz;
+  v_first timestamptz;
+  v_count integer;
+  v_spent integer;
+  v_since timestamptz;
+begin
+  if p_source <> 'instagram' then
+    raise exception 'found_read_spend: % is not a read that is paced', p_source using errcode = '22023';
+  end if;
+  -- One at a time a workspace, so two pastes at once cannot both be the last of its day.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|reads', 42));
+  select * into v_row from public.imports i
+   where i.tenant_id = p_tenant_id and i.source = p_source and i.connection_id is null;
+  -- The reads asked for in the last day, each its account and when: older ones are dropped as the row is written.
+  select coalesce(jsonb_agg(r.entry order by r.entry ->> 'at'), '[]'::jsonb) into v_reads
+    from jsonb_array_elements(
+           case when jsonb_typeof(v_row.job_cursor -> 'reads') = 'array' then v_row.job_cursor -> 'reads' else '[]'::jsonb end
+         ) as r(entry)
+   where (r.entry ->> 'at')::timestamptz > now() - interval '1 day';
+  select max((r.entry ->> 'at')::timestamptz) into v_last
+    from jsonb_array_elements(v_reads) as r(entry) where r.entry ->> 'account' = p_account;
+  -- Read inside the day: nothing is spent, and the answer says when and what came. One whose last read stopped may be
+  -- asked again, and is counted as a read of the workspace's day like any other.
+  if v_last is not null and not coalesce(v_row.via = p_account and v_row.state = 'failed', false) then
+    return jsonb_build_object(
+      'fate', 'read_lately', 'read_at', v_last,
+      'state', case when v_row.via = p_account then v_row.state end,
+      'counts', case when v_row.via = p_account then v_row.counts else '{}'::jsonb end);
+  end if;
+  select count(*), min((r.entry ->> 'at')::timestamptz) into v_count, v_first from jsonb_array_elements(v_reads) as r(entry);
+  if v_count >= p_workspace_max then
+    return jsonb_build_object('fate', 'wait', 'binds', 'workspace_reads', 'until', v_first + interval '1 day');
+  end if;
+  insert into public.source_days (day) values (v_day) on conflict (day) do nothing;
+  select d.reads into v_spent from public.source_days d where d.day = v_day for update;
+  if v_spent + 1 > p_platform_max then
+    return jsonb_build_object('fate', 'wait', 'binds', 'platform_reads', 'until', v_until);
+  end if;
+  update public.source_days d set reads = d.reads + 1, updated_at = now() where d.day = v_day;
+  -- Only what is newer than this account's last read, where that read finished and left nothing behind: one that left
+  -- something (the videos or the Library were full) is read whole again, so what it left can come once there is room.
+  v_since := case
+    when v_row.via = p_account and v_row.state = 'done'
+     and coalesce((v_row.counts ->> 'left_videos')::numeric, 0) + coalesce((v_row.counts ->> 'left_files')::numeric, 0) = 0
+    then v_row.started_at end;
+  v_reads := v_reads || jsonb_build_array(jsonb_build_object('account', p_account, 'at', now()));
+  insert into public.imports as i (tenant_id, source, state, counts, via, job_cursor)
+  values (p_tenant_id, p_source, 'queued', '{}'::jsonb, p_account, jsonb_build_object('reads', v_reads))
+  on conflict (tenant_id, source, connection_id) do update
+    set job_cursor = coalesce(i.job_cursor, '{}'::jsonb) || jsonb_build_object('reads', v_reads);
+  return jsonb_build_object('fate', 'go', 'since', v_since);
+end $$;
+
+
+--
+-- Name: FUNCTION found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) IS 'A found read''s pace and budget, spent or refused (00643, the footage sources plan''s D21): an account is read once in a day, a workspace asks for p_workspace_max reads in a day (kept on its imports row, job_cursor.reads), and the platform for p_platform_max (source_days.reads, a day as Google counts one). Answers {fate: go, since: when this account''s last whole read began, or null to read it whole}, {fate: read_lately, read_at, state, counts} with nothing spent, or {fate: wait, binds: workspace_reads or platform_reads, until}. An account whose last read stopped may be asked again. The service role''s.';
 
 
 --
@@ -35648,6 +35890,222 @@ COMMENT ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret
 
 
 --
+-- Name: source_take_spend(uuid, uuid, bigint, bigint, bigint, bigint, integer, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  -- Google counts a day in Pacific time, so the day here begins and ends with Google's.
+  v_day     date := (now() at time zone 'America/Los_Angeles')::date;
+  v_from    timestamptz := v_day::timestamp at time zone 'America/Los_Angeles';
+  v_until   timestamptz := (v_day + 1)::timestamp at time zone 'America/Los_Angeles';
+  v_counted boolean;
+  v_takes   integer;
+  v_bytes   bigint;
+  v_spent   public.source_days;
+begin
+  -- One at a time a workspace, so two takes at once cannot both fit the last of its day.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|takes', 42));
+  select coalesce(i.taken_at >= v_from, false) into v_counted from public.source_items i
+   where i.tenant_id = p_tenant_id and i.id = p_item_id;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  insert into public.source_days (day) values (v_day) on conflict (day) do nothing;
+  select * into v_spent from public.source_days d where d.day = v_day for update;
+  if v_spent.units + greatest(p_units, 0) > p_units_max then
+    return jsonb_build_object('fate', 'wait', 'binds', 'units', 'until', v_until);
+  end if;
+  if v_spent.bytes + greatest(p_bytes, 0) > p_platform_bytes_max then
+    return jsonb_build_object('fate', 'wait', 'binds', 'platform_bytes', 'until', v_until);
+  end if;
+  -- An item counts once a day in its workspace: a fetch tried again does not spend the business's day twice. The
+  -- platform's bytes are counted every time, since every fetch is a download.
+  if not v_counted then
+    select count(*), coalesce(sum(i.bytes), 0) into v_takes, v_bytes from public.source_items i
+     where i.tenant_id = p_tenant_id and i.taken_at >= v_from;
+    if v_takes + 1 > p_workspace_takes_max then
+      return jsonb_build_object('fate', 'wait', 'binds', 'workspace_takes', 'until', v_until);
+    end if;
+    if v_bytes + greatest(p_bytes, 0) > p_workspace_bytes_max then
+      return jsonb_build_object('fate', 'wait', 'binds', 'workspace_bytes', 'until', v_until);
+    end if;
+    update public.source_items i set taken_at = now(), bytes = greatest(p_bytes, 0)
+     where i.tenant_id = p_tenant_id and i.id = p_item_id;
+  end if;
+  -- The units are only judged here (p_units is what this take's download will still cost): each is counted where it
+  -- is spent, by source_units_spend.
+  update public.source_days d
+     set bytes = d.bytes + greatest(p_bytes, 0), takes = d.takes + 1, updated_at = now()
+   where d.day = v_day;
+  return jsonb_build_object('fate', 'go');
+end $$;
+
+
+--
+-- Name: FUNCTION source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) IS 'A take''s budget, spent or refused (00643, the footage sources plan''s D15): the platform''s bytes and units of the day (source_days) and the workspace''s takes and bytes of the day (counted from source_items.taken_at), a day as Google counts one. Every number is the caller''s setting. It counts the bytes and the take; the units it only judges (p_units is what the take will still spend), since source_units_spend counts each where it is spent. Answers {fate: go}, {fate: wait, binds: units, platform_bytes, workspace_takes or workspace_bytes, until: when the next day begins}, or {fate: unknown} for an item that is not this workspace''s. The service role''s.';
+
+
+--
+-- Name: source_takes_hand_out(uuid, integer, integer, integer, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ids    uuid[];
+  v_flying integer;
+  v_videos integer;
+  v_handed integer;
+begin
+  -- The off switch: a paused kind is handed nothing, so no item flips to taking and back while its jobs wait.
+  if exists (select 1 from public.job_kinds k where k.kind = 'source_take' and k.paused_at is not null) then
+    return 0;
+  end if;
+  -- A take that never ended (its job lost, or stopped before it wrote anything) waits again, and says it was lost:
+  -- its next take first clears a copy it may have left at the video platform. One whose clip is on its way there is
+  -- the video platform's to finish, and is left. One that holds any other file (it was in, left its folder and came
+  -- back, 00641) waits again too: its next take finds that file and is in with it.
+  update public.source_items i
+     set state = 'waiting', why = 'lost', take_after = null, updated_at = now()
+   where i.state = 'taking'
+     and (i.file_id is null or not exists (
+            select 1 from public.files f
+             where f.id = i.file_id and f.removed_at is null and f.media_status in ('uploading', 'processing')))
+     and (p_tenant_id is null or i.tenant_id = p_tenant_id)
+     and i.updated_at < now() - make_interval(secs => greatest(p_stale_seconds, 0));
+  if p_tenant_id is not null then
+    -- One workspace, as a take of its ends or a read finds new files: what it may still have in flight, newest first.
+    select count(*) into v_flying from public.source_items i where i.tenant_id = p_tenant_id and i.state = 'taking';
+    select array_agg(c.id order by c.place) into v_ids
+      from (
+        select i.id, row_number() over (order by i.modified_at desc nulls last, i.id) as place
+          from public.source_items i
+          join public.media_sources s on s.id = i.source_id
+         where i.tenant_id = p_tenant_id and i.state = 'waiting' and i.kind in ('image', 'video')
+           and (i.take_after is null or i.take_after <= now())
+           and (i.length_until is null or i.length_until <= now())
+           and s.state in ('setting_up', 'watching')
+         order by i.modified_at desc nulls last, i.id
+         limit greatest(greatest(p_in_flight, 1) - v_flying, 0)
+      ) c;
+  else
+    -- Every workspace, on the clock: each one's due items newest first, as far as it has room in flight.
+    select array_agg(c.id order by c.place, c.id) into v_ids
+      from (
+        select d.id, d.place
+          from (
+            select i.id, i.tenant_id,
+                   row_number() over (partition by i.tenant_id order by i.modified_at desc nulls last, i.id) as place
+              from public.source_items i
+              join public.media_sources s on s.id = i.source_id
+             where i.state = 'waiting' and i.kind in ('image', 'video')
+               and (i.take_after is null or i.take_after <= now())
+               and (i.length_until is null or i.length_until <= now())
+               and s.state in ('setting_up', 'watching')
+          ) d
+          left join (
+            select i.tenant_id, count(*) as flying from public.source_items i where i.state = 'taking' group by i.tenant_id
+          ) f on f.tenant_id = d.tenant_id
+         where d.place <= greatest(p_in_flight, 1) - coalesce(f.flying, 0)
+         order by d.place, d.id
+         limit greatest(p_limit, 1)
+      ) c;
+  end if;
+  -- How many more clips the video platform may be handed: it prepares so many at once for the whole account, and
+  -- answers the rest "too many" (its own limit; the setting is the edge's, under it).
+  select greatest(p_videos_max, 0) - count(*) into v_videos
+    from public.source_items i where i.state = 'taking' and i.kind = 'video';
+  -- Each one moved to taking and given its job in one statement: a row is never taking without a job, and the kind's
+  -- own key (the item and its try) holds it to one. A clip past the video platform's room waits for the next turn.
+  with candidates as (
+    select c.id, i.kind,
+           count(*) filter (where i.kind = 'video') over (order by c.place) as videos_so_far
+      from unnest(v_ids) with ordinality as c(id, place)
+      join public.source_items i on i.id = c.id
+  ),
+  taken as (
+    update public.source_items i
+       set state = 'taking', why = case when i.why = 'lost' then 'lost' end, take_after = null, updated_at = now()
+      from candidates c
+     where i.id = c.id and i.state = 'waiting' and (c.kind <> 'video' or c.videos_so_far <= v_videos)
+    returning i.id, i.tenant_id, i.take_tries
+  )
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  select t.tenant_id, 'source_take', now(),
+         jsonb_build_object('item_id', t.id::text, 'try', t.take_tries::text)
+    from taken t
+  on conflict do nothing;
+  get diagnostics v_handed = row_count;
+  return v_handed;
+end $$;
+
+
+--
+-- Name: FUNCTION source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) IS 'The takes'' hand-out (00643, decision 0115): each waiting photo or video whose time has come, of a folder still being read, moved to taking (a video its provider has not measured waits until its length_until, 00641) and given its source_take job in one statement, newest first. For one workspace (p_tenant_id, as a take of its ends) or for all (null, the clock), while a workspace has fewer than p_in_flight in flight, p_limit in all, and the video platform is preparing fewer than p_videos_max clips. A paused kind is handed nothing. A take that never ended (taking, untouched for p_stale_seconds, with no file or one that is not a clip on its way at the video platform) waits again first, marked lost. Answers how many jobs it wrote. The service role''s.';
+
+
+--
+-- Name: source_takes_release(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_takes_release() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- A file left the Library, so there is room again: what waited for room in the Library, and for room in the videos
+  -- where it was a video, is due now, and the hand-out's next turn takes it. Hours sooner than its rest would end.
+  update public.source_items i
+     set take_after = null
+   where i.tenant_id = new.tenant_id and i.state = 'waiting'
+     and (i.why = 'library_full' or (new.kind = 'video' and i.why = 'room'));
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION source_takes_release(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_takes_release() IS 'A trigger on files (00643): a file removed frees room, so the workspace''s items that waited for room in the Library (and in the videos, where a video left) are due at once. Whoever removed it: a person, a twin, a failed copy.';
+
+
+--
+-- Name: source_units_spend(bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_units_spend(p_units bigint) RETURNS bigint
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  insert into public.source_days (day, units)
+  values ((now() at time zone 'America/Los_Angeles')::date, greatest(p_units, 0))
+  on conflict (day) do update
+    set units = public.source_days.units + excluded.units, updated_at = now()
+  returning units
+$$;
+
+
+--
+-- Name: FUNCTION source_units_spend(p_units bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_units_spend(p_units bigint) IS 'A provider''s units counted as they are spent (00643): added to the day''s row (source_days), a day as Google counts one. Answers the day''s units so far. The service role''s.';
+
+
+--
 -- Name: sources_hand_out(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -39472,7 +39930,7 @@ CREATE TABLE public.files (
     CONSTRAINT files_picture_print_check CHECK (((picture_print IS NULL) OR (picture_print ~ '^[0-9a-f]{32}$'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
     CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
-    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'instagram'::text, 'made'::text]))),
+    CONSTRAINT files_source_check CHECK ((source = ANY (ARRAY['upload'::text, 'google_profile'::text, 'google_listing'::text, 'website'::text, 'instagram'::text, 'made'::text, 'drive'::text]))),
     CONSTRAINT files_status_check CHECK ((status = ANY (ARRAY['inbox'::text, 'filed'::text, 'set_aside'::text]))),
     CONSTRAINT files_who_in_it_check CHECK ((who_in_it = ANY (ARRAY['not_asked'::text, 'no_one'::text, 'agreed'::text])))
 );
@@ -43217,6 +43675,31 @@ COMMENT ON COLUMN public.source_connections.health IS 'ok: its grant reads. need
 
 
 --
+-- Name: source_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.source_days (
+    day date NOT NULL,
+    bytes bigint DEFAULT 0 NOT NULL,
+    takes integer DEFAULT 0 NOT NULL,
+    units bigint DEFAULT 0 NOT NULL,
+    reads integer DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT source_days_bytes_check CHECK ((bytes >= 0)),
+    CONSTRAINT source_days_reads_check CHECK ((reads >= 0)),
+    CONSTRAINT source_days_takes_check CHECK ((takes >= 0)),
+    CONSTRAINT source_days_units_check CHECK ((units >= 0))
+);
+
+
+--
+-- Name: TABLE source_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.source_days IS 'What taking footage in cost the platform in a day (00643, the footage sources plan''s budgets): the bytes moved from providers, the takes begun, the provider''s units spent and the found reads begun (an account read for its posts), one row a day as Google counts a day (Pacific time). Written only by source_take_spend, source_units_spend and found_read_spend. No workspace and no person on it. The service role''s alone.';
+
+
+--
 -- Name: source_items; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -43244,6 +43727,9 @@ CREATE TABLE public.source_items (
     walked_run integer,
     walk_page text,
     length_until timestamp with time zone,
+    take_after timestamp with time zone,
+    taken_at timestamp with time zone,
+    take_tries smallint DEFAULT 0 NOT NULL,
     CONSTRAINT source_items_added_by_check CHECK (((added_by IS NULL) OR (char_length(added_by) <= 200))),
     CONSTRAINT source_items_bytes_check CHECK ((bytes >= 0)),
     CONSTRAINT source_items_checksum_check CHECK (((checksum IS NULL) OR (char_length(checksum) <= 200))),
@@ -43253,8 +43739,9 @@ CREATE TABLE public.source_items (
     CONSTRAINT source_items_provider_id_check CHECK (((char_length(provider_id) >= 1) AND (char_length(provider_id) <= 200))),
     CONSTRAINT source_items_seconds_check CHECK ((seconds >= (0)::numeric)),
     CONSTRAINT source_items_state_check CHECK ((state = ANY (ARRAY['listed'::text, 'waiting'::text, 'taking'::text, 'in'::text, 'too_big'::text, 'not_media'::text, 'let_go'::text, 'failed'::text, 'outside'::text, 'gone'::text, 'no_access'::text]))),
+    CONSTRAINT source_items_take_tries_check CHECK ((take_tries >= 0)),
     CONSTRAINT source_items_walk_page_check CHECK (((walk_page IS NULL) OR (char_length(walk_page) <= 4000))),
-    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (char_length(why) <= 300)))
+    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
 );
 
 
@@ -43312,6 +43799,27 @@ COMMENT ON COLUMN public.source_items.walk_page IS 'A folder''s own: the provide
 --
 
 COMMENT ON COLUMN public.source_items.length_until IS 'A video its provider has listed without its length (a fresh upload is measured a few minutes later): its own record is asked again until then, and it is not taken into the Library before. Null: its length is known, it is no video, or its provider made it more than the wait ago.';
+
+
+--
+-- Name: COLUMN source_items.take_after; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.take_after IS 'When a waiting item may next be taken (00643): the start of the next day where a day''s budget bound, later where the videos or the Library are full. Null: now.';
+
+
+--
+-- Name: COLUMN source_items.taken_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.taken_at IS 'When its take last spent the day''s budget (00643 source_take_spend): a workspace''s takes and bytes of a day are counted from this, so an item counts once a day however often its fetch is tried.';
+
+
+--
+-- Name: COLUMN source_items.take_tries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.source_items.take_tries IS 'How many fetches of it failed (00643): the video platform could not prepare it, or its job stopped. Tried again twice, then failed.';
 
 
 --
@@ -45226,6 +45734,14 @@ ALTER TABLE ONLY public.source_connections
 
 ALTER TABLE ONLY public.source_connections
     ADD CONSTRAINT source_connections_tenant_id_id UNIQUE (tenant_id, id);
+
+
+--
+-- Name: source_days source_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.source_days
+    ADD CONSTRAINT source_days_pkey PRIMARY KEY (day);
 
 
 --
@@ -47825,10 +48341,45 @@ CREATE INDEX source_items_parent ON public.source_items USING btree (source_id, 
 
 
 --
+-- Name: source_items_same_bytes; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_same_bytes ON public.source_items USING btree (tenant_id, checksum) WHERE ((checksum IS NOT NULL) AND (state = ANY (ARRAY['in'::text, 'let_go'::text])));
+
+
+--
+-- Name: source_items_take_due; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_take_due ON public.source_items USING btree (take_after) WHERE (state = 'waiting'::text);
+
+
+--
+-- Name: source_items_taken; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_taken ON public.source_items USING btree (tenant_id, taken_at) WHERE (taken_at IS NOT NULL);
+
+
+--
+-- Name: source_items_taking; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_taking ON public.source_items USING btree (tenant_id, kind) WHERE (state = 'taking'::text);
+
+
+--
 -- Name: source_items_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX source_items_tenant ON public.source_items USING btree (tenant_id, source_id, state);
+
+
+--
+-- Name: source_items_waiting; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX source_items_waiting ON public.source_items USING btree (tenant_id, modified_at DESC NULLS LAST, id) WHERE (state = 'waiting'::text);
 
 
 --
@@ -48886,6 +49437,13 @@ CREATE TRIGGER source_connections_set_updated_at BEFORE UPDATE ON public.source_
 --
 
 CREATE TRIGGER source_items_set_updated_at BEFORE UPDATE ON public.source_items FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: files source_takes_release; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_takes_release AFTER UPDATE OF removed_at ON public.files FOR EACH ROW WHEN (((old.removed_at IS NULL) AND (new.removed_at IS NOT NULL))) EXECUTE FUNCTION public.source_takes_release();
 
 
 --
@@ -53628,6 +54186,12 @@ CREATE POLICY source_connections_member_select ON public.source_connections FOR 
 
 
 --
+-- Name: source_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.source_days ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: source_items; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -54990,6 +55554,14 @@ GRANT ALL ON FUNCTION public.file_restore(p_tenant_id uuid, p_id uuid) TO servic
 
 
 --
+-- Name: FUNCTION file_road_is_owners(p_source text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_road_is_owners(p_source text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_road_is_owners(p_source text) TO service_role;
+
+
+--
 -- Name: FUNCTION file_search_words(p_name text, p_look jsonb, p_sound_said text, p_sound jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -55056,11 +55628,35 @@ GRANT ALL ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_med
 
 
 --
--- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text) TO service_role;
+REVOKE ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_found(p_tenant_id uuid, p_id uuid, p_media_ref text, p_status text, p_source text, p_source_ref text, p_name text, p_mime text, p_fingerprint text, p_seconds numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION file_video_room(p_tenant_id uuid, p_seconds numeric); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_room(p_tenant_id uuid, p_seconds numeric) TO service_role;
+
+
+--
+-- Name: FUNCTION file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_video_sourced(p_tenant_id uuid, p_id uuid, p_item_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_seconds numeric, p_fingerprint text) TO service_role;
+
+
+--
+-- Name: FUNCTION files_are_full(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.files_are_full(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_are_full(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -55095,6 +55691,14 @@ GRANT ALL ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_eve
 REVOKE ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.found_read_spend(p_tenant_id uuid, p_source text, p_account text, p_workspace_max integer, p_platform_max integer) TO service_role;
 
 
 --
@@ -59497,6 +60101,38 @@ GRANT ALL ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secr
 
 
 --
+-- Name: FUNCTION source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_take_spend(p_tenant_id uuid, p_item_id uuid, p_bytes bigint, p_units bigint, p_platform_bytes_max bigint, p_workspace_bytes_max bigint, p_workspace_takes_max integer, p_units_max bigint) TO service_role;
+
+
+--
+-- Name: FUNCTION source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_takes_hand_out(p_tenant_id uuid, p_in_flight integer, p_limit integer, p_stale_seconds integer, p_videos_max integer) TO service_role;
+
+
+--
+-- Name: FUNCTION source_takes_release(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_takes_release() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_takes_release() TO service_role;
+
+
+--
+-- Name: FUNCTION source_units_spend(p_units bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_units_spend(p_units bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_units_spend(p_units bigint) TO service_role;
+
+
+--
 -- Name: FUNCTION sources_hand_out(p_spread_seconds integer, p_walk_stale_seconds integer); Type: ACL; Schema: public; Owner: -
 --
 
@@ -62186,6 +62822,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.setup_choices TO service_role;
 
 GRANT SELECT ON TABLE public.source_connections TO authenticated;
 GRANT ALL ON TABLE public.source_connections TO service_role;
+
+
+--
+-- Name: TABLE source_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT ALL ON TABLE public.source_days TO service_role;
 
 
 --

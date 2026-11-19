@@ -11,6 +11,11 @@
  * The four SQL functions of 00641 are modelled here by hand, as the in-memory database models every function it is
  * given; the SQL itself is proved on a real database by the-clock-hands-out-folders.db.test.mjs.
  *
+ * The sync asks two things of the taking of files (00643): its workspace's hand-out, as a walk ends and as a read finds
+ * files, and the day's count of what it spent at its provider. Here both are only kept (`w.handOuts`, `w.unitWrites`):
+ * nothing is handed out, so an item a listing asked for stays `waiting` for a test to read. A test of the whole road
+ * hands in the takes' own doors (`rpcs` as a function of the tables: tests/files/takes/_doors.mjs).
+ *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
 import crypto from "node:crypto";
@@ -50,6 +55,9 @@ function withDefaults(seeded, defaults) {
 }
 
 const ITEM_DEFAULTS = () => ({
+  // The table's own defaults: a row is named by an id of its own, which the taking of a file knows it by.
+  id: crypto.randomUUID(),
+  updated_at: new Date().toISOString(),
   parent_id: null,
   modified_at: null,
   checksum: null,
@@ -64,6 +72,10 @@ const ITEM_DEFAULTS = () => ({
   walked_run: null,
   walk_page: null,
   length_until: null,
+  // What the taking of a file keeps on the row (00643).
+  take_after: null,
+  taken_at: null,
+  take_tries: 0,
 });
 
 /** What every footage test's process holds: the Google client, the callback, and the edge's own address. */
@@ -174,7 +186,8 @@ function handOut(tables, { p_walk_stale_seconds }) {
 
 /**
  * A world: its tables, its database, its Vault and its Drive. `source` seeds a watched folder (false for none);
- * `tables` adds or replaces whole tables.
+ * `tables` adds or replaces whole tables; `rpcs` adds or replaces database functions, and may be a function of the
+ * world's tables.
  */
 export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreRpcs = {} } = {}) {
   const drive = fakeDrive();
@@ -221,7 +234,18 @@ export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreR
       },
     ],
   ]);
+  const handOuts = [];
+  const unitWrites = [];
   const rpcs = {
+    // 00643, as the sync meets it: asked for, and nothing handed out (the takes' own tests prove the hand-out).
+    source_takes_hand_out: (args) => {
+      handOuts.push(args);
+      return 0;
+    },
+    source_units_spend: ({ p_units }) => {
+      unitWrites.push(p_units);
+      return unitWrites.reduce((sum, units) => sum + units, 0);
+    },
     source_credentials_get: ({ p_connection_id }) => vault.get(p_connection_id) ?? null,
     source_credentials_put: ({ p_connection_id, p_secret, p_if_refresh_token }) => {
       const kept = vault.get(p_connection_id);
@@ -234,7 +258,7 @@ export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreR
     },
     source_credentials_drop: ({ p_connection_id }) => vault.delete(p_connection_id),
     sources_hand_out: (args) => handOut(tables, args),
-    ...moreRpcs,
+    ...(typeof moreRpcs === "function" ? moreRpcs(tables) : moreRpcs),
   };
   const db = fakeDb(tables, faults, rpcs);
   globalThis.fetch = drive.fetch;
@@ -244,6 +268,9 @@ export function world({ source = {}, tables: more = {}, faults = {}, rpcs: moreR
     db,
     vault,
     faults,
+    /** Each time the takes' hand-out was asked for, and each count of units written to the day. */
+    handOuts,
+    unitWrites,
     source: () => tables.media_sources.find((row) => row.id === SOURCE),
     items: () => tables.source_items.filter((row) => row.source_id === SOURCE),
     item: (providerId) => tables.source_items.find((row) => row.source_id === SOURCE && row.provider_id === providerId),

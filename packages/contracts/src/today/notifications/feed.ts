@@ -163,6 +163,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   file_purge: { stopped: "Couldn't finish removing a photo", to: CONTENT_LIBRARY_ROUTE },
   // A video's digest. Not sent (packages/jobs TOLD_ELSEWHERE): its tile says what it has, and the sweep tries the step again.
   video_digest: { stopped: "Couldn't get a video ready", to: CONTENT_LIBRARY_ROUTE },
+  // A watched folder's file taken in (00643). Not sent (packages/jobs TOLD_ELSEWHERE): its item waits to be tried again or
+  // says it failed on its own row, and the folder's line says so.
+  source_take: { stopped: "Couldn't bring in a file from your folder", to: CONTENT_LIBRARY_ROUTE },
   // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.
   post_prepare: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
   post_publish: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },

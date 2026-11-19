@@ -599,17 +599,36 @@ test("the rest of a batch that rang carries that it rang", async () => {
   assert.equal(next.payload.rang, true);
 });
 
-test("Storage failing part way: what was kept stays, the bell has rung, and the ledger tries again", async () => {
+test("Storage failing part way: what was kept stays, the bell has rung, and what failed is asked for again as its own batch", async () => {
   let uploads = 0;
   const w = world({
     files: [],
     upload: async () => (++uploads === 2 ? { error: { message: "storage is down" } } : { error: null }),
   });
   answer = async (url) => distinctPictures(url);
-  const running = job("file_fetch", { source: "website", batch: "b1", items: fetched(2) });
-  await assert.rejects(fileJobs(w.db).fetch(running, SOON()), /1 of 2 could not be kept/);
+  const items = fetched(2);
+  await fileJobs(w.db).fetch(job("file_fetch", { source: "website", batch: "b1", items }), SOON());
   assert.equal(w.tables.files.length, 1, "the one that made it stays");
   assert.equal(w.tables.notifications.length, 1, "and it waits on someone, whatever happens to the other");
+  // Each file is settled by one job (so what a batch left is counted once): the one that failed goes on alone.
+  const [again] = w.tables.jobs.filter((j) => j.kind === "file_fetch");
+  assert.equal(again.payload.items.length, 1);
+  assert.equal(
+    w.tables.files[0].source_ref === again.payload.items[0].ref,
+    false,
+    "the one not kept, not the one kept",
+  );
+  assert.equal(again.payload.rang, true, "the bell has rung for this read");
+  assert.ok(Date.parse(again.due_at) > Date.now() + 30_000, "a minute on, as a blip passes");
+});
+
+test("Storage failing for everything a batch reached: nothing is settled, and the ledger tries the same batch again", async () => {
+  const w = world({ files: [], upload: async () => ({ error: { message: "storage is down" } }) });
+  answer = async (url) => distinctPictures(url);
+  const running = job("file_fetch", { source: "website", batch: "b1", items: fetched(2) });
+  await assert.rejects(fileJobs(w.db).fetch(running, SOON()), /2 of 2 could not be kept/);
+  assert.equal(w.tables.jobs.filter((j) => j.kind === "file_fetch").length, 0, "no second batch beside the retry");
+  assert.equal(w.tables.notifications.length, 0);
 });
 
 test("Google refusing one name is a pass, not a failure: a name can expire, and asking again would not change it", async () => {

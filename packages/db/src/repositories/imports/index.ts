@@ -12,6 +12,8 @@ export {
   patchListing,
 } from "./business-reads";
 export type { BusinessReadRow } from "./business-reads";
+export { spendFoundRead } from "./found-reads";
+export type { FoundReadSpend } from "./found-reads";
 export { importCursorOf, importRowOf, listImports, noteImport } from "./ledger";
 export type { ImportLedgerRow, ImportNote, ImportRunRow } from "./ledger";
 export { listSitesToReadAgain } from "./sites-again";

@@ -36,6 +36,7 @@ import {
   movePost,
   recordFilePurged,
   removeLapsedUpload,
+  type MediaFate,
 } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
@@ -44,6 +45,7 @@ import { errField, logger } from "../shared/log.js";
 import { fetchFiles } from "./found.js";
 import { lookAtFile } from "./look.js";
 import { makePiece, tellPieceMoved } from "./piece-make.js";
+import { settleTakenVideo } from "./takes/word.js";
 import { digestVideo, scheduleVideoStep } from "./video-digest.js";
 import { streamAccount } from "./video-keys.js";
 
@@ -121,25 +123,30 @@ async function keepVideosMoving(db: Db, nowMs: number): Promise<{ asked: number;
         limit: SWEEP_TAKES,
       })
     : [];
+  // A word heard here as at the webhook: a watched folder's clip settles the item it came from (takes/word.ts), and a
+  // video made here tells its owner (piece-make.ts).
+  const heard = async (fate: MediaFate, seconds: number | null = null) => {
+    await settleTakenVideo(db, fate, seconds);
+    await tellPieceMoved(db, fate);
+  };
   for (const video of waiting) {
     if (!account || !video.media_ref) continue;
     const read = await readStreamVideo(account, video.media_ref);
-    // A video made here tells its owner as its word is heard, here as at the webhook (piece-make.ts).
     if (read.ok && read.video.ready)
-      await tellPieceMoved(
-        db,
+      await heard(
         await markFileMediaReady(db, {
           mediaRef: video.media_ref,
           seconds: read.video.seconds,
           width: read.video.width,
           height: read.video.height,
         }),
+        read.video.seconds,
       );
     else if (read.ok && read.video.state === "error")
-      await tellPieceMoved(db, await markFileMediaFailed(db, video.media_ref, read.video.errorCode));
+      await heard(await markFileMediaFailed(db, video.media_ref, read.video.errorCode));
     // A video Stream no longer has, though it was sent: deleted there by hand, or lapsed. Its owner deletes the row.
     else if (!read.ok && read.gone && video.media_status === "processing")
-      await tellPieceMoved(db, await markFileMediaFailed(db, video.media_ref, "ERR_NOT_AT_STREAM"));
+      await heard(await markFileMediaFailed(db, video.media_ref, "ERR_NOT_AT_STREAM"));
   }
   const stopped = await listVideosToDigestAgain(db, {
     triedBefore: new Date(nowMs - DAY_MS).toISOString(),

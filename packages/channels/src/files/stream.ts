@@ -52,10 +52,14 @@ export interface StreamVideo {
   height: number | null;
   /** Why it could not be prepared, Stream's code (`ERR_MALFORMED_VIDEO`); null where it says none. */
   errorCode: string | null;
+  /** What we called it as we asked for it (`meta.name`): a file's id, or a take's own name for its copy. */
+  name: string | null;
 }
 
 const positive = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
 const errorWordOf = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v) : "");
+/** The status a provider answers when it is asked for more at once than it takes. */
+const TOO_MANY_REQUESTS = 429;
 const failureWords = (a: ProviderReply): string => {
   const errors = answerObject(a)?.errors;
   const detail = Array.isArray(errors)
@@ -77,6 +81,7 @@ export function streamVideoOf(raw: unknown): StreamVideo | null {
   const state = STREAM_STATES.find((s) => s === status.state) ?? "unknown";
   const input = isObjectRecord(raw.input) ? raw.input : {};
   const code = typeof status.errorReasonCode === "string" && status.errorReasonCode ? status.errorReasonCode : null;
+  const meta = isObjectRecord(raw.meta) ? raw.meta : {};
   return {
     uid: raw.uid,
     state,
@@ -85,6 +90,7 @@ export function streamVideoOf(raw: unknown): StreamVideo | null {
     width: positive(input.width),
     height: positive(input.height),
     errorCode: code,
+    name: typeof meta.name === "string" && meta.name ? meta.name : null,
   };
 }
 
@@ -146,7 +152,12 @@ export async function reserveStreamUpload(
   return { ok: true, uploadUrl, mediaRef };
 }
 
-export type StreamTaken = { ok: true; mediaRef: string } | { ok: false; error: string; full: boolean };
+/**
+ * What Stream said of an address it was asked to fetch. `full`: the account's storage is spent. `busy`: it is
+ * preparing as many videos as it takes at once (120 queued or encoding for an account, by its FAQ) and answers the
+ * rest 429: nothing is wrong with the clip, and it is asked again in a while.
+ */
+export type StreamTaken = { ok: true; mediaRef: string } | { ok: false; error: string; full: boolean; busy: boolean };
 
 /**
  * A video on the public web, fetched by Stream itself from its address (`POST /stream/copy`): what a business's website,
@@ -174,12 +185,33 @@ export async function askStreamToFetch(
   );
   if (reply.outcome !== "ok") {
     const words = failureWords(reply);
-    return { ok: false, error: words, full: /storage|capacity|quota|exceed/i.test(words) };
+    const busy = reply.status === TOO_MANY_REQUESTS;
+    return { ok: false, error: words, full: !busy && /storage|capacity|quota|exceed/i.test(words), busy };
   }
   const uid = streamVideoOf(answerObject(reply)?.result)?.uid ?? "";
   return /^[0-9a-f]{32}$/i.test(uid)
     ? { ok: true, mediaRef: uid }
-    : { ok: false, error: "the answer named no video", full: false };
+    : { ok: false, error: "the answer named no video", full: false, busy: false };
+}
+
+/**
+ * The videos Stream holds under a name we gave (`meta.name`, which its list searches by part of a word): how a take
+ * finds a copy an earlier try of it left there. Only those named exactly so; null where Stream did not answer.
+ */
+export async function listStreamVideosNamed(
+  account: StreamAccount,
+  name: string,
+  deps: ModelDeps = {},
+): Promise<StreamVideo[] | null> {
+  const reply = await fetchFromProvider(
+    "cloudflare",
+    `${STREAM_ACCOUNTS_API}/${encodeURIComponent(account.accountId)}/stream?search=${encodeURIComponent(name)}`,
+    { method: "GET", headers: apiHeaders(account), timeoutMs: API_TRY_MS, idempotent: true, tries: 2 },
+    deps,
+  );
+  const result = reply.outcome === "ok" ? answerObject(reply)?.result : null;
+  if (!Array.isArray(result)) return null;
+  return result.flatMap((raw: unknown) => streamVideoOf(raw) ?? []).filter((video) => video.name === name);
 }
 
 /* ------------------------------------------------------------------------------------------------- the API reads -- */

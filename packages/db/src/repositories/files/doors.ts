@@ -276,24 +276,38 @@ function videoFateOf(data: unknown, doing: string): VideoFate {
 }
 
 /**
- * A found video on its way (00626), once the video platform is fetching it from its address: the row, uploading, at its
- * road's status (inbox, or filed for a connected profile). Its twin is by `fingerprint`, the road's name for it hashed, since
- * its bytes are never ours. The service role's; asked twice it answers the same.
+ * What the door says of a found video: there is room for it (judging only), it is kept, it is the one already here (or
+ * one let go), the Library is full, the videos are, or it is longer than AI can watch.
+ */
+export type FoundVideoFate = {
+  fate: "room" | "kept" | "here" | "full" | "minutes" | "long";
+  file_id: string | null;
+};
+
+const FOUND_VIDEO_FATES = ["room", "kept", "here", "full", "minutes", "long"] as const;
+
+/**
+ * A found video judged, or written (00626; 00643). With no copy named (`mediaRef` null) the door only judges, before
+ * the video platform is asked, by the length its road says (`seconds`, null where the road says none). With one it
+ * writes the row, uploading, at its road's status (inbox, or filed for a connected profile). Its twin is by
+ * `fingerprint`, the road's name for it hashed, since its bytes are never ours. The service role's; asked twice it
+ * answers the same.
  */
 export async function recordVideoFound(
   db: Db,
   video: {
     tenantId: TenantId;
     id: string;
-    mediaRef: string;
+    mediaRef: string | null;
     status: "inbox" | "filed";
     source: string;
     sourceRef: string;
     name: string;
     mime: string;
     fingerprint: string;
+    seconds: number | null;
   },
-): Promise<VideoFate> {
+): Promise<FoundVideoFate> {
   const { data, error } = await db.rpc("file_video_found", {
     p_tenant_id: video.tenantId,
     p_id: video.id,
@@ -304,9 +318,12 @@ export async function recordVideoFound(
     p_name: video.name,
     p_mime: video.mime,
     p_fingerprint: video.fingerprint,
+    p_seconds: video.seconds,
   });
   if (error) throw new DbFailure(error, "file video found");
-  return videoFateOf(data, "file video found");
+  const answer = recordOrEmpty(data);
+  if (!isOneOf(FOUND_VIDEO_FATES, answer.fate)) throw new Error("file video found: no fate answered");
+  return { fate: answer.fate, file_id: typeof answer.file_id === "string" ? answer.file_id : null };
 }
 
 /** A video's bytes have all gone: its tile says it is being made ready. Only from uploading. */
@@ -317,23 +334,37 @@ export async function markFileMediaProcessing(db: Db, tenantId: TenantId, id: st
 
 /** What the platform's word did to a row, found by its id there. */
 export type MediaFate = {
-  fate: "ready" | "failed" | "repeated" | "gone" | "unknown";
+  /**
+   * `passed`: a found video whose road never said its length, judged by it as the platform said it (00643), was longer
+   * than AI can watch or had no room: it is removed, and its road's line counts it.
+   */
+  fate: "ready" | "failed" | "repeated" | "gone" | "unknown" | "passed";
+  /** Why it was passed over: longer than AI can watch, or no room in the videos; none for every other fate. */
+  why?: "long" | "minutes" | null;
   tenant_id: TenantId | null;
   file_id: string | null;
   /** The video was one made here, and this word moved its piece with it (00613): made on ready, failed on failed. */
   made: boolean;
 };
 
-const MEDIA_FATES = ["ready", "failed", "repeated", "gone", "unknown"] as const satisfies readonly MediaFate["fate"][];
+const MEDIA_FATES = [
+  "ready",
+  "failed",
+  "repeated",
+  "gone",
+  "unknown",
+  "passed",
+] as const satisfies readonly MediaFate["fate"][];
 
 function mediaFateOf(data: unknown, door: string): MediaFate {
-  const o = recordOrEmpty(data);
-  if (!isOneOf(MEDIA_FATES, o.fate)) throw new Error(`${door}: no fate answered`);
+  const answer = recordOrEmpty(data);
+  if (!isOneOf(MEDIA_FATES, answer.fate)) throw new Error(`${door}: no fate answered`);
   return {
-    fate: o.fate,
-    tenant_id: typeof o.tenant_id === "string" ? heldTenantId(o.tenant_id) : null,
-    file_id: typeof o.file_id === "string" ? o.file_id : null,
-    made: o.made === true,
+    fate: answer.fate,
+    why: answer.fate === "passed" && (answer.why === "long" || answer.why === "minutes") ? answer.why : null,
+    tenant_id: typeof answer.tenant_id === "string" ? heldTenantId(answer.tenant_id) : null,
+    file_id: typeof answer.file_id === "string" ? answer.file_id : null,
+    made: answer.made === true,
   };
 }
 

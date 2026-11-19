@@ -11,11 +11,13 @@ import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { at } from "../../_cron-doors-world.mjs";
 import { driveRefusal } from "./_fake-drive.mjs";
-import { CONNECTION, OWNER, ROOT, SOURCE, firstWalk, runJobs, schedule, setEnv, world } from "./_world.mjs";
+import { importSrc } from "../../_source.mjs";
+import { CONNECTION, OWNER, ROOT, SOURCE, T, firstWalk, runJobs, schedule, setEnv, world } from "./_world.mjs";
 
 setEnv();
 const { SOURCE_PACE } = await import(at("apps/edge/lib/files/sources/pace.ts"));
 const { SOURCE_WORDS } = await import(at("apps/edge/lib/files/sources/words.ts"));
+const { askToTakeAgain } = await importSrc("packages/db/src/repositories/files/source-takes.ts");
 
 let w;
 beforeEach(() => resetBreakers());
@@ -279,17 +281,108 @@ test("a changed file's bytes make it wanted again; a renamed one keeps its place
 test("a state the taking of a file set is never written over by a listing; only where the item sits and its name", async () => {
   await watched(tree);
   const taken = w.item("clip-1");
-  Object.assign(taken, { state: "in", checksum: "the-bytes-that-were-taken", bytes: 111 });
-  w.drive.put({ id: "clip-1", name: "renamed.MOV", md5Checksum: "newer-bytes", size: 222, parents: ["sub-1"] });
+  const fileId = crypto.randomUUID();
+  Object.assign(taken, { state: "in", file_id: fileId, take_tries: 1 });
+  const { checksum, bytes } = taken;
+  w.drive.put({ id: "clip-1", name: "renamed.MOV", parents: ["sub-1"] });
   await read();
   const after = w.item("clip-1");
   assert.equal(after.state, "in");
   assert.deepEqual([after.name, after.parent_id], ["renamed.MOV", "sub-1"]);
   assert.deepEqual(
-    [after.checksum, after.bytes],
-    ["the-bytes-that-were-taken", 111],
-    "what was taken stays on its row, so the next phase can see the bytes changed",
+    [after.checksum, after.bytes, after.file_id, after.take_tries],
+    [checksum, bytes, fileId, 1],
+    "the same bytes: what was taken, its file and its tries stay as the taking left them",
   );
+});
+
+test("new bytes are a new file: an item the taking holds is asked for again, lets go of its file and starts its tries anew", async () => {
+  await watched(tree);
+  const held = { "clip-1": "in", "clip-2": "failed", "clip-3": "let_go", "clip-4": "taking" };
+  for (const [id, state] of Object.entries(held))
+    Object.assign(w.item(id), {
+      state,
+      file_id: state === "in" || state === "taking" ? crypto.randomUUID() : null,
+      take_tries: 2,
+      why: state === "failed" ? "stream" : null,
+      take_after: state === "failed" ? null : new Date(Date.now() + 3_600_000).toISOString(),
+    });
+  for (const id of Object.keys(held))
+    w.drive.put({ id, name: `again-${id}.MOV`, md5Checksum: `newer-${id}`, size: 222 });
+  await read();
+  for (const [id, state] of Object.entries(held)) {
+    const after = w.item(id);
+    assert.deepEqual(
+      [after.state, after.why, after.file_id, after.take_tries, after.take_after],
+      ["waiting", null, null, 0, null],
+      `${state}: asked for again`,
+    );
+    assert.deepEqual([after.checksum, after.bytes, after.name], [`newer-${id}`, 222, `again-${id}.MOV`], state);
+  }
+  // Read again with nothing new: nothing is asked for twice.
+  Object.assign(w.item("clip-1"), { state: "taking" });
+  w.drive.put({ id: "clip-1" });
+  await read();
+  assert.equal(stateOf("clip-1"), "taking", "the bytes on its row are now the provider's own");
+});
+
+test("a file that was in, left and comes back keeps the file it had and is asked for; with other bytes it lets go of it", async () => {
+  await watched(tree);
+  const fileId = crypto.randomUUID();
+  Object.assign(w.item("clip-1"), { state: "in", file_id: fileId, take_tries: 2 });
+  Object.assign(w.item("clip-2"), { state: "in", file_id: crypto.randomUUID(), take_tries: 2 });
+  w.drive.move("clip-1", "elsewhere").move("clip-2", "elsewhere");
+  await read();
+  assert.deepEqual(
+    [stateOf("clip-1"), w.item("clip-1").file_id, stateOf("clip-2")],
+    ["outside", fileId, "outside"],
+    "moved out: marked, with the file each had kept on its row",
+  );
+  // One comes back as it was, the other with other bytes under the same id.
+  w.drive.move("clip-1", ROOT).put({ id: "clip-2", parents: [ROOT], md5Checksum: "other-bytes", size: 333 });
+  await read();
+  const same = w.item("clip-1");
+  assert.deepEqual(
+    [same.state, same.why, same.file_id, same.take_tries],
+    ["waiting", null, fileId, 0],
+    "asked for with its file: its take finds it and fetches nothing, and its tries start anew",
+  );
+  const other = w.item("clip-2");
+  assert.deepEqual(
+    [other.state, other.file_id, other.take_tries, other.checksum, other.bytes],
+    ["waiting", null, 0, "other-bytes", 333],
+    "new bytes are a new file: it lets go of the one it held",
+  );
+});
+
+test("what a read spent at Drive is counted on the day's line once, and a read that found files asks for its workspace's takes", async () => {
+  await watched(tree);
+  w.unitWrites.length = 0;
+  w.handOuts.length = 0;
+  const [quiet] = await read();
+  assert.ok(quiet.read.units > 0);
+  assert.deepEqual(w.unitWrites, [quiet.read.units], "one write a job, of what it spent");
+  assert.equal(w.handOuts.length, 0, "a read that found nothing inside hands nothing out");
+  w.drive.video("clip-new", "IMG_9000.MOV", ROOT);
+  const [found] = await read();
+  assert.deepEqual(w.unitWrites, [quiet.read.units, found.read.units]);
+  assert.equal(found.read.units, w.drive.units() - quiet.read.units, "what Drive itself counted of the second read");
+  assert.deepEqual(
+    w.handOuts.map((asked) => asked.p_tenant_id),
+    [T],
+    "its own workspace's, at once: the clip does not wait for the clock",
+  );
+});
+
+test("a read that fails still counts what it spent: the units were asked of Drive whether or not it answered", async () => {
+  await watched(tree);
+  w.unitWrites.length = 0;
+  w.drive.video("clip-new", "IMG_9000.MOV", ROOT);
+  // The list answers; the item's own record does not, twice (the client asks a read once more).
+  for (let n = 0; n < 2; n++) w.drive.answerNext("/drive/v3/files/clip-new", new Response("upstream", { status: 502 }));
+  await assert.rejects(read(), /no answer/);
+  assert.equal(w.unitWrites.length, 1);
+  assert.ok(w.unitWrites[0] >= 105, `a list and a record at least, not ${w.unitWrites[0]}`);
 });
 
 test("a wave of removals in the changes is held, and no later page marks what the hold kept", async () => {
@@ -414,8 +507,14 @@ test("a fresh upload listed without its length is asked after again, and no seco
   // Drive measures the two: one is eight seconds, one fifteen minutes. No change is listed for either.
   w.drive.measure("fresh", 8000).measure("long", 900_000);
   w.drive.calls.length = 0;
+  w.handOuts.length = 0;
   const [answer] = await read();
   assert.equal(answer.read.changes, 0, "the list held nothing new");
+  assert.deepEqual(
+    w.handOuts.map((asked) => asked.p_tenant_id),
+    [T],
+    "a length that arrived makes its clip one to take: its workspace's hand-out is asked, with no change listed",
+  );
   assert.deepEqual(
     w.drive.calls
       .filter((call) => call.path.startsWith("/drive/v3/files/"))
@@ -563,4 +662,65 @@ test("an hour's key that ran out is refreshed and kept, and the read goes on", a
   assert.equal(stateOf("clip-new"), "waiting");
   const kept = w.vault.get(CONNECTION);
   assert.deepEqual([kept.access_token, kept.refresh_token], ["access-token-2", "refresh-token-1"]);
+});
+
+test("a row lets go of a file whose bytes changed before its new facts are kept: a read that dies between still sees the change", async () => {
+  await watched(tree);
+  // It was in, left its folder and came back as it was: waiting again, with the file it had.
+  Object.assign(w.item("clip-1"), { state: "waiting", file_id: crypto.randomUUID() });
+  const old = w.item("clip-1").checksum;
+  w.drive.put({ id: "clip-1", md5Checksum: "other-bytes", size: 333 });
+
+  // The write of its new facts fails, and the job dies there.
+  w.faults["source_items.upsert"] = { message: "the connection was lost" };
+  await assert.rejects(() => read(), /cannot keep the watched folder's items/);
+  const between = w.item("clip-1");
+  assert.deepEqual(
+    [between.file_id, between.checksum],
+    [null, old],
+    "let go of first: its row still says the old bytes, so the change is still there to see",
+  );
+
+  // The ledger runs it again: the new bytes are kept, and no take will call the old file this item's.
+  delete w.faults["source_items.upsert"];
+  await read();
+  const after = w.item("clip-1");
+  assert.deepEqual([after.state, after.file_id, after.checksum, after.bytes], ["waiting", null, "other-bytes", 333]);
+});
+
+test("asking for a take again writes only a row the taking still holds: one the sync has since marked away is left as it is", async () => {
+  await watched(tree);
+  Object.assign(w.item("clip-1"), { state: "outside", file_id: "the-file-it-had", take_tries: 2 });
+  Object.assign(w.item("clip-2"), { state: "in", file_id: "another-file", take_tries: 2 });
+  Object.assign(w.item("clip-3"), { state: "waiting", why: "budget", take_tries: 1 });
+  const facts = (id) => ({
+    tenant_id: T,
+    source_id: SOURCE,
+    provider_id: id,
+    kind: "video",
+    parent_id: ROOT,
+    name: `${id}.MOV`,
+    modified_at: null,
+    checksum: "new-bytes",
+    bytes: 1,
+    seconds: null,
+    added_by: null,
+    length_until: null,
+  });
+  assert.equal(await askToTakeAgain(w.db, ["clip-1", "clip-2", "clip-3"].map(facts)), 1, "the one the taking holds");
+  assert.deepEqual(
+    [
+      stateOf("clip-1"),
+      w.item("clip-1").file_id,
+      w.item("clip-1").take_tries,
+      w.item("clip-1").checksum === "new-bytes",
+    ],
+    ["outside", "the-file-it-had", 2, false],
+    "away since it was planned: the listing that finds it again decides",
+  );
+  assert.deepEqual([stateOf("clip-3"), w.item("clip-3").why, w.item("clip-3").take_tries], ["waiting", "budget", 1]);
+  assert.deepEqual(
+    [stateOf("clip-2"), w.item("clip-2").file_id, w.item("clip-2").take_tries, w.item("clip-2").checksum],
+    ["waiting", null, 0, "new-bytes"],
+  );
 });
