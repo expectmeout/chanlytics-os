@@ -53,6 +53,7 @@ import {
 import { readAnswer } from "@chanlytics/db/shared";
 import { getGoogleReadiness } from "../connections/google";
 import { readBookingReport, listLinksBooked } from "../calendar/people-visits";
+import { BOOKED_DAYS, findBookedDays } from "../metrics/bookings";
 import { readDealReport } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { googleReader } from "./connections";
@@ -176,6 +177,9 @@ export const report: Reader<
  * `report_series` the page's route calls, summed here by contracts' `headlineOf` (so the number is the page's number and no day of
  * the series goes over the wire), and the booking line counted by `bookingOf`, the page's own code, beside it: the series and the
  * people and the calendar are read together, not one after the other. A function that answers nothing is the page's 404.
+ * The last days' bookings ride beside them (decision 0141, the dashboard's metrics/bookings.ts findBookedDays), in the
+ * workspace's zone at the turn's clock: the week behind Today's booked figure. Never fatal: bookings that could not be
+ * counted are left off, and Today draws no week of them.
  */
 export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: ReportHeadlineDto }> = {
   name: "report_headline",
@@ -183,13 +187,23 @@ export const reportHeadline: Reader<{ period: ReportPeriodId }, { headline: Repo
     // Today reads a period by name, which ends today: no day is named to the database.
     const window = await reportWindowFor(rc, { period });
     const { days } = window;
-    const [answer, booking] = await Promise.all([
+    const [answer, booking, booked] = await Promise.all([
       reportSeries(rc.ctx.supabase, rc.tenantId, window),
       bookingOf(rc, window, everyoneOf(rc)),
+      load(rc, facts.facts, undefined)
+        .then((zone) =>
+          findBookedDays(rc.ctx.supabase, rc.tenantId, {
+            zone: zone.data.timezone,
+            nowMs: rc.now.getTime(),
+            days: Math.min(days, BOOKED_DAYS),
+          }),
+        )
+        .catch(logAndGoOn("load facts.facts", null)),
     ]);
     if (!isReportDto(answer)) throw new AppError("not_found", "No workspace found for this report.", 404);
+    const headline = headlineOf(answer, period, booking);
     return {
-      data: { headline: headlineOf(answer, period, booking) },
+      data: { headline: booked && headline.daily ? { ...headline, daily: { ...headline.daily, booked } } : headline },
       rows: [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${plural(days, "day")}` }],
       stamp: readerStamp(),
     };

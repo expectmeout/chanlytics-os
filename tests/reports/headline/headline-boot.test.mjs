@@ -266,7 +266,12 @@ test("the database is asked less: the headline reaches for the report's series, 
   const after = await doorsOf(headlineRoute);
   t.diagnostic(`doors, before (three routes): ${[...before].sort().join(", ")}`);
   t.diagnostic(`doors, after (one route): ${[...after].sort().join(", ")}`);
-  for (const door of after) assert.ok(before.has(door), `the headline reaches for nothing new: ${door}`);
+  // One read is the headline's own: the visits that arrived these last days, for the week of bookings behind Today's
+  // figure (decision 0141), a range of one index and no function.
+  const own = "appointments.select";
+  for (const door of after)
+    assert.ok(before.has(door) || door === own, `the headline reaches for nothing new: ${door}`);
+  assert.ok(after.has(own), "the week's bookings are read from the visits that arrived");
   for (const door of ["rpc:report_series", "rpc:people_list"]) assert.ok(after.has(door), `still read: ${door}`);
   for (const door of ["rpc:campaign_series", "rpc:reach_out_report", "rpc:reach_out_chain_totals"]) {
     assert.ok(before.has(door), `read before: ${door}`);

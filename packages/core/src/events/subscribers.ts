@@ -51,6 +51,10 @@
  *                     of their own (decision 0119, contracts occasions.ts): two hours before a visit, after a visit
  *                     marked missed, the day after an ask. A row is kept once per sequence, person and occasion, so a
  *                     second run enrols nobody twice. Nothing is sent here: the sequences' clock runs each at its time.
+ *   visit_arrival     a booking that arrived (appointment.changed, by the rule visit_notice tells it by: contracts
+ *                     bookingArriving) is stamped on its visit with the event's own moment (decision 0141, 00647), so a
+ *                     day's bookings are counted from the record and never from a second copy of the rule. The later
+ *                     moment wins, so a second run moves nothing.
  */
 import { heldContactId } from "@chanlytics/contracts";
 import {
@@ -141,6 +145,11 @@ export interface SubscriberPorts {
    * copy of it, whichever arrived first, the other's arrival answered by the bell.
    */
   twinTold(tenantId: TenantId, appointmentId: string): Promise<boolean>;
+  /**
+   * The visit stamped with the moment its booking arrived (packages/db stampVisitArrival, decision 0141): the later moment
+   * wins, so a second delivery moves nothing. Throws when it could not be written, so the delivery tries again.
+   */
+  keepArrival(tenantId: TenantId, appointmentId: string, at: string): Promise<void>;
   /** The invitation a member.joined event is about: who accepted it and as what (packages/db findMemberJoined); null when it is gone. */
   memberJoined(tenantId: TenantId, invitationId: string): Promise<MemberJoined | null>;
   /**
@@ -380,6 +389,11 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     const visits = await ports.bookedVisits(event.tenant_id, ids, nowMs);
     if (visits.length === 0) return;
     await ports.tell({ ...visitNews(visits, nowMs), sourceEvent: event.id });
+  },
+  visit_arrival: async (event, ports) => {
+    // The one rule, asked of the event as visit_notice asks it; the moment is the ledger's, so a late delivery says the same.
+    const arriving = bookingArriving(event);
+    if (arriving) await ports.keepArrival(event.tenant_id, arriving.appointmentId, event.created_at);
   },
   team_notice: async (event, ports) => {
     // A teammate who left: told once by its own event, named while their account stands.

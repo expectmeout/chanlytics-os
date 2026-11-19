@@ -39002,6 +39002,7 @@ CREATE TABLE public.appointments (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     expires_at timestamp with time zone,
     conversation_id uuid,
+    arrived_at timestamp with time zone,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
     CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
@@ -39028,6 +39029,13 @@ COMMENT ON COLUMN public.appointments.expires_at IS 'When a request the receptio
 --
 
 COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer.';
+
+
+--
+-- Name: COLUMN appointments.arrived_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.arrived_at IS 'When this visit arrived as a customer''s booking (decision 0141): the created_at of the appointment.changed event the one rule calls a booking arriving (contracts bookingArriving), stamped by core''s visit_arrival subscriber, the later of two where a hold was added and then confirmed. Null for a visit that is no customer''s booking: a member''s own entry, the owner''s own diary, a calendar''s first read. A day''s bookings are counted from it (the dashboard''s server/metrics/bookings.ts).';
 
 
 --
@@ -46203,6 +46211,13 @@ CREATE INDEX appointment_notices_tenant_received ON public.appointment_notices U
 
 
 --
+-- Name: appointments_arrived; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX appointments_arrived ON public.appointments USING btree (tenant_id, arrived_at) WHERE (arrived_at IS NOT NULL);
+
+
+--
 -- Name: appointments_client_email; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -48761,7 +48776,7 @@ CREATE TRIGGER appointments_note_status AFTER UPDATE OF status ON public.appoint
 -- Name: appointments appointments_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+CREATE TRIGGER appointments_set_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW WHEN ((NOT (new.arrived_at IS DISTINCT FROM old.arrived_at))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --

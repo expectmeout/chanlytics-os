@@ -100,6 +100,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "autonomy_suggestions_failed",
   "billing_minutes_unread",
   "billing_model_paused_unread",
+  "booked_days_missing",
   "booking_report_failed",
   "booking_request_unknown_answer",
   "broadcast_open_to_customers_failed",

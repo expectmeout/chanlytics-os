@@ -24,20 +24,74 @@ import type { TenantId } from "@chanlytics/contracts";
 /** The sources a customer's booking comes by (contracts bookingArriving): a member's own entry (`person`) is not one. */
 const BOOKING_SOURCES = BOOKING_VIAS;
 
+/** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */
+const BELL_READ_PAGE = 1000;
+
+/**
+ * The statuses of a booking made and not taken back (decision 0141): booked still, or since said to have come or not. What
+ * a day's count of bookings asks for: a visit that happened was still booked.
+ */
+const MADE = ["booked", "kept", "missed"] as const;
+
+/** A visit's row as these reads take it. */
+interface VisitRow {
+  id: string;
+  starts_at: string;
+  ends_at: string;
+  all_day: boolean;
+  timezone: string;
+  source: string;
+  client_name: string | null;
+  service: string | null;
+  contact_id: string | null;
+}
+
+/** The person a visit is linked to, as the record says them. */
+interface VisitPerson {
+  display_name: string | null;
+  wa_profile_name: string | null;
+  erased_at: string | null;
+  erasing_since: string | null;
+}
+
+/** A visit of the calendar's linked to nobody now is the owner's own entry, never a customer's booking. */
+const isCustomers = (visit: VisitRow): boolean => visit.source !== "calendar_feed" || !!visit.contact_id;
+
+/**
+ * A visit as the record says it now, and who booked it: the name the booking states, else the person it is linked to. A
+ * visit linked to a person who is erased, or being erased, is told of with no name, whatever it once stated.
+ */
+function bookedVisitOf(visit: VisitRow, person: VisitPerson | null | undefined): BookedVisit {
+  const erased = !!person?.erased_at || !!person?.erasing_since;
+  const linked = person ? (person.display_name ?? person.wa_profile_name) : null;
+  const personName = erased ? null : visit.client_name?.trim() || linked || null;
+  return {
+    id: visit.id,
+    start: visit.starts_at,
+    end: visit.ends_at,
+    allDay: visit.all_day,
+    timezone: visit.timezone,
+    who: personName,
+    service: visit.service?.trim() || null,
+    via: visit.source as BookingVia,
+  };
+}
+
 /**
  * The visits of the record among `ids` that are booked and still ahead of `nowMs`, as the record says them now, and who
  * booked each: the name the booking states, else the person the visit is linked to, and nobody for a person who is erased or
  * being erased. A visit cancelled, vanished from the feed, past, or entered by a member is left out: a booking's notice
  * tells what stands. With `status` "cancelled", the cancelled ones instead, still ahead, for the notice of a time freed
- * (contracts visitChangeNews). So is a visit of the calendar's that is linked to nobody now: the owner's own entry, never a customer's
- * booking (contracts visit-news.ts asks it of the event too). A read that fails throws.
+ * (contracts visitChangeNews); with "made", those not taken back, a visit since said kept or missed among them, for a
+ * day's count of bookings (MADE). So is a visit of the calendar's that is linked to nobody now: the owner's own entry,
+ * never a customer's booking (contracts visit-news.ts asks it of the event too). A read that fails throws.
  */
 export async function listBookedVisits(
   db: Db,
   tenantId: TenantId,
   ids: readonly string[],
   nowMs: number,
-  status: "booked" | "cancelled" = "booked",
+  status: "booked" | "cancelled" | "made" = "booked",
 ): Promise<BookedVisit[]> {
   if (ids.length === 0) return [];
   const { data, error } = await db
@@ -45,14 +99,14 @@ export async function listBookedVisits(
     .select("id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id")
     .eq("tenant_id", tenantId)
     .in("id", [...ids])
-    .eq("status", status)
+    .in("status", status === "made" ? [...MADE] : [status])
     .is("vanished_at", null)
     .in("source", [...BOOKING_SOURCES])
     .gt("starts_at", new Date(nowMs).toISOString());
   if (error) throw new DbFailure(error, "cannot read the visits");
-  const visits = (data ?? []).filter((v) => v.source !== "calendar_feed" || v.contact_id);
+  const visits = (data ?? []).filter(isCustomers);
   const personIds = [...new Set(visits.flatMap((v) => (v.contact_id ? [v.contact_id] : [])))];
-  const people = new Map<string, { name: string | null; erased: boolean }>();
+  const people = new Map<string, VisitPerson>();
   if (personIds.length) {
     const found = await db
       .from("contacts")
@@ -60,27 +114,53 @@ export async function listBookedVisits(
       .eq("tenant_id", tenantId)
       .in("id", personIds);
     if (found.error) throw new DbFailure(found.error, "cannot read the people of the visits");
-    for (const c of found.data ?? [])
-      people.set(c.id, {
-        name: c.display_name ?? c.wa_profile_name ?? null,
-        erased: !!c.erased_at || !!c.erasing_since,
-      });
+    for (const c of found.data ?? []) people.set(c.id, c);
   }
-  return visits.map((visit) => {
-    const person = visit.contact_id ? people.get(visit.contact_id) : undefined;
-    // A visit linked to a person who is erased, or being erased, is told of with no name, whatever it once stated.
-    const personName = person?.erased ? null : visit.client_name?.trim() || person?.name || null;
-    return {
-      id: visit.id,
-      start: visit.starts_at,
-      end: visit.ends_at,
-      allDay: visit.all_day,
-      timezone: visit.timezone,
-      who: personName,
-      service: visit.service?.trim() || null,
-      via: visit.source as BookingVia,
-    };
-  });
+  return visits.map((visit) => bookedVisitOf(visit, visit.contact_id ? people.get(visit.contact_id) : undefined));
+}
+
+/** Postgres's word for a column it does not have: a database from before 00647 keeps no arrival. */
+const NO_SUCH_COLUMN = "42703";
+
+/**
+ * The visits that arrived as a customer's booking since `sinceIso` and are not taken back (MADE, on the calendar still,
+ * a customer's), as the record says them now, with who booked each and when each arrived (`arrivedAt`, ISO: the ledger's
+ * own clock for the event that brought the booking), the first to arrive first (decision 0141). They are found by the
+ * stamp the one rule writes (calendar/appointments/rows.ts stampVisitArrival), on its own index, so the read costs what arrived
+ * and nothing of what else changed; a thousand to a page, every page read. The person is joined by the visit's one key
+ * to them, named, so no second path between the two tables can make the join unclear. Only those that start after
+ * `sinceIso`: a day's count keeps the ones that start after that day began, and none of its days begins sooner. Null on
+ * a database that keeps no arrival yet (00647 is applied after the build). A read that fails throws.
+ */
+export async function listArrivedVisits(
+  db: Db,
+  tenantId: TenantId,
+  sinceIso: string,
+): Promise<Array<BookedVisit & { arrivedAt: string }> | null> {
+  const arrived: Array<BookedVisit & { arrivedAt: string }> = [];
+  for (let from = 0; ; from += BELL_READ_PAGE) {
+    const page = await db
+      .from("appointments")
+      .select(
+        "id, starts_at, ends_at, all_day, timezone, source, client_name, service, contact_id, arrived_at, contacts!appointments_contact_id_same_workspace(display_name, wa_profile_name, erased_at, erasing_since)",
+      )
+      .eq("tenant_id", tenantId)
+      .gte("arrived_at", sinceIso)
+      .in("status", [...MADE])
+      .is("vanished_at", null)
+      .in("source", [...BOOKING_SOURCES])
+      .gt("starts_at", sinceIso)
+      .order("arrived_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + BELL_READ_PAGE - 1);
+    if (page.error?.code === NO_SUCH_COLUMN) return null;
+    if (page.error) throw new DbFailure(page.error, "cannot read the visits that arrived");
+    for (const visit of page.data)
+      if (visit.arrived_at && isCustomers(visit))
+        arrived.push({ ...bookedVisitOf(visit, visit.contacts), arrivedAt: visit.arrived_at });
+    if (page.data.length < BELL_READ_PAGE) break;
+  }
+  return arrived;
 }
 
 /**
@@ -198,9 +278,6 @@ export async function findMemberEmail(db: Db, userId: string): Promise<string | 
   }
   return userById.data.user?.email ?? null;
 }
-
-/** PostgREST's answer to one read is a thousand rows at most; a bigger set is read a page at a time. */
-const BELL_READ_PAGE = 1000;
 
 /** How many uuids one `in` list carries: measured, about two hundred is where the URL becomes too long. */
 const BELL_IN_BATCH = 100;
