@@ -9,7 +9,7 @@ import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/c
 import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
 import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
-import { ADS_DEFAULT_CURRENCY, moneyOf, perDayOf, sumMoney, sumsOf } from "./money";
+import { ADS_DEFAULT_CURRENCY, aboutMoneyOf, moneyOf, perDayOf, sumMoney, sumsOf } from "./money";
 import type { MoneyItem } from "./money";
 import type { AskVM } from "./page";
 import {
@@ -340,7 +340,7 @@ export function phoneOf(
   reading: readonly AdPlatform[] = [],
 ): PhoneVM {
   const spent = sumMoney(pageTotals.spent);
-  const each = pageTotals.each === null ? null : moneyOf(pageTotals.each.minor, pageTotals.each.currency);
+  const each = pageTotals.each === null ? null : aboutMoneyOf(pageTotals.each.minor, pageTotals.each.currency);
   const line1 =
     reading.length > 0
       ? PHONE.line1Reading(pageTotals.touch, ownersOf(reading))

@@ -27,7 +27,7 @@ import type {
   AdsRead,
 } from "@chanlytics/contracts";
 
-import { leftOfMoney, moneyOf, perDayOf } from "./money";
+import { aboutMoneyOf, leftOfMoney, moneyOf, perDayOf } from "./money";
 import {
   ADS_PERMISSION_WARN_DAYS,
   ADS_SETTLE_DAYS,
@@ -300,7 +300,11 @@ function secondOf(ad: AdRead, totals: Totals, read: AdsRead): string {
       return needsSecond(ad);
     case "ended": {
       const cost = counted(ad) ? costEach(totals.spentMinor, totals.booked) : null;
-      return STATE.endedSecond(dayWord(ad.endDay), totals.booked, cost === null ? null : moneyOf(cost, ad.currency));
+      return STATE.endedSecond(
+        dayWord(ad.endDay),
+        totals.booked,
+        cost === null ? null : aboutMoneyOf(cost, ad.currency),
+      );
     }
     case "finished":
       return STATE.finishedSecond(moneyOf(totalOf(ad) ?? totals.lifetimeMinor, ad.currency));

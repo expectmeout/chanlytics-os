@@ -16,7 +16,7 @@
 import { appointmentWords, lensEmpty, addDays, daysBetween, ADS_SCOPE_ALL, adsScopeKey } from "@chanlytics/contracts";
 import type { AdDoor, AdPlatform, AdRead, AdTheirs, AdsConfig, AdsRead, AdsScope } from "@chanlytics/contracts";
 
-import { moneyOf, sumMoney } from "../model/money";
+import { aboutMoneyOf, moneyOf, sumMoney } from "../model/money";
 import { adsModel } from "../model/page";
 import type { AdRowVM } from "../model/page";
 import { pageTotals, tilesOf } from "../model/page-parts";
@@ -322,7 +322,7 @@ function resultsRowOf(subset: readonly AdRead[], scoped: AdsRead, id: string, la
   const each =
     result.each === null
       ? cell(DASH, result.booked === 0 ? LEDGER.noneYet : LEDGER.only(result.booked), LEDGER.tooFew)
-      : cell(moneyOf(result.each.minor, result.each.currency));
+      : cell(aboutMoneyOf(result.each.minor, result.each.currency));
   return { ...base, inTouch, booked: cell(String(result.booked)), each };
 }
 

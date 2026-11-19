@@ -19,7 +19,7 @@
 import { REPORT_MIN_N, CALENDAR_SETTING_ROUTE, daysBetween, adRoute } from "@chanlytics/contracts";
 import type { AdAccountRead, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
-import { moneyOf, perDayOf, sumMoney } from "./money";
+import { aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
 import {
   noAdsOf,
   ownersOf,
@@ -205,7 +205,7 @@ const cell = (value: string, unit: string | null = null, reason: string | null =
 
 function eachCell(t: Totals, ad: AdRead): CellVM {
   const cost = costEach(t.spentMinor, t.booked);
-  if (cost !== null) return cell(moneyOf(cost, ad.currency));
+  if (cost !== null) return cell(aboutMoneyOf(cost, ad.currency));
   return cell(DASH, t.booked === 0 ? LEDGER.noneYet : LEDGER.only(t.booked), LEDGER.tooFew);
 }
 
@@ -289,7 +289,7 @@ function phoneEndOf(
   const cost = costEach(totals.spentMinor, totals.booked);
   const sub =
     cost !== null
-      ? LEDGER.each(moneyOf(cost, ad.currency))
+      ? LEDGER.each(aboutMoneyOf(cost, ad.currency))
       : totals.booked === 0
         ? LEDGER.noneYet
         : LEDGER.only(totals.booked);
@@ -426,7 +426,7 @@ function eachFigure(pageTotals: PageTotals, read: AdsRead, def: string, waits: r
     return {
       id: "each",
       label: FIGURES.eachInTouchLabel,
-      value: cost === null ? DASH : moneyOf(cost.minor, cost.currency),
+      value: cost === null ? DASH : aboutMoneyOf(cost.minor, cost.currency),
       change: so ? FIGURES.soFar : null,
       meta: FIGURES.eachInTouchMeta(sumMoney(pageTotals.eachSpend), pageTotals.touch),
       definition: def,
@@ -439,7 +439,7 @@ function eachFigure(pageTotals: PageTotals, read: AdsRead, def: string, waits: r
   return {
     id: "each",
     label,
-    value: pageTotals.each === null ? DASH : moneyOf(pageTotals.each.minor, pageTotals.each.currency),
+    value: pageTotals.each === null ? DASH : aboutMoneyOf(pageTotals.each.minor, pageTotals.each.currency),
     change: pageTotals.each !== null && so ? FIGURES.soFar : null,
     meta: pageTotals.each === null ? null : FIGURES.eachMeta(sumMoney(pageTotals.eachSpend), pageTotals.booked),
     definition: def,
@@ -583,7 +583,7 @@ function pageStanding(read: AdsRead): StandingVM[] {
 export function earlierCost(read: AdsRead): { each: string; people: number } | null {
   const p = pageTotals(read);
   return p.each !== null && p.booked >= ADS_ASK_MIN
-    ? { each: moneyOf(p.each.minor, p.each.currency), people: p.booked }
+    ? { each: aboutMoneyOf(p.each.minor, p.each.currency), people: p.booked }
     : null;
 }
 

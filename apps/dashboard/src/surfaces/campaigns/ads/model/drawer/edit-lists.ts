@@ -5,7 +5,7 @@
  * hands every name a page needs on. Pure, like the rest of the models: the rules are rules.ts's, the words words-drawer.ts's.
  */
 import type { AdArea, AdPatch, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
-import { MINOR_PER_UNIT, aboutADayAfter, addDays, patchRestarts } from "@chanlytics/contracts";
+import { aboutADayAfter, addDays, minorPerUnit, patchRestarts } from "@chanlytics/contracts";
 
 import { moneyOf, perDayOf } from "../money";
 import { ADS_DAILY_CHOICES_MINOR, ADS_END_SHIFTS, ADS_TOTAL_STEPS, ADS_ZIP_DIGITS, BUDGET_RULES } from "../rules";
@@ -105,13 +105,14 @@ export interface EditVM {
   notes: Record<"offer" | "area" | "amount" | "end", string[]>;
 }
 
-/** Amounts are offered in tens of units. */
-const ROUND_TO_MINOR = 10 * MINOR_PER_UNIT;
+/** Amounts are offered in tens of units, of the ad's own currency. */
+const ROUND_TO_UNITS = 10;
 
 /** The amounts a total (or a daily amount) can be changed to: ascending, nothing below what is spent or the floor. */
 function amountChoices(ad: AdRead, spentMinor: number, floorMinor: number | null): number[] {
   const now = ad.budget.amountMinor;
-  const round = (n: number) => Math.round(n / ROUND_TO_MINOR) * ROUND_TO_MINOR;
+  const tens = ROUND_TO_UNITS * minorPerUnit(ad.currency);
+  const round = (n: number) => Math.round(n / tens) * tens;
   const steps = ad.budget.mode === "total" ? ADS_TOTAL_STEPS.map((k) => round(now * k)) : ADS_DAILY_CHOICES_MINOR;
   const min = ad.budget.mode === "total" ? spentMinor : (floorMinor ?? 0);
   return [...new Set([...steps, now])].filter((n) => n >= min).sort((a, b) => a - b);
@@ -185,7 +186,8 @@ function amountOption(ad: AdRead, count: number, options: { today: string; limit
 /** What "Your own amount" may be: nothing below what is spent or the floor, and where the platform limits a step, inside it. */
 function ownOf(ad: AdRead, options: { spentMinor: number; floorMinor: number | null; limits: Limits }): OwnAmount {
   const total = ad.budget.mode === "total";
-  const least = total ? Math.max(options.spentMinor, MINOR_PER_UNIT) : (options.floorMinor ?? MINOR_PER_UNIT);
+  const oneUnit = minorPerUnit(ad.currency);
+  const least = total ? Math.max(options.spentMinor, oneUnit) : (options.floorMinor ?? oneUnit);
   const { step, again } = options.limits;
   const refused = again === null ? null : CHIPS.tiktokWait(dayWord(again));
   if (step === null) return { minMinor: least, maxMinor: null, refused, hint: refused };

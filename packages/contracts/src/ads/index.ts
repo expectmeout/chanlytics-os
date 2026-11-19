@@ -14,7 +14,7 @@ export {
   parseAds,
 } from "./address";
 export type { AdsAddress, AdsScope, AdStart } from "./address";
-export { aboutADayAfter, addDays, adWith, daysBetween, MINOR_PER_UNIT, patchRestarts, sameArea } from "./ads";
+export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads";
 export type {
   AdAccountRead,
   AdAccountStatus,
@@ -40,4 +40,5 @@ export type {
   AdState,
   AdTheirs,
 } from "./ads";
+export { minorPerUnit } from "./money";
 export type { AdSaid } from "./said";

@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { MINOR_PER_UNIT, addDays } from "@chanlytics/contracts";
+import { addDays, minorPerUnit } from "@chanlytics/contracts";
 import { CHIPS, DRAWER, LIST } from "../model/drawer/words";
 import { minorOfUnits, moneyOf } from "../model/money";
 import type { EditVM } from "../model/drawer/edit-lists";
@@ -39,7 +39,7 @@ export function OwnBox({ edit, onSet, onCancel, primary = false }: OwnBoxProps) 
     if (focusAsDrawn()) box.current?.focus();
   }, []);
   // The box takes whole units; an amount is held in minor units, and the platform bounds what it may be.
-  const minor = minorOfUnits(Number(text.replace(/\D/g, "")));
+  const minor = minorOfUnits(Number(text.replace(/\D/g, "")), edit.currency);
   const within = minor >= own.minMinor && (own.maxMinor === null || minor <= own.maxMinor);
   const valid = text !== "" && own.refused === null && within && minor !== edit.currentMinor;
   const press = minor > edit.currentMinor && !edit.daily ? CHIPS.raise(moneyOf(minor, edit.currency)) : LIST.set;
@@ -51,7 +51,7 @@ export function OwnBox({ edit, onSet, onCancel, primary = false }: OwnBoxProps) 
         value={text}
         onValueChange={setText}
         inputMode="numeric"
-        placeholder={moneyOf(Math.max(own.minMinor, MINOR_PER_UNIT), edit.currency)}
+        placeholder={moneyOf(Math.max(own.minMinor, minorPerUnit(edit.currency)), edit.currency)}
         unit={edit.daily ? LIST.unitDaily : LIST.unitTotal}
         maxLength={6}
         ref={box}

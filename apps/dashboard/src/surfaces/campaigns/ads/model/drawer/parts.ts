@@ -7,7 +7,7 @@
 import { appointmentWords, REPORT_MIN_N, durationWords, addDays, daysBetween } from "@chanlytics/contracts";
 import type { AdDoor, AdFilePick, AdPersonRead, AdPlatform, AdRead, AdTheirs, AdsRead } from "@chanlytics/contracts";
 
-import { moneyOf } from "../money";
+import { aboutMoneyOf, moneyOf } from "../money";
 import { ADS_FRESH_DAYS, ADS_WINDOW_DAYS } from "../rules";
 import {
   DASH,
@@ -118,7 +118,7 @@ function drawerFacts(ad: AdRead, totals: Totals, read: AdsRead): FigureVM[] {
   }
   const each: FigureVM = {
     ...dash("each", result.each.label, result.each.def),
-    value: cost === null ? DASH : moneyOf(cost, ad.currency),
+    value: cost === null ? DASH : aboutMoneyOf(cost, ad.currency),
     change: cost !== null && settling([ad], read.today) ? FIGURES.soFar : null,
     meta: cost === null ? null : DRAWER.results.perPerson(moneyOf(totals.spentMinor, ad.currency), totals.booked),
     n: totals.booked,

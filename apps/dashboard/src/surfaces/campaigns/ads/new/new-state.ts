@@ -6,11 +6,13 @@
  * post, a kind of media moves the post, a special category lifts the area).
  */
 import { useEffect, useState } from "react";
-import { MINOR_PER_UNIT } from "@chanlytics/contracts";
+import { minorPerUnit } from "@chanlytics/contracts";
 import type { AdDoor, AdPlatform, AdsAddress, AdsConfig, AdsRead } from "@chanlytics/contracts";
+import { ADS_DEFAULT_CURRENCY } from "../model/money";
+import type { MoneyItem } from "../model/money";
 import { ADS_SPECIAL_MILES } from "../model/rules";
 import { newAdDefaults, newAdFrom, newestPostFor } from "../model/new-ad";
-import { platformsFor, smallestPreset } from "../model/vm-base";
+import { adAccountOf, platformsFor, smallestPreset } from "../model/vm-base";
 import type { AdDraft } from "../model/new-ad";
 import { mayAtLeast, onRolesChanged } from "../../../frame-verbs";
 import type { FrameKind } from "../drawer/preview";
@@ -98,14 +100,14 @@ function applyPatch(draft: AdDraft, patch: Partial<AdDraft>, basis: Basis): AdDr
   return { ...next, presetId: keptPreset(next, basis.config) };
 }
 
-/** The screens' own settings, as New ad opens. */
-function extrasOf(read: AdsRead, ownPerDayMinor: number | null): NewExtras {
+/** The screens' own settings, as New ad opens: the owner's own amount a day in whole units of its currency, or 10 where none is set. */
+function extrasOf(read: AdsRead, ownPerDay: MoneyItem | null): NewExtras {
   return {
     frame: "feed",
     askService: false,
     privacy: `https://${read.business.site}/privacy`,
     completion: "whatsapp",
-    ownText: ownPerDayMinor === null ? "10" : String(Math.round(ownPerDayMinor / MINOR_PER_UNIT)),
+    ownText: ownPerDay === null ? "10" : String(Math.round(ownPerDay.minor / minorPerUnit(ownPerDay.currency))),
   };
 }
 
@@ -127,7 +129,11 @@ function initialState(o: { basis: Basis; opening: Opening }): { state: NewState;
     const smallest = smallestPreset(basis.config);
     const patch: Partial<AdDraft> = opening.from.how === "google" && smallest ? { presetId: smallest.id } : {};
     const filled = applyPatch(draft, patch, basis);
-    return { state: { draft: filled, extra: extrasOf(basis.read, filled.ownPerDayMinor) }, step: 5 };
+    const currency = adAccountOf(basis.read, filled.platform)?.currency ?? ADS_DEFAULT_CURRENCY;
+    return {
+      state: { draft: filled, extra: extrasOf(basis.read, { minor: filled.ownPerDayMinor, currency }) },
+      step: 5,
+    };
   }
   const door: AdDoor = opening.from ? "whatsapp" : opening.door;
   const first = basis.read.ads.length === 0;
