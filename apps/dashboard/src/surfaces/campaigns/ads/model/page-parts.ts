@@ -9,8 +9,7 @@ import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/c
 import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
 import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
-import { ADS_DEFAULT_CURRENCY, aboutMoneyOf, moneyOf, perDayOf, sumMoney, sumsOf } from "./money";
-import type { MoneyItem } from "./money";
+import { ADS_DEFAULT_CURRENCY, aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
 import type { AskVM } from "./page";
 import type { PageTotals } from "./page-totals";
 import {
