@@ -614,6 +614,13 @@ before(async () => {
   const edition = 1_000_000 + Math.floor(Math.random() * 1_000_000);
   await seed("piece_images", { edition, snapshot_id: `snap_${key}`, hash: "0123456789ab" }, null);
   probes.push(["piece_images", "edition", edition]);
+  // What taking footage in cost the platform in a day (00643): no workspace on it. A day long past, picked at random,
+  // so no other suite's day is touched.
+  const footageDay = new Date(Date.UTC(1990, 0, 1) + Math.floor(Math.random() * 3650) * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  await seed("source_days", { day: footageDay, bytes: 1, takes: 1, units: 5 }, null);
+  probes.push(["source_days", "day", footageDay]);
 
   // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
   // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
