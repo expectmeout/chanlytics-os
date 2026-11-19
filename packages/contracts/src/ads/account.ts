@@ -51,7 +51,11 @@ export interface MetaAdConfig {
   /** The Page the ads run as, and its name. */
   page_id: string | null;
   page_name: string | null;
-  /** The WhatsApp number that Page is linked to, digits only, as Meta says it. */
+  /**
+   * A WhatsApp number that Page is linked to, digits only, where Meta names one. Meta answers it only to an app with its
+   * Page Public Content or Metadata Access, and names one number of the fifty a Page may hold, so null is "not named",
+   * never "none linked".
+   */
   page_whatsapp: string | null;
   /** The Instagram account that Page is linked to. Not a check: a quiet line. */
   instagram_handle: string | null;
@@ -182,13 +186,17 @@ export function adCardChecksOf(kept: {
 }): AdAccountCard["checks"] {
   const { standing, config, aiNumber } = kept;
   const linked = config.page_whatsapp;
+  // Meta names a Page's WhatsApp number only to an app with its Page Public Content or Metadata Access, and one at most
+  // of the fifty a Page may hold. So a number named settles both checks; none named settles neither (null, "Meta doesn't
+  // share this"), and a number named that is not AI's leaves AI's own unknown: it may be linked beside it. Only a
+  // workspace whose AI answers no WhatsApp number is known to miss the last.
   const answers: Record<AdCardCheckId, boolean | null> = {
     "account-active":
       standing.account === undefined ? null : standing.account === "active" || standing.account === "grace",
     payment: standing.funding === undefined ? null : standing.funding === "ok",
     "page-linked": config.page_id !== null,
-    "whatsapp-linked": linked !== null,
-    "chanlytics-whatsapp": samePhone(linked, aiNumber),
+    "whatsapp-linked": linked !== null ? true : null,
+    "chanlytics-whatsapp": aiNumber === null ? false : samePhone(linked, aiNumber) ? true : null,
   };
   return AD_CARD_CHECKS.map((id) => ({ id, ok: answers[id] }));
 }

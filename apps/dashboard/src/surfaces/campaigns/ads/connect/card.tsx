@@ -16,7 +16,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Panel } from "../../../kit/panel/panel";
 import { routeDoor } from "../../../frame-verbs";
 import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
-import { CARD, QUESTION } from "./words";
+import { CARD, CHECK_UNSAID, QUESTION } from "./words";
 
 /** What the card's presses do. */
 interface CardActs {
@@ -88,6 +88,7 @@ export function CardChecks({ checks, neededFor }: { checks: readonly CheckVM[]; 
             aria-hidden="true"
           />
           <span className="ads-conn-check">{check.label}</span>
+          {check.state === "unsaid" ? <span className="ads-conn-for">{CHECK_UNSAID}</span> : null}
           {neededFor ? <span className="ads-conn-for">{check.neededFor}</span> : null}
         </li>
       ))}

@@ -61,6 +61,9 @@ export const CHECK: Record<AdCardCheckId, { label: string; neededFor: string }> 
   "chanlytics-whatsapp": { label: "That number is the one AI answers", neededFor: "A new ad" },
 };
 
+/** Beside a check Meta does not answer for an app like Chanlytics (a Page's WhatsApp numbers): never a fault of the owner's. */
+export const CHECK_UNSAID = "Meta doesn't share this";
+
 /** One thing missing or one stop: what happened, whether it mends itself or what it stops, and its one act. */
 export interface NeedWords {
   title: string;

@@ -237,3 +237,22 @@ test("the card says its name as its page gives it: the Ads page's own, and the a
   const card = byTestId(page.draw(), "ads-conn");
   assert.equal(card.props["aria-label"], CARD.name);
 });
+
+test("a check Meta does not answer says so, its dot still: never turning as if it were being checked", async () => {
+  const { CardChecks } = await import(`${S}/surfaces/campaigns/ads/connect/card.tsx`);
+  const { CHECK_UNSAID } = await import(`${S}/surfaces/campaigns/ads/connect/words.ts`);
+  fresh();
+  const tree = again(() =>
+    CardChecks({
+      checks: [
+        { id: "whatsapp-linked", label: "WhatsApp number linked to the Page", neededFor: "A new ad", state: "unsaid" },
+        { id: "payment", label: "Payment method in Meta", neededFor: "Turn on, Resume", state: "unknown" },
+      ],
+      neededFor: false,
+    }),
+  );
+  const [unsaid, checking] = all(tree, (n) => n.type === "li");
+  assert.equal(textOf(unsaid), `WhatsApp number linked to the Page${CHECK_UNSAID}`);
+  assert.equal(find(unsaid, (n) => n.props?.className === "ads-dot").props["data-turning"], undefined);
+  assert.equal(find(checking, (n) => n.props?.className === "ads-dot").props["data-turning"], "true");
+});
