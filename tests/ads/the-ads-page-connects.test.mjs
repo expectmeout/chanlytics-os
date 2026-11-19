@@ -7,6 +7,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, redrawWanted, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
+import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 
 installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
@@ -66,6 +67,45 @@ test("someone who is not the owner sees the same card with no button, and who ca
   const tree = page.draw();
   assert.equal(headConnect().connect, null);
   assert.match(textOf(byTestId(tree, "ads-conn")), new RegExp(CARD.ownerOnly));
+});
+
+const MARK = "chanlytics.ads.connect-window.v1";
+
+/** A page that came back from Meta with `outcome` in its address: whether it closed itself. */
+async function cameBack({ marked, at = Date.now() }) {
+  let closed = false;
+  globalThis.close = () => {
+    closed = true;
+  };
+  // Meta's sign-in may clear both a window's name and its tie to the page that opened it.
+  Object.assign(globalThis, { name: "", opener: null });
+  globalThis.location.search = "?connect=connected";
+  if (marked) globalThis.localStorage.setItem(MARK, String(at));
+  else globalThis.localStorage.removeItem(MARK);
+  await pageWith({ offered: true, can_connect: true, meta: null });
+  globalThis.location.search = "";
+  return closed;
+}
+
+test("Meta's window closes itself on the way back by the page's mark, though Meta cleared its name and its opener", async () => {
+  globalThis.window.open = () => ({ closed: false });
+  const page = await pageWith({ offered: true, can_connect: true, meta: null });
+  page.draw();
+  headConnect().onConnect();
+  assert.ok(Number(globalThis.localStorage.getItem(MARK)) > 0, "Connect leaves its mark while the window is open");
+  assert.equal(await cameBack({ marked: true }), true, "the window that comes back closes");
+  assert.equal(globalThis.localStorage.getItem(MARK), null, "and takes the mark, so one page closes");
+  // A page that came back in the same tab left no mark: it stays, and so does a mark left an hour ago.
+  assert.equal(await cameBack({ marked: false }), false);
+  assert.equal(await cameBack({ marked: true, at: Date.now() - HOUR_MS - MIN_MS }), false);
+});
+
+test("a browser that opens no window follows the way in the same tab and leaves no mark", async () => {
+  globalThis.window.open = () => null;
+  const page = await pageWith({ offered: true, can_connect: true, meta: null });
+  page.draw();
+  headConnect().onConnect();
+  assert.equal(globalThis.localStorage.getItem(MARK), null);
 });
 
 test("Connect is one press: Meta's own window opens by the app's route, and the card checks while it is open", async () => {

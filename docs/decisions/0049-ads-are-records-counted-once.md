@@ -432,6 +432,15 @@ the five checks reads. Where it is not as first drawn, it is said here.
   refuses every account on it that could be the one meant, Connect answers `accounts_unreadable` and the card says it
   couldn't read the ad account, with Connect again; only where every shared account was read and none can run ads does
   it say Meta shared none.
+- **Meta's window may take an hour.** An owner with no ad account or no Page makes one in Meta's window before sharing
+  it, and the first real Connect came back after 23 minutes, past the ten minutes every sign-in's state had. Each sign-in
+  now says its state's life (`signStateFor`'s `lifeMs`): ten minutes for Instagram's and Meta's, an hour for an ad
+  account's. One that comes back later still says so: "Connect took too long", with Connect again.
+- **Meta's window closes itself by a mark, not by its name.** On that same Connect the Ads page loaded inside Meta's
+  window and stayed: a sign-in page may clear a window's name and its tie to the page that opened it, and those were how
+  the window knew itself. The page now leaves a mark in the app's storage while the window is open, good for the same
+  hour; the page that comes back with the mark takes it and closes. A browser that opens no window leaves none, so the
+  owner's own tab never closes.
 
 ## As built, 19 November 2026 · Money has one count on every runtime
 

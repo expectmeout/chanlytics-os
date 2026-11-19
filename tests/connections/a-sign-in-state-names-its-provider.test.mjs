@@ -3,7 +3,7 @@
  * 0049, step P0b): Instagram's and Meta's connects make and prove it through one helper, and an ad account's will. The
  * real functions run.
  *
- *   made      the workspace, the person, the provider and ten minutes, signed
+ *   made      the workspace, the person, the provider and the life its caller gives (ten minutes for most), signed
  *   proved    for that provider and the person signed in now, and it gives the workspace
  *   refused   another provider's state, another person's, an old one, an altered one, none: each with its word
  *   deploys   a state signed the way it was before the helper proves itself through it
@@ -18,6 +18,7 @@ import {
   signState,
   verifyState,
 } from "@chanlytics/channels/tokens";
+import { HOUR_MS, MIN_MS } from "@chanlytics/contracts";
 
 const SECRET = "the-dashboard-s-own-key";
 const NOW = Date.parse("2026-11-18T12:00:00Z");
@@ -30,23 +31,32 @@ const proved = (state, expected = {}, at = NOW) =>
   verifyStateFor(SECRET, state, { provider: "meta", userId: OWNER, ...expected }, at);
 
 test("a sign-in's state names the workspace, the person and the provider, for ten minutes", async () => {
-  const state = await signStateFor(SECRET, meta, NOW);
+  const state = await signStateFor(SECRET, meta, NOW, STATE_TTL_MS);
   const read = await verifyState(SECRET, state, NOW);
   assert.equal(read.ok, true);
   const { n, ...claims } = read.state;
   assert.deepEqual(claims, { t: WORKSPACE, u: OWNER, exp: NOW + STATE_TTL_MS, p: "meta" });
   assert.match(n, /^[A-Za-z0-9_-]{22}$/, "a nonce of 16 random bytes");
-  assert.notEqual(state, await signStateFor(SECRET, meta, NOW), "two sign-ins never share a state");
+  assert.notEqual(state, await signStateFor(SECRET, meta, NOW, STATE_TTL_MS), "two sign-ins never share a state");
+});
+
+test("its life is the caller's to say: an ad account's sign-in may make an account and a Page on the way", async () => {
+  const state = await signStateFor(SECRET, meta, NOW, HOUR_MS);
+  const read = await verifyState(SECRET, state, NOW);
+  assert.equal(read.ok && read.state.exp, NOW + HOUR_MS);
+  // Back after 23 minutes, as the first real Connect was: past ten, and still proved.
+  assert.deepEqual(await proved(state, {}, NOW + 23 * MIN_MS), { ok: true, tenantId: WORKSPACE });
+  assert.deepEqual(await proved(state, {}, NOW + HOUR_MS + 1), { ok: false, reason: "expired" });
 });
 
 test("it is proved for its provider and the person signed in now, and gives the workspace", async () => {
-  const state = await signStateFor(SECRET, meta, NOW);
+  const state = await signStateFor(SECRET, meta, NOW, STATE_TTL_MS);
   assert.deepEqual(await proved(state), { ok: true, tenantId: WORKSPACE });
   assert.deepEqual(await proved(state, {}, NOW + STATE_TTL_MS), { ok: true, tenantId: WORKSPACE }, "to the minute");
 });
 
 test("anything else is refused, each with the word its callback says", async () => {
-  const state = await signStateFor(SECRET, meta, NOW);
+  const state = await signStateFor(SECRET, meta, NOW, STATE_TTL_MS);
   const refused = (reason) => ({ ok: false, reason });
   assert.deepEqual(await proved(state, { provider: "instagram" }), refused("malformed"), "another provider's");
   assert.deepEqual(await proved(state, { userId: SOMEONE }), refused("someone_else"), "another person came back");

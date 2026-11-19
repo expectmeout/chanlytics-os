@@ -10,7 +10,7 @@
  * the state has proved who came back, and the edge and the door that writes each ask again.
  */
 import "server-only";
-import { AppError, ADS_ROUTE, ROLE_PERMS, appLink, type TenantId } from "@chanlytics/contracts";
+import { AppError, ADS_ROUTE, HOUR_MS, ROLE_PERMS, appLink, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/meta";
 import { signStateFor, verifyStateFor } from "@chanlytics/channels/tokens";
 import { stateSecret } from "../connections/google";
@@ -22,6 +22,12 @@ import { getMemberContext, type RouteContext } from "../shared/with-route";
 
 /** The provider a state for an ad account's sign-in names: the Google, mailbox, Instagram and Meta callbacks refuse it. */
 const PROVIDER = "meta_ads";
+
+/**
+ * How long Meta's window may take. An owner with no ad account, or no Page, makes one in that window before sharing it:
+ * the first real Connect came back after 23 minutes (19 November 2026), past the ten every other sign-in has.
+ */
+const META_WINDOW_LIFE_MS = HOUR_MS;
 
 /** The edge's door for an ad account, behind the dashboard's own credential, for the workspace and the person it acts for. */
 async function edgeAds(
@@ -89,7 +95,7 @@ export async function startAdsConnect(ctx: RouteContext, member: Member): Promis
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting an ad account is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
-  const state = await signStateFor(secret, signIn, Date.now());
+  const state = await signStateFor(secret, signIn, Date.now(), META_WINDOW_LIFE_MS);
   const url = metaDialogUrl(
     { clientId: ready.app.client_id, configId: ready.app.config_id, redirectUri: ready.app.redirect_uri },
     state,
