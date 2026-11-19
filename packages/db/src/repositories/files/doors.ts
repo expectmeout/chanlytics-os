@@ -335,10 +335,14 @@ export async function markFileMediaProcessing(db: Db, tenantId: TenantId, id: st
 /** What the platform's word did to a row, found by its id there. */
 export type MediaFate = {
   /**
+   * `returned`: a watched clip's copy that was let go is here again, and nothing else changed (00654: no look, no
+   * digest). `unreturned`: the platform could not prepare it again, so the file is away as it was, and the failed
+   * copy is the caller's to delete there.
+   *
    * `passed`: a found video whose road never said its length, judged by it as the platform said it (00643), was longer
    * than AI can watch or had no room: it is removed, and its road's line counts it.
    */
-  fate: "ready" | "failed" | "repeated" | "gone" | "unknown" | "passed";
+  fate: "ready" | "failed" | "repeated" | "gone" | "unknown" | "passed" | "returned" | "unreturned";
   /** Why it was passed over: longer than AI can watch, or no room in the videos; none for every other fate. */
   why?: "long" | "minutes" | null;
   tenant_id: TenantId | null;
@@ -354,6 +358,8 @@ const MEDIA_FATES = [
   "gone",
   "unknown",
   "passed",
+  "returned",
+  "unreturned",
 ] as const satisfies readonly MediaFate["fate"][];
 
 function mediaFateOf(data: unknown, door: string): MediaFate {

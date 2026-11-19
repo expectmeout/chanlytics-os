@@ -37,7 +37,7 @@ import { logger } from "@chanlytics/log";
 import { recordConversationDraftFailed } from "@chanlytics/db/ask";
 import { emitEvent, failOpenDelivery } from "@chanlytics/db/events";
 import { failQueuedSend } from "@chanlytics/db/jobs";
-import { endPiece, endSourceTake, keepFileLook } from "@chanlytics/db/files";
+import { endPiece, endSourceTake, failCopyReturn, keepFileLook } from "@chanlytics/db/files";
 import { holdNoticeIfUnkept } from "@chanlytics/db/calendar";
 import { noteImport } from "@chanlytics/db/imports";
 import {
@@ -508,6 +508,18 @@ async function settleSourceTake(db: Db, job: TerminalJob): Promise<Settled[]> {
   return [{ what: "file", changed: await endSourceTake(db, job.tenant_id, itemId) }];
 }
 
+/**
+ * A copy's return that will not finish (00654): one begun, for which the video platform was never asked, stops saying
+ * it is on its way. The file is away again, as it was, and whoever asks next begins it anew. One the platform is
+ * fetching is its word's to finish, and is left, by the write's own guard.
+ */
+async function settleCopyReturn(db: Db, job: TerminalJob): Promise<Settled[]> {
+  const fileId = idFrom(job.payload, "file_id");
+  if (!fileId) return [{ what: "file", changed: false, error: "no file on the job" }];
+  const changed = await failCopyReturn(db, { tenantId: job.tenant_id, fileId, reason: "stopped", mediaRef: null });
+  return [{ what: "file", changed }];
+}
+
 type Settler = (db: Db, job: TerminalJob, certain: boolean, why?: string) => Promise<Settled[]>;
 
 /** A post on its way to Instagram (00611): settle-post.ts says where it ends. */
@@ -533,6 +545,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   video_digest: settleVideoDigest,
   piece_make: settlePiece,
   source_take: settleSourceTake,
+  copy_return: settleCopyReturn,
   post_prepare: settlePost,
   post_publish: settlePost,
   post_reconcile: settlePost,
@@ -576,6 +589,7 @@ const WHAT_OF: Partial<Record<JobKind, Settled["what"]>> = {
   video_digest: "file",
   piece_make: "file",
   source_take: "file",
+  copy_return: "file",
   post_prepare: "post",
   post_publish: "post",
   post_reconcile: "post",

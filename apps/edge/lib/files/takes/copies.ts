@@ -29,9 +29,12 @@ const COPY_NAMED = "take:";
 /** What a take's copy is called at the video platform: its item, so a copy with no row can be traced to its take. */
 export const takeCopyName = (itemId: string): string => `${COPY_NAMED}${itemId}`;
 
-/** The item a copy was asked for, by its name; null for a video that is no take's. */
-function itemOfCopy(name: string | null): string | null {
-  const id = name?.startsWith(COPY_NAMED) ? name.slice(COPY_NAMED.length) : "";
+/**
+ * The row a copy was asked for, by the name it was asked under: a take's is its item (`take:<id>`), a return's its
+ * file (`return:<id>`, copy/bring-back.ts). Null for a video named any other way.
+ */
+export function idOfCopyNamed(prefix: string, name: string | null): string | null {
+  const id = name?.startsWith(prefix) ? name.slice(prefix.length) : "";
   return isUuid(id) ? id : null;
 }
 
@@ -45,7 +48,18 @@ export async function clearLeftCopies(
   account: StreamAccount,
   item: Pick<SourceTakeItem, "id" | "tenant_id">,
 ): Promise<number> {
-  const left = await listStreamVideosNamed(account, takeCopyName(item.id)).catch(
+  const cleared = await clearCopiesNamed(db, account, takeCopyName(item.id));
+  if (cleared > 0)
+    logger({ tenant_id: item.tenant_id }).warn("source_take_failed", { item: item.id, why: "copy_left", cleared });
+  return cleared;
+}
+
+/**
+ * The copies the video platform holds under one name that no Library file holds, deleted: what an earlier try of a
+ * take, or of a copy's return (copy/bring-back.ts), left there. Answers how many went.
+ */
+export async function clearCopiesNamed(db: Db, account: StreamAccount, name: string): Promise<number> {
+  const left = await listStreamVideosNamed(account, name).catch(
     logAndGoOn("source take: read the copies an earlier try left", null),
   );
   if (!left || left.length === 0) return 0;
@@ -61,8 +75,6 @@ export async function clearLeftCopies(
     );
     if (gone) cleared += 1;
   }
-  if (cleared > 0)
-    logger({ tenant_id: item.tenant_id }).warn("source_take_failed", { item: item.id, why: "copy_left", cleared });
   return cleared;
 }
 
@@ -72,7 +84,7 @@ export async function clearLeftCopies(
  * file, and the word is not that the copy is ready: by then a living job has long written). Answers whether it went.
  */
 export async function clearUnheldCopy(db: Db, video: Pick<StreamVideo, "uid" | "name" | "ready">): Promise<boolean> {
-  const itemId = itemOfCopy(video.name);
+  const itemId = idOfCopyNamed(COPY_NAMED, video.name);
   const account = streamAccount();
   if (!itemId || !account) return false;
   const item = await findSourceItemAnywhere(db, itemId);

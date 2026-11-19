@@ -34,6 +34,7 @@ import { workspaceOf } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
+import { ensureCopy } from "./copy/ensure.js";
 import { LISTEN_MS, listenTo } from "./hearing.js";
 import { streamKeys } from "./video-keys.js";
 import type { TenantId } from "@chanlytics/contracts";
@@ -136,11 +137,14 @@ export async function startVideoUpload(
   }
 }
 
-/** A video the member's workspace keeps, playable, or the refusal that says why not. */
-async function playableOf(db: Parameters<typeof findFileForWork>[0], tenantId: TenantId, id: unknown) {
+/**
+ * A video the member's workspace keeps, made ready, or null. What was made of it (its sound, its stills) is in its own
+ * folder, so this asks nothing of its copy at the video platform, which may have been let go.
+ */
+async function readyVideoOf(db: Parameters<typeof findFileForWork>[0], tenantId: TenantId, id: unknown) {
   if (typeof id !== "string" || !UUID.test(id)) return null;
   const row = await findFileForWork(db, tenantId, id);
-  return row && !row.removed_at && row.kind === "video" && row.media_status === "ready" && row.media_ref ? row : null;
+  return row && !row.removed_at && row.kind === "video" && row.media_status === "ready" ? row : null;
 }
 
 /** POST /api/admin/files/play: the player's address for one video, under an hour's token, its poster and captions ours. */
@@ -149,11 +153,21 @@ export async function signVideoPlay(auth: Admitted, body: DoorRead<typeof FILE_P
   if (!ws.ok) return ws.response;
   const at = workspaceOf(ws.tenantId);
   if (!at.ok) return at.response;
-  const row = await playableOf(at.db, at.tenantId, body.id);
-  if (!row?.media_ref) return refuse(404, "not_found", "no playable video by that id");
+  if (typeof body.id !== "string" || !UUID.test(body.id))
+    return refuse(404, "not_found", "no playable video by that id");
+  // Through the copy's door: a watched folder's clip may have been let go, and this press is what asks for it again.
+  const held = await ensureCopy(at.db, at.tenantId, body.id, "play");
+  const row = held.row;
+  if (!row || held.copy === "none" || row.media_status !== "ready")
+    return refuse(404, "not_found", "no playable video by that id");
+  // Not here: on its way back (asked for by this press, or before it), or its folder cannot give it back, with why.
+  // Each is a word of a closed set (contracts FILE_COPY_STATES, FILE_COPY_WHYS): the page says it in its own words.
+  if (held.copy === "lost") return json(200, { ok: true, copy: "lost", why: held.loss });
+  if (held.copy === "away") return json(200, { ok: true, copy: "away", ...(held.reason ? { why: held.reason } : {}) });
+  if (held.copy !== "here") return json(200, { ok: true, copy: "returning" });
   const keys = streamKeys();
   if (!keys) return refuse(503, "no_provider_key", "videos are not set up on this deployment");
-  const token = streamTokenOf(keys.signing, { uid: row.media_ref, seconds: PLAY_TOKEN_S });
+  const token = streamTokenOf(keys.signing, { uid: held.mediaRef, seconds: PLAY_TOKEN_S });
   // The player is Stream's page, so the poster is a signed address of our own still, which it can fetch without a session.
   const poster = await filesBucket(at.db).createSignedUrl(
     fileMadePathOf(row.tenant_id, row.id, "poster"),
@@ -180,7 +194,7 @@ export async function listenToVideo(auth: Admitted, body: DoorRead<typeof FILE_L
   if (!at.ok) return at.response;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, QUESTION_MOST) : "";
   if (!question) return refuse(400, "bad_request", "a question is required");
-  const row = await playableOf(at.db, at.tenantId, body.id);
+  const row = await readyVideoOf(at.db, at.tenantId, body.id);
   if (!row) return refuse(404, "not_found", "no playable video by that id");
   const seconds = Number(row.seconds) || 0;
   const from = body.from === undefined || body.from === null ? null : secondsOf(body.from);

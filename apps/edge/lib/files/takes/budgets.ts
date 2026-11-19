@@ -6,7 +6,7 @@
  * Google gives a project 1 TB of Drive downloads and 400,000,000 units a day before it charges, and counts a day in
  * Pacific time. The database counts the same day (00643 source_take_spend), so "tomorrow" here is Google's tomorrow.
  */
-import { HOUR_MS, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { DAY_MS, HOUR_MS, MIN_MS, SECOND_MS, WEEK_MS } from "@chanlytics/contracts";
 
 /** A million of Google's units: its quota is written in them. */
 const MILLION_UNITS = 1_000_000;
@@ -73,8 +73,16 @@ export const TAKE_HAND_OUT = {
 
 /** How long an item rests before it is tried again, by what it waits for. A day's budget rests until the day ends. */
 export const TAKE_RESTS_MS = {
-  /** The videos are full: room comes when a video is removed, so it is asked after a few times a day. */
+  /**
+   * The videos are full and no copy may ever be let go for them (uploads, made and found videos fill them): room
+   * comes when a video is removed, which releases what waits at once, so it is asked after a few times a day.
+   */
   room: 6 * HOUR_MS,
+  /**
+   * The videos are full and a copy may be let go once its rest ends (00654 file_copies_free_at): tried again this
+   * long after, so the copy has passed its rest whatever the two clocks say.
+   */
+  afterRest: MIN_MS,
   /** The Library is full. */
   libraryFull: 6 * HOUR_MS,
   /** The workspace takes no videos yet, or this deployment has no relay or video platform to send one through. */
@@ -92,3 +100,61 @@ export const RELAY_TICKET_MS = 6 * HOUR_MS;
 
 /** One read of Drive's bytes: a clip's first MiB, and a photo whole (25 MB at most). */
 export const TAKE_READ_MS = { head: 15 * SECOND_MS, photo: 25 * SECOND_MS } as const;
+
+/**
+ * Bringing a watched clip's copy back to the video platform (the plan's Availability and D15): each return is a whole
+ * download again, so it spends the platform's bytes and units of the day beside the takes', and a workspace has a
+ * number of its own. Starting values, unmeasured: no copy has been let go or brought back on a real account by the app.
+ */
+export const RETURN_BUDGETS = {
+  /** Copies one workspace may bring back in a day: a video made from six clips, three times over. */
+  workspaceReturnsADay: 20,
+} as const;
+
+/** How a return is paced. */
+export const COPY_RETURN = {
+  /**
+   * A return marked as begun that the video platform was never asked for (its job died in between) is begun again by
+   * the next asker, or ended by the sweep, once this old.
+   */
+  staleSeconds: (10 * MIN_MS) / SECOND_MS,
+  /** An ask that meets a copy being let go is run this much later, once the delete has landed. */
+  afterGoingMs: 20 * SECOND_MS,
+  /** A copy coming back that the video platform has not said its word about is asked after once this old. */
+  askAfterMs: 2 * MIN_MS,
+  /** One it still has not prepared by then is given up: the file stays away, and the next ask begins anew. */
+  giveUpMs: HOUR_MS,
+} as const;
+
+/**
+ * Letting a watched clip's copy go (the plan's D6): by room, the least recently used first, when a clip needs it; and
+ * by age, with room to spare. Never an upload, a video made here or a found video (00654 file_copies_let_go).
+ */
+export const LET_GO = {
+  /** A copy unused this long is let go even where there is room. */
+  unusedMs: 2 * WEEK_MS,
+  /**
+   * A copy is not let go within this of its last use or of its arrival: a player's token lasts an hour, and a first
+   * watch of a large folder then turns over the sixty minutes an hour at a time, not a clip at a time. A clip that
+   * found them full is tried again as the first rest ends (`TAKE_RESTS_MS.afterRest`), not a room's six hours.
+   */
+  restMs: HOUR_MS,
+  /** The most copies one read of a folder lets go by age. */
+  aRead: 5,
+  /** The most copies one take or return lets go to make its room. */
+  forRoom: 100,
+  /** A copy marked as going whose delete at the video platform never landed is finished by the sweep once this old. */
+  staleMs: 10 * MIN_MS,
+  /** A use is written at most this often: a clip played and shown to AI in one sitting is one write. */
+  touchEveryMs: 5 * MIN_MS,
+} as const;
+
+/**
+ * The seven-day cleanup (the plan's D3, as narrowed on 18 November): how long after an item was seen in its
+ * provider's bin, or moved out to a place its account can see, its unused Library file leaves; and how many items
+ * one half-hourly pass settles, for every workspace together.
+ */
+export const SOURCE_GRACE = {
+  seconds: (7 * DAY_MS) / SECOND_MS,
+  aSweep: 500,
+} as const;

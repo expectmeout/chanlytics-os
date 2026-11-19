@@ -16,6 +16,7 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
+import { clearUnheldReturn, hearCopyWord } from "./copy/bring-back.js";
 import { tellPieceMoved } from "./piece-make.js";
 import { clearUnheldCopy } from "./takes/copies.js";
 import { settleTakenVideo } from "./takes/word.js";
@@ -69,8 +70,11 @@ export async function receiveStreamWebhook(request: Request): Promise<Response> 
   // not heard, so Stream says it again, and a word heard twice settles what the first did not.
   try {
     await settleTakenVideo(db, fate, video.seconds);
-    // A take's copy that no row holds (its job died as the platform took the address): deleted, so it holds no minutes.
-    if (fate.fate === "unknown") await clearUnheldCopy(db, video);
+    // A copy coming back (00654): here again and nothing else, or, where it could not be prepared, deleted there.
+    await hearCopyWord(fate, video.uid);
+    // A take's or a return's copy that no row holds (its job died as the platform took the address, or the row has
+    // since moved on to a later attempt's): deleted, so it holds no minutes.
+    if (fate.fate === "unknown" && !(await clearUnheldCopy(db, video))) await clearUnheldReturn(db, video);
   } catch (e) {
     log.error("stream_webhook_unwritable", { error: errField(e) });
     return refuse(503, "no_database");

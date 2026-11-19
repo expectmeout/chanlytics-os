@@ -214,6 +214,11 @@ function world({ piece = pieceRow(), clip = clipRow(), photos = [], image = true
         Object.assign(row(), { status: "failed", failed_why: a.p_why, machine: null });
         return true;
       },
+      // 00654: where a watched clip's copy stands, as its row says it (its origins are the copies' own tests').
+      file_copy_settle: (a) => {
+        const file = tables.files.find((f) => f.id === a.p_file_id);
+        return { copy_state: file?.copy_state ?? null, copy_why: file?.copy_why ?? null, item_id: null };
+      },
     },
   );
   setPg(db);
@@ -443,6 +448,26 @@ test("a clip removed since the press ends it before anything is spent, and its o
   assert.equal(told.body, PIECE_WORDS.bell.failedBody("clips"));
   // Content's Needs you, where a video that could not be made waits on its owner.
   assert.equal(told.route, "campaigns/content:needs");
+});
+
+test("a watched clip whose copy was let go is waited for as it comes back: the same step, a minute on, no machine", async () => {
+  // Asked back when AI proposed the video, or by this very step: it is on its way.
+  const away = clipRow({ source: "drive", copy_state: "returning", media_ref: null });
+  const { db, tables, machine, row } = world({ clip: away });
+  await makePiece(db, job("start", "2"), soon());
+  assert.equal(machine.started.length, 0, "nothing is drawn from a copy that is not there");
+  assert.equal(row().status, "making");
+  assert.deepEqual(stepsOf(tables), [["piece_make", "start", "3"]]);
+  assert.equal(row().stage, "waiting_clip");
+});
+
+test("a watched clip whose original left its folder ends the video: its clips could not be used", async () => {
+  const lost = clipRow({ source: "drive", copy_state: "lost", copy_why: "gone", media_ref: null });
+  const { db, tables, machine, row } = world({ clip: lost });
+  await makePiece(db, job("start"), soon());
+  assert.equal(machine.started.length, 0);
+  assert.deepEqual([row().status, row().failed_why], ["failed", "clips"]);
+  assert.equal(tables.notifications.length, 1, "and its owner is told");
 });
 
 test("an edition with no image on record is waited for, since a person builds one", async () => {

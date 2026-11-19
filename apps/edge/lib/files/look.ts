@@ -40,6 +40,7 @@ import type { ClaimedJob } from "@chanlytics/jobs";
 import { askJson, firstJson, mayModelGo, promptHashOf, type ModelCallFor } from "../ai/model.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { ensureCopyOf } from "./copy/ensure.js";
 import { drawPoster } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
 import { keepPrint, downloadPrintCopy } from "./prints.js";
@@ -276,8 +277,12 @@ async function lookAtVideo(db: Db, job: ClaimedJob, row: FileRow, deadline: numb
   await keep(read ? "done" : answered.refused ? "refused" : "failed", read);
   const at = read?.look.poster_at;
   const keys = streamKeys();
-  if (typeof at !== "number" || !keys || !row.media_ref) return;
-  const poster = await drawPoster(keys.signing, { mediaRef: row.media_ref, width: row.width, height: row.height }, at);
+  if (typeof at !== "number" || !keys) return;
+  // Through the copy's door: the poster is cut from the copy at the video platform. A look again at a clip whose copy
+  // was let go reads its sheet from its folder, brings nothing back, and leaves the poster it has.
+  const held = await ensureCopyOf(db, row, "look");
+  if (held.copy !== "here") return;
+  const poster = await drawPoster(keys.signing, { mediaRef: held.mediaRef, width: row.width, height: row.height }, at);
   const stored = poster
     ? await filesBucket(db).upload(fileMadePathOf(row.tenant_id, row.id, "poster"), poster.bytes, {
         contentType: FILE_MADE_OF_VIDEO_MIMES.poster,

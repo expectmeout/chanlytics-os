@@ -187,6 +187,9 @@ export const JOB_KINDS = [
   "video_digest",
   // One photo or clip of a watched folder taken into the Library (00643): payload { item_id, try }, once an item and a try.
   "source_take",
+  // A watched clip's copy brought back to the video platform from its folder (00654): payload { file_id }, once a file
+  // while one waits or runs, so two askers join one job.
+  "copy_return",
   /**
    * A post on its way to Instagram (00611, decision 0121), payload { post_id, attempt }, once a post and an attempt while one
    * waits, in the bulk lane: a post never holds a reply. Prepare makes it ready there (a container) and is run again safely;

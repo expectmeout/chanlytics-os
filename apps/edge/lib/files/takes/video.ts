@@ -26,13 +26,15 @@ import {
   uploadNameOf,
   videoPreviewOf,
   type FileVideoMime,
+  type TenantId,
 } from "@chanlytics/contracts";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import { findFileForWork, recordVideoSourced, type SourcedVideoFate } from "@chanlytics/db/files";
+import { findCopiesFreeAt, findFileForWork, recordVideoSourced, type SourcedVideoFate } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import { env } from "../../shared/env.js";
+import { makeRoom } from "../copy/let-go.js";
 import { streamAccount } from "../video-keys.js";
-import { DRIVE_UNITS, RELAY_TICKET_MS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
+import { DRIVE_UNITS, LET_GO, RELAY_TICKET_MS, TAKE_READ_MS, TAKE_RESTS_MS } from "./budgets.js";
 import {
   endTake,
   endUnread,
@@ -47,22 +49,37 @@ import { clearLeftCopies, takeCopyName } from "./copies.js";
 import { nameWithoutType } from "./photo.js";
 
 /** What this deployment sends a clip through: the video platform's account, the relay's address and the ticket's key. */
-interface VideoRoad {
+export interface VideoRoad {
   account: StreamAccount;
   relayUrl: string;
   ticketKey: string;
 }
 
-/** The road, or null where any part of it is unset or the workspace takes no videos (features.video_preview). */
-async function videoRoadOf(taking: Taking): Promise<VideoRoad | null> {
+/**
+ * The road, or null where any part of it is unset or the workspace takes no videos (features.video_preview). A copy
+ * brought back goes by the same one (copy/bring-back.ts).
+ */
+export async function findVideoRoad(db: Taking["db"], tenantId: TenantId): Promise<VideoRoad | null> {
   const account = streamAccount();
   const relayUrl = env.FOOTAGE_RELAY_URL;
   const ticketKey = env.FOOTAGE_TICKET_KEY;
   if (!account || !relayUrl || !ticketKey) return null;
-  const config = await findWorkspaceNameAndConfig(taking.db, taking.item.tenant_id)
+  const config = await findWorkspaceNameAndConfig(db, tenantId)
     .then((workspace) => workspace.config)
     .catch(logAndGoOn("source take: read the video switch", null));
   return config !== null && videoPreviewOf(config) ? { account, relayUrl, ticketKey } : null;
+}
+
+/**
+ * When a clip that found the videos full is tried again (00654 file_copies_free_at): as soon as a copy that may not
+ * be let go yet could be (a minute after its rest ends, an hour at most), or a few times a day where none ever may.
+ * Freed room wakes it sooner either way: a video removed or a copy let go releases what waited for room.
+ */
+async function roomAfter(taking: Taking): Promise<Date> {
+  const now = Date.now();
+  const free = await findCopiesFreeAt(taking.db, taking.item.tenant_id, LET_GO.restMs / SECOND_MS);
+  if (!free) return new Date(now + TAKE_RESTS_MS.room);
+  return new Date(Math.max(free.getTime() + TAKE_RESTS_MS.afterRest, now + TAKE_RESTS_MS.afterRest));
 }
 
 /** What the door's answer means for the item, where it is not "write the row": null to go on. */
@@ -76,7 +93,7 @@ async function endJudged(taking: Taking, judged: SourcedVideoFate, bytes: number
       park: "all",
     });
   if (judged.fate === "minutes")
-    return putBack(taking, { why: "room", until: new Date(Date.now() + TAKE_RESTS_MS.room), park: "videos" });
+    return putBack(taking, { why: "room", until: await roomAfter(taking), park: "videos" });
   // The door's own word for what the screen already refuses: a clip longer than AI can watch.
   if (judged.fate === "long") return endTake(taking, { state: "too_big", why: "seconds", bytes });
   return null;
@@ -88,7 +105,7 @@ export async function takeVideo(
   video: { mime: FileVideoMime; bytes: number; seconds: number | null },
 ): Promise<TakeEnd> {
   const { db, item, record, log } = taking;
-  const road = await videoRoadOf(taking);
+  const road = await findVideoRoad(db, item.tenant_id);
   if (!road)
     return putBack(taking, {
       why: "videos_off",
@@ -113,8 +130,14 @@ export async function takeVideo(
     seconds: video.seconds,
     fingerprint: fileFingerprintOf(read.answer.bytes, bytes),
   };
-  // Room, a twin and what was let go, judged before the video platform is asked for anything.
-  const judged = await endJudged(taking, await recordVideoSourced(db, { ...clip, mediaRef: null }), bytes);
+  // Room, a twin and what was let go, judged before the video platform is asked for anything. Judged to fit, its
+  // room is held from here until its row is written (00654), so the takes beside it are judged with it counted.
+  let fate = await recordVideoSourced(db, { ...clip, mediaRef: null });
+  // The videos are full: the workspace's least recently used copies are let go for it, and it is judged again. Where
+  // nothing may go (uploads, made and found videos fill the sixty minutes), it waits, and its folder's line says so.
+  if (fate.fate === "minutes" && (await makeRoom(db, item.tenant_id, video.seconds ?? 0, taking.deadline)))
+    fate = await recordVideoSourced(db, { ...clip, mediaRef: null });
+  const judged = await endJudged(taking, fate, bytes);
   if (judged) return judged;
   // What is still to be spent at Google is the video platform's own read through the relay: its record, then its bytes.
   const waits = await spendTake(taking, bytes, DRIVE_UNITS.record + DRIVE_UNITS.download);

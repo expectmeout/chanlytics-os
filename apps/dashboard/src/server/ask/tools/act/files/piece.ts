@@ -24,7 +24,7 @@ import { postDrawProblem, postWordsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
-import { findPictureCopy } from "../../../../files/copies";
+import { findPictureCopy, warmVideoCopies } from "../../../../files/copies";
 import {
   timeLeftOf,
   defineAct,
@@ -505,6 +505,13 @@ async function pieceOutcome(toolContext: ToolContext, input: z.infer<typeof piec
   const checked = await checkPieceClips(toolContext.ctx, toolContext.tenantId, plan, config);
   if (!checked.ok)
     return refuse(checked.cut ? `block ${checked.cut}: ${WONT_TO_MODEL[checked.wont]}` : WONT_TO_MODEL[checked.wont]);
+  // Its clips are asked back to the video platform now, as the video is proposed: a watched folder's clip whose copy
+  // was let go takes a couple of minutes to return, and the owner's press should never be what begins that.
+  await warmVideoCopies(
+    { tenantId: toolContext.tenantId, userId: toolContext.ctx.userId },
+    checked.files.filter((file) => file.kind === "video").map((file) => file.id),
+    timeLeftOf(toolContext),
+  );
   const key = pieceLookKeyOf(plan);
   if (input.looked !== key) {
     if (input.looked)

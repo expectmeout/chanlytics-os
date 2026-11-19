@@ -1,3 +1,5 @@
+export { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./copy";
+export type { FileCopyLoss, FileCopyState, FileCopyWait, FileCopyWhy } from "./copy";
 export {
   FILE_BRING_IN_DOOR,
   FILE_COPIES_DOOR,

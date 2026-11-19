@@ -26,6 +26,34 @@ export function nextPacificDay(ms) {
   return new Date(back - (back % (60 * 1000)));
 }
 
+/** How long a take's hold on its room counts, with nothing written to its item meanwhile (00654 video_seconds_held). */
+const HOLD_MS = 10 * 60 * 1000;
+
+/** Whether a file counts toward the Library's cap: a watched clip whose copy is away or lost does not (00654, D16). */
+export const countsAsFile = (f) => !f.removed_at && !["away", "lost"].includes(f.copy_state ?? "here");
+
+/**
+ * The seconds that count toward a workspace's sixty minutes, as 00654 video_seconds_toward_cap sums them: videos
+ * whose copy is here, going or returning, and what its takes hold between their judging and their row.
+ */
+export function videoSecondsOf(tables, nowMs, tenantId) {
+  const kept = tables.files
+    .filter((f) => f.tenant_id === tenantId && countsAsFile(f) && f.kind === "video" && f.media_status !== "failed")
+    .reduce((sum, f) => sum + Number(f.seconds ?? 0), 0);
+  const held = (tables.source_items ?? [])
+    .filter(
+      (i) =>
+        i.tenant_id === tenantId &&
+        i.state === "taking" &&
+        i.kind === "video" &&
+        !i.file_id &&
+        i.held_seconds != null &&
+        Date.parse(i.updated_at) > nowMs - HOLD_MS,
+    )
+    .reduce((sum, i) => sum + Number(i.held_seconds), 0);
+  return kept + held;
+}
+
 /**
  * The doors over `tables`, read through `w`: its clock (`nowMs`), what it keeps of each knock (`asked`, `handOuts`,
  * `unitWrites`) and a case's switches (`doorThrows`, `doorCallsLong`, `kindPaused`, `handOutFails`), each read as a door is
@@ -38,11 +66,8 @@ export function takeDoors(tables, w) {
     tables.files.find((f) => f.tenant_id === tenantId && f.fingerprint === fingerprint && !f.removed_at);
   const wasLetGo = (tenantId, fingerprint) =>
     tables.files_let_go.some((g) => g.tenant_id === tenantId && g.fingerprint === fingerprint);
-  const kept = (tenantId) => tables.files.filter((f) => f.tenant_id === tenantId && !f.removed_at);
-  const videoSeconds = (tenantId) =>
-    kept(tenantId)
-      .filter((f) => f.kind === "video" && f.media_status !== "failed")
-      .reduce((sum, f) => sum + Number(f.seconds ?? 0), 0);
+  const kept = (tenantId) => tables.files.filter((f) => f.tenant_id === tenantId && countsAsFile(f));
+  const videoSeconds = (tenantId) => videoSecondsOf(tables, w.nowMs, tenantId);
   const dayRow = () => {
     const day = pacificDay(w.nowMs);
     let row = tables.source_days.find((d) => d.day === day);
@@ -54,6 +79,14 @@ export function takeDoors(tables, w) {
     if (!row) return { fate: "unknown" };
     const named = { tenant_id: row.tenant_id, file_id: row.id, made: false };
     if (row.removed_at) return { fate: word === "ready" ? "gone" : "repeated", ...named };
+    // A copy coming back (00654): here again and nothing else, or away again where it could not be prepared. The row
+    // was found by this copy's own id, so an earlier attempt's word never reaches here.
+    if (row.copy_state === "returning" && row.media_ref === mediaRef) {
+      if (word === "ready")
+        Object.assign(row, { copy_state: "here", copy_why: null, copy_used_at: new Date(w.nowMs).toISOString() });
+      else Object.assign(row, { copy_state: "away", copy_why: "failed", media_ref: null });
+      return { fate: word === "ready" ? "returned" : "unreturned", ...named };
+    }
     if (["ready", "failed"].includes(row.media_status)) return { fate: "repeated", ...named };
     // A video whose road never said its length, judged by it as the platform says it: too long, or no room.
     if (word === "ready" && row.seconds === null && seconds !== null && row.source !== "upload") {
@@ -116,6 +149,9 @@ export function takeDoors(tables, w) {
     file_video_sourced: (a) => {
       w.asked.push({ door: "file_video_sourced", ...a });
       if (w.doorThrows) throw new Error(w.doorThrows);
+      // 00654: what this take held at an earlier judging is let go of first, so it is never counted against itself.
+      const taking = tables.source_items.find((i) => i.tenant_id === a.p_tenant_id && i.id === a.p_item_id);
+      if (taking) taking.held_seconds = null;
       const held = tables.files.find((f) => f.tenant_id === a.p_tenant_id && f.id === a.p_id);
       if (held) return { fate: "kept", file_id: a.p_id, media_ref: held.media_ref };
       const twin = live(a.p_tenant_id, a.p_fingerprint);
@@ -127,7 +163,15 @@ export function takeDoors(tables, w) {
       const used = videoSeconds(a.p_tenant_id);
       if ((a.p_seconds === null && used >= 3600) || used + Number(a.p_seconds ?? 0) > 3600)
         return { fate: "minutes", file_id: null };
-      if (a.p_media_ref === null) return { fate: "room", file_id: null };
+      if (a.p_media_ref === null) {
+        // Judged to fit: its room is held until its row is written (00654, the review's finding 9).
+        if (taking?.state === "taking")
+          Object.assign(taking, {
+            held_seconds: Number(a.p_seconds ?? 0),
+            updated_at: new Date(w.nowMs).toISOString(),
+          });
+        return { fate: "room", file_id: null };
+      }
       tables.files.push({
         id: a.p_id,
         tenant_id: a.p_tenant_id,
@@ -143,6 +187,8 @@ export function takeDoors(tables, w) {
         media_ref: a.p_media_ref,
         media_status: "uploading",
         look_status: "waiting",
+        copy_state: "here",
+        copy_why: null,
         removed_at: null,
       });
       const item = tables.source_items.find((i) => i.tenant_id === a.p_tenant_id && i.id === a.p_item_id);
