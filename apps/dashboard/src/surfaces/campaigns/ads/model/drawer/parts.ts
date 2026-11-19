@@ -9,19 +9,7 @@ import type { AdDoor, AdFilePick, AdPersonRead, AdPlatform, AdRead, AdTheirs, Ad
 
 import { aboutMoneyOf, moneyOf } from "../money";
 import { ADS_FRESH_DAYS, ADS_WINDOW_DAYS } from "../rules";
-import {
-  DASH,
-  adPersonWho,
-  adQuotes,
-  costEach,
-  countCtx,
-  counted,
-  filePickOf,
-  adServiceOf,
-  settling,
-  started,
-  timeOf,
-} from "../vm-base";
+import { DASH, adPersonWho, adQuotes, countCtx, counted, filePickOf, adServiceOf, started, timeOf } from "../vm-base";
 import type { FigureVM, Totals } from "../vm-base";
 import { DOOR, PLATFORM_OWNER, dayShort, dayWord, daysWord } from "../words";
 import { DRAWER, PREVIEW } from "./words";
@@ -81,7 +69,7 @@ const FACT_DEF: Record<AdDoor, string> = {
 
 function drawerFacts(ad: AdRead, totals: Totals, read: AdsRead): FigureVM[] {
   const result = figureWords(countCtx(read));
-  const cost = counted(ad) ? costEach(totals.spentMinor, totals.booked) : null;
+  const cost = totals.cost.eachMinor;
   const dash = (id: FigureVM["id"], label: string, def: string, meta: string | null = null): FigureVM => ({
     id,
     label,
@@ -119,7 +107,7 @@ function drawerFacts(ad: AdRead, totals: Totals, read: AdsRead): FigureVM[] {
   const each: FigureVM = {
     ...dash("each", result.each.label, result.each.def),
     value: cost === null ? DASH : aboutMoneyOf(cost, ad.currency),
-    change: cost !== null && settling([ad], read.today) ? FIGURES.soFar : null,
+    change: totals.cost.soFar ? FIGURES.soFar : null,
     meta: cost === null ? null : DRAWER.results.perPerson(moneyOf(totals.spentMinor, ad.currency), totals.booked),
     n: totals.booked,
   };

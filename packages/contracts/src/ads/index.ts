@@ -40,5 +40,7 @@ export type {
   AdState,
   AdTheirs,
 } from "./ads";
+export { bookedAfterTouch } from "./booked-after-touch";
 export { minorPerUnit } from "./money";
 export type { AdSaid } from "./said";
+export { adAccountStateOf, adStateOf } from "./states";

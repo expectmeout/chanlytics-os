@@ -234,6 +234,11 @@ test("money of two currencies is two sums side by side, never converted, and the
     metaOnly.days.rows[0].spent,
     spentMinor([adOf(bent, SPRING), adOf(bent, OLD_BOOST)], read.window.from, read.window.from) / 100,
   );
+  // The chart's height is in the currency's own units: a yen account's day is its yen, never a hundredth of them.
+  const yen = fold({ ...read, ads: read.ads.map((a) => ({ ...a, currency: "JPY" })) });
+  assert.equal(yen.days.currency, "JPY");
+  assert.equal(yen.days.rows[0].spent, spentMinor(read.ads, read.window.from, read.window.from));
+  assert.match(yen.figures[0].value, /^¥[\d,]+$/);
 });
 
 test("days end yesterday, and what is only read for the page's 30 days is a dash with its reason for any other days", () => {

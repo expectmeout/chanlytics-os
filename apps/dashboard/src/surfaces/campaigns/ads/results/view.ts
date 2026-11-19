@@ -13,7 +13,17 @@
  * read for the page's 30 days (the first reply, what came of the appointments, the platforms' own counts) is a dash with its reason
  * for any other days, or for one platform or one ad where it is not split that way, never a guess.
  */
-import { appointmentWords, lensEmpty, addDays, daysBetween, ADS_SCOPE_ALL, adsScopeKey } from "@chanlytics/contracts";
+import {
+  AD_SETTLE_DAYS,
+  ADS_SCOPE_ALL,
+  adDaySettling,
+  addDays,
+  adsScopeKey,
+  appointmentWords,
+  daysBetween,
+  lensEmpty,
+  minorPerUnit,
+} from "@chanlytics/contracts";
 import type { AdDoor, AdPlatform, AdRead, AdTheirs, AdsConfig, AdsRead, AdsScope } from "@chanlytics/contracts";
 
 import { aboutMoneyOf, moneyOf, sumMoney } from "../model/money";
@@ -21,7 +31,6 @@ import { adsModel } from "../model/page";
 import type { AdRowVM } from "../model/page";
 import { pageTotals, tilesOf } from "../model/page-parts";
 import type { TilesVM } from "../model/page-parts";
-import { ADS_SETTLE_DAYS } from "../model/rules";
 import { DASH, PLATFORMS, adAccountOf, counted, readTime, started, sum, timeOf, totalsOf } from "../model/vm-base";
 import type { CellVM, FigureVM } from "../model/vm-base";
 import { DOOR, DOOR_ORDER, PLATFORM_OWNER, PLATFORM_WORD, dayShort, dayWord } from "../model/words";
@@ -184,7 +193,8 @@ function scopeWordOf(scope: AdsScope, ads: readonly AdRead[]): string {
 // ---------------------------------------------------------------------------------------------------------------------
 // By day
 
-const unitsOf = (minor: number): number => minor / 100;
+/** An amount in whole units of its currency, for the chart's height: a yen is not a hundredth of one. */
+const unitsOf = (minor: number, currency: string): number => minor / minorPerUnit(currency);
 
 function resultDaysOf(
   ads: readonly AdRead[],
@@ -192,7 +202,6 @@ function resultDaysOf(
 ): ResultsDaysVM {
   const currencies = [...new Set(ads.map((ad) => ad.currency))];
   const one = currencies.length === 1 ? (currencies[0] ?? null) : null;
-  const settleFrom = addDays(options.today, -ADS_SETTLE_DAYS);
   const rows: ResultsDayVM[] = [];
   for (let day = options.from; day <= options.to; day = addDays(day, 1)) {
     const mine = ads.flatMap((ad) =>
@@ -207,13 +216,13 @@ function resultDaysOf(
       day,
       label: dayWord(day),
       short: String(Number(day.slice(8, 10))),
-      spent: one === null ? null : unitsOf(sum(mine.map((r) => r.spendMinor))),
+      spent: one === null ? null : unitsOf(sum(mine.map((r) => r.spendMinor)), one),
       spentWords: sumMoney(mine.map((r) => ({ minor: r.spendMinor, currency: r.ad.currency }))),
       inTouch,
       booked,
       waiting: Math.max(0, inTouch - booked),
       calls: sum(mine.filter((r) => !counted(r.ad)).map((r) => r.inTouch)),
-      settling: day >= settleFrom,
+      settling: adDaySettling(day, options.today),
     });
   }
   const calls = sum(rows.map((r) => r.calls));
@@ -232,7 +241,7 @@ function resultDaysOf(
     spentAria: RESULTS.days.spentAria({ total: spent, days: rows.length }),
     peopleAria: RESULTS.days.peopleAria({ people, booked: sum(rows.map((r) => r.booked)), days: rows.length }),
     notes: [
-      ...(settles ? [RESULTS.days.settling(ADS_SETTLE_DAYS, options.a)] : []),
+      ...(settles ? [RESULTS.days.settling(AD_SETTLE_DAYS, options.a)] : []),
       ...(calls > 0 ? [RESULTS.days.callsNote(calls)] : []),
       ...(one === null ? [RESULTS.days.severalCurrencies] : []),
     ],

@@ -37,8 +37,7 @@ import {
   DASH,
   PLATFORMS,
   adAccountOf,
-  adStateOf,
-  costEach,
+  adBadgeOf,
   countCtx,
   counted,
   dayOfIso,
@@ -204,7 +203,7 @@ const cell = (value: string, unit: string | null = null, reason: string | null =
 });
 
 function eachCell(t: Totals, ad: AdRead): CellVM {
-  const cost = costEach(t.spentMinor, t.booked);
+  const cost = t.cost.eachMinor;
   if (cost !== null) return cell(aboutMoneyOf(cost, ad.currency));
   return cell(DASH, t.booked === 0 ? LEDGER.noneYet : LEDGER.only(t.booked), LEDGER.tooFew);
 }
@@ -269,7 +268,7 @@ function cellsOf(
     return { spent, inTouch, booked: cell(DASH, null, reason), each: cell(DASH, null, reason) };
   }
   // The cost for each person is spend over people: only a cost waits for the read; "only 3" does not.
-  const costWaits = reading && costEach(totals.spentMinor, totals.booked) !== null;
+  const costWaits = reading && totals.cost.eachMinor !== null;
   return { spent, inTouch, booked: cell(String(totals.booked)), each: costWaits ? waits : eachCell(totals, ad) };
 }
 
@@ -286,7 +285,7 @@ function phoneEndOf(
       ? { endTop: DASH, endSub: LEDGER.readingUnit }
       : { endTop: LEDGER.calls(totals.inTouch), endSub: LEDGER.googleCount };
   }
-  const cost = costEach(totals.spentMinor, totals.booked);
+  const cost = totals.cost.eachMinor;
   const sub =
     cost !== null
       ? LEDGER.each(aboutMoneyOf(cost, ad.currency))
@@ -324,7 +323,7 @@ function phoneLineOf(ad: AdRead, rv: ReadView): string {
 
 function adRowOf(ad: AdRead, read: AdsRead, rv: ReadView): AdRowVM {
   const totals = totalsOf(ad, read);
-  const base = adStateOf(ad, totals, read);
+  const base = adBadgeOf(ad, totals, read);
   // A running ad with a need that does not stop it (a price that changed) says it where it would say when it ends.
   const alert = ad.state === "on" && ad.needs !== null;
   const state = alert ? { ...base, second: needsSecond(ad) } : base;
@@ -419,8 +418,9 @@ function waitingFigure(id: FigureVM["id"], label: string, def: string, waits: re
 }
 
 function eachFigure(pageTotals: PageTotals, read: AdsRead, def: string, waits: readonly AdPlatform[]): FigureVM {
-  const so = settling(read.ads, read.today);
   if (!read.calendar.linked) {
+    // No calendar says who booked: the spend over the people counted, so far while any day of these ads still settles.
+    const so = settling(read.ads, read.today);
     const cost = eachInTouch(pageTotals);
     if (cost !== null && waits.length > 0) return waitingFigure("each", FIGURES.eachInTouchLabel, def, waits);
     return {
@@ -440,7 +440,7 @@ function eachFigure(pageTotals: PageTotals, read: AdsRead, def: string, waits: r
     id: "each",
     label,
     value: pageTotals.each === null ? DASH : aboutMoneyOf(pageTotals.each.minor, pageTotals.each.currency),
-    change: pageTotals.each !== null && so ? FIGURES.soFar : null,
+    change: pageTotals.eachSoFar ? FIGURES.soFar : null,
     meta: pageTotals.each === null ? null : FIGURES.eachMeta(sumMoney(pageTotals.eachSpend), pageTotals.booked),
     definition: def,
     n: pageTotals.booked,

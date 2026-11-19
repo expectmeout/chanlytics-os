@@ -5,12 +5,12 @@
  * words*.ts does not, and reads no clock, store or network. page.ts, drawer.ts and new-ad.ts build on it.
  */
 import {
+  adCostRule,
+  adDaySettling,
   appointmentWords,
-  REPORT_MIN_N,
   clockTime,
   zoneDayKey,
   isoMs,
-  addDays,
   daysBetween,
 } from "@chanlytics/contracts";
 import type {
@@ -18,6 +18,7 @@ import type {
   AdBudget,
   AdCheckId,
   AdCopy,
+  AdCost,
   AdDoor,
   AdFilePick,
   AdPlatform,
@@ -28,14 +29,7 @@ import type {
 } from "@chanlytics/contracts";
 
 import { aboutMoneyOf, leftOfMoney, moneyOf, perDayOf } from "./money";
-import {
-  ADS_PERMISSION_WARN_DAYS,
-  ADS_SETTLE_DAYS,
-  DOOR_NEEDS,
-  STANDING_CHECKS,
-  TOO_EARLY_DAYS,
-  countedDoor,
-} from "./rules";
+import { ADS_PERMISSION_WARN_DAYS, DOOR_NEEDS, STANDING_CHECKS, TOO_EARLY_DAYS, countedDoor } from "./rules";
 import {
   ADS_DOORS,
   DOOR,
@@ -228,10 +222,6 @@ export function adLeadOf(options: { platform: AdPlatform; door: AdDoor; area: Ad
 
 export const totalOf = (ad: AdRead): number | null => (ad.budget.mode === "total" ? ad.budget.amountMinor : null);
 
-/** The cost for each person who booked, in minor units: from REPORT_MIN_N booked, else none. */
-export const costEach = (spentMinor: number, booked: number): number | null =>
-  booked >= REPORT_MIN_N ? spentMinor / booked : null;
-
 /** One ad's numbers over the window, and what it has spent in all. */
 export interface Totals {
   spentMinor: number;
@@ -239,15 +229,23 @@ export interface Totals {
   booked: number;
   days: number;
   lifetimeMinor: number;
+  /**
+   * The cost for each person who booked, over the window's days (contracts adCostRule): none under Reports' minimum, and
+   * so none for an ad whose people Chanlytics does not count, which has nobody booked.
+   */
+  cost: AdCost;
 }
 
 export function totalsOf(ad: AdRead, read: AdsRead): Totals {
   const { from, to } = read.window;
   const rows = ad.days.filter((d) => d.day >= from && d.day <= to);
+  const spentMinor = sum(rows.map((d) => d.spendMinor));
+  const booked = counted(ad) ? sum(rows.map((d) => d.booked)) : 0;
   return {
-    spentMinor: sum(rows.map((d) => d.spendMinor)),
+    spentMinor,
     inTouch: sum(rows.map((d) => d.inTouch)),
-    booked: counted(ad) ? sum(rows.map((d) => d.booked)) : 0,
+    booked,
+    cost: adCostRule({ spentMinor, booked, days: rows.map((d) => d.day), today: read.today }),
     days: rows.length,
     lifetimeMinor: sum(ad.days.filter((d) => d.day < read.today).map((d) => d.spendMinor)),
   };
@@ -258,9 +256,9 @@ export const leftOfAd = (ad: AdRead, totals: Totals): number | null => {
   return total === null ? null : Math.max(0, total - totals.lifetimeMinor);
 };
 
-/** Whether the last two weeks are still settling in what these ads have: a cost is `so far` until they are not. */
+/** Whether a day of these ads is still settling (contracts adDaySettling): what an ended ad's callout says. */
 export const settling = (ads: readonly AdRead[], today: string): boolean =>
-  ads.some((ad) => ad.days.some((d) => d.day >= addDays(today, -ADS_SETTLE_DAYS)));
+  ads.some((ad) => ad.days.some((d) => adDaySettling(d.day, today)));
 
 function endsKind(ad: AdRead, today: string): "today" | "tomorrow" | "later" {
   const d = daysBetween(today, ad.endDay);
@@ -299,7 +297,7 @@ function secondOf(ad: AdRead, totals: Totals, read: AdsRead): string {
     case "needs-you":
       return needsSecond(ad);
     case "ended": {
-      const cost = counted(ad) ? costEach(totals.spentMinor, totals.booked) : null;
+      const cost = totals.cost.eachMinor;
       return STATE.endedSecond(
         dayWord(ad.endDay),
         totals.booked,
@@ -313,7 +311,11 @@ function secondOf(ad: AdRead, totals: Totals, read: AdsRead): string {
   }
 }
 
-export function adStateOf(ad: AdRead, totals: Totals, read: AdsRead): StateVM {
+/**
+ * The words of an ad's badge and the line under it. Which state an ad is in is never worked out by a page: a reader
+ * says it, by contracts' adStateOf (decision 0049, call 1).
+ */
+export function adBadgeOf(ad: AdRead, totals: Totals, read: AdsRead): StateVM {
   const state = viewState(ad, read.today);
   const warn = state === "needs-you" || state === "couldnt-finish";
   return {

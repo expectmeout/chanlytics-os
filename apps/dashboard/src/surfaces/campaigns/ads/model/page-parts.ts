@@ -4,7 +4,7 @@
  * Ask line's one proposal. Apart from page.ts only for the file limit; page.ts hands every name a page needs on. Pure, like
  * the rest of the models.
  */
-import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/contracts";
+import { adCostRule, appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/contracts";
 // How new people first came is the people report's, read through its page entry as the Reports pages read it.
 import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
 import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
@@ -26,7 +26,6 @@ import {
   PLATFORMS,
   adAccountOf,
   adPersonWho,
-  costEach,
   countCtx,
   counted,
   dayOfIso,
@@ -78,6 +77,8 @@ export interface PageTotals {
   eachSpend: MoneyItem[];
   /** The cost for each person who booked, where the counted ads share one currency and enough booked; else null. */
   each: MoneyItem | null;
+  /** Whether that cost is said "so far": a day still settling is in it (contracts adCostRule). */
+  eachSoFar: boolean;
 }
 
 /** The platforms whose account is connected and in a read state: being read now, or the last read failed. */
@@ -105,7 +106,14 @@ export function pageTotals(read: AdsRead): PageTotals {
   const byDoor = (door: AdDoor) => sum(mine.filter((r) => r.ad.door === door).map((r) => r.t.inTouch));
   const booked = sum(mine.map((r) => r.t.booked));
   const eachSpend = mine.map((r) => ({ minor: r.t.spentMinor, currency: r.ad.currency }));
-  const cost = costEach(sum(eachSpend.map((i) => i.minor)), booked);
+  const { from, to } = read.window;
+  const cost = adCostRule({
+    spentMinor: sum(eachSpend.map((i) => i.minor)),
+    booked,
+    days: mine.flatMap((r) => r.ad.days.filter((d) => d.day >= from && d.day <= to).map((d) => d.day)),
+    today: read.today,
+  });
+  const each = cost.eachMinor === null ? null : perHead(eachSpend, booked, () => true);
   return {
     spent: rows.map((r) => ({ minor: r.t.spentMinor, currency: r.ad.currency })),
     spentAds: rows.filter((r) => r.t.spentMinor > 0).length,
@@ -114,7 +122,8 @@ export function pageTotals(read: AdsRead): PageTotals {
     left: byDoor("form"),
     booked,
     eachSpend,
-    each: cost === null ? null : perHead(eachSpend, booked, () => true),
+    each,
+    eachSoFar: each !== null && cost.soFar,
   };
 }
 
