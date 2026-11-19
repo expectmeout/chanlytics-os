@@ -165,20 +165,15 @@ test("Call it is the page's one filled act until they have tried it; then Make i
   }
 });
 
-test("their face is their mark, else their photo, else their initials; the photo is the light behind the head", () => {
+test("their face is their mark, else their photo, else their initials; the photo is drawn in their face alone", () => {
   const bare = draw();
-  assert.ok(!bare.includes("pv-light") && !bare.includes("<img"), "no photo and no mark: nothing fetched");
+  assert.ok(!bare.includes("<img"), "no photo and no mark: nothing fetched");
   assert.match(bare, />FB</, "their initials stand in the circle");
   const photo = draw({ photo_url: PHOTO });
-  assert.ok(
-    photo.includes("pv-light") && photo.includes("face-photo"),
-    "the photo is the face, and the light behind the head",
-  );
-  assert.ok(photo.split(PHOTO).length - 1 >= 2);
-  assert.match(
-    photo,
-    /class="pv-light"[^>]*referrerPolicy="no-referrer"|referrerPolicy="no-referrer"[^>]*class="pv-light"|class="pv-light"[^>]*referrerpolicy="no-referrer"/,
-  );
+  assert.ok(photo.includes("face-photo"), "the photo is the face");
+  // Behind the head is the look's own light (preview.css), never their photo blurred: a listing's photo read as a grey
+  // smudge on the light ground and a muddy band on the dark one (Ruben, 18 Nov 2026).
+  assert.equal(photo.split(PHOTO).length - 1, 1, "the photo is drawn once, in the circle");
   const both = draw({ photo_url: PHOTO, logo_url: "https://cdn.example.com/logo.png" });
   assert.match(
     both,

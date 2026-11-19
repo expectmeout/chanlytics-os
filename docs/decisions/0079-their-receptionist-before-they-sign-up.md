@@ -341,3 +341,27 @@ kept under the preview's workspace and removed by the sweep before the preview e
 and two or three seconds on a second press, for a copy, a signed read and an erasure step; with nothing kept there is
 nothing to erase. The research and the proof's own record are kept outside this repository, with the session that
 made them.
+
+## Amended, 18 November 2026: the light behind their head is the look's own
+
+Ruben, of the live page in both themes (18 November): the ground behind the head was ugly in light and still too strong
+in dark. It was their Google photo, blurred and faint (the canvas's D7, kept by the review above). A real listing's
+photo is pipes, a van, a storefront or a collage, and blurred to colour alone it read as a grey smudge on the light
+ground and a muddy band on the dark one, whatever its opacity: the page could not say what it would be.
+
+- **Their photo is their face alone.** Their mark, else their photo, else their initials, in the circle, as before.
+  Nothing else on the page draws or fetches it.
+- **Behind the head, the look's own light.** The page's three pools (`--pool-a-tint`, `--pool-b-tint`,
+  `--pool-c-tint`, tokens.css), gathered round their face: the cool one over it, the lilac a little to its right, the
+  warm one behind their name, each easing out to nothing and the whole falling away under Call it, so it has no edge
+  and no band over the facts. The same on every preview, a step quieter on the dark side, and inside their card on a
+  desk. It is a light, not a colour of the legend: it says nothing, as the pools say nothing on every other page.
+- **The bar lays no ground at rest.** The light runs up under it, so the head and the bar are lit as one. Once the
+  page has scrolled the bar lays the page's own ground, and the same picture runs on under its foot and falls away,
+  so what passes beneath dims into the page with no line where the bar ends (the fall of flat paper met the lit bar on
+  one, plainest on the dark side).
+- **AI's disc on their face is the raised ground**, not the control layer's glass: on the dark side that glass is
+  nearly clear, and over their photo the three went into the picture.
+
+Seen on the stand-in walk (the page's own modules and stylesheets in a browser, every request answered by the walk),
+at a phone, a short phone and a desk in both themes, with the plumber's own photo; not yet in the real app.

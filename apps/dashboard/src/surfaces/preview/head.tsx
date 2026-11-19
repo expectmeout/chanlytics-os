@@ -267,7 +267,6 @@ export function PvHead({
   const head = useSeen(onSeen);
   return (
     <header className="pv-head" ref={head}>
-      {vm.photo ? <img className="pv-light" src={vm.photo} alt="" referrerPolicy="no-referrer" /> : null}
       <span className="pv-who">
         <PvFace vm={vm} size="xl" />
         <PvThree />
