@@ -8,7 +8,7 @@
  */
 import { AppError, ROLE_PERMS, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/meta";
-import { proveStateFor, signStateFor } from "@chanlytics/channels/tokens";
+import { verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { log } from "../shared/log";
@@ -105,7 +105,7 @@ export async function handleMetaCallback(ctx: RouteContext, req: Request): Promi
   const secret = stateSecret();
   if (!secret) return back("error", "not_available");
   const expected = { provider: PROVIDER, userId: ctx.userId };
-  const proof = await proveStateFor(secret, loginReturn.state, expected, Date.now());
+  const proof = await verifyStateFor(secret, loginReturn.state, expected, Date.now());
   if (!proof.ok) return back("error", proof.reason === "someone_else" ? proof.reason : `state_${proof.reason}`);
   let tenantId: TenantId;
   try {

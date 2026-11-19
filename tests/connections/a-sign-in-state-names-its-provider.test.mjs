@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import {
   STATE_TTL_MS,
   newNonce,
-  proveStateFor,
+  verifyStateFor,
   signStateFor,
   signState,
   verifyState,
@@ -27,7 +27,7 @@ const SOMEONE = "33333333-3333-4333-8333-333333333333";
 
 const meta = { tenantId: WORKSPACE, userId: OWNER, provider: "meta" };
 const proved = (state, expected = {}, at = NOW) =>
-  proveStateFor(SECRET, state, { provider: "meta", userId: OWNER, ...expected }, at);
+  verifyStateFor(SECRET, state, { provider: "meta", userId: OWNER, ...expected }, at);
 
 test("a sign-in's state names the workspace, the person and the provider, for ten minutes", async () => {
   const state = await signStateFor(SECRET, meta, NOW);
@@ -51,7 +51,7 @@ test("anything else is refused, each with the word its callback says", async () 
   assert.deepEqual(await proved(state, { provider: "instagram" }), refused("malformed"), "another provider's");
   assert.deepEqual(await proved(state, { userId: SOMEONE }), refused("someone_else"), "another person came back");
   assert.deepEqual(await proved(state, {}, NOW + STATE_TTL_MS + 1), refused("expired"));
-  assert.deepEqual(await proveStateFor("another-key", state, meta, NOW), refused("signature"));
+  assert.deepEqual(await verifyStateFor("another-key", state, meta, NOW), refused("signature"));
   assert.deepEqual(await proved(`${state}x`), refused("signature"), "altered on the way");
   assert.deepEqual(await proved("not-a-state"), refused("malformed"));
   for (const none of [null, undefined, ""]) assert.deepEqual(await proved(none), refused("missing"));

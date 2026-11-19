@@ -119,7 +119,7 @@ export function signStateFor(
  * and naming the person signed in now. What it gives is the workspace it was made for; nothing of a sign-in is trusted
  * before this. A state made for another provider is `malformed`, as one that is no state at all.
  */
-export async function proveStateFor(
+export async function verifyStateFor(
   secret: string,
   state: string | null | undefined,
   expected: { provider: string; userId: string },
