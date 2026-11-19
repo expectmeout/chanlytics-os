@@ -76,8 +76,9 @@ function knock(door, { secret = null, elsewhere = false, signature = null, raw =
  * has no words and a call whose knock was refused went silent (11 Oct 2026). Nothing is read or sent for either.
  */
 const TURNED_AWAY = {
-  fn: "I can't send anything just now. Take the caller's name and say someone will call them back.",
-  availability: "I can't check the calendar just now. Take the caller's name and say someone will call them back.",
+  fn: "I can't send anything just now. Take the caller's name and say someone will call them back, without saying when.",
+  availability:
+    "I can't check the calendar just now. Take the caller's name and say someone will call them back, without saying when.",
 };
 async function turnedAway(door, res) {
   if (door === "inbound") return res.status === 401;

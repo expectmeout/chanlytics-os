@@ -192,7 +192,7 @@ export function refusalScript(
     case "sms_carries_no_promotions":
       return "I cannot send that as a text: this business sends offers on WhatsApp only, never by text message. Offer to book them on the call instead.";
     case "paused":
-      return `${match.Many} are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back.`;
+      return `${match.Many} are paused for this business right now, so I cannot send anything. Take the caller's name and number and say someone will call them back, without saying when.`;
     case "human_has_it":
       return `Someone from the team is already messaging that number, so I will not send ${match.one} over them. Tell the caller a person is on it and will follow up there.`;
     case "policy_hold":
