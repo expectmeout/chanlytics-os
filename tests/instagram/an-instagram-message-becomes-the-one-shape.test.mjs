@@ -181,7 +181,7 @@ test("what a click-to-Instagram ad said is read from its ads_context_data: its t
   assert.deepEqual(from({ ad_title: "Spring colour offer", photo_url: "https://cdn.example/ad.jpg" }), {
     sourceId: "120200000000000001",
     sourceType: "ad",
-    said: { headline: "Spring colour offer", body: null, mediaType: "image", link: null },
+    said: { headline: "Spring colour offer", media_type: "image" },
   });
   assert.deepEqual(
     from({
@@ -189,19 +189,16 @@ test("what a click-to-Instagram ad said is read from its ads_context_data: its t
       photo_url: "https://cdn.example/a.jpg",
       video_url: "https://cdn.example/v.jpg",
     }).said,
-    { headline: "Spring colour offer", body: null, mediaType: "video", link: null },
+    { headline: "Spring colour offer", media_type: "video" },
     "an ad with a video is a video ad",
   );
   assert.deepEqual(
     from({ ad_title: 7, photo_url: "https://cdn.example/ad.jpg" }).said,
-    { headline: null, body: null, mediaType: "image", link: null },
+    { media_type: "image" },
     "a title that is not words is dropped alone",
   );
   assert.deepEqual(from({ ad_title: "Only a title", photo_url: "not an address", video_url: 5 }).said, {
     headline: "Only a title",
-    body: null,
-    mediaType: null,
-    link: null,
   });
   for (const odd of [undefined, null, "words", 7, [], {}, { photo_url: "ftp://cdn.example/ad.jpg" }])
     assert.equal(from(odd).said, null, `a context of ${JSON.stringify(odd)} says nothing, and the ad still stands`);

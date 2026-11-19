@@ -10,7 +10,7 @@
  * message its place. The click id is not read: it waits for the step that tells a platform who booked (0049, amended
  * 18 November 2026).
  */
-import { isObjectRecord } from "@chanlytics/contracts";
+import { isObjectRecord, type AdSaid } from "@chanlytics/contracts";
 
 /**
  * The longest id that is kept. It is contacts_acquired_ref_check's own 200 (1 to 200 characters), said here once for the
@@ -29,19 +29,9 @@ export const REFERRAL_ID_MAX = 200;
 export const AD_SAID_MAX = { headline: 300, body: 2000, link: 2000 } as const;
 
 /**
- * What an ad said where the person tapped it, as its referral carries it: each part null where the referral did not say
- * it, or said it in a shape that is not kept.
+ * The ad, post or link a message came from: its id, its kind, and what it said where it was an ad that said anything
+ * (contracts AdSaid, the shape the entry keeps: a part that was not said is left out).
  */
-export interface AdSaid {
-  headline: string | null;
-  body: string | null;
-  /** Meta's word for the ad's media: `image` or `video`. */
-  mediaType: string | null;
-  /** The ad's own address at Meta, as the referral gives it. Never the click id. */
-  link: string | null;
-}
-
-/** The ad, post or link a message came from: its id, its kind, and what it said where it was an ad that said anything. */
 export type Referral = { sourceId: string; sourceType: string | null; said: AdSaid | null };
 
 /**
@@ -93,19 +83,25 @@ function plainWordOf(raw: unknown): string | null {
 function linkOf(raw: unknown): string | null {
   const link = typeof raw === "string" ? raw.trim() : "";
   if (link.length < 1 || link.length > AD_SAID_MAX.link || /[\s\p{Cc}\p{Cs}]/u.test(link)) return null;
-  try {
-    const { protocol } = new URL(link);
-    return protocol === "https:" || protocol === "http:" ? link : null;
-  } catch {
-    return null;
-  }
+  if (!URL.canParse(link)) return null;
+  const { protocol } = new URL(link);
+  return protocol === "https:" || protocol === "http:" ? link : null;
 }
 
-/** The four parts as one reading, or null when none of them said anything that is kept. */
-function partsOrNothing(parts: AdSaid): AdSaid | null {
-  return parts.headline === null && parts.body === null && parts.mediaType === null && parts.link === null
-    ? null
-    : parts;
+/** The parts that said something, as the entry keeps them, or null when none did. */
+function partsOrNothing(parts: {
+  headline: string | null;
+  body: string | null;
+  mediaType: string | null;
+  link: string | null;
+}): AdSaid | null {
+  const adSaid: AdSaid = {
+    ...(parts.headline === null ? {} : { headline: parts.headline }),
+    ...(parts.body === null ? {} : { body: parts.body }),
+    ...(parts.mediaType === null ? {} : { media_type: parts.mediaType }),
+    ...(parts.link === null ? {} : { link: parts.link }),
+  };
+  return Object.keys(adSaid).length > 0 ? adSaid : null;
 }
 
 /**

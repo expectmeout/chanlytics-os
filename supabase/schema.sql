@@ -45,12 +45,11 @@ declare
   v_said jsonb := '{}'::jsonb;
   v_part text;
 begin
-  -- The message says which ad it came from, and whether it made its person: their row was written in the message's own
-  -- transaction (one now()) and stamped ad by it (00306).
+  -- The message says which ad it came from, and whether it made its person: a person and the message that made them
+  -- are written in one transaction, so their created_at are one now() (00306's test).
   select nullif(btrim(m.meta #>> '{referral,source_id}'), ''),
          exists (select 1 from contacts c
-                  where c.id = m.contact_id and c.tenant_id = m.tenant_id
-                    and c.created_at = m.created_at and c.acquired_via = 'ad')
+                  where c.id = m.contact_id and c.tenant_id = m.tenant_id and c.created_at = m.created_at)
     into v_ad, v_new
     from messages m
    where m.id = p_message_id and m.tenant_id = p_tenant_id
@@ -38708,7 +38707,7 @@ COMMENT ON COLUMN public.ad_entries.ad_id IS 'The ad as Chanlytics keeps it, onc
 -- Name: COLUMN ad_entries.new_person; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ad_entries.new_person IS 'Whether this entry made the person: the message that carried it is the one that made them and stamped them ad (00306''s test).';
+COMMENT ON COLUMN public.ad_entries.new_person IS 'Whether the message that carried the ad is the one that made the person (00306''s test: the two rows share one created_at). False for a person who was already here and tapped an ad.';
 
 
 --

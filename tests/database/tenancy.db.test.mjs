@@ -74,16 +74,8 @@ async function seed(table, row, pick = "id") {
   return pick ? r.data[pick] : null;
 }
 
-/** An ad's entry (00644), by the message that carried the ad: members read theirs, and only its one door writes. */
-const adEntryOf = (message) => ({
-  tenant_id: A,
-  message_id: message,
-  platform: "meta",
-  platform_ad_id: "tenancy-ad",
-  kind: "chat",
-  new_person: false,
-});
-
+/** An ad's entry (00644), but for its workspace and its message: members read theirs, and only its one door writes. */
+const AD_ENTRY = { platform: "meta", platform_ad_id: "tenancy-ad", kind: "chat", new_person: false };
 /** Rows some tables get from the workspace's own creation (00017 provisions them). */
 async function ensure(table, row) {
   const has = await db.from(table).select("tenant_id").eq("tenant_id", A).limit(1);
@@ -404,7 +396,7 @@ before(async () => {
     kind: "video",
     name: "tenancy-clip.mp4",
   });
-  await seed("ad_entries", adEntryOf(ctx.message), null);
+  await seed("ad_entries", { tenant_id: A, message_id: ctx.message, ...AD_ENTRY }, null);
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -1041,7 +1033,7 @@ const TENANT_TABLES = {
       name: "stranger.jpg",
     }),
   ],
-  ad_entries: ["member", () => adEntryOf(ctx.message2)],
+  ad_entries: ["member", () => ({ tenant_id: A, message_id: ctx.message2, ...AD_ENTRY })],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],

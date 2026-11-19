@@ -169,7 +169,7 @@ One row each time someone reaches a workspace through an ad (decision 0049, 0064
 | `platform` | text | no |  |  |
 | `platform_ad_id` | text | no |  |  |
 | `kind` | text | no |  |  |
-| `new_person` | boolean | no |  | Whether this entry made the person: the message that carried it is the one that made them and stamped them ad (00306's test). |
+| `new_person` | boolean | no |  | Whether the message that carried the ad is the one that made the person (00306's test: the two rows share one created_at). False for a person who was already here and tapped an ad. |
 | `message_id` | uuid | yes |  |  |
 | `external_ref` | text | yes |  |  |
 | `said` | jsonb | yes |  | What the ad said where it was tapped: headline, body, media_type (Meta's word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge's keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them. |

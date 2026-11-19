@@ -64,7 +64,8 @@ create table if not exists public.ad_entries (
   platform_ad_id text not null check (char_length(platform_ad_id) between 1 and 200),
   -- chat: they tapped an ad and wrote. number and call are the entries of the doors 0049 names for later steps.
   kind           text not null check (kind in ('chat', 'number', 'call')),
-  -- Whether this entry is the one that made the person: 00306's test, read from the message's own row.
+  -- Whether the message that carried it is the one that made the person: 00306's test, read from the two rows. An
+  -- entry that made nobody is a person who was already here, tapping an ad.
   new_person     boolean not null,
   message_id     uuid,
   -- A form lead's id at its platform, so a lead delivered twice is one entry. Nothing writes one yet.
@@ -106,7 +107,7 @@ comment on table public.ad_entries is
 comment on column public.ad_entries.ad_id is
   'The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049''s ads, a later step). Null until then, and for an ad Chanlytics cannot name.';
 comment on column public.ad_entries.new_person is
-  'Whether this entry made the person: the message that carried it is the one that made them and stamped them ad (00306''s test).';
+  'Whether the message that carried the ad is the one that made the person (00306''s test: the two rows share one created_at). False for a person who was already here and tapped an ad.';
 comment on column public.ad_entries.said is
   'What the ad said where it was tapped: headline, body, media_type (Meta''s word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge''s keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them.';
 
@@ -123,12 +124,11 @@ declare
   v_said jsonb := '{}'::jsonb;
   v_part text;
 begin
-  -- The message says which ad it came from, and whether it made its person: their row was written in the message's own
-  -- transaction (one now()) and stamped ad by it (00306).
+  -- The message says which ad it came from, and whether it made its person: a person and the message that made them
+  -- are written in one transaction, so their created_at are one now() (00306's test).
   select nullif(btrim(m.meta #>> '{referral,source_id}'), ''),
          exists (select 1 from contacts c
-                  where c.id = m.contact_id and c.tenant_id = m.tenant_id
-                    and c.created_at = m.created_at and c.acquired_via = 'ad')
+                  where c.id = m.contact_id and c.tenant_id = m.tenant_id and c.created_at = m.created_at)
     into v_ad, v_new
     from messages m
    where m.id = p_message_id and m.tenant_id = p_tenant_id

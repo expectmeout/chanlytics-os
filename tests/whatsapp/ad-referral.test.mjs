@@ -59,7 +59,7 @@ test("the ad is read by its id, its kind and what it said, and never its click i
     said: {
       headline: "Spring gel refills",
       body: "Book a refill this week.",
-      mediaType: "image",
+      media_type: "image",
       link: "https://fb.example/ad/1",
     },
   });
@@ -233,22 +233,23 @@ const AD = {
 const saidBy = (referral) => normalizeInbound(message({ referral: { ...AD, ...referral } }), value).referral?.said;
 
 test("each part of what the ad said is kept or dropped alone: an odd one costs the others nothing", () => {
-  const sound = { headline: AD.headline, body: AD.body, mediaType: "video", link: AD.source_url };
+  const sound = { headline: AD.headline, body: AD.body, media_type: "video", link: AD.source_url };
+  const without = (part) => Object.fromEntries(Object.entries(sound).filter(([key]) => key !== part));
   assert.deepEqual(saidBy({}), sound);
   for (const [what, referral, want] of [
-    ["a headline that is a number", { headline: 7 }, { ...sound, headline: null }],
-    ["a headline that is an object", { headline: { text: "x" } }, { ...sound, headline: null }],
-    ["a blank headline", { headline: "  \n " }, { ...sound, headline: null }],
-    ["no body", { body: undefined }, { ...sound, body: null }],
-    ["a kind of media that is a sentence", { media_type: "a video" }, { ...sound, mediaType: null }],
-    ["a kind of media of megabytes", { media_type: "x".repeat(5 * 1024 * 1024) }, { ...sound, mediaType: null }],
-    ["a link that is no web address", { source_url: "javascript:alert(1)" }, { ...sound, link: null }],
-    ["a link with a space in it", { source_url: "https://fb.example/ad 1" }, { ...sound, link: null }],
-    ["a link that is not a string", { source_url: ["https://fb.example/ad/1"] }, { ...sound, link: null }],
+    ["a headline that is a number", { headline: 7 }, without("headline")],
+    ["a headline that is an object", { headline: { text: "x" } }, without("headline")],
+    ["a blank headline", { headline: "  \n " }, without("headline")],
+    ["no body", { body: undefined }, without("body")],
+    ["a kind of media that is a sentence", { media_type: "a video" }, without("media_type")],
+    ["a kind of media of megabytes", { media_type: "x".repeat(5 * 1024 * 1024) }, without("media_type")],
+    ["a link that is no web address", { source_url: "javascript:alert(1)" }, without("link")],
+    ["a link with a space in it", { source_url: "https://fb.example/ad 1" }, without("link")],
+    ["a link that is not a string", { source_url: ["https://fb.example/ad/1"] }, without("link")],
     [
       "a link past its bound, which is never cut",
       { source_url: `https://fb.example/${"x".repeat(AD_SAID_MAX.link)}` },
-      { ...sound, link: null },
+      without("link"),
     ],
   ])
     assert.deepEqual(saidBy(referral), want, what);

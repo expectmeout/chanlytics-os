@@ -5,17 +5,9 @@
  * code calls the door.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DbFailure, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, type AdSaid, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import type { Database } from "../../types";
-
-/** What an ad said, as the door takes it: a part that was not said is left out, never null. */
-export interface AdEntrySaid {
-  headline?: string;
-  body?: string;
-  media_type?: string;
-  link?: string;
-}
 
 /**
  * What became of the words: `kept` on the entry; `already` there (the message was delivered twice, and the first words
@@ -29,7 +21,7 @@ export async function keepAdEntry(
   db: SupabaseClient<Database>,
   tenantId: TenantId,
   messageId: string,
-  adSaid: AdEntrySaid,
+  adSaid: AdSaid,
 ): Promise<AdEntryKept> {
   const { data, error } = await db.rpc("ad_entry_keep", {
     p_tenant_id: tenantId,
