@@ -94,7 +94,8 @@ test("every role is said once: a name, its article, a sentence and a short line;
 });
 
 test("the roles compared are ROLE_PERMS itself, every permission on one line, and seeing is every role's", () => {
-  const rows = roleTable();
+  // A workspace with every part of the product: each permission has its line.
+  const rows = roleTable({ ads: true });
   const perms = Object.keys(ROLE_PERMS.owner);
   assert.equal(rows.length, perms.length + 1, "a line a permission, and the line everyone has");
   for (const r of ROLES) {
@@ -112,6 +113,15 @@ test("the roles compared are ROLE_PERMS itself, every permission on one line, an
     "the team is the owner's alone",
   );
   assert.equal(rows.find((row) => row.says === "Find leads").note, "uses the month's allowance");
+  // Running ads is the owner's alone, and a line only where the workspace has Ads: no table names what nobody there can open.
+  const adsLine = rows.find((row) => row.says === "Run ads");
+  assert.deepEqual(adsLine.can, { owner: true, operator: false, partner: false, viewer: false });
+  const without = roleTable({ ads: false });
+  assert.deepEqual(
+    without,
+    rows.filter((row) => row !== adsLine),
+    "the same table, less that line",
+  );
 });
 
 test("an owner previewing a narrower role reads it on every page, with the way out, below a pause and above a newer build", () => {
