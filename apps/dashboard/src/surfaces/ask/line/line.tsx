@@ -14,7 +14,7 @@
  * the account menu.
  */
 import { MASCOT } from "@/bridge/mascot";
-import { useAskGrow, useAskLatest, useAskWarm } from "../hooks";
+import { useAskFoot, useAskGrow, useAskLatest, useAskWarm } from "../hooks";
 import { askCalls } from "../shell";
 import { askText } from "../words";
 import { arActs } from "./acts";
@@ -68,6 +68,7 @@ export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void 
   useArWalk(ln);
   useAskGrow(ln.inputRef, ln.query, open); // the field grows with its words, to six lines (../hooks.ts)
   ln.below = useAskLatest(ln.bodyRef, open && ln.view === "rows" && !!(ln.active || ln.quick));
+  useAskFoot(ln.bodyRef, open && ln.view === "rows" && !!(ln.active || ln.quick)); // a card's foot in reach (../hooks.ts)
 
   if (!open || !A) return null;
   ln.phone = arPhone();

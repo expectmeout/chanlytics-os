@@ -101,6 +101,47 @@ const PRESS_ES: Record<AskPressWord, (n: number | null) => string> = {
   open: () => "Abrirlo",
 };
 
+/**
+ * What a press says while it works, where one word says it (docs/words.md: "…" only for something under way). A press
+ * with no word here says the house's wait: a plan's press does several things, and says that too.
+ */
+const WORKING_EN = "Working…";
+const WORKING_ES = "Un momento…";
+const PRESSING_EN: Partial<Record<AskPressWord, string>> = {
+  send: "Sending…",
+  send_to: "Sending…",
+  run_now: "Sending…",
+  test: "Sending…",
+  post: "Posting…",
+  post_it: "Posting…",
+  save: "Saving…",
+  keep: "Saving…",
+  make: "Making it…",
+  add: "Adding…",
+  start: "Starting…",
+  change: "Changing…",
+  pause: "Pausing…",
+  resume: "Resuming…",
+  delete: "Deleting…",
+};
+const PRESSING_ES: Partial<Record<AskPressWord, string>> = {
+  send: "Enviando…",
+  send_to: "Enviando…",
+  run_now: "Enviando…",
+  test: "Enviando…",
+  post: "Publicando…",
+  post_it: "Publicando…",
+  save: "Guardando…",
+  keep: "Guardando…",
+  make: "Haciéndolo…",
+  add: "Añadiendo…",
+  start: "Empezando…",
+  change: "Cambiando…",
+  pause: "Pausando…",
+  resume: "Reanudando…",
+  delete: "Borrando…",
+};
+
 /** An Autonomy row's short name. */
 const rowName = (row: string): string =>
   (POLICY_CLASS_WORDS as Record<string, { short: string } | undefined>)[row]?.short ?? row;
@@ -219,7 +260,7 @@ const ASK_TEXT = {
     // Undoing a new one deletes it: the question before it (AskCardReceipt).
     undoCampaignDetail: "It stops for good. Anything already sent keeps its numbers.",
     undoCampaignYes: "Yes, delete it",
-    working: "Working…",
+    working: WORKING_EN,
     editComposer: "Edit in the composer",
     openIt: "Open it",
     openNew: "Open in New campaign",
@@ -229,6 +270,8 @@ const ASK_TEXT = {
       "Over a day since they wrote, so only an approved message can reach them. Open the conversation to pick one.",
     // The press says what it does (D14 of the answers canvas; contracts askPressOf names which).
     press: (word: AskPressWord, n: number | null): string => PRESS_EN[word](n),
+    // While its own press runs (card-parts.tsx): what it is doing, at full strength, never a dimmed button.
+    pressing: (word: AskPressWord): string => PRESSING_EN[word] ?? WORKING_EN,
     posting: "Posting on Google",
     // A post put up from Ask's card (card-publish.tsx), on the same clock: now, or set for its time.
     postingPost: (when: string | null) => (when ? `Setting it for ${when}` : "Posting it"),
@@ -361,7 +404,7 @@ const ASK_TEXT = {
     undo: "Deshacer",
     undoCampaignDetail: "Se detiene para siempre. Lo ya enviado conserva sus números.",
     undoCampaignYes: "Sí, borrarla",
-    working: "Un momento…",
+    working: WORKING_ES,
     editComposer: "Editar en el redactor",
     openIt: "Abrirlo",
     openNew: "Abrir en Nueva secuencia",
@@ -371,6 +414,7 @@ const ASK_TEXT = {
     windowNote:
       "Su ventana de 24 horas está cerrada: solo se puede enviar una plantilla aprobada. Abre el hilo para elegir una.",
     press: (word: AskPressWord, n: number | null): string => PRESS_ES[word](n),
+    pressing: (word: AskPressWord): string => PRESSING_ES[word] ?? WORKING_ES,
     posting: "Publicando en Google",
     postingPost: (when: string | null) => (when ? `Programándolo para ${when}` : "Publicándolo"),
     whyAlone: (reason: string, row: string | null): string => {

@@ -529,11 +529,33 @@ async function holdWrites(page: Page): Promise<void> {
   });
 }
 
-/** The next question answered with the three cards, as the turn's stream sends one; `idea` as threeCards takes it. */
+/** One card too tall for any screen: forty rows on its sheet. What it says is not under test; where its foot stands is. */
+function oneTallCard() {
+  const turn = threeCards();
+  const rows = Array.from({ length: 40 }, (_, i) => ({ label: `Day ${i + 1}`, value: "10:00 AM, by WhatsApp" }));
+  const card = {
+    ...campaign(
+      1,
+      "Reminder",
+      "Reminds tomorrow's 6 appointments, 10:00 AM, by WhatsApp",
+      "The day before",
+      "Daily",
+      "6",
+    ),
+    sheet: { holds: [], rows },
+  };
+  return { ...turn, message: { ...turn.message, proposals: [card] } };
+}
+
+/** The next question answered with the three cards; `idea` as threeCards takes it. */
 async function answerWithThreeCards(page: Page, idea?: number): Promise<void> {
+  await answerWith(page, threeCards(idea));
+}
+
+/** The next question answered with this turn, as the turn's stream sends one. */
+async function answerWith(page: Page, turn: { headline: string; detail: string; message: unknown }): Promise<void> {
   await page.route(/\/api\/v1\/ask(\?|$)/, async (route: Route) => {
     if (route.request().method() !== "POST") return route.fallback();
-    const turn = threeCards(idea);
     const lines = [
       { t: "thread", id: "e2e-thread", title: "set up a campaign" },
       { t: "say", headline: turn.headline, detail: turn.detail },
@@ -694,6 +716,54 @@ for (const view of [
       await expect(cards.nth(2).locator(".ask-card-receipt")).toBeFocused();
       await cards.nth(2).getByRole("button", { name: "Try again" }).click();
       await expect(cards.nth(2).getByTestId("ask-card-approve")).toBeFocused();
+    });
+
+    test("a card taller than the view keeps its press in reach, says what it is doing, and what became of it stands where the press was", async ({
+      page,
+    }) => {
+      await answerWith(page, oneTallCard());
+      await openAsk(page);
+      await askLine(page, "set up a campaign");
+      const ask = page.getByTestId("ask-real");
+      const body = ask.locator(".ask-line-body");
+      const approve = ask.getByTestId("ask-card-approve");
+      await expect(approve).toHaveCount(1);
+      await motionSettled(page);
+      /** How far the card runs past the view, and whether a pinned foot stands whole inside it. */
+      const reach = () =>
+        body.evaluate((b) => {
+          const view = b.getBoundingClientRect();
+          const card = b.querySelector("[data-testid='ask-card']")?.getBoundingClientRect();
+          const foot = b.querySelector("[data-foot][data-pinned]")?.getBoundingClientRect();
+          return {
+            past: card ? Math.round(card.bottom - view.bottom) : 0,
+            footIn: !!foot && foot.top >= view.top && foot.bottom <= view.bottom + 1,
+          };
+        });
+      await expect.poll(reach, "its foot stands in the view").toMatchObject({ footIn: true });
+      expect((await reach()).past, "the card runs on below the view").toBeGreaterThan(40);
+      await expect(approve).toBeInViewport({ ratio: 1 });
+
+      // Held on its way, the press says what it is doing, at full strength.
+      let release = () => {};
+      const held = new Promise<void>((r) => (release = r));
+      await page.route(/\/api\/v1\//, async (route: Route) => {
+        if (route.request().method() === "GET") return route.fallback();
+        await held;
+        return route.fallback();
+      });
+      await approve.click();
+      await expect(approve).toHaveText("Starting…");
+      await expect(approve).toHaveCSS("opacity", "1");
+      release();
+
+      // What became of it stands where the press was, with the focus, and settles at the card's own end.
+      const receipt = ask.locator(".ask-card-receipt");
+      await expect(receipt).toBeFocused();
+      await expect(receipt).toBeInViewport({ ratio: 1 });
+      await expect(ask.locator(".ask-told[data-pinned]")).toHaveCount(1);
+      await body.evaluate((b) => b.scrollTo(0, b.scrollHeight));
+      await expect(ask.locator("[data-pinned]")).toHaveCount(0);
     });
 
     test("axe finds nothing serious, in either theme: at rest, a thread, a card, a receipt, a failed turn", async ({

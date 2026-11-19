@@ -199,6 +199,9 @@ export const useCardPress = (
   // What this card's press made, and when it was last pressed: a card that follows what it made (a video's) reads it by
   // these, and a second press of the same thing is read afresh.
   const [pressed, setPressed] = useState<{ made: string | null; at: number } | null>(null);
+  // Whether what the card says became of it landed in this tab, by a press here: it stands in reach where the press was,
+  // and its check draws itself once (ask.css). A card drawn again from what the conversation kept says it at rest.
+  const [here, setHere] = useState(false);
   const held = busy || step.held;
   const working = (b: boolean) => {
     setBusy(b);
@@ -214,6 +217,7 @@ export const useCardPress = (
     setErr("");
     const result = await ask.commit(proposal, step.cards, messageId);
     working(false);
+    setHere(true);
     land.current = "receipt";
     if (result.ok) {
       const at = Date.now();
@@ -233,6 +237,7 @@ export const useCardPress = (
   };
   const dismiss = () => {
     land.current = "receipt";
+    setHere(true);
     setState("dismissed");
     record({ state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null });
   };
@@ -260,6 +265,8 @@ export const useCardPress = (
     ...outcome,
     ...landing,
     held,
+    acting: busy,
+    here,
     posting,
     setPosting,
     forward,
