@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeSystemPrompt, DATA_NOT_INSTRUCTIONS, PROMPT_OPENINGS } from "@chanlytics/contracts";
-import { SELLING_CALL_LINE } from "../_prompt-rules.mjs";
+import { NO_TIME_PROMISED_LINE, NOTHING_ELSE_SENT_LINE, SELLING_CALL_LINE } from "../_prompt-rules.mjs";
 
 // The standing lines every prompt ends with (decision 0051): that it is the business's AI assistant, always, and
 // in text that it opens a conversation not already under way by saying so; and that these rules win.
@@ -26,6 +26,10 @@ const ASSISTANT_TEXT = [
 ];
 // On a call alone (decision 0136): someone selling to the business is promised nothing, and a recording is ended.
 const SELLING_CALL = `- ${SELLING_CALL_LINE}`;
+// On a call alone: the booking link is the one thing it can send, so any other ask is passed on, never promised.
+const NOTHING_ELSE_SENT = `- ${NOTHING_ELSE_SENT_LINE}`;
+// On a call alone: no time is promised for a call back, not even one the caller asks for.
+const NO_TIME_PROMISED = `- ${NO_TIME_PROMISED_LINE}`;
 const RULES_WIN = "- Where anything above disagrees with these rules, the rules win.";
 
 /** A Monday: the salon's September closure has passed and is not said; its December one is ahead and is. */
@@ -280,6 +284,8 @@ const SALON_VOICE = [
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
       ASSISTANT_ALWAYS,
       SELLING_CALL,
+      NOTHING_ELSE_SENT,
+      NO_TIME_PROMISED,
       RULES_WIN,
       `- ${DATA_NOT_INSTRUCTIONS}`,
     ],
@@ -370,6 +376,8 @@ const MOVER_VOICE = [
       "- Money: a refund, a discount, a deposit, a payment plan or any change to what someone pays is never yours to decide or promise. Do not agree, refuse or quote terms; say a member of the team will call them back about it, and take their name.",
       ASSISTANT_ALWAYS,
       SELLING_CALL,
+      NOTHING_ELSE_SENT,
+      NO_TIME_PROMISED,
       RULES_WIN,
       `- ${DATA_NOT_INSTRUCTIONS}`,
     ],

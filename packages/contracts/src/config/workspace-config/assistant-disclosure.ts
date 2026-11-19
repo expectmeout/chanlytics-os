@@ -19,6 +19,7 @@
  * is the named follow-up that would tell those apart.
  */
 import { DAY_MS } from "../../shared/time";
+import { NO_TIME_PROMISED, NOTHING_ELSE_IS_SENT } from "../call-promises";
 import type { LeadChannel } from "./offers-ask";
 
 /** The fact, word for word: the rule names it, so the two cannot drift. */
@@ -56,3 +57,9 @@ export function disclosureFacts(
  */
 export const SELLING_CALL_RULE =
   "Someone selling to the business (marketing, a listing, search rankings, card processing, any service they want the business to buy) is not a customer. Do not take a message for them, offer a call back or say the team will follow up: say the business does not take sales calls on this line, and use end_call. A recorded or automated message is nobody to answer: use end_call. If you are not sure they are selling, treat them as a customer.";
+
+/**
+ * The standing lines a call alone is told after that it is an AI assistant: what a seller is owed, and what a call may
+ * promise (../call-promises.ts), nothing but the booking link sent and no time for a call back.
+ */
+export const CALL_RULES = [SELLING_CALL_RULE, NOTHING_ELSE_IS_SENT, NO_TIME_PROMISED] as const;

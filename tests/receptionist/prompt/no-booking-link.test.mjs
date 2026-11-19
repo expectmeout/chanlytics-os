@@ -186,7 +186,7 @@ test("the openings, a caller's appointment and a correction on a call each end i
   );
   assert.equal(
     describeOpenings([], TZ, { daysAhead: 14, hasBookingLink: false }),
-    "Open times (from the calendar): nothing is open in the next 14 days. Offer to have someone call back.",
+    "Open times (from the calendar): nothing is open in the next 14 days. Offer to have someone call back, without saying when.",
   );
   const visits = {
     next: { id: "v1", start: monday, end: monday + 3_600_000, title: "Estimate visit", allDay: false, via: "phone" },

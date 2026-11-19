@@ -798,7 +798,7 @@ test("a business with no booking link (one that quotes each job): no calendar is
   // A feed it cannot read the openings from: here, no hours to read them against, so nothing is fetched.
   assert.equal(
     await ask(3, { brain, calendar: { ical_url: "https://calendar.example.com/harbor.ics" } }),
-    "I can't see the calendar right now. Offer to have someone call back.",
+    "I can't see the calendar right now. Offer to have someone call back, without saying when.",
   );
   const now = new Date(ny(2026, 9, 9, 8));
   const openings = freeWindows({

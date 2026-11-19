@@ -272,6 +272,9 @@ const IN_ENGLISH = "Write it in English, whatever language the caller spoke.";
  * wrote one Spanish call in three in Spanish. And an email is written as an address: asked for it "exactly as they
  * spelled it out", it wrote the spelling itself two times in six, which is no address (the dashboard's toCallDto
  * offers only one), and with the example, the address five times in five.
+ * A fifth came from a scripted call of 19 November: asked to email a price list, AI said it was on its way, and the
+ * write-up believed it, "answered" with nothing to do. A call sends nothing but the booking link (contracts
+ * NOTHING_ELSE_IS_SENT), so any other ask is a person's to do and a call back, whatever was said on the call.
  */
 export const CALL_ANALYSIS_FIELDS = [
   {
@@ -288,14 +291,17 @@ export const CALL_ANALYSIS_FIELDS = [
     type: "enum",
     name: "outcome",
     description:
-      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: the caller asked to be called back or left a message for someone, or a person at the business has to call them back or follow up. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
+      "How the call ended for the caller. answered: their question was answered. booking_link_sent: the receptionist sent them the booking link. callback_needed: the caller asked to be called back or left a message for someone, or a person at the business has to call them back or follow up, as when the caller asked for anything to be emailed, texted or sent to them other than the booking link, whatever the receptionist said on the call: it cannot send anything else. voicemail: the call reached voicemail. no_request: they hung up, tested the line or asked for nothing. other: none of these.",
     choices: [...CALL_OUTCOMES],
   },
   {
     type: "string",
     name: "follow_up",
-    description: `What a person at the business should do next for this caller, in one short sentence. Leave empty when nothing is needed. ${IN_ENGLISH}`,
-    examples: ["Call back to confirm a Saturday 10:00 gel manicure.", "Text the price list for highlights."],
+    description: `What a person at the business should do next for this caller, in one short sentence. When the caller asked for anything to be emailed, texted or sent to them other than the booking link, that is always to do, whatever the receptionist said on the call: say what to send and where. Leave empty when nothing is needed. ${IN_ENGLISH}`,
+    examples: [
+      "Call back to confirm a Saturday 10:00 gel manicure.",
+      "Email the price list for highlights to ana.ruiz@example.com.",
+    ],
   },
   {
     type: "string",
