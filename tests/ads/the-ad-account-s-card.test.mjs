@@ -222,6 +222,17 @@ test("what came back from Meta's window with nothing connected: what happened, a
     [none.need.title, none.need.act.words, none.need.act.kind],
     ["Meta shared no ad account", "Make one in Meta", "meta"],
   );
+  // Shared, and Meta would not describe it: said as unread, never as none shared, and Connect again is the one act.
+  const unread = card(null, { outcome: "accounts_unreadable" });
+  assert.deepEqual(
+    [unread.need.title, unread.need.line, unread.need.act.words, unread.need.act.kind],
+    [
+      "Couldn't read your ad account",
+      "Meta shared it, but didn't let Chanlytics read it, so nothing was kept. Connect again in a few minutes.",
+      "Connect again",
+      "connect",
+    ],
+  );
   const taken = card(null, { outcome: "ad_account_taken" });
   assert.deepEqual(
     [taken.need.title, taken.need.act.words, taken.need.act.kind],

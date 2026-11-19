@@ -50,8 +50,39 @@ const ACCOUNT = {
   funding_source: "9900000000000001",
   spend_cap: "0",
   min_daily_budget: 100,
-  business: { id: "583355900000001" },
 };
+
+/** The top-level fields a request asks for: `adset{id,name}` is one, `adset`. */
+const fieldsAsked = (req) => {
+  const fields = new URL(req.url).searchParams.get("fields") ?? "";
+  const top = [];
+  let depth = 0;
+  let word = "";
+  for (const c of `${fields},`) {
+    if (c === "{") depth += 1;
+    if (c === "}") depth -= 1;
+    if (c === "," && depth === 0) {
+      top.push(word.replace(/\{.*$/, ""));
+      word = "";
+    } else word += c;
+  }
+  return top.filter(Boolean);
+};
+
+test("an ad account is asked only what the sign-in's five permissions reach: never the business that owns it", () => {
+  // Meta answers a question naming `business` with "(#100) Requires business_management permission to access the
+  // field" (the first real Connect, 19 November 2026); the business is the sign-in's own, from /me.
+  assert.deepEqual(fieldsAsked(account.metaAdAccountRequest("t", SECRET, "act_1200000000000042")), [
+    "account_id",
+    "name",
+    "currency",
+    "timezone_name",
+    "account_status",
+    "funding_source",
+    "spend_cap",
+    "min_daily_budget",
+  ]);
+});
 
 test("an ad account is read into what the row keeps: its standing in Chanlytics' words, its payment method, its limit", () => {
   assert.deepEqual(account.parseMetaAdAccount(ACCOUNT), {
@@ -63,7 +94,6 @@ test("an ad account is read into what the row keeps: its standing in Chanlytics'
     funded: true,
     spendLimitMinor: null,
     minDailyMinor: 100,
-    businessId: "583355900000001",
   });
   const words = {
     1: "active",
@@ -83,9 +113,8 @@ test("an ad account is read into what the row keeps: its standing in Chanlytics'
     ...ACCOUNT,
     funding_source: undefined,
     spend_cap: "50000",
-    business: undefined,
   });
-  assert.deepEqual([bare.funded, bare.spendLimitMinor, bare.businessId], [false, 50000, null]);
+  assert.deepEqual([bare.funded, bare.spendLimitMinor], [false, 50000]);
   assert.throws(
     () => account.parseMetaAdAccount({ error: { message: "Unsupported get request", code: 100 } }),
     /Unsupported get request/,

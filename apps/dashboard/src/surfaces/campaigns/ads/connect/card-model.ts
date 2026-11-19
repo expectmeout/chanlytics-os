@@ -122,7 +122,7 @@ function needOfOutcome(why: string): NeedVM {
   const how: NeedHow | null =
     why === "no_account"
       ? { kind: "meta", href: META_DOOR.accounts }
-      : why === "ad_account_taken"
+      : why === "ad_account_taken" || why === "accounts_unreadable"
         ? { kind: "connect" }
         : null;
   return { ...words, tone: why === "closed" ? "calm" : "warn", act: actOf(words, how) };
