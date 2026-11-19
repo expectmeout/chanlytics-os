@@ -73,6 +73,7 @@ export const LIVE = {
   /** A row while Chanlytics is signed out, and after a disconnect: what the ad was doing when it was last read. */
   wasOn: "Was on",
   wasPaused: "Was paused",
+  wasChecking: "Meta was checking it",
   leftInMeta: "Left in Meta",
   leftWasOn: (day: string) => `was on ${day}`,
   leftWasPaused: "was paused",
@@ -105,6 +106,14 @@ export const LIVE = {
     title: (names: string, many: boolean) => `${names} ${many ? "were" : "was"} on when you disconnected`,
     body: (day: string, many: boolean) =>
       `That was ${day}. Meta charges while ${many ? "they run" : "it runs"}. ${many ? "They" : "It"} can only be paused in Meta now.`,
+    /** Left on, and Meta was still checking it: it starts by itself once approved. */
+    checkingTitle: (names: string) => `Meta was checking ${names} when you disconnected`,
+    checkingBody: (day: string, many: boolean) =>
+      `That was ${day}. If Meta approves ${many ? "them, they run" : "it, it runs"} and Meta charges. ${many ? "They" : "It"} can only be paused in Meta now.`,
+    /** Some were running and Meta was checking others. */
+    bothTitle: (names: string) => `${names} were left on when you disconnected`,
+    bothBody: (day: string) =>
+      `That was ${day}. Meta charges while an ad runs, and one it was checking starts when Meta approves it. They can only be paused in Meta now.`,
     openMeta: "Open Meta",
     again: "Connect to read and pause them here again.",
   },

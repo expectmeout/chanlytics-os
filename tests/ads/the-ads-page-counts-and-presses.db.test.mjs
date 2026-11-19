@@ -376,6 +376,10 @@ test(
   async () => {
     const ws = await workspace("leave");
     const ad = await adopt(ws, "23850000000000851");
+    // One Meta is still checking, its own switch on: it starts once approved, so it is named as left on too. One
+    // paused while Meta checks it starts nothing, and is not.
+    await adopt(ws, "23850000000000852", { platform_state: "PENDING_REVIEW" });
+    await adopt(ws, "23850000000000853", { platform_state: "PENDING_REVIEW", intent: "paused" });
     await press(ws, ad, "paused");
     const refused = ok(
       await db.rpc("ad_account_disconnect", {
@@ -388,11 +392,14 @@ test(
     const done = ok(
       await db.rpc("ad_account_disconnect", { p_tenant_id: ws.tenant, p_actor: ws.owner.id, p_account_id: ws.account }),
     );
-    assert.deepEqual(done, { outcome: "disconnected", left_running: [`Ad 23850000000000851`] });
+    assert.deepEqual(done, {
+      outcome: "disconnected",
+      left_running: [`Ad 23850000000000851`, `Ad 23850000000000852`],
+    });
     const now = await adNow(ad);
     assert.ok(now.told_at >= now.intent_at, "nothing is sent after a disconnect");
     const [decision] = await decisionsOf(ws, "disconnect_ad_account");
-    assert.deepEqual(decision.payload.left_running, [`Ad 23850000000000851`]);
+    assert.deepEqual(decision.payload.left_running, [`Ad 23850000000000851`, `Ad 23850000000000852`]);
     assert.equal(
       ok(
         await db.rpc("ad_account_disconnect", {

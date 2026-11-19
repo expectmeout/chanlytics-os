@@ -144,26 +144,38 @@ export async function listPendingAds(db: Db, tenantId: TenantId, accountId: stri
   });
 }
 
-/** An ad its platform last said was running, as a disconnect that pauses first reads it. */
-export interface AdRunningRow {
+/** An ad its platform holds, with what its badge is read from: what a disconnect that pauses first looks through. */
+export interface AdMadeRow {
   id: string;
   name: string;
   version: number;
+  platform: string;
+  status: string;
+  intent: string;
+  platform_state: string | null;
+  ends_at: string | null;
+  budget_kind: string | null;
+  budget_minor: number | null;
+  budget_left_minor: number | null;
 }
 
-/** The most running ads one disconnect pauses first: each is a change, three of the account's allowance. */
-const RUNNING_MAX = 50;
+/** The most ads of one account that are looked through: what a read adopts at most. */
+const MADE_MAX = 500;
 
-/** An account's ads the platform last said were running. */
-export async function listRunningAds(db: Db, tenantId: TenantId, accountId: string): Promise<AdRunningRow[]> {
+/**
+ * An account's ads its platform holds, each with what its badge is read from. Which of them is left on is the badge's
+ * to say (contracts adStateOfRow), not a filter's: the page that counts them and the edge that pauses them ask it.
+ */
+export async function listMadeAds(db: Db, tenantId: TenantId, accountId: string): Promise<AdMadeRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("ads")
-    .select("id, name, version")
+    .select(
+      "id, name, version, platform, status, intent, platform_state, ends_at, budget_kind, budget_minor, budget_left_minor",
+    )
     .eq("account_id", accountId)
     .eq("status", "made")
-    .eq("platform_state", "ACTIVE")
     .order("created_at", { ascending: false })
-    .limit(RUNNING_MAX);
-  if (error) throw new DbFailure(error, "an account's running ads");
+    .limit(MADE_MAX);
+  if (error) throw new DbFailure(error, "an account's ads at its platform");
   return data;
 }

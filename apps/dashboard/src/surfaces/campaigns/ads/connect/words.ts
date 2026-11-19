@@ -182,27 +182,55 @@ const adsWord = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
 /** Disconnect, from the card's caret (the Ads plan's 4.9, as the canvas draws its screens). */
 export const DISCONNECT = {
   title: "Disconnect Facebook and Instagram?",
-  running: (names: readonly string[]) =>
-    names.length === 1 ? `${names[0]} is running.` : `${adsWord(names.length)} are running.`,
-  pauseFirst: (n: number) =>
-    n === 1
-      ? "Pause it first and it stops. Meta still bills what it already showed."
-      : "Pause them first and they stop. Meta still bills what they already showed.",
+  /** What is left on, before the question: the ads running, the ads Meta is still checking, or both. */
+  on: (running: readonly string[], checking: readonly string[]) => {
+    const runs = running.length === 1 ? `${running[0]} is running` : `${adsWord(running.length)} are running`;
+    const waits = `Meta is still checking ${checking.length === 1 ? checking[0] : adsWord(checking.length)}`;
+    if (checking.length === 0) return `${runs}.`;
+    return running.length === 0 ? `${waits}.` : `${runs}, and ${waits}.`;
+  },
+  /** What pausing first does: a running ad stops, and one Meta is checking never starts. */
+  pauseFirst: (running: number, checking: number) => {
+    const many = running + checking > 1;
+    if (checking === 0)
+      return many
+        ? "Pause them first and they stop. Meta still bills what they already showed."
+        : "Pause it first and it stops. Meta still bills what it already showed.";
+    if (running === 0)
+      return many
+        ? "Pause them first and they won't start when Meta approves them."
+        : "Pause it first and it won't start when Meta approves it.";
+    return "Pause them first: what is running stops, and what Meta approves won't start. Meta still bills what it already showed.";
+  },
   stops: "Chanlytics stops reading your ads and can't make new ones.",
   pauseAndGo: (n: number) => `Pause ${adsWord(n)} and disconnect`,
   go: "Disconnect",
   keep: "Keep it connected",
   without: "Disconnect without pausing",
-  leaveTitle: (n: number) => (n === 1 ? "Disconnect and leave it running?" : "Disconnect and leave them running?"),
-  keepsRunning: (names: readonly string[]) =>
-    names.length === 1
-      ? `${names[0]} keeps running and Meta keeps charging`
-      : `${adsWord(names.length)} keep running and Meta keeps charging`,
+  leaveTitle: (running: number, checking: number) => {
+    const one = running + checking === 1;
+    if (checking === 0) return one ? "Disconnect and leave it running?" : "Disconnect and leave them running?";
+    return one ? "Disconnect and leave it on?" : "Disconnect and leave them on?";
+  },
+  /** What stays on after a disconnect that pauses nothing: what runs keeps running, what Meta approves starts. */
+  staysOn: (running: readonly string[], checking: readonly string[]) => {
+    if (checking.length === 0)
+      return running.length === 1
+        ? `${running[0]} keeps running and Meta keeps charging`
+        : `${adsWord(running.length)} keep running and Meta keeps charging`;
+    if (running.length > 0)
+      return `${adsWord(running.length + checking.length)} stay on: Meta keeps charging for what runs, and what it approves starts`;
+    return checking.length === 1
+      ? `${checking[0]} starts when Meta approves it, and Meta charges while it runs`
+      : `${adsWord(checking.length)} start when Meta approves them, and Meta charges while they run`;
+  },
   onlyInMeta: (n: number) =>
     n === 1
       ? "After this it can only be stopped in Meta. It stays listed here as Left in Meta."
       : "After this they can only be stopped in Meta. They stay listed here as Left in Meta.",
   notConfirmed: "Meta didn't confirm the pause.",
+  /** Signed out by Meta, nothing can be paused from here: said where a pause would have been offered. */
+  cantPause: "Chanlytics is signed out of Meta, so it can't pause anything first.",
   anyway: "Disconnect anyway",
   done: "Disconnected. Chanlytics no longer reads your ads.",
   /** Where the owner removes Chanlytics at Meta themselves: said on the card once the account is let go. */

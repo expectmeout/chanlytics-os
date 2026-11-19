@@ -2,11 +2,16 @@
  * Disconnect, from the card's caret (the Ads plan's 4.9; decision 0050, call 8 as amended: never refused). Three
  * screens, as the canvas draws them:
  *
- *   1. With an ad running: "Pause 1 ad and disconnect", "Keep it connected", and a quieter door, "Disconnect without
- *      pausing". With none running, one plain question.
- *   2. Disconnecting anyway, or where Meta did not confirm a pause: first that the ad keeps running, Meta keeps
- *      charging, and after this it can only be stopped in Meta; then "Disconnect anyway".
+ *   1. With an ad left on: "Pause 1 ad and disconnect", "Keep it connected", and a quieter door, "Disconnect without
+ *      pausing". With none left on, one plain question.
+ *   2. Disconnecting anyway, or where Meta did not confirm a pause: first that the ad stays on, Meta keeps charging,
+ *      and after this it can only be stopped in Meta; then "Disconnect anyway".
  *   3. After: the page itself, its ads listed as left in Meta (live/), and the coral button says Connect.
+ *
+ * An ad is left on where it is running, or where Meta is still checking it with its own switch on: that one starts by
+ * itself once approved, after the owner has gone, so it is paused first with the rest and named with them. Where Meta
+ * has signed Chanlytics out nothing can be paused from here, so no pause is offered: the sheet opens on the second
+ * screen and says why.
  *
  * The owner's alone: the page hands it in only where they may press it.
  */
@@ -27,6 +32,10 @@ interface DisconnectSheetProps {
   account: string | null;
   /** The ads Meta last said were running, by name. */
   running: readonly string[];
+  /** The ads Meta was still checking, their own switch on, by name: each starts once Meta approves it. */
+  checking: readonly string[];
+  /** Whether Chanlytics can pause an ad now: not where Meta signed it out. */
+  canPause: boolean;
   disconnect: (pause: boolean) => Promise<Disconnected>;
   onClose: () => void;
   /** Disconnected: the page reads again and says so. */
@@ -57,12 +66,20 @@ export function DisconnectSheet(p: DisconnectSheetProps) {
     </Button>
   );
   const frame = { open: p.open, onClose: close, close: { label: "Close", glyph: <Icon name="x" size={13} /> } };
+  const leftOn = [...p.running, ...p.checking];
+  const some = leftOn.length > 0;
+  // Signed out, nothing can be paused first: the sheet opens on what stays on.
+  const staying = leaving ?? (some && !p.canPause ? { names: leftOn, unconfirmed: false } : null);
 
-  if (leaving)
+  if (staying) {
+    // The names the second screen says, each as what it is: one Meta was checking, or one that runs.
+    const waits = staying.names.filter((name) => p.checking.includes(name));
+    const runs = staying.names.filter((name) => !p.checking.includes(name));
+    const reason = !p.canPause ? DISCONNECT.cantPause : staying.unconfirmed ? DISCONNECT.notConfirmed : null;
     return (
       <Sheet
         {...frame}
-        title={DISCONNECT.leaveTitle(leaving.names.length)}
+        title={DISCONNECT.leaveTitle(runs.length, waits.length)}
         sub={p.account ?? undefined}
         foot={
           <>
@@ -83,16 +100,16 @@ export function DisconnectSheet(p: DisconnectSheetProps) {
         testid="ads-disc-sheet"
       >
         <div className="ads-conn ads-conn-open" data-screen="leave">
-          {leaving.unconfirmed ? <p className="ads-conn-says">{DISCONNECT.notConfirmed}</p> : null}
+          {reason ? <p className="ads-conn-says">{reason}</p> : null}
           <div className="ads-conn-need" data-tone="warn">
-            <b>{DISCONNECT.keepsRunning(leaving.names)}</b>
-            <span>{DISCONNECT.onlyInMeta(leaving.names.length)}</span>
+            <b>{DISCONNECT.staysOn(runs, waits)}</b>
+            <span>{DISCONNECT.onlyInMeta(staying.names.length)}</span>
           </div>
         </div>
       </Sheet>
     );
+  }
 
-  const some = p.running.length > 0;
   return (
     <Sheet
       {...frame}
@@ -102,7 +119,7 @@ export function DisconnectSheet(p: DisconnectSheetProps) {
         <>
           {some ? (
             <Button variant="primary" disabled={busy} onClick={() => void go(true)} data-testid="ads-disc-go">
-              {DISCONNECT.pauseAndGo(p.running.length)}
+              {DISCONNECT.pauseAndGo(leftOn.length)}
             </Button>
           ) : (
             <Button
@@ -126,17 +143,14 @@ export function DisconnectSheet(p: DisconnectSheetProps) {
         {some ? (
           <>
             <p className="ads-conn-says" data-strong="true">
-              {DISCONNECT.running(p.running)}
+              {DISCONNECT.on(p.running, p.checking)}
             </p>
-            <p className="ads-conn-says">{DISCONNECT.pauseFirst(p.running.length)}</p>
+            <p className="ads-conn-says">{DISCONNECT.pauseFirst(p.running.length, p.checking.length)}</p>
           </>
         ) : null}
         <p className="ads-conn-says">{DISCONNECT.stops}</p>
         {some ? (
-          <LinkButton
-            onClick={() => setLeaving({ names: p.running, unconfirmed: false })}
-            data-testid="ads-disc-without"
-          >
+          <LinkButton onClick={() => setLeaving({ names: leftOn, unconfirmed: false })} data-testid="ads-disc-without">
             {DISCONNECT.without}
           </LinkButton>
         ) : null}

@@ -22,7 +22,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { lensModel, liveModel, sheetModel } = await import(
   at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts")
 );
-const { adResumeRule } = await import(at("packages/contracts/src/ads/live.ts"));
+const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
 
 const SAID = { timezone: "America/New_York" };
 const NOW = Date.parse("2026-11-18T19:10:00Z");
@@ -90,6 +90,60 @@ const RUNNING = page({
     ad("autumn", { name: "Autumn offer", opens: "website", people: 0, spend_minor: 9600 }),
   ],
   unnamed: { people: 3, booked: 1 },
+});
+
+test("an ad is left on where it runs, or where Meta still checks it with its own switch on: read from its row", () => {
+  const at = { nowMs: NOW, timezone: "America/New_York" };
+  const row = (over = {}) => ({
+    platform: "meta",
+    status: "made",
+    intent: "on",
+    platform_state: "ACTIVE",
+    ends_at: null,
+    budget_kind: null,
+    budget_minor: null,
+    budget_left_minor: null,
+    ...over,
+  });
+  const leftOn = (over) => adLeftOn(adStateOfRow(row(over), at));
+  assert.deepEqual([adStateOfRow(row(), at), leftOn()], ["on", true]);
+  for (const word of ["PENDING_REVIEW", "IN_PROCESS", "PREAPPROVED"])
+    assert.deepEqual(
+      [adStateOfRow(row({ platform_state: word }), at), leftOn({ platform_state: word })],
+      ["review", true],
+    );
+  // Its own switch off while Meta checks it: it starts nothing once approved.
+  assert.equal(leftOn({ platform_state: "PENDING_REVIEW", intent: "paused" }), false);
+  // Paused, refused, removed: not on. Nor is one whose last day has passed, or whose total is spent, whatever Meta's word.
+  for (const word of ["PAUSED", "ADSET_PAUSED", "CAMPAIGN_PAUSED", "DISAPPROVED", "ARCHIVED"])
+    assert.equal(leftOn({ platform_state: word }), false, word);
+  assert.equal(leftOn({ ends_at: "2026-11-01T22:00:00Z" }), false);
+  assert.equal(leftOn({ budget_kind: "total", budget_minor: 5000, budget_left_minor: 0 }), false);
+});
+
+test("after a disconnect, and while signed out, an ad Meta was checking is said as that, and named as left on", () => {
+  const checking = ad("weekend", { name: "Weekend offer", state: "review" });
+  const running = ad("spring", { name: "Spring offer" });
+  const left = (ads) =>
+    page({ ads, account: { ...page().account, status: "disconnected", disconnected_at: "2026-11-18T15:00:00Z" } });
+  const alone = liveModel(left([checking]), SAID);
+  assert.equal(alone.rows[0].line, "Left in Meta · Meta was checking it");
+  assert.equal(alone.notice.title, "Meta was checking Weekend offer when you disconnected");
+  assert.match(
+    alone.notice.body,
+    /If Meta approves it, it runs and Meta charges\. It can only be paused in Meta now\.$/,
+  );
+  const both = liveModel(left([running, checking]), SAID);
+  assert.equal(both.notice.title, "Spring offer and Weekend offer were left on when you disconnected");
+  assert.match(both.notice.body, /one it was checking starts when Meta approves it/);
+  // Only running ones: as it was said before.
+  assert.match(liveModel(left([running]), SAID).notice.title, /^Spring offer was on when you disconnected$/);
+  // Signed out: the row says what the ad was doing when last read, never that it was paused.
+  const out = page({
+    ads: [checking],
+    account: { ...page().account, status: "revoked", revoked_at: "2026-11-18T15:00:00Z" },
+  });
+  assert.match(liveModel(out, SAID).rows[0].line, /^Meta was checking it · Updated /);
 });
 
 test("people from an ad of an ad account connected before are counted, on a line of their own, and never listed", () => {

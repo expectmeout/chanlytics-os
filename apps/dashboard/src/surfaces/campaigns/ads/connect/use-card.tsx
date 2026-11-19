@@ -49,7 +49,11 @@ export function useAdsConnection(on: boolean, timezone: string): AdsConnection {
     // The account's own zone where it names one: its days are Meta's days.
     timezone: account.dto?.meta?.timezone ?? timezone,
   });
-  const running = (live.dto?.ads ?? []).filter((ad) => ad.state === "on").map((ad) => ad.name);
+  // What a disconnect would leave on (contracts adLeftOn), each as what it is: running, or still being checked.
+  const namesOf = (state: "on" | "review") =>
+    (live.dto?.ads ?? []).filter((ad) => ad.state === state).map((ad) => ad.name);
+  const running = namesOf("on");
+  const checking = namesOf("review");
   // Disconnect is the owner's, on an account that is connected or that Meta signed Chanlytics out of.
   const status = account.dto?.meta?.status;
   const mayLeave = account.dto?.can_connect === true && (status === "connected" || status === "revoked");
@@ -77,6 +81,8 @@ export function useAdsConnection(on: boolean, timezone: string): AdsConnection {
           open={leaving}
           account={vm.facts.at(0)?.value ?? null}
           running={running}
+          checking={checking}
+          canPause={status === "connected"}
           disconnect={async (pause) => {
             const answer = await account.disconnect(pause);
             // Some were paused and Meta did not confirm the rest: the page reads again, so it says which are still on.

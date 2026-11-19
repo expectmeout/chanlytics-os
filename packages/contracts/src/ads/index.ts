@@ -52,7 +52,7 @@ export type {
 } from "./ads";
 export { bookedAfterTouch } from "./booked-after-touch";
 export { ADS_ACCOUNT_DOOR, ADS_PRESS_DOOR } from "./edge-doors";
-export { AD_DOORS_COUNTED, adResumeRule } from "./live";
+export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
 export type {
   AdBudgetLive,
   AdLiveDto,

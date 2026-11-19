@@ -189,11 +189,18 @@ begin
             jsonb_build_object('platform', v_row.platform, 'why', 'not_chosen', 'by', p_actor));
     return jsonb_build_object('outcome', 'disconnected', 'left_running', '[]'::jsonb);
   end if;
-  -- The ads the platform last said were running, by name: what the owner is told stays on, and can only be stopped there.
+  -- The ads left on, by name: the ones the platform last said were running, and the ones it was still checking with
+  -- their own switch on, which start by themselves once approved. What the owner is told stays on, and can only be
+  -- stopped there. A run that is over leaves nothing on, whatever the platform's word for the ad: its last moment has
+  -- passed, or its total is spent.
   select coalesce(jsonb_agg(d.name order by d.name), '[]'::jsonb) into v_running
     from public.ads d
    where d.tenant_id = p_tenant_id and d.account_id = p_account_id
-     and d.status = 'made' and d.platform_state = 'ACTIVE';
+     and d.status = 'made'
+     and (d.platform_state = 'ACTIVE'
+          or (d.intent = 'on' and d.platform_state in ('PENDING_REVIEW', 'IN_PROCESS', 'PREAPPROVED')))
+     and (d.ends_at is null or d.ends_at > now())
+     and not (d.budget_kind = 'total' and coalesce(d.budget_left_minor, 1) <= 0);
   -- Nothing is sent to the platform after a disconnect: a press still on its way is let go.
   update public.ads d
      set told_at = now()
@@ -217,7 +224,7 @@ end $$;
 -- Name: FUNCTION ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) IS 'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads the platform last said were running. The account''s ads and what they brought stay. One that still waited to be chosen was never connected: its row goes with its token (why not_chosen). The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
+COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid, p_account_id uuid) IS 'Service-role only: an owner disconnects their ad account (00653; decision 0050 call 8, as the Ads plan amends it: never refused). Marks the account disconnected with when, lets go every press still on its way to the platform, and keeps the owner''s decision (disconnect_ad_account) and the event (ad_account.disconnected, why owner), each naming the ads left on: the ones the platform last said were running, and the ones it was still checking with their own switch on, but for one whose run is over. The account''s ads and what they brought stay. One that still waited to be chosen was never connected: its row goes with its token (why not_chosen). The caller drops the account''s token after. Answers outcome: disconnected with left_running; already; not_allowed for anyone but the owner (has_permission ads, asked here); not_found.';
 
 
 --

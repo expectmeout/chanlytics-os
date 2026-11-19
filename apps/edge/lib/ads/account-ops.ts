@@ -74,7 +74,7 @@ import {
 } from "./meta-facts.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { pickAccount, pickPage, type AccountSeen } from "./pick.js";
-import { adsWrites, pauseRunning } from "./tell.js";
+import { adsWrites, pauseLeftOn } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -349,8 +349,10 @@ async function lookAgain(db: Db, app: MetaApp, account: AdAccountRow, nowMs: num
 
 /**
  * `disconnect`: the owner lets the account go (the Ads plan's 4.9; decision 0050, call 8, never refused). Asked to
- * pause first, every running ad is paused and Meta told; where Meta does not confirm one, nothing is disconnected and
- * the answer names it, so the owner is told it keeps running before they go on. Then the account is marked, every
+ * pause first, every ad left on is paused and Meta told: the ones running, and the ones Meta is still checking, which
+ * would start by themselves once approved. Where Meta does not confirm one, nothing is disconnected and the answer
+ * names it, so the owner is told it stays on before they go on; an account Meta signed Chanlytics out of can be told
+ * nothing, so that is every ad left on. Then the account is marked, every
  * press on its way let go, and its token dropped: it opens nothing here from that moment. Meta itself is not asked to
  * withdraw the sign-in here: whether that would also end another connection of the same business is not known yet,
  * so the page says where the owner can remove Chanlytics at Meta themselves.
@@ -364,9 +366,10 @@ async function disconnectAds(
   const log = logger({ tenant_id: by.tenantId });
   const live = await findLiveAdAccount(db, by.tenantId, "meta");
   if (!live) return refuse(409, "nothing_to_do", "No ad account is connected.");
-  if (pauseFirst && live.status === "connected") {
-    const signIn = app ? await signInOf(db, app, live.id) : null;
-    const names = await pauseRunning(db, log, { ...by, signIn, writes: adsWrites() }, live);
+  if (pauseFirst) {
+    // Signed out, there is no sign-in to tell Meta with: asked to pause first, the owner is never told it was done.
+    const signIn = app && live.status === "connected" ? await signInOf(db, app, live.id) : null;
+    const names = await pauseLeftOn(db, log, { ...by, signIn, writes: adsWrites() }, live);
     if (names.length > 0) {
       log.info("ads_disconnect_held", { unconfirmed: names.length });
       return json(200, { ok: true, outcome: "not_paused", names });

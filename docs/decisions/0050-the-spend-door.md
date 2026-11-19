@@ -308,6 +308,15 @@ The two presses call 9 leaves an owner on an ad made in Meta, and call 8's Disco
   disconnect anyway. A press on its way is let go with the account. Each of those pauses is one change and no read
   back, so Meta's allowance for the account covers about fifteen ads in one go; past that the owner is told which
   keep running, and pressing again five minutes on pauses the rest.
+- **An ad Meta is still checking is paused first too** (Ruben, 19 November). Left alone it starts by itself the moment
+  Meta approves it, after the owner has gone, with nothing here to say so. So "left on" is one rule, read from an ad's
+  own badge (contracts `adLeftOn` over `adStateOfRow`): running, or its own switch on while Meta checks it. The page
+  counts by it and the edge pauses by it, the running ones first. An ad whose run is over is not left on, whatever
+  Meta's word for it. The sheet says each as what it is ("Meta is still checking Weekend offer"), and after a
+  disconnect the page names one Meta was checking as that, never as paused.
+- **Signed out, no pause is offered.** Meta took the sign-in, so nothing can be paused from here: the sheet opens on
+  what stays on and says why, and the edge, asked to pause first all the same, disconnects nothing until the owner has
+  been told.
 - **An account still waiting for the owner's answer was never connected.** Signed out by Meta or let go by the owner
   before the one question is answered, its row goes with its token, and the bell says nothing of it.
 

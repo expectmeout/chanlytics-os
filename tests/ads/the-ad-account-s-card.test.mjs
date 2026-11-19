@@ -293,3 +293,34 @@ test("the card says nothing of an Instagram account where the sign-in may not re
   const read = card(account({ reads_instagram: true, instagram_handle: null }));
   assert.match(read.quiet, /No Instagram account is linked to your Page/);
 });
+
+test("Disconnect says what is left on as what it is: an ad running, an ad Meta is still checking, or both", async () => {
+  const { DISCONNECT } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/connect/words.ts"));
+  // Running only: as the canvas draws it.
+  assert.equal(DISCONNECT.on(["Spring offer"], []), "Spring offer is running.");
+  assert.equal(DISCONNECT.on(["Spring offer", "Autumn offer"], []), "2 ads are running.");
+  assert.equal(DISCONNECT.pauseFirst(1, 0), "Pause it first and it stops. Meta still bills what it already showed.");
+  assert.equal(DISCONNECT.leaveTitle(1, 0), "Disconnect and leave it running?");
+  assert.equal(DISCONNECT.staysOn(["Spring offer"], []), "Spring offer keeps running and Meta keeps charging");
+  // One Meta is still checking: it is not running, and it starts by itself once approved.
+  assert.equal(DISCONNECT.on([], ["Weekend offer"]), "Meta is still checking Weekend offer.");
+  assert.equal(DISCONNECT.on([], ["Weekend offer", "Winter offer"]), "Meta is still checking 2 ads.");
+  assert.equal(DISCONNECT.pauseFirst(0, 1), "Pause it first and it won't start when Meta approves it.");
+  assert.equal(DISCONNECT.leaveTitle(0, 1), "Disconnect and leave it on?");
+  assert.equal(
+    DISCONNECT.staysOn([], ["Weekend offer"]),
+    "Weekend offer starts when Meta approves it, and Meta charges while it runs",
+  );
+  // Both: one sentence each, and the button counts every ad it pauses.
+  assert.equal(
+    DISCONNECT.on(["Spring offer"], ["Weekend offer"]),
+    "Spring offer is running, and Meta is still checking Weekend offer.",
+  );
+  assert.match(DISCONNECT.pauseFirst(1, 1), /what is running stops, and what Meta approves won't start/);
+  assert.equal(DISCONNECT.leaveTitle(1, 1), "Disconnect and leave them on?");
+  assert.equal(
+    DISCONNECT.staysOn(["Spring offer"], ["Weekend offer"]),
+    "2 ads stay on: Meta keeps charging for what runs, and what it approves starts",
+  );
+  assert.equal(DISCONNECT.pauseAndGo(2), "Pause 2 ads and disconnect");
+});

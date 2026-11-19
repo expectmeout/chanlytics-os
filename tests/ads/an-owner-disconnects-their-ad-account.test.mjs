@@ -3,9 +3,10 @@
  * 4.9): the edge's op (apps/edge/lib/ads/account-ops.ts, `disconnect`) over a database in memory whose doors answer as
  * 00652's and 00653's do, with Meta's answers as its pages document them.
  *
- * What must hold. Asked to pause first, every running ad is paused and Meta told, and only then is the account let
- * go. Where Meta does not confirm a pause, nothing is disconnected and the owner is told which ad keeps running; they
- * may then disconnect anyway. The account's token is dropped the moment it is let go. It is the owner's alone, and it
+ * What must hold. Asked to pause first, every ad left on is paused and Meta told, and only then is the account let
+ * go: the ones running, and the ones Meta is still checking, which would start by themselves once approved. Where Meta
+ * does not confirm a pause, or Meta has signed Chanlytics out and none can be made, nothing is disconnected and the
+ * owner is told which ad stays on; they may then disconnect anyway. The account's token is dropped the moment it is let go. It is the owner's alone, and it
  * is never refused for them: not where this deployment no longer offers Ads, and not where Meta is not answering.
  */
 import { test, after } from "node:test";
@@ -69,6 +70,10 @@ const adRow = (n, over = {}) => ({
   intent_at: null,
   told_at: null,
   platform_state: "ACTIVE",
+  ends_at: null,
+  budget_kind: null,
+  budget_minor: null,
+  budget_left_minor: null,
   created_at: `2026-11-0${n}T00:00:00Z`,
   ...over,
 });
@@ -104,6 +109,7 @@ function world({ owner = true, ads = [adRow(1), adRow(2, { intent: "paused", pla
       ad_credentials_drop: ({ p_account_id }) => delete kept.vault[p_account_id],
       ad_set_intent: ({ p_ad_id, p_intent }) => {
         const row = tables.ads.find((ad) => ad.id === p_ad_id);
+        kept.onIntent?.(row.name);
         Object.assign(row, { intent: p_intent, intent_at: stamp(), version: row.version + 1 });
         return {
           outcome: "asked",
@@ -126,7 +132,10 @@ function world({ owner = true, ads = [adRow(1), adRow(2, { intent: "paused", pla
         account.status = "disconnected";
         return {
           outcome: "disconnected",
-          left_running: tables.ads.filter((ad) => ad.platform_state === "ACTIVE").map((ad) => ad.name),
+          // As 00653 reads it: what the platform last said was running, but for one whose last moment has passed.
+          left_running: tables.ads
+            .filter((ad) => ad.platform_state === "ACTIVE" && !(ad.ends_at && Date.parse(ad.ends_at) <= Date.now()))
+            .map((ad) => ad.name),
         };
       },
     },
@@ -149,6 +158,43 @@ test("pausing first: the running ad is paused at Meta, then the account is let g
     ],
   );
   assert.deepEqual([w.tables.ad_accounts[0].status, w.kept.vault], ["disconnected", {}]);
+});
+
+test("an ad Meta is still checking is paused first too, after the ones running; one whose run is over is left alone", async () => {
+  const checking = adRow(3, { name: "Weekend offer", platform_state: "PENDING_REVIEW" });
+  // Meta still says ACTIVE of an ad whose last day has passed: its run is over, and nothing of it is left to pause.
+  const over = adRow(4, { name: "Summer offer", ends_at: "2026-01-31T22:00:00Z" });
+  // Paused by its owner while Meta checks it: its own switch is off, so it starts nothing.
+  const off = adRow(5, { name: "Held offer", intent: "paused", platform_state: "PENDING_REVIEW" });
+  const w = world({ ads: [checking, adRow(1), over, off] });
+  const order = [];
+  const set = w.kept.onIntent;
+  w.kept.onIntent = (name) => order.push(name) && set?.(name);
+  assert.deepEqual(await heard(await w.disconnect(true)), [200, { ok: true, outcome: "disconnected", names: [] }]);
+  assert.deepEqual(order, ["Spring colour offer", "Weekend offer"], "what is spending now goes first");
+  assert.deepEqual(asked, ["set", "set"], "two changes, and nothing read back");
+  assert.deepEqual(
+    w.tables.ads.map((ad) => [ad.name, ad.intent, ad.platform_state]),
+    [
+      ["Weekend offer", "paused", "PAUSED"],
+      ["Spring colour offer", "paused", "PAUSED"],
+      ["Summer offer", "on", "ACTIVE"],
+      ["Held offer", "paused", "PENDING_REVIEW"],
+    ],
+  );
+  assert.equal(w.tables.ad_accounts[0].status, "disconnected");
+});
+
+test("signed out by Meta, a pause cannot be made: nothing is disconnected until the owner is told what stays on", async () => {
+  const w = world({ ads: [adRow(1), adRow(3, { name: "Weekend offer", platform_state: "PENDING_REVIEW" })] });
+  w.tables.ad_accounts[0].status = "revoked";
+  assert.deepEqual(await heard(await w.disconnect(true)), [
+    200,
+    { ok: true, outcome: "not_paused", names: ["Spring colour offer", "Weekend offer"] },
+  ]);
+  assert.deepEqual([asked, w.tables.ad_accounts[0].status, w.kept.disconnects], [[], "revoked", 0]);
+  // Told, they disconnect anyway.
+  assert.equal((await heard(await w.disconnect(false)))[1].outcome, "disconnected");
 });
 
 test("where Meta does not confirm the pause nothing is disconnected, and the owner is told which ad keeps running", async () => {

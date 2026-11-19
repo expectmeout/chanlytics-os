@@ -8,7 +8,9 @@
  * And the one rule that says whether an ad found in the owner's account may be turned back on from here (the plan's
  * C1): asked by the page that draws the press, by the route that takes it and by the edge before Meta is told.
  */
+import { zoneDayKey } from "../shared/clock";
 import type { AdState } from "./ads";
+import { adStateOf } from "./states";
 
 /** What a tap on an ad opens, as its row keeps it (ads.door). */
 export type AdOpens = "whatsapp" | "instagram" | "messenger" | "call" | "form" | "website" | "other";
@@ -110,6 +112,45 @@ export interface AdPeopleLiveDto {
   /** Whether there are more after these. */
   more: boolean;
 }
+
+/** What an ad's badge reads of its row. */
+interface AdStateFacts {
+  platform: string;
+  status: string;
+  intent: string;
+  platform_state: string | null;
+  ends_at: string | null;
+  budget_kind: string | null;
+  budget_minor: number | null;
+  budget_left_minor: number | null;
+}
+
+/**
+ * An ad's badge from its row, at a moment in its account's zone: the one reading of a row into what adStateOf asks.
+ * The page that draws an ad and the edge that acts on one both ask here, so they cannot call one ad two things.
+ */
+export function adStateOfRow(row: AdStateFacts, at: { nowMs: number; timezone: string }): AdState | "draft" {
+  const total = row.budget_kind === "total" ? row.budget_minor : null;
+  return adStateOf(
+    {
+      status: row.status === "draft" || row.status === "sending" || row.status === "failed" ? row.status : "made",
+      intent: row.intent === "on" || row.intent === "ended" ? row.intent : "paused",
+      platform: row.platform === "google" || row.platform === "tiktok" ? row.platform : "meta",
+      platformWord: row.platform_state,
+      endDay: row.ends_at === null ? null : zoneDayKey(Date.parse(row.ends_at), at.timezone),
+      totalMinor: total,
+      // What a total has spent is what the platform says is no longer left of it.
+      spentMinor: total !== null && row.budget_left_minor !== null ? total - row.budget_left_minor : 0,
+    },
+    zoneDayKey(at.nowMs, at.timezone),
+  );
+}
+
+/**
+ * Whether an ad is left on: running, or its own switch on while its platform still checks it, so it starts by itself
+ * the moment it is approved. What a disconnect offers to pause first, and what it says stays on (the plan's 4.9).
+ */
+export const adLeftOn = (state: AdState | "draft"): boolean => state === "on" || state === "review";
 
 /** Whether an ad may be turned back on from here, and what the press may then cost at most. */
 export type AdResume =

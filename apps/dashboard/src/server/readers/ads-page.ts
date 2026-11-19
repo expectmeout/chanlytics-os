@@ -4,7 +4,7 @@ import {
   ROLE_PERMS,
   UUID,
   adResumeRule,
-  adStateOf,
+  adStateOfRow,
   metaAdConfigOf,
   personName,
   zoneDayKey,
@@ -48,24 +48,6 @@ interface ReadAt {
   nowMs: number;
 }
 
-/** An ad's badge from its row (contracts adStateOf, the one place a badge is worked out). */
-function stateOf(row: AdRow, at: ReadAt): AdLiveDto["state"] {
-  const total = row.budget_kind === "total" ? row.budget_minor : null;
-  return adStateOf(
-    {
-      status: row.status === "draft" || row.status === "sending" || row.status === "failed" ? row.status : "made",
-      intent: row.intent === "on" || row.intent === "ended" ? row.intent : "paused",
-      platform: "meta",
-      platformWord: row.platform_state,
-      endDay: row.ends_at === null ? null : zoneDayKey(Date.parse(row.ends_at), at.timezone),
-      totalMinor: total,
-      // What a total has spent is what the platform says is no longer left of it.
-      spentMinor: total !== null && row.budget_left_minor !== null ? total - row.budget_left_minor : 0,
-    },
-    at.today,
-  );
-}
-
 /** Why an ad that needs its owner does, from the platform's own word for it. */
 function needsOf(state: AdLiveDto["state"], platformWord: string | null): AdLiveDto["needs"] {
   if (state !== "needs-you") return null;
@@ -78,7 +60,7 @@ function needsOf(state: AdLiveDto["state"], platformWord: string | null): AdLive
 function adOf(row: AdRow, counts: AdsPageCounts | null, at: ReadAt): AdLiveDto {
   const people = counts?.people.get(row.id) ?? { people: 0, booked: 0 };
   const spend = counts?.spend.get(row.id);
-  const state = stateOf(row, at);
+  const state = adStateOfRow(row, at);
   return {
     id: row.id,
     name: row.name,

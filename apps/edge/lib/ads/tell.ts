@@ -16,10 +16,10 @@ import {
   parseMetaAdStanding,
   type MetaUsage,
 } from "@chanlytics/channels/ads";
-import { SECOND_MS, type TenantId } from "@chanlytics/contracts";
+import { adLeftOn, adStateOfRow, SECOND_MS, type TenantId } from "@chanlytics/contracts";
 import {
+  listMadeAds,
   listPendingAds,
-  listRunningAds,
   markAdTold,
   setAdIntent,
   type AdIntent,
@@ -155,20 +155,27 @@ export async function tellPending(
 }
 
 /**
- * Every ad of an account its platform last said was running, paused, for a disconnect that pauses first (the Ads
- * plan's 4.9). Each is the owner's press like any other, kept by its door and told to Meta now. The names of the ones
- * whose pause Meta did not confirm: with any left, the owner is told the ad keeps running before they disconnect.
+ * Every ad of an account that is left on, paused, for a disconnect that pauses first (the Ads plan's 4.9): the ones
+ * running, and the ones Meta is still checking with their own switch on, which would start by themselves once
+ * approved, after the owner has gone. Which those are is the badge's to say (contracts adLeftOn), the same one the
+ * page counted them by. The running ones go first: they are spending now. Each is the owner's press like any other,
+ * kept by its door and told to Meta now. The names of the ones whose pause Meta did not confirm: with any left, the
+ * owner is told the ad stays on before they disconnect. With no sign-in to tell Meta with, that is every one of them.
  */
-export async function pauseRunning(
+export async function pauseLeftOn(
   db: Db,
   log: Log,
   who: { tenantId: TenantId; userId: string; signIn: MetaSignIn | null; writes: AdsWrites },
-  account: { id: string; read_after: string | null },
+  account: { id: string; read_after: string | null; timezone: string | null },
 ): Promise<string[]> {
-  const running = await listRunningAds(db, who.tenantId, account.id);
+  const at = { nowMs: Date.now(), timezone: account.timezone ?? "UTC" };
+  const leftOn = (await listMadeAds(db, who.tenantId, account.id))
+    .map((ad) => ({ ...ad, state: adStateOfRow(ad, at) }))
+    .filter((ad) => adLeftOn(ad.state))
+    .sort((one, other) => Number(other.state === "on") - Number(one.state === "on"));
   const unconfirmed: string[] = [];
   let usage: MetaUsage | null = null;
-  for (const ad of running) {
+  for (const ad of leftOn) {
     const held = account.read_after !== null && Date.parse(account.read_after) > Date.now();
     const room = usage === null || usage.pct < ADS_USAGE_HOLD_PCT;
     if (who.signIn === null || who.writes === "off" || held || !room) {

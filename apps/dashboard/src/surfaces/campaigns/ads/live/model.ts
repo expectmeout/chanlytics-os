@@ -86,19 +86,26 @@ function eachOf(ads: readonly AdLiveDto[], dto: AdsLiveDto, currency: string): {
   return cost.eachMinor === null ? null : { each: aboutMoneyOf(cost.eachMinor, currency), soFar: cost.soFar };
 }
 
-/** The line a row says: where the ad stands, then what the owner needs to know of it. */
-function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
-  const account = dto.account.status;
-  const ends = dayOf(ad.ends_at, said);
-  if (account === "disconnected") {
-    const was = ad.state === "on" ? LIVE.leftWasOn(dayOf(dto.account.disconnected_at, said) ?? "") : LIVE.leftWasPaused;
-    return `${LIVE.leftInMeta} · ${was.trim()}`;
+/**
+ * A row's line where the account is no longer read (signed out by Meta, or let go): what the ad was doing when it last
+ * was. An ad Meta was still checking was neither on nor paused, and is said as what it was.
+ */
+function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
+  const checking = ad.state === "review";
+  if (dto.account.status === "disconnected") {
+    const day = dayOf(dto.account.disconnected_at, said) ?? "";
+    const phrase = ad.state === "on" ? LIVE.leftWasOn(day).trim() : LIVE.leftWasPaused;
+    return `${LIVE.leftInMeta} · ${checking ? LIVE.wasChecking : phrase}`;
   }
   const updated = dayOf(dto.account.read_at, said);
-  if (account === "revoked")
-    return [ad.state === "on" ? LIVE.wasOn : LIVE.wasPaused, updated ? LIVE.updated(updated) : null]
-      .filter(Boolean)
-      .join(" · ");
+  const phrase = ad.state === "on" ? LIVE.wasOn : LIVE.wasPaused;
+  return [checking ? LIVE.wasChecking : phrase, updated ? LIVE.updated(updated) : null].filter(Boolean).join(" · ");
+}
+
+/** The line a row says: where the ad stands, then what the owner needs to know of it. */
+function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
+  const ends = dayOf(ad.ends_at, said);
+  if (dto.account.status !== "connected") return stoppedLineOf(ad, dto, said);
   if (ad.pending === "pausing") return LIVE.pausing;
   if (ad.pending === "resuming") return LIVE.resuming;
   if (ad.state === "review") return LIVE.checking;
@@ -156,15 +163,24 @@ function noticeOf(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
       door: null,
     };
   }
-  if (dto.account.status === "disconnected" && on.length > 0) {
-    const many = on.length > 1;
-    return {
-      title: LIVE.disconnected.title(namesOf(on), many),
-      body: LIVE.disconnected.body(dayOf(dto.account.disconnected_at, said) ?? "", many),
-      door: LIVE.disconnected.openMeta,
-    };
-  }
+  if (dto.account.status === "disconnected") return leftOnNotice(dto, said);
   return null;
+}
+
+/** After a disconnect: the ads left on, each as what it was. An ad Meta was checking starts once it is approved. */
+function leftOnNotice(dto: AdsLiveDto, said: Said): LiveNoticeVM | null {
+  const on = dto.ads.filter((ad) => ad.state === "on");
+  const checking = dto.ads.filter((ad) => ad.state === "review");
+  const left = [...on, ...checking];
+  if (left.length === 0) return null;
+  const day = dayOf(dto.account.disconnected_at, said) ?? "";
+  const door = LIVE.disconnected.openMeta;
+  const words = LIVE.disconnected;
+  if (checking.length === 0)
+    return { title: words.title(namesOf(on), on.length > 1), body: words.body(day, on.length > 1), door };
+  if (on.length === 0)
+    return { title: words.checkingTitle(namesOf(checking)), body: words.checkingBody(day, checking.length > 1), door };
+  return { title: words.bothTitle(namesOf(left)), body: words.bothBody(day), door };
 }
 
 /** The notes under the list: what an ad made in Meta can do here, whose people are not counted, and the unnamed. */
