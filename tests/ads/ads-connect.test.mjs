@@ -15,12 +15,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 import { connectModel, CONNECT } from "../../apps/dashboard/src/surfaces/settings/connections/model/ads-words.ts";
-import {
-  checkWords,
-  EXAMPLE,
-  PLATFORM_OWNER,
-  PLATFORM_WORD,
-} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { checkWords, EXAMPLE, PLATFORM_WORD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { STANDING_CHECKS } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/rules.ts";
 
 const root = await import("@chanlytics/contracts");
@@ -245,8 +240,6 @@ test("an ad is a way in: the words, a person added by one by name with a door to
   assert.equal(root.cameFromOf({ came_from: "fax" }), null, "a value this build does not know is still nothing");
   // People's three platform words are the Ads page's, said once there; this holds the copy equal.
   for (const p of ["meta", "google", "tiktok"]) assert.equal(root.PERSON_AD_ON[p], PLATFORM_WORD[p], p);
-  // And whose account an ad runs in, where a page cannot name the ad: "an ad you run in Meta".
-  for (const p of ["meta", "google", "tiktok"]) assert.equal(root.PERSON_AD_OWNER[p], PLATFORM_OWNER[p], p);
   assert.equal(root.fromAdWords("Spring offer"), "From an ad · Spring offer");
   assert.equal(root.fromAdWords(null), "From an ad");
   const ad = { id: SPRING, name: "Spring offer", platform: "meta" };

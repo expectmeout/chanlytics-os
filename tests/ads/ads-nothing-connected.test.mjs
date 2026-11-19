@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { installStubReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
-import { firstTouchOf, v0Of as pageV0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-parts.ts";
+import { firstTouchOf, v0Of as pageV0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-v0.ts";
 import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
 import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
 import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";

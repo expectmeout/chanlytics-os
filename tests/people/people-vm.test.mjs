@@ -22,6 +22,7 @@ import {
 // A namespace too: a word a change has not yet added to the module is missing from it, and a named import of it would
 // fail the whole file instead of the one test that reads it.
 import * as contracts from "@chanlytics/contracts";
+import { PLATFORM_OWNER } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -973,8 +974,13 @@ test("a person an ad brought: the line of where they came from names the ad, or 
     origin({ platform: "meta", name: null }, added, { came_from: "ad" }),
     `From an ad you run in Meta · ${day}`,
   );
-  // The owner of a platform's account is People's copy of the Ads page's three words: the same names.
-  assert.deepEqual(contracts.PERSON_AD_OWNER, { meta: "Meta", google: "Google", tiktok: "TikTok" });
+  // Whose account an ad runs in is People's copy of the Ads page's three words: the line says the same names.
+  for (const platform of ["meta", "google", "tiktok"])
+    assert.equal(
+      origin({ platform, name: null }),
+      `${plain} · from an ad you run in ${PLATFORM_OWNER[platform]}`,
+      platform,
+    );
 });
 
 test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {

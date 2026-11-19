@@ -74,8 +74,8 @@ export const PERSON_AD_ON: Record<"meta" | "google" | "tiktok", string> = {
 
 /**
  * Whose account an ad runs in, as a page says it where the ad has no name it knows: `an ad you run in Meta` (ads/words.ts
- * PLATFORM_OWNER is the Ads page's own; this is People's copy of three words, and tests/ads/ads-connect.test.mjs holds the
- * two equal).
+ * PLATFORM_OWNER is the Ads page's own; this is People's copy of three words, and tests/people/people-vm.test.mjs holds
+ * the two equal, through the line a person's page says).
  */
 export const PERSON_AD_OWNER: Record<"meta" | "google" | "tiktok", string> = {
   meta: "Meta",

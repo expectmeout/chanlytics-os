@@ -235,12 +235,5 @@ export type { PersonState, ThreadHolder } from "./person-state";
 export { consentChangeWords } from "./person-timeline";
 export type { PersonTimelineItemVM, PersonVisitAheadVM, TimelineKind } from "./person-timeline";
 // A person's wires, where they came from and since when, in words: the leaf the list rules read too (person-words.ts).
-export {
-  fromAdWords,
-  PERSON_AD_ON,
-  PERSON_AD_OWNER,
-  PERSON_CAME_FROM_WORDS,
-  PERSON_CHANNEL_WORDS,
-  sinceWords,
-} from "./person-words";
+export { fromAdWords, PERSON_AD_ON, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, sinceWords } from "./person-words";
 export type { PersonCameFrom, PersonChannel } from "./person-words";
