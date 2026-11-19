@@ -2,7 +2,8 @@
 
 **Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Steps P0a and P0b are built
 (18 November 2026: migration 00644, an ad tap keeps what the ad said; migration 00645, the `ads` permission, with the
-shared rules, the one Meta client and the one sign-in state helper); the other steps are not. Four
+shared rules, the one Meta client and the one sign-in state helper), and so is call 2's line on a page (migration
+00646: a person's page and the Ads page name the ad someone came through); the other steps are not. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
@@ -10,7 +11,7 @@ Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 
 main when this was written (#1564 built both, 12 October 2026); each place that depends on one says so. Written against commit `132ab95eb` (main, 11 October 2026), and the
 paths below were read at it. Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
 Amended on 18 November 2026 by "No click id yet, and totals counted whole" (below): calls 6 and 11, the shape of
-`ad_entries`, step P0a and one risk. Steps P0a and P0b are written as they were built: the two "As built, 18 November
+`ad_entries`, step P0a and one risk. Steps P0a and P0b are written as they were built: the "As built, 18 November
 2026" sections (below) say
 where that differs from what was first drawn.
 
@@ -321,3 +322,26 @@ changes with it, and nothing checks the permission yet. Where it is not as this 
 - **The one sign-in state helper.** `packages/channels/src/tokens/sign-in-state.ts`, moved word for word out of
   Google's module, so a state signed before a deploy proves itself after it. `signStateFor` and `verifyStateFor`
   are what Instagram's and Meta's connects share, and what an ad account's connect will use.
+
+## As built, 18 November 2026 · An ad has one name, and two pages say it
+
+Call 2 was built on 18 November 2026 (`supabase/migrations/00646_a_page_names_the_ad_someone_came_through.sql`), the
+last part of the plan's step 1. Until Chanlytics holds the ad itself (step P1), an ad's name is the headline its taps
+kept.
+
+- **One place names an ad.** `ad_named(tenant, ref)` reads a first touch's reference and answers the ad's platform and
+  its name: the headline the newest entry kept for it, or none. A reference keyed by its platform (`meta:<id>`) is read
+  by its key, and a bare id, which a WhatsApp or Instagram message carries, is Meta's. So call 4's two ways of writing
+  a reference name the same ad, and nothing is rewritten.
+- **The newest headline, not the person's own.** An owner who rewrote the ad sees today's words on every page. A
+  person's page and the report then call one ad one thing.
+- **The person's page.** The line of where they came from ends with the ad: "Wrote on WhatsApp · Nov 18 · from an ad
+  (Spring colour offer)", or "from an ad you run in Meta" where no entry kept a headline. The read asks for a person an
+  ad brought and nobody else, and a name that cannot be read never fails the page.
+- **The Ads page, nothing connected.** Under its count it says which ads: "5 people from Spring colour offer and 2
+  people from an ad you run in Meta." It reads this from the people report's own answer (`first_came.by_ad`, added to
+  `people_series`), so its rows are the same people the report counts under "An ad", and it says them only where they
+  add up to that count. The ads nobody can name are one row a platform, which is call 5's "one quiet line".
+- **What the report counts, it counts as before.** The people report reaches on WhatsApp, SMS, email and calls. A
+  person who first wrote on Instagram after tapping an ad is stamped `ad`, and is in neither the report's "An ad" nor
+  this split until the report counts Instagram. That is the report's, and is not changed here.

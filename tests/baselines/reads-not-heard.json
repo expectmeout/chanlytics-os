@@ -1244,6 +1244,26 @@
           "DELETE files/[id]/google"
         ]
       }
+    },
+    {
+      "kind": "unfed",
+      "why": "The name of the ad a person first came through (ad_named, and people_series' first_came.by_ad, over ad_entries: 00646; decision 0049, call 2). The feed tells no entry: an entry is part of the message that carried it, opened in that message's own transaction, and what the ad said is kept on it seconds later. A person's page reads the name with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). Words kept after that read are said on the next one.",
+      "reads": {
+        "person": [
+          "ad_entries"
+        ],
+        "reports_people": [
+          "ad_entries"
+        ]
+      },
+      "heardWith": {
+        "person": [
+          "contacts"
+        ],
+        "reports_people": [
+          "messages"
+        ]
+      }
     }
   ]
 }

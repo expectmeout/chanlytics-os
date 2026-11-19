@@ -265,6 +265,13 @@ export const ORIGIN_WORDS = {
   weCalledFirst: (day: string) => `We called first · ${day}`,
   /** "We wrote first by text · Sep 20": the wire as a sentence says it (CONSENT_CHANNEL_WORDS). */
   weWroteFirstOn: (on: string, day: string) => `We wrote first ${on} · ${day}`,
+  /**
+   * The ad they first came through (decision 0049, call 2): by its name where Chanlytics knows it, else by whose account
+   * it runs in ("Meta"), else as an ad alone. It ends the line of the wire they wrote on, or begins the line of a person
+   * an ad's own form added.
+   */
+  throughAd: (name: string | null, owner: string | null) =>
+    name ? `from an ad (${name})` : owner ? `from an ad you run in ${owner}` : "from an ad you run",
 } as const;
 
 /**

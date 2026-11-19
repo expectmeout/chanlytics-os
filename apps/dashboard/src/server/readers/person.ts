@@ -28,6 +28,7 @@ import {
   findPersonRow,
   listSigners,
 } from "@chanlytics/db/people";
+import { readAdNamed } from "@chanlytics/db/ads";
 import { findPersonReplyMode } from "@chanlytics/db/workspace";
 import { readAllRows } from "@chanlytics/db/shared";
 import { listSequencesOfPerson } from "@chanlytics/db/campaigns";
@@ -51,6 +52,7 @@ import { DEAL_DTO_COLUMNS, findDealPace } from "../people/deals";
 import { load, readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
 import * as facts from "./facts";
 import { log } from "@/server/shared/log";
+import { logAndGoOn } from "@chanlytics/log";
 import type { TenantId } from "@chanlytics/contracts";
 
 /** How many of a person's messages their page holds: the newest, so what drops is the oldest history. */
@@ -109,11 +111,31 @@ function beforeOf(row: { before?: unknown } | null): PersonDetailDto["before"] {
   return Object.keys(out).length ? out : null;
 }
 
-/** The person's own columns that people_list does not carry: the owner's notes, and what came before Chanlytics. */
-function ownColumnsOf(
-  row: { notes?: string | null; before?: unknown } | null,
-): Pick<PersonDetailDto, "notes" | "before"> {
-  return { notes: row?.notes ?? null, before: beforeOf(row) };
+/**
+ * The person's own row for what people_list does not carry: the owner's notes, their proposal's link, what came before
+ * Chanlytics, and how they first came. Where an ad brought them, the ad is read by its name too (ad_named, 00646): one
+ * more read, for those people alone, and never fatal. A name that cannot be read leaves the ad unnamed, and they still
+ * came through one.
+ */
+async function ownRowOf(sb: ReaderContext["ctx"]["supabase"], tenantId: TenantId, id: ContactId) {
+  const own = await sb
+    .from("contacts")
+    .select("notes, proposal_url, before, acquired_via, acquired_ref")
+    .eq("id", id)
+    .maybeSingle();
+  if (own.error || own.data?.acquired_via !== "ad") return { ...own, firstAd: null };
+  const unnamed = { platform: null, name: null };
+  const firstAd = await readAdNamed(sb, tenantId, own.data.acquired_ref).catch(logAndGoOn("person ad name", unnamed));
+  return { ...own, firstAd };
+}
+
+/** The person's own columns that people_list does not carry: the owner's notes, what came before Chanlytics, and the ad that brought them. */
+function ownColumnsOf(own: {
+  data: { notes?: string | null; before?: unknown } | null;
+  firstAd: PersonDetailDto["first_ad"];
+}): Pick<PersonDetailDto, "notes" | "before" | "first_ad"> {
+  const columns = { notes: own.data?.notes ?? null, before: beforeOf(own.data) };
+  return own.firstAd ? { ...columns, first_ad: own.firstAd } : columns;
 }
 
 /** Their proposal's link (00154), off the same row: answered after the notes the team keeps, as the route always has. */
@@ -323,7 +345,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
         .limit(1)
         .maybeSingle(),
       // The owner's notes, their proposal link (00154) and what came before Chanlytics (00477), not in people_list.
-      sb.from("contacts").select("notes, proposal_url, before").eq("id", id).maybeSingle(),
+      ownRowOf(sb, tenantId, id),
       // The booking link, so the profile can text it in one step. The workspace's config, read once in a turn: a read
       // that fails is kept, not thrown here, and checked below, in the route's order.
       load(rc, facts.config, undefined).then(
@@ -398,7 +420,7 @@ export const person: Reader<{ id: string }, { person: PersonDetailDto }> = {
       receptionist_mode: personPol.data?.mode ?? null,
       workspace_reply_mode: wsPol.data?.mode ?? null,
       visits: visits ?? undefined,
-      ...ownColumnsOf(own.data),
+      ...ownColumnsOf(own),
       ...(notes.notes ? { person_notes: notes.notes } : {}),
       ...(notes.team ? { note_team: notes.team } : {}),
       ...proposalLinkOf(own.data),

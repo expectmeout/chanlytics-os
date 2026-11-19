@@ -20,10 +20,10 @@ import { REPORT_MIN_N, CALENDAR_SETTING_ROUTE, daysBetween, adRoute } from "@cha
 import type { AdAccountRead, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
 import { aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
-import { noAdsOf, ownersOf, pageAsk, phoneOf, platformsRead, tilesOf, v0Of } from "./page-parts";
-import type { NoAdsVM, PhoneVM, TilesVM, V0VM } from "./page-parts";
-import { eachInTouch, pageTotals } from "./page-totals";
-import type { PageTotals } from "./page-totals";
+import { noAdsOf, ownersOf, pageAsk, phoneOf, platformsRead, tilesOf } from "./page-parts";
+import type { NoAdsVM, PhoneVM, TilesVM } from "./page-parts";
+import { v0Of, type V0VM } from "./page-v0";
+import { eachInTouch, pageTotals, type PageTotals } from "./page-totals";
 import { ADS_ASK_MIN, ADS_GROUP_FROM } from "./rules";
 import {
   DASH,

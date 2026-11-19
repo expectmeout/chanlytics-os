@@ -5,9 +5,7 @@
  * the rest of the models.
  */
 import { appointmentWords, joinWords, addDays, daysBetween } from "@chanlytics/contracts";
-// How new people first came is the people report's, read through its page entry as the Reports pages read it.
-import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
-import type { PeopleSeriesDto, AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
+import type { AdDoor, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
 
 import { ADS_DEFAULT_CURRENCY, aboutMoneyOf, moneyOf, perDayOf, sumMoney } from "./money";
 import type { AskVM } from "./page";
@@ -38,7 +36,6 @@ import {
   platformsFor,
   smallestPreset,
   started,
-  sum,
   totalOf,
   totalsOf,
   viewState,
@@ -48,7 +45,6 @@ import {
   ADS_DOORS,
   DOOR,
   PLATFORM_OWNER,
-  PLATFORM_WORD,
   SETTINGS_DOOR,
   STATE,
   checkFix,
@@ -57,7 +53,7 @@ import {
   dayWord,
   daysWord,
 } from "./words";
-import { ASK, CHOOSE, FIGURES, LEDGER, NO_ADS, PHONE, STANDING, TILES, V0, askWhy } from "./words-page";
+import { ASK, CHOOSE, FIGURES, LEDGER, NO_ADS, PHONE, TILES, askWhy } from "./words-page";
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Which platforms are being read
@@ -309,66 +305,7 @@ export function phoneOf(
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// v0 (nothing connected), and connected with no ads yet
-
-export interface V0VM {
-  /** The lead line (bold part, rest); null where there is nothing to say yet. */
-  lead: { strong: string; rest: string } | null;
-  muted: string | null;
-  /** The empty workspace's two lines, instead of the lead. */
-  empty: { lead: string; line: string } | null;
-  /** BarList rows; `own` is the one in ink, the rest in one quiet hue. */
-  rows: NonNullable<AdsRead["firstTouch"]>["rows"];
-  /** Said in their place where the counts were read and there is nobody; null while they are not read. */
-  nobodyNew: string | null;
-  notes: string[];
-  door: DoorVM;
-  platforms: { id: AdPlatform; name: string; line: string; word: string }[];
-  next: string;
-}
-
-/**
- * How new people first reached the business, from People's own read of the window: the same counts, in the same words, as Reports ›
- * People says them, so the page and the report cannot differ. The way in that is an ad is `ad` there too.
- */
-export function firstTouchOf(
-  series: Pick<PeopleSeriesDto, "first_came" | "today" | "end" | "days">,
-): AdsRead["firstTouch"] {
-  return {
-    since: addDays(series.end ?? series.today, 1 - series.days),
-    rows: firstCameEntries(series.first_came.by_via).map(([id, label, n]) => ({
-      label,
-      n,
-      own: id === "ad",
-      recorded: firstCameRecorded(id),
-    })),
-  };
-}
-
-export function v0Of(read: AdsRead): V0VM {
-  const rows = read.firstTouch ? read.firstTouch.rows : [];
-  const unrecorded = sum(rows.filter((r) => !r.recorded).map((r) => r.n));
-  const recorded = sum(rows.filter((r) => r.recorded).map((r) => r.n));
-  const own = sum(rows.filter((r) => r.own).map((r) => r.n));
-  const nobody = own === 0;
-  return {
-    lead: nobody ? null : V0.lead(own, recorded),
-    muted: unrecorded > 0 && !nobody ? V0.more(unrecorded) : null,
-    empty: nobody ? { lead: V0.emptyLead, line: V0.emptyLine } : null,
-    // How they came is worth saying whether or not an ad brought any of them.
-    rows,
-    nobodyNew: read.firstTouch !== null && rows.length === 0 ? V0.nobodyNew : null,
-    notes: nobody ? V0.emptyNotes : V0.notes,
-    door: { words: rows.length > 0 ? V0.door : V0.doorNobody, to: ADS_DOORS.people },
-    platforms: PLATFORMS.map((id) => ({
-      id,
-      name: PLATFORM_WORD[id],
-      line: V0.platforms[id],
-      word: STANDING.off,
-    })),
-    next: V0.next,
-  };
-}
+// Connected with no ads yet (nothing connected is page-v0.ts's)
 
 /** What stops the first ad: the step, and the door that mends it. The press waits for it. */
 export interface BlockedVM {
