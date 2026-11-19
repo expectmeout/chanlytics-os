@@ -28,6 +28,8 @@ export const LOG_EVENTS = [
   "a2p_unfile_refused",
   "a2p_waiting_on_brand",
   "activation_read_failed",
+  "ad_entry_keep_failed",
+  "ad_entry_not_opened",
   "admin_door_key_only",
   "admin_draft",
   "admin_eval",

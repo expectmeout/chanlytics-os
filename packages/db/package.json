@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./ads": {
+      "types": "./src/repositories/ads/index.ts",
+      "bundled": "./dist/ads.js",
+      "import": "./src/repositories/ads/index.ts",
+      "default": "./src/repositories/ads/index.ts"
+    },
     "./ai": {
       "types": "./src/repositories/ai/index.ts",
       "bundled": "./dist/ai.js",

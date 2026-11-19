@@ -12,7 +12,6 @@ export {
   sendText,
   sendTypingIndicator,
   sharedHistoryOf,
-  storableReferral,
   WA_HISTORY_NOT_SHARED,
   waPricingOf,
   waStoppedMarketing,

@@ -17,15 +17,19 @@
  */
 import { CONVERSATION_OPT_IN_PATTERN } from "@chanlytics/contracts";
 import { asksToStop } from "../inbound/stop-request";
-import { storableReferral } from "../whatsapp/whatsapp";
+import { instagramAdSaidOf, storableReferral } from "../whatsapp/first-touch";
 import type { InboundMessage, LinkedMediaRef } from "../inbound/inbound";
 
-/** A referral as an Instagram message carries it: a click-to-Instagram ad's id, or an ig.me link's `ref`. */
+/**
+ * A referral as an Instagram message carries it: a click-to-Instagram ad's id and what Meta says of the ad
+ * (`ads_context_data`), or an ig.me link's `ref`.
+ */
 export interface IgReferral {
   source?: string;
   type?: string;
   ad_id?: string;
   ref?: string;
+  ads_context_data?: { ad_title?: string; photo_url?: string; video_url?: string };
 }
 
 /** One `messaging[]` item, as Meta documents it; every field optional, as a payload read defensively is. */
@@ -159,12 +163,15 @@ function attachmentOf(args: { type?: string; payload?: { url?: string; title?: s
   return { kind: "unsupported", rawType, body: null, media: null };
 }
 
-/** The ad or link a DM came from: a click-to-Instagram ad's id, else an ig.me link's `ref`, through the one rule. */
+/**
+ * The ad or link a DM came from: a click-to-Instagram ad's id with what the ad said, else an ig.me link's `ref`, which
+ * says nothing, through the one rule.
+ */
 function referralOf(item: IgMessaging): InboundMessage["referral"] {
   const r = isObject(item.message?.referral) ? item.message.referral : isObject(item.referral) ? item.referral : null;
   if (!r) return null;
-  if (r.ad_id !== undefined) return storableReferral(r.ad_id, "ad");
-  return r.ref !== undefined ? storableReferral(r.ref, "link") : null;
+  if (r.ad_id !== undefined) return storableReferral(r.ad_id, "ad", instagramAdSaidOf(r.ads_context_data));
+  return r.ref !== undefined ? storableReferral(r.ref, "link", null) : null;
 }
 
 /**

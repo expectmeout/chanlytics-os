@@ -47,6 +47,7 @@ import {
 import { loadTenantNotifications, waCfgFor, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { notify } from "../shared/alerts/notify.js";
 import { queueDraft } from "../ai/draft-queue.js";
+import { keepWhatTheAdSaid } from "./ad-entry.js";
 import { recordTokens } from "../ai/budget.js";
 import {
   addressOf,
@@ -208,7 +209,7 @@ export async function runPgIngest(
 ): Promise<IngestResult> {
   if (!db) throw new IngestFailed("no database to keep the message in");
   try {
-    return await ingestInbound(db, {
+    const ingested = await ingestInbound(db, {
       tenantId,
       channel: inboundMessage.channel,
       identityExternalId: inboundMessage.identity.externalId,
@@ -237,6 +238,9 @@ export async function runPgIngest(
       optIn: inboundMessage.consent.optIn,
       optInMarketing: inboundMessage.consent.optInMarketing,
     });
+    // What the ad said, kept beside the message once it has landed (0049): its own call, which logs and never throws.
+    await keepWhatTheAdSaid(db, tenantId, ingested.message_id, inboundMessage.referral);
+    return ingested;
   } catch (e) {
     logger().error("ingest_pg_failed", { tenant_id: tenantId, message: inboundMessage.externalId, error: errField(e) });
     throw new IngestFailed(e instanceof Error ? e.message : String(e));

@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 77 | 0 |
-| the server's | 355 | 306 |
+| the server's | 356 | 307 |
 | computed column | 3 | 0 |
-| trigger | 103 | 73 |
-| all | 725 | 566 |
+| trigger | 104 | 74 |
+| all | 727 | 568 |
 
 ## Called by nothing
 
@@ -47,6 +47,8 @@ being read is dropped by a migration.
 
 | Function | Kind | Who may call it | Called by | What it does |
 | --- | --- | --- | --- | --- |
+| `ad_entries_follow_a_merge` | trigger | the server | trigger `contacts_merge_moves_ad_entries on contacts` | When two people are combined, the entries of the one merged away become the kept person's (00644): |
+| `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts` | What an ad said, kept on the entry its message opened (decision 0049, 00644): |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
 | `ai_shadow_agreement` | the server's | the server | nothing at run time | A second model's agreement with the primary over the last p_days, per purpose, question and port: |
@@ -220,7 +222,7 @@ being read is dropped by a migration.
 | `import_person` | door | a signed-in person, the server | code `apps/dashboard/app/api/v1/contacts/import/route.ts`, `apps/dashboard/src/server/people/import-people.ts` and 1 more | One line of an imported client list, through resolve_person (00342): |
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
-| `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/whatsapp.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
+| `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
 | `is_acting_member` | reader | a signed-in person, the server | SQL `add_person`, `approve_broadcast` and 71 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |

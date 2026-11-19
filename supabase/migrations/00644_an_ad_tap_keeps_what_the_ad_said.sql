@@ -1,0 +1,267 @@
+-- 00644 · An ad tap keeps what the ad said (decision 0049, step P0a; the Ads build plan's step 1, 18 November 2026).
+--
+-- A person who taps an ad and writes arrives with Meta's referral: which ad, and what it said. Until now the message kept
+-- the ad's id and kind (meta.referral, 00306) and the person was stamped `ad` with that id; the ad's own words were
+-- dropped on the edge. So the page can say "An ad" and never which. From this file:
+--
+--   ad_entries                  One row each time someone reaches a workspace through an ad: the person, the platform
+--                               and the ad's id there, the kind of entry, whether it made the person, the message that
+--                               carried it, and what the ad said (its headline, its words, its kind of media, its
+--                               link). No click id: 0049 was amended on 18 November 2026, and it waits for the step
+--                               that tells a platform who booked. It enriches and counts nothing: every count of people
+--                               per ad reads contacts.acquired_via and acquired_ref (0049, call 5).
+--   messages_note_first_touch   The trigger that stamps a person's first touch now also opens the entry, in the
+--                               message's own transaction: an inbound message whose referral is an ad has its entry
+--                               from the moment it exists, whether or not it made the person, with `new_person` the
+--                               stamp's own answer (00306's test). The entry is written in a block of its own, so one
+--                               that cannot be written never takes the stamp with it, and neither ever fails the
+--                               message.
+--   ad_entry_keep               What the edge calls after the ingest, by the message's id, with what the ad said: each
+--                               part is kept or dropped alone, and the first words stand (a message delivered twice
+--                               changes nothing). The service role's alone.
+--   events_note_first_touch     A contact.added event whose source is `ad` stamps `ad`, with the ad the event names
+--                               (data.ad_ref, keyed as 0049's call 4 keys it: meta:<id>). Nothing writes one yet: a
+--                               form lead will, and without this it would be stamped `manual` and keep it.
+--
+-- Why the entry is opened by the trigger and not by a nightly pass. 0049 drew the edge making the entry and a nightly
+-- check rebuilding the ones whose keep had failed. That check has to find its candidates among `messages` or
+-- `contacts`, which means reading every workspace's recent messages each night or an index on one of the two busiest
+-- tables. Opening the entry where the stamp is written needs neither: no read, no clock, and no hour in which a person
+-- counted for an ad has no entry. What a failed keep loses is then exactly the ad's words, never the entry and never a
+-- count, and the loss is counted on the row itself: an entry whose `said_at` is null is one whose words never arrived.
+--
+-- Erasure and merging. An entry goes with its message (`on delete cascade`), and an erasure deletes the person's messages
+-- (erase_contact), so what an ad said goes with the person. Two people combined keep their entries: the row that is
+-- merged away hands its entries to the one that is kept (`ad_entries_follow_a_merge`, on the mark merge_people writes
+-- first).
+--
+-- Locks, and why this file waits half a second and no more. Creating the table takes SHARE ROW EXCLUSIVE on `tenants`,
+-- `contacts` and `messages` (a foreign key adds its triggers to the table it names), and the merge trigger takes it on
+-- `contacts` again; each is held to commit, and the file waits for each while it holds the ones before. That is the
+-- cycle 00306 describes: a customer's write that holds one of them and wants another can wait for this file while this
+-- file waits for it, and Postgres would end it after a second by cancelling whichever looked first. So, as 00306 does,
+-- this file's lock_timeout is 500 ms, under that second: a wait of this file's ends by cancelling this file, never a
+-- customer's insert. If it times out nothing was applied (one transaction): run it again when the line is quiet.
+--
+-- Deploy order: either. An edge ahead of this file gets PGRST202 from ad_entry_keep and goes on; a database ahead of the
+-- edge opens entries whose words never arrive, which is what today's edge loses anyway. Every statement re-runs.
+
+set local lock_timeout = '500ms';
+
+/* ---------------------------------------------------------------------------------------------- 1. the entry -- */
+
+create table if not exists public.ad_entries (
+  id             uuid primary key default gen_random_uuid(),
+  tenant_id      uuid not null references public.tenants (id) on delete cascade,
+  contact_id     uuid not null,
+  -- The ad as Chanlytics keeps it (0049's `ads`, which a later step makes and keys this to). Null until an account is
+  -- connected and its ads adopted, and for an ad Chanlytics cannot name.
+  ad_id          uuid,
+  platform       text not null check (platform in ('meta', 'google', 'tiktok')),
+  -- The platform's own id for the ad, as the referral gave it: the raw reference, never cut.
+  platform_ad_id text not null check (char_length(platform_ad_id) between 1 and 200),
+  -- chat: they tapped an ad and wrote. number and call are the entries of the doors 0049 names for later steps.
+  kind           text not null check (kind in ('chat', 'number', 'call')),
+  -- Whether this entry is the one that made the person: 00306's test, answered where the stamp is written.
+  new_person     boolean not null,
+  message_id     uuid,
+  -- A form lead's id at its platform, so a lead delivered twice is one entry. Nothing writes one yet.
+  external_ref   text check (char_length(external_ref) between 1 and 200),
+  -- What the ad said: headline, body, media_type and link, each present only where the referral said it soundly.
+  -- Null with said_at until the edge's keep arrives; an empty object is an ad that said nothing that is kept.
+  said           jsonb,
+  said_at        timestamptz,
+  created_at     timestamptz not null default now(),
+  constraint ad_entries_said_is_whole
+    check ((said is null) = (said_at is null) and (said is null or jsonb_typeof(said) = 'object')),
+  constraint ad_entries_chat_names_its_message check (kind <> 'chat' or message_id is not null),
+  -- The house fence (00279): a row that names one of this table's rows names it with its workspace.
+  constraint ad_entries_tenant_id_id unique (tenant_id, id),
+  constraint ad_entries_contact_id_same_workspace
+    foreign key (tenant_id, contact_id) references public.contacts (tenant_id, id) on delete cascade,
+  constraint ad_entries_message_id_same_workspace
+    foreign key (tenant_id, message_id) references public.messages (tenant_id, id) on delete cascade
+);
+
+-- One entry a message: a delivery handled twice, or a trigger and a keep that meet, write one row.
+create unique index if not exists ad_entries_one_a_message on public.ad_entries (message_id);
+-- One entry a lead at its platform, in a workspace.
+create unique index if not exists ad_entries_one_a_ref on public.ad_entries (tenant_id, platform, external_ref);
+-- A person's entries, newest first: what their page reads to name the ad.
+create index if not exists ad_entries_person on public.ad_entries (tenant_id, contact_id, created_at desc);
+-- An ad's entries, newest first: who it brought, and the newest words Chanlytics holds for it.
+create index if not exists ad_entries_ad on public.ad_entries (tenant_id, platform, platform_ad_id, created_at desc);
+
+alter table public.ad_entries enable row level security;
+drop policy if exists ad_entries_member_select on public.ad_entries;
+create policy ad_entries_member_select on public.ad_entries
+  for select to authenticated
+  using (tenant_id in (select m.tenant_id from public.memberships m where m.user_id = (select auth.uid())));
+-- Members read; nothing of a session writes: an entry is opened by the database and its words kept by the edge, as the
+-- service role. Every right is taken from a visitor and a member first, so the one given back is all they hold.
+revoke all on public.ad_entries from anon, authenticated;
+grant select on public.ad_entries to authenticated;
+grant all on public.ad_entries to service_role;
+
+comment on table public.ad_entries is
+  'One row each time someone reaches a workspace through an ad (decision 0049, 00644): the person, the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Opened by the first-touch trigger in the message''s own transaction; its words kept by the edge afterwards (ad_entry_keep). It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.';
+comment on column public.ad_entries.ad_id is
+  'The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049''s ads, a later step). Null until then, and for an ad Chanlytics cannot name.';
+comment on column public.ad_entries.new_person is
+  'Whether this entry made the person: the message that carried it is the one that made them and stamped them ad (00306''s test).';
+comment on column public.ad_entries.said is
+  'What the ad said where it was tapped: headline, body, media_type (Meta''s word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge''s keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them.';
+
+/* ----------------------------------------------------------------------- 2. the entry is opened with the stamp -- */
+
+-- Copied from 00306 with one addition: where the message's referral is an ad, its entry is opened, in a block of its
+-- own. person_set_first_touch answers whether it wrote, which is exactly whether this message made the person and
+-- stamped them: the entry's new_person. The trigger itself (00486) is unchanged, so no lock is taken on messages here.
+create or replace function public.messages_note_first_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_ad  text := case when NEW.meta #>> '{referral,source_type}' = 'ad'
+                     then nullif(btrim(NEW.meta #>> '{referral,source_id}'), '') end;
+  v_new boolean;
+begin
+  v_new := public.person_set_first_touch(
+    NEW.tenant_id,
+    NEW.contact_id,
+    case when v_ad is not null then 'ad' else NEW.channel end,
+    case when v_ad is not null then v_ad else NEW.meta ->> 'line' end,
+    NEW.created_at
+  );
+  if v_ad is not null then
+    begin
+      insert into public.ad_entries (tenant_id, contact_id, message_id, platform, platform_ad_id, kind, new_person)
+      values (NEW.tenant_id, NEW.contact_id, NEW.id, 'meta', v_ad, 'chat', coalesce(v_new, false))
+      on conflict do nothing;
+    exception when others then
+      raise warning 'messages_note_first_touch: the ad entry: %', sqlerrm;
+    end;
+  end if;
+  return null;
+exception when others then
+  raise warning 'messages_note_first_touch: %', sqlerrm;
+  return null;
+end $$;
+
+revoke execute on function public.messages_note_first_touch() from public, anon, authenticated;
+comment on function public.messages_note_first_touch() is
+  'The first touch of the person an inbound customer message made (K3): its wire, or the ad it came from (meta.referral.source_id, when meta.referral.source_type is ad, on WhatsApp or Instagram; a post, a link or any other referral is the wire''s), with the line it came in on (meta.line). A message from an ad also opens its entry (ad_entries, 00644), whether or not it made the person, in a block of its own. Never fails the insert: a failure is a warning.';
+
+/* --------------------------------------------------------------------------------- 3. what the ad said is kept -- */
+
+create or replace function public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_said jsonb)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_said jsonb := '{}'::jsonb;
+  v_part text;
+begin
+  -- Each part alone: a string within its bound is kept, anything else is dropped, and the rest stands. The edge has
+  -- read them by the same bounds already (channels first-touch.ts); nothing here trusts that it did.
+  if jsonb_typeof(p_said) = 'object' then
+    v_part := case when jsonb_typeof(p_said -> 'headline') = 'string' then p_said ->> 'headline' end;
+    if char_length(v_part) between 1 and 300 then
+      v_said := v_said || jsonb_build_object('headline', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'body') = 'string' then p_said ->> 'body' end;
+    if char_length(v_part) between 1 and 2000 then
+      v_said := v_said || jsonb_build_object('body', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'media_type') = 'string' then p_said ->> 'media_type' end;
+    if char_length(v_part) between 1 and 32 and v_part !~ '[[:space:]]' then
+      v_said := v_said || jsonb_build_object('media_type', v_part);
+    end if;
+    v_part := case when jsonb_typeof(p_said -> 'link') = 'string' then p_said ->> 'link' end;
+    if char_length(v_part) between 1 and 2000 and v_part ~* '^https?://' and v_part !~ '[[:space:]]' then
+      v_said := v_said || jsonb_build_object('link', v_part);
+    end if;
+  end if;
+
+  update ad_entries
+     set said = v_said, said_at = now()
+   where tenant_id = p_tenant_id and message_id = p_message_id and said_at is null;
+  if found then
+    return 'kept';
+  end if;
+  if exists (select 1 from ad_entries where tenant_id = p_tenant_id and message_id = p_message_id) then
+    return 'already';
+  end if;
+  return 'none';
+end $$;
+
+revoke execute on function public.ad_entry_keep(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.ad_entry_keep(uuid, uuid, jsonb) to service_role;
+comment on function public.ad_entry_keep(uuid, uuid, jsonb) is
+  'What an ad said, kept on the entry its message opened (decision 0049, 00644): headline (300), body (2000), media_type (a word, 32) and link (a web address, 2000), each kept only as a string within its bound and dropped alone otherwise. The first words stand. Answers kept, already (the entry has its words: a message delivered twice) or none (no entry for that message). Service role only (the edge, after the ingest).';
+
+/* ------------------------------------------------------------------------- 4. two people combined keep theirs -- */
+
+-- merge_people marks the merged row first (merged_into_contact_id) and moves their messages after it. The entries follow
+-- the mark, so the person who is kept reads every entry of both, and merge_people is not restated for it.
+create or replace function public.ad_entries_follow_a_merge()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.ad_entries
+     set contact_id = NEW.merged_into_contact_id
+   where tenant_id = NEW.tenant_id and contact_id = NEW.id;
+  return null;
+end $$;
+
+revoke execute on function public.ad_entries_follow_a_merge() from public, anon, authenticated;
+comment on function public.ad_entries_follow_a_merge() is
+  'When two people are combined, the entries of the one merged away become the kept person''s (00644): fired by the mark merge_people writes first.';
+
+create or replace trigger contacts_merge_moves_ad_entries
+  after update of merged_into_contact_id on public.contacts
+  for each row
+  when (new.merged_into_contact_id is not null and old.merged_into_contact_id is distinct from new.merged_into_contact_id)
+  execute function public.ad_entries_follow_a_merge();
+
+/* --------------------------------------------------------------------- 5. a person an ad's door added is an ad's -- */
+
+-- Copied from 00488 with one change: `ad` is a source the stamp knows, with the ad the event names as its ref.
+create or replace function public.events_note_first_touch()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_word text := NEW.data ->> 'source';
+  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website', 'ad') then v_word else 'manual' end;
+begin
+  perform public.person_set_first_touch(
+    NEW.tenant_id,
+    NEW.subject_id,
+    v_via,
+    case when v_via = 'lead' then NEW.data ->> 'lead_id'
+         when v_via = 'ad' then NEW.data ->> 'ad_ref' end
+  );
+  return null;
+exception when others then
+  raise warning 'events_note_first_touch: %', sqlerrm;
+  return null;
+end $$;
+
+revoke execute on function public.events_note_first_touch() from public, anon, authenticated;
+comment on function public.events_note_first_touch() is
+  'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website, ad; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one, and the ad''s (data.ad_ref, keyed by its platform: meta:<id>) for a person an ad''s own door added (0049, 00644). The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+
+comment on column public.contacts.acquired_via is
+  'How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a paid ad (a click-to-chat ad on WhatsApp or Instagram: a referral whose source_type is ad; a post, a link or any other referral is the wire''s; and a person an ad''s own door added, 00644), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business''s own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess.';
+comment on column public.contacts.acquired_ref is
+  'The line (tenant_channels.id) or the ad the person first came through (Meta''s own id for it from a message''s referral; keyed by its platform, meta:<id>, from an ad''s own door); null where nothing says. Never the person.';

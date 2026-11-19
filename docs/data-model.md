@@ -16,6 +16,7 @@ what the script writes.
 
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
+| [`ad_entries`](#ad_entries) | none | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
@@ -150,6 +151,40 @@ what the script writes.
 Named in a `.from("…")` in `packages/db/src` and not a table or view here: `media` (`packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/media.ts`, `packages/db/src/repositories/erasure/legs.ts`).
 
 ## Tables
+
+### ad_entries
+
+One row each time someone reaches a workspace through an ad (decision 0049, 00644): the person, the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Opened by the first-touch trigger in the message's own transaction; its words kept by the edge afterwards (ad_entry_keep). It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | no |  |  |
+| `ad_id` | uuid | yes |  | The ad as Chanlytics keeps it, once an ad account is connected and its ads are adopted (0049's ads, a later step). Null until then, and for an ad Chanlytics cannot name. |
+| `platform` | text | no |  |  |
+| `platform_ad_id` | text | no |  |  |
+| `kind` | text | no |  |  |
+| `new_person` | boolean | no |  | Whether this entry made the person: the message that carried it is the one that made them and stamped them ad (00306's test). |
+| `message_id` | uuid | yes |  |  |
+| `external_ref` | text | yes |  |  |
+| `said` | jsonb | yes |  | What the ad said where it was tapped: headline, body, media_type (Meta's word: image or video) and link, each present only where the referral said it soundly, each bounded (ad_entry_keep). Null until the edge's keep arrives, so an entry whose said_at is null is one whose words were lost; an empty object is an ad that said nothing that is kept. Goes with the person: an erasure deletes their messages, and the entry with them. |
+| `said_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ad_entries_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ai_usage
 
@@ -918,8 +953,8 @@ Foreign keys:
 | `consent_channels` | text[] | yes |  | The channels the yes about messages on their own visit covers (whatsapp, sms, email, in that order), kept by events_keep_consent_channels from each contact.consent_changed event by consent_channels_of's rule. NULL: none kept, a yes recorded before the channels were, which covers WhatsApp alone; empty: no yes. |
 | `marketing_channels` | text[] | yes |  | The channels the yes to offers covers (whatsapp, sms, email, in that order), kept the same way from the events that name purpose marketing. NULL: none kept, which reads as WhatsApp alone; empty: no yes. |
 | `offers_asked_at` | timestamp with time zone | yes |  | When the receptionist first asked this person for the yes to offers: the first outbound message that says YES OFFERS or SI OFERTAS, in any case and with or without the accent (messages_stamp_offers_asked). It asks once. |
-| `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a click-to-chat ad on WhatsApp or Instagram (a referral whose source_type is ad; a post, a link or any other referral is the wire's), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business's own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
-| `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad (Meta's source id) the person first came through; null where nothing says. Never the person. |
+| `acquired_via` | text | yes |  | How the person first reached the workspace, written once (person_set_first_touch): whatsapp, sms, email, instagram or call for the wire of the message or call that made them, ad for a paid ad (a click-to-chat ad on WhatsApp or Instagram: a referral whose source_type is ad; a post, a link or any other referral is the wire's; and a person an ad's own door added, 00644), calendar, import, lead, website or manual for the door that added them (00307, 00486, 00488: website for a form on the business's own website). Null for a person from before it was kept, and wherever nothing says: unknown, never a guess. |
+| `acquired_ref` | text | yes |  | The line (tenant_channels.id) or the ad the person first came through (Meta's own id for it from a message's referral; keyed by its platform, meta:<id>, from an ad's own door); null where nothing says. Never the person. |
 | `lead_id` | uuid | yes |  | The business this person works at (0052): a lead, the newest that named them, set one way from leads (lead_tells_its_person) or by a member (person_join_lead). A lead is the business record; there is no businesses table. |
 | `lead_settled_at` | timestamp with time zone | yes |  | When a member said where this person works (person_join_lead, person_leave_lead): their lead_id then never moves by itself (0052). |
 | `name_source` | text | yes |  | Where display_name came from (0052): typed, import, calendar, signature, wire or lead. Null when no name was set (the WhatsApp name or the number shows) or for a name set before this, whose source is not known. The engine replaces only a strictly lower rank (person_name_rank) and never a settled name. |

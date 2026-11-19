@@ -157,14 +157,62 @@ test("the ad a person came from is kept, and an id that could not be stored is n
     }),
     null,
   );
-  assert.deepEqual(fromAd.referral, { sourceId: "120200000000000001", sourceType: "ad" });
+  assert.deepEqual(fromAd.referral, { sourceId: "120200000000000001", sourceType: "ad", said: null });
   const fromLink = inboundFromInstagram(
     dm({ text: "hi" }, { referral: { ref: "spring-promo", source: "SHORTLINK" } }),
     null,
   );
-  assert.deepEqual(fromLink.referral, { sourceId: "spring-promo", sourceType: "link" });
+  assert.deepEqual(fromLink.referral, { sourceId: "spring-promo", sourceType: "link", said: null });
   const bad = inboundFromInstagram(dm({ text: "hi", referral: { source: "ADS", ad_id: "12\u0000" } }), null);
   assert.equal(bad.referral, null);
+});
+
+// What Meta's webhook reference shows for a message from a click-to-Instagram ad (read 18 November 2026; not yet seen on
+// a real delivery): the ad's title, and the address of its picture or of its video's still.
+test("what a click-to-Instagram ad said is read from its ads_context_data: its title, and its kind of media by which address it carries", () => {
+  const from = (adsContextData) =>
+    inboundFromInstagram(
+      dm({
+        text: "Hi!",
+        referral: { source: "ADS", type: "OPEN_THREAD", ad_id: "120200000000000001", ads_context_data: adsContextData },
+      }),
+      null,
+    ).referral;
+  assert.deepEqual(from({ ad_title: "Spring colour offer", photo_url: "https://cdn.example/ad.jpg" }), {
+    sourceId: "120200000000000001",
+    sourceType: "ad",
+    said: { headline: "Spring colour offer", body: null, mediaType: "image", link: null },
+  });
+  assert.deepEqual(
+    from({
+      ad_title: "Spring colour offer",
+      photo_url: "https://cdn.example/a.jpg",
+      video_url: "https://cdn.example/v.jpg",
+    }).said,
+    { headline: "Spring colour offer", body: null, mediaType: "video", link: null },
+    "an ad with a video is a video ad",
+  );
+  assert.deepEqual(
+    from({ ad_title: 7, photo_url: "https://cdn.example/ad.jpg" }).said,
+    { headline: null, body: null, mediaType: "image", link: null },
+    "a title that is not words is dropped alone",
+  );
+  assert.deepEqual(from({ ad_title: "Only a title", photo_url: "not an address", video_url: 5 }).said, {
+    headline: "Only a title",
+    body: null,
+    mediaType: null,
+    link: null,
+  });
+  for (const odd of [undefined, null, "words", 7, [], {}, { photo_url: "ftp://cdn.example/ad.jpg" }])
+    assert.equal(from(odd).said, null, `a context of ${JSON.stringify(odd)} says nothing, and the ad still stands`);
+  assert.equal(
+    inboundFromInstagram(
+      dm({ text: "hi" }, { referral: { ref: "spring-promo", ads_context_data: { ad_title: "Not an ad" } } }),
+      null,
+    ).referral.said,
+    null,
+    "a link says nothing",
+  );
 });
 
 test("a message with no id or no sender is nothing: there is no replay gate and nobody to answer", () => {

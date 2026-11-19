@@ -394,6 +394,21 @@ before(async () => {
     kind: "video",
     name: "tenancy-clip.mp4",
   });
+  // An ad's entry (00644, decision 0049): what an ad said to a person who tapped it and wrote, by the message that
+  // carried it.
+  await seed(
+    "ad_entries",
+    {
+      tenant_id: A,
+      contact_id: ctx.contact,
+      message_id: ctx.message,
+      platform: "meta",
+      platform_ad_id: `tenancy-ad-${stamp}`,
+      kind: "chat",
+      new_person: false,
+    },
+    null,
+  );
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -1021,6 +1036,20 @@ const TENANT_TABLES = {
       provider_id: `stranger-item-${Date.now().toString(36)}`,
       kind: "image",
       name: "stranger.jpg",
+    }),
+  ],
+  // An ad's entries (00644): members read their workspace's; the database opens one and the edge keeps its words, both
+  // as the service role.
+  ad_entries: [
+    "member",
+    () => ({
+      tenant_id: A,
+      contact_id: ctx.contact2,
+      message_id: ctx.message2,
+      platform: "meta",
+      platform_ad_id: "stranger-ad",
+      kind: "chat",
+      new_person: false,
     }),
   ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
