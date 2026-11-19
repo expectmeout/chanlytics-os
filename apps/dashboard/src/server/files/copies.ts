@@ -151,6 +151,17 @@ export async function keepVideoFrame(
   return sizeOf(row);
 }
 
+/**
+ * The videos a proposed video names, asked back to the video platform now (the footage sources plan, "Warming"). A
+ * watched folder's clip whose copy was let go takes a couple of minutes to return, so it is asked for as AI proposes
+ * the video and never at the owner's press; one that is here is marked used, so it is not the next let go. It never
+ * fails a turn: a copy not asked for here is asked for by whatever reads it next.
+ */
+export async function warmVideoCopies(person: Who, ids: readonly string[], leftMs: number = COPIES_MS): Promise<void> {
+  if (ids.length === 0) return;
+  await copiesDoor(person, { warm: [...ids] }, leftMs);
+}
+
 /** A picture made here, held at Anthropic for a day, or null where it could not be: said in words then, never a failed turn. */
 export async function findPictureCopy(
   person: Who,

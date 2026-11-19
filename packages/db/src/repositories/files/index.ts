@@ -3,6 +3,21 @@
  */
 export { keepPostCaption, keepVideoCaption } from "./captions";
 export {
+  beginCopyReturn,
+  endSourceGrace,
+  failCopyReturn,
+  findReturnAnywhere,
+  isCopyReturning,
+  keepCopyWait,
+  keepReturningCopy,
+  listCopiesMoving,
+  markCopiesGoing,
+  markCopyGone,
+  settleFileCopy,
+  touchFileCopy,
+} from "./copies";
+export type { CopyGoing, CopyMoving, CopyReturnBegun } from "./copies";
+export {
   beginFileVideo,
   deleteFileRow,
   keepFileLook,

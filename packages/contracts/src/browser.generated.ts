@@ -313,6 +313,7 @@ export { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_DAILY_CAP_MAX, MAILBOX_HOLDS, MAILBO
 export { SENDER_KINDS, SENDER_READ_MAX_TOKENS, SENDER_READING_SCHEMA, senderLeftWhy, senderReadingAsk, senderReadingOf, senderReadingSystem } from "./email/sender-reading";
 export { firstSubject, oneLine, posesAsReply, replySubject } from "./email/subject";
 export { emailTextOf } from "./email/text";
+export { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./files/copy";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files/files";
 export { FILE_IMAGE_MIMES, FILE_KINDS, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX, fileFramePathOf, fileKindOf, fileMadePathOf, isVideoMime } from "./files/kinds";
 export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, isFileMime } from "./files/limits";

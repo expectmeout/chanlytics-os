@@ -349,6 +349,21 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["item_id", "try"],
     never: [],
   },
+  // A watched clip's copy brought back to the video platform from its folder (00654, the footage sources plan). Safe to
+  // run again at every step: its return is judged and begun by one guarded door, the copy's id is kept only on a row that
+  // holds none, and a second asker joins the job in flight. A throw is the provider, the video platform or the database not
+  // answering: two minutes, then ten. One that ends for good leaves the file away, as it was, with why (settle.ts), and
+  // whoever asks next begins it anew. The longest call is the platform asked to fetch.
+  copy_return: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 15 * SECOND_MS,
+    ids: ["file_id"],
+    never: [],
+  },
   // A video made from a business's clips (00613, decision 0122): each step is safe to run again (a machine started twice is
   // two drawings and one is let go; a file begun twice is the one row), and a step that must wait puts its own next tick on the
   // ledger, so a throw is a fault of ours: tried once more two minutes on, while the machine still holds what it drew, then

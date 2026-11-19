@@ -166,6 +166,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A watched folder's file taken in (00643). Not sent (packages/jobs TOLD_ELSEWHERE): its item waits to be tried again or
   // says it failed on its own row, and the folder's line says so.
   source_take: { stopped: "Couldn't bring in a file from your folder", to: CONTENT_LIBRARY_ROUTE },
+  // A watched clip's copy brought back (00654). Not sent (packages/jobs TOLD_ELSEWHERE): its file says it is away and
+  // why on its own row, and whoever asked for it is answered there.
+  copy_return: { stopped: "Couldn't bring a video back from your folder", to: CONTENT_LIBRARY_ROUTE },
   // A post on its way to Instagram (00611): Content's Needs you holds it, and its piece says why, under the post.
   post_prepare: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },
   post_publish: { stopped: "Couldn't post to Instagram", to: CONTENT_NEEDS_ROUTE },

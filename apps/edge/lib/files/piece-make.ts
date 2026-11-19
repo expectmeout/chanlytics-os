@@ -95,6 +95,7 @@ import { randomUUID } from "node:crypto";
 import { recordNotification } from "../shared/alerts/notify.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
+import { ensureCopy } from "./copy/ensure.js";
 import { streamKeys } from "./video-keys.js";
 
 type Db = SupabaseClient<Database>;
@@ -253,10 +254,16 @@ async function readClipCopy(file: FileForWork, mediaRef: string): Promise<Stream
 async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<CopiesRead> {
   const read: FilesRead = { sources: [], copies: new Map(), photos: new Map() };
   for (const id of pieceFileIdsOf(plan)) {
-    const file = await findFileForWork(db, piece.tenant_id, id);
+    // Through the copy's door: a watched folder's clip may have been let go since AI proposed the video.
+    const held = await ensureCopy(db, piece.tenant_id, id, "piece");
+    const file = held.row;
     if (!file || file.removed_at) continue;
     if (file.kind === "image") read.photos.set(id, await signPhoto(db, file));
-    const ready = file.kind === "video" && file.media_status === "ready" && file.media_ref;
+    // On its way back, asked for here or when the video was proposed: the step comes back a minute on, as it does
+    // for a copy still being made. One its folder cannot give back ends the video, as a clip removed does.
+    if (held.copy === "returning" || held.copy === "going") return { ok: false, why: "not_yet" };
+    if (held.copy === "away" || held.copy === "lost") return { ok: false, why: "clips" };
+    const ready = held.copy === "here" && file.media_status === "ready" ? held.mediaRef : null;
     const copy = ready ? await readClipCopy(file, ready) : null;
     if (ready && !copy) return { ok: false, why: "not_yet" };
     if (copy) read.copies.set(id, copy);

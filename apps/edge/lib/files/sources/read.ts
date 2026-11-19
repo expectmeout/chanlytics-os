@@ -35,6 +35,7 @@ import { checkFolderAnswers, isInTree, markAway, itemStandingOf, unfoundMarkOf, 
 import { keepChannel } from "./channel.js";
 import { keepPage, planPage } from "./items.js";
 import { isLengthSoon, nextReadOf, SOURCE_PACE, soonestRewalkOf } from "./pace.js";
+import { letUnusedCopiesGo } from "../copy/let-go.js";
 import { keepUnitsSpent } from "../takes/ends.js";
 import { handOutTakesNow } from "../takes/hand-out.js";
 import { freezeSource, leaveRefusedKey, openSource, type OpenSource } from "./standing.js";
@@ -460,5 +461,8 @@ async function readOpened(opened: OpenSource, deadline: number): Promise<{ read:
   open.log.info("source_read", { source: open.source.id, ...read.out });
   // What it found inside, or a length that arrived, may be a file to take: its workspace's is handed its job now.
   if (read.out.inside > 0 || read.measured) await handOutTakesNow(open.db, open.ref.tenantId);
+  // The workspace's copies nobody used for two weeks are let go as its folder is read (00654): a few a read, so the
+  // work is spread by the reads' own pace and no clock scans every workspace for it.
+  await letUnusedCopiesGo(open.db, open.ref.tenantId, deadline);
   return { read: read.out };
 }

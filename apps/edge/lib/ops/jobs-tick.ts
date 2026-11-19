@@ -28,6 +28,7 @@ import { mailboxIntake } from "../email/mailbox/intake.js";
 import { historyImports } from "../imports/history-import.js";
 import { instagramReader } from "../imports/instagram-read.js";
 import { websiteReader } from "../imports/website-read.js";
+import { copyReturner } from "../files/copy/bring-back.js";
 import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
@@ -151,6 +152,8 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   files: fileJobs(db),
   // A watched folder's photo or clip taken into the Library (00643): the relay's ticket key and the grant's reader are here.
   takes: sourceTaker(db),
+  // A watched clip's copy brought back to the video platform (00654), by the same relay and the same grant's reader.
+  copies: copyReturner(db),
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.
   posts: { ...postJobs(db), google: (job: ClaimedJob) => sendGooglePost(db, job) },

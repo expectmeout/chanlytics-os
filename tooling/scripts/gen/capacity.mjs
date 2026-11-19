@@ -323,8 +323,14 @@ export const CAPACITY = {
       "folders read and walked": {
         bound:
           "None: it hands each watched folder a `source_read` or a `source_walk` when its own row says one is due, every five minutes, and reads no provider itself.",
-        atFull:
-          "A folder is read once an hour at its floor, six hours where nothing changed in a week, and at most once in five minutes when its provider signals; it is walked again once a day, or a week. The ledger's row is the limit.",
+        atFull: ({ root }) => {
+          const [aRead, aPass] = ["aRead", "aSweep"].map((key) => takeSettingOf(key, root));
+          return (
+            "A folder is read once an hour at its floor, six hours where nothing changed in a week, and at most once in five minutes when its provider signals; it is walked again once a day, or a week. The ledger's row is the limit. " +
+            `NOT TIMED: each read also lets go at most ${count(aRead)} of its workspace's copies that nobody used for two weeks (00654), one delete at the video platform each, so that work is spread by the reads' own pace: ${count(aRead * 24)} a workspace a day at the floor, where a business filming twenty minutes a week needs two or three. ` +
+            `What left a folder seven days ago is settled by the half-hourly files pass, ${count(aPass)} items a pass for every workspace together: ${count(aPass * 48)} a day.`
+          );
+        },
       },
       "files handed their take": {
         kind: "each_tick",

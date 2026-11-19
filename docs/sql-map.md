@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 78 | 0 |
-| the server's | 364 | 311 |
+| the server's | 376 | 318 |
 | computed column | 3 | 0 |
-| trigger | 104 | 74 |
-| all | 736 | 572 |
+| trigger | 105 | 75 |
+| all | 749 | 580 |
 
 ## Called by nothing
 
@@ -178,6 +178,15 @@ being read is dropped by a migration.
 | `fact_suggest` | the server's | the server | code `packages/db/src/repositories/facts/suggestions.ts` | The note sweep suggests a note for the receptionist from an owner's correction (decision 0063): |
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
 | `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551): |
+| `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
+| `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
+| `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
+| `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
+| `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
+| `file_copy_return_failed` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A return that did not happen (00654): |
+| `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
+| `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
+| `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -192,6 +201,7 @@ being read is dropped by a migration.
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
+| `file_road_is_watched` | the server's | the server | SQL `file_copies_let_go` | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
@@ -201,7 +211,7 @@ being read is dropped by a migration.
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
 | `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). |
-| `file_video_room` | the server's | the server | SQL `file_media_ready`, `file_video_found` and 1 more | Whether a video of this length may come in (00643): |
+| `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 2 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
@@ -712,6 +722,7 @@ being read is dropped by a migration.
 | `source_credentials_drop` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: deletes a footage account's token from Vault (00641). |
 | `source_credentials_get` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: a footage account's token from Vault, or null (00641). |
 | `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
+| `source_items_grace_end` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The seven-day cleanup (00654, the footage sources plan's D3 as narrowed on 18 November): |
 | `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00643, the footage sources plan's D15): |
 | `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00643, decision 0115): |
 | `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00643): |
@@ -770,7 +781,9 @@ being read is dropped by a migration.
 | `trigger_registration_sweep` | the server's | the server | the clock, `registration-sweep` | Asks the edge to finish carrier registrations the carriers have answered. |
 | `trigger_sequences_clock` | the server's | the server | the clock, `sequences-clock` | The one clock every sequence runs on (0060, S2): |
 | `trigger_sweep_health` | the server's | the server | the clock, `sweep-health` | Asks the edge to judge the other sweeps and email the platform operator if any of them stopped reaching it. |
-| `video_seconds_toward_cap` | the server's | the server | SQL `file_video_begin`, `file_video_room` and 1 more | How many seconds of video count toward a workspace's video minutes (contracts FILE_VIDEO_MINUTES_MAX): |
+| `video_seconds_free` | the server's | the server | SQL `file_copies_let_go`, `file_video_room` | The seconds of video a workspace still has room for (00654): |
+| `video_seconds_held` | the server's | the server | SQL `video_seconds_toward_cap` | The seconds of video a workspace's takes hold (00654): |
+| `video_seconds_toward_cap` | the server's | the server | SQL `file_video_begin`, `piece_file_begin` and 1 more | How many seconds of video count toward a workspace's video minutes (contracts FILE_VIDEO_MINUTES_MAX): |
 | `wake_stale_snoozes` | the server's | the server | the clock, `wake-stale-snoozes` | Reopens conversations whose snooze ran out, whoever set it and whatever became of the snooze_wake job. |
 | `wear_found_look` | the server's | the server | code `packages/db/src/repositories/look/look.ts` | The website read's door (00490): |
 | `withdraw_ai_drafts` | the server's | the server | code `packages/db/src/repositories/conversations/control.ts`; SQL `conversation_take_over`, `member_withdraw_drafts` | The receptionist's queued drafts on a thread withdrawn with their send jobs, all but p_keep_message_id, through withdraw_queued (00387). |

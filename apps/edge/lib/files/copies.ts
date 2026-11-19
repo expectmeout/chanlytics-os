@@ -39,6 +39,7 @@ import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
+import { ensureCopy, type CopyHeld } from "./copy/ensure.js";
 import { findClaudeCopy } from "./look.js";
 import { drawMoment, drawMomentBox, drawVideoSheet, type Drawn } from "./video-sheet.js";
 import { streamKeys } from "./video-keys.js";
@@ -54,6 +55,19 @@ const MOMENTS_AT_ONCE = 2;
 
 /** The most frames one call keeps: a post is drawn from one. */
 const FRAMES_AT_ONCE = 2;
+/** The most videos one call asks back to the video platform: every clip a proposed video may name. */
+const WARM_AT_ONCE = 12;
+
+/**
+ * Why a moment of a video cannot be drawn where its copy at the video platform is not here, in words for the model
+ * that asked: a watched folder's clip was let go, and is on its way back or cannot come back.
+ */
+function copyWontOf(held: Exclude<CopyHeld<unknown>, { copy: "here" | "none" }>): string {
+  if (held.copy === "lost")
+    return "its original is no longer in the folder it came from, so its video cannot be shown; what was seen and heard of it is still kept";
+  if (held.copy === "away") return "its video is not here just now and could not be brought back yet";
+  return "its video is being brought back from the folder it came from; ask again in a couple of minutes";
+}
 
 /** A video's moment as the dashboard asks for it: a moment (`at`), a box of one (`at`, `box`, `of`), or a stretch (`from`, `to`). */
 interface MomentAsked {
@@ -138,11 +152,14 @@ async function momentKept(db: SupabaseClient<Database>, tenantId: TenantId, mome
   const none = (wont: string): MomentKept => ({ key: moment.key, file_id: null, wont });
   const keys = streamKeys();
   if (!keys) return none("videos are not set up here");
-  const row = await findFileForWork(db, tenantId, moment.id);
-  if (!row || row.removed_at || row.kind !== "video" || !row.media_ref) return none("no such video");
+  // Through the copy's door: asking for a moment of a clip whose copy was let go is what brings it back.
+  const held = await ensureCopy(db, tenantId, moment.id, "moment");
+  const row = held.row;
+  if (!row || held.copy === "none") return none("no such video");
   if (row.media_status !== "ready") return none("it is still being made ready");
+  if (held.copy !== "here") return none(copyWontOf(held));
   const seconds = Number(row.seconds) || 0;
-  const video = { mediaRef: row.media_ref, width: row.width, height: row.height };
+  const video = { mediaRef: held.mediaRef, width: row.width, height: row.height };
   const past = (t: number) => t > seconds;
   if (moment.from !== null && moment.to !== null) {
     if (past(Math.min(moment.from, moment.to))) return none(`the clip is ${Math.round(seconds)} seconds long`);
@@ -192,14 +209,16 @@ async function frameKept(db: SupabaseClient<Database>, tenantId: TenantId, frame
   const none = (wont: string): FrameKept => ({ key: frame.key, kept: false, wont });
   const keys = streamKeys();
   if (!keys) return none("videos are not set up here");
-  const row = await findFileForWork(db, tenantId, frame.id);
-  if (!row || row.removed_at || row.kind !== "video" || !row.media_ref) return none("no such video");
+  const held = await ensureCopy(db, tenantId, frame.id, "moment");
+  const row = held.row;
+  if (!row || held.copy === "none") return none("no such video");
   if (row.media_status !== "ready") return none("it is still being made ready");
+  if (held.copy !== "here") return none(copyWontOf(held));
   const seconds = Number(row.seconds) || 0;
   if (frame.at > seconds) return none(`the clip is ${Math.round(seconds)} seconds long`);
   const drawn = await drawMoment(
     keys.signing,
-    { mediaRef: row.media_ref, width: row.width, height: row.height },
+    { mediaRef: held.mediaRef, width: row.width, height: row.height },
     frame.at,
   );
   if (!drawn) return none("Stream gave no frame at that moment just now");
@@ -268,6 +287,29 @@ async function pictureKept(
   return { key: pictureSent.key, file_id: up.id, width: head.width, height: head.height };
 }
 
+/**
+ * The videos a proposed video names, asked back to the video platform now (the footage sources plan, "Warming"): a
+ * copy takes a couple of minutes to come back and longer to be at its sharpest, so it is asked for when AI proposes
+ * the video, never at the owner's press. One that is here is marked used, so it is not the next let go.
+ */
+async function warmCopies(
+  db: SupabaseClient<Database>,
+  tenantId: TenantId,
+  ids: readonly string[],
+): Promise<{ id: string; copy: string }[]> {
+  const warmed: { id: string; copy: string }[] = [];
+  for (const id of ids) {
+    const copy = await ensureCopy(db, tenantId, id, "warm")
+      .then((held) => held.copy)
+      .catch((failure: unknown) => {
+        logger({ tenant_id: tenantId }).warn("file_copy_failed", { file: id, why: "warm", error: errField(failure) });
+        return "none";
+      });
+    warmed.push({ id, copy });
+  }
+  return warmed;
+}
+
 export async function listFileCopies(auth: Admitted, request: Request): Promise<Response> {
   const body = await readBody(request, FILE_COPIES_DOOR);
   const ws = workspaceFor(auth, body.tenant_id);
@@ -287,7 +329,9 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
     );
   const frames = framesAsked(body.frames);
   if (!frames) return refuse(400, "bad_request", `frames: 1-${FRAMES_AT_ONCE}, each a key, a video's id and at`);
-  const nothingAsked = ids.length === 0 && pictures.length === 0 && moments.length === 0 && frames.length === 0;
+  const warm = (Array.isArray(body.warm) ? body.warm.filter((id) => UUID.test(id)) : []).slice(0, WARM_AT_ONCE);
+  const nothingAsked =
+    ids.length === 0 && pictures.length === 0 && moments.length === 0 && frames.length === 0 && warm.length === 0;
   if (nothingAsked || ids.length > COPIES_AT_ONCE) {
     return refuse(400, "bad_request", `ids: 1-${COPIES_AT_ONCE} files`);
   }
@@ -326,11 +370,13 @@ export async function listFileCopies(auth: Admitted, request: Request): Promise<
     Promise.all(pictures.map((p) => pictureKept(tenantId, p))),
   ]);
   const [momentsKept, framesKept] = await Promise.all([drawn, cut]);
+  const warmed = await warmCopies(db, tenantId, warm);
   return json(200, {
     ok: true,
     copies,
     ...(pictures.length ? { pictures: kept } : {}),
     ...(moments.length ? { moments: momentsKept } : {}),
     ...(frames.length ? { frames: framesKept } : {}),
+    ...(warm.length ? { warmed } : {}),
   });
 }

@@ -118,6 +118,7 @@ export const JOB_PAYLOADS = {
   }),
   video_digest: carrying({ file_id: z.string(), step: z.string(), edition: z.string() }),
   source_take: carrying({ item_id: z.string(), try: z.string() }),
+  copy_return: carrying({ file_id: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   post_publish: carrying({ post_id: z.string(), attempt: z.string() }),
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string() }),

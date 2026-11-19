@@ -431,6 +431,13 @@ async function sourceTake(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
+/** copy_return: a watched clip's copy brought back to the video platform (00654), through what the edge injects. payload: { file_id } */
+async function copyReturn(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.copies) throw new Error("copy_return: this runtime holds no returner");
+  const answer = await ctx.copies.bringBack(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /** piece_make: one step of a video made from a business's clips (00613, decision 0122), through what the edge injects. payload: { piece_id, step, tick } */
 async function pieceMake(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.files) throw new Error("piece_make: this runtime holds no file reader");
@@ -566,6 +573,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   file_purge: filePurge,
   video_digest: videoDigest,
   source_take: sourceTake,
+  copy_return: copyReturn,
   post_prepare: postPrepare,
   post_publish: postPublish,
   post_reconcile: postReconcile,
