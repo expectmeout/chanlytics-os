@@ -518,13 +518,20 @@ test("REGRESSION (S9-9): a deal's stage is said in its stage's word on the sheet
   assert.equal(label("deal_ended"), DEAL_STAGE_WORDS.ended);
   assert.equal(label("clients"), "Clients", "a list of people names the people, not the stage");
   // The thread pane said "Moved to" in words of its own beside the tabs' (inbox/thread/thread-pane.tsx).
-  for (const state of ["escalated", "done", "snoozed"]) assert.equal(inboxBucketWord(state), INBOX_BUCKET_WORDS[state]);
+  for (const state of ["escalated", "waiting", "done", "aside"])
+    assert.equal(inboxBucketWord(state), INBOX_BUCKET_WORDS[state]);
   assert.equal(inboxBucketWord("escalated"), NEEDS_YOU_WORD, "the tab of conversations nobody has is Needs you");
   assert.equal(inboxBucketWord("open"), null, "no tab lists an open conversation");
+  assert.equal(inboxBucketWord("snoozed"), null, "Snoozed is no list: a snoozed conversation stands in Waiting (0142)");
+  // Three tabs, one question each (decision 0142); Set aside keeps its word and is a fold at Handled's head, no tab.
   const { REAL_BUCKETS } = await importSrc("apps/dashboard/src/surfaces/inbox/store.ts");
   assert.deepEqual(
     REAL_BUCKETS.map((b) => [b.id, b.label]),
-    Object.entries(INBOX_BUCKET_WORDS),
+    Object.entries(INBOX_BUCKET_WORDS).filter(([id]) => id !== "aside"),
     "the tabs say the same words, in the same order",
+  );
+  assert.deepEqual(
+    REAL_BUCKETS.map((b) => b.label),
+    ["Needs you", "Waiting", "Handled"],
   );
 });

@@ -65,14 +65,40 @@ interface WaitRowsPorts {
    * line under it, and a row that opens says Review.
    */
   phone?: boolean;
+  /**
+   * The Inbox's Needs you (Ruben, 19 Nov 2026, decision 0142): a row a conversation's height, its name, one fact in the
+   * words Campaigns' list says it and one verb, where a run's row stood four lines and a row of verbs tall and said its
+   * state three times. The run's own screen says the rest.
+   */
+  slim?: boolean;
 }
 
-/** The rows a page has room for, how many rows there are, and how many rows it had no room for. */
+/** What a row says under its name: all of it, or, slim, the one fact alone. */
+const rowSaidOf = (
+  p: WaitRowsPorts,
+  whole: { meta: string; sentence: string; status: readonly string[] },
+  short: string,
+): { meta: string; sentence: string; status: readonly string[] } =>
+  p.slim ? { meta: "", sentence: short, status: [] } : whole;
+
+/** The rows a page has room for, each one's name, how many rows there are, and how many rows it had no room for. */
 interface WaitRowsDrawn {
   drawn: ReactElement[];
+  /** What each row drawn is called, in the rows' order: what a line that folds them says it holds. */
+  names: string[];
   count: number;
   cut: number;
 }
+
+/** What a row is called: To send's and cold email's own names, how many runs wait where they are folded, or the run's. */
+const waitRowName = (row: WaitRowOf<BroadcastVM>): string =>
+  row.kind === "to_send"
+    ? TO_SEND_ALL_WORDS.title
+    : row.kind === "cold_email"
+      ? WAIT_ROW_WORDS.cold.name
+      : row.kind === "run"
+        ? runTitleOf(row.run)
+        : WAIT_ROW_WORDS.approvals.name(row.runs.length);
 
 /** The run's home, where its row opens it: over the page it was pressed on, where that page is no home of Campaigns'. */
 const homeOf = (r: BroadcastVM) => runRoute(r.id, r.sequence_id);
@@ -89,9 +115,15 @@ function toSendRow(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: W
         initials="▶"
         glyph="bolt"
         name={TO_SEND_ALL_WORDS.title}
-        meta={TO_SEND_ALL_WORDS.meta}
-        sentence={TO_SEND_ALL_WORDS.sentence(t.count, t.from)}
-        status={[TO_SEND_ALL_WORDS.status]}
+        {...rowSaidOf(
+          p,
+          {
+            meta: TO_SEND_ALL_WORDS.meta,
+            sentence: TO_SEND_ALL_WORDS.sentence(t.count, t.from),
+            status: [TO_SEND_ALL_WORDS.status],
+          },
+          TO_SEND_ALL_WORDS.short(t.count, t.from),
+        )}
         tone="escalated"
         cta={{ label: TO_SEND_ALL_WORDS.open, kind: p.verbKind(), onClick: press }}
         also={null}
@@ -116,10 +148,16 @@ function coldEmailRow(c: Extract<WaitRowOf<BroadcastVM>, { kind: "cold_email" }>
       initials="▶"
       glyph="bolt"
       name={W.name}
-      meta={W.meta(c.from)}
       // A held email is answered whether or not campaigns are paused; an OK is not asked for while they are.
-      sentence={campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.sentence(c)}
-      status={p.phone ? [] : W.status(c)}
+      {...rowSaidOf(
+        p,
+        {
+          meta: W.meta(c.from),
+          sentence: campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.sentence(c),
+          status: p.phone ? [] : W.status(c),
+        },
+        campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
+      )}
       tone="escalated"
       cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
       also={null}
@@ -139,9 +177,15 @@ function approvalsRow(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitR
       initials="▶"
       glyph="bolt"
       name={W.name(runs.length)}
-      meta={W.meta}
-      sentence={campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.sentence(runs.map(runTitleOf))}
-      status={p.phone ? [] : W.status}
+      {...rowSaidOf(
+        p,
+        {
+          meta: W.meta,
+          sentence: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.sentence(runs.map(runTitleOf)),
+          status: p.phone ? [] : W.status,
+        },
+        campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(runs.map(runTitleOf)),
+      )}
       tone="escalated"
       cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
       also={null}
@@ -151,59 +195,80 @@ function approvalsRow(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitR
   );
 }
 
-/** A run's own row: what it waits for, and Approve where an OK alone sends it, else Open, where its screen answers it. */
-function runRow(r: BroadcastVM, late: boolean, p: WaitRowsPorts, acts: RunActs): ReactElement {
+/**
+ * What a run's row says, whole and in its one fact, and whether its screen alone answers it (the run's offer, contracts
+ * waitingRunOffer): a reach-out's run, one whose emails are held or handed over, one too late to approve.
+ */
+function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
   // A batch to leads says when its first email goes and what the last one earned, off the runs the page holds.
-  const batch = isReachOutRun(r.audience) && r.state === "pending_approval";
-  const words = todayRunWords(r, batch ? batchFactsOf(r, broadcastsRead()?.rows ?? [], Date.now()) : undefined);
+  const batch = isReachOutRun(run.audience) && run.state === "pending_approval";
+  const words = todayRunWords(run, batch ? batchFactsOf(run, broadcastsRead()?.rows ?? [], Date.now()) : undefined);
   // A going run whose emails the check holds is answered on the run, where each held email is put back or skipped; one
   // whose emails are handed to you is sent from there, each from your own inbox (00429).
-  const held = runHeldEmails(r) > 0 ? words.held : runDraftedEmails(r) > 0 ? words.drafted : null;
+  const held = runHeldEmails(run) > 0 ? words.held : runDraftedEmails(run) > 0 ? words.drafted : null;
   // A run whose day has passed is refused by the verb (contracts runApprovalRefusal): its row says so in the verb's
   // sentence and opens the run, where Skip is, instead of an Approve that answers 409.
-  const lateWords = held ? null : late ? bcLateWords(r) : null;
-  // Decided on its screen alone (the run's offer, contracts waitingRunOffer): a reach-out's run, one held, one too late.
-  const opens = !!held || bcOpensOnItsSheet(r) || !!lateWords;
+  const lateWords = held ? null : late ? bcLateWords(run) : null;
   const said = held ?? (lateWords ? { ...words.late, sentence: lateWords } : words.waiting);
-  // Waiting for your OK, its sentence says so: on a phone the state line under it would say it again.
-  const saidOnce = !!p.phone && said === words.waiting;
-  const paused = campaignsPaused();
-  const open = () => p.nav(homeOf(r));
+  // A held email and a run too late say their own words whatever is paused; a wait for an OK says campaigns are paused.
+  const own = !!held || !!lateWords || !campaignsPaused();
+  return {
+    opens: !!held || bcOpensOnItsSheet(run) || !!lateWords,
+    late: !!lateWords,
+    whole: {
+      meta: said.meta,
+      sentence: own ? said.sentence : CAMPAIGNS_PAUSED_WORDS,
+      // Waiting for your OK, its sentence says so: on a phone the state line under it would say it again.
+      status: ports.phone && said === words.waiting ? [] : said.status,
+    },
+    short: own ? said.short : CAMPAIGNS_PAUSED_WORDS,
+  };
+}
+
+/**
+ * A run's row's verbs: Approve where an OK alone sends it, else Open, where its screen answers it, and beside it the
+ * look at what an OK does not send, or who is on it. Slim, a row has one verb: the held emails' look where it holds any,
+ * and the row's own press still opens the run.
+ */
+function runVerbsOf(run: BroadcastVM, ports: WaitRowsPorts, acts: RunActs, at: { opens: boolean; late: boolean }) {
+  const open = () => ports.nav(homeOf(run));
   // The emails an OK does not send, each decided on the sequence's People.
-  const undecided = batchHeldEmails(r);
-  const decide = () => p.nav(sequenceRoute(r.sequence_id, "people"));
+  const undecided = batchHeldEmails(run);
+  const decide = undecided
+    ? { label: WAIT_ROW_WORDS.decide(undecided), onClick: () => ports.nav(sequenceRoute(run.sequence_id, "people")) }
+    : null;
+  if (ports.slim && decide) return { open, cta: { ...decide, kind: ports.verbKind() }, also: null };
+  // A reach-out's run is opened, never approved from a row (decision D6): its screen counts and names each send first,
+  // Ask refuses to approve one, and a one-tap send is the wrong habit for a first cold email.
+  const cta = at.opens
+    ? { label: ports.phone && !at.late ? WAIT_ROW_WORDS.review : "Open", kind: ports.verbKind(), onClick: open }
+    : {
+        // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve all 7", as every screen says it.
+        label: runApproveWords(run.recipient_count),
+        kind: ports.verbKind(),
+        onClick: () => acts.approve(run),
+        busy: ports.acting.busy(run.id),
+        gate: campaignsPaused() ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
+      };
+  const second = decide ?? (at.opens ? null : { label: "See who's on it", onClick: open });
+  return { open, cta, also: ports.slim ? null : second };
+}
+
+/** A run's own row: what it waits for, and Approve where an OK alone sends it, else Open, where its screen answers it. */
+function runRow(run: BroadcastVM, late: boolean, ports: WaitRowsPorts, acts: RunActs): ReactElement {
+  const lines = runSaidOf(run, late, ports);
+  const verbs = runVerbsOf(run, ports, acts, lines);
   return (
     <AttnRow
-      key={`run-${r.id}`}
+      key={`run-${run.id}`}
       initials="▶"
       glyph="bolt"
-      name={runTitleOf(r)}
-      meta={said.meta}
-      sentence={held || lateWords ? said.sentence : paused ? CAMPAIGNS_PAUSED_WORDS : said.sentence}
-      status={saidOnce ? [] : said.status}
+      name={runTitleOf(run)}
+      {...rowSaidOf(ports, lines.whole, lines.short)}
       tone="escalated"
-      // A reach-out's run is opened, never approved from a row (decision D6): its screen counts and names each send first,
-      // Ask refuses to approve one, and a one-tap send is the wrong habit for a first cold email.
-      cta={
-        opens
-          ? { label: p.phone && !lateWords ? WAIT_ROW_WORDS.review : "Open", kind: p.verbKind(), onClick: open }
-          : {
-              // One word per act (decision 19 of the spec of 9 Oct 2026): "Approve all 7", as every screen says it.
-              label: runApproveWords(r.recipient_count),
-              kind: p.verbKind(),
-              onClick: () => acts.approve(r),
-              busy: p.acting.busy(r.id),
-              gate: paused ? gatedProps(CAMPAIGNS_PAUSED_WORDS) : gate("approve", "approve a run"),
-            }
-      }
-      also={
-        undecided
-          ? { label: WAIT_ROW_WORDS.decide(undecided), onClick: decide }
-          : opens
-            ? null
-            : { label: "See who's on it", onClick: open }
-      }
-      onOpen={open}
+      cta={verbs.cta}
+      also={verbs.also}
+      onOpen={verbs.open}
       testid="brief-run-row"
     />
   );
@@ -227,5 +292,5 @@ export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDra
     const [first] = row.runs;
     return first ? [approvalsRow(first, row.runs, p)] : [];
   });
-  return { drawn, count: rows.length, cut: rows.length - shown.length };
+  return { drawn, names: shown.map(waitRowName), count: rows.length, cut: rows.length - shown.length };
 }

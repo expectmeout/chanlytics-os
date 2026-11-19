@@ -119,7 +119,7 @@ export const NEED_YOU_WORDS = {
    * over the one thing to do first and everyone waiting on a word or a call, the rest of them under no head of their own;
    * Approve over what AI prepared; Do over the owner's own to-dos. Who has waited past a week folds at Reply's foot.
    */
-  group: { next: "Reply", waiting: "Reply", ok: "Approve", todo: "Do", old: "Waiting over a week" },
+  group: { next: "Reply", waiting: "Reply", ok: "Approve", todo: "Do", old: "Older than a week" },
   /** Need you's foot, where threads were set aside as not a customer's (decision 0093): what one was, or how many. */
   setAside: (n: number, about: string | null) =>
     n === 1 ? `Set aside · ${about ?? "1 not a customer's"}` : `Set aside · ${n} not customers'`,
@@ -149,10 +149,12 @@ export const NEED_YOU_WORDS = {
   },
   /**
    * Whoever has waited past a week, at the end: a person by themself where there is one, how many and who where there
-   * are more ("2 over a week" left out what was); a toll-free number says so beside it.
+   * are more ("2 over a week" left out what was); a toll-free number says so beside it. "Older than a week", where it
+   * said "waiting over a week" (Ruben, 19 Nov 2026, decision 0142): they wait on you, and under the Inbox's tab named
+   * Waiting, which holds whoever you wait on, the one word said two opposite things.
    */
   older: {
-    row: (n: number) => `${n} waiting over a week`,
+    row: (n: number) => `${n} older than a week`,
     wait: "over a week",
     tollFree: "toll-free",
   },
@@ -173,6 +175,26 @@ export const NEED_YOU_WORDS = {
     yes: "Mark done",
     done: (n: number) => (n === 1 ? "Marked done" : `${n} marked done`),
     failed: (n: number) => (n === 1 ? "One couldn't be marked done" : `${n} couldn't be marked done`),
+    /**
+     * Asked before Mark all done goes, where one press lets many people go (the Inbox's fold, Ruben, 19 Nov 2026): how
+     * many, what becomes of them, and what Undo will not bring back. Someone who asked for a person is handed back to AI,
+     * which Undo reverses; a conversation nobody answered has no request to hand back and is archived (today/queue.ts
+     * `closes`), which it does not, as the Inbox's own Archive of several asks first for.
+     */
+    ask: {
+      question: (n: number) => `Mark all ${n} done?`,
+      detail: (n: number, archived: number) => {
+        if (!archived) return "They leave your list, and AI answers them if they write again.";
+        const which =
+          archived === n
+            ? "Nobody answered them, so they are archived"
+            : `Nobody answered ${archived} of them, so ${archived === 1 ? "that one is" : "those are"} archived`;
+        return `They leave your list until they write again. ${which}, and Undo won't bring ${archived === 1 ? "it" : "them"} back.`;
+      },
+      yes: (n: number) => `Yes, mark ${n} done`,
+      no: "Not now",
+      busy: "Marking done…",
+    },
   },
   /** Over a call back that waited past a week, before its notes: Ask's word that it may be let go. */
   staleCall: "A call back this old is rarely still wanted. If the number means nothing to you, mark it done.",

@@ -340,6 +340,93 @@ test("archived is in no list: a link opens it beside the list the member had, an
   assert.notEqual(listOf(tree).activeBucket, "out", "a tab stays lit: none is called out");
 });
 
+test("three tabs (decision 0142): a snoozed conversation waits in Waiting and says so, a campaign's send stands in Handled, what a reading set aside folds at Handled's head, and a tab kept from before lands on today's", async () => {
+  // 19 Nov 2026: Snoozed had a tab that stood empty most days, Set aside a fifth that ran a phone's strip into its search,
+  // and Waiting, "your follow-up list", held every campaign's send for thirty days. Where each thread stands is the
+  // rule's (state/thread-move.test.mjs); this is what the page makes of it.
+  const { REAL_BUCKETS } = await import(`${S}/surfaces/inbox/store.ts`);
+  const { ixOpeningBucket } = await import(`${S}/surfaces/inbox/rules.ts`);
+  const quiet = { state: "done", needsYou: false };
+  const nina = threadOf({ id: "th-nina", who: "Nina Park" });
+  const sam = threadOf({
+    id: "th-sam",
+    who: "Sam Lee",
+    state: "snoozed",
+    needsYou: false,
+    wake: "tomorrow 10:00 AM",
+    move: { move: "snoozed", list: "waiting" },
+  });
+  const kai = threadOf({ ...quiet, id: "th-kai", who: "Kai Brooks", move: { move: "sent", list: "done" } });
+  // A teammate has Ada's: flagged, with its reason, and theirs to answer.
+  const ada = threadOf({
+    id: "th-ada",
+    who: "Ada Lovelace",
+    needsYou: false,
+    claimedByOther: true,
+    subject: "Customer asked for a person",
+    move: { move: "theirs", list: "waiting" },
+  });
+  const pitch = threadOf({
+    ...quiet,
+    id: "th-pitch",
+    who: "Pitch Co",
+    archived: true,
+    setAside: true,
+    move: { move: "aside", list: "aside" },
+  });
+  fresh();
+  inboxWith([nina, sam, ada, kai, pitch], { INBOX_BUCKETS: REAL_BUCKETS, INBOX_BASELINE: { doneThisWeek: 0 } });
+  let tree = again(() => Inbox({}));
+  const chip = (id) => listOf(tree).buckets.find((b) => b.id === id)?.count;
+  assert.deepEqual(
+    listOf(tree).buckets.map((b) => b.label),
+    ["Needs you", "Waiting", "Handled"],
+    "three tabs: yours to do, someone else's move or a clock's, and nobody's",
+  );
+  assert.deepEqual(
+    [chip("waiting"), chip("done")],
+    [2, 1],
+    "Waiting counts Ada's and Sam's snooze; Handled its own row, never what its fold holds",
+  );
+  listOf(tree).onBucketChange("waiting");
+  tree = again(() => Inbox({}));
+  const waiting = { ...listOf(tree) };
+  assert.deepEqual(
+    waiting.threads.map((t) => t.who),
+    ["Ada Lovelace", "Sam Lee"],
+    "a teammate's first, and what was snoozed last: a member put it out of sight",
+  );
+  listOf(tree).onBucketChange("done");
+  tree = again(() => Inbox({}));
+  const handled = { ...listOf(tree) };
+  assert.deepEqual(
+    [handled.threads.map((t) => t.who), handled.aside.map((t) => t.who)],
+    [["Kai Brooks"], ["Pitch Co"]],
+    "REGRESSION: a campaign's send stood in Waiting for thirty days; Set aside was a tab of its own",
+  );
+  // Drawn: Sam says he is snoozed and until when, where no tab says it for him; and Ada's row says who has it, never
+  // again why it was flagged, which stood as a third line under every row of Waiting.
+  fresh();
+  const drawnWaiting = textOf(again(() => InboxList(waiting)));
+  assert.ok(drawnWaiting.includes("Snoozed") && drawnWaiting.includes("until tomorrow 10:00 AM"), drawnWaiting);
+  assert.ok(!drawnWaiting.includes("Customer asked for a person"), drawnWaiting);
+  // And Handled opens on one quiet row for what was set aside, which opens in place into its conversations.
+  fresh();
+  const draw = () => again(() => InboxList(handled));
+  let list = draw();
+  const fold = find(list, (n) => n.props?.testid === "inbox-aside-row");
+  assert.deepEqual([fold.props.name, fold.props.sentence], ["Set aside · 1 not a customer's", "Pitch Co"]);
+  const option = (who) => find(list, (n) => n.props?.role === "option" && textOf(n).includes(who));
+  assert.ok(option("Kai Brooks") && !option("Pitch Co"), "folded: what was set aside is not among Handled's rows");
+  fold.props.onOpen();
+  list = draw();
+  assert.ok(option("Pitch Co"), "opened in place: its own row, asked whether they are a customer");
+  // A tab kept from before (the Inbox's place) lands on today's: Snoozed on Waiting, Set aside on Handled; and a link to
+  // a conversation that was set aside opens under Handled, whose fold holds it.
+  const opens = (had, id = null) => ixOpeningBucket([sam, kai, pitch], id, { had, waiting: false });
+  assert.deepEqual([opens("snoozed"), opens("aside"), opens(null, pitch.id)], ["waiting", "done", "done"]);
+});
+
 test("the page knows when the next thread's clock runs out, within the hour: nothing else would draw it again", async () => {
   const { ixNextMoveAt, ixWaitSaid } = await import(`${S}/surfaces/inbox/rules.ts`);
   const NOW_MS = Date.now();

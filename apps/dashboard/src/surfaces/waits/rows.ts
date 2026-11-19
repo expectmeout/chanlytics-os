@@ -112,9 +112,12 @@ export function waitRowsOf<R extends RowRun>(
   return rows;
 }
 
+/** The first two by name, then how many more, and nothing after: the folded runs' one fact where the row is a line tall. */
+const approvalsShort = (names: readonly string[]) =>
+  joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names);
+
 /** The first two by name, then how many more: "VIP color clients, Holiday gift cards and 1 more". */
-const approvalsSentence = (names: readonly string[]) =>
-  `${joinWords(names.length > 3 ? [...names.slice(0, 2), `${names.length - 2} more`] : names)}. Each one you answer opens the next.`;
+const approvalsSentence = (names: readonly string[]) => `${approvalsShort(names)}. Each one you answer opens the next.`;
 
 /** Cold email's row in a sentence: what is held for a look, then what waits for an OK, and what happens to the rest. */
 function coldEmailSentence(c: ColdEmailCount): string {
@@ -124,6 +127,15 @@ function coldEmailSentence(c: ColdEmailCount): string {
   const tail = c.asks > 0 ? "Each one you answer opens the next." : "The rest go as planned.";
   return [held, asks, tail].filter(Boolean).join(" ");
 }
+
+/** Cold email's row in one fact, where the row is a line tall: what is held for a look, then what waits for an OK. */
+const coldEmailShort = (c: ColdEmailCount): string =>
+  [
+    c.held > 0 ? `${c.held} held for a look` : null,
+    c.asks > 0 ? `${plural(c.asks, "waits", "wait")} for your approval` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
 /** The folded rows' words: how many wait for an OK, who they are, and that each answer opens the next. */
 export const WAIT_ROW_WORDS = {
@@ -138,6 +150,7 @@ export const WAIT_ROW_WORDS = {
     name: (n: number) => `${plural(n, "run waits", "runs wait")} for your approval`,
     meta: "Campaigns · ready",
     sentence: approvalsSentence,
+    short: approvalsShort,
     status: [RUN_WAITING_WORDS],
     open: "Open",
     /** Today's brief, saying the folded row once (contracts todayBriefWords): "4 runs wait for your OK: …". */
@@ -152,6 +165,7 @@ export const WAIT_ROW_WORDS = {
     name: "Cold email",
     meta: (from: number) => plural(from, "sequence", "sequences"),
     sentence: coldEmailSentence,
+    short: coldEmailShort,
     /** Under the row: what kind of wait it holds, the held one first, as the row opens on it. */
     status: (c: ColdEmailCount) => [c.held > 0 ? "Held for a look" : RUN_WAITING_WORDS],
     open: "Look",

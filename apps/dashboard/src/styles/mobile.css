@@ -581,9 +581,10 @@
      the select-all starts a pick, so nothing bulk is out of reach. */
   .inbox .ix-list:not(.picking) .ix-thread { grid-template-columns: 32px 1fr; }
   .inbox .ix-list:not(.picking) .ix-thread-check { display: none; }
-  /* A teammate's address is an address: it took the name's room and then clipped itself. */
+  /* A teammate's address is an address: it took the name's room and then clipped itself. How much of the line it may
+     take is inbox.css's, at every width (.ix-thread-meta[data-gives]). */
   .inbox .ix-thread-who { min-width: 0; }
-  .inbox .ix-name-pill { max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inbox .ix-name-pill { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
