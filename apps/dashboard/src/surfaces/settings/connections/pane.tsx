@@ -371,7 +371,7 @@ function groupCard(o: {
  * account is read (ad-account-real.tsx), and is drawn into the place kept for it there. A demo session draws the
  * sample's rows after the groups.
  */
-function ConnectionGroups(o: {
+function ConnectionGroups(props: {
   rows: Row[];
   note: string | null;
   setNote: (n: string | null) => void;
@@ -381,22 +381,22 @@ function ConnectionGroups(o: {
 }) {
   const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
   const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
-  const { note, setNote, row } = o;
+  const { note, setNote, row } = props;
   return (
     <>
-      {connectionGroupsOf(o.rows).map(({ g, list }) =>
+      {connectionGroupsOf(props.rows).map(({ g, list }) =>
         groupCard({
           g,
           list,
           note,
           setNote,
           row,
-          ads: o.adsShown && adsPlace?.group === g ? { place: adsPlace, slot: setAdsSlot } : null,
+          ads: props.adsShown && adsPlace?.group === g ? { place: adsPlace, slot: setAdsSlot } : null,
         }),
       )}
-      {o.adsShown && (
+      {props.adsShown && (
         <Suspense fallback={null}>
-          {adsInPreview() ? <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} /> : <AdAccounts flash={o.flash} />}
+          {adsInPreview() ? <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} /> : <AdAccounts flash={props.flash} />}
         </Suspense>
       )}
     </>

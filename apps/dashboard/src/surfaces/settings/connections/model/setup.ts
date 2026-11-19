@@ -804,7 +804,6 @@ export function connectionRows(connectionInputs: ConnectionInputs, nowMs = Date.
   return foldEmail(rows, connectionInputs);
 }
 
-/** Each group's name, and its count said from the states of what it holds: its rows, and an ad account's card. */
 export const CONNECTION_GROUP_WORDS: Record<
   ConnectionGroup,
   { title: string; sub: (rows: readonly Pick<ConnectionLine, "state">[]) => string }
