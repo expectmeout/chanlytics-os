@@ -8624,6 +8624,10 @@ export type Database = {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
         Returns: string
       }
+      ad_named: {
+        Args: { p_ref: string; p_tenant_id: string }
+        Returns: Json
+      }
       add_person: {
         Args: {
           p_display_name: string

@@ -79,14 +79,20 @@ async function ownerSession() {
 }
 
 /** An inbound customer message, taken in as the edge takes it in: its meta is what the edge's ingest writes. */
-async function arrive({ channel = "whatsapp", meta = { raw_type: "text" }, number = newPhone(), external } = {}) {
+async function arrive({
+  channel = "whatsapp",
+  meta = { raw_type: "text" },
+  number = newPhone(),
+  external,
+  tenant = tenantId,
+} = {}) {
   seq += 1;
   // A wire with no number names its person by its own id: an address, or Instagram's id for them.
   const own =
     channel === "email" ? `guest${seq}.${stamp}@example.com` : channel === "instagram" ? `igsid${seq}${stamp}` : null;
   return ok(
     await db.rpc("ingest_inbound", {
-      p_tenant_id: tenantId,
+      p_tenant_id: tenant,
       p_channel: channel,
       p_identity_external_id: own ?? number.slice(1),
       p_phone_e164: own ? null : number,
@@ -102,8 +108,8 @@ async function arrive({ channel = "whatsapp", meta = { raw_type: "text" }, numbe
     }),
   );
 }
-const keep = (messageId, said, as = db) =>
-  as.rpc("ad_entry_keep", { p_tenant_id: tenantId, p_message_id: messageId, p_said: said });
+const keep = (messageId, said, as = db, tenant = tenantId) =>
+  as.rpc("ad_entry_keep", { p_tenant_id: tenant, p_message_id: messageId, p_said: said });
 /** A person's entries, oldest first: those of their messages (an entry names its message, and no person). */
 const entriesOf = async (contactId) => {
   const theirs = ok(await db.from("messages").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId));
@@ -380,6 +386,44 @@ test(
     assert.ok((await keep(r.message_id, {}, anon)).error, "and a visitor");
     const visitor = await anon.from("ad_entries").select("message_id").eq("message_id", r.message_id);
     assert.ok(visitor.error || visitor.data.length === 0, "who reads none either");
+  },
+);
+
+test(
+  "a member is told an ad's name from their own workspace's entries, and a visitor may not ask (00646)",
+  { skip: skipMember },
+  async () => {
+    const adId = `1202${stamp}21`;
+    const ask = (as, tenant = tenantId) => as.rpc("ad_named", { p_tenant_id: tenant, p_ref: adId });
+    const first = await arrive({ meta: adMeta(adId) });
+    assert.deepEqual(
+      ok(await ask(db)),
+      { platform: "meta", name: null },
+      "an entry whose words never arrived names nothing",
+    );
+    assert.equal(ok(await keep(first.message_id, { headline: "Spring colour offer" })), "kept");
+    const session = await ownerSession();
+    assert.deepEqual(ok(await ask(session)), { platform: "meta", name: "Spring colour offer" });
+    // Their own row rules decide what is read: another workspace's ad of the same id has a name, and not for them.
+    const elsewhere = ok(
+      await db
+        .from("tenants")
+        .insert({ slug: `harbor-ad-names-${stamp}`, name: "Harbor Ad Names" })
+        .select("id")
+        .single(),
+    ).id;
+    try {
+      const theirs = await arrive({ meta: adMeta(adId), tenant: elsewhere });
+      assert.equal(ok(await keep(theirs.message_id, { headline: "Their own ad" }, db, elsewhere)), "kept");
+      assert.deepEqual(ok(await ask(db, elsewhere)), { platform: "meta", name: "Their own ad" });
+      assert.deepEqual(ok(await ask(session, elsewhere)), { platform: "meta", name: null });
+    } finally {
+      await db.from("events").delete().eq("tenant_id", elsewhere);
+      await db.from("tenants").delete().eq("id", elsewhere);
+    }
+    const anon = createClient(URL_, ANON, { auth: { persistSession: false } });
+    const visitor = await ask(anon);
+    assert.ok(visitor.error, "a visitor holds no right to call it");
   },
 );
 

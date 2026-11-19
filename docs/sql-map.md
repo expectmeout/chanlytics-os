@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 187 | 187 |
-| reader | 77 | 0 |
+| reader | 78 | 0 |
 | the server's | 364 | 311 |
 | computed column | 3 | 0 |
 | trigger | 104 | 74 |
-| all | 735 | 572 |
+| all | 736 | 572 |
 
 ## Called by nothing
 
@@ -48,6 +48,7 @@ being read is dropped by a migration.
 | Function | Kind | Who may call it | Called by | What it does |
 | --- | --- | --- | --- | --- |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
+| `ad_named` | reader | a signed-in person, the server | SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
 | `ai_shadow_agreement` | the server's | the server | nothing at run time | A second model's agreement with the primary over the last p_days, per purpose, question and port: |
