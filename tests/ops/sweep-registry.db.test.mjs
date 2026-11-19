@@ -133,6 +133,10 @@ const EVERY_CLOCK = {
   // A business's watched folders (00641): a five-minute clock that asks the edge only while a folder is watched, and
   // records that it looked otherwise.
   sources: "sources-sweep",
+  // A business's connected ad accounts (00650): a five-minute clock that asks the edge only while one is connected, and
+  // records that it looked otherwise. And an ad platform's day for an ad, 760 days on: nightly, judged by its run.
+  ads: "ads-sweep",
+  purge_ad_days: "purge-ad-days",
   // The receptionist's kept turns and the prompts they read (00401): nightly, thirty days on, judged by its run.
   purge_model_turns: "purge-model-turns",
   // A workspace's old settings (00402): nightly, 400 days after a version is replaced, judged by its run.
@@ -142,6 +146,7 @@ const RUN_JUDGED = [
   "partitions",
   "pauses",
   "platform_metrics_roll",
+  "purge_ad_days",
   "purge_ask",
   "purge_client_errors",
   "purge_config_versions",
@@ -369,6 +374,9 @@ test(
            values (t, 'google', 'every-clock-' || tag, 'footage@every-clock-' || tag || '.example.com') returning id into sc;
       insert into public.media_sources (tenant_id, connection_id, folder_id, folder_name, state)
            values (t, sc, 'every-clock-' || tag, 'Every clock', 'watching');
+      -- ads: an ad account connected (00650).
+      insert into public.ad_accounts (tenant_id, platform, external_id, name, currency, timezone, status)
+           values (t, 'meta', 'every-clock-' || tag, 'Every clock', 'USD', 'UTC', 'connected');
       -- texts: a line that can text (00594).
       insert into public.lines (tenant_id, provider, e164, voice_state)
            values (t, 'twilio', '+1555019' || lpad((abs(hashtext(tag)) % 10000)::text, 4, '0'), 'none');

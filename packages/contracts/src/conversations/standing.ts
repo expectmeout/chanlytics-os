@@ -72,23 +72,23 @@ export const HELD_WORDS = {
 export const NEEDS_YOU_WORD = "Needs you";
 
 /**
- * The Inbox's three lists of real threads, as its tabs name them and as an open thread says it moved to one (the wiring's
- * second audit, S9-9: the thread pane typed its own copy of the tabs' words).
+ * The Inbox's lists of real threads, as its three tabs name them and as an open thread says it moved to one (the wiring's
+ * second audit, S9-9: the thread pane typed its own copy of the tabs' words). Set aside is no tab: a fold at Handled's
+ * head (decision 0142), named here for the thread that says it moved there. A snoozed thread stands in Waiting.
  */
 export const INBOX_BUCKET_WORDS = {
   escalated: NEEDS_YOU_WORD,
   waiting: "Waiting",
   done: "Handled",
-  snoozed: "Snoozed",
   aside: "Set aside",
 } as const;
 
 /** Under the last of Needs you's rows, where nothing narrows them (the thread canvas's list, 1 Nov 2026). */
 export const NEEDS_YOU_LIST_END = "That's everyone who needs you.";
 
-/** The list a thread's state puts it in, in the tabs' words; null for a state no tab lists. */
+/** The list a thread stands in, in the Inbox's words; null for one it has no word for. */
 export function inboxBucketWord(state: string): string | null {
-  return state === "escalated" || state === "waiting" || state === "done" || state === "snoozed" || state === "aside"
+  return state === "escalated" || state === "waiting" || state === "done" || state === "aside"
     ? INBOX_BUCKET_WORDS[state]
     : null;
 }

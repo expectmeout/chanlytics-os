@@ -305,6 +305,14 @@ export interface JobContext {
     /** One read of the folder's changes from the place its row keeps; no page starts after `deadline`. */
     read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
   };
+  /**
+   * A connected ad account read at its platform (00650, decision 0049), as the edge holds the platform's sign-in.
+   * INJECTED; an ad_read job in a runtime without it fails loudly. Answers `skipped` when the account is no longer one to
+   * read, and never throws for the platform's own refusal: the account keeps why, and the clock hands it another.
+   */
+  ads?: {
+    read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
+  };
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;

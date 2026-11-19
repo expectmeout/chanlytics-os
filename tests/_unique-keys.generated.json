@@ -2,6 +2,130 @@
   "generated": "by tooling/scripts/gen/unique-keys.mjs from the replayed migrations; do not edit (supabase start, then corepack pnpm gen:db-types)",
   "keys": [
     {
+      "table": "ad_accounts",
+      "name": "ad_accounts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_accounts",
+      "name": "ad_accounts_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_accounts",
+      "name": "ad_accounts_tenant_id_id_platform",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        },
+        {
+          "column": "platform"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_accounts",
+      "name": "ad_accounts_one_a_workspace",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "platform"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_accounts",
+      "name": "ad_accounts_one_live",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "platform"
+        }
+      ],
+      "where": {
+        "cmp": "<>",
+        "left": {
+          "column": "status"
+        },
+        "right": {
+          "value": "disconnected"
+        }
+      }
+    },
+    {
+      "table": "ad_accounts",
+      "name": "ad_accounts_held_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "platform"
+        },
+        {
+          "column": "external_id"
+        }
+      ],
+      "where": {
+        "in": {
+          "column": "status"
+        },
+        "values": [
+          "connected",
+          "revoked"
+        ]
+      }
+    },
+    {
+      "table": "ad_days",
+      "name": "ad_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "ad_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ad_entries",
       "name": "ad_entries_pkey",
       "primary": true,
@@ -54,6 +178,51 @@
         },
         {
           "column": "external_ref"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ads",
+      "name": "ads_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ads",
+      "name": "ads_tenant_id_id",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ads",
+      "name": "ads_one_at_its_platform",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "platform"
+        },
+        {
+          "column": "platform_ad_id"
         }
       ],
       "where": null

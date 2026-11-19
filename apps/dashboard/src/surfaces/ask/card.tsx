@@ -68,7 +68,10 @@ const AskSearchCard = ({ lead, t, alike }: { lead: SearchCardView; t: LineWords;
     ) : null}
   </>
 );
-/** A public card on its clock (a reply on Google, a post put up): its end sends it, and Undo clears it. */
+/**
+ * A public card on its clock (a reply on Google, a post put up): its end sends it, and Undo clears it. A clock only runs
+ * in the tab that pressed, so it is the card's foot, in reach where the press was (`data-foot`, ask.css).
+ */
 const AskPosting = ({
   posting,
   said,
@@ -84,7 +87,7 @@ const AskPosting = ({
   onEnd: () => void;
   onUndo: () => void;
 }) => (
-  <div className="ask-told" role="status">
+  <div className="ask-told" role="status" data-foot="told">
     <div className="ask-card-receipt ask-landing" tabIndex={-1} ref={landRef} data-testid="ask-card-posting">
       <AskRing from={posting.from} until={posting.until} onDone={onEnd} />
       <span className="ask-card-said">{said}</span>
@@ -167,6 +170,13 @@ const cardStandsAs = (
   return { idle, shut, quiet, follows, body: !(shut || quiet || (decided && !follows)) };
 };
 
+/**
+ * Whether what became of the card is its foot, in reach where the press was (`data-foot`, ask.css): a press in this tab
+ * said it, and the card says it itself. A card drawn again from what the conversation kept is at rest.
+ */
+const toldFoot = (here: boolean, idle: boolean, follows: boolean): "told" | undefined =>
+  here && !idle && !follows ? "told" : undefined;
+
 /** What the card shows of what it will do; a video's card, of where its video stands once pressed. */
 const AskCardBody = ({
   p,
@@ -221,7 +231,7 @@ export const AskCard = ({
 }) => {
   const pressed = useCardPress(p, { messageId, t, onNav, onOutcome, step });
   const { A, state, setState, receipt, undoData, doneAt, err, setErr, land, receiptRef, approveRef, held } = pressed;
-  const { posting, setPosting, forward, approveWith, dismiss, undo, onClock } = pressed;
+  const { posting, setPosting, forward, approveWith, dismiss, undo, onClock, acting, here } = pressed;
   const [more, setMore] = useState(false);
   const post = usePostCard(p);
   const piece = usePieceCard(p, t, pressed.made, pressed.madeAt);
@@ -279,6 +289,7 @@ export const AskCard = ({
           p={p}
           t={t}
           busy={held}
+          acting={acting}
           waits={step.waits}
           hideOpen={hideOpen || goes.own}
           press={goes.press}
@@ -290,8 +301,9 @@ export const AskCard = ({
           approveRef={approveRef}
         />
       ) : null}
-      {/* Always drawn, so what fills it is announced; empty, it takes no room (ask.css). */}
-      <div className="ask-told" role="status">
+      {/* Always drawn, so what fills it is announced; empty, it takes no room (ask.css). What a press in this tab made of
+          the card is its foot, in reach where the press was; a card drawn again from what was kept is at rest. */}
+      <div className="ask-told" role="status" data-foot={toldFoot(here, idle, follows)}>
         {idle || follows ? null : (
           <AskCardReceipt
             p={p}

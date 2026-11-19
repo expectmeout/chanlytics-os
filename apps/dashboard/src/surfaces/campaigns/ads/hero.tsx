@@ -1,13 +1,15 @@
 /**
  * The two Ads pages that are not the ledger: "nothing connected" (v0), which says only what the People report already reads (how new
- * people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, and the three platforms as "Not
- * connected yet"), real in a workspace's preview (first-touch.ts), and, as a MOCKUP, "connected, no ads yet", one card for the first
+ * people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, beside the ad account's card),
+ * real in a workspace's preview (first-touch.ts), and, as a MOCKUP, "connected, no ads yet", one card for the first
  * ad with its checklist (its press waits
  * while the account lacks something, and says what), or, while an account has to be chosen first, one card to choose it from,
  * each choice with the currency it is charged in. None draws a figure, a cost or a per-ad count: nothing here claims what
  * Chanlytics cannot support yet.
  */
+import type { ReactNode } from "react";
 import type { AdPlatform } from "@chanlytics/contracts";
+import { CARD } from "./connect/words";
 import { GATE } from "./model/words";
 import { V0 } from "./model/words-page";
 import type { ChooseVM, NoAdsVM } from "./model/page-parts";
@@ -66,8 +68,11 @@ function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
   );
 }
 
-/** Today, nothing connected: the hero and its rows at the left, the three platforms and what comes next at the right. */
-export function V0Page({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
+/**
+ * Today, before any ad is read: the hero and its rows at the left; at the right the ad account's card (connect/card.tsx),
+ * which says where the connection stands, and the quiet line for the platforms that come later.
+ */
+export function V0Page({ v0, touch, card }: { v0: V0VM; touch: FirstTouchHere; card: ReactNode }) {
   return (
     <div className="ads-hero" data-testid="ads-v0">
       <section className="ads-hero-main">
@@ -97,17 +102,10 @@ export function V0Page({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
         </LinkButton>
       </section>
       <section className="ads-hero-side">
-        <ul className="ads-platforms">
-          {v0.platforms.map((p) => (
-            <li key={p.id} className="ads-platform" data-testid={`ads-platform-${p.id}`}>
-              <span className="ads-dot" data-state="off" aria-hidden="true" />
-              <span className="ads-platform-name">{p.name}</span>
-              <span className="ads-platform-line">{p.line}</span>
-              <span className="ads-platform-word">{p.word}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="ads-hero-note">{v0.next}</p>
+        {card}
+        <p className="ads-conn-later" data-testid="ads-later">
+          {CARD.later}
+        </p>
       </section>
     </div>
   );

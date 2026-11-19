@@ -8,7 +8,7 @@ import { batchWaitWords } from "../campaigns/playbooks/triggers/notices";
 import { isReachOutRun } from "../campaigns/reach-out/rules";
 import { RUN_WAITING_WORDS, heldEmailsWords, runApprovedTail, runStopWords } from "../shell/campaign-rooms";
 import { capitalize, plural } from "../shared/words";
-import { runDraftedEmails, runHeldEmails } from "../waits/waits";
+import { batchHeldEmails, runDraftedEmails, runHeldEmails } from "../waits/waits";
 import { waitEndsWords } from "../waits/rules";
 
 /* ------------------------------ the runs' words ------------------------------ */
@@ -58,6 +58,9 @@ type BatchRun = Pick<RunLike, "counts" | "when"> & {
   created_at: string;
 };
 
+/** A run whose day has passed, which only Skip answers: its row's state line, and its one fact where the row is a line tall. */
+const RUN_LATE_WORDS = "Too late to approve";
+
 /** A batch's facts: the newest other batch of its sequence that sent anything is its last. */
 export function batchFactsOf(run: BatchRun, runs: readonly BatchRun[], nowMs: number): BatchFacts {
   const [last] = runs
@@ -81,19 +84,23 @@ function batchSaid(f: BatchFacts, ends: string): string {
 export interface TodayRunWordsVM {
   /** "3 people" */
   people: string;
-  /** A run waiting for a word: what kind of run it is ("Campaign · ready"), then its sentence. */
-  waiting: { meta: string; sentence: string; status: string[] };
+  /**
+   * A run waiting for a word: what kind of run it is ("Campaign · ready"), then its sentence. `short`, here and on the
+   * rows below, is the one fact a row a line tall says in place of all three (the Inbox's Needs you, decision 0142), in
+   * the words Campaigns' own list says it: "2 wait for your approval · 7 held", "14 emails for you to send".
+   */
+  waiting: { meta: string; sentence: string; status: string[]; short: string };
   /**
    * A waiting run the approve verb would refuse (contracts runApprovalRefusal: its day has passed): what its row says in
    * place of "ready". Its sentence is the verb's own, which the page asks for, and its act is to open it, where Skip is.
    */
-  late: { meta: string; status: string[] };
+  late: { meta: string; status: string[]; short: string };
   /** A run under the veto window: scheduled, not yet sending. */
   soon: { meta: string; sentence: string; status: string[] };
   /** A going run whose emails the check holds: they wait for your say on the run, and the rest goes as planned. */
-  held: { meta: string; sentence: string; status: string[] };
+  held: { meta: string; sentence: string; status: string[]; short: string };
   /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00429). */
-  drafted: { meta: string; sentence: string; status: string[] };
+  drafted: { meta: string; sentence: string; status: string[]; short: string };
   /**
    * What the brief says after the run's name: what it waits for, and the queue's own sentence for it. A run waiting for
    * approval is "waiting for your approval"; a going one whose emails are held, or handed to you, is "waiting for you".
@@ -134,6 +141,9 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
     ? `${capitalize(run.offered)} opened. ${people} asked this month and never booked. ${ends}.`
     : `${people}. ${facts ? batchSaid(facts, ends) : `${ends}.`}`;
   const took = typeof run.counts.took === "number" ? `, ${run.counts.took} took it` : "";
+  // What an OK sends and what the check holds apart, where it holds any: each held one is decided on its own.
+  const undecided = batchHeldEmails(run);
+  const asks = Math.max(0, run.recipient_count - undecided);
   return {
     people,
     waiting: {
@@ -141,8 +151,12 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
       sentence: waiting,
       // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
       status: [RUN_WAITING_WORDS],
+      short:
+        undecided > 0
+          ? `${plural(asks, "waits", "wait")} for your approval · ${undecided} held`
+          : `${people} · ${RUN_WAITING_WORDS.toLowerCase()}`,
     },
-    late: { meta: `${kind} · too late to approve`, status: ["Too late to approve"] },
+    late: { meta: `${kind} · too late to approve`, status: [RUN_LATE_WORDS], short: RUN_LATE_WORDS },
     soon: {
       meta: `${kind} · sends ${run.when}`,
       // The verb of Sent's own cancel of a run still to come (campaign-rooms.ts RUN_STOP_WORDS), not a second one.
@@ -157,11 +171,13 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
       meta: `${kind} · going`,
       sentence: held,
       status: ["Waits for you"],
+      short: heldEmailsWords(run.held ?? 0),
     },
     drafted: {
       meta: `${kind} · to send`,
       sentence: drafted,
       status: ["Handed to you"],
+      short: `${plural(run.drafted ?? 0, "email", "emails")} for you to send`,
     },
     brief:
       runHeldEmails(run) > 0

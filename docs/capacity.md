@@ -8,6 +8,7 @@ A limit is read as what it is. A count a tick takes gives the hour a count. A ti
 
 | Clock | Runs | What bounds a tick | Most in an hour | At 1,000 workspaces |
 | --- | --- | --- | --- | --- |
+| ads | `1-59/5 * * * *` | None: it hands each connected ad account an `ad_read` when its own row says one is due, every five minutes, and reads no platform itself. | No ceiling | An account is read once an hour, every fifteen minutes while one of its ads is being checked or is new, and never before the moment its platform says it may be asked again. The ledger's row is the limit. |
 | calendar | `23 * * * *` | None: it hands each workspace with a calendar due one `calendar_read`. | No ceiling | One job a workspace an hour. The ledger's row is the limit. |
 | calls | `*/5 * * * *` | `CALLS_PER_TICK` = 25; beside it `MAX_NOTES_PER_TICK` = 10, `MAX_NOTICES_PER_TICK` = 5, `MAX_SETTLES_PER_TICK` = 5, `MAX_RECORDINGS_PER_TICK` = 2, `MAX_PURGE_PER_TICK` = 50 | 300 | Only calls ended without a result. Holds: a provider's webhook does most of them. |
 | channel_quality | `41 */6 * * *` | `MAX_DUE` = 500; beside it `AT_ONCE` = 4 | 83.3 | A thousand numbers are each read within twelve hours. Holds: Health expects a read every nineteen. |

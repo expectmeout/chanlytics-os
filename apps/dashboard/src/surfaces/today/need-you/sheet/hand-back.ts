@@ -6,7 +6,12 @@
 import { NEED_YOU_WORDS as W, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
 
-/** What the old rows came to, handed back: how many went, how many were refused, and the one undo for all of them. */
+/**
+ * What the old rows came to: how many went, how many were refused, and the one undo for those it can bring back. A
+ * conversation nobody answered has no hold to hand back and is archived (the row's `closes`), which has no undo: it is
+ * counted with the rest all the same. It was left out of `done`, so thirty-seven marked done said "23 marked done", and
+ * one such person alone said, in red, that they couldn't be marked done, having just been (19 Nov 2026).
+ */
 export interface HandedBack {
   done: number;
   refused: number;
@@ -21,18 +26,22 @@ export interface HandedBack {
 export async function handBackAll(rows: readonly TodayQueueRowVM[]): Promise<HandedBack> {
   const threads = rows.filter((r): r is TodayQueueRowVM & { conversationId: string } => !!r.conversationId);
   const undos: Record<string, unknown>[] = [];
+  let done = 0;
   let refused = 0;
   for (const [i, row] of threads.entries()) {
-    const r = await commitVerb(
+    const answer = await commitVerb(
       "thread_verb",
       { verb: row.closes ?? "hand_back", conversation_id: row.conversationId, who: row.who },
       { refresh: i === threads.length - 1 },
     );
-    if (r.ok && r.undo) undos.push(r.undo);
-    else if (!r.ok) refused += 1;
+    if (!answer.ok) refused += 1;
+    else {
+      done += 1;
+      if (answer.undo) undos.push(answer.undo);
+    }
   }
   return {
-    done: undos.length,
+    done,
     refused,
     undo: undos.length
       ? async () => {

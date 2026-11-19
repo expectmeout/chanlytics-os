@@ -194,12 +194,16 @@ test("a workspace's nothing connected holds no sample count; a demo's keeps its 
 // ---------------------------------------------------------------------------------------------------------------------
 // What it opens on, and what it reads
 
-const route = { asked: [], answer: () => ({ series: seriesOf(NO_AD), now: null }) };
+/** The workspace's ad account as its card reads it: none, and Connect not offered here, unless a case says otherwise. */
+const NO_ACCOUNT = { offered: false, can_connect: false, meta: null };
+const route = { asked: [], answer: () => ({ series: seriesOf(NO_AD), now: null }), account: NO_ACCOUNT };
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input) => {
   const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
-  route.asked.push(url);
-  const data = route.answer(url);
+  // The ad account's card reads beside the counts: answered apart, and not one of the report's reads.
+  const forCard = url.pathname === "/api/v1/ads/account";
+  if (!forCard) route.asked.push(url);
+  const data = forCard ? route.account : route.answer(url);
   if (data === null) return new Response(JSON.stringify({ ok: false, error: { message: "no" } }), { status: 500 });
   return new Response(JSON.stringify({ ok: true, data }), {
     status: 200,

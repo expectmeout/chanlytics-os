@@ -255,17 +255,26 @@
 }
 /* A teammate with no display name is said by their address (contracts memberWords), which on a 340px rail is
    longer than the customer's name it stands beside. It ends in an ellipsis rather than being cut mid-word:
-   inline-block, because the label is a bare text node and a flex box will not ellipsis one. */
+   inline-block, because the label is a bare text node and a flex box will not ellipsis one. Who has a thread gives way
+   before the customer's name does, down to a few letters, and only once the line is full: it was held to 45% of its own
+   box (42% on a phone), which had already taken its room, so "Dana Ortiz has it" read "Dana …" beside a third of an
+   empty line (Ruben, 19 Nov 2026; measured at 320px, 390px and a desk's rail). */
+.ix-thread-meta[data-gives] {
+  flex-shrink: 100;
+  min-width: 7.5em;
+}
 .ix-thread-meta > .ix-name-pill {
   display: inline-block;
-  min-width: 0;
-  max-width: 45%;
+  flex: 0 1 auto;
+  min-width: 4.5em;
   line-height: 20px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .ix-thread-meta > .ix-name-pill::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
+/* Until when a snoozed thread waits, the clock before its hour, on one line (list-rows.tsx rowTime). */
+.ix-thread-wakes { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* How long they have waited, the bare figure in the mono face (list-rows.tsx rowTime). */
 .ix-thread-wait { font-family: var(--font-mono); }
 /* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
@@ -2187,16 +2196,6 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-list > .ix-buckets {
   order: 2;
 }
-/* Set aside makes five, which is more than the list's width holds: closer together, so the fifth shows at the edge and says
-   the strip goes on, where at the kit's spacing it stood wholly past it with nothing to say it was there. */
-.ix-list .ix-buckets-five {
-  --subtabs-gap: 12px;
-}
-@media (width > 900px) {
-  .ix-list .ix-buckets-five {
-    --subtabs-side: 12px;
-  }
-}
 .ix-list-head {
   order: 3;
   border-bottom-color: transparent;
@@ -2228,13 +2227,6 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
     border-bottom-color: var(--line);
   }
 }
-/* The runs waiting, a line over the rows: the list has no sides of its own (each row brings its 8px and its 12px), so the
-   line stood on the pane's edge, its door wrapped under it there (the sample walk, 18 Oct 2026). Its glyph stands where a
-   row's face does, and its words end where a row's do. The fold of whoever has waited past a week, at Needs you's foot
-   (inbox-list.tsx olderFold), stands in the same place. */
-.ix-threads > :is([data-testid="inbox-runs-waiting"], [data-testid="inbox-older"]) {
-  padding: 12px 18px 4px 20px;
-}
 /* ---- A row is one person on the pane itself; the open one is the lozenge (I1) ---- */
 /* The runs waiting for your say over them are rows of the same column (.ix-runs, inbox-runs.tsx): Today's queue's rows (the
    kit's attention row, surfaces/waits/wait-rows.tsx), the Campaigns wiring review's rule D. */
@@ -2258,6 +2250,71 @@ html.frame-on .ix-dock .ix-why { position: relative; min-height: 0; }
 .ix-runs .cl-attn-acts {
   grid-column: 2;
   justify-self: start;
+}
+/* What waits for an OK, under the conversations (inbox-runs.tsx, decision 0142): a conversation's height, its name and its
+   one fact a line each and its one verb at the row's right, where a run's row stood four lines and a row of verbs tall. */
+.ix-runs[data-slim] .cl-attn-row {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  row-gap: 0;
+}
+.ix-runs[data-slim] .cl-attn-acts {
+  grid-column: 3;
+  justify-self: end;
+}
+.ix-runs[data-slim] :is(.cl-attn-who, .cl-attn-sentence) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One face down the list (Ruben, 19 Nov 2026: "less seamless"). A campaign's row, a fold and a person the Inbox holds no
+   conversation of stand among the conversations' rows, so their circle is a conversation's face: its size (32 on a phone,
+   38 on a desk), its column and its edges, its fill and its inset ring, on its name's line; and their name is a
+   conversation's name. The attention row's own circle is Today's card's (clients.css): 30px of the sunken ground with a
+   hairline, on the row's middle, 14px in from the faces on a desk, its name a step smaller. */
+.ix-threads {
+  --ix-face: var(--row-face);
+  --ix-face-gap: var(--row-gap);
+}
+.ix-threads .ix-runs .cl-attn-row {
+  grid-template-columns: var(--ix-face) minmax(0, 1fr);
+  column-gap: var(--ix-face-gap);
+}
+.ix-threads .ix-runs[data-slim] .cl-attn-row {
+  grid-template-columns: var(--ix-face) minmax(0, 1fr) auto;
+}
+/* The circle is the row's first child, a glyph's or a person's face, reached by its place. */
+.ix-threads .ix-runs .cl-attn-row > :first-child {
+  width: var(--ix-face);
+  height: var(--ix-face);
+  align-self: start;
+  border: 0;
+  background: var(--face-fill);
+  box-shadow: var(--surface-inset-ring), var(--surface-inset-depth);
+  color: var(--ink-muted);
+}
+.ix-threads .ix-runs .cl-attn-name {
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--row-name-line);
+}
+@media (width > 900px) {
+  .ix-threads {
+    --ix-face: 38px;
+    --ix-face-gap: 10px;
+  }
+  /* A conversation's row on a desk (.ix-list .ix-thread, below): 8 in from the list, 12 10 of padding at its corner, and
+     no hairline between rows. */
+  .ix-threads .ix-runs .cl-attn-row {
+    margin: 0 8px;
+    padding: 12px 10px;
+    border-top-color: transparent;
+    border-radius: var(--radius-row);
+  }
+  .ix-threads .ix-runs .cl-attn-name {
+    font-size: var(--text-mail);
+    line-height: normal;
+  }
 }
 .ix-thread {
   margin: 0 8px;

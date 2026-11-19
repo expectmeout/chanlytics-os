@@ -121,6 +121,10 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   { table: "business_reads", events: EVERY },
   // A rehearsal made, heard and reviewed (decision 0069): the first run's Rehearse step and Today's card repaint (00480).
   { table: "rehearsals", events: EVERY },
+  // An ad account connected, read, signed out or let go, and an ad adopted or moved at its platform (00650): the Ads
+  // page and the account's card repaint. An update is told when what they draw moved, or a read landed.
+  { table: "ad_accounts", events: EVERY },
+  { table: "ads", events: EVERY },
 ];
 
 /**
@@ -131,6 +135,24 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
  * whatever a write named.
  */
 const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
+  // What the account's card draws, and the read's stamp, which is how a page learns an hour's numbers are in (00650):
+  // never the platform's pace, which every read moves.
+  ad_accounts: ["status", "name", "standing", "config", "read_at", "read_error", "withdrawn_at"],
+  // What an ad's row draws (00650): never the read's own stamp, which every hour writes.
+  ads: [
+    "name",
+    "intent",
+    "status",
+    "platform_state",
+    "platform_issue",
+    "budget_kind",
+    "budget_minor",
+    "budget_left_minor",
+    "budget_shared",
+    "ends_at",
+    "intent_at",
+    "told_at",
+  ],
   // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
   // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
   files: ["status", "name", "shows", "who_in_it", "look_status", "look", "removed_at", "media_status", "sound_said"],

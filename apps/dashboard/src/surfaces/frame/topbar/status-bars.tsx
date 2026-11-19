@@ -204,6 +204,10 @@ export function UnmarkedVisitsBar({ page }: { page: string }) {
     >
       <span className="unmarked-bar-ring" aria-hidden="true" />
       <span className="unmarked-bar-text">{lead}</span>
+      {/* A phone's, beside the bell: the count alone, its words the label's (components.css). */}
+      <span className="unmarked-bar-count tabular" aria-hidden="true">
+        {asked.count}
+      </span>
       <span className="unmarked-bar-act">
         <Glyph name="chevron" size={11} />
       </span>

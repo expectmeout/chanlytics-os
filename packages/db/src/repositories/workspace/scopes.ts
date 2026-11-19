@@ -46,6 +46,10 @@ export const findRunScope = async (db: Db, runId: string) =>
     .eq("id", runId)
     .maybeSingle();
 
+/** An ad as a press on it reads it: its workspace and the version a press is drawn from, or none. */
+export const findAdScope = async (db: Db, adId: string) =>
+  db.from("ads").select("id, tenant_id, version").eq("id", adId).maybeSingle();
+
 /** A template as a verb on it reads it, or none. */
 export const findTemplateScope = async (db: Db, templateId: string) =>
   db.from("templates").select("id, tenant_id, name, language").eq("id", templateId).maybeSingle();

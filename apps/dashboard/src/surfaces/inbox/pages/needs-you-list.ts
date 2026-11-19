@@ -6,7 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { needYouCountOf, type NeedYouGroups, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { hearNeedsYou, needsYouRowsNow } from "../../needs-you";
-import { ixBucketOf, ixSending, ixWaitsOnYou } from "../rules";
+import { IX_ASIDE, ixBucketOf, ixSending, ixTabHolds, ixWaitsOnYou } from "../rules";
 import type { Thread } from "../types";
 
 /** What the one count is made of, as needs-you.ts reads it from Today (`needsYouRowsNow`): Need you's groups, the runs' rows. */
@@ -22,10 +22,12 @@ export interface IxNeedsYou {
   /** The conversations folded at the list's foot, by thread id: whoever has waited past a week, in no count. */
   older: ReadonlySet<string>;
   /**
-   * The counted rows that are no conversation the Inbox holds, drawn as rows of their own: someone the count holds whose
-   * conversation the Inbox's read has not (a hold it could not read), then a search's question.
+   * The counted people whose conversation the Inbox does not hold (a hold its read could not bring), drawn as rows of their
+   * own over its conversations: people first (decision 0142).
    */
   rows: TodayQueueRowVM[];
+  /** What waits for an OK and is no conversation (a search's question), drawn under the conversations with the runs. */
+  approve: TodayQueueRowVM[];
   /** Whoever has waited past a week whose conversation the Inbox does not hold: folded with the rest. */
   olderRows: TodayQueueRowVM[];
   /** What a conversation Needs you holds by the count alone asks of you, its row's word ("Reply soon"); null for the rest. */
@@ -44,7 +46,7 @@ const NONE_FOLDED: ReadonlySet<string> = new Set();
  * under a badge of 2, and 40 under one of 26). It lists every conversation the rule puts there and every one whose person
  * the one count holds (a WhatsApp window shutting on a snoozed conversation, or a teammate's, is Today's row and so its),
  * folds whoever has waited past a week at its foot in no count, and draws a row of its own for what is counted and is no
- * conversation it holds. A conversation the rule puts there that Today's read does not hold yet (a message that came
+ * conversation it holds: a person over its conversations, what waits for an OK under them (decision 0142). A conversation the rule puts there that Today's read does not hold yet (a message that came
  * between two reads) is listed, never hidden: the next read counts it. Before Today is read, the list is the rule's alone.
  */
 export function ixNeedsYouOf(
@@ -55,7 +57,16 @@ export function ixNeedsYouOf(
   const own = (t: Thread) => ixBucketOf(t, nowMs) === "escalated";
   if (!counted) {
     const none = () => null;
-    return { listed: own, older: NONE_FOLDED, rows: [], olderRows: [], why: none, rowOf: none, count: null };
+    return {
+      listed: own,
+      older: NONE_FOLDED,
+      rows: [],
+      approve: [],
+      olderRows: [],
+      why: none,
+      rowOf: none,
+      count: null,
+    };
   }
   const { groups, runs } = counted;
   const conversationOf = (t: Thread) => (t.real ? t.conversationId : null);
@@ -77,7 +88,8 @@ export function ixNeedsYouOf(
   return {
     listed: (t) => own(t) || rowOf(t) !== null,
     older: folded.length ? new Set(folded.map((t) => t.id)) : NONE_FOLDED,
-    rows: [...people.filter(away), ...groups.ok],
+    rows: people.filter(away),
+    approve: groups.ok,
     olderRows: groups.old.filter(away),
     why: (t) => (own(t) ? null : (rowOf(t)?.status[0] ?? null)),
     rowOf,
@@ -87,17 +99,26 @@ export function ixNeedsYouOf(
 
 /**
  * Whether a bucket lists a conversation: All every one, Needs you what the one count holds, its folded ones among them
- * (ixNeedsYouOf), any other its own (ixBucketOf). The one rule the list and the pane both follow.
+ * (ixNeedsYouOf), any other its own (ixBucketOf), and Handled what a reading set aside too, folded at its head
+ * (rules.ts ixTabHolds). The one rule the list and the pane both follow.
  */
 export const ixListedIn = (thread: Thread, bucket: string, needsYou?: IxNeedsYou): boolean => {
   if (bucket === "all") return true;
   if (bucket === "escalated" && needsYou) return needsYou.listed(thread);
-  return ixBucketOf(thread) === bucket;
+  return ixTabHolds(bucket, ixBucketOf(thread));
 };
 
-/** Whether a bucket draws a conversation among its rows: what it lists, less whoever Needs you folds. */
+/** Whether a conversation stands in the fold at Handled's head: set aside as not a customer's (decision 0093). */
+export const ixSetAside = (thread: Thread): boolean => ixBucketOf(thread) === IX_ASIDE;
+
+/**
+ * Whether a bucket draws a conversation among its rows: what it lists, less whoever Needs you folds at its foot and what
+ * Handled folds at its head.
+ */
 export const ixDrawnIn = (thread: Thread, bucket: string, needsYou?: IxNeedsYou): boolean =>
-  ixListedIn(thread, bucket, needsYou) && !(bucket === "escalated" && needsYou?.older.has(thread.id));
+  ixListedIn(thread, bucket, needsYou) &&
+  !(bucket === "escalated" && needsYou?.older.has(thread.id)) &&
+  !(bucket !== "all" && ixSetAside(thread));
 
 /**
  * The thread drawn beside the list as the page opens with no address naming one: the first in the list's own order, a

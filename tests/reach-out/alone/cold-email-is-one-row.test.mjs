@@ -47,6 +47,14 @@ test("two cold email runs that wait are one row: what is held, what an OK would 
     "3 held for a look. 19 emails wait for your approval. Each one you answer opens the next.",
   );
   assert.deepEqual(WAIT_ROW_WORDS.cold.status(row), ["Held for a look"]);
+  // The same in one fact, where its row is a line tall (the Inbox's Needs you, decision 0142): what its sentence counts,
+  // with nothing after it.
+  assert.equal(WAIT_ROW_WORDS.cold.short(row), "3 held for a look · 19 wait for your approval");
+  assert.equal(WAIT_ROW_WORDS.cold.short({ held: 0, asks: 1, from: 1 }), "1 waits for your approval");
+  assert.equal(
+    WAIT_ROW_WORDS.approvals.short(["VIP color clients", "Holiday gift cards", "Win-back", "Birthdays"]),
+    "VIP color clients, Holiday gift cards and 2 more",
+  );
 });
 
 test("with nothing to OK it says the rest go as planned, and with nothing held it says only what waits", () => {

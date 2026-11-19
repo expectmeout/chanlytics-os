@@ -51,6 +51,7 @@ const SWEEP_WORDS: Record<string, string> = {
   pauses: "Paused threads released",
   platform_metrics_roll: "The day's numbers counted",
   playbooks: "Sequences' clock",
+  purge_ad_days: "Old ad numbers removed",
   purge_ask: "Old Ask threads removed",
   purge_client_errors: "Old browser errors removed",
   purge_config_versions: "Old settings versions removed",
@@ -337,6 +338,7 @@ const JOB_WORDS: Record<JobKind, string> = {
   sequence_occasions: "Sending a person their step at its time",
   source_walk: "Listing a business's watched folder",
   source_read: "Reading what changed in a business's watched folder",
+  ad_read: "Reading a business's ad account",
   canary: "The ledger's proof that it runs",
 };
 

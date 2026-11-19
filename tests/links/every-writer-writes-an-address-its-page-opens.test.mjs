@@ -124,6 +124,9 @@ const SUBJECT_OPENS = {
   mailbox_connection: { kind: "channel" },
   listing: { kind: "channel" },
   subscription: { kind: "billing" },
+  // An ad opens its drawer on Campaigns › Ads; its account is connected on Connections (decision 0049, call 1).
+  ad: { kind: "ad", id: ID },
+  ad_account: { kind: "channel" },
 };
 
 test("every door the Activity log writes is an address its page opens, as the record it is about", () => {

@@ -1028,6 +1028,7 @@ export const FAKE_JOB_KINDS = {
   sequence_occasions: [2, ["@tenant"], false],
   source_walk: [2, ["@tenant", "source_id", "run", "step"], false],
   source_read: [2, ["@tenant", "source_id"], false],
+  ad_read: [2, ["@tenant", "account_id"], false],
   broadcast_send: [2, null, false],
   lead_round_start: [2, null, false],
   lead_collect: [2, ["run_id", "seq"], true],

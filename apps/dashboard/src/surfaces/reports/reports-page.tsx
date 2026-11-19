@@ -181,7 +181,8 @@ function lensBody(
     case "campaigns":
       return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} here={scope} />;
     case "ads":
-      return ads ? <ads.parts.Lens fold={ads.fold} onScope={ads.onScope} /> : null;
+      if (!ads) return null;
+      return "live" in ads ? <ads.Live dto={ads.live} /> : <ads.parts.Lens fold={ads.fold} onScope={ads.onScope} />;
     case "reviews":
       return (
         <ReviewsLens

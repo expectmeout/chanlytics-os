@@ -571,6 +571,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   sequence_occasions: null,
   source_walk: null,
   source_read: null,
+  ad_read: null,
   canary: null,
 };
 

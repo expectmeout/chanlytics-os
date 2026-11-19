@@ -9,6 +9,76 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET ads/account": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST ads/account/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/account/choose": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/pause": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/resume": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET ads/page": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "GET ads/people": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
+    "POST ads/account/disconnect": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET ads/connect/callback": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET ads/connect": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET ask/follow-ups": {
       "kind": "read",
       "scope": "workspace",

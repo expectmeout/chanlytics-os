@@ -10,6 +10,7 @@ import {
   holdToDoOf,
   personFaceOf,
   PITCH_TODO,
+  stateOf,
   THREAD_PANE_WORDS,
   waitedSaid,
 } from "@chanlytics/contracts";
@@ -108,10 +109,15 @@ function rowTime(t: Thread, sending: number | null) {
       </>
     );
   }
+  // Until when a snoozed thread waits, the clock before it: under Waiting (decision 0142) the row reads "until tomorrow
+  // 10:00 AM", and a reader hears that it is snoozed. One element, since the word in a pill beside the hour left a name
+  // 64px of a phone's line; under a tab of its own it was the clock and the hour alone.
   if (t.state === "snoozed" && t.wake) {
     return (
-      <span className="pill ix-wait tabular" {...SAYS_WHEN}>
-        <Icon name="clock" size={9} /> {t.wake}
+      <span className="ix-thread-time ix-thread-wakes tabular" data-testid="thread-wakes" {...SAYS_WHEN}>
+        <Icon name="clock" size={10} />
+        <span className="ix-wait-said">{stateOf("thread", "snoozed").label} </span>
+        until {t.wake}
       </span>
     );
   }
@@ -264,8 +270,11 @@ function rowToDo(ctx: ListCtx, t: Thread) {
         {todo}
       </div>
     );
-  // A flagged thread someone has: why it was flagged, in the quiet ink, where the to-do would stand.
-  return t.subject ? <div className="ix-thread-subject">{t.subject}</div> : null;
+  // A flagged thread someone has: why it was flagged, in the quiet ink, where the to-do would stand. Not under Waiting,
+  // whose rows are who has them and for how long: "Customer asked for a person" stood under every one of them, a third
+  // line that said the same of each (Ruben, 19 Nov 2026). The open thread says why; a search, which spans the lists, too.
+  const reason = ctx.searching || ctx.activeBucket !== "waiting" ? t.subject : null;
+  return reason ? <div className="ix-thread-subject">{reason}</div> : null;
 }
 
 /** A row's body: the line of who, what you chose, the words, what it asks of you and the foot. */

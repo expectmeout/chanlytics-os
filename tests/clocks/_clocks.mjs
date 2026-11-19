@@ -22,6 +22,12 @@ export const CLOCK_KINDS = ["reconcile", "judge", "keep", "roll", "due", "event-
 
 /** Every registered clock: its kind, and why (for an event-shaped one, what replaces it). */
 export const CLOCKS = {
+  ads: {
+    kind: "due",
+    why: "hands each connected ad account the read whose time its row holds, written there by its last read (00650); a read its platform holds back waits for the moment the row names",
+    times: ["ad_accounts.next_read_at", "ad_accounts.read_after"],
+    fn: "ads_hand_out",
+  },
   calendar: {
     kind: "event-shaped",
     why: "hands each workspace with a feed a job hourly, which parses it to add people and stamp booked leads (0115); appointment events from push sync replace it, the iCal read a fallback (0002)",
@@ -99,6 +105,7 @@ export const CLOCKS = {
   },
   purge_ask: { kind: "keep", why: "retention: Ask threads untouched for ninety days" },
   purge_client_errors: { kind: "keep", why: "retention: the errors pages hit, after thirty days (00469)" },
+  purge_ad_days: { kind: "keep", why: "retention: an ad platform's day for an ad, 760 days on" },
   purge_cron_history: { kind: "keep", why: "retention: the clocks' own run history" },
   purge_events: { kind: "keep", why: "retention: evidence events after thirty days" },
   purge_google_reviews: { kind: "keep", why: "retention: a Google review the mirror has not seen for ninety days" },

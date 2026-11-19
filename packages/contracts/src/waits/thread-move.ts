@@ -27,8 +27,13 @@ import { QUIET_AFTER_DAYS } from "../people/person-state";
 import { DAY_MS, MIN_MS } from "../shared/time";
 import type { WaitingThread } from "./waits";
 
-/** The list a thread stands in: an Inbox tab's id, or `out`, which no tab lists (archived: search and a link still find it). */
-export type ThreadList = "escalated" | "waiting" | "done" | "snoozed" | "aside" | "out";
+/**
+ * The list a thread stands in. Three are the Inbox's tabs, one question each (Ruben, 19 Nov 2026, decision 0142): yours to
+ * do (`escalated`), someone else's move or a clock's (`waiting`, a snoozed thread among them, which waits for its hour),
+ * and nobody's (`done`). `aside` is what a reading set aside as not a customer's, a fold at Handled's head and no tab; and
+ * `out` no list holds (archived: search and a link still find it).
+ */
+export type ThreadList = "escalated" | "waiting" | "done" | "aside" | "out";
 
 /** Where a thread stands: whose move it is, in the list that says so. Its word and its tone are the tone map's (`thread`). */
 export interface ThreadMove {
@@ -106,9 +111,14 @@ function quietMove(
       : { move: "nothing", list: "done" };
   }
   const sinceMs = atMs(last);
+  // What a campaign, a sequence or a reminder sent asks nothing of anyone here: its own report counts who answered, and an
+  // answer brings the thread back by itself. Those stood in Waiting, "your follow-up list", for thirty days, where a send
+  // to a few hundred people buried the follow-ups a person owes (Ruben, 19 Nov 2026, decision 0142). They keep their
+  // word, and stand where nobody owes a move. A person's own first words to someone who has not answered still wait.
+  const automated = isAutomatedSend(last.meta);
   if (!dto.last_inbound_at && !chat.some(isTheirOwnWords))
-    return goesQuiet({ move: "no_reply", list: "waiting", sinceMs }, sinceMs, nowMs);
-  if (isAutomatedSend(last.meta)) return goesQuiet({ move: "sent", list: "waiting", sinceMs }, sinceMs, nowMs);
+    return goesQuiet({ move: "no_reply", list: automated ? "done" : "waiting", sinceMs }, sinceMs, nowMs);
+  if (automated) return goesQuiet({ move: "sent", list: "done", sinceMs }, sinceMs, nowMs);
   const author = messageAuthor(last);
   return { move: "answered", list: "done", ...(author ? { by: author.words } : {}) };
 }
@@ -166,7 +176,8 @@ function heldMove(v: StandingVerdict, escalation: EscalationDto | null): ThreadM
  */
 export function threadMoveOf(dto: ConversationDto, escalation: EscalationDto | null, nowMs: number): ThreadMove {
   const result = standingOfThread(dto, escalation, nowMs);
-  if (result.standing === "snoozed") return { move: "snoozed", list: "snoozed" };
+  // Snoozed waits for its hour, in Waiting: not yours to do now, and back by itself (decision 0142; it had a tab of its own).
+  if (result.standing === "snoozed") return { move: "snoozed", list: "waiting" };
   if (dto.state === "archived" && dto.set_aside_at) return { move: "aside", list: "aside" };
   if (dto.state === "archived" && !result.flagged) return { move: "archived", list: "out" };
   // A member said the thread is not a customer's (decisions 0136 and 0138): what they write since is kept on it and

@@ -271,8 +271,6 @@ export interface InboxBucket {
   icon: string;
   accent?: boolean;
   count?: number;
-  /** Drawn only where it holds a thread: Set aside is no list to keep an eye on. */
-  onlyWithRows?: boolean;
 }
 
 /** A saved view, a real predicate over the threads. */

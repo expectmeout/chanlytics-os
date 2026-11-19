@@ -112,24 +112,45 @@ export const ixWaitsOnYou = (t: Thread | null | undefined, nowMs: number = Date.
 
 /**
  * The list a thread SITS in: the rule's (thread-move.ts), the same rule as the chip over it. Needs you holds what is yours
- * to do and nothing else, Waiting what is theirs or a teammate's, Handled what nobody owes; archived is in no list, and
- * search and a link still find it. A seeded thread keeps the state the mockup wrote.
+ * to do and nothing else, Waiting what is theirs, a teammate's or a snooze's, Handled what nobody owes; what a reading set
+ * aside is `aside`, a fold at Handled's head and no tab (ixTabOf); archived is in no list, and search and a link still
+ * find it. A seeded thread keeps the state the mockup wrote.
  */
 export const ixBucketOf = (
   t: Thread | null | undefined,
   nowMs: number = Date.now(),
 ): ThreadState | ThreadList | null | undefined => (t && t.real ? ixMoveOf(t, nowMs).list : t && t.state);
 
+/** The fold at Handled's head: what a reading set aside as not a customer's (decision 0093), which has no tab (0142). */
+export const IX_ASIDE = "aside";
+
+/** The tab that holds Set aside's fold. */
+const IX_ASIDE_TAB = "done";
+
+/** Whether a tab holds a list: its own, and Handled the fold of what was set aside too. */
+export const ixTabHolds = (tab: string, list: string | null | undefined): boolean =>
+  list === tab || (tab === IX_ASIDE_TAB && list === IX_ASIDE);
+
+/**
+ * The tab a member had, as today's three name it: a tab kept from before 19 Nov 2026 (the Inbox's place, place.ts) may be
+ * Snoozed, whose threads stand in Waiting, or Set aside, a fold of Handled (decision 0142).
+ */
+const ixTabKept = (had: unknown): string | null => {
+  if (typeof had !== "string" || !had) return null;
+  return had === "snoozed" ? "waiting" : had === IX_ASIDE ? IX_ASIDE_TAB : had;
+};
+
 /**
  * The order a list stands in: a reply about to send first, then what needs you, each group in the server's order. In
- * Waiting, the threads you have, then a teammate's, then the rest. A teammate's thread sat above the one waiting on you (I2).
+ * Waiting, the threads you have, then a teammate's, then the rest, and last what was snoozed, which a member put out of
+ * sight until its hour. A teammate's thread sat above the one waiting on you (I2).
  */
 export const ixRank = (t: Thread): number => {
   if (!t || !t.real) return 0;
   const m = ixMoveOf(t);
   if (m.move === "sending") return -1;
   if (m.list !== "waiting") return 0;
-  return m.move === "yours" ? 1 : m.move === "theirs" ? 2 : 3;
+  return m.move === "yours" ? 1 : m.move === "theirs" ? 2 : m.move === "snoozed" ? 4 : 3;
 };
 
 /**
@@ -171,7 +192,7 @@ interface IxOpeningAt {
 // no number.
 export const ixFirstBucket = (list: Thread[], waiting: boolean): string => {
   if (waiting) return "escalated";
-  for (const s of ["escalated", "needs", "waiting", "snoozed", "done"]) {
+  for (const s of ["escalated", "needs", "waiting", "done"]) {
     if (list.some((x) => ixBucketOf(x) === s)) return s;
   }
   return "escalated";
@@ -183,12 +204,13 @@ export const ixOpeningBucket = (threads: Thread[], initialThreadId: string | nul
   // To send's address (`inbox/to-send`) opens Needs you, where its part is (the Campaigns wiring review's lane 4).
   if (at.toSendOpen) return "escalated";
   const t = initialThreadId ? threads.find((x) => x.id === initialThreadId) : undefined;
-  const had = at.had;
-  const kept = typeof had === "string" && had ? had : null;
+  const kept = ixTabKept(at.had);
   if (t) {
     const own = ixBucketOf(t);
     // An archived thread a link names opens beside the list the member had: no list holds it.
     if (own === "out") return kept ?? "done";
+    // One a reading set aside opens under Handled, whose fold holds it.
+    if (own === IX_ASIDE) return IX_ASIDE_TAB;
     return kept && (kept === "all" || own === kept) ? kept : (own ?? "");
   }
   return kept ?? ixFirstBucket(threads, at.waiting);

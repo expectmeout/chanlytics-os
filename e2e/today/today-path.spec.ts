@@ -70,8 +70,8 @@ test.describe("Today on its path", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible({ timeout: 30_000 });
     const head = page.locator(".pg-head");
     await expect(head.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
-    // The date and time stand in the top bar's row, where the crumbs stood (kit/head/frame-head.tsx), not under the name.
-    await expect(page.locator(".pg-dateline-slot .pg-dateline")).toBeVisible();
+    // The top bar's row says no date (Ruben, 19 Nov 2026: "not needed"), and neither does the head.
+    await expect(page.locator(".pg-dateline")).toHaveCount(0);
     await expect(head.locator(".pg-sentence")).toBeVisible();
     // The page stands under it, and the top bar leaves the name to the head.
     await expect(page.locator(".dash-a-v2")).toBeVisible();

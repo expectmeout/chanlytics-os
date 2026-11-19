@@ -517,6 +517,20 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["source_id"],
     never: [],
   },
+  // A connected ad account's read (00650, decision 0049). Nothing here puts words on a wire: the account, its ads and
+  // their days are read and kept, every write once an ad and once a day, so it is written to be run again. A platform
+  // that refuses or slows a call ends the read well, with why on the account's row; a throw is the database not
+  // answering, tried again, and then the platform's to mend while the clock hands the account another.
+  ad_read: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 20 * SECOND_MS,
+    ids: ["account_id"],
+    never: [],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,
