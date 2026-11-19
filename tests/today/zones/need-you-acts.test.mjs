@@ -11,11 +11,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { again, all, quiet, redrawWanted, unmount } from "../../_stub-react.mjs";
+import { NEED_YOU_WORDS } from "@chanlytics/contracts";
+import { again, all, press, quiet, redrawWanted, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { NOW, W, answerWith, flashes, json, wire, dayWith, draw, row } from "./_world.mjs";
+import { NOW, W, answerWith, buttons, flashes, json, wire, went, dayWith, draw, row } from "./_world.mjs";
 
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+const { offerOtherTimes } = await import("../../../apps/dashboard/src/surfaces/booking-request.ts");
+const { takeCarriedReply, cameFromToday } = await import("../../../apps/dashboard/src/surfaces/inbox/carried-reply.ts");
 const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { useNeedYouLine, useNeedYouModel } =
   await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
@@ -149,4 +152,70 @@ test("Need you's model says whether it draws a pane, which the page lays its col
   setSurfaceValue("today", undefined);
   assert.equal(model(), null, "and before Today is read, nothing");
   unmount();
+});
+
+test("Stop on AI's reply stops it on Today, and what follows is written in their conversation: the row says nothing was sent, and Reply opens the thread with the stopped words in its box", async () => {
+  // Its countdown runs on the clock the page reads, so it goes ten minutes from now, not from the day the world is set on.
+  const going = { message_id: "m-held", text: "Yes, 3 PM is free.", sends_at_ms: Date.now() + 10 * MIN };
+  setSurfaceValue("today", dayWith([{ ...lea(), held: going }]));
+  answerWith((u) =>
+    u.pathname === "/api/v1/messages/m-held/cancel-send"
+      ? json(200, { ok: true, data: { status: "canceled" } })
+      : json(503, { ok: false, error: { code: "unavailable", message: "not read here" } }),
+  );
+  wire.length = 0;
+  went.length = 0;
+  /** Lea's row's work, as the page draws it under her words. */
+  const workOf = (tree) => rowsDrawn(tree).find((r) => testidOf(r) === "queue-held")?.props.work;
+  const drawnAgain = () => workOf(again(() => W.React.createElement(NeedYou, {})));
+  const [stop] = buttons(workOf(draw(NeedYou)), NEED_YOU_WORDS.held.stopIt);
+  assert.ok(stop, "the countdown keeps its Stop on Today: a brake against a running clock");
+  press(stop);
+  await until(() => wire.some((w) => w.path === "/api/v1/messages/m-held/cancel-send"), "the hold asked for");
+  await until(() => buttons(drawnAgain(), NEED_YOU_WORDS.held.reply).length > 0, "the stopped row's Reply");
+  const stopped = drawnAgain();
+  assert.equal(
+    buttons(stopped, NEED_YOU_WORDS.send).length,
+    0,
+    "REGRESSION: the stopped words were sent from Today, where nothing is written to a person (D8)",
+  );
+  press(buttons(stopped, NEED_YOU_WORDS.held.reply)[0]);
+  assert.equal(went.at(-1), "inbox/th-cv-lea", "Reply opens their conversation");
+  assert.equal(cameFromToday("th-cv-lea"), true, "which offers the way back to Today");
+  assert.equal(
+    takeCarriedReply("th-cv-lea"),
+    "Yes, 3 PM is free.",
+    "with the stopped words in its box, to change and send",
+  );
+  setSurfaceValue("today", undefined);
+  unmount();
+});
+
+test("Can't do it's reply offers the next two open times in Another time's words, and asks what suits them where none is open or read", async () => {
+  const openings = (days) => (u) =>
+    u.pathname === "/api/v1/ask/openings"
+      ? json(200, { ok: true, data: { openings: { state: "ok", days } } })
+      : json(503, { ok: false, error: { code: "unavailable", message: "not read here" } });
+  answerWith(
+    openings([
+      { key: "2026-09-21", windows: ["2:30 – 4 PM"] },
+      { key: "2026-09-22", windows: ["9 AM – 12 PM", "1 – 3 PM"] },
+    ]),
+  );
+  assert.equal(
+    await offerOtherTimes({ near: "tomorrow at 3:00 PM", service: null }),
+    "Tomorrow at 3:00 PM has gone, sorry. Would 2:30 PM on Mon, Sep 21 or 9 AM on Tue, Sep 22 work instead?",
+    "the first time of each of the next two windows, never a third",
+  );
+  answerWith(openings([]));
+  assert.equal(
+    await offerOtherTimes({ near: "tomorrow at 3:00 PM", service: "Consultation" }),
+    "Tomorrow at 3:00 PM has gone, sorry. What other time suits you?",
+  );
+  answerWith(() => json(503, { ok: false, error: { code: "unavailable", message: "not read here" } }));
+  assert.equal(
+    await offerOtherTimes({ near: "Friday at 10:00 AM", service: null }),
+    "Friday at 10:00 AM has gone, sorry. What other time suits you?",
+    "a calendar that could not be read never leaves the box empty, nor the press refused",
+  );
 });

@@ -40,6 +40,11 @@ test("a booking request is drawn on the business's clock: its day on a tile, its
     ["FRI", "6", "Friday, November 6", "3:00 – 4:00 PM", "Consultation", true],
   );
   assert.equal(card.to, "calendar/2026-11-06:a-a1", "the door opens its day, the request's panel over it");
+  assert.equal(
+    card.near,
+    "tomorrow at 3:00 PM",
+    "its start as a sentence to them says it: Can't do it's offer opens with it",
+  );
   assert.equal(bookingRequestCardOf(r, tz, Date.parse("2026-11-06T19:30:00.000Z")).holds, false, "past its hold");
   // Across noon the day's halves are both said.
   const noon = bookingRequestCardOf(

@@ -12,7 +12,7 @@
  */
 import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { inboxBucketWord } from "@chanlytics/contracts";
-import { answerRequest } from "../../booking-request";
+import { answerRequest, offerOtherTimes } from "../../booking-request";
 import { EmptyState } from "../../kit/empty/empty";
 import { useSurface } from "../../use-surface";
 import { TICK_MS } from "../constants";
@@ -145,17 +145,20 @@ function opening() {
 }
 
 /**
- * Booked it or Can't, pressed on the thread (decision 0061): the reply Booked it drafts lands in the box below, where
- * nothing is sent until the member sends it, and the toast says what moved.
+ * Booked it or Can't, pressed on the thread (decision 0061): the reply lands in the box below, where nothing is sent
+ * until the member sends it, and the toast says what moved. Booked it's is the confirmation the door drafts; Can't do
+ * it's the offer of the next open times (booking-request.ts offerOtherTimes), read before the answer lets the time go.
  */
-async function answerHere(t: RealThread, booked: boolean, say: (flash: Flash) => void): Promise<void> {
-  const r = await answerRequest(t.conversationId, booked, t.who);
-  if (!r.ok) {
-    say({ tone: "danger", msg: <>{r.message}</> });
+async function answerHere(thread: RealThread, booked: boolean, say: (flash: Flash) => void): Promise<void> {
+  const offer = !booked && thread.request ? await offerOtherTimes(thread.request) : null;
+  const answered = await answerRequest(thread.conversationId, booked, thread.who);
+  if (!answered.ok) {
+    say({ tone: "danger", msg: <>{answered.message}</> });
     return;
   }
-  if (booked && r.reply) window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text: r.reply } }));
-  say({ msg: <>{r.receipt}</> });
+  const text = booked ? answered.reply : offer;
+  if (text) window.dispatchEvent(new CustomEvent("inbox:compose", { detail: { text } }));
+  say({ msg: <>{answered.receipt}</> });
 }
 
 /** A real thread: InboxThread with the two verbs, and the role first, for every one. */
