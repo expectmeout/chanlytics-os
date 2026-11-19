@@ -421,7 +421,8 @@ function world({
 
 /** What the door says to a knock it turned away: a sentence the agent can speak, since a 401 has no words (11 Oct 2026). */
 const TURNED_AWAY = {
-  result: "I can't send anything just now. Take the caller's name and say someone will call them back.",
+  result:
+    "I can't send anything just now. Take the caller's name and say someone will call them back, without saying when.",
 };
 
 test("the door: no header, an empty one, a wrong one and the secret on the URL are each turned away, in words the agent speaks, reading nothing and sending nothing; the header configured on the tool opens it", async () => {

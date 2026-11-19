@@ -252,7 +252,7 @@ export function describeOpenings(
   if (!openings.length) {
     const instead = held
       ? "Offer to have a member of the team call or text them when a slot frees up, and take their name. This business confirms its own bookings: never send or promise the booking link."
-      : `Offer to have someone call back${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
+      : `Offer to have someone call back, without saying when${hasLink ? ", and send the booking link so they are told when a slot frees up" : ""}.`;
     return `Open times (from the calendar): nothing is open in the next ${ahead} days. ${instead}`;
   }
   const lines = openings

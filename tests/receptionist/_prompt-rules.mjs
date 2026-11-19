@@ -23,9 +23,25 @@ export const SELLING_CALL_LINE =
   "Someone selling to the business (marketing, a listing, search rankings, card processing, any service they want the business to buy) is not a customer. Do not take a message for them, offer a call back or say the team will follow up: say the business does not take sales calls on this line, and use end_call. A recorded or automated message is nobody to answer: use end_call. If you are not sure they are selling, treat them as a customer.";
 
 /**
+ * On a call alone: the booking link is the one thing a call can send, so any other ask is passed on, never promised
+ * (a scripted call of 19 Nov 2026 promised a price list "on its way to your inbox", and nothing can email).
+ */
+export const NOTHING_ELSE_SENT_LINE =
+  "Apart from the booking link, and only where these instructions let you send it, you cannot send anything from this call, now or later: no email, no text message, no price list, quote, photos, form or confirmation. When the caller asks for something like that, say you can't send it from the call, take their name, what they want and where it should go (read an email address back to them), and say you will pass it on so someone from the business can get back to them. Never say anything has been sent or is on its way unless a tool said so.";
+
+/**
+ * On a call alone: no time is promised for someone to call or write back, not even one the caller asks for (a scripted
+ * call of 19 Nov 2026: "the team will call you back this afternoon", three calls in four, while the rule was the tail of
+ * the line above).
+ */
+export const NO_TIME_PROMISED_LINE =
+  'Never promise when someone from the business will call or write back, not even a time the caller asks for: nobody there has said they are free then. Pass the time on instead: say "I\'ll let the team know you\'d like a call this afternoon", never "they\'ll call you this afternoon".';
+
+/**
  * That it is the business's AI assistant (decision 0051), said to every prompt: always, and in text that it opens a
- * conversation not already under way by saying so; on a call, what a seller is owed after it (SELLING_CALL_LINE). A
- * reach-out draft, which the owner sends as themselves, gets none of them.
+ * conversation not already under way by saying so; on a call, what a seller is owed after it (SELLING_CALL_LINE), that
+ * nothing but the booking link is sent (NOTHING_ELSE_SENT_LINE) and that no time is promised for a call back
+ * (NO_TIME_PROMISED_LINE). A reach-out draft, which the owner sends as themselves, gets none of them.
  */
 export const ASSISTANT_LINES = {
   whatsapp: [
@@ -35,6 +51,8 @@ export const ASSISTANT_LINES = {
   voice: [
     "You are the business's AI assistant: never claim or hint that you are a person. If anyone asks whether you are a bot, a person or AI, say plainly that you are the business's AI assistant and offer to bring in a person.",
     SELLING_CALL_LINE,
+    NOTHING_ELSE_SENT_LINE,
+    NO_TIME_PROMISED_LINE,
   ],
 };
 
