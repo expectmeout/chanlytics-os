@@ -133,6 +133,8 @@ export interface AdAccountCard {
   /** The account's name at its platform, and its currency (ISO 4217); null while one is to be chosen. */
   name: string | null;
   currency: string | null;
+  /** The account's own zone (IANA): its days are said in it. */
+  timezone: string | null;
   /** The Page the ads run as. */
   page_name: string | null;
   connected_at: string | null;

@@ -292,9 +292,12 @@ test("Reports' Overview takes no fact from a preview, cold or with the Ads alrea
     fresh();
     assert.deepEqual(ask("overview"), NOTHING, "REGRESSION: a sample line among real numbers");
     assert.equal(redrawWanted(), false, "and nothing is on its way for it");
-    again(() => ask("ads"));
-    await until(redrawWanted, "the lens's chunk to land");
-    const lens = again(() => ask("ads"));
+    // A preview first asks whether the workspace holds an ad account of its own (none here), then fetches the sample's lens.
+    let lens = again(() => ask("ads"));
+    await until(() => {
+      lens = again(() => ask("ads"));
+      return lens.draw !== null;
+    }, "the workspace's own read, then the lens's chunk, to land");
     assert.ok(lens.draw, "the lens itself draws");
     assert.ok(lens.head.head);
     assert.equal(lens.fact, null);

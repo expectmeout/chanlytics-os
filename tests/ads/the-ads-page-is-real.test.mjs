@@ -365,3 +365,31 @@ test("Meta's own words for an ad it will not run are quoted, and one that never 
     note: "It never ran, so Meta charged nothing for it.",
   });
 });
+
+/* -------------------------------------------------------------- Reports › Ads */
+
+test("Reports › Ads says the page's own numbers: Chanlytics' count in its columns, Meta's spend in its own", async () => {
+  const { lensModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+  const vm = lensModel(RUNNING, SAID);
+  assert.equal(vm.head, "26 of 114 new people from your ads have booked.");
+  assert.deepEqual(vm.figures, [
+    { label: "New people from your ads", value: "114" },
+    { label: "Booked since", value: "26" },
+    { label: "For each who booked", value: "$31 so far" },
+    { label: "Spent · Meta's number", value: "$867" },
+  ]);
+  assert.deepEqual(
+    vm.rows.map((row) => [row.name, row.came, row.booked, row.each, row.spent]),
+    [
+      ["Spring offer", "100", "23", "$18", "$414"],
+      ["Weekend offer", "9", "2", "only 2", "$0"],
+      ["Old boosted post", "2", "0", "—", "$357"],
+      ["Autumn offer", "—", "—", "—", "$96"],
+      ["An ad you run in Meta that Chanlytics can't name yet", "3", "1", "—", "—"],
+    ],
+  );
+  // The rows' people add up to the figure, the unnamed among them: the lens and the page cannot disagree.
+  const came = vm.rows.reduce((sum, row) => sum + (Number(row.came) || 0), 0);
+  assert.equal(String(came), vm.figures[0].value);
+  assert.match(vm.notes[0], /counted once, for the ad they first wrote from/);
+});

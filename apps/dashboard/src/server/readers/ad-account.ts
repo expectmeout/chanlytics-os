@@ -25,6 +25,7 @@ function cardOf(row: AdAccountRow, aiNumber: string | null): AdAccountCard {
       row.status === "choosing" || row.status === "revoked" || row.status === "disconnected" ? row.status : "connected",
     name: row.name,
     currency: row.currency,
+    timezone: row.timezone,
     page_name: config.page_name,
     connected_at: row.connected_at,
     revoked_at: row.revoked_at,

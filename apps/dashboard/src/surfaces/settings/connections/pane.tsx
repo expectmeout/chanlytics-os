@@ -23,7 +23,7 @@ import { pageClock } from "@/bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
-import { useAdsShown } from "../../campaigns/ads/shown";
+import { adsInPreview, useAdsShown } from "../../campaigns/ads/shown";
 import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
@@ -43,6 +43,7 @@ type WaConfig = SignupDoor | null | undefined;
 
 // The Ad accounts card (MOCKUP) is a chunk of its own, fetched only by a demo session: a real workspace's pane draws none of it.
 const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
+const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -513,7 +514,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       {connectionGroupsOf(rows).map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
       {adsShown && (
         <Suspense fallback={null}>
-          <AdAccounts flash={flash} />
+          {/* A workspace's own ad account is the card Campaigns › Ads draws; a demo session draws the sample's rows. */}
+          {adsInPreview() ? <RealAdAccount /> : <AdAccounts flash={flash} />}
         </Suspense>
       )}
       {toastNode}

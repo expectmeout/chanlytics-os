@@ -49,14 +49,7 @@ import {
 } from "../parts/ledger-keys";
 import { type CmView, useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
-import { ConnectCard } from "./connect/card";
-import { connectCard } from "./connect/card-model";
-import type { ConnectCardVM } from "./connect/card-model";
-import { CardSheet } from "./connect/card-sheet";
-import { DisconnectSheet } from "./connect/disconnect-sheet";
-import { DISCONNECT } from "./connect/words";
-import { useAdAccount } from "./connect/use-account";
-import type { AdAccountHere } from "./connect/use-account";
+import { useAdsConnection } from "./connect/use-card";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
 import { useFirstTouch } from "./first-touch";
@@ -64,7 +57,6 @@ import type { FirstTouchHere } from "./first-touch";
 import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
 import { LiveAds } from "./live/live-ads";
-import { useAdsLive } from "./live/use-live";
 import { AdsPhone } from "./ledger/phone";
 import { NewAd } from "./new/new-ad";
 import { PreviewNote } from "./preview-note";
@@ -287,68 +279,6 @@ function useAskKnowsThePage(today: boolean) {
   }, [today]);
 }
 
-/**
- * The ad account's card as the page draws it, and the card opened from its caret. Null while the account is not read:
- * the page then draws its counts alone, and the card arrives with its read.
- */
-function useConnectCard(account: AdAccountHere, timezone: string, running: readonly string[], onGone: () => void) {
-  const [open, setOpen] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [toast, flash] = useFrameToast();
-  const vm: ConnectCardVM | null = connectCard(account.dto, {
-    outcome: account.outcome,
-    checking: account.checking,
-    timezone,
-  });
-  // Disconnect is the owner's, on an account that is connected or that Meta signed Chanlytics out of.
-  const status = account.dto?.meta?.status;
-  const mayLeave = account.dto?.can_connect === true && (status === "connected" || status === "revoked");
-  const fact = vm?.facts.at(0)?.value ?? null;
-  const card =
-    vm === null ? null : (
-      <>
-        <ConnectCard
-          vm={vm}
-          acts={{ connect: account.connect, choose: (id) => void account.choose(id), open: () => setOpen(true) }}
-        />
-        <CardSheet
-          open={open}
-          vm={vm}
-          onClose={() => setOpen(false)}
-          onDisconnect={
-            mayLeave
-              ? () => {
-                  setOpen(false);
-                  setLeaving(true);
-                }
-              : undefined
-          }
-        />
-        <DisconnectSheet
-          open={leaving}
-          account={fact}
-          running={running}
-          disconnect={account.disconnect}
-          onClose={() => setLeaving(false)}
-          onDone={() => {
-            setLeaving(false);
-            onGone();
-            flash({ msg: DISCONNECT.done });
-          }}
-          onFailed={(why) => flash({ tone: "warn", msg: why })}
-        />
-        {toast}
-      </>
-    );
-  return { vm, card };
-}
-
-/** Whether the workspace holds an ad account: connected, signed out by Meta, or let go with its ads kept. */
-const holdsAccount = (account: AdAccountHere): boolean => {
-  const status = account.dto?.meta?.status;
-  return status === "connected" || status === "revoked" || status === "disconnected";
-};
-
 /** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
 const opensOnOfAddress = (address: AdsAddress) =>
   address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
@@ -363,12 +293,8 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const [hushed, setHushed] = useState<string | null>(null);
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
-  const account = useAdAccount(today);
-  // With an account held, the page is the workspace's own ads, read from Meta (live/): no example is drawn.
-  const held = today && holdsAccount(account);
-  const live = useAdsLive(held, `${account.dto?.meta?.status ?? ""}:${account.dto?.meta?.read_at ?? ""}`);
-  const running = (live.dto?.ads ?? []).filter((ad) => ad.state === "on").map((ad) => ad.name);
-  const connect = useConnectCard(account, read.timezone, running, live.again);
+  // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
+  const { account, held, live, ...connect } = useAdsConnection(today, read.timezone);
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),

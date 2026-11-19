@@ -14,7 +14,7 @@ import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayWord } from "../model/words";
-import { LIVE, SHEET } from "./words";
+import { LENS, LIVE, SHEET } from "./words";
 
 /** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
 const counted = (ad: Pick<AdLiveDto, "opens">): boolean => AD_DOORS_COUNTED.includes(ad.opens);
@@ -325,5 +325,74 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
     ],
     counted: counted(ad),
     foot: footOf(ad, dto, said, currency),
+  };
+}
+
+/** One ad as Reports › Ads lists it: Chanlytics' count, then Meta's spend, each a column of its own. */
+export interface LensRowVM {
+  id: string;
+  name: string;
+  /** Who wrote to AI from it, and who of them booked; a dash where its people are not counted. */
+  came: string;
+  booked: string;
+  each: string;
+  /** Meta's number. */
+  spent: string;
+}
+
+export interface LensVM {
+  head: string;
+  figures: FigureVM[];
+  rows: LensRowVM[];
+  notes: string[];
+}
+
+const DASH = "—";
+
+/** Reports › Ads in its first form: the page's own numbers as figures and a table, over the same thirty days. */
+export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
+  const currency = dto.account.currency ?? ADS_DEFAULT_CURRENCY;
+  const page = liveModel(dto, said);
+  const came = dto.ads.reduce((sum, ad) => sum + ad.people, 0) + dto.unnamed.people;
+  const booked = dto.ads.reduce((sum, ad) => sum + ad.booked, 0) + dto.unnamed.booked;
+  const spent = dto.ads.reduce((sum, ad) => sum + ad.spend_minor, 0);
+  const each = eachOf(dto.ads, dto, currency);
+  const rows = shown(dto).map((ad): LensRowVM => {
+    const one = eachOf([ad], dto, currency);
+    return {
+      id: ad.id,
+      name: ad.name,
+      came: counted(ad) ? String(ad.people) : DASH,
+      booked: counted(ad) ? String(ad.booked) : DASH,
+      each: one ? one.each : counted(ad) && ad.booked > 0 ? SHEET.only(ad.booked) : DASH,
+      spent: moneyOf(ad.spend_minor, currency),
+    };
+  });
+  const unnamed: LensRowVM[] =
+    dto.unnamed.people > 0
+      ? [
+          {
+            id: "unnamed",
+            name: LENS.unnamed,
+            came: String(dto.unnamed.people),
+            booked: String(dto.unnamed.booked),
+            each: DASH,
+            spent: DASH,
+          },
+        ]
+      : [];
+  return {
+    head: `${page.head.strong ?? ""}${page.head.rest}`,
+    figures: [
+      { label: LENS.came, value: String(came) },
+      { label: LENS.booked, value: String(booked) },
+      {
+        label: LENS.each,
+        value: each ? `${each.each}${each.soFar ? " so far" : ""}` : booked > 0 ? SHEET.only(booked) : DASH,
+      },
+      { label: LENS.spent, value: moneyOf(spent, currency) },
+    ],
+    rows: [...rows, ...unnamed],
+    notes: [LENS.counted, ...page.notes.filter((note) => note !== LIVE.adoptedNote)],
   };
 }
