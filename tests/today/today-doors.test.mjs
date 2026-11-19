@@ -407,25 +407,21 @@ test("Listen stands beside the greeting, the kit head's `beside`, never at the s
     const listen = find(said.beside, (n) => n.props?.["data-testid"] === "today-listen");
     assert.ok(listen, "Listen, beside the greeting (a phone's frame stands it beside the bell)");
     assert.ok(!find(said.sentence, (n) => n.props?.["data-testid"] === "today-listen"), "not in the sentence");
-    // On a phone the date beside them says the hour, its day short (the canvas: "Tue, Nov 3 · 8:05 AM"); every other
-    // page's phone date is the day alone (kit/head/frame-head.tsx).
-    assert.equal(said.dateHour, true);
   } finally {
     holdAsk(undefined);
   }
 });
 
-test("the address says the hour too, from the frame's first draw: a phone's date keeps one form as Today comes in", async () => {
+test("the address says the greeting from the frame's first draw, stacked as the page will say it, and no date", async () => {
   const { todayChrome } = await import("../../apps/dashboard/src/surfaces/today/chrome.ts");
   const { crumbsShown, forgetStanding } = await import("../../apps/dashboard/src/surfaces/kit/head/standing.ts");
   forgetStanding();
   const { crumbs, head } = todayChrome();
   crumbsShown(crumbs, false, head);
-  assert.equal(
-    standingSaid()?.dateHour,
-    true,
-    "REGRESSION: a phone's date said 'TUESDAY, NOVEMBER 3' until the page was in, then 'TUE, NOV 3 · 8:05 AM'",
-  );
+  // The top bar's row said the date and its hour until 19 Nov 2026 (Ruben: "not needed"); the first head is the
+  // greeting alone, as the page's own is.
+  assert.deepEqual(standingSaid(), { title: head.title, stacked: true });
+  assert.match(head.title, /^Good (morning|afternoon|evening)/);
   forgetStanding();
 });
 

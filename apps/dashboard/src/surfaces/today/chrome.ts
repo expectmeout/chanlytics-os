@@ -37,9 +37,9 @@ export const todayGreetingNow = (): string =>
 /** Today's one crumb, one array, so the head is told it once. */
 const TODAY_CRUMBS = ["Today"];
 
-/** The head the address says first: the greeting, and on a phone the date with its hour, as the page says both. */
+/** The head the address says first: the greeting, as the page says it. */
 function todayHead(): HeadFirst {
-  return { title: todayGreetingNow(), dateHour: true };
+  return { title: todayGreetingNow() };
 }
 
 /** What the frame draws around Today: its crumb, and its head from the first draw. */

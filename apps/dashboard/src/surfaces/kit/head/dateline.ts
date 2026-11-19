@@ -1,7 +1,7 @@
 /**
- * The two things every page head says that are not the page's own: the moment now, in the business's zone, and the
- * clock that keeps it true (a date and time that stood still would be wrong by the time it was read). The frame's head
- * says it in Glass, in the top bar's row (frame-head.tsx); Classic, whose top bar carries the crumbs, has none.
+ * The moment now, in a zone, and the clock that keeps it true (a date and time that stood still would be wrong by the
+ * time it was read): what a head that names its date says (the console's Home, PageHead's `dateline`) and what a page
+ * that counts the minutes keeps. The frame's head said it in the top bar's row until 19 Nov 2026 (Ruben: "not needed").
  */
 import { useEffect, useState } from "react";
 import { dateFormat, MIN_MS } from "@chanlytics/contracts";
@@ -10,18 +10,10 @@ import { dateFormat, MIN_MS } from "@chanlytics/contracts";
 const hourIn = (nowMs: number, zone: string): string =>
   dateFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }).format(nowMs);
 
-/** The day and the hour apart: a phone's head says the day alone (the canvases' phone boards; kit.css hides the hour). */
+/** The day and the hour apart, for a head that says the day alone ("Friday, October 2"). */
 export function pageDatelineParts(nowMs: number, zone: string): { day: string; time: string } {
   return {
     day: dateFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: zone }).format(nowMs),
-    time: hourIn(nowMs, zone),
-  };
-}
-
-/** The day short with its hour, as Today's phone head says it: "Tue, Nov 3" and "8:05 AM" (the Today canvas, 2 Nov 2026). */
-export function pageDatelineShort(nowMs: number, zone: string): { day: string; time: string } {
-  return {
-    day: dateFormat("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: zone }).format(nowMs),
     time: hourIn(nowMs, zone),
   };
 }
