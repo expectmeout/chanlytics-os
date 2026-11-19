@@ -264,12 +264,14 @@ const IN_ENGLISH = "Write it in English, whatever language the caller spoke.";
  * keeps whole (calls.analysis). The name and the address are suggestions for the
  * person's page, never applied to the contact by themselves.
  *
- * Three sentences here were earned on real calls, written up again on the models a write-up could run on (the replay
- * of 18 and 19 November 2026, contracts RETELL_MODELS). The newer ones take each field at its word. A caller asking
- * for a call back is a call back, said outright: without it one of them wrote a message left for the owner as "asked
- * for nothing". A call nobody spoke on is `other`: the newer ones filed it under small talk. And what is written in
- * words is written in English, as every card is: asked nothing, the product's model wrote one Spanish call in three
- * in Spanish.
+ * Four sentences here were earned on real calls, written up again on the models a write-up could run on (the replay
+ * of 18 and 19 November 2026, contracts RETELL_MODELS, and four scripted calls on the test line). The newer ones take
+ * each field at its word. A caller asking for a call back is a call back, said outright: without it one of them wrote
+ * a message left for the owner as "asked for nothing". A call nobody spoke on is `other`: the newer ones filed it under
+ * small talk. What is written in words is written in English, as every card is: asked nothing, the product's model
+ * wrote one Spanish call in three in Spanish. And an email is written as an address: asked for it "exactly as they
+ * spelled it out", it wrote the spelling itself two times in six, which is no address (the dashboard's toCallDto
+ * offers only one), and with the example, the address five times in five.
  */
 export const CALL_ANALYSIS_FIELDS = [
   {
@@ -305,7 +307,7 @@ export const CALL_ANALYSIS_FIELDS = [
     type: "string",
     name: "caller_email",
     description:
-      "The email address the caller gave, exactly as they spelled it out. Leave empty if they did not give one.",
+      "The email address the caller gave, written as an address (name@domain.com) from what they spelled out letter by letter: 'd r e y e s at example dot com' is dreyes@example.com. Leave empty if they did not give one.",
     examples: ["ana.ruiz@example.com", "daniela.r@example.net"],
   },
   {
