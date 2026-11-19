@@ -31,6 +31,7 @@ export {
   findMemberJoined,
   getOlderUnread,
   getUnreadOfReaders,
+  listArrivedVisits,
   listBookedVisits,
   listFeedAdditionsWith,
   wasTwinTold,

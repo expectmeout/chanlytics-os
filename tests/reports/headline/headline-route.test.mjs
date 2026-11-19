@@ -53,7 +53,9 @@ test("the route answers the series summed on the server, for each preset: report
     const ctx = ctxOf(world());
     const body = await headlineRoute.GET.run(req(`?period=${period}&workspace=${A}`), ctx);
     assert.deepEqual(Object.keys(body), ["headline"]);
-    assert.deepEqual(body.headline, headlineOf({ ...reportDto(), days }, period, none(days)), period);
+    // The series summed, and beside it the week's bookings counted from the record (decision 0141): none here.
+    const summed = headlineOf({ ...reportDto(), days }, period, none(days));
+    assert.deepEqual(body.headline, { ...summed, daily: { ...summed.daily, booked: Array(7).fill(0) } }, period);
     assert.deepEqual(
       seenOf(ctx, "report_series"),
       [{ p_tenant_id: A, p_days: days }],

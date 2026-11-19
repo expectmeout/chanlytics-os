@@ -665,6 +665,55 @@ test("the period's days carry their key and the word for where they end; past a 
   }
 });
 
+test("booked carries its week as the other three do: six days from the headline and today as the figure says it, on a phone and a desk; none for a week of nothing or a day nobody counted", () => {
+  /**
+   * The headline's week with what was booked on each of its days, as the server counts them (null: not counted), and a
+   * call a day, so the figure beside it has a week of its own.
+   */
+  const weekWith = (booked) => {
+    const vm = headline({ days: 7 });
+    return { ...vm, perDay: vm.perDay.map((day, at) => ({ ...day, calls: 1, booked: booked ? booked[at] : null })) };
+  };
+  /** Today's page with `n` booked today. */
+  const bookedToday = (n) => {
+    const vm = twoWaiting();
+    return { ...vm, figures: vm.figures.map((f) => (f.id === "booked" ? { ...f, value: n } : f)) };
+  };
+  const weekOf = (tree, id) => all(byTestId(tree, `today-figure-${id}`), (n) => classes(n).includes("spark-col"));
+  const heights = (columns) => columns.map((n) => n.props.style?.height ?? null);
+  try {
+    for (const onPhone of [true, false]) {
+      phone = onPhone;
+      const where = onPhone ? "a phone" : "a desk";
+      const figures = onPhone ? PhoneSoFar : TodayHeadFigures;
+      // The server's own count of today (9) is never drawn: today's column is the figure, 4.
+      setSurfaceValue("reports_headline", weekWith([1, 0, 2, 0, 0, 4, 9]));
+      set(bookedToday(4));
+      const week = weekOf(draw(figures), "booked");
+      assert.equal(week.length, 7, `${where}: REGRESSION: booked alone stood with no week beside it`);
+      assert.deepEqual(
+        heights(week),
+        ["50%", null, "70.71%", null, null, "100%", "100%"],
+        `${where}: a column a day, a day of none left low, today as tall as the figure`,
+      );
+      assert.ok(classes(week.at(-1)).includes("spark-now"), `${where}: the last column is today`);
+      assert.equal(weekOf(draw(figures), "calls").length, 7, `${where}: beside the others' weeks`);
+      // A week of nothing draws nothing, as for the other three.
+      setSurfaceValue("reports_headline", weekWith([0, 0, 0, 0, 0, 0, 0]));
+      set(bookedToday(0));
+      assert.equal(weekOf(draw(figures), "booked").length, 0, `${where}: a week of none`);
+      // A server from before it, a database that keeps no arrival yet, a read that failed: no day counted, no week.
+      setSurfaceValue("reports_headline", weekWith(null));
+      set(bookedToday(4));
+      assert.equal(weekOf(draw(figures), "booked").length, 0, `${where}: a day nobody counted is never a column`);
+      assert.equal(weekOf(draw(figures), "calls").length, 7, `${where}: the others keep theirs`);
+    }
+  } finally {
+    phone = true;
+    setSurfaceValue("reports_headline", undefined);
+  }
+});
+
 /** A row of the queue as contracts makes it, by hand: a person waiting on a thread of their own. */
 const queueRow = (id, who, over = {}) => ({
   id,
