@@ -247,6 +247,16 @@ export const RATE = {
   /** A call to a lead's own receptionist (decision 0079), per network: each is the provider's minutes; a preview has two. */
   preview_call_ip: { limit: 6, windowMs: HOUR_MS, noun: "calls" },
   /**
+   * A preview's greeting heard with no microphone (decision 0079), per network: each is a call of a few seconds that the
+   * page only listens to. A bucket of its own, so hearing the greeting uses up none of a network's six calls.
+   */
+  preview_listen_ip: { limit: 12, windowMs: HOUR_MS, noun: "listens" },
+  /**
+   * The same press per preview, from every network at once: one at a time, each about the length of a greeting, so the
+   * next begins once this one has been heard. Its seconds are the preview's own six minutes, which end it for good.
+   */
+  preview_listen: { limit: 1, windowMs: 10 * SECOND_MS, noun: "listens" },
+  /**
    * A preview call's words read back (the page asks every two seconds while a call runs, and a few times after it for
    * its write-up), per network: a preview's six minutes are under two hundred reads, so six hundred an hour is three
    * businesses at one desk. It reads a row and, for two minutes past a call's end, asks the provider nothing it bills.

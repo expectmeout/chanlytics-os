@@ -17,7 +17,6 @@ import {
   type Theme,
 } from "@chanlytics/contracts";
 import { keepStrangerTheme } from "@/bridge/device-prefs";
-import { useVoiceSample } from "@/bridge/rehearse/voice-sample";
 import { paintThemeColor } from "@/bridge/theme-color";
 import { Button } from "../kit/button/button";
 import { Face } from "../kit/face/face";
@@ -25,6 +24,7 @@ import { Icon } from "../kit/icon/icon";
 import { StatePill } from "../kit/pill/state-pill";
 import { PvSlide } from "./slide";
 import type { Call } from "./use-call";
+import type { Hear } from "./use-hear";
 
 /** The glyph each fact wears. */
 const FACT_GLYPH: Record<PreviewKnowsRowVM["key"], string> = {
@@ -149,13 +149,12 @@ const HEAR_GLYPH_PX = 17;
 
 /**
  * Call it, and what stands under it: the microphone's line, why no call can be made, or what the last one ran into.
- * Beside it, its voice heard with no call (the review of 18 November 2026): the provider's own recording of the voice
- * this preview speaks with, as the first run plays it, so a browser with no microphone still hears it. It asks for no
- * microphone and spends nothing.
+ * Beside it, its voice heard with no microphone asked (use-hear.ts): AI says the greeting their callers hear, in their
+ * business's name, so a browser that can give no microphone still hears it answer as them. Where that cannot be played
+ * the same press plays the provider's own recording of the voice, as the first run plays it.
  */
-function PvCallIt({ call, canCall, leads, voice }: { call: Call; canCall: boolean; leads: boolean; voice: string }) {
-  const sample = useVoiceSample();
-  const playing = sample.playing === voice;
+function PvCallIt({ call, canCall, leads, hear }: { call: Call; canCall: boolean; leads: boolean; hear: Hear }) {
+  const playing = hear.playing;
   if (call.used)
     return (
       <p className="pv-made" role="status" data-testid="pv-call-left">
@@ -168,7 +167,7 @@ function PvCallIt({ call, canCall, leads, voice }: { call: Call; canCall: boolea
         <p className="pv-made" role="status" data-testid="pv-call-nomic">
           {W.noMic}
         </p>
-        <Button size="touch" onClick={() => sample.toggle(voice)} aria-pressed={playing} data-testid="pv-hear">
+        <Button size="touch" onClick={hear.toggle} aria-pressed={playing} data-testid="pv-hear">
           <Icon name={playing ? "pause" : "play"} size={14} />
           {playing ? W.hearStop : W.hearVoice}
         </Button>
@@ -192,7 +191,7 @@ function PvCallIt({ call, canCall, leads, voice }: { call: Call; canCall: boolea
           size="touch"
           className="pv-hear"
           aria-pressed={playing}
-          onClick={() => sample.toggle(voice)}
+          onClick={hear.toggle}
           data-testid="pv-hear"
         >
           <Icon name={playing ? "pause" : "sound-on"} size={HEAR_GLYPH_PX} />
@@ -251,6 +250,7 @@ function useSeen(onSeen: (seen: boolean) => void) {
 export function PvHead({
   vm,
   call,
+  hear,
   canCall,
   leads,
   look,
@@ -258,6 +258,7 @@ export function PvHead({
 }: {
   vm: PreviewPageVM;
   call: Call;
+  hear: Hear;
   canCall: boolean;
   leads: boolean;
   look: boolean;
@@ -274,7 +275,7 @@ export function PvHead({
         {vm.business}
       </h1>
       {look ? <PvTried vm={vm} /> : <p className="pv-ready">{W.ready}</p>}
-      {look ? null : <PvCallIt call={call} canCall={canCall} leads={leads} voice={vm.voice} />}
+      {look ? null : <PvCallIt call={call} canCall={canCall} leads={leads} hear={hear} />}
     </header>
   );
 }

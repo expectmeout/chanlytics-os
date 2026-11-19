@@ -286,6 +286,62 @@ someone come now?". They are now written for the business as its preview is buil
 Not yet: a real model's questions read for a real lead (nothing was spent to try it); the questions written again
 when the business tells it something or puts a fact right; previews built before this are left with the record's own.
 
+## Amended, 18 November 2026: their greeting, heard with no microphone
+
+Ruben asked how the page could say a business's own greeting with no call to make and no microphone to give, approved a
+proof of the answer ("Yes, run the proof": two test calls, 4.2 cents) and then its build ("Yes, build it").
+
+**What was found.** No recording can be made in the phone's voice outside a call: the voice is the call provider's own
+(its voice list classes `minimax-Tamsin` as a standard voice of its own, the same name under six speech engines), the
+provider has no door that speaks outside a call, and the voice's engine has no such voice to ask. So the "recording made
+per preview" named above has no source, at any price. What a browser can do is join a call receive-only: the call
+client has that switch (`listener`, wired for a supervisor listening in), with it asks for no microphone, and the
+provider answered such a join from a caller twice, the greeting said whole each time.
+
+**What is built.** The press beside Call it, Hear its voice, now plays their greeting: AI saying what a caller hears,
+in their business's name, in the voice their calls are answered in.
+
+- **A call the page only listens to.** The page's seventh public door, `POST /api/v1/previews/<token>/listen`, asks the
+  edge's own call door for a call nobody speaks on (`listen`, a field of `REHEARSAL_CALL_DOOR`: an edge that does not
+  know it makes an ordinary call, which a page that only listens joins and leaves all the same). The browser joins it
+  receive-only (`bridge/rehearse/call.ts startListen`) and is asked for nothing.
+- **It leaves by itself.** The client tells a page nothing of when the agent stops speaking on this transport, on
+  either of the proof's calls, so the page reads the voice's own level and leaves once it has been quiet a little over
+  a second (the longest pause inside a greeting was half of one); by the clock where a browser gives no level; and at
+  twenty seconds whatever is heard. The provider's shortest forced end is a minute, which is what a listen is given.
+- **Nobody called.** A listen is a spoken rehearsal whose row says `end_reason: listened` from the moment its call is
+  made (contracts `REHEARSAL_LISTEN`; no migration). Its seconds count against the preview's six minutes, as any
+  call's do, so it adds no spend a preview did not already have. It is drawn as no call ("You called it"), the
+  preview's row is told of none (no count, Make it mine does not lead for it, its sender's bell does not ring), and a
+  call made while its end is on its way is not held for it.
+- **Its write-up is the provider's smallest.** The provider bills a call's write-up flat, whatever the call's length:
+  1.5 cents on the model every line uses, on each of the account's last fourteen calls, a one-second hang-up among
+  them; nothing on its smallest (`RETELL_MODELS.listenAnalysis`, sent as that one call's own). A listen has nothing to
+  write up, and this is what takes a press from 2.8 cents to about half of that.
+- **Its limits.** One at a time a preview, from every network (`preview_listen`, ten seconds), and a bucket per
+  network of its own (`preview_listen_ip`, twelve an hour), so hearing the greeting uses up none of a network's six
+  calls. Counted strictly, as every door that spends is.
+- **Where it cannot be played** (its minutes used, a call running, the provider away, a browser that will not play it)
+  the press plays the provider's own recording of the voice, as it did before, and nothing is said to have failed. The
+  press itself begins a short quiet sound on an element of its own, so a browser that plays only what a press began
+  lets the call's voice through, and the recording plays on that same element.
+
+**What it costs.** A listen is eight or nine billed seconds at ten cents a minute: 1.3 to 1.5 cents, measured on three
+calls, the third made by this build's own start and played by its own press. A day at the cap of fifty previews, every
+one opened and pressed once, is 75 cents at the most.
+
+**Not proven.** A phone, and a mail app's own browser, where this press matters most: the proof ran in a desktop
+browser. The receive-only switch is not among the options the client lists for a caller's own join, so the client's
+version stays pinned and `tests/previews/listen/its-greeting-heard-with-no-microphone.test.mjs` holds that it is
+asked for. Reading the voice's level
+taps the call's sound, which the call's own screen still holds back from until it is heard on an iPhone.
+
+Not built: the greeting kept as a file after its first press (the call's own recording, copied as a real call's is,
+kept under the preview's workspace and removed by the sweep before the preview ends). It would save about 1.5 cents
+and two or three seconds on a second press, for a copy, a signed read and an erasure step; with nothing kept there is
+nothing to erase. The research and the proof's own record are kept outside this repository, with the session that
+made them.
+
 ## Amended, 18 November 2026: the light behind their head is the look's own
 
 Ruben, of the live page in both themes (18 November): the ground behind the head was ugly in light and still too strong

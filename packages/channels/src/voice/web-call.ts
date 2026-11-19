@@ -24,6 +24,11 @@ export function webCallBody(options: {
   voiceId: string | null;
   /** How fast the voice speaks (decision 0073, R7), as a call on the line hears it; null or absent for its own pace. */
   voiceSpeed?: number | null;
+  /**
+   * The model this call's write-up runs on, in Retell's name for it, where it is not the agent's own: a call only
+   * listened to has nothing to write up, and the write-up is billed flat a call. Absent for the agent's own.
+   */
+  analysisModel?: string | null;
   maxMs: number;
   metadata: Record<string, string | number>;
 }): Record<string, unknown> {
@@ -35,6 +40,7 @@ export function webCallBody(options: {
         max_call_duration_ms: Math.round(options.maxMs),
         ...(options.voiceId ? { voice_id: options.voiceId } : {}),
         ...(typeof options.voiceSpeed === "number" ? { voice_speed: options.voiceSpeed } : {}),
+        ...(options.analysisModel ? { post_call_analysis_model: options.analysisModel } : {}),
       },
     },
     metadata: options.metadata,

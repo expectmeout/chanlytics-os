@@ -17,7 +17,7 @@ export const POST = write({
   spend: true,
   spendWords: SPEND_REHEARSE,
   input: z.object({}).strict(),
-  handle: ({ ctx, member }) => startRehearsal(member.tenantId, ctx.userId),
+  handle: ({ ctx, member }) => startRehearsal(member.tenantId, ctx.userId, false),
 });
 
 export const maxDuration = 60;

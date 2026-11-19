@@ -35,6 +35,18 @@ export const REHEARSAL_LIMITS = {
 } as const;
 
 /**
+ * A call only listened to (decision 0079, their greeting heard with no microphone): a lead's preview joins a call of its
+ * own receive-only, hears the greeting a caller hears, and leaves. It is a spoken rehearsal like any other, so its
+ * seconds count against the preview's minutes; what tells it apart is how its row says it ended.
+ */
+export const REHEARSAL_LISTEN = {
+  /** How a listen's row says it ended, in place of the provider's word: it is no call anyone made, and is drawn as none. */
+  ended: "listened",
+  /** The longest one runs if the page never leaves it: the provider's floor for a call's length. */
+  callMs: MIN_MS,
+} as const;
+
+/**
  * What a workspace's spoken minutes are counted against: before its plan, or the plan's thirty days; or, for a lead's own
  * receptionist that nobody has made theirs yet, the preview's whole life (decision 0079).
  */

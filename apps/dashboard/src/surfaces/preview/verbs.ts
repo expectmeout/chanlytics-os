@@ -1,5 +1,5 @@
 /**
- * What a lead's own preview's page asks (decision 0079): its six public doors, by the link's token
+ * What a lead's own preview's page asks (decision 0079): its seven public doors, by the link's token
  * (app/api/v1/previews/[token]/…). No session, no workspace and no 401, as the sign-up page's door has none, so these
  * are posts of their own rather than the typed client's, which owns all three.
  */
@@ -54,6 +54,8 @@ export const previewVerbs = {
   opened: (token: string) => post<{ opened: number | null }>(token, "opened", {}),
   /** A call in the browser: what the client joins, how long it may run, and the minutes left after it. */
   call: (token: string) => post<CallStarted & { max_ms: number; left_ms: number }>(token, "call", {}),
+  /** Their greeting, heard: a call the page only listens to, which the client joins with no microphone. */
+  listen: (token: string) => post<CallStarted & { max_ms: number; left_ms: number }>(token, "listen", {}),
   /** A call's words read back, and once it has ended what the business would get after a real one. */
   heard: (token: string, call: string) => post<PreviewHeardDto>(token, "heard", { call }),
   /** A fact said not to be right, and what is, kept for the person who wrote to them. */
