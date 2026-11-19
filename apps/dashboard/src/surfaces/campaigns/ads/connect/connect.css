@@ -1,0 +1,196 @@
+/* ====================================================================
+   The ad account's card (connect/card.tsx): one card for every state the connection can be in. Its ground is the
+   kit's Panel; this is its layout alone, and the two small things a page of its own needs: the amber inset that
+   says the one thing missing, and the dot that turns while a line is still being checked. Loaded with the card, so
+   the Ads page and Settings › Connections draw one card from one stylesheet.
+   ==================================================================== */
+.ads-conn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ads-conn-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.ads-conn-head b {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--weight-semibold);
+}
+.ads-conn-word {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ads-conn .ads-conn-caret {
+  flex: none;
+  gap: var(--space-1);
+}
+.ads-conn-says {
+  max-width: 64ch;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ads-conn-says[data-strong] {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* Who Meta charges, the Page, Meta's limit: what in the dim ink, which in the ink, one row each. */
+.ads-conn-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.ads-conn-facts > div {
+  display: contents;
+}
+.ads-conn-facts dt {
+  color: var(--ink-dim);
+}
+.ads-conn-facts dd {
+  min-width: 0;
+  margin: 0;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ads-conn .ads-conn-ready {
+  gap: var(--space-1);
+  align-self: flex-start;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+/* The one thing missing: what happened in the ink, what it stops under it, its one act last. Amber where it stops
+   something; plain where it is a fact with a choice. */
+.ads-conn-need {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-inset);
+  background: var(--surface-inset-fill);
+  box-shadow: var(--surface-inset-ring);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.ads-conn-need[data-tone="warn"] {
+  background: var(--warn-soft);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+.ads-conn-need > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* The five checks: a dot, the check, and, in the opened card, what it is needed for at the row's end. */
+.ads-conn-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ads-conn-checks li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ads-conn-check {
+  flex: 1;
+  min-width: 0;
+}
+.ads-conn-checks li[data-state="missing"] .ads-conn-check {
+  color: var(--warn-ink);
+}
+.ads-conn-for {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* A line still being checked: its dot is an open ring that turns. Still where motion is turned down. */
+.ads-dot[data-turning] {
+  border-top-color: var(--ink);
+  background: none;
+  animation: ads-conn-turn 0.9s linear infinite;
+}
+@keyframes ads-conn-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ads-dot[data-turning] {
+    animation: none;
+  }
+}
+/* The one question's choices: each a row of two lines, the one picked ringed in the ink. */
+.ads-conn-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-self: stretch;
+}
+.ads-conn .ads-conn-option {
+  justify-content: flex-start;
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  box-shadow: var(--surface-inset-ring);
+}
+.ads-conn .ads-conn-option[aria-checked="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.ads-conn-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ads-conn-option b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ads-conn-option span > span {
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+/* The quiet line under the card: the platforms that come later. */
+.ads-conn-later {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+/* The opened card: the same lines with room between them, and the checks' own head. */
+.ads-conn-open {
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.ads-conn-checks-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+.ads-conn-checks-head b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.ads-conn-checks-head .ads-conn-for {
+  margin-left: auto;
+}

@@ -1,6 +1,32 @@
 {
   "note": "Written by edge/doors/door-policy.test.mjs (UPDATE_DOOR_POLICY=1). A change here is a change to who may knock on the edge: which wrapper names the request, which checks a door reaches and where each is called, and what the door hands them (an admin door's audience, the platform's key). Whether every path passes the check is each door's own tests'. Review it as one.",
   "doors": {
+    "POST /api/admin/ads/account": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/ads/account.ts",
+      "knock_args": {
+        "aud": "/api/admin/ads/account",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
+    "POST /api/admin/ads/press": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/ads/press.ts",
+      "knock_args": {
+        "aud": "/api/admin/ads/press",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
     "POST /api/admin/billing": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -491,11 +517,35 @@
         "aud": "/api/admin/you-are-live"
       }
     },
+    "POST /api/ads/deauthorize": {
+      "wrapper": "door",
+      "verb": "receiveAdsDeauthorize in apps/edge/lib/ads/deauthorize.ts",
+      "knock": "signedRequestOfMeta",
+      "knock_in": "receiveAdsDeauthorize in apps/edge/lib/ads/deauthorize.ts"
+    },
+    "GET /api/ads/meta": {
+      "wrapper": "door",
+      "verb": "answerAdsNoticeCheck in apps/edge/lib/ads/notices.ts",
+      "knock": null
+    },
+    "POST /api/ads/meta": {
+      "wrapper": "door",
+      "verb": "receiveAdsNotice in apps/edge/lib/ads/notices.ts",
+      "knock": "adsNoticeSigned",
+      "knock_in": "receiveAdsNotice in apps/edge/lib/ads/notices.ts"
+    },
     "POST /api/apify-webhook": {
       "wrapper": "door",
       "verb": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts",
       "knock": "tokenMatches",
       "knock_in": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts"
+    },
+    "POST /api/cron/ads": {
+      "wrapper": "sweepDoor",
+      "sweep": "ads",
+      "verb": "sweepAds in apps/edge/lib/ads/sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
     "POST /api/cron/calendar": {
       "wrapper": "sweepDoor",

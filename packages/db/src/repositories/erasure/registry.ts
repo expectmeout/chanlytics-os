@@ -99,6 +99,29 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // names the message that carried it and goes when that message does, which an erasure deletes. An entry with no
   // message (a form lead's, which nothing writes yet) will need a leg of its own, and its lead's id at the platform.
   ad_entries: all(withPerson("erase_contact"), "platform_ad_id", "external_ref", "said"),
+  // An owner's own ad account (00648, decision 0049). The account's name at its platform can be a person's, and its
+  // ids there (its own, and the business, Page and number beside it in config) are the owner's: they leave with the
+  // workspace. Its currency, its zone, the typed words it stands on and our own words for a failed read name nobody
+  // (its platform and status are closed sets). Its token is in Vault, on no row.
+  ad_accounts: {
+    ...all(WITH_WORKSPACE, "external_id", "name", "config"),
+    ...all(NOT_PERSONAL, "currency", "timezone", "standing", "read_error"),
+  },
+  // An ad (00648): its name and what it says are the business's own advertising, written by the owner for the public,
+  // and leave with the workspace. The platform's ids for it and the platform's own words about it name nobody. No
+  // person the workspace serves is on the row: who an ad brought is read from contacts, never kept here. A day of an
+  // ad (ad_days) holds numbers alone.
+  ads: {
+    ...all(WITH_WORKSPACE, "name", "said"),
+    ...all(
+      NOT_PERSONAL,
+      "platform_ad_id",
+      "platform_set_id",
+      "platform_campaign_id",
+      "platform_state",
+      "platform_issue",
+    ),
+  },
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later
   // writer puts there. A failed call's reason (00469) is the API's error type, and its words, which name no one but go

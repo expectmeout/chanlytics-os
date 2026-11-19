@@ -18,6 +18,14 @@
  */
 export const EDGE_ERROR_CODES = [
   "accounts_unreadable",
+  "ad_account_connected",
+  "ad_account_not_owner",
+  "ad_account_taken",
+  "ad_cant_resume",
+  "ad_not_ready",
+  "ad_sign_in_lost",
+  "ad_stale",
+  "ads_writes_off",
   "already_registered",
   "already_sent",
   "already_subscribed",
@@ -68,6 +76,7 @@ export const EDGE_ERROR_CODES = [
   "meta_failed",
   "meta_off",
   "meta_refused",
+  "meta_signed_out",
   "mock_registration",
   "model_failed",
   "model_paused",

@@ -34,6 +34,152 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_accounts: {
+        Row: {
+          config: Json
+          connected_at: string | null
+          connected_by: string | null
+          created_at: string
+          currency: string | null
+          disconnected_at: string | null
+          external_id: string | null
+          id: string
+          name: string | null
+          next_read_at: string | null
+          notices_at: string | null
+          platform: string
+          read_after: string | null
+          read_at: string | null
+          read_error: string | null
+          revoked_at: string | null
+          settle_at: string | null
+          standing: Json
+          status: string
+          tenant_id: string
+          timezone: string | null
+          token_expires_at: string | null
+          updated_at: string
+          usage_at: string | null
+          usage_pct: number | null
+          withdrawn_at: string | null
+        }
+        Insert: {
+          config?: Json
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          currency?: string | null
+          disconnected_at?: string | null
+          external_id?: string | null
+          id?: string
+          name?: string | null
+          next_read_at?: string | null
+          notices_at?: string | null
+          platform: string
+          read_after?: string | null
+          read_at?: string | null
+          read_error?: string | null
+          revoked_at?: string | null
+          settle_at?: string | null
+          standing?: Json
+          status: string
+          tenant_id: string
+          timezone?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          usage_at?: string | null
+          usage_pct?: number | null
+          withdrawn_at?: string | null
+        }
+        Update: {
+          config?: Json
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          currency?: string | null
+          disconnected_at?: string | null
+          external_id?: string | null
+          id?: string
+          name?: string | null
+          next_read_at?: string | null
+          notices_at?: string | null
+          platform?: string
+          read_after?: string | null
+          read_at?: string | null
+          read_error?: string | null
+          revoked_at?: string | null
+          settle_at?: string | null
+          standing?: Json
+          status?: string
+          tenant_id?: string
+          timezone?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          usage_at?: string | null
+          usage_pct?: number | null
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_days: {
+        Row: {
+          ad_id: string
+          clicks: number
+          day: string
+          impressions: number
+          platform_results: number | null
+          read_at: string
+          settled: boolean
+          spend_minor: number
+          tenant_id: string
+        }
+        Insert: {
+          ad_id: string
+          clicks?: number
+          day: string
+          impressions?: number
+          platform_results?: number | null
+          read_at?: string
+          settled?: boolean
+          spend_minor?: number
+          tenant_id: string
+        }
+        Update: {
+          ad_id?: string
+          clicks?: number
+          day?: string
+          impressions?: number
+          platform_results?: number | null
+          read_at?: string
+          settled?: boolean
+          spend_minor?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_days_ad_id_same_workspace"
+            columns: ["tenant_id", "ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "ad_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_entries: {
         Row: {
           ad_id: string | null
@@ -87,6 +233,114 @@ export type Database = {
           },
           {
             foreignKeyName: "ad_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ads: {
+        Row: {
+          account_id: string
+          budget_at: string | null
+          budget_kind: string | null
+          budget_left_minor: number | null
+          budget_minor: number | null
+          budget_shared: boolean | null
+          created_at: string
+          door: string
+          ends_at: string | null
+          id: string
+          intent: string
+          intent_at: string | null
+          name: string
+          origin: string
+          platform: string
+          platform_ad_id: string | null
+          platform_campaign_id: string | null
+          platform_issue: string | null
+          platform_set_id: string | null
+          platform_state: string | null
+          read_at: string | null
+          said: Json | null
+          starts_at: string | null
+          status: string
+          tenant_id: string
+          told_at: string | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          account_id: string
+          budget_at?: string | null
+          budget_kind?: string | null
+          budget_left_minor?: number | null
+          budget_minor?: number | null
+          budget_shared?: boolean | null
+          created_at?: string
+          door: string
+          ends_at?: string | null
+          id?: string
+          intent: string
+          intent_at?: string | null
+          name: string
+          origin: string
+          platform: string
+          platform_ad_id?: string | null
+          platform_campaign_id?: string | null
+          platform_issue?: string | null
+          platform_set_id?: string | null
+          platform_state?: string | null
+          read_at?: string | null
+          said?: Json | null
+          starts_at?: string | null
+          status: string
+          tenant_id: string
+          told_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          account_id?: string
+          budget_at?: string | null
+          budget_kind?: string | null
+          budget_left_minor?: number | null
+          budget_minor?: number | null
+          budget_shared?: boolean | null
+          created_at?: string
+          door?: string
+          ends_at?: string | null
+          id?: string
+          intent?: string
+          intent_at?: string | null
+          name?: string
+          origin?: string
+          platform?: string
+          platform_ad_id?: string | null
+          platform_campaign_id?: string | null
+          platform_issue?: string | null
+          platform_set_id?: string | null
+          platform_state?: string | null
+          read_at?: string | null
+          said?: Json | null
+          starts_at?: string | null
+          status?: string
+          tenant_id?: string
+          told_at?: string | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_account_id_same_workspace"
+            columns: ["tenant_id", "account_id", "platform"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["tenant_id", "id", "platform"]
+          },
+          {
+            foreignKeyName: "ads_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -8623,11 +8877,103 @@ export type Database = {
       }
     }
     Functions: {
+      ad_account_connect: {
+        Args: {
+          p_account: Json
+          p_actor: string
+          p_chosen?: boolean
+          p_platform: string
+          p_secret: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      ad_account_disconnect: {
+        Args: { p_account_id: string; p_actor: string; p_tenant_id: string }
+        Returns: Json
+      }
+      ad_account_read_keep: {
+        Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
+        Returns: string
+      }
+      ad_account_revoked: {
+        Args: { p_account_id: string; p_how: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      ad_credentials_drop: { Args: { p_account_id: string }; Returns: boolean }
+      ad_credentials_get: { Args: { p_account_id: string }; Returns: Json }
+      ad_credentials_put: {
+        Args: { p_account_id: string; p_secret: Json }
+        Returns: string
+      }
       ad_entry_keep: {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
         Returns: string
       }
+      ad_may_resume: {
+        Args: {
+          p_budget_kind: string
+          p_budget_left_minor: number
+          p_budget_shared: boolean
+          p_ends_at: string
+          p_origin: string
+          p_platform_state: string
+        }
+        Returns: boolean
+      }
       ad_named: { Args: { p_ref: string; p_tenant_id: string }; Returns: Json }
+      ad_people: {
+        Args: {
+          p_ad_id?: string
+          p_days?: number
+          p_end?: string
+          p_limit?: number
+          p_offset?: number
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      ad_people_in: {
+        Args: { p_days: number; p_end: string; p_tenant_id: string }
+        Returns: {
+          ad_id: string
+          booked: boolean
+          contact_id: string
+          first_at: string
+        }[]
+      }
+      ad_ref_parts: {
+        Args: { p_ref: string }
+        Returns: {
+          ad: string
+          platform: string
+        }[]
+      }
+      ad_set_intent: {
+        Args: {
+          p_actor: string
+          p_ad_id: string
+          p_intent: string
+          p_tenant_id: string
+          p_version: number
+        }
+        Returns: Json
+      }
+      ad_tell_ask: {
+        Args: { p_ad_id: string; p_tenant_id: string }
+        Returns: number
+      }
+      ad_told: {
+        Args: {
+          p_ad_id: string
+          p_asked: string
+          p_outcome: string
+          p_platform_state?: string
+          p_said?: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       add_person: {
         Args: {
           p_display_name: string
@@ -8638,6 +8984,20 @@ export type Database = {
         }
         Returns: Json
       }
+      ads_hand_out: { Args: { p_spread_seconds: number }; Returns: Json }
+      ads_page_counts: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
+      ads_read_ask: {
+        Args: { p_external_id: string; p_platform: string }
+        Returns: number
+      }
+      ads_read_keep: {
+        Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      ads_sweep_ask: { Args: never; Returns: number }
       ai_failures_hour: {
         Args: { p_min?: number }
         Returns: {
@@ -11411,6 +11771,7 @@ export type Database = {
         Returns: number
       }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
+      purge_ad_days: { Args: { p_keep?: string }; Returns: number }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
       purge_config_versions: { Args: { p_keep?: string }; Returns: number }
       purge_cron_history: {

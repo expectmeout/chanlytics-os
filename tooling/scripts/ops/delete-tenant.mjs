@@ -68,8 +68,12 @@ const STREAM_CALL_MS = 10_000;
  * by backing that up. They are listed in the test's expected set all the same.
  */
 const TABLES = [
+  // An owner's ad account, and each ad's days of spend (00648, decision 0049); its ads are below.
+  "ad_accounts",
+  "ad_days",
   // What an ad said to each person who tapped it and wrote (00644, decision 0049).
   "ad_entries",
+  "ads",
   "ai_usage",
   "anthropic_profiles",
   "appointment_notices",
@@ -382,6 +386,14 @@ async function main() {
     if (s.health !== "blocked_by_admin")
       orphans.push(
         `a connected footage account, ${s.email ?? "an account"}: its grant at Google, its watched folders' push channels there, and its Vault secret. Disconnect it on Connections first, which stops the channels and drops the secret.`,
+      );
+  }
+  // An owner's ad account (00648): its grant at the platform and its Vault secret, until the platform has confirmed
+  // that access is withdrawn. Ads left running there keep running, and are the owner's to stop on the platform.
+  for (const a of byTable.get("ad_accounts") ?? []) {
+    if (!a.withdrawn_at)
+      orphans.push(
+        `a connected ad account, ${a.name ?? a.external_id ?? "still to be chosen"}: its grant at its platform, and its ad-creds Vault secret. Disconnect it on Connections first, which asks the platform to withdraw access and drops the secret.`,
       );
   }
   for (const c of byTable.get("tenant_channels") ?? []) {

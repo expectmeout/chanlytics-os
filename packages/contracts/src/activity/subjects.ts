@@ -1,3 +1,4 @@
+import { adRoute } from "../ads/address";
 import { addressOf } from "./record-address";
 
 /**
@@ -54,6 +55,9 @@ export const ACTIVITY_SUBJECT_HOMES = {
   mailbox: { door: page(CONNECTIONS) },
   mailbox_connection: { door: page(CONNECTIONS) },
   listing: { door: page(CONNECTIONS) },
+  // An owner's ad account lives on Connections beside the other connections; one of its ads opens in its drawer.
+  ad_account: { door: page(CONNECTIONS) },
+  ad: { door: byId(adRoute) },
   subscription: { door: page(addressOf({ kind: "billing" })) },
   // The subjects whose page the server finds.
   message: { lookup: "its thread, which the server reads off the message (activity.ts, doors)" },

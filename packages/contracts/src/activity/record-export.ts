@@ -111,6 +111,18 @@ export const EXPORT_OF = {
       why: "They are suggestions, never sent and written again when someone writes · what you sent is in the file's conversations.",
     },
   },
+  ad_account: {
+    not_exported: {
+      what: "Your ad account's connection",
+      why: "The ad platform holds the account and its bill · Settings › Connections shows what is connected.",
+    },
+  },
+  ad: {
+    not_exported: {
+      what: "Your ads and what they spent",
+      why: "They are a copy of what the ad platform holds, and its own export gives them whole.",
+    },
+  },
   rehearsal: {
     not_exported: {
       what: "Your rehearsals with AI",

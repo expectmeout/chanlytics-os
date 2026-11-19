@@ -12,6 +12,7 @@ import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
+import { ADS_ROUTE } from "../../ads/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
@@ -187,6 +188,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // folder another; a folder that cannot be read says so on its own row.
   source_walk: { stopped: "Couldn't list your folder", to: CONTENT_LIBRARY_ROUTE },
   source_read: { stopped: "Couldn't check your folder for new photos and videos", to: CONTENT_LIBRARY_ROUTE },
+  // A connected ad account's read (00650). Not sent (kinds.ts: the platform's to mend), and the clock hands the account
+  // another; an account that cannot be read says so on its own card.
+  ad_read: { stopped: "Couldn't update your ads", to: ADS_ROUTE },
   canary: { stopped: "The background work's own check didn't finish", to: "today" },
 };
 
@@ -341,6 +345,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A lead tried the preview they were sent: good news, and its row names the lead to open, with their number. */
   preview_tried: { icon: "users", tone: "ok", action: "Open the lead", to: "clients/leads", own: true },
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
+  // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
+  ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

@@ -229,6 +229,12 @@ export const JOB_KINDS = [
    */
   "source_walk",
   "source_read",
+  /**
+   * A connected ad account read at its platform (00650, decision 0049): its ads with the budget each sits under, and
+   * the platform's days for them. Payload { account_id }, once an account while one waits or runs, in the bulk lane,
+   * and written to be run again: every write is once an ad and once a day.
+   */
+  "ad_read",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -349,6 +355,16 @@ export const EVENT_KINDS = [
   "workspace.created",
   /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
   "settings.changed",
+  /** An owner's ad account (00649): connected, the one of two chosen, its standing moved, access taken back, let go. */
+  "ad_account.connected",
+  "ad_account.chosen",
+  "ad_account.standing",
+  "ad_account.revoked",
+  "ad_account.disconnected",
+  "ad.state_changed",
+  "ad.paused",
+  "ad.resumed",
+  "ad.press_refused",
   "file.added",
   "file.changed",
   "file.kept",
@@ -888,6 +904,14 @@ export const DECISION_VERBS = [
    */
   "not_a_customer",
   "reply_anyway",
+  /**
+   * An owner's ad account and its ads (00649, decision 0050): the account connected or let go, subject 'ad_account';
+   * an ad paused or turned back on, subject 'ad'. The owner's alone (the `ads` permission).
+   */
+  "connect_ad_account",
+  "disconnect_ad_account",
+  "pause_ad",
+  "resume_ad",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 
@@ -915,6 +939,9 @@ export const DECISION_SUBJECTS = [
   "appointment",
   /** A sequence (decision 0060, 00442): its steps changed and its people taken out. Its id is its first step's. */
   "sequence",
+  /** An owner's own ad account, and one of its ads (00649, decisions 0049 and 0050): connected, paused, resumed. */
+  "ad_account",
+  "ad",
 ] as const;
 export type DecisionSubject = (typeof DECISION_SUBJECTS)[number];
 

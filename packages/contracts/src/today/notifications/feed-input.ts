@@ -247,6 +247,7 @@ export const SERVER_NOTIFICATION_KINDS = [
    * business, gives its number and opens the lead. A line on the bell: no mail and no phone for now.
    */
   "preview_tried",
+  "ad_account",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

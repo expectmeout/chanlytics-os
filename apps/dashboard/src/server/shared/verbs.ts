@@ -38,6 +38,7 @@ import {
   findPlaybookScope,
   findReplyLimits,
   findRunScope,
+  findAdScope,
   findTemplateScope,
   findThreadScope,
   listCustomerWrites,
@@ -417,6 +418,15 @@ async function loadSequence(ctx: RouteContext, id: string) {
   return { ...found, tenant_id: asTenantId(found.tenant_id) };
 }
 export const sequenceScope = row((ctx, params) => loadSequence(ctx, String(params.id ?? "")));
+
+/** The ad a press acts on (paused, turned back on), read under RLS: one the caller cannot see is a 404. */
+async function loadAd(ctx: RouteContext, id: string) {
+  const { data, error } = await findAdScope(ctx.supabase, requireUuid(id, "ad"));
+  if (error) throw new DbFailure(error);
+  if (!data) throw new AppError("not_found", "That ad is no longer here.", 404);
+  return { ...data, tenant_id: asTenantId(data.tenant_id) };
+}
+export const adScope = row((ctx, params) => loadAd(ctx, String(params.id ?? "")));
 
 /** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
 async function loadTemplate(ctx: RouteContext, id: string) {

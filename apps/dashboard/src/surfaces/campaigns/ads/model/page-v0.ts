@@ -7,12 +7,12 @@
 import { addDays, joinWords } from "@chanlytics/contracts";
 // How new people first came is the people report's, read through its page entry as the Reports pages read it.
 import { firstCameEntries, firstCameRecorded } from "@chanlytics/contracts/report-lens";
-import type { AdPlatform, AdsRead, PeopleSeriesDto } from "@chanlytics/contracts";
+import type { AdsRead, PeopleSeriesDto } from "@chanlytics/contracts";
 
 import { PLATFORMS, sum } from "./vm-base";
 import type { DoorVM } from "./vm-base";
-import { ADS_DOORS, PLATFORM_OWNER, PLATFORM_WORD } from "./words";
-import { STANDING, V0 } from "./words-page";
+import { ADS_DOORS, PLATFORM_OWNER } from "./words";
+import { V0 } from "./words-page";
 
 export interface V0VM {
   /** The lead line (bold part, rest); null where there is nothing to say yet. */
@@ -28,8 +28,6 @@ export interface V0VM {
   nobodyNew: string | null;
   notes: string[];
   door: DoorVM;
-  platforms: { id: AdPlatform; name: string; line: string; word: string }[];
-  next: string;
 }
 
 /**
@@ -98,12 +96,5 @@ export function v0Of(read: AdsRead): V0VM {
     nobodyNew: read.firstTouch !== null && rows.length === 0 ? V0.nobodyNew : null,
     notes: nobody ? V0.emptyNotes : V0.notes,
     door: { words: rows.length > 0 ? V0.door : V0.doorNobody, to: ADS_DOORS.people },
-    platforms: PLATFORMS.map((id) => ({
-      id,
-      name: PLATFORM_WORD[id],
-      line: V0.platforms[id],
-      word: STANDING.off,
-    })),
-    next: V0.next,
   };
 }

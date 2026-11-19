@@ -78,6 +78,7 @@ export {
   setSendingStopped,
 } from "./rows";
 export {
+  findAdScope,
   findCallScope,
   findErasableScope,
   findMessageScope,

@@ -1,3 +1,4 @@
+import { adRoute } from "../ads/address";
 import { visitRoute } from "../calendar/appointment-key";
 import { pipelineRoute } from "../deals/pipeline/views";
 import { pipelineRowId } from "../deals/pipeline/vm";
@@ -66,7 +67,9 @@ export type RecordRef =
   | { kind: "channel" }
   | { kind: "team" }
   | { kind: "billing" }
-  | { kind: "file" };
+  | { kind: "file" }
+  | { kind: "ad"; id: string }
+  | { kind: "ad_account" };
 
 /**
  * The kinds of record that open nowhere, and why: the other half of RECORD_KINDS, so a kind added there says where it opens
@@ -86,10 +89,18 @@ export const RECORDS_WITHOUT_AN_ADDRESS = {
 
 /** Settings' panes a record kind is the whole of: the route is Settings' (`admin`), and the pane is the word after it. */
 const PANE = {
+  facts: "admin/workspace",
+  rules: "admin/autonomy",
   channel: "admin/integrations",
+  // An ad account is connected once, and its home is Connections (decision 0049, call 1).
+  ad_account: "admin/integrations",
   team: "admin/team",
   billing: "admin/billing",
 } as const;
+
+/** A record that is the whole of one of Settings' panes. */
+type PaneRef = Extract<RecordRef, { kind: keyof typeof PANE }>;
+const isPaneRef = (ref: RecordRef): ref is PaneRef => ref.kind in PANE;
 
 /**
  * Where a record opens, as a route without its slash (the shell's own word: `clients/<id>`, which `workspacePath` turns into
@@ -97,6 +108,7 @@ const PANE = {
  * same for a mail or a push.
  */
 export function addressOf(ref: RecordRef): string {
+  if (isPaneRef(ref)) return PANE[ref.kind];
   switch (ref.kind) {
     case "person":
       // Their page, on the tab named (people/person-page/route.ts personTabRoute, the one writer of a tab's address).
@@ -129,19 +141,12 @@ export function addressOf(ref: RecordRef): string {
       return messageRoute(ref.name);
     case "review":
       return ref.id ? reviewRoute(ref.id) : lensRoute("reviews");
-    case "facts":
-      return "admin/workspace";
-    case "rules":
-      return "admin/autonomy";
-    case "channel":
-      return PANE.channel;
-    case "team":
-      return PANE.team;
-    case "billing":
-      return PANE.billing;
     case "file":
       // Settings › Files is Content's Library now (the content redesign's stage 2).
       return CONTENT_LIBRARY_ROUTE;
+    case "ad":
+      // An ad opens its drawer on Campaigns › Ads, by Chanlytics' own id for it (decision 0049, call 1).
+      return adRoute(ref.id);
   }
 }
 

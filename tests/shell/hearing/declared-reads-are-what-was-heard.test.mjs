@@ -511,6 +511,8 @@ test("the kinds name every table the database tells a workspace of, each in exac
     "billing",
     "brought",
     "rehearsal",
+    "ad_account",
+    "ad",
   ]);
 });
 

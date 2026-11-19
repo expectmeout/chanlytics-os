@@ -45,3 +45,55 @@ Looked at only. Nothing was ticked, saved or requested. Ruben signed in, and the
 
 The app's secret, any token, and anything on the two other apps beyond whether they hold a saved sign-in (they hold
 none).
+
+## 19 November 2026 · Meta's own pages, read before Connect was built
+
+Read only, on Meta's public pages for developers. No sign-in was used and nothing was asked of Meta. Each line is what
+a page says; what an account shows is still to be seen when Connect first runs on Ruben's own.
+
+### What they showed
+
+| Looked at | What it showed |
+|---|---|
+| An ad account | Its standing is a number Meta lists: active, disabled, unsettled, under review, in a grace period, closing or closed. It names its payment method, or none; with none an ad can be made and is never shown. It says its own spending limit, and none where there is none |
+| An ad | One word for whether it runs, of the twelve Chanlytics already reads. Its budget is on the campaign or on the part under it that says who sees it, as a daily amount or a total, with what is left of it. A campaign can also let its parts pass budget between them |
+| What an ad opens | Said on the part that says who sees it: WhatsApp, Messenger, an Instagram chat, a website, an app, a form on the ad, or a mix of chats |
+| Money | Meta counts some currencies in whole units where the world's own list counts cents (the forint, the rupiah, the Colombian and Costa Rican pesos, the Taiwan dollar), and two in hundredths where the list counts thousandths (the Bahraini and Jordanian dinars) |
+| Meta's pace | As the plan reads it: a score of 60 an ad account, a read 1 and a write 3, easing over five minutes; one change to the same ad every 30 seconds; an amount changed four times an hour |
+| Notices of a change | Meta sends one when an ad's standing changes, a refusal by its check and a return to running among them. It says which ad changed and not what to: the ad is then read. A notice needs the app to ask for them once, and each ad account to be joined to the app with the business's own sign-in |
+| Withdrawing access | Meta's page for the kind of sign-in Chanlytics uses gives an app a way to end a sign-in itself, with its own key and the sign-in it ends. A business can also remove an app in its Business settings, under Integrations |
+| Linking a Page to a WhatsApp number | Through Meta's interface it takes a code that Meta sends to the number. It is not one press |
+
+### What it settles
+
+- **Meta's notice covers its check of an ad** (the plan's section 8). The read on a clock stays as the backstop.
+- **Chanlytics can ask Meta to withdraw access with its own key** (the plan's C2), on the page. It needs the sign-in
+  itself to name what is withdrawn. So after a disconnect the sign-in is kept for that one question, used for nothing
+  else, and dropped when Meta confirms.
+- **"Link them" opens Meta** in step 2. Chanlytics looks again when the owner comes back, as for every other check.
+
+### What it changes in the build
+
+- **Money is converted where Meta's answers are read,** from Meta's units to each currency's own, and nowhere else.
+- **A disconnect asks Meta to withdraw access only where no other connection of the same business would lose it.**
+  Whether the sign-in for ads and the sign-in for Instagram are one at Meta is not on any page. Until it is seen on an
+  account, a business that also has Instagram connected keeps its sign-in at Meta, and the page says where to remove
+  Chanlytics there.
+- **Two settings at Meta wait for Ruben's word,** beside the saved sign-in: the address Meta sends an ad account's
+  notices to, and the address it calls when a business removes the app.
+
+### Not looked at
+
+Any account, any ad, any token. Nothing here was seen on a real account.
+
+### To see on the first real account, found on review (19 November)
+
+- **Days of an ad archived inside the window.** Meta's insights page says a list at the ad level leaves archived and
+  deleted ads out unless a filter names them. The read asks for no such filter, so an ad archived inside the thirty
+  days may bring no days, and is then not adopted by them. To see: whether its days arrive, and if not, the filter
+  Meta's page gives, tried on one call before it is relied on.
+- **Who Meta names when a business removes the app.** The address Meta calls names a person. The id kept at Connect is
+  the one Meta's description of the token gives, which for a business's own token may be another id. If the two differ
+  the call matches nobody, and the next read marks the account all the same, within the hour.
+- **The ad account's own "allowed to run ads" list** is not asked for yet: an owner who loses that at Meta sees reads
+  fail ("Couldn't update") and not the reason.

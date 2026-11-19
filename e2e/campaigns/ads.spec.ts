@@ -119,7 +119,8 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
 
     await expect(page.getByTestId(NOTE)).toHaveText(`${EXAMPLE.preview.word} ${EXAMPLE.preview.today}`);
     await expect(page.getByTestId("ads-example")).toContainText(EXAMPLE.preview.pill);
-    await expect(page.getByTestId("ads-platform-meta")).toBeVisible();
+    // The ad account's card stands beside the hero, whether or not Connect is offered here.
+    await expect(page.getByTestId("ads-conn")).toBeVisible();
     expect(asked, "the report is read once").toHaveLength(1);
     expect(
       early,

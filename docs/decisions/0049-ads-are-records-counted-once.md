@@ -3,7 +3,8 @@
 **Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Steps P0a and P0b are built
 (18 November 2026: migration 00644, an ad tap keeps what the ad said; migration 00645, the `ads` permission, with the
 shared rules, the one Meta client and the one sign-in state helper), and so is call 2's line on a page (migration
-00646: a person's page and the Ads page name the ad someone came through); the other steps are not. Four
+00646: a person's page and the Ads page name the ad someone came through). Of step P1 the records are built
+(19 November 2026: migration 00648, `ad_accounts`, `ads` and `ad_days`); the rest of it is not. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on
@@ -345,3 +346,186 @@ kept.
 - **What the report counts, it counts as before.** The people report reaches on WhatsApp, SMS, email and calls. A
   person who first wrote on Instagram after tapping an ad is stamped `ad`, and is in neither the report's "An ad" nor
   this split until the report counts Instagram. That is the report's, and is not changed here.
+
+## As built, 19 November 2026 · The records under Connect
+
+The first part of step P1 was built on 19 November 2026 (`supabase/migrations/00648_a_business_s_ads_are_kept.sql`):
+three tables and an account's token, with no door yet. Nothing a customer sees changes with it. Where it is not as the
+Shape above first drew it, it is said here.
+
+- **No `credentials_ref`, and no column grant.** The Shape drew a pointer to the token on the account's row and a grant
+  that hid it from members. A token's secret is named for its account (`ad-creds-<account id>`), so the pointer said
+  nothing the id does not, and writing it made the token's function a second writer of the account. Three functions
+  keep the token (`ad_credentials_put`, `_get`, `_drop`), the service role's alone, and they write no table. A member
+  reads the whole row, and nothing on it says where a token is kept.
+- **Which account is which.** A workspace holds one live account a platform; one it disconnected stays, with its ads,
+  so what those ads brought keeps its name, and connecting the same account again finds its row. A platform's account
+  is held by one workspace while it is connected or its access was only taken back by the platform; the owner's
+  disconnect lets it go.
+- **`standing` and `config` are the platform's facts, not the checks.** `standing` holds typed words for what the
+  platform says of the account itself (for Meta: whether it is active, and whether it has a payment method). `config`
+  holds the platform's ids and facts beside it: the business, the Page the ads run as, the number that Page is linked
+  to, the account's own spending limit. The five checks a card draws (the plan's G2) are read from the two in one
+  place in contracts, with what Chanlytics knows itself: which number AI answers.
+- **An ad's `door` is wider than the three an ad made here can have.** An ad found in the owner's account can open a
+  website, Messenger or an Instagram chat. The column says what a tap opens (`whatsapp`, `instagram`, `messenger`,
+  `call`, `form`, `website`, `other`), and a page counts people only where the tap ends in a message Chanlytics
+  receives.
+- **The budget an ad sits under** (the plan's C1) is five columns: its kind and amount, what the platform says is left
+  of a total, whether the campaign or the part under it holds it, and whether other ads spend from it.
+- **Three words, and two moments.** `status`, `intent` and `platform_state` are as drawn. `intent_at` and `told_at`
+  say when the owner last asked and when the platform was last told: an ask newer than the telling is on its way,
+  which is how a change made inside Meta's thirty seconds for one ad is kept and sent later.
+- **Not in this file.** The offer's snapshot, `copy`, `area` and `approved` arrive with the step that makes an ad here
+  (0050, P2), and so does `ad_objects`. `ad_days` holds no reach: it is not additive, and reading it costs a call of
+  Meta's small allowance that nothing draws yet.
+- **An entry and its ad are joined when read,** by the platform and its own id for the ad, which both hold.
+  `ad_entries.ad_id` stays unwritten, so an entry keeps its one writer (0031).
+- **Kept 25 months** is a promise once something removes a day at that age: the purge arrives with the read that first
+  writes a day, and `RETENTION_DAYS` names it then.
+
+## As built, 19 November 2026 · Connect
+
+The second part of step P1 (`supabase/migrations/00649_an_owner_connects_their_ad_account.sql`, the edge's
+`lib/ads/`, the dashboard's `src/server/ads/` and the card in `src/surfaces/campaigns/ads/connect/`). An owner presses
+Connect, signs in at Meta in Meta's own window, and the card says which ad account and Page were found and what each of
+the five checks reads. Where it is not as first drawn, it is said here.
+
+- **Meta's window, and the page behind it waits.** Connect opens Meta's sign-in in a window of its own, with the app's
+  saved sign-in for ads. The Ads page stays where it was and the card says it is checking; when the window closes the
+  card reads again. A browser that opens no window is taken to Meta in the same tab and comes back to the same page.
+- **Three doors write the account,** each with its event in the same transaction, each the service role's:
+  `ad_account_connect` (the owner's sign-in and, where two accounts could both be meant, their answer),
+  `ad_account_read_keep` (what a look at Meta learned) and `ad_account_revoked` (Meta took access back). The connect
+  door asks the `ads` permission itself, whoever knocked.
+- **Which account is meant** is decided on the edge (`lib/ads/pick.ts`): the Page is the one the business shared, or,
+  of several, the one whose WhatsApp number is the number AI answers; the account is the one that has run that Page's
+  ads. Only where two accounts are left is the owner asked, once, and the row waits as `choosing` until they answer.
+- **An account another workspace holds is refused,** in words that say where to disconnect it. A second account beside
+  one connected is refused too: changing accounts is Disconnect, then Connect.
+- **Every call to Meta is sent once.** The ads interface counts every call against a small allowance (60 points an
+  account, decaying over five minutes), so a call that fails is not sent again by the client: the account keeps what
+  Meta said of its pace (`usage_pct`, `read_after`) and nothing asks before `read_after`. It has its own breaker name
+  (`meta_ads`), so a slow ads interface never holds back a customer's message.
+- **Money is converted in one place.** Meta counts some currencies in other units than the standard does (whole pesos
+  for COP, hundredths for BHD). The wire (`packages/channels/src/ads/meta-account.ts`) converts to the standard's
+  minor units, and nothing after it sees Meta's.
+- **"Link them" opens Meta.** Linking a Page to a WhatsApp number needs a code Meta sends to that number, so it is not
+  one press of ours. The card opens Meta's page for it and looks again when the owner is back.
+- **Meta's call when an owner removes Chanlytics** (`apps/edge/api/ads/deauthorize.ts`) is signed with the app's secret
+  and names the person at Meta, never the account. Every account that person connected is marked signed out, and the
+  next read of each confirms it.
+- **Where Connect shows** (D7) is a list on the edge, `ADS_WORKSPACES`, beside the saved sign-in's id
+  (`META_ADS_CONFIG_ID`) and the address Meta returns to (`META_ADS_REDIRECT_URI`). With any of the three unset the
+  card says the account is not connected and offers nothing.
+- **Activity has a family, Ads,** for the account's events and the presses to come.
+- **The saved sign-in asks five permissions** (`ads_read`, `ads_management`, `pages_manage_ads`,
+  `pages_read_engagement`, `pages_show_list`; made 19 November at Meta, ad accounts required, Pages not) and not
+  `instagram_basic`. So a Page's Instagram account is asked only where the sign-in may read it: asked without the
+  permission, the field can cost the whole answer. Where it may not, the card says nothing of Instagram.
+
+## As built, 19 November 2026 · Money has one count on every runtime
+
+Call 9 keeps an amount as whole minor units of its currency. `minorPerUnit` (contracts `ads/money.ts`) first read how
+many make a unit from the runtime's own currency table (Intl). That table moves between versions: the forint and the
+Colombian peso hold a hundred in the data Node 22 ships and one in Node 24's, which CI showed on this step's first
+run. An amount is kept by one runtime and read by another (the edge writes what an ad spent, a browser of any age
+says it), so an amount kept under one count and read under the other would be a hundred times off. The rule is now
+ISO 4217's own list, written in the module: the same on every runtime, before any real amount is kept. Nothing changes
+for a currency every table agrees on (the dollar, the euro, the pound, the yen).
+
+## As built, 19 November 2026 · Reading
+
+The third part of step P1 (`supabase/migrations/00650_an_account_s_ads_are_read_on_a_clock.sql`, the wire in
+`packages/channels/src/ads/meta-read.ts`, the read in `apps/edge/lib/ads/`). A connected account's ads appear on their
+own, with what each spent, and stay true without anyone pressing anything. Where it is not as the Shape first drew it,
+it is said here.
+
+- **Each account is its own job, `ad_read`.** The clock (`ads-sweep`, every five minutes, only while an account is
+  connected) reads no platform: it hands each account whose row says a read is due its job, one an account, an hourly
+  read spread over five minutes by a hash of the account. The three paces are one read at three depths, chosen by the
+  account's own row: every hour the three days Meta is still counting; every fifteen minutes while an ad is being
+  checked or is in its first two days; and once a day, at four in the morning in the account's zone, the last fourteen
+  days, which marks the days before them settled. An account's first read looks back thirty days.
+- **One door keeps a read, whole or not at all** (`ads_read_keep`): the account's facts, each ad, each day, the days
+  now settled and the next read's time, in one transaction. A read that stops part way writes none of it: the account
+  keeps why, the page keeps its last good numbers, and the read is due again in fifteen minutes or when Meta allows.
+- **A read that keeps failing is tried less and less often.** Its next try waits half as long as the account has gone
+  without a good read, from fifteen minutes up to a day, read from the account's own row (nothing counts the tries).
+  A call Meta refuses counts against the app, so one it will keep refusing is not sent every quarter of an hour. A
+  good read, or the owner's own look from the card, starts the hourly pace again, and the card's look asks for the
+  ads' read at once where the reads had been failing.
+- **A connected account whose token is not kept is marked signed out** (`how: no_token`): no try mends it, and the
+  page then says the one thing that does, Connect again.
+- **The most one read takes** is five hundred ads and three thousand ad-days. Past either it keeps what it read and
+  says what it could not vouch for (`cut` on the read's line): whether an ad has its budget to itself is left unsaid,
+  so it is never turned back on from here; and the days are left open, never marked settled, so a figure built on them
+  says "so far". The hourly read's three days always fit.
+- **Which ads are adopted** (the plan's G3): every ad Meta lists that is not archived or deleted, up to five hundred;
+  every ad this workspace already holds that the list no longer names, asked for by name, so one archived since says
+  so; and every ad a day in the window names, so one that ran and was archived is still counted.
+- **The budget an ad sits under** is read from the ad set, or from the campaign above it where the ad set holds none.
+  It is shared where another ad that is not gone sits under the same holder.
+- **What the owner asked of an adopted ad follows Meta** (on, paused, ended), unless a press of theirs here is still on
+  its way to Meta: that press wins until Meta is told.
+- **A day** holds what the ad spent, how often it was shown, the taps that opened what it leads to, and Meta's own
+  count of what the ad asks for: the chats it says were started for an ad that opens a chat, the forms for one that
+  opens a form, nothing for any other.
+- **Meta's pace is kept, not tested.** Every answer's usage figures are read. At three quarters of an allowance the
+  read stops before its next question, so what is left is there for an owner's press. A call Meta slows ends the read:
+  the account keeps the moment before which it is not asked again, the job ends well, and nothing sends the same calls
+  twice.
+- **Meta's notices are heard at `/api/ads/meta`,** believed only under Meta's signature. A notice only says where to
+  look: the account it names is asked for its read, no sooner than two minutes after its last, and what changed is read
+  from Meta, never taken from the notice. An account is subscribed by its daily read, where its sign-in may change ads.
+- **The clock holds each workspace it hands a read to.** Its one statement takes, first, the lock a job's own
+  reference to its workspace takes. A workspace being removed at that moment is passed over; without it, one workspace
+  leaving in the same instant refused the statement, and with it every other account's read for that turn (CI met
+  this on 19 November, between two suites).
+- **A read that waits is brought forward, never doubled.** One read an account waits or runs at a time. Where a notice,
+  a press that Meta will take in thirty seconds, or a change Meta gave no answer to asks for the read while one waits
+  for a later moment (the clock spreads an hourly read over five minutes; a failing one waits longer), that read's
+  time is moved up to the ask's.
+- **`ad_days` is not on the live feed.** The Shape drew it as a table notice of its own. A read moves the account's
+  `read_at` in the same transaction, and a page that hears the account reads the days again: one notice a read.
+- **Events.** `ad.state_changed`, only where Meta's word for an ad moved. An ad seen for the first time writes none: a
+  hundred adopted ads are not a hundred lines of Activity.
+- **Kept 760 days**, about 25 months (`RETENTION_DAYS.ad_days`, `purge_ad_days` nightly, said on the privacy page).
+- **Not built here:** reach, which is not additive and nothing draws yet. And one real hourly read of a real account
+  has not been timed: that waits for the saved sign-in, and is owed before the loop is relied on (the plan's 6.6).
+
+## As built, 19 November 2026 · The page, and Reports
+
+The last parts of step P1 (`supabase/migrations/00651_the_ads_page_counts_the_people_an_ad_brought.sql`, the readers
+in `apps/dashboard/src/server/readers/ads-page.ts`, the page in `apps/dashboard/src/surfaces/campaigns/ads/live/`).
+With an account connected, Campaigns › Ads is the owner's own ads: each with where it stands, what Meta says it spent,
+who Chanlytics counts it brought and who of them booked. Where it is not as first drawn, it is said here.
+
+- **The people are counted in the database, whole, and they are Reports' people.** `ad_people_in` is the one place the
+  page's people come from: a first moment in the window, reached the business in it, alive, not merged away, first
+  touch an ad. That is the set `people_series` counts under "An ad", written the same way, and a database test holds
+  the two equal: the page's ads plus the unnamed line is Reports › People's number.
+- **Every one of them is on the page, whichever ad holds them.** An ad the counts name that the account's list of
+  five hundred did not hold is read by its id and listed. An ad of an ad account the workspace connected before this
+  one is not this page's to list, and its money may be in another currency: its people are counted in the head and
+  said on one quiet line of their own ("came from an ad in an ad account you connected before this one"), and its
+  spend is in no sum.
+- **Booked is read from the visits record** (`appointments`, decision 0002), which holds the calendar feed's visits
+  too: a visit that starts after the first touch and is neither cancelled nor only asked for, theirs by the record's
+  own link or, where a visit names no person, by its number or address. A workspace with no visits in the record
+  shows no bookings.
+- **Two readers, not six.** `adsPage` answers the page, an ad's drawer and Reports › Ads from one read, so the three
+  cannot disagree; `adPeople` lists one ad's people, fifty at a time. `adAccounts` and `adChecks` are the card's one
+  reader (`adAccount`).
+- **The page is a new, small one beside the mockup, as the canvas draws it,** not the mockup re-fed: the mockup's model
+  is built on an ad made here (its offer, its area, its words), which an ad found in Meta does not have. A demo
+  session still draws the mockup. The mockup's pieces the plan lists to remove are not removed yet.
+- **A page counts thirty days,** the same thirty wherever it is drawn. Reports › Ads does not follow the report's
+  period yet.
+- **The page reads when it opens, when the owner comes back to the tab, and after a press.** It does not hear the
+  live feed yet: the tables are told (00650) and the kinds are declared, and registering the surface is owed.
+- **An ad's name** is its own once Chanlytics holds it (`ad_named` reads `ads.name` first), so a person's page, the
+  report and the Ads page say one name.
+- **Not built in this step:** AI's one line and the amber line for who is waiting (they arrive with the step that
+  makes an ad, and with 0048's waits), the page's keyboard cursor, and "their numbers" beyond spend, shown, taps and
+  Meta's own count.

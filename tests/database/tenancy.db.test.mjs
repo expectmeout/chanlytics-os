@@ -76,6 +76,9 @@ async function seed(table, row, pick = "id") {
 
 /** An ad's entry (00644), but for its workspace and its message: members read theirs, and only its one door writes. */
 const AD_ENTRY = { platform: "meta", platform_ad_id: "tenancy-ad", kind: "chat", new_person: false };
+/** An owner's ad account and one of its ads (00648): members read theirs, and only their doors write. */
+const AD_ACCOUNT = { platform: "meta", status: "disconnected" };
+const AD = { platform: "meta", origin: "platform", name: "Tenancy ad", door: "whatsapp", status: "made", intent: "on" };
 /** Rows some tables get from the workspace's own creation (00017 provisions them). */
 async function ensure(table, row) {
   const has = await db.from(table).select("tenant_id").eq("tenant_id", A).limit(1);
@@ -397,6 +400,9 @@ before(async () => {
     name: "tenancy-clip.mp4",
   });
   await seed("ad_entries", { tenant_id: A, message_id: ctx.message, ...AD_ENTRY }, null);
+  ctx.adAccount = await seed("ad_accounts", { tenant_id: A, ...AD_ACCOUNT, external_id: "tenancy-act-1" });
+  ctx.ad = await seed("ads", { tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "tenancy-ad-1" });
+  await seed("ad_days", { tenant_id: A, ad_id: ctx.ad, day: "2026-11-01" }, null);
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -1034,6 +1040,9 @@ const TENANT_TABLES = {
     }),
   ],
   ad_entries: ["member", () => ({ tenant_id: A, message_id: ctx.message2, ...AD_ENTRY })],
+  ad_accounts: ["member", () => ({ tenant_id: A, ...AD_ACCOUNT, external_id: "stranger-act" })],
+  ads: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "stranger-ad" })],
+  ad_days: ["member", () => ({ tenant_id: A, ad_id: ctx.ad, day: "2026-11-02" })],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],

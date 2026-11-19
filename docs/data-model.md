@@ -16,7 +16,10 @@ what the script writes.
 
 | Table | Owned by | Row-level security |
 | --- | --- | --- |
+| [`ad_accounts`](#ad_accounts) | `packages/db/src/repositories/ads/accounts.ts` | on, 1 policy |
+| [`ad_days`](#ad_days) | none | on, 1 policy |
 | [`ad_entries`](#ad_entries) | none | on, 1 policy |
+| [`ads`](#ads) | `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
@@ -153,6 +156,80 @@ Named in a `.from("…")` in `packages/db/src` and not a table or view here: `me
 
 ## Tables
 
+### ad_accounts
+
+The owner's own ad account on one platform, connected once (decision 0049, 00648): the platform and its id for the account, its name, currency (ISO 4217) and time zone (IANA), where the connection stands, what the platform says the account stands on, the platform's own ids beside it, who connected it and when, and how its last read went. Its token is a Vault secret, ad-creds-<id>, reached only through ad_credentials_put, _get and _drop: no column holds it or says where it is. One live account a platform in a workspace, and a platform's account is held by one workspace at a time. Members read; every write is a door's.
+
+- Owned by: `packages/db/src/repositories/ads/accounts.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `platform` | text | no |  |  |
+| `external_id` | text | yes |  |  |
+| `name` | text | yes |  |  |
+| `currency` | text | yes |  |  |
+| `timezone` | text | yes |  |  |
+| `status` | text | no |  | choosing: signed in, and two accounts could both be the one, so the owner is asked. connected: read, and its ads can be paused. revoked: the platform took access back (revoked_at); the last numbers stay, and nothing is read or changed until it is connected again. disconnected: the owner disconnected it (disconnected_at); its ads stay as they last were. |
+| `standing` | jsonb | no | `'{}'::jsonb` | What the platform says the account stands on, in typed words only: for Meta, account (active, disabled, unsettled, review, grace, closing, closed) and funding (ok, none). Empty until the first read. A check a page draws is read from this and from config in one place (contracts). |
+| `config` | jsonb | no | `'{}'::jsonb` | The platform's own ids and facts beside the account, one shape a platform, read by contracts: for Meta the business portfolio, the Page the ads run as and its name, the WhatsApp number and the Instagram account that Page is linked to, the account's own spending limit and its least daily amount, the accounts to choose from while one is to be chosen, and what its token was granted. Never a token. |
+| `token_expires_at` | timestamp with time zone | yes |  |  |
+| `connected_by` | uuid | yes |  |  |
+| `connected_at` | timestamp with time zone | yes |  |  |
+| `revoked_at` | timestamp with time zone | yes |  |  |
+| `disconnected_at` | timestamp with time zone | yes |  |  |
+| `withdrawn_at` | timestamp with time zone | yes |  | When the platform confirmed that Chanlytics' access is withdrawn there, after a disconnect. Null until it does: until then a page says where the owner can remove Chanlytics themselves, and never that access is withdrawn. |
+| `read_at` | timestamp with time zone | yes |  |  |
+| `read_error` | text | yes |  |  |
+| `usage_pct` | numeric(5,2) | yes |  |  |
+| `usage_at` | timestamp with time zone | yes |  |  |
+| `read_after` | timestamp with time zone | yes |  | The moment before which the platform is not asked about this account again: its own word of when a slowed caller may return, or what its usage figures leave. Null where nothing holds a read back. |
+| `notices_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `next_read_at` | timestamp with time zone | yes |  | When the account is next read at its platform (00650): written by each read, an hour on, or fifteen minutes on while one of its ads is being checked or is in its first two days. Null until its first read, which is due at once. |
+| `settle_at` | timestamp with time zone | yes |  | When the account's next fourteen-day look back is due (00650): once a day, at four in the morning in its own zone. The read that finds it due re-reads those days and marks the ones before them settled. |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ad_accounts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### ad_days
+
+The platform's day for one ad, in the account's own zone (decision 0049 call 3, 00648): what it spent, in whole minor units of the account's currency, how often it was shown and tapped, and the platform's own count of what the ad asks for. The platform's half only: who an ad brought and who booked are worked out from contacts and the visits record at each read and kept nowhere. Kept 25 months. Members read; the read's door writes.
+
+- Owned by: none
+- Primary key: `ad_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `tenant_id` | uuid | no |  |  |
+| `ad_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `spend_minor` | bigint | no | `0` |  |
+| `impressions` | bigint | no | `0` |  |
+| `clicks` | bigint | no | `0` |  |
+| `platform_results` | bigint | yes |  |  |
+| `read_at` | timestamp with time zone | no | `now()` |  |
+| `settled` | boolean | no | `false` | Whether the platform's numbers for the day have stopped moving. A platform keeps correcting a day for about two weeks, so a figure with an unsettled day in it says "so far" (contracts adCostRule). |
+
+Foreign keys:
+
+- `tenant_id`, `ad_id` → [`ads`](#ads) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ad_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
 ### ad_entries
 
 One row each time someone reaches a workspace through an ad (decision 0049, 00644): the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Its person is its message's. Written by one door, ad_entry_keep: opened by the first-touch trigger in the message's own transaction, its words kept by the edge afterwards. It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
@@ -184,6 +261,54 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ad_entries_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### ads
+
+An ad as its owner thinks of it (decision 0049, 00648): its account and platform, whether Chanlytics made it or the owner did on the platform itself, its name, what a tap on it opens, the platform's own ids, the budget it sits under, when it starts and ends, what it says, and three words side by side: where Chanlytics is with making it (status), what the owner last asked of it (intent) and the platform's own word (platform_state). The badge a page says is read from the three by contracts adStateOf and kept nowhere. Money is whole minor units of its account's currency. Members read; every write is a door's.
+
+- Owned by: `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `account_id` | uuid | no |  |  |
+| `platform` | text | no |  |  |
+| `origin` | text | no |  | chanlytics: made here, on the owner's press. platform: found in the owner's account and adopted (0049, call 10): drawn, counted, and open to Pause alone, and to Resume only where its budget is a total with an end date that it has to itself (0050, call 9). |
+| `name` | text | no |  |  |
+| `door` | text | no |  | What a tap on the ad opens: a WhatsApp chat, an Instagram chat, a Messenger chat, a call, a form, a website, or something else. People are counted for an ad only where the tap ends in a message Chanlytics receives; for the others the page shows the platform's spend and says that its people are not counted. |
+| `platform_ad_id` | text | yes |  |  |
+| `platform_set_id` | text | yes |  |  |
+| `platform_campaign_id` | text | yes |  |  |
+| `budget_kind` | text | yes |  |  |
+| `budget_minor` | bigint | yes |  |  |
+| `budget_left_minor` | bigint | yes |  |  |
+| `budget_at` | text | yes |  |  |
+| `budget_shared` | boolean | yes |  | Whether other ads spend from the budget this ad sits under (a campaign's budget over several ads, or one the platform lets its parts pass between them). True means what is left is not this ad's alone. Null where the platform has not been read. |
+| `starts_at` | timestamp with time zone | yes |  |  |
+| `ends_at` | timestamp with time zone | yes |  |  |
+| `status` | text | no |  |  |
+| `intent` | text | no |  |  |
+| `platform_state` | text | yes |  | The platform's own word for the ad, kept as the platform gave it (Meta's effective_status: ACTIVE, PAUSED, PENDING_REVIEW, DISAPPROVED and the rest). Read into Chanlytics' words by contracts adStateOf: a word it does not know is never read as running. |
+| `platform_issue` | text | yes |  |  |
+| `said` | jsonb | yes |  |  |
+| `version` | integer | no | `1` |  |
+| `intent_at` | timestamp with time zone | yes |  | When the owner last asked something of the ad here (a pause, a resume). Later than told_at means the platform has not been told yet: it is told when it will take the change, and the page says so until then. |
+| `told_at` | timestamp with time zone | yes |  |  |
+| `read_at` | timestamp with time zone | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `account_id`, `platform` → [`ad_accounts`](#ad_accounts) (`tenant_id`, `id`, `platform`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ads_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ai_usage
 

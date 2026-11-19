@@ -7,8 +7,17 @@
  * schema-sets.ts holds every hand-kept list to it at compile time.
  */
 export const SCHEMA_SETS = {
+  "ad_accounts.platform": ["meta", "google", "tiktok"],
+  "ad_accounts.status": ["choosing", "connected", "revoked", "disconnected"],
   "ad_entries.kind": ["chat", "number", "call"],
   "ad_entries.platform": ["meta", "google", "tiktok"],
+  "ads.budget_at": ["campaign", "set"],
+  "ads.budget_kind": ["total", "daily"],
+  "ads.door": ["whatsapp", "instagram", "messenger", "call", "form", "website", "other"],
+  "ads.intent": ["on", "paused", "ended"],
+  "ads.origin": ["chanlytics", "platform"],
+  "ads.platform": ["meta", "google", "tiktok"],
+  "ads.status": ["draft", "sending", "failed", "made"],
   "ai_usage.outcome": ["answered", "fell_back", "refused", "rejected", "unreachable", "unreadable"],
   "ai_usage.port": ["anthropic", "typesafe", "google", "elevenlabs"],
   "ai_usage.purpose": [
@@ -73,7 +82,7 @@ export const SCHEMA_SETS = {
   "decisions.subject_type": [
     "conversation", "escalation", "draft", "lead", "message", "agent", "membership", "invitation",
     "contact", "call", "channel", "broadcast", "playbook", "review", "workspace", "deal", "list",
-    "appointment", "sequence",
+    "appointment", "sequence", "ad_account", "ad",
   ],
   "decisions.verb": [
     "approve", "edit", "decline", "snooze", "wake", "take_over", "hand_back", "resolve", "archive",
@@ -84,6 +93,7 @@ export const SCHEMA_SETS = {
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
     "change_playbook", "mark_visit", "change_step", "leave_sequence", "make_sequence",
     "discard_sequence", "answer_booking_request", "return_to_sequence", "not_a_customer", "reply_anyway",
+    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",
@@ -115,9 +125,9 @@ export const SCHEMA_SETS = {
   "imports.state": ["queued", "running", "done", "failed"],
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
-    "booking_read", "broadcast_send", "calendar_read", "campaign_moments", "canary", "email_ingest",
-    "erasure_finish", "event_deliver", "file_fetch", "file_look", "file_purge", "google_read",
-    "history_import", "inbound_answer", "instagram_read", "lead_check", "lead_collect",
+    "ad_read", "booking_read", "broadcast_send", "calendar_read", "campaign_moments", "canary",
+    "email_ingest", "erasure_finish", "event_deliver", "file_fetch", "file_look", "file_purge",
+    "google_read", "history_import", "inbound_answer", "instagram_read", "lead_check", "lead_collect",
     "lead_round_start", "line_provision", "outbound_send", "piece_make", "post_google", "post_prepare",
     "post_publish", "post_reconcile", "preview_build", "push_receipts", "push_send", "reach_out_steps",
     "reply_draft", "reply_read", "sequence_occasions", "source_read", "source_take", "source_walk",
@@ -197,7 +207,7 @@ export const SCHEMA_SETS = {
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
     "reach_out_day", "booking_notice", "opted_out", "booking", "member_joined", "member_left",
     "note_to_keep", "reply_held", "ask_cards", "website_form", "files_waiting", "video_ready", "post_up",
-    "post_stopped", "preview_tried",
+    "post_stopped", "preview_tried", "ad_account",
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": [

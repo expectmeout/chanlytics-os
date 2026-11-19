@@ -526,6 +526,13 @@ async function sourceRead(ctx: JobContext, job: ClaimedJob): Promise<void | { sk
   return "skipped" in answer ? answer : undefined;
 }
 
+/** ad_read: one read of a connected ad account at its platform, through what the edge injects (00650). payload: { account_id } */
+async function adRead(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.ads) throw new Error("ad_read: this runtime holds no ads reader");
+  const answer = await ctx.ads.read(job, ctx.deadline);
+  return "skipped" in answer ? answer : undefined;
+}
+
 /**
  * canary: the ledger's own proof that it runs (00526, decision 0089). It does nothing: that a row scheduled by pg_cron was
  * claimed, run and completed is the whole of what it proves, and sweep_status judges it by its newest done row, so
@@ -579,6 +586,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   sequence_occasions: sequenceOccasions,
   source_walk: sourceWalk,
   source_read: sourceRead,
+  ad_read: adRead,
   canary,
 };
 

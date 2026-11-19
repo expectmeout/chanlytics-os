@@ -90,6 +90,9 @@ const RECORDS = [
   { ref: { kind: "billing" }, route: "admin/billing" },
   // Settings › Files is Content's Library (the content redesign's stage 2).
   { ref: { kind: "file" }, route: "campaigns/content:library" },
+  // An ad opens its drawer on Campaigns › Ads (decision 0049, call 1); its account is connected on Connections.
+  { ref: { kind: "ad", id: ID }, route: `campaigns/ads:ad:${ID}` },
+  { ref: { kind: "ad_account" }, route: "admin/integrations", opens: { kind: "channel" } },
 ];
 
 test("every kind of record says where it opens, or why it opens nowhere, and never both", () => {
