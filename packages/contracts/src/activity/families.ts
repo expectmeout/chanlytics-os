@@ -117,6 +117,7 @@ type EventPrefix = (typeof EVENT_KINDS)[number] extends `${infer P}.${string}` ?
 
 const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   ad_account: "ads",
+  ad: "ads",
   message: "conversations",
   conversation: "conversations",
   escalation: "conversations",

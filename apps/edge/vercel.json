@@ -5,6 +5,9 @@
       "use": "@vercel/static-build",
       "config": {
         "functions": {
+          "api/admin/ads/account.ts": {
+            "maxDuration": 60
+          },
           "api/admin/billing.ts": {
             "maxDuration": 30
           },
@@ -175,6 +178,15 @@
           },
           "api/cron/sources.ts": {
             "maxDuration": 60
+          },
+          "api/cron/ads.ts": {
+            "maxDuration": 60
+          },
+          "api/ads/meta.ts": {
+            "maxDuration": 30
+          },
+          "api/ads/deauthorize.ts": {
+            "maxDuration": 30
           },
           "api/cron/texts.ts": {
             "maxDuration": 60

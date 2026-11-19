@@ -1,4 +1,14 @@
 /** Ads: an owner's own ad accounts and the ads they run (Campaigns › Ads), and the models and words their page draws. */
+export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./account";
+export type {
+  AdAccountCard,
+  AdAccountChoice,
+  AdAccountDto,
+  AdAccountStanding,
+  AdCardCheckId,
+  AdStanding,
+  MetaAdConfig,
+} from "./account";
 export {
   adRoute,
   ADS_ROUTE,
@@ -14,16 +24,6 @@ export {
   parseAds,
 } from "./address";
 export type { AdsAddress, AdsScope, AdStart } from "./address";
-export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./account";
-export type {
-  AdAccountCard,
-  AdAccountChoice,
-  AdAccountDto,
-  AdAccountStanding,
-  AdCardCheckId,
-  AdStanding,
-  MetaAdConfig,
-} from "./account";
 export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads";
 export type {
   AdAccountRead,

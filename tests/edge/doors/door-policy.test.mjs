@@ -78,6 +78,7 @@ const KNOCKS = {
   knockIsRelays: { from: "apps/edge/lib/files/takes/key-door.ts" }, // the key only the footage relay holds (FOOTAGE_KEY_DOOR_SECRET), before a ticket is read (00643)
   verifyChannelToken: { from: "apps/edge/lib/files/sources/channel.ts" }, // the token a Drive push channel was opened with, against its hash on the folder's row (00641)
   signedRequestOfMeta: { from: "apps/edge/lib/ads/deauthorize.ts" }, // Meta's signed request, under the Meta app's secret: a business removed the app (00649)
+  adsNoticeSigned: { from: "apps/edge/lib/ads/notices.ts" }, // Meta's HMAC over the raw body of a notice for an ad account, under the Meta app's secret (00650)
 };
 const ADMIN_AUTH = KNOCKS.authorizeAdmin.from;
 
@@ -94,6 +95,8 @@ const OPEN = {
   "GET /api/whatsapp": "Meta's handshake: the challenge is echoed only for WHATSAPP_VERIFY_TOKEN, compared in the door",
   "GET /api/instagram":
     "Meta's handshake: the challenge is echoed only for INSTAGRAM_VERIFY_TOKEN, compared in the door",
+  "GET /api/ads/meta":
+    "Meta's handshake: the challenge is echoed only for META_ADS_VERIFY_TOKEN, compared in the door's verb",
 };
 
 /**

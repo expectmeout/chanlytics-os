@@ -15,3 +15,5 @@ export {
 export type { AdAccountReadKept, AdAccountRow, AdAccountToConnect, AdConnectOutcome } from "./accounts";
 export { keepAdEntry, readAdNamed } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
+export { askAdRead, handOutAdReads, keepAdsRead, listHeldAdIds } from "./reads";
+export type { AdDayReadRow, AdReadRow, AdsReadKept, AdsReadOutcome } from "./reads";

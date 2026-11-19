@@ -229,6 +229,12 @@ export const JOB_KINDS = [
    */
   "source_walk",
   "source_read",
+  /**
+   * A connected ad account read at its platform (00650, decision 0049): its ads with the budget each sits under, and
+   * the platform's days for them. Payload { account_id }, once an account while one waits or runs, in the bulk lane,
+   * and written to be run again: every write is once an ad and once a day.
+   */
+  "ad_read",
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -355,6 +361,7 @@ export const EVENT_KINDS = [
   "ad_account.standing",
   "ad_account.revoked",
   "ad_account.disconnected",
+  "ad.state_changed",
   "file.added",
   "file.changed",
   "file.kept",

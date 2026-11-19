@@ -236,6 +236,7 @@ export const WORDS: Record<string, string> = {
   "ad_account.standing": "Meta changed what an ad account can do",
   "ad_account.revoked": "Meta signed Chanlytics out of an ad account",
   "ad_account.disconnected": "An ad account was disconnected",
+  "ad.state_changed": "Meta changed where an ad stands",
   "google.disconnected": "Google Business Profile was disconnected",
   "google.replied": "A Google review was answered",
   "google.reply_held": "A review reply was written and not posted",

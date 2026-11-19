@@ -45,12 +45,14 @@ export type Database = {
           external_id: string | null
           id: string
           name: string | null
+          next_read_at: string | null
           notices_at: string | null
           platform: string
           read_after: string | null
           read_at: string | null
           read_error: string | null
           revoked_at: string | null
+          settle_at: string | null
           standing: Json
           status: string
           tenant_id: string
@@ -71,12 +73,14 @@ export type Database = {
           external_id?: string | null
           id?: string
           name?: string | null
+          next_read_at?: string | null
           notices_at?: string | null
           platform: string
           read_after?: string | null
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          settle_at?: string | null
           standing?: Json
           status: string
           tenant_id: string
@@ -97,12 +101,14 @@ export type Database = {
           external_id?: string | null
           id?: string
           name?: string | null
+          next_read_at?: string | null
           notices_at?: string | null
           platform?: string
           read_after?: string | null
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          settle_at?: string | null
           standing?: Json
           status?: string
           tenant_id?: string
@@ -8911,6 +8917,16 @@ export type Database = {
         }
         Returns: Json
       }
+      ads_hand_out: { Args: { p_spread_seconds: number }; Returns: Json }
+      ads_read_ask: {
+        Args: { p_external_id: string; p_platform: string }
+        Returns: number
+      }
+      ads_read_keep: {
+        Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      ads_sweep_ask: { Args: never; Returns: number }
       ai_failures_hour: {
         Args: { p_min?: number }
         Returns: {
@@ -11684,6 +11700,7 @@ export type Database = {
         Returns: number
       }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
+      purge_ad_days: { Args: { p_keep?: string }; Returns: number }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
       purge_config_versions: { Args: { p_keep?: string }; Returns: number }
       purge_cron_history: {

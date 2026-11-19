@@ -32,6 +32,7 @@ import {
 } from "@chanlytics/channels/meta";
 import { callMetaAds } from "@chanlytics/channels/ads";
 import {
+  askAdRead,
   connectAdAccount,
   findLiveAdAccount,
   keepAdAccountRead,
@@ -54,7 +55,7 @@ import {
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
-import { logger } from "../shared/log.js";
+import { errField, logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { metaAppId } from "../whatsapp/meta-graph.js";
 import {
@@ -191,6 +192,17 @@ const choiceOf = ({ account, runsPage: ran }: AccountSeen): AdAccountChoice => (
   runs_page: ran,
 });
 
+/**
+ * An account just connected is read at once: its ads are on the page in the time a read takes, not at the clock's next
+ * turn. A read that cannot be asked for here is the clock's all the same, so its failure is a line and no refusal.
+ */
+async function readSoon(db: Db, log: Log, externalId: string | null): Promise<void> {
+  if (externalId === null) return;
+  await askAdRead(db, "meta", externalId).catch((failure: unknown) => {
+    log.error("ads_read_failed", { fault: "not_asked", error: errField(failure) });
+  });
+}
+
 /** The door's answer to what a connect came to. */
 function connectAnswer(log: Log, outcome: AdConnectOutcome, accountId: string | null): Response {
   if (outcome === "connected" || outcome === "choosing") {
@@ -247,6 +259,7 @@ async function connectAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId
     secret: { ...secret },
     chosen: false,
   });
+  if (connected.outcome === "connected") await readSoon(db, log, one?.id ?? null);
   return connectAnswer(log, connected.outcome, connected.accountId);
 }
 
@@ -276,6 +289,7 @@ async function chooseAds(db: Db, app: MetaApp, by: { tenantId: TenantId; userId:
     secret: secret as Json,
     chosen: true,
   });
+  if (connected.outcome === "connected") await readSoon(db, log, account.id);
   return connectAnswer(log, connected.outcome, connected.accountId);
 }
 

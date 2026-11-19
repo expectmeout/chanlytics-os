@@ -39,6 +39,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     model_turns: 30,
     model_prompts: 400,
     tenant_config_versions: 400,
+    ad_days: 760,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
@@ -80,6 +81,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     /What AI was shown when it wrote a reply, and what it answered, is kept for 30 days, and the instructions it was given for 400 days after they were last used\./,
   );
   assert.match(words, /A workspace's settings as they stood before a change are kept for 400 days after the change\./);
+  assert.match(words, /What an ad platform says each ad spent and was shown, day by day, is kept for 760 days\./);
   assert.match(
     words,
     /A voice conversation's session, which holds nothing of what was said, is removed the day after it expires\./,

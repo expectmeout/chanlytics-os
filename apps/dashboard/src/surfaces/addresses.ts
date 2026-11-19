@@ -26,6 +26,7 @@ import {
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
   isAdsParam,
+  parseAds,
   GET_YES_PARAM,
   GET_YES_ROUTE,
   messageOfRoute,
@@ -120,7 +121,7 @@ function opensCalendar(param: string): Opened | null {
 
 /**
  * What Campaigns' param opens: its Sequences view (0060: the list, a new one, and a sequence on one of its tabs, which is
- * the campaign or reach-out it is, as addressOf writes it), its Messages view, its Ads view (no ad is a record yet: 0049), its
+ * the campaign or reach-out it is, as addressOf writes it), its Messages view, its Ads view, where an ad's record opens in its drawer (0049), its
  * Content view (decision 0125), whose Library is where a file's record opens (Settings › Files once; the content redesign's
  * stage 2), else a message by its name or the composer.
  * The home's own addresses (`campaigns`, a group, a moment) are retired ones, read as the page that replaced them
@@ -128,7 +129,11 @@ function opensCalendar(param: string): Opened | null {
  */
 function opensCampaigns(param: string): Opened | null {
   if (param === "") return { view: "campaigns" };
-  if (isAdsParam(param)) return { view: "campaigns/ads" };
+  if (isAdsParam(param)) {
+    // An ad open in its drawer is the ad (decision 0049, call 1); every other Ads address is the view.
+    const ad = parseAds(param).ad;
+    return ad ? { ref: { kind: "ad", id: ad } } : { view: "campaigns/ads" };
+  }
   const content = contentPlaceOf(param);
   if (content) return content.list === "library" && !content.open ? { ref: { kind: "file" } } : { view: CONTENT_ROUTE };
   // A message at its home, the Library open on it (contracts messageRoute).

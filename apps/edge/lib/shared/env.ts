@@ -106,6 +106,10 @@ export const env = {
   get ADS_WORKSPACES() {
     return trimmedEnv(process.env.ADS_WORKSPACES);
   },
+  /** The token Meta's check of the ads notices' address must carry (/api/ads/meta); unset answers no check. */
+  get META_ADS_VERIFY_TOKEN() {
+    return trimmedEnv(process.env.META_ADS_VERIFY_TOKEN);
+  },
 
   // Retell AI and the lines under it
   get RETELL_API_KEY() {

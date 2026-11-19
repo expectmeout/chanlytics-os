@@ -12,6 +12,7 @@ import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
+import { ADS_ROUTE } from "../../ads/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
@@ -187,6 +188,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // folder another; a folder that cannot be read says so on its own row.
   source_walk: { stopped: "Couldn't list your folder", to: CONTENT_LIBRARY_ROUTE },
   source_read: { stopped: "Couldn't check your folder for new photos and videos", to: CONTENT_LIBRARY_ROUTE },
+  // A connected ad account's read (00650). Not sent (kinds.ts: the platform's to mend), and the clock hands the account
+  // another; an account that cannot be read says so on its own card.
+  ad_read: { stopped: "Couldn't update your ads", to: ADS_ROUTE },
   canary: { stopped: "The background work's own check didn't finish", to: "today" },
 };
 

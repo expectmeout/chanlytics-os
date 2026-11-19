@@ -112,6 +112,14 @@ function takeSettingOf(key, root = ROOT) {
  * its numbers out.
  */
 export const CAPACITY = {
+  // Each connected ad account its read, by its own row's time (00650): the clock reads no platform.
+  ads: {
+    job: "ads-sweep",
+    bound:
+      "None: it hands each connected ad account an `ad_read` when its own row says one is due, every five minutes, and reads no platform itself.",
+    atFull:
+      "An account is read once an hour, every fifteen minutes while one of its ads is being checked or is new, and never before the moment its platform says it may be asked again. The ledger's row is the limit.",
+  },
   calendar: {
     job: "calendar-people-sweep",
     bound: "None: it hands each workspace with a calendar due one `calendar_read`.",

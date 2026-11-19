@@ -89,6 +89,7 @@ test("a workspace's hourly job that failed for good pages once for its kind, how
     "sequence_occasions",
     "source_walk",
     "source_read",
+    "ad_read",
   ];
   for (const kind of handedOut) {
     const page = PAGES_THE_PLATFORM.get(kind);

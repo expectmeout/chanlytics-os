@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 187 | 187 |
 | reader | 78 | 0 |
-| the server's | 370 | 317 |
+| the server's | 375 | 322 |
 | computed column | 3 | 0 |
 | trigger | 104 | 74 |
-| all | 742 | 578 |
+| all | 747 | 583 |
 
 ## Called by nothing
 
@@ -48,7 +48,7 @@ being read is dropped by a migration.
 | Function | Kind | Who may call it | Called by | What it does |
 | --- | --- | --- | --- | --- |
 | `ad_account_connect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner's ad account connected (00649, decision 0049 step P1). |
-| `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: what a read of a connected ad account at its platform learned (00649, decision 0049). |
+| `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, decision 0049). |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, decision 0049): |
 | `ad_credentials_drop` | the server's | the server | SQL `ad_account_connect` | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
@@ -56,6 +56,10 @@ being read is dropped by a migration.
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
+| `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
+| `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, or a connect just finished (00650). |
+| `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, decision 0049). |
+| `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
 | `ai_shadow_agreement` | the server's | the server | nothing at run time | A second model's agreement with the primary over the last p_days, per purpose, question and port: |
 | `ai_usage_month` | reader | a signed-in person, the server | nothing at run time | A workspace's month of metered use, by meter, purpose and model: |
@@ -525,6 +529,7 @@ being read is dropped by a migration.
 | `provider_events_scrub` | the server's | the server | code `packages/db/src/repositories/events/provider-events.ts` | An erasure's hand on the intake ledger (decision 0032): |
 | `provision_tenant` | the server's | the server | code `packages/contracts/src/workspace/billing/dtos.ts`; SQL `provision_tenant_on_insert`; script `tooling/scripts/ops/e2e-workspace.mjs` | Idempotently give a tenant its policy matrix and an empty config row. |
 | `provision_tenant_on_insert` | trigger | the server | trigger `tenants_provision on tenants` |  |
+| `purge_ad_days` | the server's | the server | the clock, `purge-ad-days` | Nightly. Deletes a platform's day for an ad 760 days on, about 25 months (contracts RETENTION_DAYS.ad_days; |
 | `purge_ask` | the server's | the server | the clock, `purge-ask` | Drops Ask threads (and their messages) untouched for longer than p_keep (default 90 days). |
 | `purge_config_versions` | the server's | the server | the clock, `purge-config-versions` | Nightly. Deletes a workspace's old settings 400 days after they were replaced (contracts RETENTION_DAYS.tenant_config_versions; |
 | `purge_cron_history` | the server's | the server | SQL `sweep_health`; the clock, `purge-cron-history` | Bounds cron.job_run_details: |
@@ -616,7 +621,7 @@ being read is dropped by a migration.
 | `reply_was_typed` | the server's | the server | SQL `conversation_echo_settles`, `deadman_candidates` | Whether a person's reply on a thread at p_at was typed (00438): |
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
-| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ask_for_tick`, `sms_sweep_text_canary` and 19 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
+| `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ads_sweep_ask`, `ask_for_tick` and 20 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
 | `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 6 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
@@ -787,5 +792,5 @@ being read is dropped by a migration.
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |
 | `workspace_partner` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The owner's view of the workspace's partner (0018): |
 | `workspace_tell_at_commit` | trigger | the server | trigger `workspace_notices_told_at_commit on workspace_notices_pending` | Decision 0019 (00507): |
-| `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on appointments`, `workspace_tell_delete on billing_accounts` and 99 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
-| `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on contacts`, `workspace_tell_update on files` and 9 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |
+| `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on ad_accounts`, `workspace_tell_delete on ads` and 103 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
+| `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on ad_accounts`, `workspace_tell_update on ads` and 11 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |

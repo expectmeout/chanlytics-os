@@ -510,11 +510,29 @@
       "knock": "signedRequestOfMeta",
       "knock_in": "receiveAdsDeauthorize in apps/edge/lib/ads/deauthorize.ts"
     },
+    "GET /api/ads/meta": {
+      "wrapper": "door",
+      "verb": "answerAdsNoticeCheck in apps/edge/lib/ads/notices.ts",
+      "knock": null
+    },
+    "POST /api/ads/meta": {
+      "wrapper": "door",
+      "verb": "receiveAdsNotice in apps/edge/lib/ads/notices.ts",
+      "knock": "adsNoticeSigned",
+      "knock_in": "receiveAdsNotice in apps/edge/lib/ads/notices.ts"
+    },
     "POST /api/apify-webhook": {
       "wrapper": "door",
       "verb": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts",
       "knock": "tokenMatches",
       "knock_in": "receiveApifyDelivery in apps/edge/lib/leads/apify-delivery.ts"
+    },
+    "POST /api/cron/ads": {
+      "wrapper": "sweepDoor",
+      "sweep": "ads",
+      "verb": "sweepAds in apps/edge/lib/ads/sweep.ts",
+      "knock": "authorizeCron",
+      "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },
     "POST /api/cron/calendar": {
       "wrapper": "sweepDoor",

@@ -1,3 +1,4 @@
+import { adRoute } from "../ads/address";
 import { visitRoute } from "../calendar/appointment-key";
 import { pipelineRoute } from "../deals/pipeline/views";
 import { pipelineRowId } from "../deals/pipeline/vm";
@@ -66,7 +67,9 @@ export type RecordRef =
   | { kind: "channel" }
   | { kind: "team" }
   | { kind: "billing" }
-  | { kind: "file" };
+  | { kind: "file" }
+  | { kind: "ad"; id: string }
+  | { kind: "ad_account" };
 
 /**
  * The kinds of record that open nowhere, and why: the other half of RECORD_KINDS, so a kind added there says where it opens
@@ -87,6 +90,8 @@ export const RECORDS_WITHOUT_AN_ADDRESS = {
 /** Settings' panes a record kind is the whole of: the route is Settings' (`admin`), and the pane is the word after it. */
 const PANE = {
   channel: "admin/integrations",
+  // An ad account is connected once, and its home is Connections (decision 0049, call 1).
+  ad_account: "admin/integrations",
   team: "admin/team",
   billing: "admin/billing",
 } as const;
@@ -142,6 +147,11 @@ export function addressOf(ref: RecordRef): string {
     case "file":
       // Settings › Files is Content's Library now (the content redesign's stage 2).
       return CONTENT_LIBRARY_ROUTE;
+    case "ad":
+      // An ad opens its drawer on Campaigns › Ads, by Chanlytics' own id for it (decision 0049, call 1).
+      return adRoute(ref.id);
+    case "ad_account":
+      return PANE.ad_account;
   }
 }
 

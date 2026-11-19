@@ -419,3 +419,44 @@ the five checks reads. Where it is not as first drawn, it is said here.
   (`META_ADS_CONFIG_ID`) and the address Meta returns to (`META_ADS_REDIRECT_URI`). With any of the three unset the
   card says the account is not connected and offers nothing.
 - **Activity has a family, Ads,** for the account's events and the presses to come.
+
+## As built, 19 November 2026 · Reading
+
+The third part of step P1 (`supabase/migrations/00650_an_account_s_ads_are_read_on_a_clock.sql`, the wire in
+`packages/channels/src/ads/meta-read.ts`, the read in `apps/edge/lib/ads/`). A connected account's ads appear on their
+own, with what each spent, and stay true without anyone pressing anything. Where it is not as the Shape first drew it,
+it is said here.
+
+- **Each account is its own job, `ad_read`.** The clock (`ads-sweep`, every five minutes, only while an account is
+  connected) reads no platform: it hands each account whose row says a read is due its job, one an account, an hourly
+  read spread over five minutes by a hash of the account. The three paces are one read at three depths, chosen by the
+  account's own row: every hour the three days Meta is still counting; every fifteen minutes while an ad is being
+  checked or is in its first two days; and once a day, at four in the morning in the account's zone, the last fourteen
+  days, which marks the days before them settled. An account's first read looks back thirty days.
+- **One door keeps a read, whole or not at all** (`ads_read_keep`): the account's facts, each ad, each day, the days
+  now settled and the next read's time, in one transaction. A read that stops part way writes none of it: the account
+  keeps why, the page keeps its last good numbers, and the read is due again in fifteen minutes or when Meta allows.
+- **Which ads are adopted** (the plan's G3): every ad Meta lists that is not archived or deleted, up to five hundred;
+  every ad this workspace already holds that the list no longer names, asked for by name, so one archived since says
+  so; and every ad a day in the window names, so one that ran and was archived is still counted.
+- **The budget an ad sits under** is read from the ad set, or from the campaign above it where the ad set holds none.
+  It is shared where another ad that is not gone sits under the same holder.
+- **What the owner asked of an adopted ad follows Meta** (on, paused, ended), unless a press of theirs here is still on
+  its way to Meta: that press wins until Meta is told.
+- **A day** holds what the ad spent, how often it was shown, the taps that opened what it leads to, and Meta's own
+  count of what the ad asks for: the chats it says were started for an ad that opens a chat, the forms for one that
+  opens a form, nothing for any other.
+- **Meta's pace is kept, not tested.** Every answer's usage figures are read. At three quarters of an allowance the
+  read stops before its next question, so what is left is there for an owner's press. A call Meta slows ends the read:
+  the account keeps the moment before which it is not asked again, the job ends well, and nothing sends the same calls
+  twice.
+- **Meta's notices are heard at `/api/ads/meta`,** believed only under Meta's signature. A notice only says where to
+  look: the account it names is asked for its read, no sooner than two minutes after its last, and what changed is read
+  from Meta, never taken from the notice. An account is subscribed by its daily read, where its sign-in may change ads.
+- **`ad_days` is not on the live feed.** The Shape drew it as a table notice of its own. A read moves the account's
+  `read_at` in the same transaction, and a page that hears the account reads the days again: one notice a read.
+- **Events.** `ad.state_changed`, only where Meta's word for an ad moved. An ad seen for the first time writes none: a
+  hundred adopted ads are not a hundred lines of Activity.
+- **Kept 760 days**, about 25 months (`RETENTION_DAYS.ad_days`, `purge_ad_days` nightly, said on the privacy page).
+- **Not built here:** reach, which is not additive and nothing draws yet. And one real hourly read of a real account
+  has not been timed: that waits for the saved sign-in, and is owed before the loop is relied on (the plan's 6.6).

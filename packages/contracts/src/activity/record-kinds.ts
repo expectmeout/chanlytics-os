@@ -48,6 +48,9 @@ export const RECORD_KINDS = {
   brought: ["imports", "business_reads"],
   /** A conversation rehearsed, or a call reviewed (decision 0069). */
   rehearsal: ["rehearsals"],
+  /** An owner's ad account, and an ad in it (decision 0049): connected, read, signed out; adopted, moved, paused. */
+  ad_account: ["ad_accounts"],
+  ad: ["ads"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** A kind of record a page can draw. */

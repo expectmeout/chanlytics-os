@@ -62,9 +62,12 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 00594 added 'texts', the ten-minute read of each line's received texts from Twilio, and 00595 'text_canary', the daily
   // text to the platform's own line (the inbound review of 3 Nov 2026, B2 and D6).
   // 00641 added 'sources', the five-minute clock that hands each watched folder its read or its re-walk.
+  // 00650 added 'ads', the five-minute clock that hands each connected ad account its read, and 'purge_ad_days', the
+  // nightly purge of an ad platform's day for an ad, 760 days on.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
+      "ads",
       "calendar",
       "calls",
       "channel_quality",
@@ -85,6 +88,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "platform_metrics_roll",
       "playbooks",
       "previews",
+      "purge_ad_days",
       "purge_ask",
       "purge_client_errors",
       "purge_config_versions",
@@ -152,6 +156,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   const { data } = await db.from("sweep_status").select("sweep");
   // Every clock has a row now, the ones that run inside Postgres included.
   assert.deepEqual(data.map((r) => r.sweep).sort(), [
+    "ads",
     "calendar",
     "calls",
     "channel_quality",
@@ -172,6 +177,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "platform_metrics_roll",
     "playbooks",
     "previews",
+    "purge_ad_days",
     "purge_ask",
     "purge_client_errors",
     "purge_config_versions",
