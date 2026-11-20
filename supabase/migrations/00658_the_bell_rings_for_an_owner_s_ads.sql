@@ -251,6 +251,7 @@ declare
   v_rung   integer := 0;
   v_closed integer := 0;
   v_n      integer;
+  v_gone   record;
 begin
   select coalesce(a.timezone, 'UTC') into v_zone
     from public.ad_accounts a
@@ -262,22 +263,22 @@ begin
                    from public.ad_bell_causes(p_tenant_id, p_account_id, now()) c);
 
   -- A row whose cause no longer stands closes, for everyone: the ad fixed, paid for, turned back on, written from,
-  -- paused, or its total raised.
-  with closing as (
-    update public.notifications n
-       set closed_at = now()
-      from public.ads d
+  -- paused, or its total raised. Through the one door that closes rows (00421).
+  for v_gone in
+    select distinct n.kind, n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
      where n.tenant_id = p_tenant_id
        and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
        and n.closed_at is null
        and n.created_at >= now() - interval '30 days'
-       and n.subject_type = 'ad' and n.subject_id = d.id::text
+       and n.subject_type = 'ad'
        and d.tenant_id = p_tenant_id and d.account_id = p_account_id
        and not (n.kind || ':' || public.ad_bell_cause(n.kind, d.id, d.account_id, d.budget_at, d.platform_set_id,
                                                       d.platform_campaign_id) = any (v_now))
-    returning 1
-  )
-  select count(*) into v_closed from closing;
+  loop
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array[v_gone.kind], 'ad', v_gone.subject_id);
+  end loop;
   -- The account's own rows (00653) close with their cause too: a card Meta can charge again, and an account read
   -- again, which is one Meta signed back in.
   if not ('ad_unpaid:' || p_account_id::text = any (v_now)) then
@@ -339,14 +340,13 @@ begin
     v_rung := v_n;
   end if;
 
-  update public.ad_accounts a set rung_at = now() where a.id = p_account_id;
   return jsonb_build_object('rung', v_rung, 'closed', v_closed);
 end $$;
 
 revoke all on function public.ad_bell_ring(uuid, uuid, text[]) from public, anon, authenticated;
 grant execute on function public.ad_bell_ring(uuid, uuid, text[]) to service_role;
 comment on function public.ad_bell_ring(uuid, uuid, text[]) is
-  'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. Stamps ad_accounts.rung_at. Answers {rung, closed}. Service role; called by ads_read_keep.';
+  'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
 
 /* -------------------------------------------------- 6. the read measures before it keeps, and rings after -- */
 
@@ -363,6 +363,7 @@ declare
   v_moved   integer := 0;
   v_days    integer := 0;
   v_before  text[];
+  v_rang    boolean := false;
 begin
   select * into v_account from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id
@@ -480,19 +481,21 @@ begin
     -- last look where it was, so the next good read rings it; it never costs this read what it learned.
     begin
       perform public.ad_bell_ring(p_tenant_id, p_account_id, v_before);
+      v_rang := true;
     exception when others then
       raise warning 'ads_read_keep: %', sqlerrm;
     end;
   end if;
 
   -- When it is read next, and looked back over next: the edge's pace, never before the platform allows. Whether the
-  -- platform's notices are subscribed is kept as the read found it.
+  -- platform's notices are subscribed is kept as the read found it, and when the bell last looked, where it rang.
   update public.ad_accounts a
      set next_read_at = greatest(
            coalesce(nullif(p_read ->> 'next_read_at', '')::timestamptz, now() + interval '1 hour'),
            coalesce(a.read_after, '-infinity'::timestamptz)),
          settle_at = coalesce(nullif(p_read ->> 'settle_at', '')::timestamptz, a.settle_at),
-         notices_at = case p_read ->> 'notices' when 'subscribed' then now() when 'dropped' then null else a.notices_at end
+         notices_at = case p_read ->> 'notices' when 'subscribed' then now() when 'dropped' then null else a.notices_at end,
+         rung_at = case when v_rang then now() else a.rung_at end
    where a.id = p_account_id;
 
   return jsonb_build_object('outcome', v_outcome, 'adopted', v_adopted, 'moved', v_moved, 'days', v_days);
@@ -501,7 +504,7 @@ end $$;
 revoke all on function public.ads_read_keep(uuid, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.ads_read_keep(uuid, uuid, jsonb) to service_role;
 comment on function public.ads_read_keep(uuid, uuid, jsonb) is
-  'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+  'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
 
 /* ------------------------------------------- 7. the account's payment row, never beside an ad's for one card -- */
 
@@ -593,17 +596,26 @@ language plpgsql
 security definer
 set search_path to 'public'
 as $$
+declare
+  v_subject text;
 begin
   begin
-    update public.notifications n
-       set closed_at = now()
-      from public.ads d
-     where n.tenant_id = new.tenant_id
-       and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
-       and n.closed_at is null
-       and n.created_at >= now() - interval '30 days'
-       and n.subject_type = 'ad' and n.subject_id = d.id::text
-       and d.tenant_id = new.tenant_id and d.account_id = new.id;
+    -- Through the one door that closes rows (00421).
+    for v_subject in
+      select distinct n.subject_id
+        from public.notifications n
+        join public.ads d on d.id::text = n.subject_id
+       where n.tenant_id = new.tenant_id
+         and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
+         and n.closed_at is null
+         and n.created_at >= now() - interval '30 days'
+         and n.subject_type = 'ad'
+         and d.tenant_id = new.tenant_id and d.account_id = new.id
+    loop
+      perform public.notifications_close_about(new.tenant_id,
+                                               array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'],
+                                               'ad', v_subject);
+    end loop;
   exception when others then
     -- The bell's close never costs the owner their disconnect.
     raise warning 'ad_accounts_close_ad_bell: %', sqlerrm;

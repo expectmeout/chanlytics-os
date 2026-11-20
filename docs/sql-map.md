@@ -440,7 +440,7 @@ being read is dropped by a migration.
 | `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00593): |
 | `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
-| `notifications_close_about` | the server's | the server | SQL `ad_bell_ring`, `batch_closes_its_notices` and 8 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
+| `notifications_close_about` | the server's | the server | SQL `ad_accounts_close_ad_bell`, `ad_bell_ring` and 9 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
 | `notifications_read_through` | door | a signed-in person, the server | code `apps/dashboard/src/server/notices/bell.ts`, `packages/db/src/repositories/notices/devices.ts` | A member reads their bell through (00614, 00622, decision 0124). |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `number_drift` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Where lines and tenant_channels disagree in a way that is actually wrong: |
