@@ -72,7 +72,7 @@ const picture = (over = {}) => ({
 });
 
 const CARD_OK = C.AD_CARD_CHECKS.map((id) => ({ id, ok: true }));
-/** An account in dollars whose least is $5 a day: fourteen days need $70. */
+/** An account in dollars whose least is $5 a day: a run fourteen days on touches fifteen, and needs $75. */
 const facts = (over = {}) => ({
   today: TODAY,
   account: { currency: "USD", minDailyMinor: 500, checks: CARD_OK },
@@ -81,10 +81,10 @@ const facts = (over = {}) => ({
   brief: briefOf(),
   ...over,
 });
-/** A draft that passes: five miles, $70, fourteen days. */
+/** A draft that passes: five miles, $75, fourteen days on. */
 const draft = (over = {}) => ({
   miles: 5,
-  total_minor: 7000,
+  total_minor: 7500,
   end_day: C.addDays(TODAY, 14),
   versions: GOOD,
   ...over,
@@ -263,25 +263,28 @@ test("5.1 row 7, a job, housing, financial products, politics or gambling: asked
 });
 
 test("5.1 row 8, an amount under Meta's least for the run: the nearest amount Meta takes is offered", () => {
-  // $5 a day for fourteen days is $70.
-  assert.deepEqual(checks({ total_minor: 5000 }), [{ code: "amount", fault: "under_least", nearest_minor: 7000 }]);
-  assert.deepEqual(checks({ total_minor: 7000 }), []);
+  // $5 a day for the fifteen days a run fourteen days on touches is $75: Meta counts today and the last day too.
+  assert.deepEqual(checks({ total_minor: 5000 }), [{ code: "amount", fault: "under_least", nearest_minor: 7500 }]);
+  assert.deepEqual(checks({ total_minor: 7000 }), [{ code: "amount", fault: "under_least", nearest_minor: 7500 }]);
+  assert.deepEqual(checks({ total_minor: 7500 }), []);
   assert.deepEqual(checks({ total_minor: 24000 }), []);
-  // The least follows the days: seven days need $35, thirty need $150.
-  assert.deepEqual(checks({ total_minor: 3500, end_day: C.addDays(TODAY, 7) }), []);
-  assert.deepEqual(checks({ total_minor: 7000, end_day: C.addDays(TODAY, 30) }), [
-    { code: "amount", fault: "under_least", nearest_minor: 15000 },
+  // The least follows the days: a run seven days on needs $40, thirty days on $155.
+  assert.deepEqual(checks({ total_minor: 4000, end_day: C.addDays(TODAY, 7) }), []);
+  assert.deepEqual(checks({ total_minor: 7500, end_day: C.addDays(TODAY, 30) }), [
+    { code: "amount", fault: "under_least", nearest_minor: 15500 },
   ]);
   // What an owner approves is a whole amount of the currency.
-  assert.deepEqual(checks({ total_minor: 7050 }), [{ code: "amount", fault: "not_whole", nearest_minor: 7100 }]);
+  assert.deepEqual(checks({ total_minor: 7550 }), [{ code: "amount", fault: "not_whole", nearest_minor: 7600 }]);
   // A most the owner said, once it is kept: nothing above it.
   assert.deepEqual(checks({ total_minor: 20000 }, { ownerMostMinor: 15000 }), [
     { code: "amount", fault: "over_most", nearest_minor: 15000 },
   ]);
   // A currency with no minor unit: Meta's least and the amount are whole yen.
   const yen = { account: { currency: "JPY", minDailyMinor: 700, checks: CARD_OK } };
-  assert.deepEqual(checks({ total_minor: 9800 }, yen), []);
-  assert.deepEqual(checks({ total_minor: 9000 }, yen), [{ code: "amount", fault: "under_least", nearest_minor: 9800 }]);
+  assert.deepEqual(checks({ total_minor: 10500 }, yen), []);
+  assert.deepEqual(checks({ total_minor: 9800 }, yen), [
+    { code: "amount", fault: "under_least", nearest_minor: 10500 },
+  ]);
 });
 
 test("5.1 row 9, what Meta lets a new account spend in a day: no page lets it be read, so no rule here guesses one", () => {
@@ -298,7 +301,7 @@ test("5.1 row 10, an end date too close to its start: a whole day at least, with
     checks({ end_day: C.addDays(TODAY, -3), total_minor: 500 }).find((check) => check.code === "end"),
     { code: "end", nearest_day: C.addDays(TODAY, 1) },
   );
-  assert.deepEqual(checks({ end_day: C.addDays(TODAY, 1), total_minor: 500 }), []);
+  assert.deepEqual(checks({ end_day: C.addDays(TODAY, 1), total_minor: 1000 }), []);
 });
 
 test("5.1 row 11, the Page, the WhatsApp number, the payment method and the account's standing: the card's own checks, each its own line", () => {
