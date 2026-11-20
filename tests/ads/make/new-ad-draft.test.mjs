@@ -201,7 +201,7 @@ const wrote = (versions = VERSIONS, change = NO_CHANGE) => ({ versions, change, 
 /** A draft as the screen sends it back. */
 const sent = (answer, over = {}) => ({ ...answer.draft, picture: answer.draft.picture.id, ...over });
 
-test("a fresh draft: the service, the picture, five miles, Meta's least for fourteen days and its end, with no model asked", async () => {
+test("a fresh draft: the service, the picture, five miles, Meta's least for the days it touches and its end, with no model asked", async () => {
   modelSays(wrote());
   const { answer } = await fresh();
   assert.equal(answer.can, true);
@@ -210,8 +210,8 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     service: "Consultation",
     picture: { id: FILE(1), kind: "photo", name: "front-desk-1", made: false },
     miles: 5,
-    // $5 a day for fourteen days: a starting amount.
-    total_minor: 7000,
+    // $5 a day for the fifteen days a two-week run touches, today included: a starting amount.
+    total_minor: 7500,
     end_day: "2026-12-03",
     versions: [],
     answers: {},
@@ -226,7 +226,7 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     page: "Harbor Studio",
     min_daily_minor: 500,
   });
-  assert.deepEqual(answer.amount, { starting: true, least_minor: 7000, history: false });
+  assert.deepEqual(answer.amount, { starting: true, least_minor: 7500, history: false });
   assert.deepEqual(answer.checks, []);
   // The job that makes an ad at Meta is the next part: the press is drawn, and cannot be pressed yet.
   assert.equal(answer.turn_on, "not_yet");
@@ -481,7 +481,7 @@ test("Tell AI what to change: one change from the closed list, judged again like
   assert.deepEqual([end.changed, end.draft.end_day, end.days], [{ kind: "end" }, "2026-12-20", 31]);
   // A change that breaks a rule is made, and the check says so with its one act: $40 is under Meta's least.
   const low = await tell("only 40 dollars", { kind: "amount", amount: 40 });
-  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7000 }]);
+  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7500 }]);
   // Another picture: the next that is fine in ads.
   const pictured = await tell("use another photo", { kind: "picture" });
   assert.deepEqual([pictured.changed, pictured.draft.picture.id !== held.picture], [{ kind: "picture" }, true]);

@@ -7,7 +7,9 @@
  * (two reads); the campaign as a dry run, then made; the ad set as a dry run, then made; the picture, placed in the
  * account's library; one ad with its creative inside it as a dry run (with Meta's own look at the words and the
  * picture), then made; and the campaign read back whole, compared with what was sent. Where Meta refuses a step, nothing
- * after it is sent, and the answer says Meta's own words. What was made stays paused, and is named.
+ * after it is sent, the answer says Meta's own words, and a campaign already made is removed, with whatever is under it:
+ * a check either finishes, paused, or leaves nothing. With `remove` in place of a draft, a campaign an earlier check
+ * left is removed: one in this account, paused, named as a check names it, with no ad.
  *
  * Nothing here can spend: every part is made paused, and the campaign above the ad stays paused, so the ad is never
  * shown. An ad made paused still goes through Meta's check of an ad, and a creative leaves an unpublished post on the
@@ -20,11 +22,13 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   callMetaAds,
+  isMetaId,
   metaAccountInstagramRequest,
   metaAdImageRequest,
   metaAdRequest,
   metaAdSetRequest,
   metaCampaignReadBackRequest,
+  metaCampaignRemoveRequest,
   metaCampaignRequest,
   metaMinimumBudgetsRequest,
   parseMetaAccountInstagram,
@@ -33,6 +37,7 @@ import {
   parseMetaLeastADay,
   parseMetaMadeId,
   parseMetaRefusal,
+  parseMetaRemoved,
   type MetaAdsAnswer,
   type MetaCampaignHeld,
   type MetaMakeHow,
@@ -80,6 +85,8 @@ interface AdsCheckBody {
   tenant_id?: string;
   user_id?: string;
   draft?: CheckedDraft;
+  /** Meta's id for a campaign an earlier check left, to remove in place of a check. */
+  remove?: string;
 }
 
 /** One step, as the answer says it: what Meta did, its own words where it refused, and the id of what it made. */
@@ -91,6 +98,10 @@ interface CheckStep {
 }
 
 const DRY: MetaMakeHow = { dryRun: true };
+/** A make's key: a new one each time, never shared (Meta's header for a create that is safe to repeat). */
+const keyed = (): MetaMakeHow => ({ key: randomUUID() });
+/** What every check's name carries, and nothing else Chanlytics makes: how a campaign a check left is known. */
+const CHECK_MARK = "paused check [cl:";
 /** Where the ad shows, as the ad set names it (meta-make.ts): Facebook's feed, stories and Reels. */
 const PLACES_SENT = ["facebook:facebook_reels", "facebook:feed", "facebook:story"];
 
@@ -184,28 +195,26 @@ interface CheckAt {
   account: { externalId: string; timezone: string; currency: string; pageId: string };
 }
 
-/** The check itself, step by step: what each came to, and what Meta holds against what was sent. */
-async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: CheckStep[]; differs: string[] | null }> {
+/** A campaign removed, with whatever is under it: Meta's own words where it refused, and whether it took. */
+async function removeStep(at: CheckAt, steps: CheckStep[], campaignId: string): Promise<boolean> {
+  const { token, appSecret } = at.signIn;
+  const answer = await sendStep(at.log, steps, "remove", metaCampaignRemoveRequest(token, appSecret, campaignId));
+  if (answer.fault !== null) return false;
+  if (parseMetaRemoved(answer.json)) return true;
+  Object.assign(steps.at(-1) ?? {}, { outcome: "refused", said: "Meta did not say the campaign was removed." });
+  return false;
+}
+
+/** Everything under a campaign just made, step by step: the ad set, the picture, the ad, and the read back compared. */
+async function makeUnder(
+  at: CheckAt,
+  draft: CheckedDraft,
+  under: { steps: CheckStep[]; name: string; campaignId: string },
+): Promise<string[] | null> {
   const { log, signIn, account } = at;
   const { token, appSecret } = signIn;
-  const steps: CheckStep[] = [];
-  const name = `Chanlytics · ${draft.service} · paused check [cl:${randomUUID().slice(0, 8)}]`;
+  const { steps, name, campaignId } = under;
   const accountId = account.externalId;
-  const least = await sendStep(log, steps, "least_a_day", metaMinimumBudgetsRequest(token, appSecret, accountId));
-  const leastMinor = readStepAnswer(steps, least, (body) => parseMetaLeastADay(body, account.currency));
-  if (steps.at(-1)?.outcome === "ok") Object.assign(steps.at(-1) ?? {}, { said: `${leastMinor ?? "none"} a day` });
-  const instagram = await sendStep(log, steps, "instagram", metaAccountInstagramRequest(token, appSecret, accountId));
-  const named = readStepAnswer(steps, instagram, parseMetaAccountInstagram);
-  if (named) Object.assign(steps.at(-1) ?? {}, { said: `${named.length} named` });
-
-  const campaignAsk = { accountId, name };
-  if ((await sendStep(log, steps, "campaign_dry", metaCampaignRequest(token, appSecret, campaignAsk, DRY))).fault)
-    return { steps, differs: null };
-  const key = () => ({ key: randomUUID() });
-  const campaignId = (await sendStep(log, steps, "campaign", metaCampaignRequest(token, appSecret, campaignAsk, key())))
-    .madeId;
-  if (!campaignId) return { steps, differs: null };
-
   const endsAt = endOfDayIn(account.timezone, draft.end_day);
   const setAsk = {
     accountId,
@@ -220,19 +229,18 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
     miles: draft.miles,
     instagram: false,
   };
-  if ((await sendStep(log, steps, "ad_set_dry", metaAdSetRequest(token, appSecret, setAsk, DRY))).fault)
-    return { steps, differs: null };
-  const setId = (await sendStep(log, steps, "ad_set", metaAdSetRequest(token, appSecret, setAsk, key()))).madeId;
-  if (!setId) return { steps, differs: null };
+  if ((await sendStep(log, steps, "ad_set_dry", metaAdSetRequest(token, appSecret, setAsk, DRY))).fault) return null;
+  const setId = (await sendStep(log, steps, "ad_set", metaAdSetRequest(token, appSecret, setAsk, keyed()))).madeId;
+  if (!setId) return null;
 
   const bytes = await pictureBytes(at.db, at.tenantId, draft.picture);
   if (!bytes) {
     steps.push({ at: "picture", outcome: "unread", said: "The picture could not be read from Files.", id: null });
-    return { steps, differs: null };
+    return null;
   }
   const image = await sendStep(log, steps, "picture", metaAdImageRequest(token, appSecret, accountId, bytes));
   const hash = readStepAnswer(steps, image, parseMetaImageHash);
-  if (!hash) return { steps, differs: null };
+  if (!hash) return null;
 
   const adAsk = {
     accountId,
@@ -247,14 +255,12 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
       picture: { kind: "image" as const, hash },
     },
   };
-  if ((await sendStep(log, steps, "ad_dry", metaAdRequest(token, appSecret, adAsk, DRY))).fault)
-    return { steps, differs: null };
-  if (!(await sendStep(log, steps, "ad", metaAdRequest(token, appSecret, adAsk, key()))).madeId)
-    return { steps, differs: null };
+  if ((await sendStep(log, steps, "ad_dry", metaAdRequest(token, appSecret, adAsk, DRY))).fault) return null;
+  if (!(await sendStep(log, steps, "ad", metaAdRequest(token, appSecret, adAsk, keyed()))).madeId) return null;
 
   const back = await sendStep(log, steps, "read_back", metaCampaignReadBackRequest(token, appSecret, campaignId));
   const held = readStepAnswer(steps, back, (body) => parseMetaCampaignHeld(body, account.currency));
-  if (!held) return { steps, differs: null };
+  if (!held) return null;
   const sent = {
     totalMinor: draft.total_minor,
     endsAt,
@@ -263,18 +269,72 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
     text: draft.text,
     headline: draft.headline,
   };
-  return { steps, differs: checkDiffers(sent, held) };
+  return checkDiffers(sent, held);
 }
 
-/** The door's work: the owner, the switch, the account and its sign-in asked first, then the check. */
+/**
+ * The check itself, step by step: what each came to, and what Meta holds against what was sent. Where it stops after
+ * the campaign is made, the campaign is removed, so a stop leaves nothing at Meta.
+ */
+async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: CheckStep[]; differs: string[] | null }> {
+  const { log, signIn, account } = at;
+  const { token, appSecret } = signIn;
+  const steps: CheckStep[] = [];
+  const name = `Chanlytics · ${draft.service} · ${CHECK_MARK}${randomUUID().slice(0, 8)}]`;
+  const accountId = account.externalId;
+  const least = await sendStep(log, steps, "least_a_day", metaMinimumBudgetsRequest(token, appSecret, accountId));
+  const leastMinor = readStepAnswer(steps, least, (body) => parseMetaLeastADay(body, account.currency));
+  if (steps.at(-1)?.outcome === "ok") Object.assign(steps.at(-1) ?? {}, { said: `${leastMinor ?? "none"} a day` });
+  const instagram = await sendStep(log, steps, "instagram", metaAccountInstagramRequest(token, appSecret, accountId));
+  const named = readStepAnswer(steps, instagram, parseMetaAccountInstagram);
+  if (named) Object.assign(steps.at(-1) ?? {}, { said: `${named.length} named` });
+
+  const campaignAsk = { accountId, name };
+  if ((await sendStep(log, steps, "campaign_dry", metaCampaignRequest(token, appSecret, campaignAsk, DRY))).fault)
+    return { steps, differs: null };
+  const campaign = await sendStep(log, steps, "campaign", metaCampaignRequest(token, appSecret, campaignAsk, keyed()));
+  const campaignId = campaign.madeId;
+  if (!campaignId) return { steps, differs: null };
+  const differs = await makeUnder(at, draft, { steps, name, campaignId });
+  if (differs === null) await removeStep(at, steps, campaignId);
+  return { steps, differs };
+}
+
+/**
+ * A campaign an earlier check made and left, removed: only one in this account, paused, named as a check names it, and
+ * with no ad under it, read back first. Anything else is left as it stands, and the answer says so.
+ */
+async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps: CheckStep[]; removed: boolean }> {
+  const { token, appSecret } = at.signIn;
+  const steps: CheckStep[] = [];
+  const back = await sendStep(at.log, steps, "read_back", metaCampaignReadBackRequest(token, appSecret, campaignId));
+  const held = readStepAnswer(steps, back, (body) => parseMetaCampaignHeld(body, at.account.currency));
+  if (!held) return { steps, removed: false };
+  const inAccount = held.accountId === at.account.externalId.replace(/^act_/, "");
+  if (!inAccount || !held.name.includes(CHECK_MARK) || !held.paused || held.ads.length > 0) {
+    const reason = "Not a paused campaign a check left in this account with no ad, so it is left as it stands.";
+    steps.push({ at: "remove", outcome: "refused", said: reason, id: null });
+    return { steps, removed: false };
+  }
+  return { steps, removed: await removeStep(at, steps, campaignId) };
+}
+
+/** What the door was asked for, read: a draft to check, or a campaign to remove; null where it is neither, or both. */
+function checkAskOf(body: Partial<AdsCheckBody>): { draft: CheckedDraft } | { remove: string } | null {
+  if (body.draft && body.remove === undefined) return { draft: body.draft };
+  if (!body.draft && body.remove !== undefined && isMetaId(body.remove)) return { remove: body.remove };
+  return null;
+}
+
+/** The door's work: the owner, the switch, the account and its sign-in asked first, then the check or the removal. */
 export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  const { draft } = body;
-  if (!isTenantId(tenantId) || !UUID.test(userId) || !draft)
-    return refuse(400, "bad_request", "tenant_id, user_id and draft required");
+  const ask = checkAskOf(body);
+  if (!isTenantId(tenantId) || !UUID.test(userId) || !ask)
+    return refuse(400, "bad_request", "tenant_id, user_id, and a draft or Meta's id for a campaign to remove");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   // A check makes things at Meta: only where this deployment's switch is live, never in sandbox.
@@ -297,7 +357,14 @@ export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): 
     currency: live.currency,
     pageId,
   };
-  const { steps, differs } = await runCheck({ db, log, tenantId, signIn, account }, draft);
+  const at = { db, log, tenantId, signIn, account };
+  if ("remove" in ask) {
+    const { steps, removed } = await removeLeftover(at, ask.remove);
+    const outcome = removed ? "removed" : "stopped";
+    log.info("ads_check_done", { outcome, steps: steps.length, differs: [] });
+    return json(200, { ok: true, outcome, steps, differs: [] });
+  }
+  const { steps, differs } = await runCheck(at, ask.draft);
   const outcome = differs === null ? "stopped" : differs.length === 0 ? "matches" : "differs";
   log.info("ads_check_done", { outcome, steps: steps.length, differs: differs ?? [] });
   return json(200, { ok: true, outcome, steps, differs: differs ?? [] });

@@ -1,7 +1,7 @@
 /**
  * Meta's ads wire, what a make answers (decision 0050, step P2; the Ads plan's step 4): the id of a thing Meta made,
- * Meta's own words where it refused one, and the read back of a campaign with everything under it, in what Chanlytics
- * keeps. The requests are meta-make.ts's; every call leaves through callMetaAds (meta-call.ts), once.
+ * Meta's own words where it refused one, the read back of a campaign with everything under it, in what Chanlytics
+ * keeps, and a campaign removed. The requests are meta-make.ts's; every call leaves through callMetaAds (meta-call.ts), once.
  *
  * The read back is what a launch compares with what the owner approved before anything is switched on (decision 0050,
  * call 4): the total and its end, that every part is paused, that no special kind is declared, that a tap opens
@@ -80,6 +80,7 @@ export function parseMetaRefusal(json: unknown): MetaRefusal | null {
 const READ_BACK_FIELDS = [
   "id",
   "name",
+  "account_id",
   "status",
   "effective_status",
   "objective",
@@ -147,6 +148,8 @@ export interface MetaAdHeld {
 export interface MetaCampaignHeld {
   id: string;
   name: string;
+  /** The ad account it is in: Meta's id for it, without "act_". */
+  accountId: string | null;
   paused: boolean;
   state: string;
   objective: string | null;
@@ -268,6 +271,7 @@ export function parseMetaCampaignHeld(json: unknown, currency: string): MetaCamp
   return {
     id,
     name: metaText(valueAt(campaign, "name")).slice(0, 500) || id,
+    accountId: idOrNull(valueAt(campaign, "account_id")),
     paused: switchedOff(campaign),
     state: metaText(valueAt(campaign, "effective_status")).slice(0, 100) || "UNKNOWN",
     objective: textKept(valueAt(campaign, "objective"), 100),
@@ -275,4 +279,20 @@ export function parseMetaCampaignHeld(json: unknown, currency: string): MetaCamp
     sets: edgeRows(valueAt(campaign, "adsets")).flatMap((row) => adSetOf(row, currency)),
     ads: edgeRows(valueAt(campaign, "ads")).flatMap(adHeld),
   };
+}
+
+/* ------------------------------------------------------------ removal */
+
+/**
+ * A campaign removed: Meta's DELETE on it, which takes nothing and answers `success` (its campaign reference, read on
+ * 20 November 2026). The paused-ad check removes so what it made and could not finish, and one an earlier check left.
+ */
+export function metaCampaignRemoveRequest(token: string, appSecret: string, campaignId: string): MetaRequest {
+  if (!isMetaId(campaignId)) throw new Error("Meta's id for the campaign is not one");
+  return { url: metaGraphUrl(campaignId, metaProofQuery(token, appSecret)), method: "DELETE" };
+}
+
+/** Whether Meta says a removal took: its answer's `success`, and nothing else. */
+export function parseMetaRemoved(json: unknown): boolean {
+  return valueAt(metaObject(json), "success") === true;
 }
