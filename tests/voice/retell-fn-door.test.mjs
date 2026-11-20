@@ -179,7 +179,7 @@ async function listening(fn) {
 /* ---------------------------------------------------- what the agent says */
 
 const CANNOT_SEND =
-  "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
+  "I could not send the WhatsApp message just now. Let the caller know they can book on the business's website, without reading out its address, and offer to have someone follow up.";
 const READ_IT_BACK =
   "I could not determine a valid mobile number. Ask the caller to read it back, or offer to book them on the call.";
 const CALLERS_OWN =
@@ -810,8 +810,8 @@ test("every number a caller is told is the one the resolver publishes: with none
         assert.equal(
           await spoken(await knock(w.ask(held))),
           published
-            ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, or reach the team on ${published}.`
-            : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book online, and take their name.",
+            ? `I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book on the business's website, without reading out its address, or reach the team on ${published}.`
+            : "I cannot send WhatsApp messages automatically for this business right now. Tell the caller they can book on the business's website, without reading out its address, and take their name.",
           `a hold: ${why}`,
         );
 
@@ -821,8 +821,8 @@ test("every number a caller is told is the one the resolver publishes: with none
           await spoken(await knock(ask)),
           published
             ? // Decision 0073, R14: the details taken too, so the team can follow up.
-              `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${published}, and take their name, what they need, and where and when so the team can follow up.`
-            : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name, what they need, and where and when so the team can follow up.",
+              `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book on the business's website, without reading out its address, or reach us on ${published}, and take their name, what they need, and where and when so the team can follow up.`
+            : "The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book on the business's website, without reading out its address, and take their name, what they need, and where and when so the team can follow up.",
           `a failed delivery: ${why}`,
         );
         graphReply = null;
@@ -1323,7 +1323,7 @@ test("a workspace that holds its bookings and has no approved booking template i
       return out;
     });
     assert.equal(said, refusalScript("booking_needs_a_person", PUBLISHED), why);
-    assert.doesNotMatch(said, /book online/i, why);
+    assert.doesNotMatch(said, /book online|can book on/i, why);
     assert.deepEqual(w.left().graph, [], `nothing reached Meta: ${why}`);
     assert.deepEqual(
       w.tables.events.filter((e) => e.kind === "message.send_blocked").map((e) => [e.data.reason, e.data.source]),
