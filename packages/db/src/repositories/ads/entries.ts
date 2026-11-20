@@ -61,11 +61,11 @@ export async function readAdSaid(
   if (!kept) return null;
   const headline = adPartOf(kept.headline);
   const body = adPartOf(kept.body);
-  const mediaType = adPartOf(kept.media_type);
+  const visual = adPartOf(kept.media_type);
   return {
     ...(headline === undefined ? {} : { headline }),
     ...(body === undefined ? {} : { body }),
-    ...(mediaType === undefined ? {} : { media_type: mediaType }),
+    ...(visual === undefined ? {} : { media_type: visual }),
   };
 }
 

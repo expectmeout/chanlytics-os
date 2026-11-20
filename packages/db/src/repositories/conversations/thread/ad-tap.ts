@@ -57,7 +57,8 @@ export interface AdTapTold {
   headline: string | null;
   /** The ad's own words. */
   body: string | null;
-  media: "image" | "video" | null;
+  /** What the ad showed: a picture or a video (Meta's `media_type`), or neither where it said no kind that is known. */
+  visual: "image" | "video" | null;
 }
 
 /**
@@ -126,13 +127,13 @@ export async function readAdTap(
   ]);
   const headline = oneLineOf(adSaid?.headline, AD_TOLD_MAX.headline);
   const name = oneLineOf(named?.name, AD_TOLD_MAX.name);
-  const media = adSaid?.media_type;
+  const visual = adSaid?.media_type;
   return {
     // An ad Chanlytics does not hold is named by its own headline (ad_named): said once, as the headline.
     name: name && name.toLowerCase() !== headline?.toLowerCase() ? name : null,
     headline,
     body: oneLineOf(adSaid?.body, AD_TOLD_MAX.body),
-    media: media === "image" || media === "video" ? media : null,
+    visual: visual === "image" || visual === "video" ? visual : null,
   };
 }
 
@@ -154,7 +155,7 @@ export function adTapFacts(ad: AdTapTold | null | undefined, channel: LeadChanne
     ad.name ? `name: ${ad.name}` : null,
     ad.headline ? `headline: ${ad.headline}` : null,
     ad.body ? `words: ${ad.body}` : null,
-    ad.media ? `media: ${ad.media}` : null,
+    ad.visual ? `media: ${ad.visual}` : null,
   ].filter((line) => line !== null);
   const tapped = "They wrote after tapping one of this business's ads.";
   return lines.length > 0 ? [`${tapped} ${AD_TAP_RULE}\n${fenced("ad", lines.join("\n"))}`] : [tapped];

@@ -120,7 +120,7 @@ test(
       name: null,
       headline: "Spring colour offer",
       body: "Book a full colour this week.",
-      media: "video",
+      visual: "video",
     });
     const note = noteOf(lead);
     assert.match(note, /They wrote after tapping one of this business's ads\./);
@@ -163,7 +163,7 @@ test(
     const dm = await arrive({ channel: "instagram", meta: adMeta(`1202${stamp}23`) });
     ok(await keep(dm.message_id, { headline: "Walk-ins welcome", media_type: "image" }));
     const lead = await readLeadContext(db, tenantId, { contactId: dm.contact_id }, 1, dm.message_id);
-    assert.deepEqual(lead.ad, { name: null, headline: "Walk-ins welcome", body: null, media: "image" });
+    assert.deepEqual(lead.ad, { name: null, headline: "Walk-ins welcome", body: null, visual: "image" });
     assert.match(noteOf(lead, "instagram"), /<ad>\nheadline: Walk-ins welcome\nmedia: image\n<\/ad>$/);
   },
 );

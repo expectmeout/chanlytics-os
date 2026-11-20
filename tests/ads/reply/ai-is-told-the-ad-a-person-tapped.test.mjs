@@ -130,7 +130,7 @@ test("a first reply after a tap is handed the ad: its name, headline, words and 
     name: "Spring colour, November",
     headline: "Spring colour offer",
     body: "Book a full colour this week and we take care of the rest.",
-    media: "video",
+    visual: "video",
   });
   // Both reads name the workspace; the entry is read by the message that carried the tap, the name by the ad's own id.
   assert.deepEqual(asked, [{ p_tenant_id: A, p_ref: AD }]);
@@ -181,7 +181,7 @@ test("an ad Chanlytics does not hold is named by its headline, said once; one th
   for (const kept of [null, {}, { media_type: "carousel" }]) {
     const bare = worldOf({ messages: [tapped("m-tap")], entries: [entry("m-tap", kept)] });
     const told = await readLeadContext(bare.db, A, PHONE, 1, "m-tap");
-    assert.deepEqual(told.ad, { name: null, headline: null, body: null, media: null });
+    assert.deepEqual(told.ad, { name: null, headline: null, body: null, visual: null });
     const note = describeLead(told, NOW, TZ, "whatsapp");
     assert.ok(note.endsWith("They wrote after tapping one of this business's ads."));
     assert.equal(opens(note, "ad"), 0);
@@ -266,7 +266,7 @@ test("every part is one line cut to its bound, and a kind of media that is not a
   for (const part of [ad.name, ad.headline, ad.body])
     assert.ok(part.endsWith("…") && !/\s\s|[^\S ]|\p{Cc}/u.test(part));
   assert.ok(ad.body.startsWith("First line second line third bbb"));
-  assert.equal(ad.media, null);
+  assert.equal(ad.visual, null);
   const note = describeLead({ contactId: "c-ana", name: "Ana", returning: false, ad }, NOW, TZ, "whatsapp");
   assert.equal(adLines(note).length, 3);
   assert.ok(note.length < 1800, `the whole note stays small: ${note.length}`);
@@ -458,7 +458,7 @@ test("a read that fails costs the ad's words, never the note or the reply: each 
   });
   const lead = await readLeadContext(noWords.db, A, PHONE, 1, "m-tap");
   assert.equal(lead.contactId, "c-ana", "the person is still read");
-  assert.deepEqual(lead.ad, { name: "Spring colour, November", headline: null, body: null, media: null });
+  assert.deepEqual(lead.ad, { name: "Spring colour, November", headline: null, body: null, visual: null });
 
   const noName = worldOf({
     messages: [tapped("m-tap")],
@@ -468,5 +468,5 @@ test("a read that fails costs the ad's words, never the note or the reply: each 
     },
   });
   const unnamed = await readLeadContext(noName.db, A, PHONE, 1, "m-tap");
-  assert.deepEqual(unnamed.ad, { name: null, headline: SPRING.headline, body: SPRING.body, media: "video" });
+  assert.deepEqual(unnamed.ad, { name: null, headline: SPRING.headline, body: SPRING.body, visual: "video" });
 });
