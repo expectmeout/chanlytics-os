@@ -1,332 +1,166 @@
 /**
- * Campaigns › Ads: paid ads on Facebook and Instagram, Google and TikTok, measured in conversations and appointments. Drawn in a
- * demo session or a workspace's preview (shown.ts, campaigns/home/route.tsx). A preview opens on what is true of the workspace today,
- * nothing connected, with its own counts (first-touch.ts); a demo opens on ads running. Every other state is a MOCKUP, from a sample
- * until the wiring lane reads real ads: every press goes through the store's verbs (store.ts) and says its answer in a toast, and
- * nothing leaves the browser. The pill (also the Menu that chooses the example) says which it is, always, and a preview says it in
- * words under the head.
- *
- * The store holds the read once, and the page hands `read` and `verbs` down: the drawer and New ad keep no copy of an ad. Ten
- * examples (examples.ts): ads running, ads that need the owner, finished ones, no calendar link, one being made, a connected account
- * with no ad yet, an account to choose, nothing connected (v0), and the accounts being read or unreadable.
- * On a desk: the frame's head (the sentence, Ask, New ad), the money-calm line, the pane line (the window, the Example pill, the
- * three platforms), a line under it for an account that could not be read, four figures with their one quiet line and its
- * doors (how it is counted, Results), the Ask line, the ledger by what an ad asks people to do or by platform, and three tiles.
- * On a phone: the sentence the frame's head leaves out, the muted lines, the pane line, and one list with the Ask line last
- * (ledger/phone.tsx). An ad opens in its drawer (drawer/drawer.tsx), New ad in its one screen (new/sheet.tsx) and Results in its
- * sheet (results/results-sheet.tsx), all always mounted and open by the address, so Back closes them. The ledger takes the keys
- * Messages' does (parts/ledger-keys.ts): J and K or the arrows walk a cursor, Enter opens the row, focus comes home to the row a
- * drawer was opened from, and an ad just turned on is scrolled to once the composer has gone.
+ * Campaigns › Ads: one real page, drawn where the workspace's settings read says Ads is here (shown.ts). With nothing
+ * connected it says what is true today (the Ads plan's 4.1): how new people first reached the business over the last
+ * 30 days, from People's own report (first-touch.ts), beside the ad account's card, with Connect as the coral button.
+ * Once an account is or was connected, the page is the workspace's own ads, read from Meta (live/live-ads.tsx: 4.4,
+ * 4.5, 4.8 and 4.9). New ad's one screen (new/sheet.tsx) and an ad's drawer open by the address, so Back closes them.
  */
-// The page's own rules, loaded with it: the page is loaded on demand (campaigns/home/route.tsx), so no other page pays for
-// them (as the Inbox's new-conversation sheet loads sheet.css). Results' rules load with the sheet (results/results.css).
+// The page's own rules, loaded with it: the page is loaded on demand (campaigns/home/route.tsx), so no other page pays
+// for them (as the Inbox's new-conversation sheet loads sheet.css). The drawer's rules hold the frame New ad reuses.
 import "./ads.css";
 import "./drawer/drawer.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
-import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
-import { CHOOSE, HEAD } from "./model/words-page";
-import { EXAMPLE, GATE } from "./model/words";
-import { adsModel } from "./model/page";
-import type { AdsGroupBy, AdsVM, AskVM, HeadVM } from "./model/page";
+import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, parseAds } from "@chanlytics/contracts";
+import type { AdsAddress } from "@chanlytics/contracts";
+import { workspaceOverride } from "@/bridge/surface-data";
+import { HEAD } from "./model/words-page";
+import { nothingConnectedOf } from "./model/page-v0";
 import { Button } from "../../kit/button/button";
-import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
-import { askAbout, askOnScreenKey, gate, navigate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
+import { askAbout, askOnScreenKey, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
-import {
-  pressRowOpener,
-  useArrivalLands,
-  useFocusComesHome,
-  useLedgerCursor,
-  useLedgerKeys,
-  useRowMarks,
-} from "../parts/ledger-keys";
 import { type CmView, useCmPhone } from "../parts/split";
-import { AskLine } from "./ask-line";
 import { useAdsConnection } from "./connect/use-card";
 import { CARD } from "./connect/words";
-import { AdDrawer } from "./drawer/drawer";
-import { Figures } from "./figures";
 import { useFirstTouch } from "./first-touch";
-import type { FirstTouchHere } from "./first-touch";
-import { ChooseCards, NoAdsCard, V0Page } from "./hero";
-import { AdsLedger } from "./ledger/ledger";
+import { V0Page } from "./hero";
 import { LiveAds } from "./live/live-ads";
-import { AdsPhone } from "./ledger/phone";
-import { sampleAdSource } from "./new/sample";
+import { LIVE } from "./live/words";
+import { V0 } from "./model/words-page";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { NewAd } from "./new/sheet";
-import { NEW } from "./new/words";
-import { PreviewNote } from "./preview-note";
-import { ResultsSheet } from "./results/results-sheet";
-import { PaneLine, ReadNotes } from "./standing";
-import { adsInPreview } from "./shown";
-import { adsOpening, tellOf, useAdsStore } from "./store";
-import { CameBackBlock, ComingBlock, WaitingBlock } from "./tiles";
-import { useAdsNav, useGroupBy } from "./use-ads";
+import { LIVE_AD_SOURCE } from "./new/source";
 
-/** What puts a proposal off for the session: the Ask line speaks again when it has something else to say. */
-const askKey = (ask: AskVM): string => `${ask.kind}:${ask.adId}`;
-
-/** A key with nothing to let go of: Ads' ledger has no search and no filter. */
-const nothing = (): void => undefined;
-
-/** The head's line: the page's numbers in the page's emphasis. The frame draws it beside the name on a desk. */
-function HeadSentence({ head }: { head: HeadVM }) {
-  return (
-    <>
-      {head.strong ? <b>{head.strong}</b> : null}
-      {head.rest}
-    </>
-  );
+/**
+ * Opening and closing what the address names: an ad's drawer or New ad. Opening pushes an entry, so Back closes it (a
+ * peek's rule: Leads', the Pipeline's, Messages'). A sheet that opened over the page stood on has the page behind it,
+ * whoever pushed it: closing goes back. One a link arrived at has no entry of the page's behind it: closing replaces
+ * the address with the Ads page itself.
+ */
+function useAdsNav(address: AdsAddress) {
+  // How many entries stand over the page: the drawer, and New ad opened over it.
+  const pushed = useRef(0);
+  const open = address.ad !== null || address.compose !== null;
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (!open) pushed.current = 0;
+    else if (!wasOpen.current && pushed.current === 0) pushed.current = 1;
+    wasOpen.current = open;
+  }, [open]);
+  const push = (route: string) => {
+    pushed.current += 1;
+    navigate(route);
+  };
+  const close = () => {
+    if (pushed.current > 0 && typeof window !== "undefined" && window.history) {
+      pushed.current -= 1;
+      window.history.back();
+    } else replaceRoute(ADS_ROUTE);
+  };
+  return { push, close };
 }
 
-/** What the head's acts need: the page's mode, the coral button's word where the card gives one, and the two presses. */
+/**
+ * Ask is told what this page shows: what is true of the workspace. Taken back as the page goes, so an address of it
+ * Sequences draws is asked about as Sequences.
+ */
+function useAskKnowsThePage() {
+  useEffect(() => {
+    setAskOnScreen({ key: "ads", ids: [], view: ASK_ADS_VIEW.today });
+    return () => {
+      if (askOnScreenKey() === "ads") setAskOnScreen(null);
+    };
+  }, []);
+}
+
+/** The zone a day is said in until the account says its own: the workspace's, else whoever is looking. */
+const zoneHere = (): string =>
+  workspaceOverride.current()?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/** What the head's acts need: the coral button's word where the card gives one, and its press. */
 interface HeadActsProps {
-  mode: AdsVM["mode"];
   phone: boolean;
   /** Connect, or Connect again: the card's own word for the coral button, where an owner may press it. */
   connect: string | null;
   onConnect: () => void;
-  onNew: () => void;
 }
 
 /**
- * The head's acts: Ask (quiet) and the page's one primary, which is the owner's press. Before any ad is read the
- * primary is Connect, straight to Meta's own window (the Ads plan's D1 and D2); with ads on the page it is New ad.
+ * The head's acts with no account held: Ask (quiet) and Connect, the owner's press, straight to Meta's own window (the
+ * Ads plan's D1 and D2). On a phone (and a tablet, which wears its head) the shell's ✦ is Ask's door.
  */
-function HeadActs({ mode, onNew, phone, connect, onConnect }: HeadActsProps) {
-  // Ask opens on this page, so its answer is about the ads and not about nothing.
-  const onAsk = () => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } });
-  // On a phone (and a tablet, which wears its head) the shell's ✦ is Ask's door, so the head holds New ad alone, first, and the frame draws it as it draws the
-  // other views' New: "+ New" in the same capsule (Ruben, 10 Nov 2026: it stood bigger than Sequences' and Messages').
+function HeadActs({ phone, connect, onConnect }: HeadActsProps) {
   return (
     <>
       {phone ? null : (
-        <Button variant="quiet" size="sm" className="cmh-ask" onClick={onAsk} data-testid="ads-ask-door">
+        <Button
+          variant="quiet"
+          size="sm"
+          className="cmh-ask"
+          onClick={() => askAbout({ about: { kind: "page", id: "campaigns/ads", label: ADS_WORDS.adsTab } })}
+          data-testid="ads-ask-door"
+        >
           <Icon name="sparkle" size={13} /> {HEAD.ask}
         </Button>
       )}
-      {mode === "v0" && connect !== null ? (
+      {connect !== null ? (
         <Button variant="primary" size="sm" onClick={onConnect} data-testid="ads-head-connect">
           {connect}
         </Button>
       ) : null}
-      {mode === "v0" ? null : (
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onNew}
-          data-testid="ads-head-new"
-          {...gate("approve", GATE.turnOn)}
-        >
-          <ActWords icon={<Icon name="plus" size={14} />} words={HEAD.newAd} />
-        </Button>
-      )}
     </>
-  );
-}
-
-/** What a press on the page does. */
-interface PageActs {
-  /** Open an Ads address over the page (an ad's drawer, the composer, Results), pushed so Back closes it. */
-  push: (route: string) => void;
-  onNew: () => void;
-  onYes: (ask: AskVM) => void;
-  onNo: (ask: AskVM) => void;
-  /** The owner picked one of an account's choices (its platform, the platform's id for it, and its name). */
-  onChoose: (platform: AdPlatform, externalId: string, name: string) => void;
-  onGroupBy: (next: AdsGroupBy) => void;
-}
-
-interface BodyProps {
-  vm: AdsVM;
-  phone: boolean;
-  /** The Ask line, if it has something true to say and was not put off. */
-  ask: AskVM | null;
-  /** The ad just turned on, if any. */
-  arrived: string | null;
-  /** The row the keys' cursor is on, if any. */
-  cursor: string | null;
-  acts: PageActs;
-  /** Where the counts of nothing connected stand. */
-  touch: FirstTouchHere;
-  /** The ad account's card, drawn beside those counts. */
-  card: ReactNode;
-}
-
-/** Under the head, on a desk the money-calm line; on a phone the sentence, the muted line, then the money-calm line. */
-function AdsUnder({ vm, phone }: { vm: AdsVM; phone: boolean }) {
-  return (
-    <>
-      {phone ? (
-        <>
-          <p className="ads-lead" data-testid="ads-lead">
-            <HeadSentence head={vm.head} />
-          </p>
-          {vm.phone ? (
-            <p className="ads-muted" data-testid="ads-muted">
-              {vm.phone.line1}
-            </p>
-          ) : null}
-        </>
-      ) : null}
-      {vm.head.money ? (
-        <p className="ads-money" data-testid="ads-money">
-          {vm.head.money}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-/** Ads running, on a desk: the figures, the Ask line, the ledger, and the three tiles. */
-function DeskRunning({ vm, ask, arrived, cursor, acts }: BodyProps) {
-  const tiles = vm.tiles;
-  return (
-    <>
-      {vm.counted ? <Figures figures={vm.figures} counted={vm.counted} link={vm.link} onOpen={acts.push} /> : null}
-      {ask ? <AskLine key={askKey(ask)} ask={ask} onYes={() => acts.onYes(ask)} onNo={() => acts.onNo(ask)} /> : null}
-      <AdsLedger
-        groups={vm.groups}
-        onOpen={acts.push}
-        arrived={arrived}
-        cursor={cursor}
-        groupBy={vm.groupBy}
-        onGroupBy={acts.onGroupBy}
-      />
-      {tiles ? (
-        <div className="cmh-grid">
-          <WaitingBlock tile={tiles.waiting} />
-          <ComingBlock tile={tiles.coming} onOpen={acts.push} />
-          <CameBackBlock tile={tiles.cameBack} link={vm.link} />
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-/** The page's body: v0, an account to choose, the first ad's card, or the ads. */
-function AdsBody(p: BodyProps) {
-  const { vm, phone, ask, arrived, acts } = p;
-  if (vm.v0) return <V0Page v0={vm.v0} touch={p.touch} card={p.card} />;
-  if (vm.noAds) {
-    return vm.noAds.choose.length > 0 ? (
-      <ChooseCards choose={vm.noAds.choose} onChoose={acts.onChoose} />
-    ) : (
-      <NoAdsCard noAds={vm.noAds} onSetUp={acts.onNew} />
-    );
-  }
-  if (!phone) return <DeskRunning {...p} />;
-  return (
-    <AdsPhone
-      vm={vm}
-      ask={ask}
-      onOpen={acts.push}
-      onYes={acts.onYes}
-      onNo={() => {
-        if (ask) acts.onNo(ask);
-      }}
-      arrived={arrived}
-    />
   );
 }
 
 /**
- * The ledger's keys, as Messages' are: a cursor over the rows the screen shows (J and K, the arrows; Enter opens the row), focus
- * home to the row a drawer was opened from as it closes, and an ad just turned on scrolled to and washed once, once no sheet
- * stands over the page.
+ * An account is held and its ads are on their way, or their read did not come: a line that says which, beside the
+ * card. Never the page with nothing connected, whose counts would say nobody came from an ad.
  */
-function useAdsLedgerKeys(vm: AdsVM, address: AdsAddress) {
-  const sheetOpen = address.ad !== null || address.compose !== null || address.results;
-  const marks = useRowMarks(sheetOpen);
-  const ids = vm.groups.flatMap((g) => g.rows.map((r) => r.id));
-  const cursor = useLedgerCursor(ids);
-  useLedgerKeys({
-    ids,
-    cursor: cursor.cursor,
-    move: cursor.move,
-    open: pressRowOpener,
-    narrowed: false,
-    clearOne: nothing,
-    sheetOpen,
-  });
-  useFocusComesHome(address.ad, ids);
-  useArrivalLands(marks.mark, ids);
-  const arrived = marks.mark && marks.mark.kind === "arrived" ? marks.mark.id : null;
-  return { arrive: marks.arrive, arrived, cursor: cursor.cursor };
+function HeldLoading({ failed, again, card }: { failed: boolean; again: () => void; card: ReactNode }) {
+  return (
+    <div className="ads-hero" data-testid="ads-held">
+      <section className="ads-hero-main">
+        {failed ? (
+          <p className="ads-hero-muted" role="alert" data-testid="ads-held-failed">
+            {LIVE.loadFailed}{" "}
+            <LinkButton onClick={again} data-testid="ads-held-again">
+              {V0.again}
+            </LinkButton>
+          </p>
+        ) : (
+          <p className="ads-hero-muted" data-testid="ads-held-loading">
+            {LIVE.loading}
+          </p>
+        )}
+      </section>
+      <section className="ads-hero-side">
+        {card}
+        <p className="ads-conn-later">{CARD.later}</p>
+      </section>
+    </div>
+  );
 }
 
 interface AdsPageProps {
-  /** The address's param, `campaigns/<param>`: `ads`, an ad open, the composer or Results. */
+  /** The address's param, `campaigns/<param>`: `ads`, an ad open, or New ad. */
   param: string;
   /** The deck's seat and the side it comes in from, as Campaigns' other kept views take theirs (home/route.tsx). */
   view?: CmView;
 }
 
-/**
- * Ask is told what this page shows, in a word: what is true of the workspace, or an example, whose ads, numbers and people must never
- * be said as theirs. Taken back as the page goes, so an address of it Sequences draws is asked about as Sequences.
- */
-function useAskKnowsThePage(today: boolean) {
-  useEffect(() => {
-    setAskOnScreen({ key: "ads", ids: [], view: today ? ASK_ADS_VIEW.today : ASK_ADS_VIEW.example });
-    return () => {
-      if (askOnScreenKey() === "ads") setAskOnScreen(null);
-    };
-  }, [today]);
-}
-
-/** What the page opens on: an address that names an ad, New ad or Results is about the example's ads, else what the page opens on. */
-const opensOnOfAddress = (address: AdsAddress) =>
-  address.ad !== null || address.compose !== null || address.results ? "running" : adsOpening();
-
 export function AdsPage({ param, view }: AdsPageProps) {
   const address = parseAds(param);
   const nav = useAdsNav(address);
-  const { read, config, example, setExample, verbs, readAgain } = useAdsStore(opensOnOfAddress(address));
   const [toastNode, flash] = useFrameToast();
   const phone = useCmPhone();
-  const [groupBy, setGroupBy] = useGroupBy();
-  const [hushed, setHushed] = useState<string | null>(null);
-  const today = example === "v0" && adsInPreview();
-  const touch = useFirstTouch(today);
-  // The workspace's own ad account is read wherever no example was chosen from the page's menu. An address that names
-  // an ad or New ad opens on the example's ads (opensOnOfAddress), and that is right only for a workspace that holds
-  // no account: with one held, a reload with New ad open is still the workspace's own New ad.
-  const own = adsInPreview() && (today || adsOpening() === "v0");
+  const timezone = zoneHere();
   // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
-  const { account, held, live, ...connect } = useAdsConnection(own, read.timezone, CARD.name);
-  // Until that account has answered, New ad on such an address is not the example's to draw.
-  const unanswered = own && !today && account.dto === null && !account.failed;
-  useAskKnowsThePage(today);
-  const vm = useMemo(
-    () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
-    [read, touch.firstTouch, config, groupBy],
-  );
-  const keys = useAdsLedgerKeys(vm, address);
-  const ask = vm.ask && askKey(vm.ask) !== hushed ? vm.ask : null;
-  const acts: PageActs = {
-    push: nav.push,
-    onNew: () => nav.push(newAdRoute()),
-    // A proposal that fixes opens the ad it names; the others do what they say, said by a toast with an Undo.
-    onYes: (a) => {
-      if (a.kind === "fix") nav.push(adRoute(a.adId));
-      else flash(tellOf(verbs.answerAsk(a), a.toast));
-    },
-    onNo: (a) => setHushed(askKey(a)),
-    onChoose: (platform, externalId, name) =>
-      flash(tellOf(verbs.chooseAccount(platform, externalId), CHOOSE.done(name))),
-    onGroupBy: setGroupBy,
-  };
-  // New ad on the example: the same one screen, fed from the example itself (new/sample.ts). Its press makes nothing,
-  // and says so.
-  const sample = useMemo(() => sampleAdSource(read), [read]);
-  const sampleTurnedOn = () => {
-    nav.close();
-    flash({ msg: NEW.press.sampleDone });
-  };
+  const { account, held, live, ...connect } = useAdsConnection(true, timezone, CARD.name, "page");
+  // How new people first came is read while no account is held: the page with nothing connected says it.
+  const touch = useFirstTouch(!held);
+  useAskKnowsThePage();
+  const connectWord = connect.vm?.button ?? null;
   if (held && live.dto)
     return (
       <LiveAds
@@ -334,10 +168,11 @@ export function AdsPage({ param, view }: AdsPageProps) {
         address={address}
         view={view}
         phone={phone}
-        timezone={read.timezone}
+        timezone={timezone}
         card={connect.card}
-        connect={{ word: connect.vm?.button ?? null, press: account.connect }}
+        connect={{ word: connectWord, press: account.connect }}
         need={connect.vm?.need ?? null}
+        stop={connect.stop}
         nav={{ push: nav.push, close: nav.close }}
         again={() => {
           live.again();
@@ -347,6 +182,13 @@ export function AdsPage({ param, view }: AdsPageProps) {
         toast={toastNode}
       />
     );
+  const vm = nothingConnectedOf(touch.firstTouch);
+  const sentence = (
+    <>
+      <b>{vm.head.strong}</b>
+      {vm.head.rest}
+    </>
+  );
   return (
     <div
       ref={view?.ref}
@@ -354,7 +196,6 @@ export function AdsPage({ param, view }: AdsPageProps) {
       data-slide={view?.slide}
       data-testid="campaigns-ads"
       data-phone={phone ? "true" : undefined}
-      data-example={example}
       data-ad={address.ad ?? undefined}
     >
       <CmHead
@@ -362,56 +203,36 @@ export function AdsPage({ param, view }: AdsPageProps) {
         quiet
         allowance={false}
         testid="ads-head"
-        sub={<HeadSentence head={vm.head} />}
-        right={
-          <HeadActs
-            mode={vm.mode}
-            onNew={acts.onNew}
-            phone={phone}
-            connect={connect.vm?.button ?? null}
-            onConnect={account.connect}
-          />
-        }
+        sub={held ? null : sentence}
+        right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
       />
-      <PreviewNote said={today ? EXAMPLE.preview.today : undefined} />
-      <AdsUnder vm={vm} phone={phone} />
-      <PaneLine
-        said={vm.pane}
-        standing={vm.standing}
-        showStanding={vm.mode !== "v0"}
-        example={example}
-        onExample={setExample}
-      />
-      <ReadNotes failed={vm.failed} onAgain={readAgain} />
-      <AdsBody
-        vm={vm}
-        phone={phone}
-        ask={ask}
-        arrived={keys.arrived}
-        cursor={keys.cursor}
-        acts={acts}
-        touch={touch}
-        card={connect.card}
-      />
-      <AdDrawer
-        id={address.ad}
-        read={read}
-        config={config}
-        verbs={verbs}
-        onClose={nav.close}
-        flash={flash}
-        onGo={nav.push}
-      />
+      {held ? (
+        <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
+      ) : (
+        <>
+          {phone ? (
+            <p className="ads-lead" data-testid="ads-lead">
+              {sentence}
+            </p>
+          ) : null}
+          <div className="ads-window" data-testid="ads-window">
+            <p className="ads-window-said">
+              <span data-testid="ads-window-said">{vm.pane}</span>
+            </p>
+          </div>
+          <V0Page v0={vm.v0} touch={touch} card={connect.card} />
+        </>
+      )}
+      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. */}
       <NewAd
-        open={address.compose !== null && !unanswered}
-        source={sample}
-        need={null}
+        open={address.compose !== null && account.dto !== null}
+        source={LIVE_AD_SOURCE}
+        need={connect.vm?.need ?? null}
         onClose={nav.close}
         onConnect={account.connect}
         onGo={navigate}
-        onTurnOn={sampleTurnedOn}
+        onTurnOn={() => undefined}
       />
-      <ResultsSheet open={address.results} read={read} config={config} onClose={nav.close} />
       {toastNode}
     </div>
   );

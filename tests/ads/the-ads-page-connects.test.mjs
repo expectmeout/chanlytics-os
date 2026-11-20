@@ -216,6 +216,8 @@ test("Settings › Connections: the ad account stands in its group as a row does
   assert.deepEqual(adsPlaceOf("connected", vm("connected")), { group: "connected", state: "connected" });
   assert.deepEqual(adsPlaceOf("connected", vm("connected", "warn")), { group: "connected", state: "attention" });
   assert.deepEqual(adsPlaceOf("connected", vm("connected", "calm")), { group: "connected", state: "connected" });
+  // AI stopped with ads still on: the card says so with its press, and the row needs attention until they are paused.
+  assert.deepEqual(adsPlaceOf("connected", vm("connected"), true), { group: "connected", state: "attention" });
   assert.deepEqual(adsPlaceOf("revoked", vm("signed-out")), { group: "connected", state: "attention" });
   // Before one is connected: Available, waiting on the owner while two are to be chosen from.
   assert.deepEqual(adsPlaceOf(null, vm("none")), { group: "available", state: "none" });

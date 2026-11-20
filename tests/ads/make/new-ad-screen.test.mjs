@@ -83,7 +83,6 @@ const view = (over = {}) => {
     telling: false,
     told: null,
     need: null,
-    sample: false,
     ...over,
   });
 };
@@ -148,14 +147,8 @@ test("Turn on, until the job that makes an ad exists: grey, and it says nothing 
   });
   // A member who is not the owner is told that first: only the owner turns an ad on.
   assert.equal(view({ answer: written({ owner: false }) }).press.under, "Only the owner can turn an ad on.");
-  // On the page's example the press can be pressed, and says it makes nothing.
-  const sample = view({ sample: true });
-  assert.equal(sample.kicker, "New ad · an example");
-  assert.deepEqual(sample.press, {
-    words: "Turn on · up to $70",
-    can: true,
-    under: "This is an example: nothing is made at Meta, and nothing is spent.",
-  });
+  // The page's example went with the mockup (20 Nov 2026): New ad is the workspace's own, drafted by AI.
+  assert.equal(vm.kicker, "New ad · drafted by AI");
 });
 
 test("the amount, the miles and the date follow what is typed at once, and the press follows the amount", () => {
@@ -178,10 +171,14 @@ test("the amount, the miles and the date follow what is typed at once, and the p
 });
 
 test("why that amount (4.6, G6): a starting amount and why, or the open times and what a booking cost, never a number of bookings", () => {
-  const proposed = (basis, total = 7000) => written({
-    picked: null,
-    amount: { least_minor: 7000, proposed: { total_minor: total, days: 14, basis }, most_minor: null },
-  }, { total_minor: total });
+  const proposed = (basis, total = 7000) =>
+    written(
+      {
+        picked: null,
+        amount: { least_minor: 7000, proposed: { total_minor: total, days: 14, basis }, most_minor: null },
+      },
+      { total_minor: total },
+    );
   const why = (basis, total) => view({ answer: proposed(basis, total) }).why;
   assert.deepEqual(why({ kind: "starting", why: "few_booked" }), [
     "A starting amount. There is no history yet to say what a booking costs.",
@@ -192,8 +189,7 @@ test("why that amount (4.6, G6): a starting amount and why, or the open times an
   assert.deepEqual(why({ kind: "starting", why: "full" }), [
     "A starting amount. The calendar has no open time in the next 14 days.",
   ]);
-  const booked = (held, total) =>
-    why({ kind: "booked", open_times: 12, cost_minor: 900, held_to: held }, total);
+  const booked = (held, total) => why({ kind: "booked", open_times: 12, cost_minor: 900, held_to: held }, total);
   assert.deepEqual(booked(null, 10800), [
     "12 open times in the next 14 days, and a booking from an ad has cost about $9.",
   ]);
@@ -408,7 +404,6 @@ test("Tell AI what to change: what the last one came to, in one quiet sentence",
     "That would speak about the person reading, and Meta turns that down. Nothing was changed.",
   );
   assert.equal(status({ told: { kind: "failed" } }), "AI didn't answer, so nothing was changed. Try again.");
-  assert.equal(status({ told: { kind: "none", fault: null }, sample: true }), NEW.tell.sample);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -428,7 +423,7 @@ function world({ same = false } = {}) {
   const went = [];
   const props = {
     open: true,
-    source: { sample: false, draft: ask("draft"), words: ask("words") },
+    source: { draft: ask("draft"), words: ask("words") },
     need: null,
     onClose: () => went.push("closed"),
     onConnect() {},
@@ -627,7 +622,11 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     assert.equal(w.asks.length, 1, `${missing}: no writer is asked`);
   }
   for (const missing of ["picture", "picture_none", "picture_person", "picture_music"])
-    assert.doesNotMatch(Object.values(MISSING[missing]).join(" "), /for now/i, `${missing}: what to do, not a limit`);
+    assert.doesNotMatch(
+      Object.values(MISSING[missing]).join(" "),
+      /\bfor now\b/i,
+      `${missing}: what to do, not a limit`,
+    );
   // An ad account still being read asks for nothing: its press looks again.
   const reading = world();
   reading.asks[0].land({ can: false, missing: "account_reading" });

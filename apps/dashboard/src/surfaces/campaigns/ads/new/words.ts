@@ -18,7 +18,6 @@ const days = (n: number): string => (n === 1 ? "1 day" : `${n} days`);
 export const NEW = {
   /** The sheet's line over the service's name. */
   kicker: "New ad · drafted by AI",
-  kickerSample: "New ad · an example",
   /** A draft someone else left, as they left it. */
   kickerLeft: (name: string) => `New ad · left by ${name}`,
   opening: "New ad",
@@ -32,6 +31,9 @@ export const NEW = {
     until: " until ",
     end: ".",
     miles: (n: number) => (n === 1 ? "1 mile" : `${n} miles`),
+    /** What a word is, to a screen reader: "The area: 5 miles". */
+    word: { area: "The area", amount: "The amount", end: "The end date" },
+    said: (word: string, value: string) => `${word}: ${value}`,
   },
 
   /** Why that amount: never a number of bookings. */
@@ -106,7 +108,6 @@ export const NEW = {
     none: "AI can change the service, the words, the picture, the area, the amount or the end date. Nothing was changed.",
     fault: (rule: string) => `${rule}, and Meta turns that down. Nothing was changed.`,
     failed: "AI didn't answer, so nothing was changed. Try again.",
-    sample: "This is an example: AI changes a real draft once your ad account is connected.",
   },
 
   /** Who Meta charges, and what the press tells Meta. */
@@ -129,8 +130,6 @@ export const NEW = {
     check: "Turn on waits for the one thing above.",
     owner: "Only the owner can turn an ad on.",
     notYet: "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent.",
-    sample: "This is an example: nothing is made at Meta, and nothing is spent.",
-    sampleDone: "An example: nothing was made at Meta, and nothing was spent.",
   },
 
   /** Where the words can't be written. */

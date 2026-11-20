@@ -101,10 +101,7 @@ export const adDraftAct = defineAct({
     "Draft a new ad for Facebook and Instagram. Its press drafts it in New ad, which picks the amount, the area and the dates and writes the words: never say them yourself. Nothing runs or is spent until Turn on is pressed there.",
   kind: "ad_draft",
   input: z.object({
-    service: z
-      .string()
-      .optional()
-      .describe("A service by its name in Services, where they named one."),
+    service: z.string().optional().describe("A service by its name in Services, where they named one."),
     most: z
       .number()
       .int()

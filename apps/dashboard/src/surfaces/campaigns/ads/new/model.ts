@@ -61,8 +61,6 @@ interface NewAdHere {
   told: AdTellResult | null;
   /** The card's own need for the ad account, as the page read it: the same line the card says, with the same act. */
   need: NeedVM | null;
-  /** An example, on the page's sample: nothing is made anywhere, and its press says so. */
-  sample: boolean;
 }
 
 /** What a line's one act does. */
@@ -217,17 +215,15 @@ function waitsFor(here: NewAdHere): string | null {
   if (question) return NEW.press.answer;
   if (declared) return NEW.press.kind(KIND[declared].ad);
   if (answer.checks.length > 0) return NEW.press.check;
-  if (here.sample) return null;
   if (!answer.owner) return NEW.press.owner;
   return answer.turn_on === "not_yet" ? NEW.press.notYet : null;
 }
 
-/** What "Tell AI" last came to, as one quiet sentence. On the example it changes nothing, and says so. */
-function tellStatusOf(outcome: AdTellResult | null, sample: boolean): string | null {
+/** What "Tell AI" last came to, as one quiet sentence. */
+function tellStatusOf(outcome: AdTellResult | null): string | null {
   if (outcome === null) return null;
   if (outcome.kind === "changed") return NEW.tell.changed[outcome.what];
   if (outcome.kind === "failed") return NEW.tell.failed;
-  if (sample) return NEW.tell.sample;
   return outcome.fault ? NEW.tell.fault(WORDS_FAULT[outcome.fault].told) : NEW.tell.none;
 }
 
@@ -302,7 +298,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
   const service = serviceSaid(answer.draft);
   return {
     title: service.charAt(0).toUpperCase() + service.slice(1),
-    kicker: here.sample ? NEW.kickerSample : answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker,
+    kicker: answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker,
     sentence: {
       service,
       miles: NEW.sentence.miles(local.miles),
@@ -338,7 +334,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
         video: picture.kind === "video",
       },
     },
-    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told, here.sample) },
+    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told) },
     facts: [
       { label: NEW.facts.charges, value: NEW.facts.account(answer.account.name, currencyWords(currency)) },
       {
@@ -349,7 +345,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
     press: {
       words: NEW.press.turnOn(moneyOf(local.total_minor, currency)),
       can: waits === null,
-      under: waits ?? (here.sample ? NEW.press.sample : NEW.press.ready),
+      under: waits ?? NEW.press.ready,
     },
   };
 }

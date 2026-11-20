@@ -9,7 +9,7 @@
  * decision 0049), and its address says what it is narrowed to after the days (`reports/ads:2026-09-11~2026-10-10:ad:<id>`);
  * so does Campaigns', to one sequence (`reports/campaigns:2026-09-11~2026-10-10:seq:<id>`, below; its cards campaign-one.ts).
  */
-import { ADS_ROUTE, ADS_SCOPE_ALL, adsScopeKey, adsScopeOfKey } from "../ads/address";
+import { ADS_ROUTE, adsScopeKey, adsScopeOfKey } from "../ads/address";
 import type { AdsScope } from "../ads/address";
 import { roleAtLeast } from "../config/roles";
 import type { Role } from "../config/workspace-config/role-perms";
@@ -160,7 +160,7 @@ export function campaignScopeOfKey(key: string): CampaignScope | null {
 export type LensScope = AdsScope | CampaignScope;
 
 /** Whether a scope is Ads' (every ad, a platform, one ad): Campaigns' one sequence is not. */
-export const isAdsScope = (scope: LensScope): scope is AdsScope => scope.kind !== "sequence";
+const isAdsScope = (scope: LensScope): scope is AdsScope => scope.kind !== "sequence";
 
 /** The word a lens's address says it is narrowed to: none for every one, or for a scope that is not the lens's. */
 function narrowedKey(id: LensId, scope: LensScope | null): string | null {
@@ -183,10 +183,6 @@ export const lensRoute = (id: LensId, days: ReportDays | null = null, scope: Len
   const rest = [days === null ? null : reportRangeKey(days), narrowed].filter((w) => w !== null).join(":");
   return id === "overview" ? `reports/${rest}` : `reports/${id}:${rest}`;
 };
-
-/** Reports › Ads over these days, narrowed to a scope: what the Results sheet's "Full report" and an ad's drawer open. */
-export const adsReportRoute = (days: ReportDays | null, scope: AdsScope = ADS_SCOPE_ALL): string =>
-  lensRoute("ads", days, scope);
 
 /** Reports › Campaigns over these days, narrowed to one sequence: where a day of its History, and its report, open. */
 export const campaignReportRoute = (days: ReportDays | null, scope: CampaignScope = CAMPAIGN_SCOPE_ALL): string =>

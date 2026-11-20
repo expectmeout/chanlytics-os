@@ -121,63 +121,79 @@ test("a workspace keeps one draft, each keep in place of the one before, by whoe
   assert.equal(again.draft_id, first.draft_id, "the same row, kept again");
   const rows = ok(await db.from("ad_drafts").select("id, account_id, kept_by, draft").eq("tenant_id", ws.tenant));
   assert.equal(rows.length, 1);
-  assert.deepEqual([rows[0].account_id, rows[0].kept_by, rows[0].draft.service], [ws.account, ws.operator.id, "First appointment"]);
+  assert.deepEqual(
+    [rows[0].account_id, rows[0].kept_by, rows[0].draft.service],
+    [ws.account, ws.operator.id, "First appointment"],
+  );
   // A member reads it; another workspace's account is not one a draft can be kept for.
   assert.equal(ok(await ws.owner.client.from("ad_drafts").select("id").eq("tenant_id", ws.tenant)).length, 1);
   const other = await workspace("other");
   assert.deepEqual(await keep(ws.owner, ws, false, other.account), { kept: false, draft_id: null, rung: 0 });
 });
 
-test("left with its words by an operator, it rings each owner's bell once, and the owner's keep closes it", { skip }, async () => {
-  const ws = await workspace("bell");
-  // Kept with no words yet: nothing to leave, so nothing rings.
-  assert.equal((await keep(ws.operator, ws, false)).rung, 0);
-  assert.deepEqual(await bellOf(ws.tenant), []);
-  // With its words: the owner's bell, once, opening New ad, naming who left it and for what.
-  assert.equal((await keep(ws.operator, ws, true)).rung, 1);
-  assert.equal((await keep(ws.operator, ws, true)).rung, 0, "never a second row while one is open");
-  const [row, ...more] = await bellOf(ws.tenant);
-  assert.deepEqual(more, []);
-  assert.deepEqual(row, {
-    kind: "ad_draft",
-    title: "Maria left you a draft ad",
-    body: "For First appointment. It runs only once you turn it on.",
-    route: "campaigns/ads:new",
-    subject_type: "ad_draft",
-    recipient_user_id: ws.owner.id,
-    closed_at: null,
-  });
-  // The owner keeps it: the row closes, and the owner's own keep rings nobody.
-  assert.equal((await keep(ws.owner, ws, true)).rung, 0);
-  assert.notEqual((await bellOf(ws.tenant))[0].closed_at, null);
-  // Left again later: a new row.
-  assert.equal((await keep(ws.operator, ws, true)).rung, 1);
-  assert.equal((await bellOf(ws.tenant)).length, 2);
-});
+test(
+  "left with its words by an operator, it rings each owner's bell once, and the owner's keep closes it",
+  { skip },
+  async () => {
+    const ws = await workspace("bell");
+    // Kept with no words yet: nothing to leave, so nothing rings.
+    assert.equal((await keep(ws.operator, ws, false)).rung, 0);
+    assert.deepEqual(await bellOf(ws.tenant), []);
+    // With its words: the owner's bell, once, opening New ad, naming who left it and for what.
+    assert.equal((await keep(ws.operator, ws, true)).rung, 1);
+    assert.equal((await keep(ws.operator, ws, true)).rung, 0, "never a second row while one is open");
+    const [row, ...more] = await bellOf(ws.tenant);
+    assert.deepEqual(more, []);
+    assert.deepEqual(row, {
+      kind: "ad_draft",
+      title: "Maria left you a draft ad",
+      body: "For First appointment. It runs only once you turn it on.",
+      route: "campaigns/ads:new",
+      subject_type: "ad_draft",
+      recipient_user_id: ws.owner.id,
+      closed_at: null,
+    });
+    // The owner keeps it: the row closes, and the owner's own keep rings nobody.
+    assert.equal((await keep(ws.owner, ws, true)).rung, 0);
+    assert.notEqual((await bellOf(ws.tenant))[0].closed_at, null);
+    // Left again later: a new row.
+    assert.equal((await keep(ws.operator, ws, true)).rung, 1);
+    assert.equal((await bellOf(ws.tenant)).length, 2);
+  },
+);
 
-test("only an acting member keeps a draft, only a door writes one, and only the owner says the most", { skip }, async () => {
-  const ws = await workspace("who");
-  const viewer = await memberOf(ws.tenant, "viewer", "who");
-  const stranger = await memberOf(null, "owner", "stranger");
-  const visitor = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-  const args = { p_tenant_id: ws.tenant, p_account_id: ws.account, p_draft: draftOf(true) };
-  for (const [who, client] of [
-    ["a viewer", viewer.client],
-    ["a stranger", stranger.client],
-  ]) {
-    const refused = await client.rpc("ad_draft_keep", args);
-    assert.equal(refused.error?.code, "42501", `${who} may not keep a draft`);
-  }
-  assert.notEqual((await visitor.rpc("ad_draft_keep", args)).error, null, "nor a visitor");
-  // Nobody writes the table but its door.
-  const direct = await ws.owner.client.from("ad_drafts").insert({ tenant_id: ws.tenant, account_id: ws.account, draft: {} });
-  assert.notEqual(direct.error, null);
-  // The most: the owner's, on the connected account, in its minor units; anyone else is refused.
-  assert.equal(ok(await ws.owner.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 30_000 })), true);
-  const account = ok(await db.from("ad_accounts").select("most_minor").eq("id", ws.account).single());
-  assert.equal(account.most_minor, 30_000);
-  const operator = await ws.operator.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 90_000 });
-  assert.equal(operator.error?.code, "42501");
-  const nothing = await ws.owner.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 0 });
-  assert.equal(nothing.error?.code, "22023");
-});
+test(
+  "only an acting member keeps a draft, only a door writes one, and only the owner says the most",
+  { skip },
+  async () => {
+    const ws = await workspace("who");
+    const viewer = await memberOf(ws.tenant, "viewer", "who");
+    const stranger = await memberOf(null, "owner", "stranger");
+    const visitor = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    const args = { p_tenant_id: ws.tenant, p_account_id: ws.account, p_draft: draftOf(true) };
+    for (const [who, client] of [
+      ["a viewer", viewer.client],
+      ["a stranger", stranger.client],
+    ]) {
+      const refused = await client.rpc("ad_draft_keep", args);
+      assert.equal(refused.error?.code, "42501", `${who} may not keep a draft`);
+    }
+    assert.notEqual((await visitor.rpc("ad_draft_keep", args)).error, null, "nor a visitor");
+    // Nobody writes the table but its door.
+    const direct = await ws.owner.client
+      .from("ad_drafts")
+      .insert({ tenant_id: ws.tenant, account_id: ws.account, draft: {} });
+    assert.notEqual(direct.error, null);
+    // The most: the owner's, on the connected account, in its minor units; anyone else is refused.
+    assert.equal(
+      ok(await ws.owner.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 30_000 })),
+      true,
+    );
+    const account = ok(await db.from("ad_accounts").select("most_minor").eq("id", ws.account).single());
+    assert.equal(account.most_minor, 30_000);
+    const operator = await ws.operator.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 90_000 });
+    assert.equal(operator.error?.code, "42501");
+    const nothing = await ws.owner.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 0 });
+    assert.equal(nothing.error?.code, "22023");
+  },
+);

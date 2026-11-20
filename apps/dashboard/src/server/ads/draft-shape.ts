@@ -102,13 +102,7 @@ export const AdWordsBodySchema = z.discriminatedUnion("job", [
  * none is a size or shape an ad takes (picture).
  */
 export type AdCantDraft =
-  | AdDraftMissing
-  | "picture_none"
-  | "picture_person"
-  | "picture_music"
-  | "account"
-  | "account_reading"
-  | "stopped";
+  AdDraftMissing | "picture_none" | "picture_person" | "picture_music" | "account" | "account_reading" | "stopped";
 
 /** What is wrong with an ad's words, as a draft's line says it: Meta's rules by name, and everything else as one. */
 export type AdWordsFault = "about_reader" | "feel_bad" | "sure_result" | "before_after" | "pressure" | "other";

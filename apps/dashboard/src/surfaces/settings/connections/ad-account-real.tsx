@@ -2,7 +2,6 @@
  * Settings › Connections, a workspace's own ad account: the same card Campaigns › Ads draws, with the same read, the
  * same checks and the same presses (the Ads plan's 4.10; decision 0049, call 1: an ad account's home is Connections).
  * Connect, the one question, the caret's sheet and Disconnect are the card's own (campaigns/ads/connect/use-card.tsx).
- * A demo session draws the sample's rows instead (ad-accounts.tsx).
  *
  * It stands among the page's groups by its account, as a row does: in Connected, under the Meta row, once an account is
  * connected or Meta signed Chanlytics out of it; in Available before, and while the owner has two to choose from. Its
@@ -24,13 +23,14 @@ export interface AdsPlace {
 
 /**
  * Where the card stands, by its account's status and the card it draws: null until the account is read. A connected
- * account with something that stops its ads, or one Meta signed Chanlytics out of, needs attention, as a row would.
+ * account with something that stops its ads, ads still on while AI is stopped, or an account Meta signed Chanlytics
+ * out of, needs attention, as a row would.
  */
-export function adsPlaceOf(status: string | null, vm: ConnectCardVM | null): AdsPlace | null {
+export function adsPlaceOf(status: string | null, vm: ConnectCardVM | null, stopped = false): AdsPlace | null {
   if (vm === null) return null;
   if (status === "revoked") return { group: "connected", state: "attention" };
   if (status === "connected")
-    return { group: "connected", state: vm.need?.tone === "warn" ? "attention" : "connected" };
+    return { group: "connected", state: vm.need?.tone === "warn" || stopped ? "attention" : "connected" };
   if (vm.state === "question") return { group: "available", state: "waiting_you" };
   return { group: "available", state: vm.state === "checking" ? "waiting_them" : "none" };
 }
@@ -44,8 +44,13 @@ export function RealAdAccount({
   onPlace: (place: AdsPlace | null) => void;
 }) {
   // Until the account says its own zone, a day is said in the zone of whoever is looking.
-  const connection = useAdsConnection(true, Intl.DateTimeFormat().resolvedOptions().timeZone, CARD.inConnections);
-  const place = adsPlaceOf(connection.account.dto?.meta?.status ?? null, connection.vm);
+  const connection = useAdsConnection(
+    true,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    CARD.inConnections,
+    "card",
+  );
+  const place = adsPlaceOf(connection.account.dto?.meta?.status ?? null, connection.vm, connection.stop !== null);
   const group = place?.group ?? null;
   const state = place?.state ?? null;
   // Told only when it moves: the pane draws the place in that group, and counts the card there.

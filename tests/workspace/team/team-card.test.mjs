@@ -114,6 +114,7 @@ function workspace({
   invites = [JAMIE, SAM],
   alerts = ["Ruben@RJCapital.example", "alex@example.com"],
   features = null,
+  ads = false,
 } = {}) {
   setSurfaceValue("settings", {
     settings: {
@@ -124,6 +125,7 @@ function workspace({
       },
       version: 7,
       role,
+      ads,
     },
     facts: null,
     channels: null,
@@ -377,7 +379,7 @@ test("the card's foot opens the table ROLE_PERMS draws; the card has no Activity
   assert.equal(all(table, (n) => n.type === "tr").length, lines.length + 1, "a line a permission, and the head");
   assert.ok(!/Run ads/.test(textOf(table)));
   // Where the workspace has Ads, the same table says who may run them: the owner alone.
-  workspace({ features: { ads_preview: true } });
+  workspace({ ads: true });
   const withAds = byTestId(draw(), "team-roles-compare");
   assert.equal(all(withAds, (n) => n.type === "tr").length, lines.length + 2, "one line more");
   const adsRow = all(withAds, (n) => n.type === "tr").find((row) => /^Run ads/.test(textOf(row)));

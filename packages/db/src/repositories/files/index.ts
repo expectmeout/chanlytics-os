@@ -54,6 +54,7 @@ export {
   keepVideoSeconds,
   listFilesByIds,
   listFilesByName,
+  listFilesForAds,
   listFilesFound,
   listFilesNamedBy,
   listFilesOnShelf,

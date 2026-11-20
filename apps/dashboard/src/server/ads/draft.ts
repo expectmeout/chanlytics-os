@@ -160,7 +160,11 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
   if (!fresh.ok)
     return {
       can: false,
-      missing: fresh.missing === "picture" ? pictureMissing(facts.pictures.pictures) : fresh.missing,
+      // What was offered and the shelves' newest, which hold what was never offered: someone shown, or not looked at.
+      missing:
+        fresh.missing === "picture"
+          ? pictureMissing([...facts.pictures.pictures, ...facts.pictures.newest])
+          : fresh.missing,
     };
   const { parts } = fresh;
   const draft = sent ? heldDraft(sent, facts, parts.serviceId) : freshDraft(parts);

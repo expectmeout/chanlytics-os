@@ -37,6 +37,7 @@ import type { AdBusinessFacts } from "../ask/skills/ad/brief";
 import { getRoom } from "../ask/tools/read/calendar";
 import { listAdPictures, type AdPictures } from "../content/ad-pictures";
 import { getAppointmentWord } from "../people/deals";
+import { ADS_PAGE_DAYS, aiStoppedAt } from "../readers/ads-page";
 import type { ReaderContext } from "../shared/reader";
 import { getTenantFacts } from "../shared/tenant";
 import { findConfigRow } from "../workspace/config-row";
@@ -58,8 +59,6 @@ import { AdDraftStateSchema, type AdDraftState } from "./draft-shape";
 /** How far back "booked most" looks, and the most visits it counts. */
 const BOOKED_LOOKBACK_DAYS = 90;
 const BOOKED_READ = 2_000;
-/** The days the ads' own counts are read over: the Ads page's window. */
-const ADS_WINDOW_DAYS = 30;
 
 /** A service as a draft reads it: Services' own line, with how often it was booked and whether an ad already runs for it. */
 export type AdDraftService = AdServiceFacts & { price: string | null; minutes: number | null };
@@ -224,7 +223,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     findAdAccountForPage(supabase, rc.tenantId, "meta"),
     findChannelNumber(supabase, rc.tenantId, "whatsapp"),
     listAdPictures(rc),
-    readAdsPageCounts(supabase, rc.tenantId, ADS_WINDOW_DAYS),
+    readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
     listServicesBookedSince(
       supabase,
       rc.tenantId,
@@ -269,7 +268,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     // Before 00659 an account row holds no most: none said.
     ownerMostMinor: (account ? live?.most_minor : null) ?? null,
     kept,
-    stopped: (parsed.config.ask?.stopped ?? null) !== null,
+    stopped: aiStoppedAt(settings?.config) !== null,
     owner: ROLE_PERMS[rc.role].ads,
   };
 }

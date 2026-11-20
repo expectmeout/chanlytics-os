@@ -56,13 +56,6 @@ interface PaneSheetProps {
   children: ReactNode;
 }
 
-/** The last thing a part of the page showed, kept while it leaves: a sheet is on its way out after its address has gone. */
-export function useKept<T>(value: T | null): T | null {
-  const kept = useRef<T | null>(value);
-  if (value !== null) kept.current = value;
-  return value ?? kept.current;
-}
-
 export function PaneSheet({
   open,
   title,
