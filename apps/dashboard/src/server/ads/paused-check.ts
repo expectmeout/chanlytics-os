@@ -43,11 +43,13 @@ interface SentDraft {
   service: string;
   picture: string;
   miles: number;
+  /** A place wider than the circle, by Meta's key, where the draft holds one: then no street address is sent. */
+  area?: { kind: "city" | "region" | "country"; key: string };
   total_minor: number;
   end_day: string;
   text: string;
   headline: string;
-  address: string;
+  address?: string;
   whatsapp: string;
 }
 
@@ -73,17 +75,18 @@ async function draftToSend(rc: ReaderContext, draft: AdDraftState): Promise<Sent
   const reason = unsendable(answer);
   if (reason || !answer.can) throw new AppError("conflict", reason ?? "A draft can't be written yet.", 409);
   const [version] = answer.draft.versions;
-  if (!version || !facts.address || !facts.whatsappNumber)
+  const { area } = answer.draft;
+  if (!version || !(area || facts.address) || !facts.whatsappNumber)
     throw new AppError("conflict", "The draft has no words, address or number yet.", 409);
   return {
     service: answer.draft.service,
     picture: answer.draft.picture.id,
     miles: answer.draft.miles,
+    ...(area ? { area: { kind: area.kind, key: area.key } } : { address: facts.address ?? "" }),
     total_minor: answer.draft.total_minor,
     end_day: answer.draft.end_day,
     text: version.text,
     headline: version.headline,
-    address: facts.address,
     whatsapp: facts.whatsappNumber,
   };
 }

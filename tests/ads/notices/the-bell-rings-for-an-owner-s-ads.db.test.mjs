@@ -6,7 +6,8 @@
  * ran. What must hold: each rings once, on the read that finds it, and never again on the next; it closes for everyone
  * at the read that finds its cause gone; it reaches the owner alone, never a partner, an operator or a viewer; an ad
  * made in Meta rings the same as one made here; the first look after a connect rings nothing; one cause is one row,
- * and the card is never told twice, by an ad's row and the account's. Runs against the database `supabase start`
+ * and the card is never told twice, by an ad's row and the account's; the two that stop an ad owe their mail as they
+ * ring (00662), and the three that are news owe none. Runs against the database `supabase start`
  * builds on this machine, never production.
  */
 import { test, before, after } from "node:test";
@@ -117,6 +118,11 @@ const bellOf = async (ws) =>
 const adIdOf = async (ws, platformAdId) =>
   ok(await db.from("ads").select("id").eq("tenant_id", ws.tenant).eq("platform_ad_id", platformAdId).single()).id;
 const ofKind = (rows, kind) => rows.filter((r) => r.kind === kind);
+/** Whether each row's mail is owed (00662): the two that stop an ad owe it from the moment they ring. */
+const owedOf = async (ws) =>
+  ok(await db.from("notifications").select("kind, mail_due_at").eq("tenant_id", ws.tenant).order("created_at")).map(
+    (r) => [r.kind, r.mail_due_at !== null],
+  );
 const open = (rows) => rows.filter((r) => r.closed_at === null);
 
 /** The database's own moment, as the account's last read stamped it, and the day it is in the account's zone. */
@@ -194,6 +200,8 @@ test(
       closed_at: null,
     });
     for (const other of ws.others) assert.ok(!rows.some((r) => r.recipient_user_id === other), "never a partner");
+    // Mailed as well (00662): the row owes its mail from the moment it rings, and the account's read sends it.
+    assert.deepEqual(await owedOf(ws), [["ad_refused", true]]);
 
     await keep(ws, { ads: [refused] });
     rows = await bellOf(ws);
@@ -299,6 +307,7 @@ test(
     assert.equal(rows[0].body, "Meta stopped showing them. Raise the total in Meta to run them longer.");
     assert.equal(rows[0].subject_id, await adIdOf(ws, "s1"));
     assert.equal(rows[0].recipient_user_id, ws.owner);
+    assert.deepEqual(await owedOf(ws), [["ad_spent", false]], "news stays on the bell: no mail is owed");
     await keep(ws, { ads: spent });
     assert.equal((await bellOf(ws)).length, 1, "rung once");
     await keep(ws, {

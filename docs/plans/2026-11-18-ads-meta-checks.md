@@ -134,7 +134,8 @@ The same owner, the same evening, on the build with both fixes. From the edge's 
   and is AI's, only where Meta names it; where Meta names none they read "Meta doesn't share this", never "missing",
   and a number named that is not AI's leaves AI's own unknown. `ads_page_read` logs which fields Meta's Page answer
   held, by name, so the next read confirms the field is left out. Whether an ad may name AI's number is for the ad's
-  own check (step 4), which names the number.
+  own check (step 4), which names the number. Settled on 20 November: the card no longer counts the two at all (it
+  counts what Chanlytics can read, and says it is ready); the link is one quiet line under its checks (the plan's 4.3).
 - **Linking a number to the Page.** AI's number was linked in Meta's Page settings with "Connect another number", in one
   press and with no code, since its WhatsApp account and the Page are in the same portfolio. It was not made primary:
   that moves where the Page's own WhatsApp button sends people, and is the owner's call.

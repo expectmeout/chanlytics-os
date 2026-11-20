@@ -23,6 +23,7 @@
 import { META_GRAPH, metaProofQuery } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { isMetaId, metaAccountPath, minorToMetaUnits } from "./meta-account";
+import { metaPlaceTargeting, type MetaPlace } from "./meta-place";
 
 const MAKE_KEY = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -144,6 +145,11 @@ export interface MetaAdSetAsk {
   whatsappNumber: string;
   centre: MetaAreaCentre;
   miles: number;
+  /**
+   * A place wider than the circle, where the owner chose one (a city, a region, the whole country, by Meta's key:
+   * meta-place.ts): shown across it in place of the circle, which is then not sent. Absent, the circle.
+   */
+  wide?: Pick<MetaPlace, "kind" | "key"> | undefined;
   /** Whether the ads under it name an Instagram account: Instagram's places are asked for only then. */
   instagram: boolean;
 }
@@ -165,15 +171,21 @@ function centreOf(centre: MetaAreaCentre): Record<string, string | number> {
   return { latitude, longitude };
 }
 
-/** Who sees it: adults in a circle around the business, on the places named, with Meta's automatic audience on. */
-function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "instagram">): Record<string, unknown> {
+/** The area: a place wider than the circle where one was chosen, else the circle around the business. */
+function geoOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide">): Record<string, unknown> {
+  if (ask.wide) return metaPlaceTargeting(ask.wide);
   if (!(ask.miles >= META_MILES.least && ask.miles <= META_MILES.most))
     throw new Error(`Meta takes a circle of ${META_MILES.least} to ${META_MILES.most} miles`);
+  return { custom_locations: [{ ...centreOf(ask.centre), radius: ask.miles, distance_unit: "mile" }] };
+}
+
+/** Who sees it: adults in the area, on the places named, with Meta's automatic audience on. */
+function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "instagram">): Record<string, unknown> {
   return {
     age_min: ADULT,
     geo_locations: {
-      custom_locations: [{ ...centreOf(ask.centre), radius: ask.miles, distance_unit: "mile" }],
-      // The only choice Meta offers: people who live in the circle or were in it lately.
+      ...geoOf(ask),
+      // The only choice Meta offers: people who live in the area or were in it lately.
       location_types: ["home", "recent"],
     },
     // Since v23 Meta must be told. On, it may look past what it was pointed at, and never past the area or the age.

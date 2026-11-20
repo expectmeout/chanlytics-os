@@ -472,6 +472,7 @@ test("the read back is read into what a launch compares: paused, the total, the 
       whatsappNumber: "13055550142",
       youngest: 18,
       miles: 5,
+      area: "circle:5",
       places: [
         "facebook:facebook_reels",
         "facebook:feed",

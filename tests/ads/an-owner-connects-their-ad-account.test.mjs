@@ -534,3 +534,55 @@ test("Meta's pace: a slowed caller and a high share each wait for the score to e
   assert.equal(mayAskMeta({ read_after: "2026-11-19T12:00:01Z" }, now), false);
   assert.equal(mayAskMeta({ read_after: "2026-11-19T11:59:59Z" }, now), true);
 });
+
+test("a place by its name: Meta's location search with the business's sign-in, for any member, and nothing kept", async () => {
+  // Asked by a member who may not run ads (drafting is anyone's): no refusal. With nothing connected yet, nothing is
+  // asked of Meta, and no place is found.
+  world({ owner: false });
+  assert.deepEqual(await heard(await run({ op: "place", place: { kind: "city", query: "Austin" } })), [
+    200,
+    { ok: true, outcome: "not_connected", places: [] },
+  ]);
+  // Connected: Meta's places of the kind asked, by the business's own sign-in.
+  const w = world();
+  await run({ op: "connect", code: "the-code" });
+  w.tables.ad_accounts[0].status = "connected";
+  answers.search = [
+    200,
+    {
+      data: [
+        {
+          key: "2421836",
+          name: "Austin",
+          type: "city",
+          country_code: "US",
+          country_name: "United States",
+          region: "Texas",
+        },
+        { key: "3886", name: "Texas", type: "region", country_code: "US", country_name: "United States" },
+      ],
+    },
+  ];
+  asked.length = 0;
+  const [status, body] = await heard(await run({ op: "place", place: { kind: "city", query: "Austin" } }));
+  assert.deepEqual(
+    [status, body.outcome, body.places],
+    [
+      200,
+      "found",
+      [{ kind: "city", key: "2421836", name: "Austin", region: "Texas", country: "US", country_name: "United States" }],
+    ],
+  );
+  assert.deepEqual(asked, ["GET search"], "one read, and no write");
+  // Meta refusing the search is no place, never a failure the owner reads.
+  answers.search = [400, { error: { message: "(#100) Invalid parameter", code: 100 } }];
+  assert.deepEqual((await heard(await run({ op: "place", place: { kind: "region", query: "Texas" } })))[1], {
+    ok: true,
+    outcome: "unanswered",
+    places: [],
+  });
+  // Nothing to look for is refused before Meta is asked.
+  asked.length = 0;
+  assert.equal((await run({ op: "place", place: { kind: "planet", query: "Mars" } })).status, 400);
+  assert.deepEqual(asked, []);
+});

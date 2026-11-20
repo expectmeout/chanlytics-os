@@ -9,6 +9,7 @@ import {
   adStandingOf,
   adStateOfRow,
   guardrailsInForce,
+  listingFactsOf,
   metaAdConfigOf,
   parseTenantConfigResult,
   zoneDayKey,
@@ -32,6 +33,7 @@ import {
 import { findProfileName } from "@chanlytics/db/auth";
 import { listServicesBookedSince } from "@chanlytics/db/calendar";
 import { findChannelNumber } from "@chanlytics/db/channels";
+import { findGoogleListingFacts } from "@chanlytics/db/google";
 import { logAndGoOn } from "@chanlytics/log";
 import type { AdBusinessFacts } from "../ask/skills/ad/brief";
 import { getRoom } from "../ask/tools/read/calendar";
@@ -41,7 +43,7 @@ import { ADS_PAGE_DAYS, aiStoppedAt } from "../readers/ads-page";
 import type { ReaderContext } from "../shared/reader";
 import { getTenantFacts } from "../shared/tenant";
 import { findConfigRow } from "../workspace/config-row";
-import { AdDraftStateSchema, type AdDraftState } from "./draft-shape";
+import { AdDraftStateSchema, type AdDraftState, type AdWideArea } from "./draft-shape";
 
 /**
  * Everything a new ad's draft is picked and judged from, read once a request under the member's own session (the Ads
@@ -81,6 +83,14 @@ export interface AdDraftFacts {
   business: AdBusinessFacts;
   services: AdDraftService[];
   address: string | null;
+  /**
+   * Where Google says the business goes to its customers and shows no address (its listing's `service_area_only`), the
+   * place the listing names in the address's stead ("Austin, TX, USA"): what a fresh draft's wider place is found
+   * from (area.ts). Null for a business people visit, or with no listing.
+   */
+  servesAt: string | null;
+  /** The wider place found for a fresh draft where the business goes to its customers; null until one is found. */
+  proposedArea: AdWideArea | null;
   /** Whether AI answers a WhatsApp number an ad can open. */
   whatsapp: boolean;
   /** That number, as dialled: the one an ad must name, since a Page can hold several (meta-make.ts). Null with none. */
@@ -104,6 +114,13 @@ export interface AdDraftFacts {
 }
 
 const sameName = (first: string, second: string): boolean => first.trim().toLowerCase() === second.trim().toLowerCase();
+
+/**
+ * The place a business that goes to its customers serves, as its Google listing names it; null for one people visit.
+ * A listing that cannot be read is no fact: the draft keeps its circle.
+ */
+const servesAtOf = (listing: { address: string | null; facts: unknown } | null): string | null =>
+  listing && listingFactsOf(listing.facts)?.service_area_only === true ? listing.address?.trim() || null : null;
 
 /** The language an ad is written in: the first the business says it speaks, where that is Spanish; else English. */
 const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts["language"] =>
@@ -197,7 +214,7 @@ function servicesOf(
 }
 
 /** The ad account a draft is for: a connected one whose currency and least a day Meta has said. Null until then. */
-function draftAccountOf(live: AdAccountRow | null, aiNumber: string | null): AdDraftAccount | null {
+function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
   if (live === null) return null;
   const meta = metaAdConfigOf(live.config);
   if (live.currency === null || meta.min_daily_minor === null) return null;
@@ -208,7 +225,7 @@ function draftAccountOf(live: AdAccountRow | null, aiNumber: string | null): AdD
     minDailyMinor: meta.min_daily_minor,
     page: meta.page_name,
     places: meta.instagram_handle === null ? ["facebook"] : ["facebook", "instagram"],
-    checks: adCardChecksOf({ standing: adStandingOf(live.standing), config: meta, aiNumber }),
+    checks: adCardChecksOf({ standing: adStandingOf(live.standing), config: meta }),
   };
 }
 
@@ -216,7 +233,7 @@ function draftAccountOf(live: AdAccountRow | null, aiNumber: string | null): AdD
 export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
-  const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow] = await Promise.all([
+  const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow, listing] = await Promise.all([
     getTenantFacts(supabase, rc.tenantId),
     findConfigRow(supabase, rc.tenantId),
     getAppointmentWord(rc.ctx, rc.tenantId),
@@ -231,6 +248,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
       BOOKED_READ,
     ),
     findAdDraft(supabase, rc.tenantId),
+    findGoogleListingFacts(supabase, rc.tenantId),
   ]);
   if (number.error) throw new DbFailure(number.error, "the number AI answers");
   const parsed = parseTenantConfigResult(settings?.config ?? null);
@@ -245,7 +263,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
   const today = zoneDayKey(nowMs, timezone);
   const ads = live ? await listAdsOfAccount(supabase, rc.tenantId, live.id) : [];
   const aiNumber = number.data?.number_e164 ?? null;
-  const account = draftAccountOf(live, aiNumber);
+  const account = draftAccountOf(live);
   const history = adHistoryOf(ads, counts);
   // The calendar is read only where the amount can lean on it (contracts ads/draft.ts amountFor).
   const forecast = history.booked >= AD_BOOKED_TO_FORECAST && history.costPerBookedMinor !== null;
@@ -258,6 +276,9 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     business: businessOf(parsed.config, named, word),
     services: servicesOf(parsed.config, runningHereOf(ads, { today, timezone, nowMs }), bookedNames),
     address: parsed.config.brain?.profile?.address?.trim() || null,
+    // A listing that could not be read says nothing of where the business serves: the draft keeps its circle.
+    servesAt: listing.error ? null : servesAtOf(listing.data),
+    proposedArea: null,
     whatsapp: aiNumber !== null,
     whatsappNumber: aiNumber,
     account,

@@ -86,9 +86,11 @@ const NOTIFICATION_DELIVERY = {
   footage_in: "bell",
   // An owner's ads (00658, decision 0050 call 15): Meta didn't approve one or couldn't charge for one, one ended or spent
   // its total, or no one wrote from one in a week. Lines on the owner's bell, written by the database as each read turns
-  // them; Campaigns › Ads says the rest. Which of these are also emailed is Ruben's open call (0050, "Not decided here").
-  ad_refused: "bell",
-  ad_unpaid: "bell",
+  // them; Campaigns › Ads says the rest. The two that stop an ad are also mailed, once a cause (Ruben, 20 Nov 2026): the
+  // ring marks the row's mail owed (00662) and the account's read sends it (the edge's ads/mail.ts), as the business
+  // chooses. The other three stay on the bell.
+  ad_refused: "email",
+  ad_unpaid: "email",
   ad_ended: "bell",
   ad_spent: "bell",
   ad_quiet: "bell",
@@ -149,6 +151,11 @@ interface AlertTopicOf<E extends "always" | "choice" | null, P extends boolean> 
   kinds: readonly Extract<EmailKindsOf<E>, PhoneKindsOf<P>>[];
   /** What the bell's line calls it where the topic has nothing to choose (no email, and no phone of the member's). */
   onBell?: string;
+  /**
+   * Drawn only where Campaigns › Ads is (the Ads plan's D7: the edge's list of workspaces, or an ad account held): a
+   * workspace that cannot run ads is never offered a choice about them. The kinds are no less the topic's elsewhere.
+   */
+  ads?: true;
 }
 
 /** One line of the page's grid. A topic with nothing to choose and nothing locked is the bell's line, not a topic. */
@@ -211,6 +218,18 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
     email: "choice",
     phone: true,
     kinds: ["leads_question"],
+  },
+  // An ad that can't run until the owner fixes something in Meta (decision 0050 call 15; Ruben, 20 Nov 2026): mailed
+  // once a cause, and never again while its bell row is open. The phone waits for the topic to open beyond D7's list.
+  {
+    key: "ads",
+    group: "needs_you",
+    title: "An ad can't run",
+    what: "Meta didn't approve one of your ads, or couldn't charge your card for one. It says what to fix in Meta.",
+    email: "choice",
+    phone: false,
+    kinds: ["ad_refused", "ad_unpaid"],
+    ads: true,
   },
   {
     key: "call",
@@ -370,9 +389,8 @@ export const BELL_LINE_KINDS = [
   // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos.
   "footage",
   "footage_in",
-  // An owner's ads (00658): on the owner's bell alone until a topic offers their phone (decision 0050, call 15).
-  "ad_refused",
-  "ad_unpaid",
+  // An owner's ads (00658): on the owner's bell alone until a topic offers their phone (decision 0050, call 15). The two
+  // that stop an ad are the `ads` topic's, since they are mailed.
   "ad_ended",
   "ad_spent",
   "ad_quiet",
@@ -582,30 +600,32 @@ export function alertGrid(options: {
   notifications: { email_off?: readonly unknown[] | null } | null | undefined;
   emailHeld: EmailHeld;
   phone: { pushOff: readonly string[]; choosable: boolean } | null;
+  /** Whether Campaigns › Ads is drawn in this workspace: the Ads topic is drawn only where it is. */
+  ads: boolean;
 }): AlertGridGroup[] {
   const groups: AlertGroup[] = ["needs_you", "worth_knowing", "for_you"];
   return groups
     .map((group): AlertGridGroup => ({
       group,
       title: ALERT_GROUP_TITLES[group],
-      rows: ALERT_TOPICS.filter((t) => t.group === group && !bellOnly(t, !!options.phone)).map(
-        (topic): AlertGridRow => ({
-          topic,
-          email:
-            topic.email === "always"
-              ? { kind: "always" }
-              : topic.email === null
-                ? { kind: "none" }
-                : { kind: "tick", on: topicEmailed(topic, options.notifications), held: options.emailHeld },
-          phone: !options.phone
-            ? null
-            : !topic.phone
+      rows: ALERT_TOPICS.filter(
+        (t) => t.group === group && !bellOnly(t, !!options.phone) && (options.ads || t.ads !== true),
+      ).map((topic): AlertGridRow => ({
+        topic,
+        email:
+          topic.email === "always"
+            ? { kind: "always" }
+            : topic.email === null
               ? { kind: "none" }
-              : options.phone.choosable
-                ? { kind: "tick", on: topicPushed(topic, options.phone.pushOff), held: null }
-                : { kind: "told" },
-        }),
-      ),
+              : { kind: "tick", on: topicEmailed(topic, options.notifications), held: options.emailHeld },
+        phone: !options.phone
+          ? null
+          : !topic.phone
+            ? { kind: "none" }
+            : options.phone.choosable
+              ? { kind: "tick", on: topicPushed(topic, options.phone.pushOff), held: null }
+              : { kind: "told" },
+      })),
     }))
     .filter((g) => g.rows.length > 0);
 }

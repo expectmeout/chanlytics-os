@@ -55,6 +55,8 @@ export type {
   MetaCreativePicture,
   MetaMakeHow,
 } from "./meta-make";
+export { META_CITY_MILES, metaAreaSent, metaPlacesRequest, parseMetaPlaces } from "./meta-place";
+export type { MetaPlace, MetaPlaceKind } from "./meta-place";
 export {
   META_ADS_PAGE,
   META_DAYS_PAGE,

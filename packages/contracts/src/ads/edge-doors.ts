@@ -5,8 +5,8 @@ import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
 
 /**
  * POST /api/admin/ads/account: an owner's own ad account at Meta, connected from the code Meta's window handed back
- * (`connect`), the one of two chosen (`choose`), looked at again (`check`), disconnected (`disconnect`), or asked whether it can be connected here
- * (`status`). `on` is whether this deployment offers Ads in the workspace; `outcome` is what an op came to.
+ * (`connect`), the one of two chosen (`choose`), looked at again (`check`), disconnected (`disconnect`), asked whether it can be connected here
+ * (`status`), or asked the places Meta keys by a name (`place`), for an ad shown wider than the circle around a business. `on` is whether this deployment offers Ads in the workspace; `outcome` is what an op came to.
  */
 export const ADS_ACCOUNT_DOOR = edgeDoor(
   "/api/admin/ads/account",
@@ -19,6 +19,10 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     external_id: z.string().optional(),
     /** `disconnect`: whether the ads that are running are paused first. */
     pause: z.boolean().optional(),
+    /** `place`: the kind of place and the name looked for at Meta. */
+    place: z
+      .object({ kind: z.enum(["city", "region", "country"]), query: z.string().trim().min(1).max(120) })
+      .optional(),
   }),
   answerFields({
     ready: z.boolean(),
@@ -30,6 +34,17 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
     writes: z.string(),
     /** `disconnect`: the ads left running, or the ones a pause could not be confirmed for (`not_paused`). */
     names: z.array(z.string()),
+    /** `place`: Meta's places by that name, best first, each with its key and where it is. */
+    places: z.array(
+      z.object({
+        kind: z.enum(["city", "region", "country"]),
+        key: z.string(),
+        name: z.string(),
+        region: z.string().nullable(),
+        country: z.string(),
+        country_name: z.string(),
+      }),
+    ),
   }),
 );
 
@@ -52,13 +67,17 @@ export const ADS_CHECK_DOOR = edgeDoor(
         /** The picture it shows: a file's id. */
         picture: DOOR_ID,
         miles: z.number().int().min(1).max(50),
+        /** A place wider than the circle, by Meta's key, where the owner chose one: shown across it in its place. */
+        area: z
+          .object({ kind: z.enum(["city", "region", "country"]), key: z.string().trim().min(1).max(40) })
+          .optional(),
         total_minor: z.number().int().positive(),
         end_day: z.string().regex(DAY_KEY),
         /** One version of its words. */
         text: z.string().trim().min(1).max(1024),
         headline: z.string().trim().min(1).max(255),
-        /** The business's street address, and the number AI answers on WhatsApp. */
-        address: z.string().trim().min(1).max(500),
+        /** The business's street address (none where a wider place is chosen), and the number AI answers on WhatsApp. */
+        address: z.string().trim().min(1).max(500).optional(),
         whatsapp: z.string().trim().min(7).max(32),
       })
       .optional(),

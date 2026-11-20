@@ -1,8 +1,9 @@
 /**
  * The ad account's card (the Ads plan, 4.3; the canvas's Flow and Step2 boards): one card for every state the
  * connection can be in, as a model (apps/dashboard/src/surfaces/campaigns/ads/connect/card-model.ts) over what the
- * server answers (contracts AdAccountDto) and what came back from Meta's window. And the five checks themselves, read
- * in one place from what is kept of an account and the number AI answers (contracts adCardChecksOf).
+ * server answers (contracts AdAccountDto) and what came back from Meta's window. And the three checks themselves, read
+ * in one place from what is kept of an account (contracts adCardChecksOf): only what Chanlytics can read, so the count
+ * can always be finished. The Page's link to the number AI answers is a quiet line, never a check (settled 20 Nov 2026).
  *
  * What must hold: the card says one thing at a time, in the canvas's words; a check that is not met names its one act;
  * nothing is said in a provider's code; and the coral button is Connect, Connect again, or absent, never a dead press.
@@ -20,7 +21,7 @@ const { connectCard, currencyWords } = await import(
 const { adCardChecksOf, adStandingOf, metaAdConfigOf } = await import(at("packages/contracts/src/ads/account.ts"));
 
 const MOMENT = { outcome: null, checking: false, timezone: "America/New_York" };
-const READY = ["account-active", "payment", "page-linked", "whatsapp-linked", "chanlytics-whatsapp"].map((id) => ({
+const READY = ["account-active", "payment", "page-linked"].map((id) => ({
   id,
   ok: true,
 }));
@@ -44,6 +45,7 @@ const account = (over = {}) => ({
   instagram_handle: null,
   ai_number: "+15550100142",
   checks: READY,
+  whatsapp_link: "unsaid",
   can_pause: true,
   reads_instagram: true,
   choices: [],
@@ -91,11 +93,10 @@ test("back from Meta's window the card checks, line by line, and has no press", 
       ["Ad account is active", "unknown"],
       ["Payment method in Meta", "unknown"],
       ["Page", "unknown"],
-      ["WhatsApp number linked to the Page", "unknown"],
-      ["That number is the one AI answers", "unknown"],
     ],
   );
   assert.equal(checking.quiet, "A few seconds. It goes on by itself.");
+  assert.equal(checking.whatsapp, null, "nothing is said of WhatsApp before an account is read");
 });
 
 test("connected and ready: who Meta charges, the Page, Meta's own limit, and nothing missing", () => {
@@ -124,8 +125,8 @@ test("connected and ready: who Meta charges, the Page, Meta's own limit, and not
 });
 
 test("one thing missing: the rest folds into a count, and the first check not met says its one act", () => {
-  const noCard = card(account({ checks: without("payment", "whatsapp-linked", "chanlytics-whatsapp") }));
-  assert.equal(noCard.ready, "2 of 5 ready");
+  const noCard = card(account({ checks: without("payment", "page-linked") }));
+  assert.equal(noCard.ready, "1 of 3 ready");
   assert.deepEqual(
     [noCard.need.title, noCard.need.line, noCard.need.act.words, noCard.need.act.kind, noCard.need.tone],
     [
@@ -138,36 +139,47 @@ test("one thing missing: the rest folds into a count, and the first check not me
   );
   assert.match(noCard.need.act.href, /asset_id=1200000000000042/);
 
-  const unlinked = card(account({ checks: without("whatsapp-linked", "chanlytics-whatsapp") }));
-  assert.equal(unlinked.ready, "3 of 5 ready");
-  assert.deepEqual(
-    [unlinked.need.title, unlinked.need.line, unlinked.need.act.words],
-    [
-      "Your Page isn't linked to your WhatsApp number",
-      "No new ad can be made until it is linked to +1 (555) 010-0142, the number AI answers.",
-      "Link them",
-    ],
-  );
+  const noPage = card(account({ checks: without("page-linked") }));
+  assert.deepEqual([noPage.ready, noPage.need.title, noPage.need.act], ["2 of 3 ready", "Meta shared no Page", null]);
 
-  const otherNumber = card(account({ checks: without("chanlytics-whatsapp") }));
-  assert.equal(otherNumber.need.title, "Your Page is linked to another WhatsApp number");
-  const noWhatsApp = card(account({ ai_number: null, checks: without("chanlytics-whatsapp") }));
-  assert.deepEqual(
-    [noWhatsApp.need.title, noWhatsApp.need.act.words, noWhatsApp.need.act.kind, noWhatsApp.need.act.to],
-    ["AI doesn't answer a WhatsApp number yet", "Connect WhatsApp", "route", "admin/integrations"],
+  // A standing Meta has not said yet is not known: its dot turns, nothing is asked of the owner, and the count waits.
+  const unread = card(
+    account({ checks: READY.map((check) => (check.id === "payment" ? { ...check, ok: null } : check)) }),
   );
+  assert.equal(unread.need, null);
+  assert.equal(unread.ready, "2 of 3 ready");
+  assert.deepEqual(
+    unread.checks.map((check) => check.state),
+    ["ok", "unknown", "ok"],
+  );
+});
 
-  // Meta named no WhatsApp number (it names one only to an app with its Page Public Content or Metadata Access): both
-  // checks are unsaid, their dots still, and nothing asks the owner to link what may already be linked.
-  const unsaid = card(
-    account({ checks: READY.map((check) => (check.id.includes("whatsapp") ? { ...check, ok: null } : check)) }),
-  );
-  assert.equal(unsaid.need, null);
-  assert.equal(unsaid.ready, "3 of 5 ready");
+test("the Page's WhatsApp number is a quiet line, never a count that could not be finished", () => {
+  // Meta named no WhatsApp number (it names one only to an app with its Page Public Content or Metadata Access): the
+  // card is ready and says Meta's own check of an ad settles the link. Before 20 Nov 2026 it read "3 of 5" forever.
+  const unsaid = card(account());
+  assert.deepEqual([unsaid.ready, unsaid.need], [null, null]);
   assert.deepEqual(
-    unsaid.checks.map((check) => check.state),
-    ["ok", "ok", "ok", "unsaid", "unsaid"],
+    unsaid.checks.map((check) => check.label),
+    ["Ad account is active", "Payment method in Meta", "Page"],
   );
+  assert.equal(
+    unsaid.whatsapp,
+    "Meta doesn't share whether your Page is linked to +1 (555) 010-0142, the number AI answers. Meta checks it when an ad is made.",
+  );
+  assert.equal(
+    card(account({ whatsapp_link: "ai_number" })).whatsapp,
+    "Your Page is linked to +1 (555) 010-0142, the number AI answers.",
+  );
+  // AI answers no number: still no check and no stop on the card (New ad asks for one, the plan's G13), said plainly.
+  const none = card(account({ ai_number: null, whatsapp_link: "no_number" }));
+  assert.deepEqual([none.ready, none.need], [null, null]);
+  assert.equal(
+    none.whatsapp,
+    "AI doesn't answer a WhatsApp number yet, and an ad opens a WhatsApp chat. Connect one before making an ad.",
+  );
+  // Signed out or disconnected, the card says nothing of a link it cannot use.
+  assert.equal(card(account({ status: "revoked" })).whatsapp, null);
 });
 
 test("an account Meta turned off, one it could not charge, and one the sign-in may only look at", () => {
@@ -288,39 +300,17 @@ test("a currency is said as a person says it, and one the runtime does not know 
   assert.equal(currencyWords("not a currency"), "not a currency");
 });
 
-test("the five checks are read from what is kept of the account and the number AI answers", () => {
-  const kept = (standing, config, aiNumber = "+15550100142") =>
-    adCardChecksOf({ standing: adStandingOf(standing), config: metaAdConfigOf(config), aiNumber }).map(
-      (check) => check.ok,
-    );
+test("the three checks are read from what is kept of the account", () => {
+  const kept = (standing, config) =>
+    adCardChecksOf({ standing: adStandingOf(standing), config: metaAdConfigOf(config) }).map((check) => check.ok);
   const page = { page_id: "100200300400500", page_whatsapp: "15550100142" };
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, page), [true, true, true, true, true]);
+  assert.deepEqual(kept({ account: "active", funding: "ok" }, page), [true, true, true]);
   // An account that still shows ads while a payment settles is active; any other standing is not.
-  assert.deepEqual(kept({ account: "grace", funding: "none" }, page), [true, false, true, true, true]);
+  assert.deepEqual(kept({ account: "grace", funding: "none" }, page), [true, false, true]);
   assert.deepEqual(kept({ account: "disabled", funding: "ok" }, page).at(0), false);
   // Not read yet is not known, never "missing".
   assert.deepEqual(kept({}, page).slice(0, 2), [null, null]);
-  // Meta names a Page's WhatsApp number only to an app with its Page Public Content or Metadata Access, and one at
-  // most of the fifty a Page may hold (the first real account: two numbers linked, none named). None named settles
-  // neither check, never "missing"; a number named that is not AI's leaves AI's own unknown, as it may be linked beside.
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}), [true, true, false, null, null]);
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, { page_id: "100200300400500" }), [
-    true,
-    true,
-    true,
-    null,
-    null,
-  ]);
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, { ...page, page_whatsapp: "15550109999" }), [
-    true,
-    true,
-    true,
-    true,
-    null,
-  ]);
-  // A workspace whose AI answers no WhatsApp number is known to miss the last, whatever Meta names.
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, page, null).at(4), false, "AI answers no number");
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}, null).at(4), false);
+  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}), [true, true, false], "no Page shared");
   // What is kept is read defensively: an odd value is left out alone.
   assert.deepEqual(adStandingOf({ account: "thriving", funding: "ok" }), { funding: "ok" });
   assert.deepEqual(metaAdConfigOf({ page_id: 7, choices: [{ external_id: "1" }], scopes: ["ads_read", 3] }), {

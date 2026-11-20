@@ -27,6 +27,9 @@ export const NEW = {
   sentence: {
     show: "Show ",
     within: " to people within ",
+    /** Before a city the ad is shown in, with Meta's least ring around it; before a state or a whole country. */
+    inAround: " to people in and around ",
+    across: " to people across ",
     so: ", so they message you on WhatsApp, up to ",
     until: " until ",
     end: ".",
@@ -49,6 +52,8 @@ export const NEW = {
     raisedToLeast: (n: number) => `Raised to the least Meta takes for ${days(n)}.`,
     aDay: (money: string, n: number) => `About ${money} a day for ${days(n)}.`,
     mostBooked: "It offers what people booked most in the last 90 days.",
+    /** Google says the business goes to its customers: the ad is shown across the place it serves. */
+    goesToCustomers: "You go to your customers, so it shows across the place you serve. Tell AI to change it.",
     first: "It offers the first of your Services.",
   },
 
@@ -230,11 +235,6 @@ export const ACCOUNT_FAULT: Record<AdCardCheckId, LineWords> = {
   "account-active": { title: "Your ad account can't run ads right now", body: "Its card on the Ads page says why." },
   payment: { title: "Meta has no payment method for this ad account", body: "An ad made without one is never shown." },
   "page-linked": { title: "Meta shared no Page", body: "An ad runs as your Page." },
-  "whatsapp-linked": { title: "Your Page isn't linked to a WhatsApp number", body: "A tap on the ad opens WhatsApp." },
-  "chanlytics-whatsapp": {
-    title: "AI doesn't answer a WhatsApp number yet",
-    body: "A tap on the ad opens a chat AI answers.",
-  },
 };
 
 /** The special kinds of ad Meta asks to be declared: the question, its two answers, and what a yes means. */

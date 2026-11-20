@@ -21,6 +21,20 @@ const SPECIAL_KINDS = [
 /** The most of a version's words a draft is sent with: well past what reads whole, so a long one is judged, not cut. */
 const VERSION_MAX = { text: 600, headline: 200 } as const;
 
+/**
+ * A place wider than the circle around the business, where the draft shows across one (the Ads plan's 4.6 and G8, as
+ * Ruben settled them on 20 November 2026): a city with Meta's least ring around it, a state or region, or the whole
+ * country. By Meta's own key, which the edge's place search found (server/ads/area.ts), and the name it is said by.
+ */
+const AdWideAreaSchema = z.object({
+  kind: z.enum(["city", "region", "country"]),
+  key: z.string().trim().min(1).max(40),
+  name: z.string().trim().min(1).max(200),
+  /** Its country's ISO 3166 code. */
+  country: z.string().regex(/^[A-Z]{2}$/),
+});
+export type AdWideArea = z.infer<typeof AdWideAreaSchema>;
+
 /** The draft as the screen holds it. Money is whole minor units of the ad account's currency. */
 export const AdDraftStateSchema = z.object({
   /** The service the ad offers, by its name in Services. */
@@ -28,6 +42,8 @@ export const AdDraftStateSchema = z.object({
   /** The picture it shows: a file's id. */
   picture: z.string().regex(UUID),
   miles: z.number().int().min(0).max(10_000),
+  /** Shown across a wider place in place of the circle of `miles` around the business; none for the circle. */
+  area: AdWideAreaSchema.optional(),
   total_minor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   end_day: z.string().regex(DAY_KEY),
   /** The ad writer's words: none while they are being written, else three. */
@@ -122,6 +138,7 @@ interface AdDraftDto {
   service: string;
   picture: { id: string; kind: "photo" | "video"; name: string; made: boolean };
   miles: number;
+  area?: AdWideArea | undefined;
   total_minor: number;
   end_day: string;
   versions: AdVersion[];
@@ -167,6 +184,11 @@ export type AdDraftAnswer =
       };
       /** Why this service, where the draft's own rule picked it. */
       picked: "most_booked" | "first" | null;
+      /**
+       * Why the area is a wider place: Google says the business goes to its customers, so it is shown across the
+       * place it serves rather than around its address. Null for the circle.
+       */
+      area_why: "goes_to_customers" | null;
       checks: AdCheckDto[];
       /** The special kind the draft asks the owner about; null where nothing reads as one, or all are answered. */
       question: AdSpecialKind | null;
