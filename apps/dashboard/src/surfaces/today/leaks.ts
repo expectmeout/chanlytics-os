@@ -43,6 +43,12 @@ export interface TodayLeakVM {
   icon: "calendar" | "alert" | "users" | "clock";
   /** The problem, in one sentence, with the number in it. */
   text: string;
+  /**
+   * The same finding as a line of Today says it (Today, calm, D4): what it is in a few words, and its numbers in the
+   * quieter line under it. `text` stays what Ask why is asked, whole.
+   */
+  head: string;
+  sub: string;
   /** The arithmetic behind the sentence, so nobody has to take it on faith. */
   math: string;
   /**
@@ -179,6 +185,8 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
       tag: "Calendar",
       icon: "calendar",
       text: empty,
+      head: "Is your calendar the one you book in?",
+      sub: `${asked} people wrote or called in the last ${reports.rangeLabel}. None is on it.`,
       math: booking.headline,
       people: [],
       peopleLead: null,
@@ -198,6 +206,8 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
     tag: "Booking gap",
     icon: "calendar",
     text,
+    head: booked === 0 ? `None of ${asked} who wrote got booked` : `Only ${booked} of ${asked} who wrote got booked`,
+    sub: `In the last ${reports.rangeLabel}.`,
     math,
     people: [],
     peopleLead: null,
@@ -222,6 +232,8 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
     tag: "No reply",
     icon: "alert",
     text,
+    head: `${first.none} message${first.none === 1 ? "" : "s"} got no answer`,
+    sub: `Of ${reports.messages.total} in the last ${reports.rangeLabel}. AI answered ${first.ai}, you answered ${first.you}.`,
     math,
     people: noReply
       .slice(0, 2)
@@ -256,6 +268,8 @@ function consultsWaitingLeak({ people, dealsAt }: LeakFacts): TodayLeakVM | null
     tag: "Next step",
     icon: "calendar",
     text,
+    head: `${length} consultation${length === 1 ? "" : "s"} with no next step`,
+    sub: "In the last week, with nothing booked or proposed since.",
     math,
     people: held.slice(0, 2).map((r) => ({
       id: r.id,
@@ -278,18 +292,20 @@ function proposalsWaitingWords(
   pace: DealPaceVM | null,
   po: JourneyListLike | null,
   inHand: number,
-): { text: string; math: string } {
+): { text: string; head: string; sub: string; math: string } {
   // Longer than usual only where it is: the thirty-day cap can hold the wait at or under the pace itself.
   const ago = pace ? `${pace.waitDays} days` : "a week";
   const text = pace?.longerThanUsual
     ? `${count} proposal${count === 1 ? " has" : "s have"} waited longer than usual with nothing back.`
     : `${count} proposal${count === 1 ? "" : "s"} went out more than ${ago} ago with nothing back.`;
+  const head = `${count} proposal${count === 1 ? "" : "s"} with nothing back`;
+  const sub = pace?.longerThanUsual ? "Waiting longer than usual." : `Sent more than ${ago} ago.`;
   const since = pace
     ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} · nothing heard since it went`
     : "nothing heard since it went";
   const counted = po ? `${po.count} on Proposal out · ${since}` : since;
   const math = inHand ? `${counted} · the follow-up has ${inHand} more` : counted;
-  return { text, math };
+  return { text, head, sub, math };
 }
 
 /**
@@ -332,13 +348,15 @@ function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM
   const waiting = out.filter((r) => r.followUp?.kind !== "will");
   const po = list("proposal_out");
   if (!(people && waiting.length >= 1)) return null;
-  const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
+  const { text, head, sub, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
   return {
     id: "proposals-waiting",
     tone: "warn",
     tag: "Waiting",
     icon: "clock",
     text,
+    head,
+    sub,
     math,
     people: inHand ? yoursToFollowUp(waiting) : [],
     peopleLead: inHand ? "Yours to follow up" : null,
@@ -374,6 +392,8 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
     tag: "Reach",
     icon: "users",
     text,
+    head: noNumber ? "Nobody can be sent an offer yet" : "Nobody has said yes to offers",
+    sub: `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages.`,
     math,
     people: [],
     peopleLead: null,
@@ -394,6 +414,8 @@ function quietLeak({ people, list, step }: LeakFacts): TodayLeakVM | null {
     tag: "Gone quiet",
     icon: "clock",
     text,
+    head: `${quiet.count} people have gone quiet`,
+    sub: "No word from you in 30 days.",
     math,
     people: [],
     peopleLead: null,
@@ -418,10 +440,24 @@ export function todayLeaks(
   people: PeopleListsLike | null,
   /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
   noReply: readonly TodayNoReplyVM[] = [],
-  { max = TODAY_LEAK_MAX, nowMs = Date.now() }: { max?: number; nowMs?: number } = {},
+  {
+    max = TODAY_LEAK_MAX,
+    nowMs = Date.now(),
+    olderStands = false,
+  }: {
+    max?: number;
+    nowMs?: number;
+    /**
+     * The page already says who has waited past a week (Need you's Older, counted in its one line): the messages nobody
+     * answered are those people, said a second way, and this rule only opens Reports, so it is left out (Today, calm, D22).
+     */
+    olderStands?: boolean;
+  } = {},
 ): TodayLeaksVM {
   const facts = leakFactsOf(reports, people, noReply, nowMs);
-  const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x): x is TodayLeakVM => !!x);
+  const all = LEAK_ORDER.filter((id) => !(olderStands && id === "unanswered"))
+    .map((id) => LEAK_FINDERS[id](facts))
+    .filter((x): x is TodayLeakVM => !!x);
   const more = Math.max(0, all.length - max);
   // A third problem is counted, never dropped in silence; the page draws this line, it does not compose it.
   return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };

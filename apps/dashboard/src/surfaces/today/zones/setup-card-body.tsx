@@ -7,10 +7,11 @@
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
-import { restEndsDay, type SetupPutOffWhy } from "@chanlytics/contracts";
+import { restEndsDay, type ColdEmailNote, type SetupPutOffWhy } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
   SETUP_CARD_WORDS,
+  setupCardLeftWith,
   type SetupCardPutOff,
   type SetupCardVM,
   type SetupCardWho,
@@ -26,6 +27,8 @@ import { SetupRows } from "../../setup/rows/rows";
 import { setupVerbs, type SetupSurface } from "../../setup/surface";
 import { appNavigate, refusalFlash, useToast, type Flash } from "../shell";
 import { useTodayOnPhone } from "../phone";
+import { CalmList, CalmRow } from "../calm/lines";
+import { ColdEmailLine, ColdEmailRow } from "./cold-email-note";
 
 /**
  * While a step is open: the one row that opens the first run. Its act is the page's coral while nobody waits on the
@@ -281,6 +284,44 @@ function stepsMeter(card: SetupCardVM) {
   return <Meter apart size="sm" parts={parts} className="tz-done" aria-label={card.left} />;
 }
 
+/**
+ * What is left to set up as one line of Today (Today, calm, 19 Nov 2026, D1), where the page's card is someone's who
+ * waits: its name, how many are left, and a press that opens the card under the line, with every row and act it has.
+ * Cold email's note is setting-up work too (D21): it is counted among what is left and opens with the card, its own
+ * line first; with nothing else left to set up it is a line of its own.
+ */
+export const TodaySetupLine = ({ S, note }: { S: SetupSurface; note: ColdEmailNote | null }) => {
+  const [open, setOpen] = useState(false);
+  const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
+  if (!card) return note ? <ColdEmailLine note={note} /> : null;
+  return (
+    <CalmList label={card.title} testid="today-setup-line">
+      <CalmRow
+        first={{ mark: <Icon name="check" size={14} /> }}
+        name={card.title}
+        said={note ? setupCardLeftWith(card, 1) : card.left}
+        press={() => setOpen(!open)}
+        open={open}
+        under={
+          open ? (
+            <>
+              {note ? (
+                <div className="calm-subs" role="list">
+                  <ColdEmailRow note={note} />
+                </div>
+              ) : null}
+              <div className="tq tps tz-setup calm-opened">
+                <TodaySetupCard S={S} coral={false} under />
+              </div>
+            </>
+          ) : null
+        }
+        testid="today-setup-row"
+      />
+    </CalmList>
+  );
+};
+
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and its Skip, and the reminder's row last. Two presses that do two things (the refined canvas,
@@ -293,7 +334,16 @@ function stepsMeter(card: SetupCardVM) {
 // Skip's caret (mobile.css), with no sentence; the head its title on one line, and Hide for a week the card's last row.
 // `coral`: whether its first act is the page's coral, as Today's arrangement gave it (today/arrangement.ts): nobody waits
 // on the owner and nothing the queue drew holds it. Else the card's acts are quiet.
-export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }) => {
+export const TodaySetupCard = ({
+  S,
+  coral,
+  under = false,
+}: {
+  S: SetupSurface;
+  coral: boolean;
+  /** Drawn under Today's line for it (TodaySetupLine), which has said its name and how many are left: no head, never folded. */
+  under?: boolean;
+}) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
   const waiting = !coral;
@@ -348,7 +398,7 @@ export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }
     </Button>
   ) : null;
   const foldable = foldsAnything(card);
-  const short = folded && foldable;
+  const short = folded && foldable && !under;
   const shownCard = short ? { ...card, rows: card.rows.slice(0, 1) } : card;
   const remindDrawn =
     remind && card.skip && (!short || card.rows.length === 0)
@@ -357,22 +407,24 @@ export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }
   return (
     <section className="tq today-setup" data-testid="today-setup">
       {/* The head's whole line folds it; the chevron is the press a key and a reader reach. */}
-      <div
-        className="setup-card-head tz-head"
-        role="presentation"
-        onClick={foldable ? foldFromHead(toggle) : undefined}
-        data-foldable={foldable || undefined}
-      >
-        <span className="setup-card-title tz-name">
-          {card.title}
-          <span className="setup-card-left tz-fact" data-testid="today-setup-left">
-            {card.left}
+      {under ? null : (
+        <div
+          className="setup-card-head tz-head"
+          role="presentation"
+          onClick={foldable ? foldFromHead(toggle) : undefined}
+          data-foldable={foldable || undefined}
+        >
+          <span className="setup-card-title tz-name">
+            {card.title}
+            <span className="setup-card-left tz-fact" data-testid="today-setup-left">
+              {card.left}
+            </span>
           </span>
-        </span>
-        {stepsMeter(card)}
-        {!short && !phone ? hideButton : null}
-        {foldable ? foldChevron(short, toggle) : null}
-      </div>
+          {stepsMeter(card)}
+          {!short && !phone ? hideButton : null}
+          {foldable ? foldChevron(short, toggle) : null}
+        </div>
+      )}
       {card.start ? startRow(card.start, card.left, nav, waiting) : null}
       {card.start
         ? short
@@ -384,7 +436,7 @@ export const TodaySetupCard = ({ S, coral }: { S: SetupSurface; coral: boolean }
             skip: skipRow,
           })}
       {short ? null : ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
-      {!short && phone ? hideButton : null}
+      {!short && (phone || under) ? hideButton : null}
       {toastNode}
     </section>
   );

@@ -70,7 +70,7 @@ const actKindOf = (r: { id: string }, c: NeedYouRowsCtx): "primary" | "ghost" =>
  * A row's verb as a short row draws it: Ask's mark first where its words for the row are ready (a reply drafted, a call's
  * notes), then the verb. Drawn, since it hears the row's draft as it lands.
  */
-function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
+export function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
   const draft = useDraft(draftWantOf(row));
   // A call's read says nothing of words ready: only a reply's mark says Ask has them.
   const ready = draft?.state === "ready" && row.kind !== "callback" && !row.failed;

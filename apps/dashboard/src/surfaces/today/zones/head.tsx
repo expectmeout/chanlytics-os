@@ -31,7 +31,6 @@ import { TODAY_HELPERS } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
 import { useTodayOnPhone } from "../phone";
 import { useDayVm } from "./day-vm";
-import { TodayHeadFigures } from "./figures";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
@@ -66,12 +65,12 @@ function headSentence(line: TodayHeadLineVM, why: string | null, door: string | 
   );
 }
 
-/** On a phone, where no list head says it: how many were done today, after how many need you, where nothing else stands. */
+/** How many were done today, after how many need you, where nothing else stands: no list's head says it (Today, calm). */
 const withDoneToday = (line: TodayHeadLineVM, done: number): TodayHeadLineVM =>
   line.rest || done <= 0 ? line : { ...line, rest: `${NEED_YOU_WORDS.doneToday(done)}.` };
 
 /** Whether the day has turned to tomorrow, as the day's zone says it (contracts todayZoneDay): the head says how today went. */
-function useDayTurned(): boolean {
+export function useDayTurned(): boolean {
   const day = useDayVm();
   const cal = surfaceValue("calendar");
   return todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now())?.tomorrow ?? false;
@@ -93,7 +92,7 @@ export function useZonesStanding(): void {
   const went = turned && vm ? todayWentLine(vm.figures) : null;
   const done = vm?.done_today ?? 0;
   const plainLine = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
-  const line = plainLine && phone && count > 0 ? withDoneToday(plainLine, done) : plainLine;
+  const line = plainLine && count > 0 ? withDoneToday(plainLine, done) : plainLine;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
@@ -101,7 +100,5 @@ export function useZonesStanding(): void {
     title: todayGreetingNow(),
     sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null, count > 0) : undefined,
     beside: listen ?? undefined,
-    // A desk's act is the day's four figures, at the head's right; a phone's stand in Today so far (foot.tsx).
-    ...(!phone ? { act: <TodayHeadFigures /> } : {}),
   });
 }

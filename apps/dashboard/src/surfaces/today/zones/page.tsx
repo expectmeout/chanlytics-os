@@ -1,40 +1,37 @@
 /**
- * Today in three zones (2 Nov 2026; the canvas Ruben approved that day, decisions 0071 and 0076 as amended): one head, then
- * three zones. Need you, everything that waits on you, in groups, one count; the day, what's ahead first; and Ask found,
- * what is worth a look and waits on nobody. The order is the argument: what cannot wait for the list, then the work, then
- * the day, then what is left over, and analysis never outranks a person who has been waiting.
+ * Today, calm (19 Nov 2026; the canvas Ruben approved that day, D1 to D7, over Today in three zones of 2 Nov): one head,
+ * one card, one list, and an end. The card holds the one thing most worth doing, drawn whole with its own presses, and is
+ * the page's only pane and the home of its one coral; everything else is a line, the whole line a press. The order is the
+ * argument it always was: what cannot wait, then who waits on you, then the day, then what is left over, and analysis
+ * never outranks a person who has been waiting.
  *
  *   what cannot wait (alert.tsx: a line that is down, a warning that stops customers being answered), only then
- *   Need you (need-you.tsx)                            | the day (day.tsx)
- *   Cold email's note and Content's card under it,     | Ask found (found.tsx), under the day
- *   each where it has something to say                 |
- *   (cold-email-note.tsx, ../content-note.tsx)         |
- *   what is left to set up, under Need you while       |
- *   someone waits, over it while nobody does           |
- *   the week and the pinned lists, one strip (foot.tsx)
+ *   the card (calm/lead.tsx): a person waiting, a run waiting for a word or a to-do (need-you.tsx), else setting up while nobody waits
+ *     (setup-card.tsx), else what AI found (found.tsx)
+ *   who else waits on you, three named and one line for the rest (need-you.tsx)
+ *   the day, one line with its bar under it (day.tsx)
+ *   what the day came to so far, one line (foot.tsx)
+ *   what AI found, a line each (found.tsx)
+ *   Content, one line (../content-note.tsx)
+ *   the pinned lists, a line each (foot.tsx)
+ *   cold email's note, and what is left to set up where it does not hold the card
+ *   the page says it is done
  *
- * Content's card stands under Need you on a phone and a desk alike, as the content canvas draws it (PhDoors "today"), in
- * stage 3's place at the foot no longer: its own read lands after the page's, and it moves what is under it as it does.
- *
- * Where Need you draws no pane but Older, which nobody counts and which stands at the page's end (zones.css), or none at all
- * (nothing waits on you: the canvas's quiet day, "most owners, most days", whatever came in), Ask found leads the work's
- * column, wide, its rows three across, its first act the coral where setting up holds none;
- * where it finds nothing either, the day stands alone in one column. On a phone the same blocks in one column: Need you's
- * groups each a pane of their own, Ask found where it leads, the day, Ask found under it, Today so far (the four figures
- * and the week), the pins, what is left to set up, and the page says it is done. The head over it is the frame's
- * (head.tsx): the greeting, one sentence, Listen, and on a desk the day's four figures. The grid is
- * zones.css's. Which of it draws where, and which part's act is the coral, is the page's one arrangement
- * (today/arrangement.ts), read here before any of it draws.
+ * Which part holds the card is the page's one arrangement (today/arrangement.ts `cardOf`), read here before any of it
+ * draws: the walk the coral always took. On a desk the same parts stand in two columns: the card and who waits on you on
+ * the left, the day and the rest on the right (D7); the head's four figures are the day's one line now. The head over it
+ * is the frame's (head.tsx): the greeting, one sentence, Listen. The layout is calm/calm.css's.
  */
 import { useEffect } from "react";
 import { forgetFromToday } from "../../inbox/carried-reply";
-import { ColdEmailNote } from "./cold-email-note";
-import { TodayContentNote } from "../content-note";
+import type { ColdEmailNote } from "@chanlytics/contracts";
+import { ColdEmailLine, useColdEmailNote } from "./cold-email-note";
+import { TodayContentLine } from "../content-note";
 import { useTodayArrangement, type TodayArrangement } from "../arrangement";
 import { useTodayOnPhone } from "../phone";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
-import { DeskFoot, PhoneNothingYet, PhonePins, PhoneSoFar, TodayEnd, useNothingSoFar } from "./foot";
+import { DayCameTo, TodayEnd, TodayPins } from "./foot";
 import { AskFound } from "./found";
 import { NeedYou } from "./need-you";
 import { TodayHistory } from "./history";
@@ -42,75 +39,76 @@ import { TodaySetup } from "./setup-card";
 
 /**
  * What is left to set up, and under it the business's history while it is still coming in or a part of it stopped
- * (history.tsx), one card (nothing while neither draws), over Need you (`lead`) or under it; its first act the coral where
- * the arrangement gave it.
+ * (history.tsx), one card (nothing while neither draws): the page's card where the arrangement gave it that (`lead`), its
+ * first act the coral; else at the page's end, quiet.
  */
-const settingUp = (lead: boolean, at: TodayArrangement) => (
-  <div key="setting-up" className={`tq tps tz-setup${lead ? " tz-setup-lead" : ""}`} data-testid="today-setting-up">
-    <TodaySetup coral={at.coral === "setup"} />
-    <TodayHistory />
-  </div>
-);
-
-/** Ask found where it leads the page, wide, its first act the coral where the arrangement gave it. */
-const foundLeading = (at: TodayArrangement) => (at.lead ? <AskFound wide coral={at.coral === "found"} /> : null);
-
-/** Ask found under the day, where it does not lead: never the coral. */
-const foundUnder = (at: TodayArrangement) => (at.lead ? null : <AskFound wide={false} coral={false} />);
-
-/** Today on a phone: the same blocks in one column, in the canvas's order. */
-function PhoneToday({ at }: { at: TodayArrangement }) {
-  // On a day nothing was counted the four zeros are one line under the day, and no card of their own.
-  const nothing = useNothingSoFar();
-  return (
-    <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone tz tz-phone" data-testid="today-phone">
-      <TodayAlertBand />
-      {at.waiting ? null : settingUp(true, at)}
-      <NeedYou />
-      <ColdEmailNote />
-      <TodayContentNote />
-      {foundLeading(at)}
-      <DayZone under={nothing ? <PhoneNothingYet /> : null} />
-      {foundUnder(at)}
-      {nothing ? null : <PhoneSoFar />}
-      <PhonePins />
-      {at.waiting ? settingUp(false, at) : null}
-      <TodayEnd />
+const settingUp = (lead: boolean, note: ColdEmailNote | null) =>
+  lead ? (
+    <div key="setting-up" className="tq tps tz-setup tz-setup-lead" data-testid="today-setting-up">
+      <TodaySetup coral />
+      <TodayHistory />
     </div>
+  ) : (
+    <>
+      <TodaySetup coral={false} line note={note} />
+      <div key="setting-up" className="tq tps tz-setup" data-testid="today-setting-up">
+        <TodayHistory />
+      </div>
+    </>
   );
+
+/** The card where a part that is not Need you holds it: setting up, or what AI found's first row. */
+function cardOfAnother(at: TodayArrangement) {
+  if (at.card?.holder === "setup") return settingUp(true, null);
+  if (at.card?.holder === "found") return <AskFound part="lead" held />;
+  return null;
 }
+
+/** Who waits on you: the card where it is theirs, three more named, and one line for what is left. */
+const waitingOnYou = (at: TodayArrangement) => <NeedYou card={at.card} />;
+
+/** The day and what is left over, a line each: the day, what it came to, what AI found, Content, the pins. */
+const theRest = (at: TodayArrangement) => (
+  <>
+    <DayZone />
+    <DayCameTo />
+    <AskFound part="lines" held={at.card?.holder === "found"} />
+    <TodayContentLine />
+    <TodayPins />
+  </>
+);
 
 export function TodayZones() {
   // Back on Today: the thread it last opened no longer offers the way back to it (carried-reply.ts carryFromToday).
   useEffect(() => forgetFromToday(), []);
-  // Setting up never stands over a person waiting: under Need you while anyone does (keyed, so a turn moves and never
-  // mounts them again), over it while nobody does. Ask found leads where Need you draws no pane, once Today has been read.
-  // Nothing waits and nothing was found: the day alone, one column, rather than a work column left empty beside it.
   const at = useTodayArrangement();
   const phone = useTodayOnPhone();
-  if (phone) return <PhoneToday at={at} />;
-  const { waiting, alone } = at;
-  return (
-    <div className="dash-a-v2 dash-a-v2-glass tz" data-testid="today-zones">
-      <TodayAlertBand />
-      <div className={`tz-bento${alone ? " tz-bento-one" : ""}`}>
-        <div className="tz-col">
-          {waiting ? null : settingUp(true, at)}
-          <NeedYou />
-          <ColdEmailNote />
-          <TodayContentNote />
-          {foundLeading(at)}
-          {waiting ? settingUp(false, at) : null}
-          {alone ? <DayZone /> : null}
-        </div>
-        {alone ? null : (
-          <div className="tz-col">
-            <DayZone />
-            {foundUnder(at)}
-          </div>
-        )}
+  // Cold email's note joins what is left to set up (D21); where setting up holds the card, it is a line of its own.
+  const note = useColdEmailNote();
+  const setupLater = at.card?.holder === "setup" ? note ? <ColdEmailLine note={note} /> : null : settingUp(false, note);
+  if (phone)
+    return (
+      <div className="dash-a-v2 dash-a-v2-glass dash-a-v2-phone tz tz-phone calm" data-testid="today-phone">
+        <TodayAlertBand />
+        {cardOfAnother(at)}
+        {waitingOnYou(at)}
+        {theRest(at)}
+        {setupLater}
+        <TodayEnd />
       </div>
-      <DeskFoot />
+    );
+  return (
+    <div className="dash-a-v2 dash-a-v2-glass tz calm" data-testid="today-zones">
+      <TodayAlertBand />
+      <div className="calm-desk">
+        <div className="calm-col">
+          {cardOfAnother(at)}
+          {waitingOnYou(at)}
+          {setupLater}
+        </div>
+        <div className="calm-col">{theRest(at)}</div>
+      </div>
+      <TodayEnd />
     </div>
   );
 }

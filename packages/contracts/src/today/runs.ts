@@ -87,9 +87,12 @@ export interface TodayRunWordsVM {
   /**
    * A run waiting for a word: what kind of run it is ("Campaign · ready"), then its sentence. `short`, here and on the
    * rows below, is the one fact a row a line tall says in place of all three (the Inbox's Needs you, decision 0142), in
-   * the words Campaigns' own list says it: "2 wait for your approval · 7 held", "14 emails for you to send".
+   * the words Campaigns' own list says it: "2 wait for your approval · 7 held", "14 emails for you to send". `why`, here
+   * and on the rows below, is what stands under that fact where the fact is a title (Today's card, D15): the sentence
+   * less what the fact has said. `head` is that title: what waits, said with its noun ("2 businesses wait for your
+   * approval"), where `short` leans on a row's name beside it.
    */
-  waiting: { meta: string; sentence: string; status: string[]; short: string };
+  waiting: { meta: string; sentence: string; status: string[]; short: string; why: string; head: string };
   /**
    * A waiting run the approve verb would refuse (contracts runApprovalRefusal: its day has passed): what its row says in
    * place of "ready". Its sentence is the verb's own, which the page asks for, and its act is to open it, where Skip is.
@@ -98,9 +101,9 @@ export interface TodayRunWordsVM {
   /** A run under the veto window: scheduled, not yet sending. */
   soon: { meta: string; sentence: string; status: string[] };
   /** A going run whose emails the check holds: they wait for your say on the run, and the rest goes as planned. */
-  held: { meta: string; sentence: string; status: string[]; short: string };
+  held: { meta: string; sentence: string; status: string[]; short: string; why: string; head: string };
   /** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00429). */
-  drafted: { meta: string; sentence: string; status: string[]; short: string };
+  drafted: { meta: string; sentence: string; status: string[]; short: string; why: string; head: string };
   /**
    * What the brief says after the run's name: what it waits for, and the queue's own sentence for it. A run waiting for
    * approval is "waiting for your approval"; a going one whose emails are held, or handed to you, is "waiting for you".
@@ -137,9 +140,12 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
       ? batchWaitWords(audienceTrigger(run.audience), run.offered)
       : waitEndsWords("leads_batch");
   // A freed time's run says the time first, and why these people (0082): they asked and never booked.
-  const waiting = run.offered
-    ? `${capitalize(run.offered)} opened. ${people} asked this month and never booked. ${ends}.`
-    : `${people}. ${facts ? batchSaid(facts, ends) : `${ends}.`}`;
+  const waitingWhy = run.offered
+    ? `${people} asked this month and never booked. ${ends}.`
+    : facts
+      ? batchSaid(facts, ends)
+      : `${ends}.`;
+  const waiting = run.offered ? `${capitalize(run.offered)} opened. ${waitingWhy}` : `${people}. ${waitingWhy}`;
   const took = typeof run.counts.took === "number" ? `, ${run.counts.took} took it` : "";
   // What an OK sends and what the check holds apart, where it holds any: each held one is decided on its own.
   const undecided = batchHeldEmails(run);
@@ -155,6 +161,9 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
         undecided > 0
           ? `${plural(asks, "waits", "wait")} for your approval · ${undecided} held`
           : `${people} · ${RUN_WAITING_WORDS.toLowerCase()}`,
+      // What the check holds is said under the title, since an OK sends none of it.
+      why: undecided > 0 ? `${undecided} held for a look. ${waitingWhy}` : waitingWhy,
+      head: `${asks} ${reach ? (asks === 1 ? "business" : "businesses") : asks === 1 ? "person" : "people"} ${asks === 1 ? "waits" : "wait"} for your approval`,
     },
     late: { meta: `${kind} · too late to approve`, status: [RUN_LATE_WORDS], short: RUN_LATE_WORDS },
     soon: {
@@ -172,12 +181,16 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
       sentence: held,
       status: ["Waits for you"],
       short: heldEmailsWords(run.held ?? 0),
+      why: "The rest goes as planned.",
+      head: heldEmailsWords(run.held ?? 0),
     },
     drafted: {
       meta: `${kind} · to send`,
       sentence: drafted,
       status: ["Handed to you"],
       short: `${plural(run.drafted ?? 0, "email", "emails")} for you to send`,
+      why: "From your inbox, each written and checked.",
+      head: `${plural(run.drafted ?? 0, "email", "emails")} for you to send`,
     },
     brief:
       runHeldEmails(run) > 0

@@ -1,0 +1,280 @@
+/* Today, calm (19 Nov 2026; the canvas of that day, docs/2026-11-19-today-calm-canvas, D1 to D7): one card, one list, an
+   end. The card is the kit's panel, drawn as Today's panes are (dashboard-a-v2.css's Glass block reaches it by its test
+   id); the lines are the kit's list rows, on the page itself and in no pane (D5: glass only where something floats, and
+   the one card). This sheet holds their layout alone, and reads every size, weight and colour from the tokens. */
+
+/* ---- The page: its parts a step apart, the lists of lines standing as one list. ---- */
+.calm {
+  --calm-gap: var(--space-3);
+  /* A line's face at the size the canvas drew it, and the rule under a line from under its name. */
+  --row-face: var(--space-10);
+  /* The lines stand on the page, not in a pane: their words start near the card's edge, as the canvas drew them. */
+  --row-pad-x: var(--space-1);
+  --row-rule-start: calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
+}
+.calm-desk {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  column-gap: var(--space-12);
+  row-gap: var(--calm-gap);
+  align-items: start;
+}
+.calm-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--calm-gap);
+  min-width: 0;
+}
+@media (max-width: 1280px) {
+  .calm-desk {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---- The card: what kind of thing it is, what it is, why, then its acts or its work. ---- */
+.calm-lead-in {
+  display: flex;
+  flex-direction: column;
+  padding-block: var(--space-4) var(--space-5);
+}
+.calm-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-h-sm);
+  font-size: var(--text-aside);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-dim);
+}
+.calm-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-read);
+  color: var(--ink);
+}
+.calm-wait {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  white-space: nowrap;
+  color: var(--ink-dim);
+}
+.calm-wait[data-long] {
+  font-weight: var(--weight-semibold);
+  color: var(--warn-ink);
+}
+.calm-title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  text-wrap: balance;
+}
+.calm-why {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-read);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+/* Why stands alone under the title, so it starts as a sentence does, whatever row lent its words. */
+.calm-why::first-letter {
+  text-transform: uppercase;
+}
+.calm-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.calm-work {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+@media (min-width: 721px) {
+  .calm-lead-in {
+    padding-block: var(--space-5) var(--space-6);
+  }
+  .calm-title {
+    font-size: var(--text-hero);
+  }
+}
+
+/* ---- The lines: each the kit's row, a hairline between two of a list, and the lists one after another as one list. ---- */
+.calm-lines {
+  display: flex;
+  flex-direction: column;
+}
+.calm-line {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.calm-line:first-child {
+  border-top-color: transparent;
+}
+.calm-lines ~ .calm-lines {
+  margin-top: calc(-1 * var(--calm-gap));
+}
+.calm-lines ~ .calm-lines > .calm-line:first-child {
+  border-top-color: var(--line);
+}
+.calm-name {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: normal;
+  text-wrap: balance;
+}
+/* What a line says under its name may run to a second line, never a third. */
+.calm-said {
+  display: -webkit-box;
+  font-size: var(--text-aside);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+.calm-end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.calm-end > .calm-wait {
+  margin-left: 0;
+}
+.calm-go {
+  color: var(--ink-faint);
+}
+.calm-now {
+  display: inline-block;
+  margin-right: var(--space-2);
+  vertical-align: middle;
+}
+/* What stands under a line, inside it: the day's bar and what the day asks, what a press opened. From under the name. */
+.calm-under {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--row-pad-x) var(--space-3) var(--row-rule-start);
+}
+
+/* ---- What still draws in the rows' own grammar under the lines, and the page's last line. ---- */
+/* It sits on the page as the lines do: Today's panes' ground and rim (dashboard-a-v2.css) are not its own. */
+.calm .calm-rest.tq {
+  display: flex;
+  flex-direction: column;
+  padding-inline: var(--row-rule-start) var(--row-pad-x);
+  background: none;
+  box-shadow: none;
+}
+.calm .calm-rest.tq::after {
+  content: none;
+}
+/* What a line opened under itself, a card of its own (setting up): a step in from the line's edges. */
+.calm-opened {
+  margin: 0 var(--row-pad-x) var(--space-3);
+}
+/* The card's presses where its work draws them (a to-do's, a visit's): the card's size, the main one first and the
+   quieter after it, as every card has them. The work's own row puts the quiet one first and the main one at its far end. */
+.calm-work {
+  --control-h-md: var(--control-h-touch);
+  --text-sm: var(--text-base);
+}
+.calm-work .ny-acts {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+.calm-work .ny-room {
+  display: none;
+}
+/* What stands under a name as facts: one line of them, each whole or not there. A fact with no room goes to a second
+   line, which is not drawn, and takes its dot with it; a fact alone that is too long ends in an ellipsis. */
+.calm-facts {
+  display: flex;
+  flex-wrap: wrap;
+  max-height: var(--row-said-line);
+  overflow: hidden;
+}
+.calm-fact {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.calm-fact + .calm-fact::before {
+  content: " · ";
+}
+/* The hours under the day's bar: a column an hour, a label where the hour is marked, the day's end at its right. */
+.calm-hours {
+  position: relative;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  font-size: var(--text-xs);
+  line-height: var(--row-said-line);
+  color: var(--ink-dim);
+}
+.calm-hours > span {
+  white-space: nowrap;
+}
+.calm-hours > .calm-hours-end {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+/* The card's small line, where it names a campaign: one line, however long its name. */
+.calm-whose {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A line that names nothing and only counts what is left: no mark in its column, its words lighter. */
+.calm-line[data-quiet] > :first-child > :first-child {
+  visibility: hidden;
+  height: 0;
+}
+.calm-line[data-quiet] .calm-name {
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+/* A line that never runs to a second line (the day's): its name and what stands under it end in an ellipsis. */
+.calm-line[data-tight] .calm-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.calm-line[data-tight] .calm-said {
+  -webkit-line-clamp: 1;
+}
+/* What a counting line opens: a door each, closer together, with no rule between two of them. */
+.calm-subs {
+  --row-pad-y: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-2);
+}
+.calm-subs > .calm-line {
+  border-top: 0;
+}
+/* A door's own press under it (Mark all kept), from under its name. */
+.calm-sub-act {
+  display: flex;
+  padding: 0 var(--row-pad-x) var(--space-2) var(--row-rule-start);
+}
+/* The words of a sentence that are its warning, in the warning's ink (a to-do's "overdue since Thu"). */
+.calm [data-tone="warn"] {
+  color: var(--warn-ink);
+}
+.calm [data-tone="danger"] {
+  color: var(--danger-ink);
+}

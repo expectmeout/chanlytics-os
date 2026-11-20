@@ -28,6 +28,12 @@ export interface AskFoundRowVM {
   /** What it is, in a few words: "Booking gap", "Ask's idea". */
   tag: string;
   sentence: string;
+  /**
+   * The row as a line of Today says it (Today, calm, D4): what it is in a few words, and one quieter line under it, its
+   * numbers where it has any. None under it where the row has nothing more to say.
+   */
+  head: string;
+  sub: string | null;
   /** Why, said under the sentence on a press, beside Not today. */
   why: string;
   /**
@@ -85,6 +91,8 @@ const ruleRow = (todayLeak: TodayLeakVM): AskFoundRowVM => ({
   source: "rule",
   tag: todayLeak.tag,
   sentence: todayLeak.text,
+  head: todayLeak.head,
+  sub: todayLeak.sub,
   why: todayLeak.math,
   act: { label: todayLeak.cta.label, to: todayLeak.cta.to },
   card: null,
@@ -120,6 +128,8 @@ function noticedRow(askMorningCard: AskMorningCard): AskFoundRowVM {
     source: "noticed",
     tag: cardSays(askMorningCard, "tag") ?? ASK_FOUND_WORDS.noticed,
     sentence: cardSays(askMorningCard, "sentence") ?? askMorningCard.line ?? askMorningCard.title,
+    head: cardSays(askMorningCard, "sentence") ?? askMorningCard.line ?? askMorningCard.title,
+    sub: cardSays(askMorningCard, "why") ?? (askMorningCard.summary || null),
     why: cardSays(askMorningCard, "why") ?? askMorningCard.summary,
     act: cardAct(askMorningCard),
     card: askMorningCard,
@@ -137,6 +147,8 @@ const ideaRow = (c: AskMorningCard): AskFoundRowVM => ({
   source: "idea",
   tag: ASK_FOUND_WORDS.idea,
   sentence: c.line ?? c.title,
+  head: c.line ?? c.title,
+  sub: c.summary || null,
   why: c.summary,
   act: cardAct(c),
   card: c,
@@ -149,6 +161,8 @@ const queueRow = (r: TodayQueueRowVM): AskFoundRowVM => ({
   source: r.kind === "tried" ? "tried" : "call",
   tag: r.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
   sentence: [r.who, r.sentence].filter(Boolean).join(": "),
+  head: r.who || r.sentence,
+  sub: r.who ? r.sentence || null : null,
   why: r.status.join(" · "),
   act: { label: r.cta.label, to: r.cta.to },
   card: null,
