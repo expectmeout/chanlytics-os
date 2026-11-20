@@ -48,6 +48,7 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
     "begin_message_delay_ms",
     "data_storage_retention_days",
     "enable_backchannel",
+    "enable_colloquial_model",
     "end_call_after_silence_ms",
     "handbook_config",
     "interruption_sensitivity",
@@ -381,37 +382,34 @@ test("how a call sounds is the product's on every line: a conversational persona
     interruption_sensitivity: null,
     begin_message_delay_ms: null,
     enable_backchannel: null,
+    enable_colloquial_model: null,
     handbook_config: null,
   });
   assert.deepEqual(salon.agentPatch, {
     interruption_sensitivity: 0.8,
     begin_message_delay_ms: 400,
     enable_backchannel: true,
+    enable_colloquial_model: true,
     handbook_config: {
-      default_personality: false,
-      conversational_personality: true,
-      natural_filler_words: true,
-      echo_verification: true,
-      speech_normalization: true,
+      conversational: { custom_prompt: null },
+      natural_filler_words: { custom_prompt: null },
+      echo_verification: { custom_prompt: null },
+      speech_normalization: { custom_prompt: null },
     },
   });
-  assert.equal(salon.drift.length, 4, "a line for each setting, and one for the handbook");
+  assert.equal(salon.drift.length, 5, "a line for each setting, and one for the handbook");
   assert.ok(salon.drift.some((d) => d.startsWith("interruption_sensitivity is unset; the product's is 0.8")));
-  // A line set by hand (Ruben's, 28 Oct 2026): its values become the product's, and the presets the product does not
-  // hold are kept as they are.
+  // A line set by hand, as the provider answers it: its values become the product's, the call-center script goes off,
+  // and a preset the product does not hold is kept as it was read.
   const his = planAgentSettings({
     ...CONVERGED,
     interruption_sensitivity: 0.95,
     begin_message_delay_ms: 200,
     enable_backchannel: null,
     handbook_config: {
-      ai_disclosure: false,
-      conversational_personality: true,
-      default_personality: false,
-      echo_verification: false,
-      high_empathy: false,
-      natural_filler_words: true,
-      speech_normalization: false,
+      customer_support: { custom_prompt: "# Customer Support\nAct as a professional call-center representative." },
+      natural_filler_words: { custom_prompt: "## Natural Filler Words\n- Add filler words like um." },
+      high_empathy: { custom_prompt: "## High Empathy\n- Acknowledge the caller's concern." },
     },
   });
   assert.deepEqual(his.agentPatch, {
@@ -419,17 +417,19 @@ test("how a call sounds is the product's on every line: a conversational persona
     begin_message_delay_ms: 400,
     enable_backchannel: true,
     handbook_config: {
-      ai_disclosure: false,
-      conversational_personality: true,
-      default_personality: false,
-      echo_verification: true,
-      high_empathy: false,
-      natural_filler_words: true,
-      speech_normalization: true,
+      high_empathy: { custom_prompt: "## High Empathy\n- Acknowledge the caller's concern." },
+      conversational: { custom_prompt: null },
+      natural_filler_words: { custom_prompt: null },
+      echo_verification: { custom_prompt: null },
+      speech_normalization: { custom_prompt: null },
     },
   });
   assert.ok(
-    his.drift.some((d) => d.includes("echo_verification, speech_normalization")),
+    his.drift.some((d) =>
+      d.includes(
+        "(conversational is off, echo_verification is off, speech_normalization is off, customer_support is on)",
+      ),
+    ),
     "the handbook's line names only what differs",
   );
   // A preset the product does not hold is the line's own: kept, and not drift.
@@ -441,4 +441,27 @@ test("how a call sounds is the product's on every line: a conversational persona
   const created = voiceAgentCreateBody({ llmId: "llm_feel", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   for (const [key, value] of Object.entries(CALL_FEEL)) assert.equal(created[key], value, key);
   assert.deepEqual(created.handbook_config, CALL_HANDBOOK);
+});
+
+test("a line's handbook as the provider answers it since its object form is in step, and no plan sends an old name beside a new one", () => {
+  // The test line as get-agent answered on 20 Nov 2026: each preset's prompt written out, no old names. The planner
+  // compared the old booleans and called it drift, and the update it planned was refused (400: the old
+  // conversational_personality beside the new conversational).
+  const asRead = {
+    conversational: { custom_prompt: "# Conversational Agent Response Guidelines\n## Who you are" },
+    natural_filler_words: { custom_prompt: "## Natural Filler Words\n- Add filler words like um." },
+    echo_verification: { custom_prompt: "## Name Confirmation Guide\n- Repeat back the name." },
+    speech_normalization: { custom_prompt: "# Speech Normalization\nSpeak numbers in natural words." },
+  };
+  const inStep = planAgentSettings({ ...CONVERGED, handbook_config: asRead });
+  assert.deepEqual([inStep.agentPatch, inStep.drift], [null, []]);
+  // A line still holding an old name beside a preset the product wants on: the plan sends the new form alone.
+  const old = planAgentSettings({
+    ...CONVERGED,
+    handbook_config: { conversational_personality: true, default_personality: false, natural_filler_words: true },
+  });
+  const sent = old.agentPatch.handbook_config;
+  for (const name of ["conversational_personality", "default_personality", "customer_support"])
+    assert.equal(name in sent, false, name);
+  assert.deepEqual(sent, CALL_HANDBOOK);
 });

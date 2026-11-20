@@ -416,6 +416,7 @@ export interface RetellAgentConfig {
   interruption_sensitivity: number | null;
   begin_message_delay_ms: number | null;
   enable_backchannel: boolean | null;
+  enable_colloquial_model: boolean | null;
   handbook_config: Record<string, unknown> | null;
 }
 
@@ -456,6 +457,7 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     interruption_sensitivity: num("interruption_sensitivity"),
     begin_message_delay_ms: num("begin_message_delay_ms"),
     enable_backchannel: bool("enable_backchannel"),
+    enable_colloquial_model: bool("enable_colloquial_model"),
     handbook_config:
       result.handbook_config && typeof result.handbook_config === "object" && !Array.isArray(result.handbook_config)
         ? recordOrEmpty(result.handbook_config)
