@@ -38,7 +38,6 @@ const { sourceTaker } = await import(at("apps/edge/lib/files/takes/step.ts"));
 const { answerKeyDoor } = await import(at("apps/edge/lib/files/takes/key-door.ts"));
 const { receiveStreamWebhook } = await import(at("apps/edge/lib/files/video-webhook.ts"));
 const { DRIVE_UNITS } = await import(at("apps/edge/lib/files/takes/budgets.ts"));
-const { SOURCE_WORDS } = await import(at("apps/edge/lib/files/sources/words.ts"));
 
 const STREAM_API = "https://api.cloudflare.com/client/v4/accounts/acct-1/stream";
 const MIB = 1_048_576;
@@ -359,8 +358,8 @@ test("a grant Google refuses for good signs the account out: its folder pauses a
     "the first take meets the refusal; the second finds the folder already paused",
   );
   assert.deepEqual(
-    [w.tables.source_connections[0].health, w.source().state, w.source().last_error],
-    ["needs_reconnect", "paused", SOURCE_WORDS.signedOut],
+    [w.tables.source_connections[0].health, w.source().state, w.source().stopped_why],
+    ["needs_reconnect", "paused", "signed_out"],
   );
   for (const id of ["photo-1", "clip-1"]) {
     const item = w.item(id);

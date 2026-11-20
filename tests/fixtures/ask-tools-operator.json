@@ -3918,13 +3918,17 @@
     },
     {
       "name": "propose_bring_in",
-      "description": "Bring in the business's own photos and videos from a link they give you: their website (read again for the photos it shows and the videos it plays), their Instagram account (its newest posts and reels; an \"@name\" is one), or a Google Drive folder (its link, or the words \"google drive\" when they say their photos and videos are kept in Drive and gave no link). Propose it at once when they paste or name one. A website's or an Instagram's wait in the Library until they Keep them; a Drive folder is watched from then on, and what lands in it goes straight into the Library. A YouTube or Vimeo link, a Google Photos link, a link to one file, one post's link or another social page is refused in words to say back. Only their own: never a competitor's or a page they did not say is theirs. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Bring in the business's own photos and videos from a link they give you: their website (read again for the photos it shows and the videos it plays), their Instagram account (its newest posts and reels; an \"@name\" is one), or a Google Drive folder (its link, or the words \"google drive\" when they say their photos and videos are kept in Drive and gave no link). Propose it at once when they paste or name one. A website's or an Instagram's wait in the Library until they Keep them; a Drive folder is watched from then on, and what lands in it goes straight into the Library. For a watched folder's older files, set `older`. A YouTube or Vimeo link, a Google Photos link, a link to one file, one post's link or another social page is refused in words to say back. Only their own: never a competitor's or a page they did not say is theirs. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
           "link": {
             "type": "string",
             "description": "The link as they gave it: a website's address, an Instagram account's link or @name, a Google Drive folder's link, or \"google drive\" where they named Drive with no link."
+          },
+          "older": {
+            "type": "boolean",
+            "description": "True when they ask for the watched Google Drive folder's older photos and videos, the ones it left in Drive; the link is then \"google drive\"."
           }
         },
         "required": ["link"],
@@ -7002,13 +7006,17 @@
     },
     {
       "name": "propose_bring_in",
-      "description": "Bring in the business's own photos and videos from a link they give you: their website (read again for the photos it shows and the videos it plays), their Instagram account (its newest posts and reels; an \"@name\" is one), or a Google Drive folder (its link, or the words \"google drive\" when they say their photos and videos are kept in Drive and gave no link). Propose it at once when they paste or name one. A website's or an Instagram's wait in the Library until they Keep them; a Drive folder is watched from then on, and what lands in it goes straight into the Library. A YouTube or Vimeo link, a Google Photos link, a link to one file, one post's link or another social page is refused in words to say back. Only their own: never a competitor's or a page they did not say is theirs. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Bring in the business's own photos and videos from a link they give you: their website (read again for the photos it shows and the videos it plays), their Instagram account (its newest posts and reels; an \"@name\" is one), or a Google Drive folder (its link, or the words \"google drive\" when they say their photos and videos are kept in Drive and gave no link). Propose it at once when they paste or name one. A website's or an Instagram's wait in the Library until they Keep them; a Drive folder is watched from then on, and what lands in it goes straight into the Library. For a watched folder's older files, set `older`. A YouTube or Vimeo link, a Google Photos link, a link to one file, one post's link or another social page is refused in words to say back. Only their own: never a competitor's or a page they did not say is theirs. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
           "link": {
             "type": "string",
             "description": "The link as they gave it: a website's address, an Instagram account's link or @name, a Google Drive folder's link, or \"google drive\" where they named Drive with no link."
+          },
+          "older": {
+            "type": "boolean",
+            "description": "True when they ask for the watched Google Drive folder's older photos and videos, the ones it left in Drive; the link is then \"google drive\"."
           }
         },
         "required": ["link"],

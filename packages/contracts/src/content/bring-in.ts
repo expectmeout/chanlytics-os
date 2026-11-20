@@ -105,6 +105,9 @@ export const BRING_IN_WORDS = {
   drive: {
     title: (folder: string | null) => (folder ? FOOTAGE_SAID.watchTitle(folder) : "Watch a Google Drive folder"),
     summary: "New photos and videos come in from the folder by themselves, and go straight into the Library.",
+    /** Its older files, asked for (call 7): the card's title and line. */
+    olderTitle: FOOTAGE_SAID.older.title,
+    olderSummary: FOOTAGE_SAID.older.summary,
   },
   title: (b: BringInRead) =>
     b.place === "website" ? `Bring in what ${siteHostOf(b.url)} shows` : `Bring in @${b.handle}'s posts and reels`,
@@ -170,9 +173,10 @@ export const bringInSpec: ProposalSpecAboveOperator = {
   doing: "bring in photos and videos from a link",
   gate: "settings",
   // A Drive folder is watched, by the folder's own door: the card hands in what its steps settled (the folder, whether
-  // the folders inside it count, and whether it takes another's place).
-  commit: ({ payload }) =>
-    payload.place === "drive"
+  // the folders inside it count, and whether it takes another's place). Its older files (call 7) are asked for by theirs.
+  commit: ({ payload }) => {
+    if (payload.place === "drive_older") return { route: "POST sources/older", body: {} };
+    return payload.place === "drive"
       ? {
           route: "POST sources/watch",
           body: {
@@ -181,8 +185,16 @@ export const bringInSpec: ProposalSpecAboveOperator = {
             instead: payload.instead === true,
           },
         }
-      : { route: "POST content/bring-in", body: { link: asText(payload.link) } },
-  receipt: (card, data) =>
-    card.payload.place === "drive" ? FOOTAGE_SAID.watching(asText(card.payload.folder_name)) : bringInReceiptOf(data),
+      : { route: "POST content/bring-in", body: { link: asText(payload.link) } };
+  },
+  receipt: (card, data) => {
+    if (card.payload.place === "drive_older") {
+      const files = recordOrEmpty(data).asked;
+      return FOOTAGE_SAID.older.done(typeof files === "number" ? files : 0);
+    }
+    return card.payload.place === "drive"
+      ? FOOTAGE_SAID.watching(asText(card.payload.folder_name))
+      : bringInReceiptOf(data);
+  },
   open: () => CONTENT_LIBRARY_ROUTE,
 };

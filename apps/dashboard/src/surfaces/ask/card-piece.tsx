@@ -58,7 +58,7 @@ function followedNow(followed: Followed | null, of: string | null) {
     stands,
     moving: stands === null || pieceStillMoving(stands),
     times: mine?.times ?? 0,
-    waitingOnClip: stands?.is === "making" && stands.stage === "waiting_clip",
+    waitingOnClip: stands?.is === "making" && (stands.stage === "waiting_clip" || stands.stage === "from_drive"),
   };
 }
 

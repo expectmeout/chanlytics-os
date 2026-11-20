@@ -157,13 +157,16 @@ export async function takeVideo(
     // The platform is preparing as many clips as it takes at once: nothing is wrong with this one. A short rest, and
     // no try is spent.
     if (fetched.busy) return putBack(taking, { why: "busy", until: new Date(Date.now() + TAKE_RESTS_MS.busy) });
-    // The account's own storage is spent: nothing a business can change, and every clip waits the same.
-    if (fetched.full)
+    // The account's own storage is spent: nothing a business can change, and every clip waits the same. Its own word
+    // (never "videos aren't on"), and one error line for Health, since only the platform's owner can mend it.
+    if (fetched.full) {
+      taking.log.error("video_storage_full", { item: item.id, road: "take" });
       return putBack(taking, {
-        why: "videos_off",
+        why: "stream_full",
         until: new Date(Date.now() + TAKE_RESTS_MS.videosOff),
         park: "videos",
       });
+    }
     // The address is ours, so a refusal of it is a fault of ours or the platform's bad minute: the ledger tries again.
     throw new Error(`source_take: the video platform did not take the clip (${fetched.error})`);
   }

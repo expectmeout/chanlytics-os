@@ -12,7 +12,7 @@
  * Google giving no answer is neither: the job throws and the ledger tries it again.
  */
 import { driveSource, SourceKeyRefused, type DriveSource } from "@chanlytics/channels/files";
-import type { SchemaSet, SourceFolder, TenantId } from "@chanlytics/contracts";
+import type { FolderStoppedWhy, SchemaSet, SourceFolder, TenantId } from "@chanlytics/contracts";
 import {
   findMediaSource,
   findSourceConnection,
@@ -29,7 +29,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "../../shared/log.js";
 import { getSourceToken } from "./credentials.js";
 import { SOURCE_PACE } from "./pace.js";
-import { SOURCE_WORDS } from "./words.js";
 
 type Db = SupabaseClient<Database>;
 type SourceState = SchemaSet<"media_sources.state">;
@@ -65,21 +64,26 @@ const folderOf = (source: MediaSourceRow): SourceFolder => ({
   driveId: source.drive_id,
 });
 
-/** One folder paused: nothing is read until its account is connected again, and its row says why. */
-async function pauseSource(db: Db, source: MediaSourceRow, sentence: string, at: Date): Promise<void> {
+/** One folder paused: nothing is read until its account is connected again, and its row says why, as one word. */
+async function pauseSource(db: Db, source: MediaSourceRow, cause: FolderStoppedWhy, at: Date): Promise<void> {
   await patchMediaSource(db, {
     tenantId: source.tenant_id,
     id: source.id,
     from: READ_STATES,
-    patch: { state: "paused", last_error: sentence, last_error_at: at.toISOString(), next_read_at: null, ...NO_WALK },
+    patch: { state: "paused", stopped_why: cause, last_error_at: at.toISOString(), next_read_at: null, ...NO_WALK },
   });
 }
 
 /** Every folder an account reads, paused: its grant is gone, or whoever connected it left. */
-async function pauseSourcesOf(db: Db, connection: SourceConnectionRow, sentence: string, at: Date): Promise<number> {
+async function pauseSourcesOf(
+  db: Db,
+  connection: SourceConnectionRow,
+  cause: FolderStoppedWhy,
+  at: Date,
+): Promise<number> {
   const sources = await listMediaSourcesOfConnection(db, connection.tenant_id, connection.id);
   const reading = sources.filter((source) => READ_STATES.some((state) => state === source.state));
-  for (const source of reading) await pauseSource(db, source, sentence, at);
+  for (const source of reading) await pauseSource(db, source, cause, at);
   return reading.length;
 }
 
@@ -95,7 +99,7 @@ export async function markSourceSignedOut(
     id: connection.id,
     patch: { health: "needs_reconnect" },
   });
-  const paused = await pauseSourcesOf(db, connection, SOURCE_WORDS.signedOut, at);
+  const paused = await pauseSourcesOf(db, connection, "signed_out", at);
   log.warn("source_paused", { connection: connection.id, reason: "signed_out", folders: paused });
 }
 
@@ -140,7 +144,7 @@ export async function freezeSource(open: Pick<OpenSource, "db" | "source" | "log
     from: ["setting_up", "watching"],
     patch: {
       state: "frozen",
-      last_error: SOURCE_WORDS.unreadable,
+      stopped_why: "cant_open",
       last_error_at: at.toISOString(),
       next_read_at: new Date(at.getTime() + SOURCE_PACE.quietFloorMs).toISOString(),
       ...NO_WALK,
@@ -169,7 +173,7 @@ export async function resumeSourcesOf(
       from: ["paused"],
       patch: {
         state: walked ? "watching" : "setting_up",
-        last_error: null,
+        stopped_why: null,
         last_error_at: null,
         next_read_at: walked ? at.toISOString() : null,
         next_walk_at: walked ? at.toISOString() : null,
@@ -197,12 +201,12 @@ export async function openSource(
   if (!connection) return { ok: false, skipped: "no such account" };
   const now = new Date();
   if (connection.health !== "ok") {
-    await pauseSource(db, source, SOURCE_WORDS.signedOut, now);
+    await pauseSource(db, source, "signed_out", now);
     return { ok: false, skipped: `the account is ${connection.health}` };
   }
   // The plan's D13: an account is read only while whoever connected it is still one of the workspace's members.
   if (!connection.connected_by || !(await isStillMember(db, named.tenantId, connection.connected_by))) {
-    const paused = await pauseSourcesOf(db, connection, SOURCE_WORDS.connectorLeft, now);
+    const paused = await pauseSourcesOf(db, connection, "connector_left", now);
     log.warn("source_paused", { connection: connection.id, reason: "connector_left", folders: paused });
     return { ok: false, skipped: "whoever connected the account left" };
   }

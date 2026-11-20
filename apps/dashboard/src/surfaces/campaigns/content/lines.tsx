@@ -21,13 +21,13 @@ import {
   type ContentPageDto,
   type FileDto,
 } from "@chanlytics/contracts";
-import { pageClock } from "@/bridge/zone";
+import { knownZone, pageClock } from "@/bridge/zone";
 import { askAbout } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Press } from "../../kit/press";
 import { GroupHead } from "../../kit/head/group-head";
-import { copyRowLineOf } from "../../files/footage/copy-words";
+import { copyRowLineOf, leavesOn, rowReasonOf } from "../../files/footage/copy-words";
 import { heldFootage } from "../../files/footage/use-footage";
 import { Picture, rowPictureOf } from "../../files/photo";
 import { tileShapeOf } from "./model/tiles";
@@ -206,7 +206,10 @@ export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen
         const what =
           file.kind === "video" && file.seconds !== null ? W.piece.clip(clockOf(file.seconds)) : W.piece.photo;
         // A clip kept with its provider looks like any other. Only one that is coming back, or can't, says so.
-        const kept = copyRowLineOf(file.copy, file.copy_why, { folder, leaves: null });
+        const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
+          folder,
+          leaves: leavesOn(file, knownZone() ?? "UTC"),
+        });
         const seen = file.line ? `${what} · ${file.line.replace(/\.$/, "")}` : what;
         return (
           <div key={file.id} className="cnv-line" data-testid="cnv-file-line">

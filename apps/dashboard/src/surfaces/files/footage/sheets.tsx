@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { CONTENT_LIBRARY_ROUTE, FOOTAGE_SETUP as W, type FootageDto } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
-import { disconnectDrive, stopFolderWatch } from "@/bridge/verbs/footage";
+import { disconnectDrive, removeFolderFiles, stopFolderWatch } from "@/bridge/verbs/footage";
 import { navigate } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -107,6 +107,8 @@ export function WatchSheet({ folder, footage, onClose, onAnother }: WatchSheetPr
 interface Leaving {
   files: number;
   away: number;
+  /** Of them, the ones a post or a video used: they stay even when what came is removed too. */
+  used: number;
 }
 
 interface LeaveSheetProps {
@@ -121,17 +123,16 @@ interface LeaveSheetProps {
   onFailed: (why: string) => void;
 }
 
-/** Stop watching, or Disconnect: one question each, with what stays and what stops said first. */
-export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFailed }: LeaveSheetProps) {
+/** What letting go would leave, read as the sheet opens; null until it answers, and where it could not. */
+function useLeaving(kind: LeaveSheetProps["kind"]): Leaving | null {
   const [leaving, setLeaving] = useState<Leaving | null>(null);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!kind) return undefined;
     let live = true;
     setLeaving(null);
     read("GET sources/leaving").then(
       (answer) => {
-        if (live) setLeaving({ files: answer.files, away: answer.away });
+        if (live) setLeaving({ files: answer.files, away: answer.away, used: answer.used });
       },
       // Uncounted, the sheet still says what the press does: the counts are what it adds where it can.
       () => undefined,
@@ -140,36 +141,83 @@ export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFai
       live = false;
     };
   }, [kind]);
-  if (!kind) return null;
+  return leaving;
+}
+
+/** The press of the leave sheet: removes what came first where asked, then stops or disconnects, and says so once. */
+function useLeaveGo(
+  kind: "stop" | "disconnect",
+  alsoRemove: boolean,
+  { onDone, onFailed }: Pick<LeaveSheetProps, "onDone" | "onFailed">,
+): { busy: boolean; go: () => Promise<void> } {
+  const [busy, setBusy] = useState(false);
   const go = async () => {
     setBusy(true);
+    const removed = alsoRemove ? await removeFolderFiles() : null;
+    if (alsoRemove && !removed?.ok) {
+      setBusy(false);
+      return onFailed(removed?.message ?? W.notDone);
+    }
     const answer = await (kind === "stop" ? stopFolderWatch() : disconnectDrive());
     setBusy(false);
     if (!answer?.ok) return onFailed(answer?.message ?? W.notDone);
     await readFootageAgain();
-    return onDone(kind === "stop" ? W.stop.done : W.disconnect.done);
+    const done = kind === "stop" ? W.stop.done : W.disconnect.done;
+    return onDone(removed?.ok ? `${done} ${W.removeToo.done(removed.data.removed)}` : done);
   };
+  return { busy, go };
+}
+
+/** The sheet's title and its two presses, for the question it is on: letting go, or removing what came too. */
+function leaveWordsOf(kind: "stop" | "disconnect", removing: Leaving | null, name: string) {
   const words = kind === "stop" ? W.stop : W.disconnect;
-  const name = footage?.folder?.name ?? "";
+  if (removing)
+    return {
+      title: W.removeToo.title(removing.files),
+      press: W.removeToo.press(removing.files - removing.used),
+      keep: W.removeToo.keep,
+      danger: true,
+    };
+  return {
+    title: kind === "stop" ? W.stop.title(name) : W.disconnect.title,
+    press: words.press,
+    keep: words.keep,
+    danger: kind === "disconnect",
+  };
+}
+
+/**
+ * Stop watching, or Disconnect: one question each, with what stays and what stops said first. "Remove what came from it
+ * too" (the canvas's Settings 19) turns the sheet to a second question; its press removes, then lets go, as one.
+ */
+export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFailed }: LeaveSheetProps) {
+  const leaving = useLeaving(kind);
+  const [alsoRemove, setAlsoRemove] = useState(false);
+  useEffect(() => setAlsoRemove(false), [kind]);
+  const { busy, go } = useLeaveGo(kind ?? "stop", alsoRemove, { onDone, onFailed });
+  if (!kind) return null;
+  const removing = alsoRemove ? leaving : null;
+  const wording = leaveWordsOf(kind, removing, footage?.folder?.name ?? "");
+  const removable = leaving ? leaving.files - leaving.used : 0;
   return (
     <Sheet
       open
       onClose={onClose}
-      title={kind === "stop" ? W.stop.title(name) : W.disconnect.title}
+      title={wording.title}
       close={LEAVE_CLOSE}
       foot={
         <div data-foot-pair="">
           <Button
             variant="secondary"
-            tone={kind === "disconnect" ? "danger" : undefined}
+            tone={wording.danger ? "danger" : undefined}
             disabled={busy}
             onClick={() => void go()}
             data-testid="fo-leave-go"
           >
-            {words.press}
+            {wording.press}
           </Button>
-          <Button variant="quiet" onClick={onClose} data-testid="fo-leave-keep">
-            {words.keep}
+          <Button variant="quiet" onClick={removing ? () => setAlsoRemove(false) : onClose} data-testid="fo-leave-keep">
+            {wording.keep}
           </Button>
         </div>
       }
@@ -177,11 +225,47 @@ export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFai
       fit
       testid="fo-leave-sheet"
     >
-      <div className="fo-leave" data-kind={kind}>
-        <p>{kind === "stop" ? W.stop.stays(leaving?.files ?? 0) : W.disconnect.drops}</p>
-        {leaving && leaving.away > 0 ? <p data-strong="true">{words.away(leaving.away)}</p> : null}
-        {kind === "disconnect" && sharesGoogle ? <p>{W.disconnect.google}</p> : null}
-      </div>
+      {removing ? (
+        <div className="fo-leave" data-kind="remove">
+          <p>{W.removeToo.say(removing.used)}</p>
+        </div>
+      ) : (
+        <LeaveSaid
+          kind={kind}
+          leaving={leaving}
+          sharesGoogle={sharesGoogle}
+          onRemoveToo={removable > 0 ? () => setAlsoRemove(true) : null}
+        />
+      )}
     </Sheet>
+  );
+}
+
+/** What letting go leaves, said before the press, and the quiet way to remove what came too where there is any. */
+function LeaveSaid({
+  kind,
+  leaving,
+  sharesGoogle,
+  onRemoveToo,
+}: {
+  kind: "stop" | "disconnect";
+  leaving: Leaving | null;
+  sharesGoogle: boolean;
+  onRemoveToo: (() => void) | null;
+}) {
+  const words = kind === "stop" ? W.stop : W.disconnect;
+  return (
+    <div className="fo-leave" data-kind={kind}>
+      <p>{kind === "stop" ? W.stop.stays(leaving?.files ?? 0) : W.disconnect.drops}</p>
+      {leaving && leaving.away > 0 ? <p data-strong="true">{words.away(leaving.away)}</p> : null}
+      {kind === "disconnect" && sharesGoogle ? <p>{W.disconnect.google}</p> : null}
+      {onRemoveToo ? (
+        <div className="fo-leave-also">
+          <Button variant="plain" size="sm" onClick={onRemoveToo} data-testid="fo-leave-remove-too">
+            {W.removeToo.link}
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }

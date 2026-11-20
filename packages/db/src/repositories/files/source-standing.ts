@@ -61,6 +61,41 @@ export async function countFolderStanding(db: Db, ref: SourceRef): Promise<Sourc
   };
 }
 
+/** What fills a workspace's sixty minutes of video, in seconds, by road (00657 video_minutes_by_road). */
+export interface VideoMinutesByRoad {
+  total: number;
+  /** Watched clips that make room for a new one by themselves. */
+  canStepAside: number;
+  setAside: number;
+  own: number;
+  made: number;
+  found: number;
+}
+
+const MinutesAnswer = z.object({
+  total: z.number(),
+  can_step_aside: z.number(),
+  set_aside: z.number(),
+  own: z.number(),
+  made: z.number(),
+  found: z.number(),
+});
+
+/** What fills the workspace's videos, read as the member: their own workspace's videos alone. */
+export async function readVideoMinutesByRoad(db: Db, tenantId: TenantId): Promise<VideoMinutesByRoad> {
+  const { data, error } = await db.rpc("video_minutes_by_road", { p_tenant_id: tenantId });
+  if (error) throw new DbFailure(error, "cannot read what fills the videos");
+  const answer = readAnswer("video_minutes_by_road", MinutesAnswer, data);
+  return {
+    total: answer.total,
+    canStepAside: answer.can_step_aside,
+    setAside: answer.set_aside,
+    own: answer.own,
+    made: answer.made,
+    found: answer.found,
+  };
+}
+
 /** Files of a folder that are not in the Library, by where they stand and why, counted; `name` where it is one file. */
 export interface SourceItemsPassed {
   state: SourceItemState;
@@ -123,4 +158,16 @@ export async function countSourcedFiles(db: Db, tenantId: TenantId): Promise<Sou
   const { data, error } = await db.rpc("source_files_tally", { p_tenant_id: tenantId });
   if (error) throw new DbFailure(error, "cannot count what came from the watched folder");
   return readAnswer("source_files_tally", SourcedAnswer, data);
+}
+
+const RemovedAnswer = z.object({ removed: z.number(), kept: z.number() });
+
+/**
+ * "Remove what came from it too" (00657 source_files_remove), on the member's own session, which the door holds to
+ * the settings permission: what the watched folders brought and nothing used leaves the Library; `kept` were used.
+ */
+export async function removeSourcedFiles(db: Db, tenantId: TenantId): Promise<{ removed: number; kept: number }> {
+  const { data, error } = await db.rpc("source_files_remove", { p_tenant_id: tenantId });
+  if (error) throw new DbFailure(error, "cannot remove what came from the watched folder");
+  return readAnswer("source_files_remove", RemovedAnswer, data);
 }

@@ -1,7 +1,7 @@
 {
-  "rows": 181,
-  "same": 14,
-  "differ": 167,
+  "rows": 182,
+  "same": 10,
+  "differ": 172,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -32,8 +32,11 @@
       }
     },
     "DELETE files/[id]": {
-      "changes": "files UPDATE · files_let_go INSERT · posts UPDATE · source_items UPDATE",
-      "tells": "files"
+      "changes": "files UPDATE · files_let_go INSERT · notifications INSERT UPDATE · posts UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "missing": {
+        "notifications": "every page"
+      }
     },
     "DELETE files/[id]/google": {
       "changes": "posts UPDATE",
@@ -249,7 +252,8 @@
       }
     },
     "DELETE team/[id]": {
-      "changes": "conversations UPDATE · invitations UPDATE · memberships DELETE",
+      "changes": "conversations UPDATE · invitations UPDATE · media_sources UPDATE · memberships DELETE · notifications INSERT UPDATE",
+      "tells": "notifications",
       "missing": {
         "alerts": "admin/notifications",
         "ask_morning": "today",
@@ -261,6 +265,7 @@
         "files": "admin/files",
         "inbox": "every page",
         "leads": "clients/leads, leads",
+        "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "people": "clients, clients/get-yes, segments",
         "person": "clients/person",
@@ -352,8 +357,11 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
-      "tells": "files"
+      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "missing": {
+        "notifications": "every page"
+      }
     },
     "PATCH files/[id]/posts": {
       "changes": "posts UPDATE"
@@ -1246,50 +1254,61 @@
       }
     },
     "POST files/[id]/done": {
-      "changes": "files INSERT UPDATE · source_items UPDATE",
-      "tells": "files",
+      "changes": "files INSERT UPDATE · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
-        "content": "campaigns/content, campaigns/content/library"
+        "content": "campaigns/content, campaigns/content/library",
+        "notifications": "every page"
       }
     },
     "POST files/[id]/google": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
-      "tells": "files",
-      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · notifications · tenant_channels"
+      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
+      "missing": {
+        "notifications": "every page"
+      }
     },
     "POST files/[id]/instagram": {
-      "changes": "files UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
-      "tells": "files",
-      "doors": "tenant_channels"
+      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "doors": "tenant_channels",
+      "missing": {
+        "notifications": "every page"
+      }
     },
     "POST files/[id]/restore": {
-      "changes": "files UPDATE · files_let_go DELETE · source_items UPDATE",
-      "tells": "files",
+      "changes": "files UPDATE · files_let_go DELETE · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
       "missing": {
-        "calendar_runs": "calendar"
+        "calendar_runs": "calendar",
+        "notifications": "every page"
       }
     },
     "POST files/keep": {
-      "changes": "files UPDATE · source_items UPDATE",
-      "tells": "files",
+      "changes": "files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
-        "content": "campaigns/content, campaigns/content/library"
+        "content": "campaigns/content, campaigns/content/library",
+        "notifications": "every page"
       }
     },
     "POST files/post": {
-      "changes": "files INSERT UPDATE · source_items UPDATE",
-      "tells": "files",
+      "changes": "files INSERT UPDATE · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
       "missing": {
-        "calendar_runs": "calendar"
+        "calendar_runs": "calendar",
+        "notifications": "every page"
       }
     },
     "POST files/video": {
-      "changes": "files UPDATE · pieces INSERT UPDATE · source_items UPDATE",
-      "tells": "files",
+      "changes": "files UPDATE · notifications INSERT UPDATE · pieces INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
       "missing": {
-        "calendar_runs": "calendar"
+        "calendar_runs": "calendar",
+        "notifications": "every page"
       }
     },
     "POST google/link": {
@@ -2523,6 +2542,14 @@
         "setup": "every page"
       },
       "missing": {
+        "notifications": "every page"
+      }
+    },
+    "POST sources/remove": {
+      "changes": "files UPDATE · files_let_go INSERT · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "missing": {
+        "calendar_runs": "calendar",
         "notifications": "every page"
       }
     },

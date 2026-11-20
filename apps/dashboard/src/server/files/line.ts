@@ -8,6 +8,7 @@ import {
   clockOf,
   footageStandingOf,
   keptSaidOf,
+  filesCountedOf,
   shelfOf,
   whoStandsOf,
   type FileDto,
@@ -59,27 +60,30 @@ export function fileShelfSaid(file: Pick<FileDto, "status" | "shows" | "source">
  * logo, and how fresh it is. About 40 tokens, and it changes only when the library does, so the cached prefix holds.
  */
 export function filesLineOf(
-  files: readonly (Pick<FileDto, "status" | "shows" | "source" | "created_at"> & { kind?: FileKind | undefined })[],
+  files: readonly (Pick<FileDto, "status" | "shows" | "source" | "created_at"> & {
+    kind?: FileKind | undefined;
+    n?: number | undefined;
+  })[],
   timezone: string,
 ): string {
-  if (files.length === 0) return "Files: no photos yet.";
+  if (filesCountedOf(files) === 0) return "Files: no photos yet.";
   // What the business keeps, as the Library counts it; what Ask made is said apart, as Made holds it.
   const kept = files.filter((f) => f.status === "filed" && f.source !== "made");
-  const made = files.filter((f) => f.status === "filed" && f.source === "made").length;
-  const videos = kept.filter((f) => f.kind === "video").length;
+  const made = filesCountedOf(files.filter((f) => f.status === "filed" && f.source === "made"));
+  const videos = filesCountedOf(kept.filter((f) => f.kind === "video"));
   const counts = new Map<string, number>();
-  for (const f of kept) counts.set(shelfOf(f), (counts.get(shelfOf(f)) ?? 0) + 1);
+  for (const f of kept) counts.set(shelfOf(f), (counts.get(shelfOf(f)) ?? 0) + (f.n ?? 1));
   const shelves = FILE_SHELVES.flatMap((s) => {
     const n = counts.get(s);
     return n && s in SHELF_SAID ? [`${SHELF_SAID[s as keyof typeof SHELF_SAID]} ${n}`] : [];
   });
-  const waiting = files.filter((f) => f.status === "inbox").length;
+  const waiting = filesCountedOf(files.filter((f) => f.status === "inbox"));
   const newest = files.reduce((at, f) => (f.created_at > at ? f.created_at : at), "");
   const day = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: timezone }).format(
     new Date(newest),
   );
   const parts = [
-    `${keptSaidOf(kept.length, videos)}${shelves.length ? ` (${shelves.join(", ")})` : ""}`,
+    `${keptSaidOf(filesCountedOf(kept), videos)}${shelves.length ? ` (${shelves.join(", ")})` : ""}`,
     ...(made ? [`${SHELF_SAID.made} ${made}`] : []),
     ...(waiting ? [`${waiting} in Inbox`] : []),
     `logo ${kept.some((f) => f.shows === "logo") ? "yes" : "no"}`,

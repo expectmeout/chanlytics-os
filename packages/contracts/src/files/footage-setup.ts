@@ -165,6 +165,21 @@ export const FOOTAGE_SETUP = {
     keep: "Keep",
     done: "Google Drive is disconnected. What came in stays.",
   },
+  /**
+   * "Remove what came from it too" (the canvas's Settings 19), beside Stop watching and Disconnect: never the default,
+   * and what a post or a video used always stays. Its press removes, then stops or disconnects.
+   */
+  removeToo: {
+    link: "Remove what came from it too",
+    title: (files: number) =>
+      `Remove ${files === 1 ? "1 photo or video" : `${files.toLocaleString("en-US")} photos and videos`}?`,
+    say: (used: number) =>
+      `They leave your Library.${used > 0 ? ` ${used.toLocaleString("en-US")} that a post or a video used ${used === 1 ? "stays" : "stay"}.` : ""} The originals in Drive are not touched.`,
+    press: (files: number) => `Remove ${files.toLocaleString("en-US")}`,
+    keep: "Keep them",
+    done: (removed: number) =>
+      `${removed === 1 ? "1 photo or video" : `${removed.toLocaleString("en-US")} photos and videos`} left your Library.`,
+  },
   /** A press that did not go through, where the edge gave no words of its own. */
   notDone: "That didn't go through. Nothing changed. Try again.",
 } as const;

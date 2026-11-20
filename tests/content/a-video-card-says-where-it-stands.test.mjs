@@ -129,6 +129,9 @@ test("being made: where it is at, and that she may leave", () => {
   // A clip that is still being made ready is said plainly, with how long it can take.
   const waits = drawn(held({ stands: { is: "making", stage: "waiting_clip" } }));
   assert.ok(waits.read.includes("up to 20 minutes"), waits.read);
+  // Clips kept in a watched Google Drive folder are coming back (the footage screens' call 2): about two minutes.
+  const back = drawn(held({ stands: { is: "making", stage: "from_drive" } }));
+  assert.ok(back.read.includes("Getting your clips from Google Drive. About 2 minutes"), back.read);
 });
 
 test("ready the moment it can be played, as the bell rings: Ask's look comes after, and holds nothing back", () => {

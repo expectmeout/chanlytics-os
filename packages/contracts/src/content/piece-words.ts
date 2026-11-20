@@ -131,6 +131,7 @@ export const PIECE_WORDS: PieceWords = {
     stage: {
       queued: () => "Starting",
       waiting_clip: () => "Your clip is still being made ready, so this one takes longer: up to 20 minutes.",
+      from_drive: () => "Getting your clips from Google Drive. About 2 minutes, then it's put together.",
       drawing: () => "Putting it together",
       saving: () => "Putting it in Content",
     },
@@ -207,6 +208,7 @@ const PIECE_WORDS_ES: PieceWords = {
     stage: {
       queued: () => "Empezando",
       waiting_clip: () => "Tu clip todavía se está preparando, así que este tarda más: hasta 20 minutos.",
+      from_drive: () => "Trayendo tus clips de Google Drive. Unos 2 minutos, y después se arma.",
       drawing: () => "Armándolo",
       saving: () => "Guardándolo en Contenido",
     },

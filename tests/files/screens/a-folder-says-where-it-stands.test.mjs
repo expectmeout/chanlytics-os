@@ -57,6 +57,12 @@ const STATES = {
   bringing_in: footage({ folder: folder({ counts: counts({ in: 12, coming: 28, landed: 12 }) }) }),
   waits_tomorrow: footage({ folder: folder({ counts: counts({ waits: { budget: 40 } }) }) }),
   waits_room: footage({ folder: folder({ counts: counts({ waits: { room: 12 } }) }) }),
+  videos_full: footage({
+    folder: folder({
+      counts: counts({ waits: { room: 12 } }),
+      videos: { total: 3600, can_step_aside: 0, set_aside: 540, own: 2700, made: 360, found: 0 },
+    }),
+  }),
   library_full: footage({ folder: folder({ counts: counts({ coming: 3, waits: { library_full: 8 } }) }) }),
   videos_off: footage({ folder: folder({ counts: counts({ waits: { videos_off: 6 } }) }) }),
   signed_out: footage({ account: account({ health: "needs_reconnect" }), folder: folder({ state: "paused" }) }),
@@ -88,6 +94,19 @@ test("the words the canvas decided: bringing in, a day's allowance, room, signed
   assert.equal(said("looking").say, "214 photos and videos found so far. The newest 50 come in first.");
   assert.equal(said("waits_tomorrow").badge, "40 wait for tomorrow");
   assert.equal(said("waits_room").badge, "12 wait for room");
+  // Call 3: a wait while clips can step aside, and "Videos are full" when none can, saying what fills the minutes.
+  assert.deepEqual(
+    [said("videos_full").badge, said("videos_full").tone, said("videos_full").act],
+    ["Videos are full", "you", "open_library"],
+  );
+  assert.equal(said("videos_full").note, "12 wait. 45 of your 60 minutes are videos you added.");
+  const stepping = footage({
+    folder: folder({
+      counts: counts({ waits: { room: 12 } }),
+      videos: { total: 3600, can_step_aside: 600, set_aside: 0, own: 3000, made: 0, found: 0 },
+    }),
+  });
+  assert.equal(footageStandingOf(stepping, clock).key, "waits_room", "a clip can step aside: it waits");
   assert.deepEqual([said("library_full").badge, said("library_full").act], ["Library is full", "open_library"]);
   assert.equal(said("signed_out").say, `Google signed ${WHO} out, so nothing new comes in. What came in stays.`);
   assert.equal(
@@ -103,7 +122,7 @@ test("the words the canvas decided: bringing in, a day's allowance, room, signed
 
 test("only what the owner must mend is theirs: every other standing ends by itself or asks nothing", () => {
   const yours = Object.keys(STATES).filter((key) => footageStandingOf(STATES[key], clock).tone === "you");
-  assert.deepEqual(yours.sort(), ["cant_open", "connector_left", "library_full", "signed_out"]);
+  assert.deepEqual(yours.sort(), ["cant_open", "connector_left", "library_full", "signed_out", "videos_full"]);
   for (const key of yours) assert.ok(footageStandingOf(STATES[key], clock).act, `${key} names the one thing to do`);
 });
 

@@ -2778,6 +2778,20 @@
       "rate": "settings",
       "spend": false
     },
+    "POST sources/older": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST sources/remove": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET sources": {
       "kind": "read",
       "scope": "workspace",

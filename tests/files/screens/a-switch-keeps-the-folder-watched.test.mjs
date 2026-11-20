@@ -1,8 +1,9 @@
 /**
  * Switching folders (the footage sources plan, P5; the canvas's Confirm 11 and 5): a workspace watches one folder, so a
- * switch stops the one watched before it watches the new one (apps/dashboard/src/server/files/sources.ts
- * watchSourceFolder). The new folder is asked for first: one the account cannot open, or one gone since it was chosen,
- * is said in the folder's own words and costs nothing, and the folder watched today is still watched.
+ * switch is one ask of the edge with `instead` (apps/dashboard/src/server/files/sources.ts watchSourceFolder), which
+ * opens the new folder and reads its place before it stops the one watched today (apps/edge/lib/files/sources/watch.ts;
+ * held by tests/files/sources/a-drive-is-connected.test.mjs). One the account cannot open, or one gone since it was
+ * chosen, is said in the folder's own words and costs nothing.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -22,25 +23,20 @@ delete process.env.VERCEL_ENV;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
-/** The edge's sources door: what each op answers here, and every op it was asked, in order. */
-const edge = { folder: "ok", watch: "ok", asked: [] };
+/** The edge's sources door: what a watch answers here, and every ask it was sent, in order. */
+const edge = { watch: "ok", asked: [] };
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   const url = String(input instanceof Request ? input.url : input);
   if (!url.includes("/api/admin/sources")) return realFetch(input, init);
   const body = JSON.parse(String(init?.body ?? "{}"));
-  edge.asked.push(body.op);
+  edge.asked.push({ op: body.op, instead: body.instead ?? false });
   const answer = (status, said) =>
     new Response(JSON.stringify(said), { status, headers: { "content-type": "application/json" } });
-  if (body.op === "folder")
-    return edge.folder === "ok"
-      ? answer(200, { ok: true, folders: [{ id: body.folder_id, name: "Winter shoot" }], next_page: null })
-      : answer(502, { ok: false, error: "unreadable", reason: edge.folder });
-  if (body.op === "stop") return answer(200, { ok: true, stopped: true });
   if (body.op === "watch")
     return edge.watch === "ok"
       ? answer(200, { ok: true, source_id: "new-source", made: true })
-      : answer(404, { ok: false, error: "not_found", reason: "not_found" });
+      : answer(404, { ok: false, error: "not_found", reason: edge.watch });
   return answer(400, { ok: false, error: "bad_request" });
 };
 after(() => {
@@ -49,7 +45,7 @@ after(() => {
 
 const { watchSourceFolder } = await import(at("apps/dashboard/src/server/files/sources.ts"));
 
-beforeEach(() => Object.assign(edge, { folder: "ok", watch: "ok", asked: [] }));
+beforeEach(() => Object.assign(edge, { watch: "ok", asked: [] }));
 
 const ctx = () => ({
   supabase: fakeDb(
@@ -76,21 +72,21 @@ const ctx = () => ({
 const member = { tenantId: T, role: "owner", userId: OWNER };
 const ask = { folder_id: "winter", include_subfolders: true, instead: true };
 
-test("a switch asks for the new folder first, then stops the old one and watches the new", async () => {
+test("a switch is ONE ask of the edge, which opens the new folder before it stops the old (review finding 4)", async () => {
   assert.deepEqual(await watchSourceFolder(ctx(), member, ask), { source_id: "new-source" });
-  assert.deepEqual(edge.asked, ["folder", "stop", "watch"]);
+  assert.deepEqual(edge.asked, [{ op: "watch", instead: true }]);
 });
 
-test("a new folder the account cannot open is refused before anything stops: the folder watched today stays watched", async () => {
+test("a new folder the account cannot open is said in the folder's own words: the edge stopped nothing", async () => {
   for (const reason of ["no_access", "not_found"]) {
     edge.asked = [];
-    edge.folder = reason;
+    edge.watch = reason;
     await assert.rejects(watchSourceFolder(ctx(), member, ask), (failure) => {
       assert.equal(failure.code, "forbidden", reason);
       assert.match(failure.message, /^That folder can't be opened any more, so nothing is watched\./);
       return true;
     });
-    assert.deepEqual(edge.asked, ["folder"], `${reason}: nothing was stopped`);
+    assert.deepEqual(edge.asked, [{ op: "watch", instead: true }], `${reason}: one ask, nothing stopped here`);
   }
 });
 

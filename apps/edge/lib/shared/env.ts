@@ -250,6 +250,13 @@ export const env = {
   get SOURCES_OAUTH_REDIRECT() {
     return trimmedEnv(process.env.SOURCES_OAUTH_REDIRECT);
   },
+  /**
+   * The workspaces a watched Google Drive folder is offered in, by id, comma-separated; `*` for every one. Empty offers
+   * it nowhere: until Google's review passes, Ruben's own workspace for the timed real run, and no customer's.
+   */
+  get SOURCES_WORKSPACES() {
+    return trimmedEnv(process.env.SOURCES_WORKSPACES);
+  },
   /** The Pub/Sub topic Gmail publishes a mailbox's changes to (projects/<project>/topics/<name>). */
   get GMAIL_PUSH_TOPIC() {
     return trimmedEnv(process.env.GMAIL_PUSH_TOPIC);

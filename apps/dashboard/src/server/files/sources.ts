@@ -15,8 +15,10 @@ import {
   AppError,
   ROLE_PERMS,
   SECOND_MS,
+  SOURCE_REFUSALS,
   appLink,
   connectStoppedOf,
+  isOneOf,
   type DoorAnswer,
   type FootagePassedDto,
   type SOURCES_DOOR,
@@ -30,6 +32,10 @@ import {
   listSourceConnectionsOf,
   listSourceItemsPassed,
   countSourcedFiles,
+  readingAccountOf,
+  watchedFolderOf,
+  type MediaSourceRow,
+  removeSourcedFiles,
 } from "@chanlytics/db/files";
 import { stateSecret } from "../connections/google";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody } from "../shared/edge";
@@ -64,14 +70,15 @@ interface SourcesReadiness {
   client: { client_id: string; redirect_uri: string } | null;
 }
 const NOT_OFFERED: SourcesReadiness = { client: null };
-let driveReady: { at: number; value: SourcesReadiness } | null = null;
+/** Each workspace's answer, kept briefly: the edge offers Drive in the workspaces SOURCES_WORKSPACES names. */
+const driveReady = new Map<TenantId, { at: number; value: SourcesReadiness }>();
 /** "Not offered" is kept briefly: a setting made a minute ago must not hide Connect for five. */
 const DRIVE_NOT_READY_TTL_MS = 30 * SECOND_MS;
 
-async function sourcesReadiness(now = Date.now()): Promise<SourcesReadiness> {
-  if (driveReady && now - driveReady.at < (driveReady.value.client ? READY_TTL_MS : DRIVE_NOT_READY_TTL_MS))
-    return driveReady.value;
-  const answer = await edgeSources({ op: "readiness" }, 4 * SECOND_MS);
+async function sourcesReadiness(tenantId: TenantId, now = Date.now()): Promise<SourcesReadiness> {
+  const kept = driveReady.get(tenantId);
+  if (kept && now - kept.at < (kept.value.client ? READY_TTL_MS : DRIVE_NOT_READY_TTL_MS)) return kept.value;
+  const answer = await edgeSources({ op: "readiness", tenant_id: tenantId }, 4 * SECOND_MS);
   const client = answer.body?.oauth ?? null;
   const value: SourcesReadiness =
     answer.status === 200 &&
@@ -81,13 +88,13 @@ async function sourcesReadiness(now = Date.now()): Promise<SourcesReadiness> {
     typeof client.redirect_uri === "string"
       ? { client: { client_id: client.client_id, redirect_uri: client.redirect_uri } }
       : NOT_OFFERED;
-  driveReady = { at: now, value };
+  driveReady.set(tenantId, { at: now, value });
   return value;
 }
 
 /** Whether connecting Google Drive is offered on this deployment: the folder's reader asks it. */
-export async function isDriveOffered(): Promise<boolean> {
-  return (await sourcesReadiness()).client !== null;
+export async function isDriveOffered(tenantId: TenantId): Promise<boolean> {
+  return (await sourcesReadiness(tenantId)).client !== null;
 }
 
 /* ------------------------------------------------------------------------------------------------ the sign-in */
@@ -98,7 +105,7 @@ export async function isDriveOffered(): Promise<boolean> {
  * signs in as the account the folder is read through.
  */
 export async function startSourceConnect(ctx: RouteContext, member: Member): Promise<Response> {
-  const ready = await sourcesReadiness();
+  const ready = await sourcesReadiness(member.tenantId);
   const secret = stateSecret();
   if (!ready.client || !secret) throw new AppError("conflict", connectStoppedOf("not_available").say, 409);
   const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId);
@@ -181,8 +188,7 @@ export async function handleSourceCallback(ctx: RouteContext, request: Request):
   );
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) {
-    const reason =
-      typeof body.reason === "string" ? body.reason : typeof body.error === "string" ? body.error : "failed";
+    const reason = sourcesRefusedFor(answer) ?? "failed";
     log.warn("source_connect_failed", { tenant_id: tenantId, reason });
     return back("error", reason);
   }
@@ -191,11 +197,20 @@ export async function handleSourceCallback(ctx: RouteContext, request: Request):
 
 /* ------------------------------------------------------------------------------------------------ the acts */
 
+/**
+ * Why the edge's sources door refused, read once (the review of 20 Nov, finding 5): its reason where the door gave one
+ * of SOURCE_REFUSALS, else its code (`preview`, `provider_unauthorized`, `unreadable` are codes beside them); null where
+ * it answered nothing.
+ */
+function sourcesRefusedFor(answer: SourcesAnswer): string | null {
+  const body = answer.body ?? {};
+  if (isOneOf(SOURCE_REFUSALS, body.reason)) return body.reason;
+  return typeof body.error === "string" ? body.error : null;
+}
+
 /** The words a refusal of the edge's is said in. `doing` finishes "Couldn't ...". */
 function sourceRefusalOf(answer: SourcesAnswer, doing: string): AppError {
-  const body = answer.body ?? {};
-  const reason = typeof body.reason === "string" ? body.reason : body.error;
-  switch (reason) {
+  switch (sourcesRefusedFor(answer)) {
     case "preview":
       return new AppError("unavailable", "Google Drive can't be connected or changed from a preview.");
     case "needs_reconnect":
@@ -219,13 +234,12 @@ function sourceRefusalOf(answer: SourcesAnswer, doing: string): AppError {
 /** The workspace's Google account that folders are read through, on the member's own read; null where none is connected. */
 async function connectionIdOf(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
   const accounts = await listSourceConnectionsOf(ctx.supabase, tenantId);
-  return accounts.find((account) => account.health !== "blocked_by_admin")?.id ?? null;
+  return readingAccountOf(accounts)?.id ?? null;
 }
 
 /** The folder the workspace watches, on the member's own read; null where none is. */
-async function watchedOf(ctx: RouteContext, tenantId: TenantId): Promise<string | null> {
-  const sources = await listMediaSourcesOf(ctx.supabase, tenantId);
-  return sources.find((source) => source.state !== "stopped")?.id ?? null;
+async function watchedOf(ctx: RouteContext, tenantId: TenantId): Promise<MediaSourceRow | null> {
+  return watchedFolderOf(await listMediaSourcesOf(ctx.supabase, tenantId));
 }
 
 const NOT_CONNECTED = () => new AppError("conflict", "Google Drive isn't connected yet.", 409);
@@ -273,30 +287,25 @@ export async function watchSourceFolder(
 ): Promise<{ source_id: string }> {
   const connectionId = await connectionIdOf(ctx, member.tenantId);
   if (!connectionId) throw NOT_CONNECTED();
-  const named = { tenant_id: member.tenantId, user_id: ctx.userId };
-  if (ask.instead) {
-    const watched = await watchedOf(ctx, member.tenantId);
-    if (watched) {
-      // The new folder is asked for first: one the account cannot open must not cost the folder watched now.
-      if ((await nameSourceFolder(ctx, member.tenantId, ask.folder_id)) === "shut") throw CANT_OPEN_NOW();
-      const stopped = await edgeSources({ op: "stop", ...named, source_id: watched });
-      if (stopped.status !== 200 || stopped.body?.ok !== true) throw sourceRefusalOf(stopped, "switch folders");
-    }
-  }
+  // One ask, a switch too: the edge opens the new folder and reads its place before it stops the one watched now, so a
+  // folder that can't be watched never costs the one that is.
   const answer = await edgeSources(
     {
       op: "watch",
-      ...named,
+      tenant_id: member.tenantId,
+      user_id: ctx.userId,
       connection_id: connectionId,
       folder_id: ask.folder_id,
       include_subfolders: ask.include_subfolders,
+      instead: ask.instead,
     },
     30 * SECOND_MS,
   );
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true || typeof body.source_id !== "string") {
     // Gone between choosing it and the press: the folder's own words, as one that can't be opened is said.
-    if (body.reason === "not_found" || body.error === "not_found") throw CANT_OPEN_NOW();
+    const refused = sourcesRefusedFor(answer);
+    if (refused === "not_found" || refused === "no_access") throw CANT_OPEN_NOW();
     throw sourceRefusalOf(answer, "start watching that folder");
   }
   return { source_id: body.source_id };
@@ -304,7 +313,7 @@ export async function watchSourceFolder(
 
 /** `POST sources/check`: the watched folder is looked at now. */
 export async function checkSourceNow(ctx: RouteContext, member: Member): Promise<{ scheduled: boolean }> {
-  const watched = await watchedOf(ctx, member.tenantId);
+  const watched = (await watchedOf(ctx, member.tenantId))?.id;
   if (!watched) throw new AppError("conflict", "No folder is watched.", 409);
   const answer = await edgeSources({
     op: "check",
@@ -316,9 +325,26 @@ export async function checkSourceNow(ctx: RouteContext, member: Member): Promise
   return { scheduled: answer.body.scheduled === true };
 }
 
+/**
+ * `POST sources/older`: the watched folder's older files, asked for on AI's card (the footage screens' call 7): what its
+ * first look left in Drive comes in by itself, at the day's pace. Answers how many were asked for.
+ */
+export async function askForOlderSourceFiles(ctx: RouteContext, member: Member): Promise<{ asked: number }> {
+  const watched = (await watchedOf(ctx, member.tenantId))?.id;
+  if (!watched) throw new AppError("conflict", "No folder is watched.", 409);
+  const answer = await edgeSources({
+    op: "older",
+    tenant_id: member.tenantId,
+    user_id: ctx.userId,
+    source_id: watched,
+  });
+  if (answer.status !== 200 || answer.body?.ok !== true) throw sourceRefusalOf(answer, "ask for the older files");
+  return { asked: typeof answer.body.asked === "number" ? answer.body.asked : 0 };
+}
+
 /** `POST sources/stop`: the folder is no longer watched. The account stays connected, and what came in stays. */
 export async function stopSourceWatch(ctx: RouteContext, member: Member): Promise<{ stopped: boolean }> {
-  const watched = await watchedOf(ctx, member.tenantId);
+  const watched = (await watchedOf(ctx, member.tenantId))?.id;
   if (!watched) return { stopped: false };
   const answer = await edgeSources({ op: "stop", tenant_id: member.tenantId, user_id: ctx.userId, source_id: watched });
   if (answer.status !== 200 || answer.body?.ok !== true) throw sourceRefusalOf(answer, "stop watching");
@@ -333,14 +359,21 @@ export async function stopSourceWatch(ctx: RouteContext, member: Member): Promis
 export async function disconnectSource(ctx: RouteContext, member: Member): Promise<{ revoked: boolean }> {
   const accounts = await listSourceConnectionsOf(ctx.supabase, member.tenantId);
   let revoked = false;
+  // Every account is let go, one failing or not, and the one that failed is named (the review of 20 Nov, finding 14):
+  // stopping at the first left the rest connected with no word of which.
+  let failed: Error | null = null;
   for (const account of accounts) {
     const answer = await edgeSources(
       { op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId, connection_id: account.id },
       40 * SECOND_MS,
     );
-    if (answer.status !== 200 || answer.body?.ok !== true) throw sourceRefusalOf(answer, "disconnect Google Drive");
+    if (answer.status !== 200 || answer.body?.ok !== true) {
+      failed ??= sourceRefusalOf(answer, `disconnect ${account.email ?? "Google Drive"}`);
+      continue;
+    }
     revoked = revoked || answer.body.revoked === true;
   }
+  if (failed) throw failed;
   return { revoked };
 }
 
@@ -354,11 +387,20 @@ export async function readSourceLeaving(member: Member): Promise<{ files: number
 }
 
 /**
+ * `POST sources/remove`: "Remove what came from it too" (the canvas's Settings 19), pressed beside Stop watching or
+ * Disconnect: what the watched folders brought and nothing used leaves the Library, on the member's own session (the
+ * door holds them to the settings permission). Never the default; a file a post or a video used stays.
+ */
+export async function removeSourceFiles(ctx: RouteContext, member: Member): Promise<{ removed: number; kept: number }> {
+  return removeSourcedFiles(ctx.supabase, member.tenantId);
+}
+
+/**
  * `GET sources/contents`: what the watched folder holds that is not in the Library, counted by where it stands and why:
  * what its sheet lists under what came in. Read on the member's own session, when the sheet is opened.
  */
 export async function readSourceContents(ctx: RouteContext, member: Member): Promise<{ rows: FootagePassedDto[] }> {
-  const watched = await watchedOf(ctx, member.tenantId);
+  const watched = (await watchedOf(ctx, member.tenantId))?.id;
   if (!watched) return { rows: [] };
   return { rows: await listSourceItemsPassed(ctx.supabase, { tenantId: member.tenantId, sourceId: watched }) };
 }
@@ -385,8 +427,8 @@ export async function nameSourceFolder(
   const body = answer.body ?? {};
   const folder = answer.status === 200 && body.ok === true ? body.folders?.[0] : undefined;
   if (folder) return folder;
-  const reason = typeof body.reason === "string" ? body.reason : body.error;
-  return reason === "no_access" || reason === "unreadable" || reason === "not_found" ? "shut" : null;
+  const refused = sourcesRefusedFor(answer);
+  return refused === "no_access" || refused === "unreadable" || refused === "not_found" ? "shut" : null;
 }
 
 /** `GET sources/folder`: a pasted folder as the connected account names it, or that it cannot be opened. */

@@ -183,6 +183,16 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "An ad account signed out by its platform, or one it cannot charge, is told once when it turns. Campaigns › Ads and the account's card say it for as long as it lasts, with the one thing to do.",
   },
+  // Closed by the database itself the moment it is mended (00657 media_sources_ring, source_connections_ring,
+  // source_items_ring_full): connected again, the folder readable again, the second look settled, room made, or let go.
+  footage: {
+    ends: "news",
+    why: "A folder that needs someone is told once, to whoever can fix it · the row closes itself once it is fixed.",
+  },
+  footage_in: {
+    ends: "news",
+    why: "The day's new photos and videos are one row, counted up in place · they are in the Library, and nothing waits.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

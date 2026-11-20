@@ -27,10 +27,11 @@ export type PieceStatus = (typeof PIECE_STATUSES)[number];
 
 /**
  * Where one being made stands, as its card says it (00613 `pieces.stage`): its job has not begun; a clip's full-size copy is
- * still being made by the video platform, which can take a new clip twenty minutes; a machine is drawing it; it is on its way
+ * still being made by the video platform, which can take a new clip twenty minutes; clips kept in a watched folder are coming
+ * back from it, about two minutes (00657, the footage screens' call 2); a machine is drawing it; it is on its way
  * into Files. Said by the doors as each is reached, and nothing once the video is made or was not.
  */
-export const PIECE_STAGES = ["queued", "waiting_clip", "drawing", "saving"] as const;
+export const PIECE_STAGES = ["queued", "waiting_clip", "from_drive", "drawing", "saving"] as const;
 export type PieceStage = (typeof PIECE_STAGES)[number];
 
 /**

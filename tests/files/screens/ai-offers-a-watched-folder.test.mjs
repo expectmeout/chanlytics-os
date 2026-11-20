@@ -44,7 +44,13 @@ globalThis.fetch = async (input, init) => {
     });
   if (body.op === "folder")
     return edge.refusal
-      ? answer(409, { ok: false, error: "conflict", reason: edge.refusal })
+      ? // As the edge answers (sources/ops.ts watchRefused): `unreadable` is a code beside the reason `no_access`.
+        answer(
+          502,
+          edge.refusal === "unreadable"
+            ? { ok: false, error: "unreadable" }
+            : { ok: false, error: "conflict", reason: edge.refusal },
+        )
       : answer(200, { ok: true, folders: [edge.folder] });
   return answer(400, { ok: false, error: "bad_request" });
 };
@@ -70,7 +76,7 @@ const account = (over = {}) =>
   });
 
 /** A workspace as AI reads it: its video switch, its Drive account (none by default) and the folder it watches. */
-function asked(link, { role = "owner", accounts = [], sources = [], videos = true } = {}) {
+function asked(link, { role = "owner", accounts = [], sources = [], videos = true, older = false, passed = [] } = {}) {
   const tables = {
     tenants: [rows.tenant({ id: T })],
     tenant_config: [rows.config({ tenant_id: T, config: { features: { video_preview: videos } } })],
@@ -81,6 +87,7 @@ function asked(link, { role = "owner", accounts = [], sources = [], videos = tru
   };
   const rpcs = {
     team_roster: () => [{ member_user_id: OWNER, display_name: "Ada", email: "ada@example.com" }],
+    source_items_passed: () => passed,
     source_items_tally: () => ({
       found: 0,
       in: 0,
@@ -94,7 +101,7 @@ function asked(link, { role = "owner", accounts = [], sources = [], videos = tru
   };
   const ctx = { supabase: fakeDb(tables, {}, rpcs), userId: OWNER, email: "ada@example.com", params: {} };
   const tc = { ...newToolContext(ctx, T, role, "UTC", new Date()), question: link, askedEarlier: [], language: "en" };
-  return buildProposal(tc, "propose_bring_in", { link });
+  return buildProposal(tc, "propose_bring_in", older ? { link, older: true } : { link });
 }
 
 test("Drive named with no link and none connected: the card starts at Connect and names no folder", async () => {
@@ -176,4 +183,38 @@ test("Google Photos and a link to one file are refused in words to say back, eac
   const file = await asked("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view");
   assert.ok(!file.proposal);
   assert.match(file.refusal, /one file, not a folder/);
+});
+
+test("asked for the watched folder's older files (call 7), AI proposes one card counting them, its press asking for all", async () => {
+  const watched = sourceRow({ id: SOURCE, folder_id: FOLDER, folder_name: "Salon reels", state: "watching" });
+  const passed = [
+    { state: "listed", why: null, videos: 40, photos: 172, name: null },
+    { state: "too_big", why: "seconds", videos: 3, photos: 0, name: null },
+  ];
+  const out = await asked("google drive", { accounts: [account()], sources: [watched], older: true, passed });
+  assert.equal(out.proposal?.title, "Bring in 212 older files from “Salon reels”", out.refusal);
+  assert.equal(
+    out.proposal.summary,
+    "They come in by themselves, 100 a day, and go straight into the Library. The originals stay in Drive.",
+  );
+  assert.deepEqual(out.proposal.payload, { place: "drive_older", folder_name: "Salon reels", count: 212 });
+  const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
+  assert.deepEqual(PROPOSAL_SPECS.bring_in.commit({ payload: out.proposal.payload }), {
+    route: "POST sources/older",
+    body: {},
+  });
+  assert.equal(
+    PROPOSAL_SPECS.bring_in.receipt({ payload: out.proposal.payload }, { asked: 212 }),
+    "Asked for 212 older files. They show up in your Library as they come in.",
+  );
+});
+
+test("nothing older left in the folder, or no folder watched: said in words, and no card is made", async () => {
+  const watched = sourceRow({ id: SOURCE, folder_id: FOLDER, folder_name: "Salon reels", state: "watching" });
+  const allIn = await asked("google drive", { accounts: [account()], sources: [watched], older: true });
+  assert.ok(!allIn.proposal);
+  assert.match(allIn.refusal, /^Everything “Salon reels” holds is already in the Library or on its way/);
+  const none = await asked("google drive", { accounts: [account()], older: true });
+  assert.ok(!none.proposal);
+  assert.match(none.refusal, /^No Google Drive folder is watched yet/);
 });

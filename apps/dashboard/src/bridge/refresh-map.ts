@@ -550,6 +550,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
+  // What a watched folder brought, removed with Stop watching or Disconnect (00657): the Library and Content read again.
+  "POST sources/remove": filesAndContentIfDrawn,
   // A post put on a place, moved to another time (00621) or taken off it is told to no page (00611): Content reads, and the
   // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
   "POST files/[id]/google": () => [...filesIfDrawn(), ...postMoved()],
@@ -712,6 +714,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST sources/watch":
     "the owner watched a folder: every screen that says where it stands reads the folder once the press answers",
   "POST sources/check": "a look at the watched folder was asked for: its screens read the folder again by themselves",
+  "POST sources/older": "the folder's older files were asked for: its screens read the folder again as they come in",
   "POST sources/stop":
     "the owner stopped watching a folder: every screen that says where it stands reads the folder once it answers",
   "POST sources/disconnect":

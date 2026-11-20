@@ -16,7 +16,6 @@ import { CONNECTION, OWNER, ROOT, SOURCE, T, firstWalk, runJobs, schedule, setEn
 
 setEnv();
 const { SOURCE_PACE } = await import(at("apps/edge/lib/files/sources/pace.ts"));
-const { SOURCE_WORDS } = await import(at("apps/edge/lib/files/sources/words.ts"));
 const { askToTakeAgain } = await importSrc("packages/db/src/repositories/files/source-takes.ts");
 
 let w;
@@ -233,7 +232,7 @@ test("a 404 is not gone when the watched folder itself no longer answers: the fo
   w.drive.unshare("clip-1").unshare("clip-2").unshare(ROOT);
   await read();
   assert.equal(w.source().state, "frozen");
-  assert.equal(w.source().last_error, SOURCE_WORDS.unreadable);
+  assert.equal(w.source().stopped_why, "cant_open");
   assert.deepEqual([stateOf("clip-1"), stateOf("clip-2")], ["waiting", "waiting"], "access lost never deletes");
 });
 
@@ -586,7 +585,7 @@ test("an account Google signed out needs a reconnect, and its folders pause with
   assert.equal(answer.skipped, "the account is signed out");
   assert.equal(w.tables.source_connections[0].health, "needs_reconnect");
   const source = w.source();
-  assert.deepEqual([source.state, source.last_error], ["paused", SOURCE_WORDS.signedOut]);
+  assert.deepEqual([source.state, source.stopped_why], ["paused", "signed_out"]);
   assert.equal(source.next_read_at, null, "the clock hands a paused folder nothing");
   assert.equal(JSON.stringify(w.items()), itemsBefore);
   assert.equal(w.drive.count("/drive/v3/changes"), 0, "and Drive is not asked");
@@ -599,7 +598,7 @@ test("a refusal that may be about the project pauses nothing: the read fails to 
   w.drive.answerNext("/drive/v3/changes", driveRefusal(403, "accessNotConfigured"));
   await assert.rejects(() => read(), /no answer \(status 403, accessNotConfigured\)/);
   assert.equal(w.tables.source_connections[0].health, "ok", "the account is not signed out");
-  assert.deepEqual([w.source().state, w.source().last_error, w.source().change_cursor], ["watching", null, place]);
+  assert.deepEqual([w.source().state, w.source().stopped_why, w.source().change_cursor], ["watching", null, place]);
   assert.equal(
     w.jobs("source_read").at(-1).state,
     "failed",
@@ -626,8 +625,8 @@ test("only a refresh Google refuses for good, or a key without the footage's sco
   const [answer] = await read();
   assert.equal(answer.skipped, "the account is signed out");
   assert.deepEqual(
-    [w.tables.source_connections[0].health, w.source().state, w.source().last_error],
-    ["needs_reconnect", "paused", SOURCE_WORDS.signedOut],
+    [w.tables.source_connections[0].health, w.source().state, w.source().stopped_why],
+    ["needs_reconnect", "paused", "signed_out"],
   );
 
   await watched(tree);
@@ -643,7 +642,7 @@ test("when the member who connected the account leaves, its folders pause at onc
   w.tables.memberships.length = 0;
   const [answer] = await read();
   assert.equal(answer.skipped, "whoever connected the account left");
-  assert.deepEqual([w.source().state, w.source().last_error], ["paused", SOURCE_WORDS.connectorLeft]);
+  assert.deepEqual([w.source().state, w.source().stopped_why], ["paused", "connector_left"]);
   assert.equal(w.drive.calls.length, 0, "a departed person's Drive is not read again");
   assert.equal(stateOf("clip-1"), "waiting", "what came in stays");
   assert.equal(w.tables.source_connections[0].connected_by, OWNER);

@@ -21,7 +21,7 @@ import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "../../shared/log.js";
 import { DRIVE_UNITS, TAKE_BUDGETS } from "./budgets.js";
-import { takeWaitLine, type TakeWait } from "./waits.js";
+import type { TakeWait } from "./waits.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -122,7 +122,7 @@ export async function putBack(
     ...(wait.binds ? { binds: wait.binds } : {}),
     until: wait.until.toISOString(),
     waiting: parked,
-    line: takeWaitLine({ why: wait.why, count: parked, videosOnly }),
+    videos_only: videosOnly,
   });
   return { took: `waits:${wait.why}` };
 }

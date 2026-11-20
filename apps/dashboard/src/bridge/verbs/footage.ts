@@ -24,3 +24,6 @@ export const stopFolderWatch = () => api()("POST sources/stop", { body: {} }).ca
 
 /** The account let go, and its folder with it. */
 export const disconnectDrive = () => api()("POST sources/disconnect", { body: {} }).catch(() => null);
+
+/** "Remove what came from it too": what the folder brought and nothing used leaves the Library; null when it failed. */
+export const removeFolderFiles = () => api()("POST sources/remove", { body: {} }).catch(() => null);

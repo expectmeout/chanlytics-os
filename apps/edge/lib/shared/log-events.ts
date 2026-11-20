@@ -833,6 +833,7 @@ export const LOG_EVENTS = [
   "video_reserve_failed",
   "video_start_failed",
   "video_started",
+  "video_storage_full",
   "video_upload_lapsed",
   "videos_sweep_failed",
   "visits_record_read_failed",

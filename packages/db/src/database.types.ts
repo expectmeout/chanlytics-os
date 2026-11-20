@@ -3081,6 +3081,8 @@ export type Database = {
           media_status: string | null
           mime: string
           name: string
+          origin_left: string | null
+          origin_left_at: string | null
           owner_named: boolean
           owner_shelved: boolean
           owner_uploaded: boolean
@@ -3123,6 +3125,8 @@ export type Database = {
           media_status?: string | null
           mime: string
           name: string
+          origin_left?: string | null
+          origin_left_at?: string | null
           owner_named?: boolean
           owner_shelved?: boolean
           owner_uploaded?: boolean
@@ -3165,6 +3169,8 @@ export type Database = {
           media_status?: string | null
           mime?: string
           name?: string
+          origin_left?: string | null
+          origin_left_at?: string | null
           owner_named?: boolean
           owner_shelved?: boolean
           owner_uploaded?: boolean
@@ -5256,6 +5262,7 @@ export type Database = {
           reconciled_at: string | null
           signalled_at: string | null
           state: string
+          stopped_why: string | null
           tenant_id: string
           updated_at: string
           walk_kind: string | null
@@ -5291,6 +5298,7 @@ export type Database = {
           reconciled_at?: string | null
           signalled_at?: string | null
           state?: string
+          stopped_why?: string | null
           tenant_id: string
           updated_at?: string
           walk_kind?: string | null
@@ -5326,6 +5334,7 @@ export type Database = {
           reconciled_at?: string | null
           signalled_at?: string | null
           state?: string
+          stopped_why?: string | null
           tenant_id?: string
           updated_at?: string
           walk_kind?: string | null
@@ -9945,6 +9954,18 @@ export type Database = {
         }
         Returns: Json
       }
+      files_tallied: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          created_at: string
+          kind: string
+          look_status: string
+          n: number
+          shows: string
+          source: string
+          status: string
+        }[]
+      }
       files_toward_cap: { Args: { p_tenant_id: string }; Returns: number }
       finish_broadcast: {
         Args: { p_event: Json; p_id: string; p_tenant_id: string }
@@ -9961,6 +9982,22 @@ export type Database = {
           human_at: string
           who: string
         }[]
+      }
+      footage_hearers: {
+        Args: { p_connector: string; p_tenant_id: string }
+        Returns: string[]
+      }
+      footage_quoted: { Args: { p_name: string }; Returns: string }
+      footage_ring: {
+        Args: {
+          p_body: string
+          p_connector: string
+          p_subject_id: string
+          p_subject_type: string
+          p_tenant_id: string
+          p_title: string
+        }
+        Returns: number
       }
       found_read_spend: {
         Args: {
@@ -13139,6 +13176,7 @@ export type Database = {
         }
         Returns: string
       }
+      source_files_remove: { Args: { p_tenant_id: string }; Returns: Json }
       source_files_tally: { Args: { p_tenant_id: string }; Returns: Json }
       source_items_grace_end: {
         Args: { p_grace_seconds: number; p_limit: number }
@@ -13413,6 +13451,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sequences_clock: { Args: { p_at?: string }; Returns: undefined }
       trigger_sweep_health: { Args: never; Returns: number }
+      video_minutes_by_road: { Args: { p_tenant_id: string }; Returns: Json }
       video_seconds_free: { Args: { p_tenant_id: string }; Returns: number }
       video_seconds_held: { Args: { p_tenant_id: string }; Returns: number }
       video_seconds_toward_cap: {

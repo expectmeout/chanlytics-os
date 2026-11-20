@@ -312,3 +312,9 @@
   color: var(--ink);
   overflow-wrap: anywhere;
 }
+
+/* "Remove what came from it too": never the default, so a quiet press centred under what stays (the canvas's Settings 19). */
+.fo-leave-also {
+  display: flex;
+  justify-content: center;
+}

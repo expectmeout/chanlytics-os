@@ -1,6 +1,7 @@
 /** The edge's doors for a workspace's files, as the dashboard knocks on them (decision 0109). */
 import { z } from "zod";
 import { DOOR_ID, answerFields, edgeDoor } from "../shared/edge/door";
+import { SOURCE_REFUSALS } from "./sources";
 
 /** A box in a shown picture's pixels (left, top, right, bottom), and the size it was shown at. */
 const BOX = z.tuple([z.number(), z.number(), z.number(), z.number()]);
@@ -118,7 +119,18 @@ export const FILE_LISTEN_DOOR = edgeDoor(
 export const SOURCES_DOOR = edgeDoor(
   "/api/admin/sources",
   z.object({
-    op: z.enum(["readiness", "connect", "disconnect", "folders", "folder", "watch", "check", "confirm", "stop"]),
+    op: z.enum([
+      "readiness",
+      "connect",
+      "disconnect",
+      "folders",
+      "folder",
+      "watch",
+      "check",
+      "confirm",
+      "older",
+      "stop",
+    ]),
     tenant_id: DOOR_ID.optional(),
     user_id: DOOR_ID.optional(),
     /** A connect: Google's code, and PKCE's verifier where the consent was asked with its challenge. */
@@ -131,13 +143,18 @@ export const SOURCES_DOOR = edgeDoor(
     folder_id: z.string().max(200).optional(),
     page: z.string().max(4000).nullable().optional(),
     include_subfolders: z.boolean().optional(),
+    /**
+     * A watch in place of the folder watched now (one a workspace): the new folder is opened and its place read first,
+     * and only then is the old one stopped, so a folder that can't be watched never costs the one that is.
+     */
+    instead: z.boolean().optional(),
   }),
   answerFields({
     drive: z.boolean(),
     oauth: z.object({ client_id: z.string(), redirect_uri: z.string() }).nullable(),
     audience: z.string().nullable(),
-    /** Beside a refusal's code: which of its reasons it was. */
-    reason: z.string(),
+    /** Beside a refusal's code: which of its reasons it was (contracts SOURCE_REFUSALS). */
+    reason: z.enum(SOURCE_REFUSALS),
     rest_s: z.number(),
     connection_id: z.string(),
     resumed: z.number(),
@@ -148,5 +165,7 @@ export const SOURCES_DOOR = edgeDoor(
     source_id: z.string(),
     made: z.boolean(),
     scheduled: z.boolean(),
+    /** An `older`: how many of the folder's older files were asked for (the footage screens' call 7). */
+    asked: z.number(),
   }),
 );

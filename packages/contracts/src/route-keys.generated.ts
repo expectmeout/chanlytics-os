@@ -385,6 +385,8 @@ export const ROUTE_KEYS = [
   "POST setup/request",
   "POST sources/check",
   "POST sources/disconnect",
+  "POST sources/older",
+  "POST sources/remove",
   "POST sources/stop",
   "POST sources/watch",
   "POST support/report",

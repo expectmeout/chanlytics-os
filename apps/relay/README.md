@@ -5,10 +5,12 @@ Cloudflare Stream fetches a video by its address and the bytes never pass throug
 "Taking a file in"). It is the repository's only Worker. It runs in the Cloudflare account that holds Stream, and
 nothing in CI or on Vercel deploys it.
 
-**Not deployed to production yet.** The plan's proof (P1) measured it on real accounts on 17 and 18 November 2026: a
-clip of 57, 255 and 455 MB arrived whole, in one download, and a broken download went on from its last 4 MiB. The app's
-side (the take and its key door) is built; the production Worker is deployed by hand, on Ruben's word, and until then
-only the proof's copy exists.
+**Deployed to production by hand on 19 November 2026** as `chanlytics-footage-relay` (the default environment below);
+Cloudflare lists a change of its secrets a minute after the upload. The account that holds Stream is on Workers Paid ($5 a month, bought on 20 November 2026 by
+Ruben's word): Workers Free allows 10 ms of CPU a request, and the proof's busiest request reached it. The plan's proof
+(P1) measured the relay on real accounts on 17 and 18 November 2026: a clip of 57, 255 and 455 MB arrived whole, in one
+download, and a broken download went on from its last 4 MiB. Until the edge holds its own three values (Production,
+below), a watched folder's photos come in and its videos wait.
 
 ## What it answers
 

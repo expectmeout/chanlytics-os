@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-426 handlers in 60 domains.
+428 handlers in 60 domains.
 
 ## activity
 
@@ -3492,6 +3492,18 @@ Reads; for a member of the workspace the request names, partner or above; counts
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/leaving/route.ts`).
 
+### `POST /api/v1/sources/older`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sources/older/route.ts`).
+
+### `POST /api/v1/sources/remove`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sources/remove/route.ts`).
+
 ### `POST /api/v1/sources/stop`
 
 Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
@@ -4175,7 +4187,7 @@ Read with GET; takes no body.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `op` | one of `"readiness"`, `"connect"`, `"disconnect"`, `"folders"`, `"folder"`, `"watch"`, `"check"`, `"confirm"`, `"stop"` | yes |  |
+| `op` | one of `"readiness"`, `"connect"`, `"disconnect"`, `"folders"`, `"folder"`, `"watch"`, `"check"`, `"confirm"`, `"older"`, `"stop"` | yes |  |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `code` | string | no | at most 4096 characters |
@@ -4186,6 +4198,7 @@ Read with GET; takes no body.
 | `folder_id` | string | no | at most 200 characters |
 | `page` | string or null | no |  |
 | `include_subfolders` | boolean | no |  |
+| `instead` | boolean | no |  |
 
 ### `POST /api/admin/steer`
 

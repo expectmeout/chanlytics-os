@@ -1487,6 +1487,8 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `copy_returned_at` | timestamp with time zone | yes |  | When a return of the copy last spent the day's budget (00654 file_copy_return_begin): a workspace's returns of a day are counted from it. |
 | `owner_uploaded` | boolean | no | `false` | Its owner uploaded it too (00654): a watched folder's file that an upload met as its twin, written by the upload's door. It is theirs from then on, as any upload: its copy is never let go, and a folder's cleanup never removes it. |
 | `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
+| `origin_left` | text | yes |  | How a watched file's original left its folder (00657): gone (seen in its provider's bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library. |
+| `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
 
 Foreign keys:
 
@@ -2568,6 +2570,7 @@ One folder a business has Chanlytics watch (the footage sources plan, 00639): th
 | `hold_count` | integer | yes |  |  |
 | `hold_confirmed_at` | timestamp with time zone | yes |  |  |
 | `walk_units` | integer | no | `0` | The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often. |
+| `stopped_why` | text | yes |  | Why a watched folder is not read whole (00657): signed_out (its account's grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at. |
 
 Foreign keys:
 

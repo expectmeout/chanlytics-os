@@ -130,13 +130,16 @@ export {
 } from "./sound";
 export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
 export {
+  FOLDER_STOPPED_WHYS,
   MEDIA_SOURCE_STATES,
   SOURCE_CONNECTION_HEALTHS,
   SOURCE_ITEM_STATES,
   SOURCE_ITEM_WHYS,
+  SOURCE_REFUSALS,
   SOURCE_WALK_KINDS,
 } from "./sources";
 export type {
+  FolderStoppedWhy,
   SourceChange,
   SourceChanges,
   SourceChannel,
@@ -148,6 +151,7 @@ export type {
   SourceItemState,
   SourceItemWhy,
   SourceProviderContract,
+  SourceRefusal,
   SourceReply,
   SourceWalkKind,
 } from "./sources";
@@ -181,6 +185,7 @@ export {
   fileFolderOf,
   fileNameOf,
   fileSaidOf,
+  filesCountedOf,
   filesTallyOf,
   fileViewOf,
   inboxCleanOf,

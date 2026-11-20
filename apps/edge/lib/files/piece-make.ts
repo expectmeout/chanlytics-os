@@ -225,7 +225,7 @@ interface FilesRead {
   copies: Map<string, StreamCopy>;
   photos: Map<string, string>;
 }
-type CopiesRead = ({ ok: true } & FilesRead) | { ok: false; why: "clips" | "not_yet" };
+type CopiesRead = ({ ok: true } & FilesRead) | { ok: false; why: "clips" | "not_yet" | "from_drive" };
 
 /** A photo's address the machine may fetch for a while, resized by Storage on the way. */
 async function signPhoto(db: Db, file: FileForWork): Promise<string> {
@@ -261,7 +261,7 @@ async function copiesRead(db: Db, piece: PieceRow, plan: PiecePlan): Promise<Cop
     if (file.kind === "image") read.photos.set(id, await signPhoto(db, file));
     // On its way back, asked for here or when the video was proposed: the step comes back a minute on, as it does
     // for a copy still being made. One its folder cannot give back ends the video, as a clip removed does.
-    if (held.copy === "returning" || held.copy === "going") return { ok: false, why: "not_yet" };
+    if (held.copy === "returning" || held.copy === "going") return { ok: false, why: "from_drive" };
     if (held.copy === "away" || held.copy === "lost") return { ok: false, why: "clips" };
     const ready = held.copy === "here" && file.media_status === "ready" ? held.mediaRef : null;
     const copy = ready ? await readClipCopy(file, ready) : null;
@@ -316,9 +316,10 @@ async function startDrawing(db: Db, piece: PieceRow, tick: number): Promise<void
   const plan = piecePlanOf(recordOrEmpty(piece.plan));
   const look = pieceLookOf(piece.look);
   const read = await copiesRead(db, piece, plan);
-  if (!read.ok && read.why === "not_yet") {
-    // Its card says why this one takes longer than a minute: the video platform is still making the clip's sharpest copy.
-    await sayPieceStage(db, piece.id, "waiting_clip");
+  if (!read.ok && read.why !== "clips") {
+    // Its card says why this one takes longer than a minute: a clip coming back from its watched folder (about two
+    // minutes), or the video platform still making a clip's sharpest copy (up to twenty).
+    await sayPieceStage(db, piece.id, read.why === "from_drive" ? "from_drive" : "waiting_clip");
     return again("copy");
   }
   if (!read.ok) return endWith(db, piece, "clips");

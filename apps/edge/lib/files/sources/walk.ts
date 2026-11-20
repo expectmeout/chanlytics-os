@@ -55,7 +55,6 @@ import { agreesWithHold, isMassGone, nextWalkOf, SOURCE_PACE } from "./pace.js";
 import { keepUnitsSpent } from "../takes/ends.js";
 import { handOutTakesNow } from "../takes/hand-out.js";
 import { freezeSource, leaveRefusedKey, openSource, type OpenSource } from "./standing.js";
-import { SOURCE_WORDS } from "./words.js";
 
 type Db = OpenSource["db"];
 
@@ -136,7 +135,7 @@ async function keepWalkPage(walk: Walk, items: readonly SourceItemRecord[]): Pro
     run,
     patch: {
       walk_touched_at: new Date().toISOString(),
-      ...(kept.left > 0 ? { last_error: SOURCE_WORDS.full, last_error_at: new Date().toISOString() } : {}),
+      ...(kept.left > 0 ? { stopped_why: "over_listed" as const, last_error_at: new Date().toISOString() } : {}),
     },
   });
   return alive !== null;

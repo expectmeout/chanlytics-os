@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  FOLDER_STOPPED_WHYS,
   MEDIA_SOURCE_STATES,
   ROLE_PERMS,
   SOURCE_CONNECTION_HEALTHS,
@@ -13,6 +14,9 @@ import {
   listMediaSourcesOf,
   listSourceConnectionsOf,
   countFolderStanding,
+  readingAccountOf,
+  watchedFolderOf,
+  readVideoMinutesByRoad,
   type MediaSourceRow,
   type SourceConnectionRow,
 } from "@chanlytics/db/files";
@@ -47,6 +51,8 @@ async function accountDtoOf(rc: ReaderContext, account: SourceConnectionRow): Pr
 async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<FootageFolderDto> {
   const counts = await countFolderStanding(rc.ctx.supabase, { tenantId: rc.tenantId, sourceId: source.id });
   const state = isOneOf(MEDIA_SOURCE_STATES, source.state) ? source.state : "paused";
+  // What fills the videos is asked only while clips wait for room: it tells a wait from "Videos are full" (call 3).
+  const minutes = counts.room > 0 ? await readVideoMinutesByRoad(rc.ctx.supabase, rc.tenantId) : null;
   return {
     id: source.id,
     provider_id: source.folder_id,
@@ -56,8 +62,9 @@ async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<Foot
     // A first look is listing until the folder has been listed whole once.
     looking: state === "setting_up" || (source.walk_kind === "snapshot" && source.reconciled_at === null),
     held: source.hold_at !== null && source.hold_confirmed_at === null ? (source.hold_count ?? 0) : null,
-    // The one thing a folder being read says of itself in a sentence: it holds more than is listed (sources/walk.ts).
-    over_listed: state === "watching" && source.last_error !== null,
+    // Why it is not read whole, as the sync says it in one word (00657 stopped_why).
+    stopped_why: isOneOf(FOLDER_STOPPED_WHYS, source.stopped_why) ? source.stopped_why : null,
+    over_listed: state === "watching" && source.stopped_why === "over_listed",
     updated_at: source.last_read_at,
     counts: {
       found: counts.found,
@@ -70,6 +77,14 @@ async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<Foot
         library_full: counts.libraryFull,
         videos_off: counts.videosOff,
       },
+    },
+    videos: minutes && {
+      total: minutes.total,
+      can_step_aside: minutes.canStepAside,
+      set_aside: minutes.setAside,
+      own: minutes.own,
+      made: minutes.made,
+      found: minutes.found,
     },
   };
 }
@@ -85,15 +100,15 @@ export const footage: Reader<undefined, FootageDto> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const [offered, config, accounts, sources] = await Promise.all([
-      isDriveOffered(),
+      isDriveOffered(rc.tenantId),
       // The workspace's settings through their own reader, so a turn that reads both reads them once.
       load(rc, configReader, undefined).then((read) => read.data?.config ?? null),
       listSourceConnectionsOf(db, rc.tenantId),
       listMediaSourcesOf(db, rc.tenantId),
     ]);
     // An account that reads comes before the word that one could not (a connect that works removes that row).
-    const account = accounts.find((row) => row.health !== "blocked_by_admin") ?? accounts[0] ?? null;
-    const source = sources.find((row) => row.state !== "stopped") ?? null;
+    const account = readingAccountOf(accounts) ?? accounts[0] ?? null;
+    const source = watchedFolderOf(sources);
     const [accountDto, folderDto] = await Promise.all([
       account ? accountDtoOf(rc, account) : null,
       source ? folderOf(rc, source) : null,

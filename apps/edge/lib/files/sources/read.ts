@@ -388,7 +388,7 @@ async function thaw(open: OpenSource): Promise<boolean> {
       tenantId: open.ref.tenantId,
       id: open.ref.sourceId,
       from: ["frozen"],
-      patch: { state: "watching", last_error: null, last_error_at: null, next_read_at: nowIso, next_walk_at: nowIso },
+      patch: { state: "watching", stopped_why: null, last_error_at: null, next_read_at: nowIso, next_walk_at: nowIso },
     });
     return true;
   }

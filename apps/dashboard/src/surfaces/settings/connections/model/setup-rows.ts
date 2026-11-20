@@ -279,6 +279,8 @@ const DRIVE_STATE: Record<FootageStandingKey, ConnectionDraft["state"]> = {
   bringing_in: "connected",
   waits_tomorrow: "connected",
   waits_room: "connected",
+  // Nothing can step aside, so only the owner can make room (call 3): joined, and asking for someone.
+  videos_full: "attention",
   videos_off: "connected",
   checking_left: "connected",
   watching: "connected",

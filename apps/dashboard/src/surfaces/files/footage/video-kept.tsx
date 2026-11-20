@@ -23,7 +23,8 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LineFiles } from "../../kit/line/line";
 import { FILE_PICKS_WITH_VIDEO, fileVerbs } from "../verbs";
-import { COPY_WORDS as W, copySaidOf, type CopyAct, type CopyFacts } from "./copy-words";
+import { knownZone } from "@/bridge/zone";
+import { COPY_WORDS as W, copySaidOf, leavesOn, type CopyAct, type CopyFacts } from "./copy-words";
 import { DRIVE_SETTINGS_ROUTE, heldFootage } from "./use-footage";
 import "./footage.css";
 
@@ -38,13 +39,13 @@ interface CopyStanding {
   why: FileCopyWhy | null;
 }
 
-/** What the page knows beside the clip's own row: its folder and account, where a watched folder was read. */
-function factsHere(): CopyFacts {
+/** What the page knows beside the clip's own row: its folder and account, where a watched folder was read, and its day to leave. */
+function factsHere(file: Pick<FileDto, "origin_left_at">): CopyFacts {
   const footage = heldFootage();
   return {
     folder: footage?.folder?.name ?? null,
     account: footage?.account?.email ?? null,
-    leaves: null,
+    leaves: leavesOn(file, knownZone() ?? "UTC"),
     connected: !!footage?.account,
   };
 }
@@ -224,7 +225,7 @@ export function VideoKept({ file, said, standing, asking, onPlay, onComing }: Vi
     if (added.id === file.id) return onComing();
     return setRefused(W.otherVideo);
   };
-  const words = copySaidOf(standing.copy, standing.why, factsHere());
+  const words = copySaidOf(standing.copy, standing.why, factsHere(file));
   if (!words) return null;
   const hasSound = !!file.sound_said && file.sound_said !== "no sound";
   return (
