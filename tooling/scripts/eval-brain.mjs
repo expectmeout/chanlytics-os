@@ -25,7 +25,7 @@
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
-import { doorCaseOf, doorProblems, judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
+import { doorCaseOf, doorProblems, heardResults, judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
 
 const BASE = process.env.BASE_URL || "https://chanlytics-messaging.vercel.app";
 const SECRET = process.env.EDGE_CALL_SECRET;
@@ -49,8 +49,8 @@ const credential = (body) =>
 const cases = JSON.parse(readFileSync(file, "utf8"));
 // A set that can be judged, then one the door takes whole (a case's `who` is held to its shape there): every model
 // call costs money, so a refusal is found here rather than after the batches before it have run.
-const judged = validateCases(cases);
-const problems = judged.length ? judged : doorProblems(cases);
+const unjudgeable = validateCases(cases);
+const problems = unjudgeable.length ? unjudgeable : doorProblems(cases);
 if (problems.length) {
   console.error("case set problems:\n  " + problems.join("\n  "));
   process.exit(2);
@@ -79,7 +79,10 @@ for (let i = 0; i < cases.length; i += BATCH) {
   process.stderr.write(`batch ${i / BATCH + 1}: ${batch.length} cases, prompt ${data.prompt_chars} chars\n`);
 }
 
-const report = formatReport(cases, results, allowed);
+// Judged as heard: a case naming a person counts only where the edge told the model who they are. The answers are kept
+// as they came, beside the verdicts.
+const heard = heardResults(cases, results);
+const report = formatReport(cases, heard, allowed);
 console.log(report.text);
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
@@ -98,7 +101,7 @@ writeFileSync(
         id: c.id,
         ...judgeCase(
           c,
-          results.find((r) => r.id === c.id),
+          heard.find((r) => r.id === c.id),
           allowed,
         ),
       })),

@@ -139,6 +139,24 @@ test("a case may name who it speaks with: the set's four are what the door takes
   linked.who.ad = { ...linked.who.ad, link: "https://ads.example/fresh" };
   const found = judge.doorProblems([cases[0], linked]);
   assert.ok(found.length > 0 && found.every((line) => line.startsWith("linked: who.ad")), found.join("; "));
+  // An edge older than `who` drops it and answers a stranger: that answer is judged as none. One that heard the person,
+  // and one to a case that names nobody, stand as they came.
+  const heard = judge.heardResults(cases, [
+    ok({ id: "ad_price_en" }),
+    ok({ id: "ad_plain_en", told_who: true }),
+    ok({ id: cases[0].id }),
+  ]);
+  assert.deepEqual(
+    heard.map((r) => [r.id, r.ok, r.error]),
+    [
+      ["ad_price_en", false, "the edge did not tell the model who this is (an edge older than `who`)"],
+      ["ad_plain_en", true, undefined],
+      [cases[0].id, true, undefined],
+    ],
+  );
+  assert.deepEqual(judge.judgeCase(named.ad_price_en, heard[0], null).failures, [
+    "no answer: the edge did not tell the model who this is (an edge older than `who`)",
+  ]);
 
   const replying = (text, over = {}) => ok({ text, ...over });
   const verdict = (id, reply) => judge.judgeCase(named[id], reply, null).pass;

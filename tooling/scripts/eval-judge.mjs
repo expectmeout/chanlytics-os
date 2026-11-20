@@ -18,7 +18,7 @@ import { EVAL_DOOR, priceBreach } from "@chanlytics/contracts";
  * @typedef {{ intent?: string | string[], escalate?: boolean, language?: string, includes?: string[], excludes?: string[], min_confidence?: number, grounded?: boolean }} Expect
  * @typedef {{ name: string | null, headline: string | null, body: string | null, visual: "image" | "video" | null }} AdTold
  * @typedef {{ id: string, text: string, history?: { role: string, content: string }[], expect?: Expect, hard?: boolean, provisional?: boolean, who?: { name: string, standIn?: boolean, returning?: boolean, ad?: AdTold | null } }} EvalCase
- * @typedef {{ id: string, ok: boolean, text?: string, escalate?: boolean, reason?: string | null, meta?: { intent?: string, confidence?: number, language?: string, facts_used?: string[] } | null, usage?: { input_tokens: number, output_tokens: number } | null, ms?: number, error?: string }} EvalResult
+ * @typedef {{ id: string, ok: boolean, text?: string, escalate?: boolean, reason?: string | null, meta?: { intent?: string, confidence?: number, language?: string, facts_used?: string[] } | null, usage?: { input_tokens: number, output_tokens: number } | null, ms?: number, error?: string, told_who?: boolean }} EvalResult
  */
 
 /**
@@ -99,6 +99,26 @@ export function validateCases(cases) {
  */
 export function doorCaseOf(c) {
   return { id: c.id, text: c.text, ...(c.history ? { history: c.history } : {}), ...(c.who ? { who: c.who } : {}) };
+}
+
+/**
+ * The eval door's answers as the runner judges them: an answer to a case that names a person counts only where the edge
+ * says the model was told who they are (`told_who`). An edge older than `who` drops it and answers a stranger, which
+ * says nothing of the case, so that answer is judged as none. The nightly asks the model itself and needs none of this.
+ * @param {EvalCase[]} cases @param {EvalResult[]} results
+ */
+export function heardResults(cases, results) {
+  const named = new Set(cases.filter((c) => c.who).map((c) => c.id));
+  return results.map((r) =>
+    r.ok && named.has(r.id) && r.told_who !== true
+      ? {
+          id: r.id,
+          ok: false,
+          error: "the edge did not tell the model who this is (an edge older than `who`)",
+          ms: r.ms,
+        }
+      : r,
+  );
 }
 
 /**

@@ -17,8 +17,8 @@
  * text, history?, who? }] } where history is prior turns [{ role, content }]
  * and who is the made-up person the case speaks with (contracts EVAL_DOOR): the
  * note about them is the live turn's own (db describeLead), so a case can show
- * the model an ad a person tapped, or a profile name, as a live turn shows it.
- * The answer carries the prices the workspace may say (allowed_prices, contracts
+ * the model an ad a person tapped, or a profile name, as a live turn shows it;
+ * its answer says so (`told_who`). The answer carries the prices the workspace may say (allowed_prices, contracts
  * priceAllowance; null for the strict rule), so the runner judges a price
  * against the workspace's own switch.
  *
@@ -225,10 +225,12 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
 }
 
 /**
- * Each case with the person it names, read by the door's own schema, before anything is read or asked; the first
- * person out of their shape is refused. A case that names nobody carries none.
+ * Each case held to the door's limits (caseRefusal), with the person it names read by the door's own schema, before
+ * anything is read or asked; the first case or person out of its shape is refused. A case that names nobody carries none.
  */
 function casesWithPeople(cases: readonly EvalCase[]): { ok: true; cases: CaseWithPerson[] } | Refused {
+  const badCase = caseRefusal(cases);
+  if (badCase) return stop(badCase);
   const read: CaseWithPerson[] = [];
   for (const evalCase of cases) {
     const person = evalCase.who === undefined ? null : CASE_PERSON.safeParse(evalCase.who);
@@ -249,9 +251,11 @@ function casesWithPeople(cases: readonly EvalCase[]): { ok: true; cases: CaseWit
 /**
  * The note about the person a case names, as a live turn on WhatsApp is handed it: written by the live turn's own
  * describeLead from what the case says of them, never the case's text as it came. Nothing else is known of a made-up
- * person, so nothing else is said: no history, no email, no deal, no notes.
+ * person, so nothing else is said: no history, no email, no deal, no notes. A case that names nobody is handed over as
+ * it always was: no note, not even an empty one.
  */
-function noteAbout(person: CasePerson, now: Date, timezone: string): string {
+function noteFor(person: CasePerson | null, now: Date, timezone: string | null): { leadNote?: string } {
+  if (!person) return {};
   const lead = {
     contactId: MADE_UP_PERSON,
     conversationId: null,
@@ -262,8 +266,14 @@ function noteAbout(person: CasePerson, now: Date, timezone: string): string {
     optedOut: false,
     ad: person.ad ?? null,
   };
-  return describeLead(lead, now, timezone, "whatsapp");
+  return { leadNote: describeLead(lead, now, timezone ?? "UTC", "whatsapp") };
 }
+
+/**
+ * What an answer says of the person its case named: that the model was told who they are, so a runner can tell an answer
+ * to them from an older edge's answer to a stranger (eval-judge.mjs). Nothing for a case that names nobody.
+ */
+const toldOf = (person: CasePerson | null): { told_who?: true } => (person ? { told_who: true } : {});
 
 export async function evaluateCases(
   auth: Admitted,
@@ -281,10 +291,8 @@ export async function evaluateCases(
   if (!isTenantId(tenantId) || !cases.length || cases.length > MAX_CASES) {
     return refuse(400, "bad_request", `tenant_id and 1-${MAX_CASES} cases required`);
   }
-  const badCase = caseRefusal(cases);
-  if (badCase) return badCase;
-  const asked = casesWithPeople(cases);
-  if (!asked.ok) return asked.response;
+  const held = casesWithPeople(cases);
+  if (!held.ok) return held.response;
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -302,7 +310,7 @@ export async function evaluateCases(
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const call = { ...brainCallOf(tenantId, rt), ...asks };
   const results = [];
-  for (const { evalCase: otherCase, person } of asked.cases) {
+  for (const { evalCase: otherCase, person } of held.cases) {
     const t0 = Date.now();
     try {
       const result = await ask({
@@ -312,8 +320,7 @@ export async function evaluateCases(
         fallbackText: holding,
         nowNote,
         call,
-        // A case that names nobody is handed over as it always was: no note, not even an empty one.
-        ...(person ? { leadNote: noteAbout(person, now, rt.timezone ?? "UTC") } : {}),
+        ...noteFor(person, now, rt.timezone),
       });
       results.push({
         id: otherCase.id,
@@ -326,6 +333,7 @@ export async function evaluateCases(
         ms: Date.now() - t0,
         then: thenOf(rt, rt.brain, result, now),
         ...said(result),
+        ...toldOf(person),
       });
     } catch (e) {
       results.push({
