@@ -167,7 +167,10 @@ export function desiredVoiceShell(fnUrl: string, bookingHeaders?: Record<string,
 
 /** What the converger reads off a live Retell LLM. */
 export interface LiveVoiceLlm {
-  /** Read for the notes alone: a model or temperature is never changed here (a model change goes through the gate). */
+  /**
+   * The line's model, as the provider names it: a line on another than the product's (contracts RETELL_MODELS) is moved
+   * to it, once the scripted calls of the change were heard (20 November 2026); its temperature is reported, never moved.
+   */
   model?: string | null;
   model_temperature?: number | null;
   general_prompt?: string | null;
@@ -176,14 +179,21 @@ export interface LiveVoiceLlm {
   general_tools?: RetellTool[] | null;
 }
 
+/** A line's model as the provider takes it (`model_config`, its own shape since 2026): one model, at a temperature. */
+export interface VoiceModelConfig {
+  type: "cascading";
+  primary: { model: string };
+  temperature: number;
+}
+
 export interface VoiceConvergencePlan {
   /** Human-readable, one line per difference. Never carries a secret. */
   drift: string[];
   /** The PATCH body for update-retell-llm, or null when nothing differs. */
-  llmPatch: Partial<VoiceShellTarget> | null;
+  llmPatch: (Partial<VoiceShellTarget> & { model_config?: VoiceModelConfig }) | null;
   /** Live tools the shell does not define. Listed, never silently dropped. */
   unknownTools: string[];
-  /** What differs from the product's defaults and is reported, never changed: the model and its temperature. */
+  /** What differs from the product's defaults and is reported, never changed: the temperature. */
   notes: string[];
 }
 
