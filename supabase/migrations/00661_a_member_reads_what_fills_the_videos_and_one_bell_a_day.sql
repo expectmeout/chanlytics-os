@@ -7,7 +7,9 @@
 --                           one state where they have something to say. A member may now read owner_uploaded (whether
 --                           an upload met a folder's file: a yes or a no on a row of their own workspace), and the
 --                           copy's id is no longer read: a video whose copy is here holds its id by files_media_shape,
---                           so copy_state = 'here' already says so.
+--                           so copy_state = 'here' already says so. What can step aside asks file_road_is_watched, the
+--                           one rule of which roads are watched, which was the server's alone: a member may ask it now.
+--                           It reads nothing and says only whether a road's word is a watched folder's.
 --   files_ring_footage_in   The day's "N new photos and videos" was found by its folder, so a folder switched the
 --                           same day began a second row and left the first open at an older count. It is found by the
 --                           workspace's day now and follows the folder watched, and a second row already open that
@@ -16,6 +18,10 @@
 set local lock_timeout = '3s';
 
 grant select (owner_uploaded) on public.files to authenticated;
+
+grant execute on function public.file_road_is_watched(text) to authenticated;
+comment on function public.file_road_is_watched(text) is
+  'Whether a road is a watched folder (00654): the one kind of file whose copy at the video platform can be fetched again, and so the only kind ever let go. Its doors'', and a member''s read of what fills the videos (video_minutes_by_road, 00661): it reads nothing, so a member may ask it.';
 
 create or replace function public.video_minutes_by_road(p_tenant_id uuid)
 returns jsonb

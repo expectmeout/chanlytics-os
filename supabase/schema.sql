@@ -9199,7 +9199,7 @@ $$;
 -- Name: FUNCTION file_road_is_watched(p_source text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_road_is_watched(p_source text) IS 'Whether a road is a watched folder (00654): the one kind of file whose copy at the video platform can be fetched again, and so the only kind ever let go. Its doors''.';
+COMMENT ON FUNCTION public.file_road_is_watched(p_source text) IS 'Whether a road is a watched folder (00654): the one kind of file whose copy at the video platform can be fetched again, and so the only kind ever let go. Its doors'', and a member''s read of what fills the videos (video_minutes_by_road, 00661): it reads nothing, so a member may ask it.';
 
 
 --
@@ -59777,6 +59777,7 @@ GRANT ALL ON FUNCTION public.file_road_is_owners(p_source text) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.file_road_is_watched(p_source text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_road_is_watched(p_source text) TO authenticated;
 GRANT ALL ON FUNCTION public.file_road_is_watched(p_source text) TO service_role;
 
 
