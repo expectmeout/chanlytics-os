@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import { briefOf, callCost, expectFailures, loadCases, validateCases } from "../../../tooling/scripts/evals/ad.mjs";
+import { adCraftIssues } from "../../../apps/dashboard/src/server/ask/skills/ad/checks.ts";
 import { AD_SKILL } from "../../../apps/dashboard/src/server/ask/skills/ad/skill.ts";
 import { skillGuide, skillsAsked, isAskSkillId } from "../../../apps/dashboard/src/server/ask/skills/registry.ts";
 
@@ -46,11 +47,11 @@ const GOOD = [
     text: "45 minutes, $45, and time to ask questions. Message Harbor Studio on WhatsApp to book.",
   },
 ];
-const codes = (versions, over) => C.adCraftIssues(versions, brief(over)).map((issue) => issue.code);
+const codes = (versions, over) => adCraftIssues(versions, brief(over)).map((issue) => issue.code);
 /** The codes one text raises as version 1, beside two versions that pass. */
 const codesOf = (text, over, headline = "First appointment") => [
   ...new Set(
-    C.adCraftIssues([{ headline, text }, GOOD[1], GOOD[2]], brief(over))
+    adCraftIssues([{ headline, text }, GOOD[1], GOOD[2]], brief(over))
       .filter((issue) => issue.version === 1)
       .map((issue) => issue.code),
   ),
@@ -83,7 +84,7 @@ test("the skill's words: its three jobs, its rules, what it never does, and trad
           language: "es",
         }
       : { facts: ["Open Saturdays.", "First appointments take 45 minutes.", "Appointments this week."] };
-    const found = C.adCraftIssues(versions, brief({ ...over, job: versions.length === 1 ? "rewrite" : "write" }));
+    const found = adCraftIssues(versions, brief({ ...over, job: versions.length === 1 ? "rewrite" : "write" }));
     assert.deepEqual(found, [], `${example.title}: ${JSON.stringify(found)}`);
   }
 });
@@ -349,9 +350,9 @@ test("the test set is well formed, builds every brief, and its own drafts pass t
     const adBrief = briefOf(entry);
     assert.ok(C.adBriefText(adBrief).length > 300, entry.id);
     // A change case's draft is words the product showed: they pass, or the case would start from a broken ad.
-    if (entry.change) assert.deepEqual(C.adCraftIssues(entry.change.versions, adBrief), [], entry.id);
+    if (entry.change) assert.deepEqual(adCraftIssues(entry.change.versions, adBrief), [], entry.id);
     // A turned-down version is one the checks would have stopped before Meta did.
-    if (entry.refused) assert.ok(C.adCraftIssues([entry.refused.version], adBrief).length > 0, entry.id);
+    if (entry.refused) assert.ok(adCraftIssues([entry.refused.version], adBrief).length > 0, entry.id);
   }
   assert.deepEqual(
     validateCases([{ id: "x", job: "sing", business: {}, service: {}, language: "fr", places: ["tv"] }]).length,

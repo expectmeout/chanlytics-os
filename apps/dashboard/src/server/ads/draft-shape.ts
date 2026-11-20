@@ -7,7 +7,7 @@
  * Pure: the shapes and the input's schema, read by the routes, their handlers and the tests.
  */
 import { z } from "zod";
-import { UUID } from "@chanlytics/contracts";
+import { DAY_KEY, UUID } from "@chanlytics/contracts";
 import type { AdCardCheckId, AdDraftMissing, AdPictureIssue, AdSpecialKind, AdVersion } from "@chanlytics/contracts";
 
 const SPECIAL_KINDS = [
@@ -29,7 +29,7 @@ const AdDraftStateSchema = z.object({
   picture: z.string().regex(UUID),
   miles: z.number().int().min(0).max(10_000),
   total_minor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-  end_day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  end_day: z.string().regex(DAY_KEY),
   /** The ad writer's words: none while they are being written, else three. */
   versions: z
     .array(z.object({ text: z.string().max(VERSION_MAX.text), headline: z.string().max(VERSION_MAX.headline) }))

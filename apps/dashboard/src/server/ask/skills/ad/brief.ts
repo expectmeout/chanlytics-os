@@ -12,8 +12,9 @@
  *    (adServiceFacts) and nothing else.
  *  - The miles are whole, inside what a draft offers.
  */
-import { adCraftIssues } from "@chanlytics/contracts";
-import type { AdBrief, AdIssue, AdPlace, AdVersion, AppointmentWord } from "@chanlytics/contracts";
+import { oneLine } from "@chanlytics/contracts";
+import type { AdBrief, AdPlace, AdVersion, AppointmentWord } from "@chanlytics/contracts";
+import { adCraftIssues, type AdIssue } from "./checks";
 
 /** The business an ad is written for, as its settings say it. */
 export interface AdBusinessFacts {
@@ -59,8 +60,6 @@ export type AdAsk =
 const AD_FACTS = { most: 8, chars: 240 } as const;
 /** The fewest and the most miles a brief says: what a draft offers. */
 const AD_BRIEF_MILES = { least: 1, most: 50 } as const;
-
-const oneLine = (words: string): string => words.replace(/\s+/g, " ").trim();
 
 /** What Services itself says of a service, as facts an ad may lean on: how long it takes, where it says. */
 export function adServiceFacts(service: { name: string; minutes: number | null }): string[] {

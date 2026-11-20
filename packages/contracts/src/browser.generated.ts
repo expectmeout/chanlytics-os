@@ -19,7 +19,7 @@ export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, met
 export { adRoute, ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adsPreviewOf, adsResultsRoute, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
 export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";
-export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_DRAFT_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adPictureIssue, adSpecialKinds } from "./ads/draft";
+export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adPictureIssue, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
 export { adAccountStateOf, adStateOf } from "./ads/states";

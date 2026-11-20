@@ -54,7 +54,7 @@ export const NEW = {
     endLabel: "The last day it runs",
     endHint: (n: number) => `${days(n)} · Meta needs at least a day`,
     done: "Done",
-    change: (what: string, now: string) => `Change ${what}, now ${now}`,
+    change: (word: string, now: string) => `Change ${word}, now ${now}`,
     amountWord: "the amount",
     milesWord: "the area",
     endWord: "the end date",
@@ -76,8 +76,8 @@ export const NEW = {
     page: "Your Page",
     ad: "Ad",
     cta: "Send WhatsApp message",
-    picture: (name: string) => `Your picture, ${name}`,
-    video: (name: string) => `Your video, ${name}`,
+    picture: (name: string) => `The ad's picture, ${name}`,
+    video: (name: string) => `The ad's video, ${name}`,
     drawn: "Drawn by Chanlytics, not Meta's own preview. Your picture is shown whole, never cropped.",
   },
 
@@ -96,7 +96,7 @@ export const NEW = {
     },
     none: "AI can change the service, the words, the picture, the area, the amount or the end date. Nothing was changed.",
     fault: (rule: string) => `${rule}, and Meta turns that down. Nothing was changed.`,
-    failed: "AI didn't answer. Nothing was changed. Try again.",
+    failed: "AI didn't answer, so nothing was changed. Try again.",
     sample: "This is an example: AI changes a real draft once your ad account is connected.",
   },
 
@@ -296,8 +296,9 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
   },
   picture: {
     title: "First, a picture that can run as an ad",
-    body: "An ad shows a photo or a video. None of yours is fine in ads yet: for now an ad shows a picture with nobody in it, and a video with no music.",
-    small: "Everything else is ready. AI drafts the ad as soon as one is.",
+    body: "An ad shows a photo or a video, and none of yours can run as an ad yet.",
+    small:
+      "For now an ad shows a picture with nobody in it, or a video with no music. AI drafts the ad as soon as there is one.",
     act: "Open Content",
   },
   account: {

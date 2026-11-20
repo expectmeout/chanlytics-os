@@ -354,7 +354,8 @@ Meta's own pages were read first; what they showed and what it changed is in
 - **Call 13's test account.** Meta's pages for its ads interface no longer hold a test ad account, so the first ad on a
   real account is on Ruben's own, with every ad paused, as Meta's own page for an ad recommends.
 - **The draft's rules and call 7's checks on words** (`packages/contracts/src/ads/draft.ts`,
-  `packages/contracts/src/ask/skills/ad/checks.ts`): what code picks of a draft, and each thing that stops an ad's
+  `apps/dashboard/src/server/ask/skills/ad/checks.ts`, moved from contracts on 20 November since the server alone
+  runs them): what code picks of a draft, and each thing that stops an ad's
   words, its amount, its end or its picture before Turn on. The model writes words and never decides a check.
 
 ## As built, 20 November 2026 · New ad's one screen (the Ads plan's step 4, its second part)
@@ -363,7 +364,7 @@ Built with nothing sent to Meta. One migration is written and not applied: `0065
 writer's words under a purpose of their own (`ad_draft`).
 
 - **Call 7, the checks, run on the server after every change** (`apps/dashboard/src/server/ads/draft-checks.ts`,
-  over the rules in `packages/contracts/src/ads/draft.ts` and `ask/skills/ad/checks.ts`). `POST ads/draft` judges
+  over the rules in `packages/contracts/src/ads/draft.ts` and the server's `ask/skills/ad/checks.ts`). `POST ads/draft` judges
   whatever draft the screen sends against the business as it stands now, and answers each thing that stops Turn on
   as one line with its one act. The model writes words and is never asked whether a check passed.
 - **The server keeps no draft.** Until Turn on there is no row: the screen holds the draft for the tab, and the server

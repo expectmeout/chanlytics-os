@@ -6,13 +6,13 @@ import {
   adVersionsOf,
   type AdBrief,
   type AdCraftAnswer,
-  type AdIssue,
   type AdVersion,
   type TenantId,
 } from "@chanlytics/contracts";
 import { log } from "@/server/shared/log";
 import { craftWith, type CraftKept } from "../craft";
 import { adWordIssues } from "./brief";
+import type { AdIssue } from "./checks";
 import { AD_SKILL } from "./skill";
 
 /**

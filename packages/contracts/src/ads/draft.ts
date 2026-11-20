@@ -73,7 +73,7 @@ export interface AdPicture {
 
 /**
  * A before set beside an after, said in words (English and Spanish): what Meta's rules on appearance turn down, of a
- * picture as its look describes it and of an ad's own words alike (ask/skills/ad/checks.ts reads this one).
+ * picture as its look describes it and of an ad's own words alike (the server's ask/skills/ad/checks.ts reads this one).
  */
 export const AD_BEFORE_AFTER = /\bbefore[\s-]*(?:and|&|\/)[\s-]*after\b|\bantes y despu[eé]s\b/i;
 
@@ -102,8 +102,11 @@ export function adPictureIssue(adPicture: AdPicture): AdPictureIssue | null {
 
 /** How long a draft runs to begin with, and the shortest run a draft takes, in days. */
 export const AD_RUN_DAYS = { draft: 14, least: 1 } as const;
-/** The miles a draft begins with. */
-export const AD_DRAFT_MILES = 5;
+/**
+ * The miles an ad runs over: what a draft begins with, and the fewest and the most it may be set to, whole miles
+ * inside the circle Meta takes (0.63 to 50).
+ */
+export const AD_MILES = { draft: 5, least: 1, most: 50 } as const;
 /** Under this many people booked from ads, a draft promises no number of bookings and proposes a starting amount. */
 export const AD_BOOKED_TO_FORECAST = 5;
 
@@ -254,7 +257,7 @@ export function adDraftOf(
     parts: {
       serviceId: picked.service.id,
       pictureId: picked.picture.id,
-      miles: AD_DRAFT_MILES,
+      miles: AD_MILES.draft,
       ...amountFor(inputs, days),
       days,
       endDay: addDays(inputs.today, days),

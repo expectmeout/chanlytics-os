@@ -34,7 +34,6 @@ import {
   MODEL_ROUTES,
   adBriefText,
   adChangeOf,
-  adCraftIssues,
   adJudgeQuestion,
   adJudgeSystem,
   adVerdict,
@@ -43,6 +42,7 @@ import {
   usageDollars,
 } from "@chanlytics/contracts";
 import { adBriefOf } from "../../../apps/dashboard/src/server/ask/skills/ad/brief.ts";
+import { adCraftIssues } from "../../../apps/dashboard/src/server/ask/skills/ad/checks.ts";
 import { AD_SKILL } from "../../../apps/dashboard/src/server/ask/skills/ad/skill.ts";
 import { argOf, evalKey, messagesClient, pct, structured } from "./skill-eval.mjs";
 

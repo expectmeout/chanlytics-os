@@ -192,7 +192,7 @@ test("5.1 row 4, a picture or video in the wrong shape or length: the feed's sha
 });
 
 test("5.1 row 5, music and a person who has not said yes to ads: neither is ever offered, and not known is not offered either (G15)", () => {
-  // What Files says of a picture is read into these three answers by server/ads/pictures.ts; new-ad-draft.test.mjs
+  // What Files says of a picture is read into these three answers by server/content/ad-pictures.ts; new-ad-draft.test.mjs
   // runs that reading over the database, a file at a time. Here: what each answer does to a draft.
   const fault = (over) => checks({}, { picture: picture(over) });
   // Nobody: fine. Someone, or not known: never offered. A yes for posts does not cover an ad.

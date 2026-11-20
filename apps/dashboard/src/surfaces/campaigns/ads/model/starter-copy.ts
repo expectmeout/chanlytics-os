@@ -6,7 +6,12 @@
 import { appointmentWords } from "@chanlytics/contracts";
 import type { AdCopy, AdDoor, AdsRead, AppointmentWord } from "@chanlytics/contracts";
 import { PREVIEW } from "./drawer/words";
-/** Every word an ad says of itself: its headline, text, chat, reply and thank-you, drafted from one Service and the business. */
+
+/**
+ * Every word an ad says of itself: its headline, text, chat, reply and thank-you, drafted from one Service and the
+ * business.
+ * screen-word: an ad's own words are the business's, which says "us" and "we"; the app's voice never does.
+ */
 export function starterCopy(options: {
   service: string;
   price: string;

@@ -122,13 +122,13 @@ test("written: one of three versions, the next at a press and round again; the a
   // The picture is the file as it is kept, never a crop; a piece AI made is Content's own portrait of it.
   assert.deepEqual(vm.shown.picture, {
     src: `/api/v1/files/${FILE}/view?w=720`,
-    alt: "Your picture, front desk",
+    alt: "The ad's picture, front desk",
     video: false,
   });
   const made = written({}, { picture: { id: FILE, kind: "video", name: "spring reel", made: true } });
   assert.deepEqual(view({ answer: made }).shown.picture, {
     src: `/api/v1/files/${FILE}/view?shape=portrait`,
-    alt: "Your video, spring reel",
+    alt: "The ad's video, spring reel",
     video: true,
   });
 });
@@ -358,7 +358,7 @@ test("Tell AI what to change: what the last one came to, in one quiet sentence",
     status({ told: { kind: "none", fault: "about_reader" } }),
     "That would speak about the person reading, and Meta turns that down. Nothing was changed.",
   );
-  assert.equal(status({ told: { kind: "failed" } }), "AI didn't answer. Nothing was changed. Try again.");
+  assert.equal(status({ told: { kind: "failed" } }), "AI didn't answer, so nothing was changed. Try again.");
   assert.equal(status({ told: { kind: "none", fault: null }, sample: true }), NEW.tell.sample);
 });
 

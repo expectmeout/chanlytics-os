@@ -6,7 +6,7 @@
  * name the example's own business and service, in no one trade's words.
  */
 import {
-  AD_DRAFT_MILES,
+  AD_MILES,
   AD_RUN_DAYS,
   adAmountIssue,
   adEndIssue,
@@ -22,10 +22,11 @@ import type { AdSource } from "./source";
 
 /** The least a day the example's account takes, in whole units of its currency: what Meta asks of most accounts. */
 const SAMPLE_LEAST_A_DAY = 5;
-/** The fewest and the most miles, as a real draft's. */
-const SAMPLE_MILES = { least: 1, most: 50 } as const;
 
-/** Three plain versions for the example: what the service is, the business, and how to ask. */
+/**
+ * Three plain versions for the example: what the service is, the business, and how to ask.
+ * screen-word: an ad's own words are the business's, which says "us" and "we"; the app's voice never does.
+ */
 const sampleVersions = (business: string, service: string): AdVersion[] => [
   { headline: service, text: `${service} at ${business}. Message us on WhatsApp and we'll send open times.` },
   { headline: business, text: `${business} has open times for ${service}. Message us on WhatsApp to pick one.` },
@@ -44,15 +45,15 @@ function sampleAnswer(read: AdsRead, sent: AdDraftState | null): AdDraftAnswer {
   const days = daysBetween(read.today, endDay);
   const least = adLeastTotal(account, days);
   const total = sent?.total_minor ?? least;
-  const miles = sent?.miles ?? AD_DRAFT_MILES;
+  const miles = sent?.miles ?? AD_MILES.draft;
   const amount = adAmountIssue({ totalMinor: total, days, account, ownerMostMinor: null });
   const end = adEndIssue(read.today, endDay);
   const checks: AdCheckDto[] = [
     ...(amount ? [{ code: "amount" as const, fault: amount.code, nearest_minor: amount.nearestMinor }] : []),
     ...(end ? [{ code: "end" as const, nearest_day: end.nearestDay }] : []),
-    ...(miles >= SAMPLE_MILES.least && miles <= SAMPLE_MILES.most
+    ...(miles >= AD_MILES.least && miles <= AD_MILES.most
       ? []
-      : [{ code: "area" as const, nearest_miles: Math.min(SAMPLE_MILES.most, Math.max(SAMPLE_MILES.least, miles)) }]),
+      : [{ code: "area" as const, nearest_miles: Math.min(AD_MILES.most, Math.max(AD_MILES.least, miles)) }]),
   ];
   return {
     can: true,

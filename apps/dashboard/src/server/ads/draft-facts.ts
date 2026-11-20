@@ -30,9 +30,11 @@ import {
 import { listServicesBookedSince } from "@chanlytics/db/calendar";
 import { findChannelNumber } from "@chanlytics/db/channels";
 import type { AdBusinessFacts } from "../ask/skills/ad/brief";
-import { appointmentWord, config, facts } from "../readers/facts";
-import { load, type ReaderContext } from "../shared/reader";
-import { listAdPictures, type AdPictures } from "./pictures";
+import { listAdPictures, type AdPictures } from "../content/ad-pictures";
+import { getAppointmentWord } from "../people/deals";
+import type { ReaderContext } from "../shared/reader";
+import { getTenantFacts } from "../shared/tenant";
+import { findConfigRow } from "../workspace/config-row";
 
 /**
  * Everything a new ad's draft is picked and judged from, read once a request under the member's own session (the Ads
@@ -87,7 +89,7 @@ export interface AdDraftFacts {
 const sameName = (first: string, second: string): boolean => first.trim().toLowerCase() === second.trim().toLowerCase();
 
 /** The language an ad is written in: the first the business says it speaks, where that is Spanish; else English. */
-const languageOf = (languages: readonly string[] | undefined): AdBusinessFacts["language"] =>
+const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts["language"] =>
   /^\s*(?:es\b|espa|span)/i.test(languages?.[0] ?? "") ? "es" : "en";
 
 /** The ads made here that still run, and the largest total one of them was turned on with. */
@@ -111,7 +113,7 @@ function businessOf(settings: TenantConfig, named: { name: string }, word: Appoi
     tone: profile?.tone?.trim() || null,
     word,
     neverPrices: guardrailsInForce(profile?.guardrails).never_quote_prices,
-    language: languageOf(profile?.languages),
+    language: adLanguageOf(profile?.languages),
   };
 }
 
@@ -132,7 +134,7 @@ function servicesOf(
 }
 
 /** The ad account a draft is for: a connected one whose currency and least a day Meta has said. Null until then. */
-function accountOf(live: AdAccountRow | null, aiNumber: string | null): AdDraftAccount | null {
+function draftAccountOf(live: AdAccountRow | null, aiNumber: string | null): AdDraftAccount | null {
   if (live === null) return null;
   const meta = metaAdConfigOf(live.config);
   if (live.currency === null || meta.min_daily_minor === null) return null;
@@ -155,9 +157,9 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
   const [named, settings, word, row, number, pictures, counts, bookedNames] = await Promise.all([
-    load(rc, facts, undefined).then((read) => read.data),
-    load(rc, config, undefined).then((read) => read.data),
-    load(rc, appointmentWord, undefined).then((read) => read.data),
+    getTenantFacts(supabase, rc.tenantId),
+    findConfigRow(supabase, rc.tenantId),
+    getAppointmentWord(rc.ctx, rc.tenantId),
     findAdAccountForPage(supabase, rc.tenantId, "meta"),
     findChannelNumber(supabase, rc.tenantId, "whatsapp"),
     listAdPictures(rc),
@@ -183,7 +185,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
   const ads = live ? await listAdsOfAccount(supabase, rc.tenantId, live.id) : [];
   const madeHere = madeHereOf(ads, { today, timezone, nowMs });
   const aiNumber = number.data?.number_e164 ?? null;
-  const account = accountOf(live, aiNumber);
+  const account = draftAccountOf(live, aiNumber);
   return {
     today,
     business: businessOf(parsed.config, named, word),

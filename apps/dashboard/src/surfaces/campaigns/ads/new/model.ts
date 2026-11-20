@@ -76,7 +76,7 @@ export type LineAct =
   | { kind: "answer"; about: AdSpecialKind; answer: "no" | "yes" }
   | { kind: "meta"; href: string };
 
-export interface LinePress {
+export interface AdLinePress {
   words: string;
   act: LineAct;
 }
@@ -88,8 +88,8 @@ export type LineVM =
       tone: "warn" | "calm";
       title: string;
       body: string;
-      press: LinePress | null;
-      second: LinePress | null;
+      press: AdLinePress | null;
+      second: AdLinePress | null;
     }
   /** The ad account's own need: drawn as the card draws it. */
   | { is: "account"; need: NeedVM };
@@ -122,11 +122,11 @@ export interface NewAdVM {
   press: { words: string; can: boolean; under: string };
 }
 
-const lineOf = (
+const adLine = (
   tone: "warn" | "calm",
   words: { title: string; body: string },
-  press: LinePress | null = null,
-  second: LinePress | null = null,
+  press: AdLinePress | null = null,
+  second: AdLinePress | null = null,
 ): LineVM => ({ is: "line", tone, title: words.title, body: words.body, press, second });
 
 /** A check not met, as its line and its one act. */
@@ -134,13 +134,13 @@ function checkLine(check: AdCheckDto, here: NewAdHere): LineVM {
   const { answer } = here;
   const { currency } = answer.account;
   if (check.code === "account")
-    return here.need ? { is: "account", need: here.need } : lineOf("warn", ACCOUNT_FAULT[check.check]);
+    return here.need ? { is: "account", need: here.need } : adLine("warn", ACCOUNT_FAULT[check.check]);
   if (check.code === "picture")
-    return lineOf("warn", PICTURE_FAULT[check.fault], { words: NEW.nextPicture, act: { kind: "next_picture" } });
+    return adLine("warn", PICTURE_FAULT[check.fault], { words: NEW.nextPicture, act: { kind: "next_picture" } });
   if (check.code === "words")
-    return lineOf("warn", WORDS_FAULT[check.fault], { words: NEW.rewrite, act: { kind: "rewrite" } });
+    return adLine("warn", WORDS_FAULT[check.fault], { words: NEW.rewrite, act: { kind: "rewrite" } });
   if (check.code === "price")
-    return lineOf("warn", PRICE_FAULT[check.fault], { words: NEW.takePriceOut, act: { kind: "no_price" } });
+    return adLine("warn", PRICE_FAULT[check.fault], { words: NEW.takePriceOut, act: { kind: "no_price" } });
   if (check.code === "amount") {
     const nearest = moneyOf(check.nearest_minor, currency);
     const words =
@@ -149,14 +149,14 @@ function checkLine(check: AdCheckDto, here: NewAdHere): LineVM {
         : check.fault === "over_most"
           ? AMOUNT_FAULT.over_most(nearest)
           : AMOUNT_FAULT.not_whole();
-    return lineOf("warn", words, { words: NEW.setTo(nearest), act: { kind: "amount", minor: check.nearest_minor } });
+    return adLine("warn", words, { words: NEW.setTo(nearest), act: { kind: "amount", minor: check.nearest_minor } });
   }
   if (check.code === "end")
-    return lineOf("warn", END_FAULT, {
+    return adLine("warn", END_FAULT, {
       words: NEW.setTo(dayWord(check.nearest_day)),
       act: { kind: "end", day: check.nearest_day },
     });
-  return lineOf("warn", AREA_FAULT, {
+  return adLine("warn", AREA_FAULT, {
     words: NEW.setTo(NEW.sentence.miles(check.nearest_miles)),
     act: { kind: "miles", miles: check.nearest_miles },
   });
@@ -180,7 +180,7 @@ function theLine(here: NewAdHere): LineVM | null {
   const { question, declared } = kindsOf(here);
   if (words.at === "none") {
     const more = words.why === "limit" ? NEW.couldnt.limit : words.why === "paused" ? NEW.couldnt.paused : "";
-    return lineOf(
+    return adLine(
       "calm",
       { title: NEW.couldnt.title, body: `${NEW.couldnt.body}${more}` },
       { words: NEW.couldnt.act, act: { kind: "rewrite" } },
@@ -188,7 +188,7 @@ function theLine(here: NewAdHere): LineVM | null {
   }
   if (question) {
     const kind = KIND[question];
-    return lineOf(
+    return adLine(
       "warn",
       { title: kind.ask, body: KIND_ASK.body(answer.draft.service) },
       { words: kind.no, act: { kind: "answer", about: question, answer: "no" } },
@@ -197,7 +197,7 @@ function theLine(here: NewAdHere): LineVM | null {
   }
   if (declared) {
     const kind = KIND[declared];
-    return lineOf(
+    return adLine(
       "calm",
       { title: KIND_ASK.yesTitle(kind.ad), body: KIND_ASK.yesBody },
       { words: NEW.openMeta, act: { kind: "meta", href: ADS_MANAGER } },

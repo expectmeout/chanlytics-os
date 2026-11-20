@@ -26,7 +26,7 @@ import type { NeedVM } from "../connect/card-model";
 import { PreviewNote } from "../preview-note";
 import { newAdView } from "./model";
 import type { LineAct, NewAdVM } from "./model";
-import { NewEditor, NewLine, NewSentence, NewWhy } from "./parts";
+import { NewAdLine, NewEditor, NewSentence, NewWhy } from "./parts";
 import type { AdEditing } from "./parts";
 import { AdShown } from "./shown";
 import type { AdSource } from "./source";
@@ -34,7 +34,7 @@ import { useAdDraft } from "./use-draft";
 import type { AdDraftActs, AdStand } from "./use-draft";
 import { MISSING, NEW } from "./words";
 
-const CLOSE = { label: NEW.close, glyph: <Icon name="x" size={13} /> };
+const NEW_AD_CLOSE = { label: NEW.close, glyph: <Icon name="x" size={13} /> };
 
 /** Where the one thing missing is added: a page of the app, or back on the Ads page itself. */
 const MISSING_DOOR: Record<AdCantDraft, string | null> = {
@@ -169,7 +169,7 @@ function DraftBody({ stand, vm, acts, telling, onConnect }: DraftProps) {
         />
       ) : null}
       <NewWhy lines={vm.why} />
-      {vm.line ? <NewLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
+      {vm.line ? <NewAdLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
       <AdShown shown={vm.shown} onNext={acts.nextVersion} />
     </div>
   );
@@ -202,8 +202,8 @@ interface NewAdProps {
 }
 
 /** The sheet's parts for where the screen stands: its head's words, its body and its foot. */
-function partsOf(
-  p: NewAdProps,
+function newAdParts(
+  props: NewAdProps,
   here: ReturnType<typeof useAdDraft>,
 ): { title: string; sub: string | null; body: ReactNode; foot: ReactNode; fit: boolean } {
   const { stand, acts } = here;
@@ -215,17 +215,17 @@ function partsOf(
       version: stand.version,
       telling: here.telling,
       told: here.told,
-      need: p.need,
-      sample: p.source.sample,
+      need: props.need,
+      sample: props.source.sample,
     });
     const turnOn = () => {
       acts.forget();
-      p.onTurnOn();
+      props.onTurnOn();
     };
     return {
       title: vm.title,
       sub: vm.kicker,
-      body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={p.onConnect} />,
+      body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
       foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={turnOn} />,
       fit: false,
     };
@@ -233,7 +233,7 @@ function partsOf(
   if (stand.at === "missing") {
     const words = MISSING[stand.missing];
     const door = MISSING_DOOR[stand.missing];
-    const press = stand.missing === "account_reading" ? acts.again : door ? () => p.onGo(door) : p.onClose;
+    const press = stand.missing === "account_reading" ? acts.again : door ? () => props.onGo(door) : props.onClose;
     return {
       title: NEW.opening,
       sub: null,
@@ -261,25 +261,25 @@ function partsOf(
   return { title: NEW.opening, sub: null, body: <div className="ads-new ads-new-short" />, foot: null, fit: true };
 }
 
-export function NewAd(p: NewAdProps) {
-  const here = useAdDraft(p.open, p.source);
+export function NewAd(props: NewAdProps) {
+  const here = useAdDraft(props.open, props.source);
   const { stand } = here;
-  useAiAtWork(p.open && ((stand.at === "draft" && stand.words.at === "writing") || here.telling));
-  const parts = partsOf(p, here);
+  useAiAtWork(props.open && ((stand.at === "draft" && stand.words.at === "writing") || here.telling));
+  const parts = newAdParts(props, here);
   return (
     <Sheet
-      open={p.open}
-      onClose={p.onClose}
+      open={props.open}
+      onClose={props.onClose}
       title={parts.title}
       {...(parts.sub ? { sub: parts.sub } : {})}
-      close={CLOSE}
+      close={NEW_AD_CLOSE}
       foot={parts.foot}
       flatFoot
       fit={parts.fit}
       testid="ads-new"
     >
       {/* On the page's example it says what it is, as every part of the example does. */}
-      {p.source.sample ? <PreviewNote /> : null}
+      {props.source.sample ? <PreviewNote /> : null}
       {parts.body}
     </Sheet>
   );

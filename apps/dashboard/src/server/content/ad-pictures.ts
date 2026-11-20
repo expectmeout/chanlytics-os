@@ -18,6 +18,8 @@ import type { ReaderContext } from "../shared/reader";
  *  - Before and after: where the look's own sentence says the picture sets one beside the other.
  *
  * Ads never crops: the shape is the file's own, and the rule that judges it is contracts adPictureIssue.
+ *
+ * It stands in Content's own folder, where its answer will: New ad's draft asks it (server/ads/draft-facts.ts).
  */
 
 /** How many of each shelf a draft looks through, newest first: what AI made, then what the business keeps. */

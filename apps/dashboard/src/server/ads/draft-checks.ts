@@ -19,6 +19,7 @@
  * spend in a day can be read from no page: Meta's own dry run is that check, at the press.
  */
 import {
+  AD_MILES,
   AD_RUN_DAYS,
   adAmountIssue,
   adEndIssue,
@@ -27,16 +28,13 @@ import {
   daysBetween,
   type AdBrief,
   type AdCardCheckId,
-  type AdIssueCode,
   type AdPicture,
   type AdSpecialKind,
   type AdVersion,
 } from "@chanlytics/contracts";
 import { adWordIssues } from "../ask/skills/ad/brief";
+import type { AdIssueCode } from "../ask/skills/ad/checks";
 import type { AdCheckDto, AdDraftState, AdWordsFault } from "./draft-shape";
-
-/** The fewest and the most miles a draft runs over: whole miles inside the circle Meta takes (0.63 to 50). */
-const AD_MILES = { least: 1, most: 50 } as const;
 
 /** What a draft is judged against: the business as it stands now. */
 interface AdCheckFacts {

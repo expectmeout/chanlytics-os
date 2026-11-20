@@ -70,7 +70,7 @@
   border-radius: var(--radius-lg);
   background: var(--bg-sunken);
 }
-.ads-new-tile {
+.ads-new-plain {
   aspect-ratio: 4 / 5;
 }
 /* A story and a Reel: the same picture, whole, centred in their taller frame. */
@@ -86,7 +86,7 @@
   max-height: 100%;
   border-radius: 0;
 }
-.ads-new-tall > .ads-new-tile {
+.ads-new-tall > .ads-new-plain {
   width: 100%;
   border-radius: 0;
 }

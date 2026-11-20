@@ -1,13 +1,7 @@
 import "server-only";
-import {
-  SECOND_MS,
-  adChangeOf,
-  minorPerUnit,
-  type AdChange,
-  type AdIssue,
-  type AdIssueCode,
-} from "@chanlytics/contracts";
+import { SECOND_MS, adChangeOf, minorPerUnit, type AdChange } from "@chanlytics/contracts";
 import { adWordIssues } from "../ask/skills/ad/brief";
+import type { AdIssue, AdIssueCode } from "../ask/skills/ad/checks";
 import type { CraftKept } from "../ask/skills/craft";
 import { writeAd } from "../ask/skills/ad/write";
 import type { ReaderContext } from "../shared/reader";

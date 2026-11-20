@@ -10,7 +10,7 @@ import {
 } from "@chanlytics/contracts";
 import { adBriefOf, adServiceFacts, type AdAsk, type AdOfferFacts } from "../ask/skills/ad/brief";
 import type { ReaderContext } from "../shared/reader";
-import { adsOffered } from "./account";
+import { readAdsOffered } from "../connections/ads-ready";
 import { adDeclared, adDraftChecks, adKindsOf } from "./draft-checks";
 import {
   adsHaveHistory,
@@ -37,7 +37,7 @@ const adTurnOnStands = (): AdTurnOn => "not_yet";
 
 /** Refused where Ads is not switched on for the workspace on this deployment (the plan's D7). */
 export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Promise<void> {
-  if (!(await adsOffered(rc.tenantId)))
+  if (!(await readAdsOffered(rc.tenantId)))
     throw new AppError("conflict", "Ads aren't available in this workspace yet.", 409);
 }
 

@@ -10,7 +10,6 @@ import { JUDGE_HOW, JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdi
 import type { JudgeAnswer, RubricCriterion, RubricVerdict } from "../judge";
 import { adBriefText } from "./brief";
 import type { AdBrief, AdVersion } from "./brief";
-import type { AdIssue } from "./checks";
 
 export const AD_RUBRIC = [
   {
@@ -76,7 +75,10 @@ export const AD_JUDGE_JSON_SCHEMA = judgeJsonSchema(AD_RUBRIC);
 export const AdJudgeAnswerSchema = JudgeAnswerSchema;
 
 /** A case's verdict (judge.ts rubricVerdict): every check of the draft's and every hard criterion must pass. */
-export function adVerdict(issues: readonly AdIssue[], judged: JudgeAnswer): RubricVerdict {
+export function adVerdict(
+  issues: readonly { version: number; code: string; words: string }[],
+  judged: JudgeAnswer,
+): RubricVerdict {
   return rubricVerdict(
     AD_RUBRIC,
     issues.map((issue) => `version ${issue.version} ${issue.code}: ${issue.words}`),

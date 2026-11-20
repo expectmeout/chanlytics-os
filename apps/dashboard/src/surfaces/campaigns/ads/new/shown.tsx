@@ -29,7 +29,7 @@ function Picture({ picture }: { picture: NewAdVM["shown"]["picture"] }) {
   const [broken, setBroken] = useState(false);
   if (picture.src === null || broken)
     return (
-      <div className="ads-photo ads-new-tile" role="img" aria-label={picture.alt}>
+      <div className="ads-photo ads-new-plain" role="img" aria-label={picture.alt}>
         <Icon name={picture.video ? "play" : "content"} size={22} />
       </div>
     );

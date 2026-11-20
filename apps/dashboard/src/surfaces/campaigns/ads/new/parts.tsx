@@ -10,9 +10,9 @@ import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
-import { CardNeed } from "../connect/card";
+import { CardNeed, META_TAB } from "../connect/card";
 import { AdSentence } from "../drawer/sentence";
-import type { AdLocal, LineAct, LinePress, LineVM, NewAdVM } from "./model";
+import type { AdLinePress, AdLocal, LineAct, LineVM, NewAdVM } from "./model";
 import { NEW } from "./words";
 
 /** Which word of the sentence is being changed. */
@@ -58,7 +58,7 @@ export function NewSentence({ vm, editing, still, onEdit }: SentenceProps) {
 }
 
 /** Digits alone, as a whole number: what a box of an amount or of miles holds. */
-const wholeOf = (typed: string): number => Number(typed.replace(/\D/g, "").slice(0, 9) || "0");
+const wholeTyped = (typed: string): number => Number(typed.replace(/\D/g, "").slice(0, 9) || "0");
 
 interface EditorProps {
   vm: NewAdVM;
@@ -81,7 +81,7 @@ export function NewEditor({ vm, editing, local, currency, onType, onDone }: Edit
         <Field
           label={NEW.edit.amount}
           value={String(vm.units.now)}
-          onValueChange={(typed) => onType({ total_minor: minorOfUnits(wholeOf(typed), currency) })}
+          onValueChange={(typed) => onType({ total_minor: minorOfUnits(wholeTyped(typed), currency) })}
           unit={currency}
           inputMode="numeric"
           hint={vm.hints.amount}
@@ -93,7 +93,7 @@ export function NewEditor({ vm, editing, local, currency, onType, onDone }: Edit
         <Field
           label={NEW.edit.miles}
           value={String(local.miles)}
-          onValueChange={(typed) => onType({ miles: wholeOf(typed) })}
+          onValueChange={(typed) => onType({ miles: wholeTyped(typed) })}
           unit={NEW.edit.milesUnit}
           inputMode="numeric"
           hint={vm.hints.miles}
@@ -129,9 +129,7 @@ export function NewWhy({ lines }: { lines: readonly string[] }) {
   );
 }
 
-const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
-
-function LineButton({ press, quiet, onAct }: { press: LinePress; quiet: boolean; onAct: (act: LineAct) => void }) {
+function LineButton({ press, quiet, onAct }: { press: AdLinePress; quiet: boolean; onAct: (act: LineAct) => void }) {
   if (press.act.kind === "meta")
     return (
       <Button size="sm" href={press.act.href} {...META_TAB} data-testid="ads-new-line-act">
@@ -162,7 +160,7 @@ interface LineProps {
  * line with a way back says it quietly beside its act. The ad account's own need is the card's, drawn as the card
  * draws it.
  */
-export function NewLine({ line, onAct, onConnect }: LineProps) {
+export function NewAdLine({ line, onAct, onConnect }: LineProps) {
   if (line.is === "account") return <CardNeed need={line.need} onConnect={onConnect} />;
   // A question's two answers weigh the same; any other second press is the quiet way back.
   const question = line.press?.act.kind === "answer" && line.second?.act.kind === "answer";
