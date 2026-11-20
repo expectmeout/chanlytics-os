@@ -41650,6 +41650,9 @@ COMMENT ON COLUMN public.ad_accounts.settle_at IS 'When the account''s next four
 --
 
 COMMENT ON COLUMN public.ad_accounts.rung_at IS 'When the bell last looked at the account''s ads (00658): each good read rings what turned since, and stamps it. Null, or older than connected_at, until the first look after a connect, which rings nothing.';
+
+
+--
 -- Name: COLUMN ad_accounts.most_minor; Type: COMMENT; Schema: public; Owner: -
 --
 
