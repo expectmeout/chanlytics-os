@@ -195,6 +195,45 @@ export async function listFilesOnShelf(
   return data ?? [];
 }
 
+/**
+ * Who a file shows, as an ad may show it (the Ads plan's G15): nobody, by a member's own word, or by a look that finished and
+ * counted no one in a file nobody said was agreed to for posts (a yes for posts does not cover an ad).
+ */
+const SHOWS_NOBODY = "who_in_it.eq.no_one,and(look_status.eq.done,who_in_it.neq.agreed,look->people->>count.eq.0)";
+
+/**
+ * The newest files of one shelf and kind that Files knows may be offered for an ad (the Ads plan's G15; New ad's picture,
+ * server/content/ad-pictures.ts): filed and arrived, showing nobody, and for a video one ready to play here. What the
+ * picture rule judges (a size, a shape, a length, music, a before and after) stays the rule's (contracts ads/draft.ts).
+ * Read apart by kind, and only what may be offered: a folder that brings hundreds of files nobody has looked at yet, or a
+ * run of photos of people, can never push one that is fine out of the few read, as the newest of a whole shelf once did
+ * (20 Nov 2026).
+ */
+export async function listFilesForAds(
+  db: Db,
+  tenantId: TenantId,
+  pick: { made: boolean; kind: "image" | "video" },
+  limit: number,
+): Promise<FileMemberRow[]> {
+  let query = db
+    .from("files")
+    .select(MEMBER_COLUMNS)
+    .eq("tenant_id", tenantId)
+    .is("removed_at", null)
+    .or(ARRIVED)
+    .eq("status", "filed")
+    .eq("kind", pick.kind)
+    .or(SHOWS_NOBODY);
+  query = pick.made ? query.eq("source", "made") : query.neq("source", "made");
+  if (pick.kind === "video") query = query.eq("media_status", "ready").eq("copy_state", "here");
+  const { data, error } = await query
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "files for ads");
+  return data;
+}
+
 /** How many files made here are kept and still there, a video on its way aside: Content's tally, counted and never listed. */
 export async function countFilesMade(
   db: Db,

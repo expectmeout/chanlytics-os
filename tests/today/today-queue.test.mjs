@@ -432,18 +432,31 @@ test("the six are the six worth most: an ask to book from today is drawn first, 
 // Today's Need you is TSX (surfaces/today/zones/need-you.tsx, the runs its To decide rows), drawn by import over the day the
 // seam holds (surface-values.ts); its row is the kit's (surfaces/kit/attention/attn-row.tsx).
 installStubReact({ __surfaceState: () => "live" });
-const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday: NeedYou } = await import("./zones/_on-today.mjs");
 const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
-/** The queue drawn over a day and the runs the broadcasts surface holds: the rows it handed the kit's row, by testid. */
+/**
+ * The queue drawn over a day and the runs the broadcasts surface holds: its lines, by testid. Since Today, calm (19 Nov 2026)
+ * each row that waits keeps a line of the queue's list, the one the card holds folded under it and those past the three
+ * named folded too, so the list holds one line for each of them.
+ */
 const rowsDrawn = (vm, runs) => {
   setSurfaceValue("today", vm);
   Object.assign(globalThis, { __BROADCASTS: runs ? { rows: runs } : undefined });
   fresh();
   try {
     const tree = again(() => NeedYou());
-    return { tree, testids: all(tree, (n) => n.type === AttnRow).map((n) => n.props.testid) };
+    const list = byTestId(tree, "today-queue");
+    const lines = list
+      ? all(list, (n) =>
+          String(n.props?.className ?? "")
+            .split(" ")
+            .includes("calm-line"),
+        )
+      : [];
+    return { tree, testids: lines.map((n) => n.props["data-testid"]) };
   } finally {
     setSurfaceValue("today", undefined);
     delete globalThis.__BROADCASTS;
@@ -458,8 +471,8 @@ test("the wiring: one row component for People and Today, the queue in the comma
       bits.includes('className="cl-attn-acts"'),
     "the grammar lives in one place, and it is the row the shell publishes for the pages that still draw it by name",
   );
-  // Loaded before the pages that draw it: the manifest used to order the row's script ahead of the pages'; they import
-  // the row now, so the queue draws the kit's own component for each of the day's rows.
+  // The Inbox's Needs you and People draw the kit's row; Today's queue draws a line of its list for each of the day's rows
+  // that waits (Today, calm, D1: the card, then lines).
   const day = toTodayVM(metrics(), conversations, escalations, calls, NOW);
   const { tree, testids } = rowsDrawn(day);
   assert.ok(byTestId(tree, "today-queue"), "the queue is drawn over the day the seam holds");
@@ -468,7 +481,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.deepEqual(
     testids,
     ["queue-callback", "queue-handoff", "queue-window"],
-    "the row component the manifest loaded first is the one the queue draws, once for each of the day's rows that waits",
+    "the queue draws a line for each of the day's rows that waits",
   );
   // The runs are drawn by queue-runs.tsx (the queue's own file holds no such text): one waiting for a word, one about to send.
   const runs = [
@@ -498,7 +511,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.deepEqual(
     rowsDrawn(quietDay, runs).testids,
     ["brief-run-row"],
-    "a run waiting for a word is a row of the queue's grammar; one that goes on its own is not the queue's",
+    "a run waiting for a word is a line of the queue; one that goes on its own is not the queue's",
   );
   // People drew three of these rows above its table -- the table's own first rows
   // again -- so the strip went and each row carries the words itself. Run, not read: a person who needs you,
@@ -538,12 +551,13 @@ test("the wiring: one row component for People and Today, the queue in the comma
   );
   const queue = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
   for (const s of [
-    'data-testid="today-queue"',
+    // One list of lines under the card (Today, calm), named for what it holds.
+    'testid="today-queue"',
     // The day is the seam's (surface-values.ts), where the JSX read window.TODAY_DATA.
     'surfaceValue("today")',
-    // The list draws from its model (need-you-model.ts), which the page and the head read too; what the model hears is
-    // executed in zones/need-you-acts.test.mjs.
-    "<NeedYouList vm={vm} model={model} />",
+    // The list draws from its model (need-you-model.ts), which the page and the head read too, with the card the page's
+    // arrangement names; what the model hears is executed in zones/need-you-acts.test.mjs.
+    "<NeedYouList vm={vm} model={model} card={card} />",
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(

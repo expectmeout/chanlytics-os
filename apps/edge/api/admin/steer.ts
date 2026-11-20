@@ -3,8 +3,8 @@
  * first, then the old one is retired with its job.
  *
  * The door is the knock (authorizeAdmin: the per-call token, whose workspace steerHeldDraft reads with tokenWorkspace),
- * the body (readBody) and the model as a port, which a test hands in; steerHeldDraft in lib/receptionist/steer.ts is
- * everything after.
+ * the body (readBody) and the model as a port, which a test hands in (`POST.with(brain)`: the platform's own argument
+ * after the request never reaches it, log.ts `door`); steerHeldDraft in lib/receptionist/steer.ts is everything after.
  */
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";
 import { readBody } from "../../lib/shared/admin-door.js";

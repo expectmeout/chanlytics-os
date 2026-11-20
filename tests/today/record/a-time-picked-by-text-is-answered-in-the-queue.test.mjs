@@ -28,7 +28,8 @@ installStubReact({
   __clock: { zone: () => ZONE, dayKey: (ms) => zoneDayKey(ms, ZONE), time: (ms) => clockTime(ms, ZONE) },
 });
 const W = globalThis.window;
-const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday: NeedYou } = await import("../zones/_on-today.mjs");
 const { RequestWork } = await import("../../../apps/dashboard/src/surfaces/today/need-you/sheet/request-work.tsx");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 // What a row came to is kept by the row for the visit (need-you/row-state.ts): each test here is a visit of its own.

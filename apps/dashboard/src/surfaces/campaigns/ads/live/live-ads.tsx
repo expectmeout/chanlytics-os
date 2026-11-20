@@ -3,10 +3,12 @@
  * and 4.9). The head says the page's one sentence beside Ask; the coral button is never hidden (the plan's D1):
  * Connect again or Connect where the card gives one, and + New once an account is connected. Under it who is charged
  * or what was spent, then the page's body (live-page.tsx), an ad's drawer and New ad's one screen (new/sheet.tsx),
- * each open by the address, so Back closes it.
+ * each open by the address, so Back closes it. While AI is stopped with ads still on, the page says so at its top, with
+ * the owner's press that pauses them all (stop-notice.tsx; the Ads plan's G17).
  */
 import { ADS_WORDS, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
@@ -16,6 +18,7 @@ import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
 import type { NeedVM } from "../connect/card-model";
+import { rememberAdNames } from "../crumb-names";
 import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
 import { NewAd } from "../new/sheet";
@@ -23,6 +26,8 @@ import { LIVE_AD_SOURCE } from "../new/source";
 import { AdSheet } from "./ad-sheet";
 import { LiveBody } from "./live-page";
 import { liveModel, sheetModel } from "./model";
+import { StopNotice } from "./stop-notice";
+import type { StopHere } from "./stop-notice";
 import { useAdPresses } from "./use-press";
 
 interface LiveAdsProps {
@@ -37,6 +42,8 @@ interface LiveAdsProps {
   connect: { word: string | null; press: () => void };
   /** The ad account's own need, as its card says it: New ad says the same line for a card check not met. */
   need: NeedVM | null;
+  /** AI stopped with ads still on, and the press that pauses them all; null otherwise. */
+  stop: StopHere | null;
   nav: { push: (route: string) => void; close: () => void };
   again: () => void;
   flash: (flash: FrameFlash) => void;
@@ -49,6 +56,8 @@ export function LiveAds(p: LiveAdsProps) {
   const vm = liveModel(dto, said);
   const sheet = sheetModel(dto, address.ad, said);
   const acts = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
+  useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
   const sentence = (
     <>
       {vm.head.strong ? <b>{vm.head.strong}</b> : null}
@@ -103,7 +112,8 @@ export function LiveAds(p: LiveAdsProps) {
           </>
         }
       />
-      {phone ? (
+      {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
+      {phone && vm.empty === null ? (
         <p className="ads-lead" data-testid="ads-lead">
           {sentence}
         </p>
@@ -111,7 +121,12 @@ export function LiveAds(p: LiveAdsProps) {
       <p className="ads-money" data-testid="ads-money">
         {vm.line}
       </p>
-      <LiveBody vm={vm} card={p.card} onOpen={p.nav.push} />
+      <LiveBody
+        vm={vm}
+        card={p.card}
+        stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
+        onOpen={p.nav.push}
+      />
       <AdSheet vm={sheet} timezone={said.timezone} acts={acts} onClose={p.nav.close} onGo={p.nav.push} />
       <NewAd
         open={address.compose !== null}

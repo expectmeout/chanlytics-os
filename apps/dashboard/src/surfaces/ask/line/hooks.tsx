@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/bridge/mascot";
 import { ROUTE_WAIT_MS } from "@/bridge/surface-registry";
 import { trapFocus } from "../../kit/focus/trap";
+import { moveAlongArc } from "../../kit/motion/arc";
 import {
   ahSlide,
   useAskAway,
@@ -20,7 +21,21 @@ import {
   useHoldSpace,
 } from "../hooks";
 import { tabMemory } from "../shell";
-import { arEscape, arFaceFrom, arNowKey, arOverAsk, arPhone, arRoute, arScopeLabel, arStill } from "./place";
+import {
+  arDiscBox,
+  arDocked,
+  arEscape,
+  arFaceFrom,
+  arNowKey,
+  arOverAsk,
+  arPhone,
+  arRoute,
+  arScopeLabel,
+  arStill,
+} from "./place";
+
+/** How long the three take from the phone's circle to AI's home (Today, calm, D9: one arc, under half a second). */
+const AR_FLY_MS = 440;
 
 /** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. The hold is the one mic, and its words go the typed way (the spec's §3.5 as amended 5 Oct, evening): their reads drawn as they run, the answer read aloud in Ask's voice as it lands (arSubmitter). */
 export const useArVoice = (ln: Line) => {
@@ -145,6 +160,53 @@ const arNoticeWait = (read: Promise<void>, held: boolean, setWaits: (on: boolean
   };
 };
 
+/**
+ * On a phone where the frame's bar stands, the three leave their circle in one arc, up and then across, and land in AI's
+ * home by the field (Today, calm, D9; kit/motion/arc.ts). Whether they came from the circle: else they come from the button.
+ */
+function arRiseFromDisc(to: HTMLElement | null): boolean {
+  const disc = arDocked() ? arDiscBox() : null;
+  if (!disc) return false;
+  const face = to ? to.querySelector<HTMLElement>("canvas") : null;
+  if (to && face && !arStill()) {
+    const box = face.getBoundingClientRect();
+    const fit = MASCOT.fitSide;
+    const scale = box.width && box.height ? fit(disc.width, disc.height) / fit(box.width, box.height) : 1;
+    void moveAlongArc({ outer: to, inner: face }, { from: disc, to: box }, { ms: AR_FLY_MS, way: "rise", scale });
+  }
+  return true;
+}
+
+/**
+ * Elsewhere the three move from the button into the line (a FLIP): centre to centre, since a box scales about its centre,
+ * less the way a desk's panel has still to slide in; and scaled by the three's own size in each box (the mascot's
+ * fitSide), since the hero's stage is far wider than they are, and its width alone started them smaller than the
+ * button's and popped them up. With reduced motion they are simply here.
+ */
+function arFlipFromButton(to: HTMLElement | null): void {
+  const from = arFaceFrom();
+  if (!from || !to || !to.animate || arStill()) return;
+  const start = from.getBoundingClientRect();
+  const end = to.getBoundingClientRect();
+  const box = to.closest ? to.closest(".ask-line") : null;
+  const slid =
+    box && window.getComputedStyle
+      ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0] ?? "") || 0
+      : 0;
+  const fit = MASCOT.fitSide;
+  const dx = start.left + start.width / 2 - (end.left - slid + end.width / 2);
+  const dy = start.top + start.height / 2 - (end.top + end.height / 2);
+  const scale = end.width && end.height ? fit(start.width, start.height) / fit(end.width, end.height) : 0;
+  if (scale)
+    to.animate(
+      [
+        { translate: `${dx}px ${dy}px`, scale: `${scale}` },
+        { translate: "0 0", scale: "1" },
+      ],
+      { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+}
+
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
 export const useArOpen = ({
   lang,
@@ -214,32 +276,8 @@ export const useArOpen = ({
     if (!open || typeof document === "undefined") return;
     const body = document.body;
     if (body && body.classList) body.classList.add("ask-open");
-    const from = arFaceFrom();
     const to = faceRef.current;
-    if (from && to && to.animate && !arStill()) {
-      const a = from.getBoundingClientRect();
-      const b = to.getBoundingClientRect();
-      // Centre to centre, since a box scales about its centre, less the way a desk's panel has still to slide in; and
-      // scaled by the three's own size in each box (the mascot's fitSide), since the hero's stage is far wider than they
-      // are, and its width alone started them smaller than the button's and popped them up.
-      const box = to.closest ? to.closest(".ask-line") : null;
-      const slid =
-        box && window.getComputedStyle
-          ? parseFloat(String(window.getComputedStyle(box).translate || "0").split(" ")[0] ?? "") || 0
-          : 0;
-      const fit = MASCOT.fitSide;
-      const dx = a.left + a.width / 2 - (b.left - slid + b.width / 2);
-      const dy = a.top + a.height / 2 - (b.top + b.height / 2);
-      const k = b.width && b.height ? fit(a.width, a.height) / fit(b.width, b.height) : 0;
-      if (k)
-        to.animate(
-          [
-            { translate: `${dx}px ${dy}px`, scale: `${k}` },
-            { translate: "0 0", scale: "1" },
-          ],
-          { duration: 220, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-        );
-    }
+    if (!arRiseFromDisc(to)) arFlipFromButton(to);
     return () => {
       if (body && body.classList) body.classList.remove("ask-open");
     };
@@ -332,6 +370,7 @@ export const useArFocus = ({
   talk,
   typing,
   away,
+  dock,
 }: Line) => {
   const phone = arPhone();
   // The field with a mouse and keys; else the dialog, so no keyboard rises until a tap asks (S10; focusAsDrawn).
@@ -350,9 +389,12 @@ export const useArFocus = ({
   useAskFocus(dialogRef, open && !field, [open]);
   // A phone's takeover keeps Tab inside it; a desk's panel lets Tab go on to the page, and as it closes gives focus back
   // to what had it before it opened, unless the member has put it somewhere since (../hooks.ts useAskGiveBack).
+  // On the frame's bar its field and its press are outside the dialog, and the page under it is taken away by the frame:
+  // focus is held and given back as ever, and Tab goes on from the dialog to the field and the circle.
+  const docked = !!dock;
   useEffect(
-    () => (open && phone && dialogRef.current ? trapFocus(dialogRef.current) : undefined),
-    [open, phone, dialogRef],
+    () => (open && phone && dialogRef.current ? trapFocus(dialogRef.current, { wrap: !docked }) : undefined),
+    [open, phone, dialogRef, docked],
   );
   useAskGiveBack(open && !phone, dialogRef);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.

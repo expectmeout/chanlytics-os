@@ -30,7 +30,7 @@ import { pageClock } from "@/bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
-import { adsInPreview, useAdsShown } from "../../campaigns/ads/shown";
+import { useAdsShown } from "../../campaigns/ads/shown";
 import { useFolderRow } from "../../files/footage/settings-row";
 import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
@@ -50,8 +50,7 @@ import type { AdsPlace } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
 
-// The Ad accounts card (MOCKUP) is a chunk of its own, fetched only by a demo session: a real workspace's pane draws none of it.
-const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
+// The ad account's card is a chunk of its own, fetched only where Ads is drawn here (campaigns/ads/shown.ts).
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
 /**
@@ -380,8 +379,7 @@ function groupCard(o: {
 
 /**
  * The groups in the page's order, and the workspace's ad account in the group it stands in: its card says where once its
- * account is read (ad-account-real.tsx), and is drawn into the place kept for it there. A demo session draws the
- * sample's rows after the groups.
+ * account is read (ad-account-real.tsx), and is drawn into the place kept for it there.
  */
 function ConnectionGroups(props: {
   rows: Row[];
@@ -389,7 +387,6 @@ function ConnectionGroups(props: {
   setNote: (n: string | null) => void;
   row: (r: Row) => ReactNode;
   adsShown: boolean;
-  flash: (f: FrameFlash) => void;
 }) {
   const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
   const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
@@ -408,7 +405,7 @@ function ConnectionGroups(props: {
       )}
       {props.adsShown && (
         <Suspense fallback={null}>
-          {adsInPreview() ? <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} /> : <AdAccounts flash={props.flash} />}
+          <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} />
         </Suspense>
       )}
     </>
@@ -598,7 +595,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     );
   return (
     <>
-      <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} flash={flash} />
+      <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} />
       {drive.sheets}
       {toastNode}
     </>

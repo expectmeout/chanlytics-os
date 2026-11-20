@@ -37,6 +37,10 @@ export const JOB_WRITERS = {
     person:
       "whoever asked for the copy asks again: a file whose return was never written still says its copy is away, the door answers the next ask the same way, and that ask writes the job",
   },
+  "apps/edge/lib/files/copy/sweep.ts|copy_return": {
+    clock: "health",
+    why: "keepCopiesMoving, the clock's own work: each pass asks again for every copy still waiting for room",
+  },
   "apps/edge/lib/files/found.ts|file_fetch": { ledger: "the website read or import that found them runs again" },
   "apps/edge/lib/files/piece-make.ts|piece_make": {
     ledger: "the step that would have written the next runs again: a start finds its machine kept and starts no second",

@@ -1,6 +1,6 @@
 # 0050 · The spend door
 
-**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended), nothing built. Four
+**Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended), and built in part. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the spending half of Campaigns › Ads; 0049 decides
 the records and how a person is counted, and this note leans on it. It also leans on 0035 (a keyed write is answered
@@ -8,7 +8,12 @@ once), 0040 (each alert says where it goes) and 0018 (a reply goes first, each w
 0048, both drafted in another lane and not on main when this was written (#1564 built both, 12 October 2026); each
 place that depends on one says so. Written against commit
 `132ab95eb` (main, 11 October 2026). Where this note and the code disagree, the code wins. The status was read again at `e9d6325f0` (26 October 2026).
-Amended on 18 November 2026 by "Pause, Resume and Disconnect say what is true" (below): calls 1, 3, 4, 6, 8, 9, 11 and 16. Nothing built.
+Amended on 18 November 2026 by "Pause, Resume and Disconnect say what is true" (below): calls 1, 3, 4, 6, 8, 9, 11 and 16.
+Built so far: the owner-only `ads` permission (migration 00645); Pause, Resume and a Disconnect that is never refused
+(19 November 2026, #2443); the requests that make an ad, built and not sent (#2452); New ad's one screen, with the ad
+writer's own purpose (#2456, migration 00656); call 15, the bell's five ad notices to the owner alone (20 November
+2026, #2459, migration 00658); and, while AI is stopped, no ad turned back on from the page and one press that
+pauses every ad still on (20 November 2026). Turn on, the job that makes an ad and never leaves one running, is not.
 
 ## Context
 

@@ -12,10 +12,7 @@ export type {
 export {
   adRoute,
   ADS_ROUTE,
-  ADS_SCOPE_ALL,
   ADS_WORDS,
-  adsPreviewOf,
-  adsResultsRoute,
   adsScopeKey,
   adsScopeOfKey,
   isAdsParam,
@@ -24,7 +21,7 @@ export {
   parseAds,
 } from "./address";
 export type { AdsAddress, AdsScope, AdStart } from "./address";
-export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads";
+export { addDays, daysBetween } from "./ads";
 export type {
   AdAccountRead,
   AdAccountStatus,
@@ -39,7 +36,6 @@ export type {
   AdMedia,
   AdNeeds,
   AdNeedsCode,
-  AdPatch,
   AdPersonRead,
   AdPlatform,
   AdRead,

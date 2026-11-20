@@ -41,11 +41,13 @@ import { askMemoryLines, getJournalMemberNames } from "@chanlytics/db/ask";
 import { listPolicies } from "@chanlytics/db/workspace";
 import type { RouteContext } from "../shared/with-route";
 import { findPromptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
+import { readAdsShown } from "../connections/ads-ready";
 import { listLines } from "../connections/lines";
 import { listMailboxConnectionsWithDays } from "../connections/mailbox-connections";
 import { readReachOutMonthOrNull } from "../campaigns/month-sent";
 import { getChainReport } from "../campaigns/reach-outs/chain-acts";
 import { listChains } from "../campaigns/reach-outs/reach-outs";
+import { logAndGoOn } from "@chanlytics/log";
 import { log } from "../shared/log";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import * as readers from "./facts";
@@ -114,6 +116,10 @@ export async function getKnownFacts(ctx: RouteContext, tenantId: TenantId): Prom
   };
 }
 
+/** Whether Campaigns › Ads is drawn here (connections/ads-ready.ts readAdsShown); a read that fails draws none. */
+const adsShownHere = (rc: ReaderContext): Promise<boolean> =>
+  readAdsShown(rc.ctx.supabase, rc.tenantId).catch(logAndGoOn("ads shown", false));
+
 /** GET settings' answer: the two shapes, told apart by `configBroken`, which the client narrows on. */
 type SettingsRead =
   | {
@@ -130,8 +136,10 @@ type SettingsRead =
       review_link: boolean;
       /** Whether this workspace makes previews for its leads (decision 0079): ours alone. */
       previews: boolean;
+      /** Whether Campaigns › Ads is drawn here (connections/ads-ready.ts readAdsShown): every page asks this one answer. */
+      ads: boolean;
     }
-  | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[] };
+  | { config: null; version: number; role: ReaderContext["role"]; configBroken: true; issues: string[]; ads: boolean };
 
 /**
  * GET settings, as the route answers it: the tenant's config, with the version the client must echo back on write, the
@@ -158,12 +166,14 @@ export const settings: Reader<undefined, SettingsRead> = {
       // only an owner sees it whole. Anyone else learns that one is set.
       const cfg = parsed.config;
       const visible = feedVisibleTo(rc.role, cfg);
-      const [known, reviewLink] = await Promise.all([
+      const [known, reviewLink, ads] = await Promise.all([
         getKnownFacts(rc.ctx, rc.tenantId),
         // Whether the listing keeps a review link: the composers offer it to a review-link slot, and the review ask
         // with it, only where it does, as they offer the booking link only where one is on file. A read that fails is
         // none here, as a fact above is: the settings read never fails for it.
         reviewLinkOf(rc.ctx.supabase, rc.tenantId).catch(() => null),
+        // Whether Campaigns › Ads is drawn here, asked beside them so the edge's word costs the read no wait of its own.
+        adsShownHere(rc),
       ]);
       const facts = resolveFacts(cfg.brain ?? null, known);
       // What the receptionist is told, composed here with the inputs the browser
@@ -198,6 +208,7 @@ export const settings: Reader<undefined, SettingsRead> = {
           review_link: reviewLink !== null,
           // Whether it makes previews (decision 0079): the step editor offers {{their preview}} where it does.
           previews: known.ours,
+          ads,
         },
         rows: [],
         stamp: readerStamp(),
@@ -211,6 +222,8 @@ export const settings: Reader<undefined, SettingsRead> = {
         role: rc.role,
         configBroken: true as const,
         issues: parsed.issues,
+        // A config the parser refuses still has its ads: whether they are drawn is no part of the config.
+        ads: await adsShownHere(rc),
       },
       rows: [],
       stamp: readerStamp(),

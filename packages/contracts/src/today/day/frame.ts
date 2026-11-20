@@ -137,6 +137,12 @@ export interface TodayDayBarVM {
   now: number | null;
   /** Where the span begins and ends, on the business's clock ("9 AM", "6 PM"): the words under the bar's two ends. */
   ends: { from: string; to: string };
+  /**
+   * The hours under the bar: an entry for each hour of the span, a label where the hour is marked (the first, then
+   * every few, never one crowding the day's end, which `ends.to` says) and null between. Empty where the span does not
+   * start and end on the hour: its two ends say it alone.
+   */
+  marks: Array<string | null>;
 }
 
 export interface TodayDayFrameVM {
@@ -220,7 +226,18 @@ export function todayDayBar(
     parts,
     now: now !== null && now >= from && now <= to ? (now - from) / span : null,
     ends: { from: clockLabel(from), to: clockLabel(to) },
+    marks: barMarks(from, to),
   };
+}
+
+/** The hours a bar marks (TodayDayBarVM.marks): three of them and the day's end, a third of the span apart. */
+function barMarks(from: number, to: number): Array<string | null> {
+  const span = to - from;
+  if (!Number.isInteger(from) || !Number.isInteger(to) || span < 3) return [];
+  const step = Math.ceil(span / 3);
+  return Array.from({ length: span }, (_, at) =>
+    at % step === 0 && span - at >= step / 2 + 1 ? clockLabel(from + at) : null,
+  );
 }
 
 /** The times the receptionist would offer a day, as stretches of it: none on a day closed or past, nor for a time read with no place. */

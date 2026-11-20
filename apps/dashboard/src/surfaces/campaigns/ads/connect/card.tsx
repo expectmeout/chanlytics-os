@@ -10,6 +10,7 @@
  */
 import "./connect.css";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -183,8 +184,17 @@ function CardWord({ vm, onOpen }: { vm: ConnectCardVM; onOpen: () => void }) {
   );
 }
 
-/** The ad account's card, under the name the page that draws it says it by (`title`). */
-export function ConnectCard({ vm, acts, title }: { vm: ConnectCardVM; acts: CardActs; title: string }) {
+interface ConnectCardProps {
+  vm: ConnectCardVM;
+  acts: CardActs;
+  /** The name the page that draws it says it by. */
+  title: string;
+  /** AI stopped with ads still on, where the card says it (live/stop-notice.tsx). */
+  stop?: ReactNode;
+}
+
+/** The ad account's card. */
+export function ConnectCard({ vm, acts, title, stop = null }: ConnectCardProps) {
   return (
     <Panel as="section" className="ads-conn" aria-label={title} data-state={vm.state} data-testid="ads-conn">
       <div className="ads-conn-head">
@@ -219,6 +229,7 @@ export function ConnectCard({ vm, acts, title }: { vm: ConnectCardVM; acts: Card
           {vm.stale}
         </p>
       ) : null}
+      {stop}
       {vm.need ? <CardNeed need={vm.need} onConnect={acts.connect} /> : null}
       {vm.question ? <CardQuestion question={vm.question} onChoose={acts.choose} /> : null}
     </Panel>

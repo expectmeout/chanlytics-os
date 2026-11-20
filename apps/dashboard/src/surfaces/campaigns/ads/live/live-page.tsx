@@ -1,21 +1,25 @@
 /**
  * Campaigns › Ads once an account is or was connected: real ads, read from the owner's own Meta account (the Ads
- * plan's 4.4, as the canvas draws it on a phone and on a desk). At the left the notice where Chanlytics is signed out
- * or an ad was left running, then "Your ads": each ad with where it stands and what it brought; under them the quiet
+ * plan's 4.4, as the canvas draws it on a phone and on a desk). At the left the notice where AI is stopped with ads
+ * still on, or where Chanlytics is signed out or an ad was left running, then "Your ads": each ad with where it stands and what it brought; under them the quiet
  * lines (what an ad made in Meta can do here, whose people are not counted, the people from an ad Chanlytics cannot
  * name). At the right, or at the foot on a phone, the ad account's card and the line for the platforms that come
  * later. An ad opens in its drawer (ad-sheet.tsx). Every sentence is the model's (model.ts).
  */
 import "./live.css";
 import type { ReactNode } from "react";
+import { newAdRoute } from "@chanlytics/contracts";
+import { EmptyState } from "../../../kit/empty/empty";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { ListRow } from "../../../kit/list-row/list-row";
 import { Panel } from "../../../kit/panel/panel";
 import { cx } from "../../../kit/variants";
-import { routeDoor } from "../../../frame-verbs";
+import { gate, routeDoor } from "../../../frame-verbs";
 import { cmRowPress } from "../../parts/head";
 import { CARD } from "../connect/words";
+import { GATE } from "../model/words";
+import { HEAD } from "../model/words-page";
 import type { LiveNoticeVM, LiveRowVM, LiveVM } from "./model";
 import { ADS_MANAGER, LIVE } from "./words";
 
@@ -76,19 +80,36 @@ interface LiveBodyProps {
   vm: LiveVM;
   /** The ad account's card, as the page draws it everywhere. */
   card: ReactNode;
+  /** AI stopped with ads still on (stop-notice.tsx), first on the page. */
+  stop: ReactNode;
   onOpen: (route: string) => void;
 }
 
 /** The page under its head: the notice, the ads, the quiet lines, and the card. */
-export function LiveBody({ vm, card, onOpen }: LiveBodyProps) {
+export function LiveBody({ vm, card, stop, onOpen }: LiveBodyProps) {
   return (
     <div className="ads-hero ads-live" data-testid="ads-live">
       <section className="ads-hero-main">
+        {stop}
         {vm.notice ? <Notice notice={vm.notice} /> : null}
         {vm.stale ? (
           <p className="ads-hero-muted" data-testid="ads-live-stale">
             {vm.stale}
           </p>
+        ) : null}
+        {vm.empty ? (
+          <EmptyState
+            kind="line"
+            glyph="chat"
+            title={vm.empty}
+            action={{
+              label: HEAD.newAd,
+              onClick: () => onOpen(newAdRoute()),
+              testid: "ads-live-empty-new",
+              gate: gate("approve", GATE.turnOn),
+            }}
+            testid="ads-live-empty"
+          />
         ) : null}
         {vm.rows.length > 0 ? (
           <>

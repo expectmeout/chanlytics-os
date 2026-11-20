@@ -44,8 +44,9 @@ const KEPT_KEY = "ads-new-draft";
 /** The shape a kept draft is in: one kept in another shape is let go, and a fresh one is drafted. */
 const KEPT_SHAPE = 1;
 
-const draftKey = (source: AdSource): string =>
-  `${typeof window === "undefined" ? "" : window.location.pathname.split("/").slice(0, 3).join("/")}:${source.sample ? "sample" : "live"}`;
+/** The workspace a kept draft is for: the address's first two parts (`/w/<slug>`). */
+const draftKey = (): string =>
+  `${typeof window === "undefined" ? "" : window.location.pathname.split("/").slice(0, 3).join("/")}:live`;
 
 const isKept = (value: unknown): value is { shape: number; held: Held } =>
   typeof value === "object" &&
@@ -198,7 +199,7 @@ async function openDraft(io: Asking): Promise<void> {
 
 /** Opened: the draft kept for the tab where there is one, judged again as the business now stands; else a fresh one. */
 function reopenDraft(io: Asking): void {
-  const had = keptDraft(draftKey(io.source));
+  const had = keptDraft(draftKey());
   if (!had) {
     void openDraft(io);
     return;
@@ -292,12 +293,12 @@ const draftActs = (io: Asking, afterTyping: (run: () => void) => void): AdDraftA
     if (held) io.show({ at: "draft", ...held, version: held.version + 1 });
   },
   again: () => {
-    keepDraft(draftKey(io.source), null);
+    keepDraft(draftKey(), null);
     io.setOutcome(null);
     void openDraft(io);
   },
   forget: () => {
-    keepDraft(draftKey(io.source), null);
+    keepDraft(draftKey(), null);
     io.setOutcome(null);
   },
 });
@@ -339,7 +340,7 @@ export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
       setStand(next);
       if (next.at !== "draft") return;
       const { answer, local, words, version } = next;
-      keepDraft(draftKey(source), { answer, local, words, version });
+      keepDraft(draftKey(), { answer, local, words, version });
     };
     const tellIs = (on: boolean) => {
       tellingNow.current = on;
