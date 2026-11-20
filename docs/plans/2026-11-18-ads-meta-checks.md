@@ -358,5 +358,8 @@ word names that pause, so only a refusal would show); and Meta's own preview.
 
 ### What stands at Meta now
 
-On Ruben's account, all paused: one campaign, one part that says who sees it, one ad under Meta's review, the picture
-in the account's library, and an unpublished post on the Page that the ad's creative made. With the campaign paused, nothing is shown and nothing is spent.
+The check's campaign was removed later that evening, on Ruben's word, through the check's own removal: Meta read it
+back as his, named by the check, with it and everything under it paused, and took its removal with the part that says
+who sees it and the ad. Nothing was spent and nothing was shown. Left at Meta: the picture in the account's library,
+and the unpublished post on the Page that the ad's creative made. Meta's review of the ad came to nothing seen here:
+nothing came back refused while it stood.
