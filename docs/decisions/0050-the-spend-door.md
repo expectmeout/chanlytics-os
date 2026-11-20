@@ -425,3 +425,22 @@ worked out from what the hourly read already keeps, so an ad made in Meta rings 
   above): none does yet; the review proposed mail always for the first two.
 - **"Your ad account was disconnected"** is call 15's third Needs you. A sign-out by Meta is the account's row of 00653;
   an owner's own disconnect is their press, and rings nothing.
+
+## As built, 20 November 2026 · The paused-ad check (the Ads plan's step 4, "Checking against Meta without spending")
+
+The first requests sent to Meta to make anything, on Ruben's word, on his own ad account: with no card on it for the
+first two runs, and with one for the third. No migration. Its order and what it showed are on the checks page (`docs/plans/2026-11-18-ads-meta-checks.md`).
+
+- **One owner's press, with no screen:** `POST /api/v1/ads/check` judges New ad's draft as its own route does and
+  hands its first version to the edge (`apps/edge/lib/ads/paused-check.ts`), only where `ADS_WRITES` is `live` (never
+  `sandbox`) and `ADS_WORKSPACES` names the workspace, and only for a draft whose one stop is the missing card.
+- **Every make is paused** and each dry run comes just before its own make (call 3), with Meta's key on each make
+  and none on a dry run. The campaign above everything stays paused, so nothing is shown and nothing spends.
+- **A check either finishes, paused, or leaves nothing.** Where Meta stops it after the campaign is made, the
+  campaign is removed. In place of a draft, the route takes one campaign a check left, and removes it only where it
+  is in the owner's account, paused, named as a check names it, and has no ad.
+- **What it found:** Meta's least for a total counts every calendar day the run touches, so the rule in
+  `packages/contracts/src/ads/draft.ts` says so now; and Meta makes no ad, not even as a dry run, on an account with no
+  payment method. Ruben added a card, and the third run made one paused ad whose read back matched what was sent on
+  every point call 4 compares. The ad's own switch through step 2's presses waits for the account's read to take it
+  in.
