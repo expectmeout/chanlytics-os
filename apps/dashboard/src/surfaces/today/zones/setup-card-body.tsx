@@ -293,32 +293,36 @@ function stepsMeter(card: SetupCardVM) {
 export const TodaySetupLine = ({ S, note }: { S: SetupSurface; note: ColdEmailNote | null }) => {
   const [open, setOpen] = useState(false);
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
-  if (!card) return note ? <ColdEmailLine note={note} /> : null;
+  // The card is one part for as long as the line's place stands, drawn or not: a Skip or a Hide can take the line away
+  // while its Undo is still up, and the Undo is the card's own toast.
+  const shown = open && !!card;
   return (
-    <CalmList label={card.title} testid="today-setup-line">
-      <CalmRow
-        first={{ mark: <Icon name="check" size={14} /> }}
-        name={card.title}
-        said={note ? setupCardLeftWith(card, 1) : card.left}
-        press={() => setOpen(!open)}
-        open={open}
-        under={
-          open ? (
-            <>
-              {note ? (
+    <>
+      {card ? (
+        <CalmList label={card.title} testid="today-setup-line">
+          <CalmRow
+            first={{ mark: <Icon name="check" size={14} /> }}
+            name={card.title}
+            said={note ? setupCardLeftWith(card, 1) : card.left}
+            press={() => setOpen(!open)}
+            open={open}
+            under={
+              open && note ? (
                 <div className="calm-subs" role="list">
                   <ColdEmailRow note={note} />
                 </div>
-              ) : null}
-              <div className="tq tps tz-setup calm-opened">
-                <TodaySetupCard S={S} coral={false} under />
-              </div>
-            </>
-          ) : null
-        }
-        testid="today-setup-row"
-      />
-    </CalmList>
+              ) : null
+            }
+            testid="today-setup-row"
+          />
+        </CalmList>
+      ) : note ? (
+        <ColdEmailLine note={note} />
+      ) : null}
+      <div className={shown ? "tq tps tz-setup calm-opened" : undefined}>
+        <TodaySetupCard S={S} coral={false} under shown={shown} />
+      </div>
+    </>
   );
 };
 
@@ -338,11 +342,14 @@ export const TodaySetupCard = ({
   S,
   coral,
   under = false,
+  shown = true,
 }: {
   S: SetupSurface;
   coral: boolean;
   /** Drawn under Today's line for it (TodaySetupLine), which has said its name and how many are left: no head, never folded. */
   under?: boolean;
+  /** Whether the card is drawn at all: shut under its line it draws only its toast, so an Undo outlives the line. */
+  shown?: boolean;
 }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
   const [toastNode, flash] = useToast();
@@ -352,7 +359,7 @@ export const TodaySetupCard = ({
   // (the phone pass, 3 Nov 2026: beside Hide the title broke onto two lines).
   const phone = useTodayOnPhone();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
-  if (!card) return toastNode;
+  if (!card || !shown) return toastNode;
   const nav = (to: string) => appNavigate(to);
   // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.
   const day = restEndsDay(pageClock().zone(), Date.now());

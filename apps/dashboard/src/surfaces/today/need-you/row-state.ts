@@ -42,6 +42,20 @@ export function useRowState<T>(rowId: string, key: string, initial: T): [T, (nex
   return [value, set];
 }
 
+/** A to-do finished on this visit: its Undo, kept by its row for as long as the page is open (Today, calm, D24). */
+export const STEP_FINISHED = "finished";
+
+/**
+ * A row's state set from outside a part, as a press's answer arrives: every part drawing the row hears it. The value as
+ * it is, a function among them (a hook's setter would call one as an update).
+ */
+export function setRowState(rowId: string, key: string, value: unknown): void {
+  const k = `${rowId}\u0000${key}`;
+  if (states.has(k) && Object.is(states.get(k), value)) return;
+  states.set(k, value);
+  tell();
+}
+
 /** The visit is over: what every row came to goes with it. */
 export function clearRowStates(): void {
   if (!states.size) return;

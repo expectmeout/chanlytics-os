@@ -57,6 +57,13 @@ export interface CalmLine {
   quiet?: boolean;
   /** A line that never runs to a second line, of its name or of what stands under it (the day's, D19). */
   tight?: boolean;
+  /**
+   * A line kept but folded shut: its item is in the card, or past the lines the page names. It folds and opens where it
+   * stands as the card hands off (calm.css), so nothing under it jumps; folded, it is out of reach of a press and a reader.
+   */
+  folded?: boolean;
+  /** The first line still showing in its list: it takes no rule over it. */
+  top?: boolean;
   testid: string;
 }
 
@@ -102,6 +109,8 @@ export function CalmRow({
   under,
   quiet = false,
   tight = false,
+  folded = false,
+  top = false,
   testid,
 }: CalmLine) {
   const lines = {
@@ -128,23 +137,29 @@ export function CalmRow({
       role="listitem"
       data-quiet={quiet || undefined}
       data-tight={tight || undefined}
+      data-folded={folded || undefined}
+      data-top={top || undefined}
+      aria-hidden={folded || undefined}
+      inert={folded || undefined}
       data-testid={testid}
     >
-      {door ? (
-        <ListRow {...lines} href={door.href} onClick={door.onClick} />
-      ) : press ? (
-        <ListRow
-          {...lines}
-          role="button"
-          tabIndex={0}
-          aria-expanded={open}
-          onClick={press}
-          onKeyDown={keyPress(press)}
-        />
-      ) : (
-        <ListRow {...lines} />
-      )}
-      {under}
+      <div className="calm-fold">
+        {door ? (
+          <ListRow {...lines} href={door.href} onClick={door.onClick} />
+        ) : press ? (
+          <ListRow
+            {...lines}
+            role="button"
+            tabIndex={0}
+            aria-expanded={open}
+            onClick={press}
+            onKeyDown={keyPress(press)}
+          />
+        ) : (
+          <ListRow {...lines} />
+        )}
+        {under}
+      </div>
     </div>
   );
 }

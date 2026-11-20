@@ -22,10 +22,11 @@
  * one line that counts it by kind and opens a door to each (calm/also.tsx): who else waits, the to-dos, the visits to
  * mark, whoever has waited past a week, what AI set aside.
  */
-import { useEffect, useLayoutEffect, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import {
   DEFAULT_TIMEZONE,
   NEED_YOU_WORDS as W,
+  TODAY_LINE_WORDS,
   TODAY_NAMED_MAX,
   type TodayAlsoCounts,
   type TodayQueueRowVM,
@@ -38,7 +39,7 @@ import { usePartShown } from "../../use-surface";
 import { broadcastsRead, useRunsActing } from "../../waits/run-acts";
 import { waitParts, type Nav, type VerbKind } from "../../waits/wait-rows";
 import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
-import { needYouRows, type NeedYouRowsCtx } from "../need-you/people-rows";
+import type { NeedYouRowsCtx } from "../need-you/people-rows";
 import { clearRowStates } from "../need-you/row-state";
 import { draftWantsOf, useNeedYouModel, type NeedYouModel } from "../need-you-model";
 import { keptWith, keptWithout, type Kept } from "./kept";
@@ -46,9 +47,11 @@ import { useToDoRows } from "./to-do";
 import { appNavigate, canDo, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
 import { AlsoLine } from "../calm/also";
-import { CalmList, CalmRow } from "../calm/lines";
+import { LeadGone } from "../calm/lead";
+import { cardPressed, cardPressedLately } from "../calm/motion";
+import { CalmList, CalmRow, type CalmLine } from "../calm/lines";
 import type { TodayCard } from "../calm/lead";
-import { QueueLead, queueLine } from "../calm/queue";
+import { ActedLine, QueueLead, queueLine } from "../calm/queue";
 import { WaitLead, waitLine } from "../calm/wait";
 
 /** The list, once Today has been read: the page is READY when it is drawn (client/page-speed.ts). */
@@ -114,6 +117,9 @@ function readsFailed(callsUnread: boolean) {
   );
 }
 
+/** How long a row finished in the card stays there, saying what became of it, before the next thing takes the card. */
+const DONE_SHOWN_MS = 560;
+
 /** What is left past the named lines is one of these kinds (contracts TodayAlsoCounts). */
 type LeftAs = "waiting" | "toDo" | "toMark";
 
@@ -152,7 +158,10 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
     kept: new Set(Object.keys(kept)),
     focus: model.focus,
     // A line pressed rises into the card, on a phone and a desk alike.
-    open: (id) => setOpened(() => id),
+    open: (id) => {
+      cardPressed();
+      setOpened(() => id);
+    },
     word,
     stepDone: () => undefined,
     phone: null,
@@ -174,36 +183,69 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   // The run in the card: the one the page named, else the first that waits (the runs moved since the page read them).
   const waitLead =
     card?.holder === "wait" ? (waits.parts.find((x) => x.key === card.id) ?? waits.parts[0] ?? null) : null;
-  const leadId = lead?.row?.id ?? null;
-  // A row acted on this visit says what became of it, with its Undo, where it stood: the row's own drawing, as it was.
-  const stillOpen = (r: TodayQueueRowVM, c: NeedYouRowsCtx) => r.id !== leadId && !c.kept.has(r.id);
+  // The row the card held, finished a moment ago (D6): it stays in the card, saying what became of it, for a beat before
+  // the next thing takes the card. Only where the next is this part's too, or nothing is left: another part's card
+  // (setting up, what AI found) is the page's to draw at once, and two cards never stand together.
+  const cardRow = lead?.row?.id ?? null;
+  const cardNow = lead?.row
+    ? { row: lead.row, holder: card?.holder === "todo" ? ("todo" as const) : ("queue" as const) }
+    : null;
+  const [shown, setShown] = useState(cardNow);
+  const [letGo, setLetGo] = useState<string | null>(null);
+  const ours = card === null || card.holder === "queue" || card.holder === "wait" || card.holder === "todo";
+  // Still waiting: among the rows drawn and not acted on. A row kept says what became of it; a to-do done leaves its list.
+  const waiting = (id: string) =>
+    order.some((r) => r.id === id && !ctx.kept.has(id)) || todo.rows.some((r) => r.id === id && !todo.ctx.kept.has(id));
+  const heldLead =
+    ours && shown && shown.row.id !== cardRow && letGo !== shown.row.id && !waiting(shown.row.id) && cardPressedLately()
+      ? { ...shown, ctx: shown.holder === "todo" ? todo.ctx : ctx }
+      : null;
+  const held = heldLead?.row.id ?? null;
+  // What the card held is kept as it is drawn (React's own way to keep what an earlier draw held).
+  if (!heldLead && (shown?.row.id ?? null) !== cardRow) setShown(cardNow);
+  useEffect(() => {
+    if (!held) return undefined;
+    const timer = setTimeout(() => setLetGo(held), DONE_SHOWN_MS);
+    return () => clearTimeout(timer);
+  }, [held]);
+  const leadId = held ?? cardRow;
+  // A row finished on this visit says what became of it, with its Undo, as a line of its own under the lines.
   const acted = [
-    ...needYouRows(
-      order.filter((r) => ctx.kept.has(r.id) && r.id !== leadId),
-      ctx,
-    ),
-    ...needYouRows(
-      todo.rows.filter((r) => todo.ctx.kept.has(r.id) && r.id !== leadId),
-      todo.ctx,
-    ),
+    ...order
+      .filter((r) => ctx.kept.has(r.id) && r.id !== leadId)
+      .map((r) => <ActedLine key={r.id} row={r} ctx={ctx} />),
+    ...todo.rows
+      .filter((r) => todo.ctx.kept.has(r.id) && r.id !== leadId)
+      .map((r) => <ActedLine key={r.id} row={r} ctx={todo.ctx} />),
   ];
   // Who waits, in the page's order: the people, what waits for an OK, then the team's to-dos. Three are named (D16), and
   // what is past them is counted by its kind in the one line under them.
-  const toDos = todo.rows.filter((r) => stillOpen(r, todo.ctx));
-  const all: Array<{ as: LeftAs; line: ReactElement }> = [
+  const all: Array<{ key: string; as: LeftAs; line: CalmLine }> = [
     ...order
-      .filter((r) => stillOpen(r, ctx))
-      .map((r) => ({ as: "waiting" as const, line: <CalmRow key={r.id} {...queueLine(r, ctx)} /> })),
-    ...waits.parts
-      .filter((x) => x !== waitLead)
-      .map((x) => ({ as: "waiting" as const, line: <CalmRow key={x.key} {...waitLine(x)} /> })),
-    ...toDos.map((r) => ({
-      as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
-      line: <CalmRow key={r.id} {...queueLine(r, todo.ctx)} />,
-    })),
+      .filter((r) => !ctx.kept.has(r.id))
+      .map((r) => ({ key: r.id, as: "waiting" as const, line: queueLine(r, ctx) })),
+    ...waits.parts.map((x) => ({ key: x.key, as: "waiting" as const, line: waitLine(x) })),
+    ...todo.rows
+      .filter((r) => !todo.ctx.kept.has(r.id))
+      .map((r) => ({
+        key: r.id,
+        as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
+        line: queueLine(r, todo.ctx),
+      })),
   ];
-  const named = all.slice(0, TODAY_NAMED_MAX);
-  const past = (as: LeftAs) => all.slice(TODAY_NAMED_MAX).filter((x) => x.as === as).length;
+  // Every one of them keeps its line while the page is open. The card's own is folded shut, and so is one past the three
+  // named: a line folds or opens where it stands as the card hands off, and nothing under it jumps (D6). While a finished
+  // row still holds the card, the next one keeps its line.
+  const next = cardRow ?? waitLead?.key ?? null;
+  const inCard = heldLead ? null : next;
+  const free = all.filter((x) => x.key !== inCard);
+  const named = new Set(free.slice(0, TODAY_NAMED_MAX).map((x) => x.key));
+  // What is past the named is counted as it will stand once the card has handed off, so the count never moves twice.
+  const past = (as: LeftAs) =>
+    all
+      .filter((x) => x.key !== next)
+      .slice(TODAY_NAMED_MAX)
+      .filter((x) => x.as === as).length;
   // What To do holds past the rows it handed the page, by kind: its own counts, less the rows it drew.
   const { steps, visits, answering } = model.todo;
   const drew = (kind: TodayQueueRowVM["kind"]) => todo.rows.filter((r) => r.kind === kind).length;
@@ -221,27 +263,34 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
     setAside: setAside.length,
   };
   const callsUnread = vm.callsRead === false;
-  // What still draws in the rows' own grammar, under the lines: what was acted on here, with its Undo, and a read that
-  // failed.
-  const rest = acted.length > 0 || callsUnread || (!broadcastsRead() && surfaceFailed("broadcasts"));
+  // A read that failed is said where its rows would stand.
+  const rest = callsUnread || (!broadcastsRead() && surfaceFailed("broadcasts"));
   return (
     <>
-      {lead?.row ? (
+      {heldLead ? (
+        <QueueLead row={heldLead.row} ctx={heldLead.ctx} holder={heldLead.holder} done />
+      ) : lead?.row ? (
         <QueueLead row={lead.row} ctx={lead.ctx} holder={card?.holder === "todo" ? "todo" : "queue"} />
       ) : waitLead ? (
         <WaitLead part={waitLead} />
+      ) : card === null ? (
+        <LeadGone />
       ) : null}
-      {named.length ? (
+      {all.length ? (
         <CalmList label={W.title} testid="today-queue">
-          {named.map((x) => x.line)}
+          {all.map((x) => (
+            <CalmRow key={x.key} {...x.line} folded={!named.has(x.key)} top={x.key === free[0]?.key} />
+          ))}
+        </CalmList>
+      ) : null}
+      {acted.length ? (
+        <CalmList label={TODAY_LINE_WORDS.doneHere} testid="today-acted">
+          {acted}
         </CalmList>
       ) : null}
       {rest ? (
         <section className="tq today-queue tz-need calm-rest" data-testid="today-queue-rest" aria-label={W.title}>
-          <div className="tq-list ny-groups">
-            {acted}
-            {readsFailed(callsUnread)}
-          </div>
+          <div className="tq-list ny-groups">{readsFailed(callsUnread)}</div>
         </section>
       ) : null}
       <AlsoLine

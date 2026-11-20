@@ -46,6 +46,8 @@ export const TODAY_LINE_WORDS = {
   foundMore: (n: number): string => `${n} more AI found`,
   /** The day's line once the day has turned (D19): when tomorrow starts, who is first under it. */
   tomorrowStarts: (when: string): string => `Tomorrow starts at ${when}`,
+  /** What was finished on this visit, for a reader: the name of the list its lines stand in. */
+  doneHere: "Done on this visit",
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
 } as const;

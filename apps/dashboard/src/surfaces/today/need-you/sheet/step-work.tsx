@@ -12,7 +12,7 @@ import { gate } from "../../shell";
 import { rewriteDraft, useDraftsMoved } from "../drafts";
 import { stepNoteOf, stepThreadOf } from "../step-note";
 import { Acts, Done, Note, NotNow, State, Words, whoseWords, type WorkProps } from "../parts";
-import { useRowState } from "../row-state";
+import { STEP_FINISHED, useRowState } from "../row-state";
 import { sendWords, undoSend, useSend } from "../sends";
 import { SayToAsk } from "./ask-line";
 import { useThreadSaid } from "./reads";
@@ -31,7 +31,7 @@ function useStepDay(p: WorkProps) {
   const days = daysAt(at);
   // The step's day, moved through the note's own edit, as People's step sheet moves it (its author's to change): its words
   // and whom it is for sent as they are, since the door sets both from what it is sent; only the day differs. Undo moves it
-  // back to today, where it was due. A refusal (a step a teammate wrote) is said in the row.
+  // back to the day it was due. A refusal (a step a teammate wrote) is said in the row.
   const dueOn = async (key: string) =>
     row.step
       ? commitVerb("note", {
@@ -57,10 +57,14 @@ function useStepDay(p: WorkProps) {
     if (r) setMoved(d.title);
   };
   const back = async () => {
-    const today = stepDays(Date.now(), tz).find((d) => d.label === "Today");
-    const r = today ? await dueOn(today.key) : null;
+    // Back on the day it was due (D25), which the row kept as it was read: today's would start its wait again.
+    const was = row.step?.due_on;
+    const r = was ? await dueOn(was) : null;
     if (r && !r.ok) return setRefused(r.message);
-    if (r) setMoved(null);
+    if (!r) return;
+    setMoved(null);
+    // Undone, it waits again as itself: no longer a row acted on, kept among the finished with its presses live.
+    unkeep(row);
   };
   return { moved, refused, days, move, back, fresh: () => setAt(Date.now()) };
 }
@@ -69,7 +73,7 @@ function useStepDay(p: WorkProps) {
  * What to write for a step, as Ask makes it on this person's thread, or as its note was written ahead (decision 0120); its send
  * finishes the job.
  */
-function useStepWords(p: WorkProps & { onDone: () => void }, threadId: string | null, note: ReplyDraftDto | null) {
+function useStepWords(p: WorkProps & { onDone: StepIsDone }, threadId: string | null, note: ReplyDraftDto | null) {
   const { row, flash, keep, unkeep } = p;
   const [own, setMine] = useRowState<string | null>(row.id, "mine", null);
   // The words the member made their own stand; until then, the note it arrived with.
@@ -119,7 +123,7 @@ function useStepWords(p: WorkProps & { onDone: () => void }, threadId: string | 
  * A step due: the job, what was last said to them, and what to write, which Ask makes into a message; Send finishes the job.
  * Done (the page's own, with its toast and Undo), or Not now, which moves its day.
  */
-export function StepWork(p: WorkProps & { onDone: () => void }) {
+export function StepWork(p: WorkProps & { onDone: StepIsDone }) {
   const { row, may, unkeep } = p;
   const day = useStepDay(p);
   // Drawn again as its note lands.
@@ -131,6 +135,9 @@ export function StepWork(p: WorkProps & { onDone: () => void }) {
   // A note to someone new goes from the owner's own mail: once opened there, Done finishes the job.
   const to = note?.words.to ?? null;
   const [mailed, setMailed] = useRowState<boolean>(row.id, "mailed", false);
+  // Finished on this visit: it says so, with its Undo, for as long as the page is open (D24).
+  const [undoDone] = useRowState<(() => void) | null>(row.id, STEP_FINISHED, null);
+  if (undoDone) return <Done words={NOTE_WORDS.done} act={{ label: W.undo, onPress: undoDone }} foot={p.foot} />;
   if (day.moved)
     return (
       <Done
@@ -231,8 +238,11 @@ function StepNoteWords(s: {
  * A step's one act: its note to someone new opened in the owner's own mail, until it has been; words to send on their thread,
  * Send, which finishes the job; else Done.
  */
+/** Mark the step done: answers once the server has (the page's own press, zones/queue-steps.tsx), or at once. */
+type StepIsDone = () => void | Promise<void>;
+
 function StepEnd(e: {
-  p: WorkProps & { onDone: () => void };
+  p: WorkProps & { onDone: StepIsDone };
   mine: string | null;
   to: string | null;
   subject: string;
@@ -242,6 +252,16 @@ function StepEnd(e: {
 }) {
   const { p, mine, to } = e;
   const words = mine?.trim() ? mine : null;
+  // Done says it was heard while the server answers: pressed, it waits, and a second press is not taken.
+  const [busy, setBusy] = useState(false);
+  const done = async () => {
+    setBusy(true);
+    try {
+      await p.onDone();
+    } finally {
+      setBusy(false);
+    }
+  };
   if (to && words && !e.mailed)
     return (
       <Button
@@ -263,7 +283,9 @@ function StepEnd(e: {
   return (
     <Button
       variant={p.main}
-      onClick={p.onDone}
+      onClick={() => void done()}
+      disabled={busy}
+      aria-busy={busy || undefined}
       {...gate("approve", "mark a step done")}
       aria-label={NOTE_WORDS.markDone(p.row.sentence)}
     >

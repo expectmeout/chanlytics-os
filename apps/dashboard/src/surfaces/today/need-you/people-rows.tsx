@@ -51,7 +51,7 @@ export interface NeedYouRowsCtx {
   /** Open a row drawn short: on a desk in place, closing the one open; on a phone in the sheet that walks the list. */
   open: (rowId: string) => void;
   word: AppointmentWord;
-  stepDone: (row: TodayQueueRowVM) => void;
+  stepDone: (row: TodayQueueRowVM) => void | Promise<void>;
   /**
    * On a phone (the phone canvas, 28 Oct 2026): the card's words cut to two lines with Read, which opens the sheet that
    * walks the list on it (walk-sheet.tsx), as a row drawn short does.

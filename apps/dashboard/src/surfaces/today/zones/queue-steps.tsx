@@ -29,14 +29,16 @@ export function dueSteps(): TodayStepsVM | null {
 }
 
 /**
- * Mark a step done. The row goes at once (`hide`), as the thread header's line does, and People is read again behind the verb
- * (the route's refresh); the toast says it, and its Undo brings the row back (`show`). Refused, People is read again: the
- * row is People's, and the step it drew may be the one a teammate moved (the wiring's second audit, S9-10).
+ * Mark a step done. Once the door has taken it the page is handed its Undo (`finished`) and keeps the row for the visit,
+ * saying Done with that Undo where it stood (Today, calm, D24: a toast held the only Undo, for four seconds); People is
+ * read again behind the verb (the route's refresh). Its Undo taken, the row waits again (`undone`). Refused, the page's
+ * toast says why and People is read again: the row is People's, and the step it drew may be the one a teammate moved
+ * (the wiring's second audit, S9-10).
  */
 export async function stepDone(
   row: TodayQueueRowVM,
   say: StepSay,
-  page: { hide: (noteId: string) => void; show: (noteId: string) => void },
+  page: { finished: (undo: () => void) => void; undone: () => void },
 ) {
   const step = row.step;
   const notes = personNotes();
@@ -46,9 +48,13 @@ export async function stepDone(
     noteId: step.note_id,
     words: row.sentence,
     done: notes.done,
-    say,
-    onDone: () => page.hide(step.note_id),
-    onUndone: () => page.show(step.note_id),
+    // What it came to is the row's to say, with its Undo; a refusal is still the toast's.
+    say: (flash) => {
+      const undo = flash.undo;
+      if (undo) page.finished(() => void undo());
+      else say(flash);
+    },
+    onUndone: page.undone,
     onRefused: () => void refreshSurface("people"),
   });
 }

@@ -26,6 +26,7 @@ import { useStanding } from "../../kit/head/standing";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
+import { countRolls } from "../calm/motion";
 import { todayGreetingNow } from "../chrome";
 import { TODAY_HELPERS } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
@@ -38,10 +39,12 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
  * speak. On a phone how many need you is a door to who they are (`door`). Called, not
  * drawn, so the head's tree has no part of its own for it.
  */
-function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null, waits: boolean): ReactNode {
+function headSentence(line: TodayHeadLineVM, why: string | null, door: string | null, count: number): ReactNode {
+  const waits = count > 0;
   // Someone waits on you: the warn tone's dot before how many (Today with colour, D5), as the menu's count says it.
   const lead = (
-    <b data-testid="today-head-lead">
+    // How many need you rolls into place as it falls (D13, calm/motion.ts): the only number on the page that moves.
+    <b className="calm-count" data-testid="today-head-lead" ref={countRolls(count)}>
       {waits ? <span className="tz-waits" aria-hidden="true" /> : null}
       {line.lead}
     </b>
@@ -98,7 +101,7 @@ export function useZonesStanding(): void {
   useStanding({
     stacked: true,
     title: todayGreetingNow(),
-    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null, count > 0) : undefined,
+    sentence: line ? headSentence(line, speech.why, phone && count > 0 ? "inbox" : null, count) : undefined,
     beside: listen ?? undefined,
   });
 }

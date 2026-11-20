@@ -39,7 +39,15 @@ export function WaitLead({ part }: { part: WaitPart }) {
     </>
   );
   return (
-    <Lead holder="wait" label={part.name} kind={kind} title={part.head} why={part.why} testid={part.testid}>
+    <Lead
+      holder="wait"
+      id={part.key}
+      label={part.name}
+      kind={kind}
+      title={part.head}
+      why={part.why}
+      testid={part.testid}
+    >
       <LeadActs>
         <Button
           variant="primary"

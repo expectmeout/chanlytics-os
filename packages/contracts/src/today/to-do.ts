@@ -36,6 +36,8 @@ export interface TodayStepVM {
   /** "Due today", "Overdue since Mon". */
   when: string;
   due: StepDue;
+  /** The day it was due, as a day key ("2026-11-12"). */
+  dueOn: string;
   /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
   /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
   forWho: string | null;
@@ -101,6 +103,7 @@ export function todaySteps(
       words: step.words,
       when: step.day.words,
       due: step.due,
+      dueOn: step.day.day,
       forWho: step.forMe || !step.forWho ? null : forOther(step.forWho),
       forUserId: step.forUserId,
       dealId: step.dealId,
@@ -144,6 +147,7 @@ function stepRow(todayStep: TodayStepVM): TodayQueueRowVM {
       note_id: todayStep.noteId,
       deal_id: todayStep.dealId,
       for_user_id: todayStep.forUserId,
+      due_on: todayStep.dueOn,
     },
     waitedMs: Number.NEGATIVE_INFINITY,
   };

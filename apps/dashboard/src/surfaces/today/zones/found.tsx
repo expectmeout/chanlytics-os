@@ -274,7 +274,15 @@ function FoundRow({
   const testid = `today-found-${row.source}`;
   if (p.lead)
     return (
-      <Lead holder="found" label={F.title} kind={foundKind(row)} title={row.head} why={row.sub} testid={testid}>
+      <Lead
+        holder="found"
+        id={row.key}
+        label={F.title}
+        kind={foundKind(row)}
+        title={row.head}
+        why={row.sub}
+        testid={testid}
+      >
         {said ?? (
           <LeadActs>
             {act}

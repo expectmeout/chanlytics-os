@@ -16,6 +16,7 @@ import { useDraftsMoved, wantDrafts } from "../need-you/drafts";
 import { stepNoteWantOf } from "../need-you/step-note";
 import type { ToDoModel } from "../need-you-model";
 import { keptWith, keptWithout } from "./kept";
+import { STEP_FINISHED, setRowState } from "../need-you/row-state";
 import { stepDone } from "./queue-steps";
 import { KeptAll } from "../need-you/visit-work";
 
@@ -34,7 +35,7 @@ export interface ToDoRows {
     kept: ReadonlySet<string>;
     keep: (row: TodayQueueRowVM) => void;
     unkeep: (row: TodayQueueRowVM) => void;
-    stepDone: (row: TodayQueueRowVM) => void;
+    stepDone: (row: TodayQueueRowVM) => void | Promise<void>;
   };
   count: number;
   /** How many the cap left out: the group's foot says them. */
@@ -71,7 +72,7 @@ export function useToDoRows({
   // The notes steps arrive with (decision 0120): kept on their threads, they land as the drafts do.
   useDraftsMoved();
   const [toastNode, flash] = useToast();
-  const { read, rows, count, steps, visits, answering, word, kept, setKept, setDone } = model;
+  const { read, rows, count, steps, visits, answering, word, kept, setKept } = model;
   const ctx: NeedYouRowsCtx = {
     nav: (to) => appNavigate(to),
     coral: coral === undefined ? model.coral : coral,
@@ -85,9 +86,16 @@ export function useToDoRows({
     open: open ?? (() => undefined),
     word,
     stepDone: (r) =>
-      void stepDone(r, flash, {
-        hide: (noteId) => setDone((was) => [...was, noteId]),
-        show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
+      stepDone(r, flash, {
+        // Finished, it is kept where it stood with its Undo, which the row says (need-you/row-state.ts STEP_FINISHED).
+        finished: (undo) => {
+          setRowState(r.id, STEP_FINISHED, undo);
+          setKept((was) => keptWith(was, r, rows));
+        },
+        undone: () => {
+          setRowState(r.id, STEP_FINISHED, null);
+          setKept((was) => keptWithout(was, r));
+        },
       }),
   };
   const drawn = needYouRows(rows, ctx);

@@ -144,7 +144,6 @@ const CARD_SHORT_VERBS: Record<string, string> = {
   "Set up forwarding": "Forward",
   "Set alerts": "Alerts",
   "Get their yes": "Ask",
-  "Turn on": "Turn on",
 };
 
 /** An act's word on a phone: its own short word, else its first. */
@@ -220,7 +219,8 @@ const CARD_REMIND = {
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
   home: "Turn it on any time in Campaigns.",
-  label: "Turn on",
+  // What the press does (Today, calm, D26): it opens the reminder to be set up; nothing is turned on by it.
+  label: "Set up",
   // New sequence on the day-before moment, its line written in (sequences/address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow",

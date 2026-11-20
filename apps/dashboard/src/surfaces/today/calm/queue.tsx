@@ -5,17 +5,18 @@
  * row always did: their conversation where its answer is written there, its own door where it has no work on Today, and
  * for the rest it rises into the card.
  */
-import { NEED_YOU_WORDS as W, addressOf, namesAPerson, type TodayQueueRowVM } from "@chanlytics/contracts";
+import { NEED_YOU_WORDS as W, NOTE_WORDS, addressOf, namesAPerson, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { routeDoor } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Face, type FaceProps } from "../../kit/face/face";
 import { SAYS_WHEN } from "../../kit/says-when";
+import { Done } from "../need-you/parts";
 import { openInThread, VerbWords, type NeedYouRowsCtx } from "../need-you/people-rows";
 import { answersInThread, shortLabel, workOf, worksInPlace } from "../need-you/rows";
 import { rowWords } from "../need-you/sheet/row-words";
 import { useTodayOnPhone } from "../phone";
 import { Lead, LeadActs } from "./lead";
-import type { CalmLine } from "./lines";
+import { CalmRow, type CalmLine } from "./lines";
 
 /** Who a row is about, as the kit's face draws them: a person by what contracts says they are, else its initials. */
 const faceOf = (row: TodayQueueRowVM): FaceProps =>
@@ -77,6 +78,35 @@ export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
 }
 
 /**
+ * A row's own work, as its part draws it (need-you/rows.tsx `workOf`): its presses while it waits, and once it is
+ * finished what became of it, with its Undo. Its words are a title over it already (the card's, a line's name), so the
+ * work stands under them and never under a second copy of what was said.
+ */
+const workIn = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx, main: "primary" | "secondary") =>
+  workOf(
+    row,
+    { main, may: ctx.may, tz: ctx.tz, flash: ctx.flash, keep: ctx.keep, unkeep: ctx.unkeep, read: null, whole: false },
+    { word: ctx.word, stepDone: () => ctx.stepDone(row) },
+  );
+
+/**
+ * A row finished on this visit, as a line (D6: a finished thing says so where it stands): who or what it was, and under
+ * it what became of it, with its Undo, for as long as the page is open.
+ */
+export function ActedLine({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }) {
+  const words = rowWords(row);
+  return (
+    <CalmRow
+      first={{ face: faceOf(row) }}
+      name={words.name}
+      tight
+      under={<div className="calm-under calm-receipt">{workIn(row, ctx, "secondary")}</div>}
+      testid={words.testid}
+    />
+  );
+}
+
+/**
  * The row in the card: who and how long, what they said, why it was handed to you, then its press where its answer is
  * written in its conversation, else its work, in place, as the row drew it.
  */
@@ -84,10 +114,16 @@ export function QueueLead({
   row,
   ctx,
   holder,
+  done = false,
 }: {
   row: TodayQueueRowVM;
   ctx: NeedYouRowsCtx;
   holder: "queue" | "todo";
+  /**
+   * Finished a moment ago by a press in the card (D6): it says so where its presses stood, for a beat, before the next
+   * thing takes the card. A row kept in its place says what became of it itself; one that left its list says Done.
+   */
+  done?: boolean;
 }) {
   const phone = useTodayOnPhone();
   const words = rowWords(row);
@@ -110,13 +146,18 @@ export function QueueLead({
   return (
     <Lead
       holder={holder}
+      id={row.id}
       label={words.name}
       kind={kind}
       title={todo ? words.name : saidOf(row)}
       why={why}
       testid={words.testid}
     >
-      {conversationId ? (
+      {done ? (
+        <div className="calm-work" data-testid="today-card-done">
+          {ctx.kept.has(row.id) ? workIn(row, ctx, "secondary") : <Done words={NOTE_WORDS.done} />}
+        </div>
+      ) : conversationId ? (
         <LeadActs>
           <Button
             variant={coral ? "primary" : "secondary"}
@@ -129,21 +170,7 @@ export function QueueLead({
         </LeadActs>
       ) : (
         <div className="calm-work" data-testid="today-card-work">
-          {workOf(
-            row,
-            {
-              main: coral ? "primary" : "secondary",
-              may: ctx.may,
-              tz: ctx.tz,
-              flash: ctx.flash,
-              keep: ctx.keep,
-              unkeep: ctx.unkeep,
-              read: null,
-              // Its words are the card's title: the work stands under them, not under a second copy of what was said.
-              whole: false,
-            },
-            { word: ctx.word, stepDone: () => ctx.stepDone(row) },
-          )}
+          {workIn(row, ctx, coral ? "primary" : "secondary")}
         </div>
       )}
     </Lead>

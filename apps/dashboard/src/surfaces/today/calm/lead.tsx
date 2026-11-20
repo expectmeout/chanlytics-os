@@ -8,6 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { Panel } from "../../kit/panel/panel";
+import { cardPressed, useCardGone, useCardHandOff } from "./motion";
 
 /**
  * The page's one card, as the arrangement names it (arrangement.ts `cardOf`): which part holds it, and which of that
@@ -20,6 +21,7 @@ type LeadHolder = NonNullable<TodayCard>["holder"];
 
 export function Lead({
   holder,
+  id,
   label,
   kind,
   title,
@@ -28,6 +30,8 @@ export function Lead({
   children,
 }: {
   holder: LeadHolder;
+  /** Which of the part's items it holds: the card hands off when this changes (motion.ts), and never on its first draw. */
+  id: string;
   /** What the card is, for a reader: its kind's words. */
   label: string;
   /** The small line over the title: a face and a name with how long, or the kind's mark and its words. */
@@ -39,9 +43,17 @@ export function Lead({
   /** Its acts, or its work in place. */
   children: ReactNode;
 }) {
+  const words = useCardHandOff(`${holder}:${id}`);
   return (
     <Panel as="section" className="calm-lead" aria-label={label} data-testid="today-card" data-holder={holder}>
-      <div className="calm-lead-in" data-testid={testid}>
+      {/* A press in the card is remembered: what leaves it right after is what the press finished (motion.ts). */}
+      <div
+        className="calm-lead-in"
+        data-testid={testid}
+        ref={words}
+        onPointerDownCapture={cardPressed}
+        onKeyDownCapture={cardPressed}
+      >
         <div className="calm-kind">{kind}</div>
         <h2 className="calm-title">{title}</h2>
         {why ? <p className="calm-why">{why}</p> : null}
@@ -49,6 +61,15 @@ export function Lead({
       </div>
     </Panel>
   );
+}
+
+/**
+ * Where the card stood, once nothing holds it (the last thing done): its room folds shut, so the lines rise under it
+ * instead of jumping. Nothing where no card was drawn on this visit.
+ */
+export function LeadGone() {
+  const { room, gone } = useCardGone();
+  return gone ? null : <div ref={room} className="calm-gone" aria-hidden="true" />;
 }
 
 /** The card's acts, in a row: its one press first, what is quieter after it. */

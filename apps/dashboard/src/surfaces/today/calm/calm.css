@@ -113,13 +113,48 @@
   display: flex;
   flex-direction: column;
 }
+/* A line is one row of a grid, so it can fold shut where it stands (its row to nothing, its words clipped) and open
+   again, in one move: the line whose item rose into the card, and one past the lines the page names (D6). */
 .calm-line {
+  display: grid;
+  grid-template-rows: 1fr;
+  border-top: 1px solid var(--line);
+  transition:
+    grid-template-rows var(--duration-slow) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out),
+    border-color var(--duration-slow) var(--ease-out);
+}
+.calm-fold {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--line);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
-.calm-line:first-child {
+.calm-line[data-folded] {
+  grid-template-rows: 0fr;
   border-top-color: transparent;
+  opacity: 0;
+}
+.calm-line:first-child,
+.calm-line[data-top] {
+  border-top-color: transparent;
+}
+/* A line gives under a finger, and under a pointer where there is one: the whole line is the press. */
+.calm-fold > a,
+.calm-fold > [role="button"] {
+  border-radius: var(--radius-xl);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.calm-fold > a:active,
+.calm-fold > [role="button"]:active {
+  background-color: var(--selected-fill);
+}
+@media (hover: hover) {
+  .calm-fold > a:hover,
+  .calm-fold > [role="button"]:hover {
+    background-color: var(--hover-fill);
+  }
 }
 .calm-lines ~ .calm-lines {
   margin-top: calc(-1 * var(--calm-gap));
@@ -239,7 +274,7 @@
   white-space: nowrap;
 }
 /* A line that names nothing and only counts what is left: no mark in its column, its words lighter. */
-.calm-line[data-quiet] > :first-child > :first-child {
+.calm-line[data-quiet] > .calm-fold > :first-child > :first-child {
   visibility: hidden;
   height: 0;
 }
@@ -277,4 +312,39 @@
 }
 .calm [data-tone="danger"] {
   color: var(--danger-ink);
+}
+
+/* ---- The movements (D6, D13, D14; motion.ts plays the card's hand-off and the count's roll). ---- */
+/* The head's count, a box of its own so it can roll. */
+.calm-count {
+  display: inline-block;
+}
+/* Where the card stood once nothing holds it: an empty box that folds shut (motion.ts). */
+.calm-gone {
+  height: 0;
+  overflow: hidden;
+}
+/* What became of a finished thing arrives where its presses stood: the answer to the press, never drawn as Today opens
+   (nothing is finished yet on a first draw). */
+.calm-work .ny-done,
+.calm-receipt .ny-done {
+  animation: calm-done var(--duration-base) var(--ease-out) both;
+}
+@keyframes calm-done {
+  from {
+    opacity: 0.15;
+    transform: scale(0.96);
+  }
+}
+/* Less motion: nothing travels and nothing folds over time. Things change place at once. */
+@media (prefers-reduced-motion: reduce) {
+  .calm-line,
+  .calm-fold > a,
+  .calm-fold > [role="button"] {
+    transition: none;
+  }
+  .calm-work .ny-done,
+  .calm-receipt .ny-done {
+    animation: none;
+  }
 }

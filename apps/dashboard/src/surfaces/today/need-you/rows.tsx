@@ -111,7 +111,7 @@ export function draftWantOf(r: TodayQueueRowVM): DraftWant | null {
 export function workOf(
   r: TodayQueueRowVM,
   p: Omit<WorkProps, "row">,
-  extra: { word: AppointmentWord; stepDone: () => void },
+  extra: { word: AppointmentWord; stepDone: () => void | Promise<void> },
 ): ReactNode {
   const props = { ...p, row: r };
   // What was said stands over the answer wherever the row is drawn whole.

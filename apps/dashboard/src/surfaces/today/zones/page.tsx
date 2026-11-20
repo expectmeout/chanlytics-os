@@ -28,6 +28,7 @@ import type { ColdEmailNote } from "@chanlytics/contracts";
 import { ColdEmailLine, useColdEmailNote } from "./cold-email-note";
 import { TodayContentLine } from "../content-note";
 import { useTodayArrangement, type TodayArrangement } from "../arrangement";
+import { forgetTodayMotion } from "../calm/motion";
 import { useTodayOnPhone } from "../phone";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
@@ -81,6 +82,8 @@ const theRest = (at: TodayArrangement) => (
 export function TodayZones() {
   // Back on Today: the thread it last opened no longer offers the way back to it (carried-reply.ts carryFromToday).
   useEffect(() => forgetFromToday(), []);
+  // Today left: the next visit's first draw moves nothing (D14).
+  useEffect(() => forgetTodayMotion, []);
   const at = useTodayArrangement();
   const phone = useTodayOnPhone();
   // Cold email's note joins what is left to set up (D21); where setting up holds the card, it is a line of its own.
