@@ -875,7 +875,7 @@ const onShell = (over = {}) => ({
   llm_id: "llm_pub",
   version: 1,
   // The model as the provider answers it once its `model` and `model_temperature` are retired (31 January 2027).
-  model_config: { type: "cascading", primary: { model: "claude-5.5-haiku", tier: "standard" }, temperature: 0 },
+  model_config: { type: "cascading", primary: { model: "claude-5.5-sonnet", tier: "standard" }, temperature: 0 },
   ...desiredVoiceShell(FN_URL, { "x-fn-secret": FN_SECRET }),
   ...over,
 });
