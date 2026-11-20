@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as C from "@chanlytics/contracts";
 import { briefOf, callCost, expectFailures, loadCases, validateCases } from "../../../tooling/scripts/evals/ad.mjs";
+import { adCraftIssues } from "../../../apps/dashboard/src/server/ask/skills/ad/checks.ts";
 import { AD_SKILL } from "../../../apps/dashboard/src/server/ask/skills/ad/skill.ts";
 import { skillGuide, skillsAsked, isAskSkillId } from "../../../apps/dashboard/src/server/ask/skills/registry.ts";
 
@@ -46,11 +47,11 @@ const GOOD = [
     text: "45 minutes, $45, and time to ask questions. Message Harbor Studio on WhatsApp to book.",
   },
 ];
-const codes = (versions, over) => C.adCraftIssues(versions, brief(over)).map((issue) => issue.code);
+const codes = (versions, over) => adCraftIssues(versions, brief(over)).map((issue) => issue.code);
 /** The codes one text raises as version 1, beside two versions that pass. */
 const codesOf = (text, over, headline = "First appointment") => [
   ...new Set(
-    C.adCraftIssues([{ headline, text }, GOOD[1], GOOD[2]], brief(over))
+    adCraftIssues([{ headline, text }, GOOD[1], GOOD[2]], brief(over))
       .filter((issue) => issue.version === 1)
       .map((issue) => issue.code),
   ),
@@ -64,8 +65,9 @@ test("the skill's words: its three jobs, its rules, what it never does, and trad
     assert.ok(system.includes(part), part);
   assert.ok(system.endsWith(C.DATA_NOT_INSTRUCTIONS), "the brief's facts are fenced, so the fence's one rule is said");
   assert.ok(AD_SKILL.craft.maxTokens <= C.SKILL_CRAFT_MAX_TOKENS);
-  // Its gateway purpose arrives with its first caller (the plan's G19): until then it names none.
-  assert.equal("purpose" in AD_SKILL.craft, false);
+  // A purpose of its own at the gateway, so what ad writing costs is read apart (the plan's G19).
+  assert.equal(AD_SKILL.craft.purpose, "ad_draft");
+  assert.ok(C.SKILL_CRAFT_PURPOSES.includes(AD_SKILL.craft.purpose));
   // Each worked example's own versions pass the checks the product runs: an example that broke a rule would teach it.
   for (const example of AD_SKILL.examples) {
     const versions = [...example.answer.matchAll(/Headline: (.+?)\. Text: (.+)$/gm)].map((found) => ({
@@ -82,7 +84,7 @@ test("the skill's words: its three jobs, its rules, what it never does, and trad
           language: "es",
         }
       : { facts: ["Open Saturdays.", "First appointments take 45 minutes.", "Appointments this week."] };
-    const found = C.adCraftIssues(versions, brief({ ...over, job: versions.length === 1 ? "rewrite" : "write" }));
+    const found = adCraftIssues(versions, brief({ ...over, job: versions.length === 1 ? "rewrite" : "write" }));
     assert.deepEqual(found, [], `${example.title}: ${JSON.stringify(found)}`);
   }
 });
@@ -348,9 +350,9 @@ test("the test set is well formed, builds every brief, and its own drafts pass t
     const adBrief = briefOf(entry);
     assert.ok(C.adBriefText(adBrief).length > 300, entry.id);
     // A change case's draft is words the product showed: they pass, or the case would start from a broken ad.
-    if (entry.change) assert.deepEqual(C.adCraftIssues(entry.change.versions, adBrief), [], entry.id);
+    if (entry.change) assert.deepEqual(adCraftIssues(entry.change.versions, adBrief), [], entry.id);
     // A turned-down version is one the checks would have stopped before Meta did.
-    if (entry.refused) assert.ok(C.adCraftIssues([entry.refused.version], adBrief).length > 0, entry.id);
+    if (entry.refused) assert.ok(adCraftIssues([entry.refused.version], adBrief).length > 0, entry.id);
   }
   assert.deepEqual(
     validateCases([{ id: "x", job: "sing", business: {}, service: {}, language: "fr", places: ["tv"] }]).length,

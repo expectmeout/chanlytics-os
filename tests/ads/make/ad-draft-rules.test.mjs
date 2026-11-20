@@ -205,5 +205,8 @@ test("the amount and the end: a starting amount under five booked, the calendar'
     );
     assert.equal(C.adEndIssue(inputs().today, draft.endDay), null);
   }
-  assert.deepEqual([C.AD_RUN_DAYS, C.AD_DRAFT_MILES, C.AD_BOOKED_TO_FORECAST], [{ draft: 14, least: 1 }, 5, 5]);
+  assert.deepEqual(
+    [C.AD_RUN_DAYS, C.AD_MILES, C.AD_BOOKED_TO_FORECAST],
+    [{ draft: 14, least: 1 }, { draft: 5, least: 1, most: 50 }, 5],
+  );
 });

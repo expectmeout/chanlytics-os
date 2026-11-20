@@ -28,26 +28,14 @@ export const ADS_MOVE_DAYS = 14;
 export const ADS_MOVE_STEP_MINOR = 500;
 /** The gap in cost between two ads that chance alone would not give: the z of a 95% interval. */
 export const ADS_CHANCE_Z = 1.96;
-/** A custom daily amount runs this many days. */
-export const ADS_OWN_DAYS = 14;
-/** The amount a custom daily amount starts at, in minor units, and the miles New ad opens on. */
-export const ADS_OWN_START_MINOR = 1000;
-export const ADS_DEFAULT_MILES = 5;
 
 /** The totals an amount's list offers, as shares of the one now; a daily amount's, in minor units. */
 export const ADS_TOTAL_STEPS: readonly number[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
 export const ADS_DAILY_CHOICES_MINOR: readonly number[] = [500, 1000, 1500, 2500, 4000];
 /** The end dates offered, in days from the one it has. */
 export const ADS_END_SHIFTS: readonly number[] = [-7, 7, 14, 30];
-/** An area a special category (a job, a loan, a home) is limited to on Meta, in miles. */
-export const ADS_SPECIAL_MILES = 15;
-/** TikTok's display name counts to this many characters. */
-export const ADS_DISPLAY_NAME_MAX = 20;
 /** A ZIP code is this many digits (TikTok's area is a list of them). */
 export const ADS_ZIP_DIGITS = 5;
-
-/** The soft limits Meta states for the words, shown only near the limit (`near` is the share of the limit): Meta's, not ours. */
-export const ADS_COPY_LIMITS = { headlineFacebook: 27, headlineInstagram: 40, textInstagram: 125, near: 0.8 } as const;
 
 /** Per platform, how an amount may change. */
 export interface BudgetRule {
@@ -68,9 +56,6 @@ export const BUDGET_RULES: Record<AdPlatform, BudgetRule> = {
   google: { maxStep: null, waitDays: 0, totalMaxDays: 90, dailyIsAverage: true, changeRelearns: true },
   tiktok: { maxStep: 0.3, waitDays: 2, totalMaxDays: null, dailyIsAverage: false, changeRelearns: true },
 };
-
-/** Whether "Only while you're open" can be set: Meta only with a total. */
-export const SCHEDULE_NEEDS_TOTAL: Record<AdPlatform, boolean> = { meta: true, google: false, tiktok: false };
 
 /** Which checks a door needs before Turn on (ids into AdCheckId), per platform, in the order they are listed. */
 export const DOOR_NEEDS: Record<AdDoor, Partial<Record<AdPlatform, AdCheckId[]>>> = {
@@ -100,19 +85,3 @@ export const countedDoor = (door: AdDoor): boolean => door !== "call";
 
 /** The ledger offers a choice of how to group its ads (by what they ask, by platform) from this many ads. */
 export const ADS_GROUP_FROM = 7;
-
-// ---------------------------------------------------------------------------------------------------------------------
-// New ad: what each platform lets the words and the people be
-
-/** The youngest a person an ad reaches may be, and TikTok's floor for a cosmetic service. */
-export const ADS_AGE_FLOOR = 18;
-export const ADS_AGE_FLOOR_COSMETIC = 25;
-/** Google's words: a headline to this many characters, a description to this many, the business name to this many. */
-export const ADS_GOOGLE_HEADLINE_MAX = 30;
-export const ADS_GOOGLE_DESCRIPTION_MAX = 90;
-export const ADS_GOOGLE_NAME_MAX = 25;
-/** Google spends a daily amount as an average: up to this many times it in a day, never above this many in a month. */
-export const ADS_GOOGLE_DAILY = { day: 2, month: 30.4 } as const;
-/** A call counts past this many seconds (Google), and a lead counts within this many days of a tap (TikTok). */
-export const ADS_CALL_SECONDS = 60;
-export const ADS_LEAD_DAYS = 7;

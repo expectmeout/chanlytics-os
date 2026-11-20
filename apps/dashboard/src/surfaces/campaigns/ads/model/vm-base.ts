@@ -2,7 +2,7 @@
  * What the Ads page's models share (page-only): the view-model types every page of the view draws, one ad's totals over the
  * window, its state and how it ends, what a platform stands on, what a door needs before Turn on, and the sentence an ad is
  * read back as. Pure, like the rest of the models: it reads a `AdsRead` and the rules (rules.ts), says nothing a word of
- * words*.ts does not, and reads no clock, store or network. page.ts, drawer.ts and new-ad.ts build on it.
+ * words*.ts does not, and reads no clock, store or network. page.ts and drawer.ts build on it.
  */
 import {
   adCostRule,
@@ -32,8 +32,10 @@ import { aboutMoneyOf, leftOfMoney, moneyOf, perDayOf } from "./money";
 import { ADS_PERMISSION_WARN_DAYS, DOOR_NEEDS, STANDING_CHECKS, TOO_EARLY_DAYS, countedDoor } from "./rules";
 import {
   ADS_DOORS,
+  AREA_WORDS,
   DOOR,
   DOOR_ORDER,
+  OPENS_WORDS,
   PLATFORM_SURFACE,
   PLATFORM_WORD,
   REACH_NOTE,
@@ -48,7 +50,6 @@ import {
 } from "./words";
 import { LEDGER, STANDING } from "./words-page";
 import type { CountCtx } from "./words-page";
-import { NEW_AD } from "./words-new";
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The types every page of the view draws
@@ -204,7 +205,8 @@ export const adServiceOf = (read: AdsRead, id: string): AdsRead["services"][numb
   read.services.find((s) => s.id === id);
 
 /** `5 miles`, `these ZIP codes`: the word the area is in the sentence and the lists. */
-export const areaWord = (area: AdArea): string => (area.kind === "radius" ? NEW_AD.miles(area.miles) : NEW_AD.zip);
+export const areaWord = (area: AdArea): string =>
+  area.kind === "radius" ? AREA_WORDS.miles(area.miles) : AREA_WORDS.zip;
 
 /** The platforms a door runs on: WhatsApp on Meta, calls on Google, a form on Meta or TikTok. */
 export const platformsFor = (door: AdDoor): readonly AdPlatform[] =>
@@ -381,8 +383,8 @@ function needIds(door: AdDoor, platform: AdPlatform, choice: NeedsChoice): AdChe
 
 /** The number's row where the page the ad opens is chosen: Chanlytics' own page always has it, the owner's site as read. */
 function numberRow(acct: AdAccountRead | undefined, opens: "page" | "site"): StandRowVM {
-  const text = NEW_AD.opens.numberOnPage;
-  if (opens === "page") return { text, tone: "ok", door: null, note: NEW_AD.opens.hostedNote };
+  const text = OPENS_WORDS.numberOnPage;
+  if (opens === "page") return { text, tone: "ok", door: null, note: OPENS_WORDS.hostedNote };
   const ok = checkOk(acct, "number-on-page");
   return {
     text,

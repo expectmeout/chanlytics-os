@@ -34,6 +34,7 @@ export {
   getAppointmentStates,
   getEarlierVisitRows,
   listAppointmentsForClient,
+  listServicesBookedSince,
   markVisit,
   recordReachOutBookedFrom,
   scrubAppointments,

@@ -10,7 +10,7 @@ import {
 } from "@chanlytics/contracts";
 import { findAdAccountForPage, type AdAccountRow } from "@chanlytics/db/ads";
 import { findChannelNumber } from "@chanlytics/db/channels";
-import { adsOffered } from "../ads/account";
+import { readAdsOffered } from "../connections/ads-ready";
 import { readerStamp, type Reader } from "../shared/reader";
 
 /** One account's card, from its row and the number AI answers: the checks are read here, once, for every page. */
@@ -54,7 +54,7 @@ export const adAccount: Reader<undefined, AdAccountDto> = {
   async read(rc) {
     const { supabase } = rc.ctx;
     const [offered, row, number] = await Promise.all([
-      adsOffered(rc.tenantId),
+      readAdsOffered(rc.tenantId),
       findAdAccountForPage(supabase, rc.tenantId, "meta"),
       findChannelNumber(supabase, rc.tenantId, "whatsapp"),
     ]);

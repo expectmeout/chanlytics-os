@@ -40,7 +40,17 @@ test("the purposes, and every one may name an output format: the lead purposes a
   // `ask_warm` is a turn's head sent ahead of its question (the dashboard's server/ask/warm.ts): Ask's, counted apart.
   assert.deepEqual(
     [...GATEWAY_PURPOSES],
-    ["ask", "ask_warm", "lead_draft", "lead_suggest", "list_draft", "person_draft", "sequence_draft", "message_draft"],
+    [
+      "ask",
+      "ask_warm",
+      "lead_draft",
+      "lead_suggest",
+      "list_draft",
+      "person_draft",
+      "sequence_draft",
+      "message_draft",
+      "ad_draft",
+    ],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");
   assert.deepEqual(draft.request.output_config, { effort: "low", format });
@@ -104,4 +114,19 @@ test("a skill's craft call (message_draft): Ask's route's model, at high effort,
   assert.equal(modelPurposeOf("message_draft"), "template_draft", "a purpose the usage ledger's CHECK already holds");
   assert.ok(C.MODEL_PURPOSES.includes(modelPurposeOf("message_draft")));
   assert.equal(validateGatewayRequest({ ...base, model: "claude-unknown-9" }, "message_draft").ok, false);
+});
+
+test("the ad writer's craft call (ad_draft): the same model and ceiling, and a line of the ledger of its own (the Ads plan's G19)", async () => {
+  const C = await import("@chanlytics/contracts");
+  const craft = validateGatewayRequest(
+    { ...base, model: C.MODEL_ROUTES.ask.model, max_tokens: 20_000, output_config: { effort: "high", format } },
+    "ad_draft",
+  );
+  assert.equal(craft.ok, true);
+  assert.equal(craft.request.model, C.MODEL_ROUTES.ask.model, "the writer is the model Ask's route asks");
+  assert.equal(craft.request.max_tokens, C.SKILL_CRAFT_MAX_TOKENS, "its thinking counts toward the skills' ceiling");
+  assert.equal(modelPurposeOf("ad_draft"), "ad_draft", "what ad writing costs is read apart from every other draft");
+  assert.ok(C.AI_USAGE_PURPOSES.includes("ad_draft"), "the ledger's own set holds it (00656)");
+  assert.equal(C.MODEL_ROUTES.ad_draft.model, C.MODEL_ROUTES.ask.model, "its route's model is the one it is asked on");
+  assert.equal(validateGatewayRequest({ ...base, model: "claude-unknown-9" }, "ad_draft").ok, false);
 });

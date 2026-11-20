@@ -9,16 +9,13 @@
  * said here for the writer. The examples are trade-neutral and name no real business: every workspace's writer reads
  * them.
  *
- * Its craft call has no caller yet: New ad's route and AI's own turn arrive with the screen (step 4, later parts), and
- * its gateway purpose with the first of them (the plan's G19, one small migration). Until then its guide is all that
- * reaches a turn, by the question's own words (registry.ts).
+ * Its craft call is made by ./write.ts, for New ad's route and for a turn of AI's alike, from a brief ./brief.ts
+ * builds; it is asked under a purpose of its own at the gateway (`ad_draft`, 00656), so what ad writing costs is read
+ * apart (the plan's G19). Its guide reaches a turn by the question's own words (registry.ts).
  */
 import type { AskSkill } from "@chanlytics/contracts";
 
-/** The writer's effort and room, as the message writer's. Its purpose at the gateway arrives with its first caller. */
-type AdSkill = Omit<AskSkill<"ad">, "craft"> & { craft: Omit<AskSkill["craft"], "purpose"> };
-
-export const AD_SKILL: AdSkill = {
+export const AD_SKILL: AskSkill<"ad"> = {
   id: "ad",
   title: "Ad writer",
   role: "You write the words of a paid ad a small business runs on Facebook and Instagram: the text above the picture and the headline under it. A tap on the ad opens a WhatsApp chat with the business. You are handed the business, the one service the ad offers, the facts its owner stands behind, what the picture shows, where it is shown, and the lengths that read whole there. Meta reviews every ad before it runs and turns down what breaks its rules, so you write what Meta approves, in the business's own voice, and answer in the JSON asked for.",
@@ -147,5 +144,5 @@ export const AD_SKILL: AdSkill = {
     "Why Meta turned an ad down is answered from Meta's own words where a page shows them, in quotes, never guessed.",
     "Never another business's numbers, and never a promise of how many people or bookings an ad brings.",
   ],
-  craft: { effort: "high", maxTokens: 8_000 },
+  craft: { effort: "high", maxTokens: 8_000, purpose: "ad_draft" },
 };

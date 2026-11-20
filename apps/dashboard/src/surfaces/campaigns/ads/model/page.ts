@@ -24,7 +24,7 @@ import { noAdsOf, ownersOf, pageAsk, phoneOf, platformsRead, tilesOf } from "./p
 import type { NoAdsVM, PhoneVM, TilesVM } from "./page-parts";
 import { v0Of, type V0VM } from "./page-v0";
 import { eachInTouch, pageTotals, type PageTotals } from "./page-totals";
-import { ADS_ASK_MIN, ADS_GROUP_FROM } from "./rules";
+import { ADS_GROUP_FROM } from "./rules";
 import {
   DASH,
   PLATFORMS,
@@ -569,14 +569,6 @@ function pageStanding(read: AdsRead): StandingVM[] {
       door,
     };
   });
-}
-
-/** What the ads so far cost for each person who booked, where 10 or more booked: New ad says it under the budget. */
-export function earlierCost(read: AdsRead): { each: string; people: number } | null {
-  const p = pageTotals(read);
-  return p.each !== null && p.booked >= ADS_ASK_MIN
-    ? { each: aboutMoneyOf(p.each.minor, p.each.currency), people: p.booked }
-    : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

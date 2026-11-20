@@ -13,9 +13,9 @@ import "server-only";
 import { AppError, ADS_ROUTE, HOUR_MS, ROLE_PERMS, appLink, type TenantId } from "@chanlytics/contracts";
 import { metaDialogUrl } from "@chanlytics/channels/meta";
 import { signStateFor, verifyStateFor } from "@chanlytics/channels/tokens";
+import { callAdsEdge, forgetAdsReadiness, readAdsReadiness } from "../connections/ads-ready";
 import { stateSecret } from "../connections/google";
-import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
-import { deployment } from "../shared/env";
+import type { EdgeAnswer, EdgeRead } from "../shared/edge";
 import { log } from "../shared/log";
 import type { Member } from "../shared/route";
 import { getMemberContext, type RouteContext } from "../shared/with-route";
@@ -29,69 +29,9 @@ const PROVIDER = "meta_ads";
  */
 const META_WINDOW_LIFE_MS = HOUR_MS;
 
-/** The edge's door for an ad account, behind the dashboard's own credential, for the workspace and the person it acts for. */
-async function edgeAds(
-  body: EdgeBody<"/api/admin/ads/account">,
-  timeoutMs = 20_000,
-): Promise<EdgeAnswer<EdgeRead<"/api/admin/ads/account">>> {
-  if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
-  // A preview never reaches Meta under a business's name, as no provider door does.
-  if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
-  return callEdge("/api/admin/ads/account", body, {
-    workspace: typeof body.tenant_id === "string" ? body.tenant_id : null,
-    user: typeof body.user_id === "string" ? body.user_id : null,
-    timeoutMs,
-  });
-}
-
-/** Whether Connect can be offered in a workspace here, and the public half of the app the way out is built from. */
-interface AdsReadiness {
-  offered: boolean;
-  /** Whether an owner's Pause and Resume do anything here: the edge's own switch is not off. */
-  presses: boolean;
-  app: { client_id: string; config_id: string; redirect_uri: string } | null;
-}
-const NOT_OFFERED: AdsReadiness = { offered: false, presses: false, app: null };
-/** The edge's word per workspace, kept READY_TTL_MS: the Ads page asks it on every open. */
-const readyCache = new Map<TenantId, { at: number; value: AdsReadiness }>();
-
-async function adsReadiness(tenantId: TenantId, now = Date.now()): Promise<AdsReadiness> {
-  const kept = readyCache.get(tenantId);
-  if (kept && now - kept.at < READY_TTL_MS) return kept.value;
-  const answer = await edgeAds({ op: "status", tenant_id: tenantId }, 4_000);
-  const body = answer.body ?? {};
-  const app = body.app ?? null;
-  const value: AdsReadiness =
-    answer.status === 200 &&
-    body.ok === true &&
-    body.ready === true &&
-    body.on === true &&
-    typeof app?.client_id === "string" &&
-    typeof app.config_id === "string" &&
-    typeof app.redirect_uri === "string"
-      ? {
-          offered: true,
-          presses: body.writes === "live" || body.writes === "sandbox",
-          app: { client_id: app.client_id, config_id: app.config_id, redirect_uri: app.redirect_uri },
-        }
-      : NOT_OFFERED;
-  readyCache.set(tenantId, { at: now, value });
-  return value;
-}
-
-/** Whether Connect is offered in this workspace here: the card's reader asks it. */
-export async function adsOffered(tenantId: TenantId): Promise<boolean> {
-  return (await adsReadiness(tenantId)).offered;
-}
-
-/** Whether an owner's Pause and Resume do anything in this workspace here: the page's reader asks it. */
-export async function adsPressesOn(tenantId: TenantId): Promise<boolean> {
-  return (await adsReadiness(tenantId)).presses;
-}
-
 /** `GET ads/connect`: a signed state naming the workspace, the person and this sign-in, then Meta's own window. */
 export async function startAdsConnect(ctx: RouteContext, member: Member): Promise<Response> {
-  const ready = await adsReadiness(member.tenantId);
+  const ready = await readAdsReadiness(member.tenantId);
   const secret = stateSecret();
   if (!ready.app || !secret) throw new AppError("conflict", "Connecting an ad account is not available here yet.", 409);
   const signIn = { tenantId: member.tenantId, userId: ctx.userId, provider: PROVIDER };
@@ -143,7 +83,7 @@ export async function handleAdsCallback(ctx: RouteContext, req: Request): Promis
   }
   const code = returned.searchParams.get("code") ?? "";
   if (!code) return back("closed");
-  const answer = await edgeAds({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
+  const answer = await callAdsEdge({ op: "connect", tenant_id: tenantId, user_id: ctx.userId, code }, 55_000);
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) {
     const reason = typeof body.error === "string" ? body.error : `edge_${answer.status}`;
@@ -184,7 +124,7 @@ export async function chooseAdAccount(
   member: Member,
   externalId: string,
 ): Promise<AdAccountPressed> {
-  const answer = await edgeAds(
+  const answer = await callAdsEdge(
     { op: "choose", tenant_id: member.tenantId, user_id: ctx.userId, external_id: externalId },
     30_000,
   );
@@ -198,7 +138,7 @@ export async function chooseAdAccount(
  * what it last knew.
  */
 export async function checkAdAccount(ctx: RouteContext, member: Member): Promise<AdAccountPressed> {
-  const answer = await edgeAds({ op: "check", tenant_id: member.tenantId, user_id: ctx.userId });
+  const answer = await callAdsEdge({ op: "check", tenant_id: member.tenantId, user_id: ctx.userId });
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "look again");
   return { outcome: typeof body.outcome === "string" ? body.outcome : "kept" };
@@ -220,10 +160,13 @@ export async function disconnectAdAccountNow(
   member: Member,
   pause: boolean,
 ): Promise<AdAccountDisconnected> {
-  const answer = await edgeAds({ op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId, pause }, 55_000);
+  const answer = await callAdsEdge(
+    { op: "disconnect", tenant_id: member.tenantId, user_id: ctx.userId, pause },
+    55_000,
+  );
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "disconnect");
-  readyCache.delete(member.tenantId);
+  forgetAdsReadiness(member.tenantId);
   return {
     outcome: body.outcome === "not_paused" ? "not_paused" : "disconnected",
     names: Array.isArray(body.names) ? body.names.filter((name): name is string => typeof name === "string") : [],
