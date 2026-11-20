@@ -17,7 +17,7 @@ export { ACTIVITY_SUBJECT_HOMES } from "./activity/subjects";
 export { activityTone } from "./activity/tones";
 export { AD_ACCOUNT_STANDINGS, AD_CARD_CHECKS, adCardChecksOf, adStandingOf, metaAdConfigOf } from "./ads/account";
 export { adRoute, ADS_ROUTE, ADS_SCOPE_ALL, ADS_WORDS, adsScopeKey, adsScopeOfKey, isAdsParam, newAdFromRoute, newAdRoute, parseAds } from "./ads/address";
-export { aboutADayAfter, addDays, adWith, daysBetween, patchRestarts, sameArea } from "./ads/ads";
+export { addDays, daysBetween } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";
 export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adPictureIssue, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./ads/live";

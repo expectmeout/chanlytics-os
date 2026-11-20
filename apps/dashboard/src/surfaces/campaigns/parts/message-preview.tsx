@@ -66,7 +66,7 @@ export const mpParts = (body: string | null | undefined, values?: readonly unkno
 };
 
 // The words alone, for the places that want a line rather than a preview.
-export const mpFill = (body: string | null | undefined, values?: readonly unknown[] | null) =>
+const mpFill = (body: string | null | undefined, values?: readonly unknown[] | null) =>
   mpParts(body, values)
     .map((p) => p.text)
     .join("");

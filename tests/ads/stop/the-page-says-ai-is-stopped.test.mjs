@@ -20,7 +20,7 @@ installStubReact({ CHANLY: { nav() {} } });
 const S = "../../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { api } = await import(`${S}/bridge/api.ts`);
-const { stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
+const { aiStopOf: stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
 const { liveModel, sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
 const { LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);

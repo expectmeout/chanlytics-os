@@ -23,7 +23,7 @@ export const adsLeftOn = (dto: AdsLiveDto): AdLiveDto[] =>
   dto.ads.filter((ad) => adLeftOn(ad.state) && ad.pending !== "pausing");
 
 /** What the page and the card say while AI is stopped; null while AI runs, with nothing on, or where nothing can be paused. */
-export function stopOf(dto: AdsLiveDto | null | undefined): StopVM | null {
+export function aiStopOf(dto: AdsLiveDto | null | undefined): StopVM | null {
   if (!dto?.stopped_at || dto.account.status !== "connected") return null;
   const on = adsLeftOn(dto);
   if (on.length === 0) {

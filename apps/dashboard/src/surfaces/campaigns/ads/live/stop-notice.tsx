@@ -1,5 +1,5 @@
 /**
- * AI stopped with ads still on, as one amber line with its one press (the Ads plan's G17; stop.ts says the words): at
+ * AI stopped with ads still on, as one amber line with its one press (the Ads plan's G17; stop.ts aiStopOf says it): at
  * the top of the Ads page, and in the ad account's card in Settings › Connections. The press is the owner's, and
  * pauses every ad still on.
  */

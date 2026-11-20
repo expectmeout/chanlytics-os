@@ -81,7 +81,7 @@ export async function readAdsPressesOn(tenantId: TenantId): Promise<boolean> {
 type AdsDb = Parameters<typeof findAdAccountForPage>[0];
 
 /** An account the Ads page draws as the workspace's own: connected, signed out by Meta, or let go with its ads kept. */
-const HELD: readonly string[] = ["connected", "revoked", "disconnected"];
+const ACCOUNT_HELD: readonly string[] = ["connected", "revoked", "disconnected"];
 
 /**
  * Whether Campaigns › Ads is drawn in a workspace here: the one answer every page asks (the Ads plan's 6.2), carried
@@ -93,5 +93,5 @@ const HELD: readonly string[] = ["connected", "revoked", "disconnected"];
 export async function readAdsShown(supabase: AdsDb, tenantId: TenantId): Promise<boolean> {
   if ((await readAdsReadiness(tenantId)).offered) return true;
   const held = await findAdAccountForPage(supabase, tenantId, "meta");
-  return held !== null && HELD.includes(held.status);
+  return held !== null && ACCOUNT_HELD.includes(held.status);
 }

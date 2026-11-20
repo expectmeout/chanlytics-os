@@ -21,7 +21,7 @@ import {
 } from "@chanlytics/contracts";
 import type { ReportWindowVM } from "@chanlytics/contracts/report-window";
 import type { CampaignsSurface } from "./campaigns-surface";
-import { DEMO_ZONE } from "../demo-zone";
+import { DEMO_ZONE } from "../calendar/sample-clock";
 import { business, sampleWindow, todayIn, type SampleDay } from "./sample";
 
 /** The people a period's sends reached are this share of them: some are written to more than once. */

@@ -5439,7 +5439,6 @@ const SETTINGS_ASKED = [
   // What packages/db answers goes out as it is asked for (decision 0111): the workspace's channels ahead of its lines.
   "tenant_channels.select",
   "lines.select",
-  // Whether Ads is drawn here: with no edge to offer it, whether the workspace holds an ad account.
   "ad_accounts.select",
   "policies.select",
 ];
@@ -5456,22 +5455,11 @@ test("the settings read, for Ask and for the page: GET settings answers its read
     const r = await kernel.load(memberIn(ctx, tenant, role), settingsReader, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
-    assert.deepEqual(Object.keys(r.data), [
-      "config",
-      "version",
-      "role",
-      "configBroken",
-      "facts",
-      "conflicts",
-      "prompt",
-      "updatedBy",
-      "updatedAt",
-      "review_link",
-      "previews",
-      "ads",
-    ]);
+    assert.equal(
+      Object.keys(r.data).join(),
+      "config,version,role,configBroken,facts,conflicts,prompt,updatedBy,updatedAt,review_link,previews,ads",
+    );
     assert.equal(r.data.review_link, false, "no listing, no review link");
-    assert.equal(r.data.ads, false, "no edge offers Ads here, and no ad account is held");
     assert.deepEqual(
       [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
       [version, role, false, null, null, "2026-09-01T00:00:00Z"],
@@ -5508,11 +5496,7 @@ test("the settings read, for Ask and for the page: GET settings answers its read
     "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
   );
   assert.ok(Array.isArray(refused.data.issues) && refused.data.issues.length > 0);
-  assert.deepEqual(
-    asked(brokenCtx),
-    ["tenant_config.select", "ad_accounts.select"],
-    "nothing the config holds is read, and whether Ads is drawn here is no part of it",
-  );
+  assert.deepEqual(asked(brokenCtx), ["tenant_config.select", "ad_accounts.select"]);
   // No row at all: the route's 404, in its sentence, from the reader.
   const noRow = (e) => {
     assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Workspace has no configuration row."]);

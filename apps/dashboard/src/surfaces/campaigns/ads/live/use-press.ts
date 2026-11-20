@@ -57,15 +57,33 @@ interface PausedAll {
   sent: number;
   refused: number;
   /** The first refusal's own words, where every press was refused. */
-  why: string | null;
+  refusal: string | null;
+}
+
+/**
+ * Every ad still on, paused one after another: each is the route's to keep and to tell Meta at its pace, as a press of
+ * its own would be.
+ */
+async function pauseEach(targets: readonly AdLiveDto[]): Promise<PausedAll> {
+  const tally: PausedAll = { told: 0, soon: 0, sent: 0, refused: 0, refusal: null };
+  for (const ad of targets) {
+    const answer = await sendPress("pause", ad.id, ad.version);
+    if (!answer?.ok) {
+      tally.refused += 1;
+      tally.refusal ??= answer?.message ?? null;
+    } else if (answer.data.outcome === "soon") tally.soon += 1;
+    else if (answer.data.outcome === "sent") tally.sent += 1;
+    else tally.told += 1;
+  }
+  return tally;
 }
 
 /** The one toast a pause-all says: what is paused, what waits for Meta, what is not known, or what was refused. */
-function pausedAllSaid(came: PausedAll, of: number): FrameFlash {
-  if (came.refused === of) return { tone: "warn", msg: came.why ?? SHEET.failed };
-  if (came.refused > 0) return { tone: "warn", msg: STOP.partly(of - came.refused, of) };
-  if (came.sent > 0) return { tone: "warn", msg: STOP.unsure(came.sent) };
-  return { msg: came.soon > 0 ? STOP.pausedSoon(of) : STOP.paused(of) };
+function pausedAllSaid(tally: PausedAll, of: number): FrameFlash {
+  if (tally.refused === of) return { tone: "warn", msg: tally.refusal ?? SHEET.failed };
+  if (tally.refused > 0) return { tone: "warn", msg: STOP.partly(of - tally.refused, of) };
+  if (tally.sent > 0) return { tone: "warn", msg: STOP.unsure(tally.sent) };
+  return { msg: tally.soon > 0 ? STOP.pausedSoon(of) : STOP.paused(of) };
 }
 
 /** When the page looks again after a change Meta gave no answer to: the account's read is asked for two minutes on. */
@@ -110,21 +128,11 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
     async (targets: readonly AdLiveDto[]): Promise<void> => {
       if (targets.length === 0) return;
       setBusy(true);
-      const came: PausedAll = { told: 0, soon: 0, sent: 0, refused: 0, why: null };
-      // One after another: each is the route's to keep and to tell Meta at its pace, as a press of its own would be.
-      for (const ad of targets) {
-        const answer = await sendPress("pause", ad.id, ad.version);
-        if (!answer?.ok) {
-          came.refused += 1;
-          came.why ??= answer?.message ?? null;
-        } else if (answer.data.outcome === "soon") came.soon += 1;
-        else if (answer.data.outcome === "sent") came.sent += 1;
-        else came.told += 1;
-      }
+      const tally = await pauseEach(targets);
       setBusy(false);
       again();
-      if (came.sent > 0) looks.current.push(...UNSURE_LOOKS_MS.map((ms) => window.setTimeout(again, ms)));
-      flash(pausedAllSaid(came, targets.length));
+      if (tally.sent > 0) looks.current.push(...UNSURE_LOOKS_MS.map((ms) => window.setTimeout(again, ms)));
+      flash(pausedAllSaid(tally, targets.length));
     },
     [again, flash],
   );

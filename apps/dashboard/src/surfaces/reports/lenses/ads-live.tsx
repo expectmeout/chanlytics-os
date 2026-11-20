@@ -23,14 +23,14 @@ export const adsLiveHead = (dto: AdsLiveDto): string => lensModel(dto, saidOf(dt
 
 /** No account to report on, or a read that failed: one card, and the page it is mended on. */
 function AdsLensNone({ failed }: { failed: boolean }) {
-  const said = failed ? LENS.notRead : LENS.none;
+  const words = failed ? LENS.notRead : LENS.none;
   return (
     <RptSection title={ADS_WORDS.adsTab} bare testid="ads-lens-live">
       <EmptyState
         kind="card"
         glyph="wave"
-        title={said.title}
-        body={said.body}
+        title={words.title}
+        body={words.body}
         testid="ads-lens-none"
         action={{ label: LENS.open, to: ADS_ROUTE }}
       />

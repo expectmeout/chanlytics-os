@@ -3,7 +3,12 @@
  * `nowMs` and the day is always today (moved from bridge/today-sample/clock.ts when Today's own sample went).
  */
 import { zoneDayKey, zoneMidnight, MIN_MS } from "@chanlytics/contracts";
-import { DEMO_ZONE } from "../demo-zone";
+
+/**
+ * The zone a demo session's samples say their moments in: the made-up studio is in New York. One home, so the samples of the
+ * surfaces that draw one (the Calendar, People, Reports and Campaigns' broadcasts) say the same hour.
+ */
+export const DEMO_ZONE = "America/New_York";
 
 /**
  * Which day the sample is: the usual one the tests walk, a busy one that overflows every cap on the page, or

@@ -8,7 +8,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useFrameToast } from "../../../frame-verbs";
-import { adsLeftOn, stopOf } from "../live/stop";
+import { adsLeftOn, aiStopOf } from "../live/stop";
 import { StopNotice } from "../live/stop-notice";
 import type { StopHere } from "../live/stop-notice";
 import { useAdPresses } from "../live/use-press";
@@ -54,7 +54,7 @@ export function useAdsConnection(on: boolean, timezone: string, title: string, s
   const [leaving, setLeaving] = useState(false);
   const [toast, flash] = useFrameToast();
   const presses = useAdPresses({ ads: live.dto?.ads ?? [], again: live.again, flash });
-  const stopVM = stopOf(live.dto);
+  const stopVM = aiStopOf(live.dto);
   const dto = live.dto;
   const stop: StopHere | null =
     stopVM && dto ? { vm: stopVM, pauseAll: () => presses.pauseAll(adsLeftOn(dto)), busy: presses.busy } : null;

@@ -41,9 +41,10 @@ export function useAdsLens(lens: LensId): AdsHere {
       (dto) => ({ dto, failed: false }),
       () => ({ dto: null, failed: true }),
     );
-    const parts = import("./ads-live");
-    void Promise.all([parts, page]).then(([{ AdsLiveLens, adsLiveHead }, answer]) => {
-      if (live) setHeld({ Live: AdsLiveLens, head: adsLiveHead, ...answer });
+    const lens = import("./ads-live").then((m) => m.AdsLiveLens);
+    const head = import("./ads-live").then((m) => m.adsLiveHead);
+    void Promise.all([lens, head, page]).then(([drawn, headline, answer]) => {
+      if (live) setHeld({ Live: drawn, head: headline, ...answer });
     });
     return () => {
       live = false;
