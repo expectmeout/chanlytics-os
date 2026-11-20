@@ -12,7 +12,7 @@ import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
-import { ADS_ROUTE } from "../../ads/address";
+import { ADS_ROUTE, newAdRoute } from "../../ads/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
@@ -362,6 +362,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   footage: { icon: "folder", tone: "warn", action: "Open Connections", to: "admin/integrations", own: true },
   // The day's new photos and videos from the watched folder (00657): news, in the Library.
   footage_in: { icon: "folder", tone: "", action: "Open Library", to: CONTENT_LIBRARY_ROUTE },
+  // A draft ad left for the owner (00659): its row opens New ad on it.
+  ad_draft: { icon: "sparkle", tone: "", action: "Open the draft", to: newAdRoute(), own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

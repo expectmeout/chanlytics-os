@@ -1,11 +1,11 @@
 import "server-only";
-import { SECOND_MS, adChangeOf, minorPerUnit, type AdChange } from "@chanlytics/contracts";
+import { SECOND_MS, adChangeOf, minorPerUnit, type AdChange, type AdCraftAnswer } from "@chanlytics/contracts";
 import { adWordIssues } from "../ask/skills/ad/brief";
 import type { AdIssue, AdIssueCode } from "../ask/skills/ad/checks";
 import type { CraftKept } from "../ask/skills/craft";
 import { writeAd } from "../ask/skills/ad/write";
 import type { ReaderContext } from "../shared/reader";
-import { adDraftAnswer, adDraftBrief, nextAdPicture, requireAdsOffered } from "./draft";
+import { adDraftAnswer, adDraftBrief, keepDraftAnswer, nextAdPicture, requireAdsOffered } from "./draft";
 import { readAdDraftFacts, type AdDraftFacts } from "./draft-facts";
 import type { AdDraftState, AdNoWords, AdWordsAnswer, AdWordsFault } from "./draft-shape";
 
@@ -14,7 +14,8 @@ import type { AdDraftState, AdNoWords, AdWordsAnswer, AdWordsFault } from "./dra
  * of them, and "Tell AI what to change", which answers with one change from the plan's closed list (G8) and never
  * with free text. The one route of Ads that spends Chanlytics' own money, counted against the workspace's daily AI
  * limit. Every answer is the whole draft as it now stands, judged again, so a change of AI's meets the same checks as
- * one of the owner's. Nothing here calls Meta, and AI turns nothing on.
+ * one of the owner's, and kept as the workspace's draft with its words (draft.ts keepDraftAnswer), so the writer is
+ * not asked for them again on another device. Nothing here calls Meta, and AI turns nothing on.
  */
 
 /** How long one request gives the writer: inside the route's own minute, with room left to answer. */
@@ -49,6 +50,24 @@ const writerOf = (caller: AdWordsCaller) => ({
   deadline: Date.now() + WORDS_WAIT_MS,
 });
 
+/** The most a service's name as the writer says it may run: a few words, never the whole of a long name again. */
+const LABEL_MAX = 40;
+
+/**
+ * The service as the writer named it in a few words (the plan's 4.6): what New ad's title and sentence say, where a
+ * service's own name, free text in Services, can run to a sentence. None where it named nothing shorter.
+ */
+function labelOf(answer: AdCraftAnswer, service: string): string | undefined {
+  const label = answer.label.replace(/\s+/g, " ").trim();
+  return label && label.length <= LABEL_MAX && label.length < service.trim().length ? label : undefined;
+}
+
+/** A draft with another service: no words, no answers, no name of the last one's. */
+const withService = (draft: AdDraftState, service: string): AdDraftState => {
+  const { label: _gone, ...rest } = draft;
+  return { ...rest, service, versions: [], answers: {} };
+};
+
 /** A change of AI's, made to the draft. A new service takes the picture its own draft would, and waits for its words. */
 function changedDraft(
   draft: AdDraftState,
@@ -57,7 +76,7 @@ function changedDraft(
   currency: string,
 ): AdDraftState | null {
   if (change.kind === "words") return { ...draft, versions: change.versions };
-  if (change.kind === "service") return { ...draft, service: change.service, versions: [], answers: {} };
+  if (change.kind === "service") return withService(draft, change.service);
   if (change.kind === "picture") {
     const next = nextAdPicture(facts, draft.picture);
     return next === draft.picture ? null : { ...draft, picture: next };
@@ -76,7 +95,9 @@ async function writeWords(caller: AdWordsCaller, facts: AdDraftFacts, draft: AdD
   const brief = adDraftBrief(facts, facts.account, held, { noPrice });
   const written = await writeAd(writerOf(caller), brief);
   if (!written.wrote) return { ...judged, wrote: { ok: false as const, why: noWordsOf(written.kept) } };
-  return { ...adDraftAnswer(facts, { ...held, versions: written.versions }), wrote: { ok: true as const } };
+  const label = labelOf(written.answer, held.service);
+  const next = { ...held, versions: written.versions, ...(label ? { label } : {}) };
+  return { ...adDraftAnswer(facts, next), wrote: { ok: true as const } };
 }
 
 /** `change`: the one change the owner asked AI for, made where it is one a draft may take. */
@@ -118,7 +139,9 @@ export async function writeAdWords(
 ): Promise<AdWordsAnswer> {
   await requireAdsOffered(caller.rc);
   const facts = await readAdDraftFacts(caller.rc);
-  return body.job === "write"
-    ? writeWords(caller, facts, body.draft, body.no_price === true)
-    : changeDraft(caller, facts, body.draft, body.asked);
+  const answer =
+    body.job === "write"
+      ? await writeWords(caller, facts, body.draft, body.no_price === true)
+      : await changeDraft(caller, facts, body.draft, body.asked);
+  return keepDraftAnswer(caller.rc, facts, answer);
 }

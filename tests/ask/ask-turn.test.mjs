@@ -507,6 +507,7 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
   );
   assert.deepEqual(acts("operator"), [
     "press_card",
+    "propose_ad",
     "propose_call",
     "propose_deal",
     "propose_follow_up",

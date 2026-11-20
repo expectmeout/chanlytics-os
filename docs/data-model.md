@@ -18,6 +18,7 @@ what the script writes.
 | --- | --- | --- |
 | [`ad_accounts`](#ad_accounts) | `packages/db/src/repositories/ads/accounts.ts` | on, 1 policy |
 | [`ad_days`](#ad_days) | none | on, 1 policy |
+| [`ad_drafts`](#ad_drafts) | `packages/db/src/repositories/ads/drafts.ts` | on, 1 policy |
 | [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts` | on, 1 policy |
 | [`ads`](#ads) | `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
@@ -193,6 +194,7 @@ The owner's own ad account on one platform, connected once (decision 0049, 00648
 | `next_read_at` | timestamp with time zone | yes |  | When the account is next read at its platform (00650): written by each read, an hour on, or fifteen minutes on while one of its ads is being checked or is in its first two days. Null until its first read, which is due at once. |
 | `settle_at` | timestamp with time zone | yes |  | When the account's next fourteen-day look back is due (00650): once a day, at four in the morning in its own zone. The read that finds it due re-reads those days and marks the ones before them settled. |
 | `rung_at` | timestamp with time zone | yes |  | When the bell last looked at the account's ads (00658): each good read rings what turned since, and stamps it. Null, or older than connected_at, until the first look after a connect, which rings nothing. |
+| `most_minor` | bigint | yes |  | The most the owner said any ad may cost, in this account's minor units (00659; the Ads plan's G6), said once in a sentence to AI. Null until they say one: a draft's amount is then never above the largest total turned on. Written only by ad_account_most. |
 
 Foreign keys:
 
@@ -230,6 +232,33 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `ad_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### ad_drafts
+
+A workspace's one draft of a new ad (00659; the Ads plan's 4.6, 6.2 and G18): what New ad chose and the ad writer's words, for the ad account it was drafted for. Members read it; ad_draft_keep writes it. Never trusted: every read, and Turn on's press, judges it afresh from the business as it stands.
+
+- Owned by: `packages/db/src/repositories/ads/drafts.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `account_id` | uuid | no |  |  |
+| `draft` | jsonb | no |  | What New ad chose, as server/ads/draft-shape.ts holds it: the service by its name, the picture's file id, the miles, the amount in minor units, the end day, the words (three versions or none) and the answers to Meta's special-kind question. |
+| `kept_by` | uuid | yes |  | The member who kept it last (auth.uid() at ad_draft_keep): the owner, or someone who left it for the owner. |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `account_id` → [`ad_accounts`](#ad_accounts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `ad_drafts_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ad_entries
 

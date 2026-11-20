@@ -51,6 +51,7 @@ import { pieceAct } from "./act/files/piece";
 import { postAct } from "./act/files/post";
 import { publishAct } from "./act/files/publish";
 import { bringInAct } from "./act/files/bring-in";
+import { adDraftAct } from "./act/ads/draft";
 import { rememberAct } from "./act/remember";
 
 /**
@@ -120,6 +121,7 @@ export const ACT_DEFS: readonly ActTool[] = [
   pieceAct,
   publishAct,
   bringInAct,
+  adDraftAct,
   press_card,
 ];
 

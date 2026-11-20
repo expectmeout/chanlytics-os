@@ -663,6 +663,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "ad_refused",
       "ad_spent",
       "ad_unpaid",
+      // A draft ad left for the owner (00659): a line on the owner's bell from the database, opening New ad.
+      "ad_draft",
       // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.
       "ask_cards",
       "booking",

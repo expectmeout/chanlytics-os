@@ -24,7 +24,7 @@ import { noteRow, str } from "../context/tool-reads";
  * `none`, and counts nothing. Ask's plan reads the room through it too (act/plan.ts), so the room it paces an offer to is
  * the room this says.
  */
-export async function getRoom(toolContext: ToolContext) {
+export async function getRoom(toolContext: Pick<ToolContext, "rc">) {
   const r = (await load(toolContext.rc, openings, { day: null, service: null })).data.openings;
   if (!r.room) {
     const none = r.state === "no_calendar" ? "no_calendar" : "unavailable";

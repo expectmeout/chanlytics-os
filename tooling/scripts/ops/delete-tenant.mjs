@@ -71,6 +71,8 @@ const TABLES = [
   // An owner's ad account, and each ad's days of spend (00648, decision 0049); its ads are below.
   "ad_accounts",
   "ad_days",
+  // The workspace's one draft of a new ad, with its words (00659).
+  "ad_drafts",
   // What an ad said to each person who tapped it and wrote (00644, decision 0049).
   "ad_entries",
   "ads",

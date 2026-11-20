@@ -8,6 +8,7 @@
  * and Ask's bridge waits for it before it hands over cards (bridge/ask.ts); addProposalSpecs (page-specs.ts)
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
+import { adDraftSpec } from "../../ads/draft-card";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
 import { followUpSpec } from "./follow-up";
@@ -49,6 +50,8 @@ export const ASK_ONLY_SPECS = {
   message_delete: messageDeleteSpec,
   // A campaign's one thing to fix first, drawn on Today and in the Line with its door (campaigns.ts fixSpec).
   fix: fixSpec,
+  // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts).
+  ad_draft: adDraftSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
   list: listSpec,
