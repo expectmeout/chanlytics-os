@@ -51,6 +51,7 @@ import {
   GATEWAY_MAX_BODY,
   GATEWAY_PURPOSES,
   askTokensLast24h,
+  ledgerPurposeOf,
   modelPurposeOf,
   recordAskUsage,
   teeUsage,
@@ -94,6 +95,8 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const modelPurpose = modelPurposeOf(purpose);
+  // The ledger says what the call was for: a small JSON call its own line, every other its route (00660).
+  const ledgerPurpose = ledgerPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
     log.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });
     return refuse(402, "payment_required", "AI is off while this workspace is paused or its plan has ended.");
@@ -134,7 +137,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   if (up.outcome !== "ok") {
     const forWhom = { tenantId, userId };
     await recordCall(
-      modelPurpose,
+      ledgerPurpose,
       {
         asked: up.asked,
         model: up.model,
@@ -188,7 +191,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
       purpose,
     });
     await recordCall(
-      modelPurpose,
+      ledgerPurpose,
       {
         asked: up.asked,
         model: up.model,

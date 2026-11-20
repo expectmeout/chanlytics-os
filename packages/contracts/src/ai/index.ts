@@ -74,9 +74,10 @@ export {
   screenFloorOf,
   secondKeyFloorOf,
   shadowPortOf,
+  SMALL_JSON_PURPOSES,
   thinkingOffOf,
 } from "./models/routes";
-export type { ModelEffort, ModelPort, ModelPurpose, ModelRoute, ShadowPort } from "./models/routes";
+export type { ModelEffort, ModelPort, ModelPurpose, ModelRoute, ShadowPort, SmallJsonPurpose } from "./models/routes";
 export {
   judgeShadowSpecs,
   LEAD_SCREEN_BOUND_MS,

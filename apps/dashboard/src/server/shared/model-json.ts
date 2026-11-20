@@ -30,6 +30,7 @@ import {
   SKILL_CRAFT_PURPOSES,
   type ModelEffort,
   type SkillCraftPurpose,
+  type SmallJsonPurpose,
   isOneOf,
   causedBy,
   unheldByDoor,
@@ -74,7 +75,7 @@ export function setModelStream(call: typeof streamModel | null): void {
 }
 
 type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
-  purpose: "lead_draft" | "lead_suggest" | "list_draft" | "person_draft" | "sequence_draft" | SkillCraftPurpose;
+  purpose: "lead_suggest" | SmallJsonPurpose | SkillCraftPurpose;
   /** How hard the model thinks: "low" for the small drafts (unset), a skill's own for its craft call. */
   effort?: ModelEffort;
   request: Omit<GatewayCall["request"], "output_config" | "model"> & { schema: Record<string, unknown> };

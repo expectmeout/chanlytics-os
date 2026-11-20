@@ -126,6 +126,10 @@ test("the yes check reads the card's own terms beside its title, so a yes to one
   await sayYes(fresh, tables, "yes, send it");
   const said = JSON.stringify(asked[0]?.request?.messages ?? asked[0]?.messages ?? asked[0]);
   assert.match(said, /Approve the batch: Agency owner outreach: 41 emails · each goes at its own time/);
+  // Asked on its own line of the ledger (00658), with the words its test set judges (tooling/scripts/evals/yes-check.mjs).
+  assert.equal(asked[0]?.purpose, "yes_check");
+  assert.match(String(asked[0]?.request?.system), /^You decide one thing: did this person just tell us to go ahead/);
+  assert.match(said, /They said: yes, send it/);
 });
 
 test("REGRESSION (the live run of 14 Nov 2026): a search card's press asks for the count its button said, bound to the month's room", () => {

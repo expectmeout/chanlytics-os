@@ -23,6 +23,7 @@ import type {
   ModelEffort,
   ModelSpeed,
   SkillCraftPurpose,
+  SmallJsonPurpose,
   ThinkingType,
   TenantId,
 } from "@chanlytics/contracts";
@@ -33,18 +34,10 @@ export interface GatewayCall {
   /**
    * What the key is spent on (GATEWAY_PURPOSES, ask-gateway.ts). Ask's own turn
    * omits it and gets "ask"; a turn's warm (warm.ts) and the lead purposes name
-   * themselves. Every purpose may carry a format: Ask's turn answers in
-   * ASK_ANSWER_FORMAT.
+   * themselves, the small JSON calls each its own line of the ledger (contracts SMALL_JSON_PURPOSES). Every purpose may
+   * carry a format: Ask's turn answers in ASK_ANSWER_FORMAT.
    */
-  purpose?:
-    | "ask"
-    | "ask_warm"
-    | "lead_draft"
-    | "lead_suggest"
-    | "list_draft"
-    | "person_draft"
-    | "sequence_draft"
-    | SkillCraftPurpose;
+  purpose?: "ask" | "ask_warm" | "lead_suggest" | SmallJsonPurpose | SkillCraftPurpose;
   request: {
     model?: string;
     max_tokens: number;

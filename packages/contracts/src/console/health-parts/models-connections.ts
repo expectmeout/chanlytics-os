@@ -1,7 +1,6 @@
 /** Health parts: models connections. */
 
-import type { HearingPurpose } from "../../ai/hearing";
-import type { ModelPurpose } from "../../ai/models/routes";
+import type { AiUsagePurpose } from "../../ai/hearing";
 import { creditRanOut } from "../../ai/usage";
 import { capitalize } from "../../shared/words";
 import type { HealthScope } from "../health-scope";
@@ -12,12 +11,13 @@ import { MIN_MS, SECOND_MS } from "../../shared/time";
 
 // ----------------------------------------------------------------------------------------------- model calls
 
-const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> = {
+const PURPOSE_WORDS: Record<AiUsagePurpose | "ask_warm", string> = {
   receptionist: "The receptionist",
   reply_draft: "Reply drafts",
   ask: "Ask",
   ask_warm: "Ask, kept warm",
-  lead_json: "The lead finder's reads",
+  // The small drafts and the yes check, counted together until each had a line of its own (00658).
+  lead_json: "Small drafts, counted together",
   template_draft: "Template drafts",
   review_reply: "Review replies",
   lead_judge: "The lead finder's judge",
@@ -36,6 +36,11 @@ const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> 
   ad_draft: "Writing an ad's words",
   file_words: "Writing down what videos say",
   file_hear: "Listening to videos",
+  lead_draft: "Writing a lead's first email",
+  list_draft: "Writing a list from the owner's words",
+  person_draft: "Writing to a person",
+  sequence_draft: "Drafting campaigns",
+  yes_check: "Reading a yes to a card",
 };
 
 function purposeWords(purpose: string): string {

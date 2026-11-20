@@ -2,7 +2,7 @@
  * What each kind of card is, in one table (decision D14 of the answers canvas, 9 Nov 2026): the shape it is drawn as, how
  * far it reaches, the Autonomy row it follows, whether it may ever run alone, and the word its press says. A new kind
  * cannot ship without its row (`satisfies Record<AskProposal["kind"], ...>`), and gets its layout, its press and its place
- * in the freedom check (ask/freedom.ts) from it. Seventy-two kinds are eight things a person learns once.
+ * in the freedom check (ask/freedom.ts) from it. However many kinds there are, they are eight things a person learns once.
  *
  * Pure, and free of any spec: a page that draws a card reads this and nothing of how the card commits.
  */
