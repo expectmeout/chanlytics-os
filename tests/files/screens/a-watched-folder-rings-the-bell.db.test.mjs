@@ -8,6 +8,9 @@
  *   4. Whoever connected it leaves: its folder is read at the next turn of the clock, and once the sync pauses it the
  *      bell says so to those left.
  *   5. A folder's long name still fits a title.
+ *   6. (00661) A folder switched the same day keeps the day's one row, and a second already open is closed.
+ *   7. (00661) A member reads what fills the videos: 00657's read was refused on production for a column a member
+ *      may not read, so the folder's whole read failed while a clip waited for room (the first real run, 20 Nov 2026).
  *
  * Local stack only: it makes workspaces, users and rows with the service key, and removes them.
  */
@@ -17,6 +20,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const ANON = process.env.SUPABASE_ANON_KEY;
 const skip =
   !URL_ || !KEY
     ? "no database in env"
@@ -207,6 +211,88 @@ test(
     assert.equal(rung[0].body, "Dana connected it and has left. Connect your own Google account.");
     ok(await folder(ws, { state: "stopped" }), "let go");
     assert.equal(open(await bellOf(ws)).length, 0, "a folder let go closes its rows");
+  },
+);
+
+/** A photo from the watched folder, filed now: what rings the day's row. */
+const fileFromDrive = (ws, n) =>
+  db.from("files").insert({
+    tenant_id: ws.T,
+    status: "filed",
+    source: "drive",
+    name: `bell-${stamp}-switch-${n}`,
+    mime: "image/jpeg",
+    bytes: 2000 + n,
+    fingerprint: `bell-fp-${stamp}-${ws.T}-switch-${n}`,
+    kind: "image",
+  });
+
+test(
+  "a folder switched the same day keeps the day's one row, now from the folder watched, and a second open row closes",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    ok(await fileFromDrive(ws, 1), "a file from Clips");
+    ok(await folder(ws, { state: "stopped" }), "Clips no longer watched");
+    const [second] = ok(
+      await db
+        .from("media_sources")
+        .insert({
+          tenant_id: ws.T,
+          connection_id: ws.connection,
+          folder_id: `bell-folder-${stamp}-second-${ws.T}`,
+          folder_name: "Reels",
+          state: "watching",
+        })
+        .select("id"),
+      "Reels watched instead",
+    );
+    // A second row of the day as 00657 left one on production: begun by the folder watched second.
+    ok(
+      await db.from("notifications").insert({
+        tenant_id: ws.T,
+        kind: "footage_in",
+        title: "1 new photo or video",
+        body: "From “Reels” · in your Library",
+        subject_type: "media_source",
+        subject_id: second.id,
+      }),
+      "a second row of the day",
+    );
+    ok(await fileFromDrive(ws, 2), "a file from Reels");
+    const rows = (await bellOf(ws)).filter((r) => r.kind === "footage_in");
+    const live = open(rows);
+    assert.equal(live.length, 1, "one row open for the day");
+    assert.equal(live[0].title, "2 new photos and videos", "the day's count, both folders' files");
+    assert.equal(live[0].body, "From “Reels” · in your Library");
+    assert.equal(live[0].subject_id, second.id, "it follows the folder watched");
+    assert.equal(rows.length - live.length, 1, "the other row is closed, not left at an older count");
+  },
+);
+
+test(
+  "a member reads what fills the videos, the column a clip uploaded by its owner is marked by with it",
+  { skip: skip || (!ANON && "no SUPABASE_ANON_KEY in env: the member this case signs in as needs it") },
+  async () => {
+    const ws = await workspace();
+    serial += 1;
+    const email = `bell-${stamp}-member-${serial}@example.com`;
+    const password = `pw-${stamp}-bell-Aa1!`;
+    const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.equal(made.error, null, made.error?.message);
+    users.push(made.data.user.id);
+    ok(
+      await db.from("memberships").insert({ tenant_id: ws.T, user_id: made.data.user.id, role: "operator" }),
+      "a seat",
+    );
+    const member = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    ok(await member.auth.signInWithPassword({ email, password }), "the member signs in");
+    const minutes = ok(await member.rpc("video_minutes_by_road", { p_tenant_id: ws.T }), "the member's read");
+    assert.deepEqual(minutes, { total: 0, can_step_aside: 0, set_aside: 0, own: 0, made: 0, found: 0 });
+    const own = await member.from("files").select("id, owner_uploaded").eq("tenant_id", ws.T);
+    assert.equal(own.error, null, "a member may read whether an upload met a folder's file");
+    const hidden = await member.from("files").select("media_ref").eq("tenant_id", ws.T);
+    assert.ok(hidden.error, "never the copy's id");
   },
 );
 

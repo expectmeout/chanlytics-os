@@ -165,6 +165,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `message_id` | string (uuid) | yes |  |
 | `proposal_id` | string | yes | at most 40 characters; matches `^p-[a-z0-9-]+$` |
 | `by` | string | no |  |
+| `settled` | object | no |  |
 
 ### `POST /api/v1/ask/act/undo`
 

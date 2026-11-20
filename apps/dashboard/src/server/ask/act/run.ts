@@ -287,6 +287,24 @@ async function recordFirst(
 const WALK_HERE: AskActAnswer = { ok: false, message: "", outcome: null, calls: [], forward: null, walkHere: true };
 
 /**
+ * The card as its press settled it: the keys its spec says a card's own steps settle in the browser (`settles`: AI's
+ * folder card's folder), taken from the press over what the turn kept, each a plain value; nothing else of what the
+ * press sent. The first real run (20 Nov 2026) pressed a folder card the turn kept with no folder: the folder chosen in
+ * the browser never reached the door, and the owner read the door's own refusal of an empty id.
+ */
+function cardAsPressed<Card extends { payload: Record<string, unknown> }>(
+  card: Card,
+  spec: ProposalSpec,
+  settled: Record<string, unknown> | null,
+): Card {
+  if (!settled || !spec.settles?.length) return card;
+  const plain = (value: unknown) => value === null || ["string", "number", "boolean"].includes(typeof value);
+  const taken = spec.settles.filter((key) => Object.hasOwn(settled, key) && plain(settled[key]));
+  if (taken.length === 0) return card;
+  return { ...card, payload: { ...card.payload, ...Object.fromEntries(taken.map((key) => [key, settled[key]])) } };
+}
+
+/**
  * Act on a card (POST ask/act). The member's session reads the turn, so RLS is the door to whose turn it is; each verb's own
  * route then judges the role and the state as it always has.
  */
@@ -294,7 +312,14 @@ export async function runAct(
   ctx: RouteContext,
   req: Request,
   member: Member,
-  input: { messageId: string; proposalId: string; by: ActBy; why?: string | null },
+  input: {
+    messageId: string;
+    proposalId: string;
+    by: ActBy;
+    why?: string | null;
+    /** What the card's own steps settled in the browser before the press: only its spec's `settles` are taken. */
+    settled?: Record<string, unknown> | null;
+  },
 ): Promise<AskActAnswer> {
   const tenantId = member.tenantId as TenantId;
   const { card, proposals } = await cardOnTurn(ctx, input.messageId, input.proposalId);
@@ -305,7 +330,7 @@ export async function runAct(
   const sides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null as string | null };
   const stands = await cardAsItStands(ctx, tenantId, card, proposals);
   if ("stopped" in stands) return failed(ctx, sides, { ...stands.stopped, card });
-  const { filled } = stands;
+  const filled = cardAsPressed(stands.filled, spec, input.settled ?? null);
   const started = await recordFirst(ctx, {
     tenantId,
     userId: ctx.userId,
@@ -402,14 +427,20 @@ export async function undoAct(
   return { ok: true, message: "", outcome, calls: told(calls), forward: null };
 }
 
-/** The body the two doors read: which card, and how. */
-export const ACT_INPUT = z.object({
+/** The body the undo door reads: which card, and how. */
+export const UNDO_INPUT = z.object({
   message_id: z.uuid("Which turn?"),
   proposal_id: z
     .string()
     .max(40)
     .regex(/^p-[a-z0-9-]+$/, "Which card?"),
   by: z.string().optional(),
+});
+
+/** The body the act door reads: the same, and what the card's own steps settled in the browser before the press. */
+export const ACT_INPUT = UNDO_INPUT.extend({
+  /** AI's folder card's folder, chosen in the browser: its spec takes its own keys (`settles`) and nothing else. */
+  settled: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -419,8 +450,11 @@ export const ACT_INPUT = z.object({
 const ACT_BY_CALLER = ["press", "yes", "lock_screen", "mail"] as const satisfies readonly ActBy[];
 
 /** A way of pressing this build does not know, or one only the server may say, is a press. */
-export const actOf = (b: z.infer<typeof ACT_INPUT>): { messageId: string; proposalId: string; by: ActBy } => ({
+export const actOf = (
+  b: z.infer<typeof ACT_INPUT>,
+): { messageId: string; proposalId: string; by: ActBy; settled: Record<string, unknown> | null } => ({
   messageId: b.message_id,
   proposalId: b.proposal_id,
   by: isOneOf(ACT_BY_CALLER, b.by) ? b.by : "press",
+  settled: b.settled ?? null,
 });
