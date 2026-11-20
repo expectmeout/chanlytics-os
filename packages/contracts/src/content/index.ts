@@ -134,6 +134,7 @@ export type { PostPublish } from "./publish";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./sources";
 export type {
+  ContentFolder,
   ContentSourceDto,
   ContentSourceLine,
   ContentSourcePlace,

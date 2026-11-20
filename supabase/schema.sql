@@ -8933,6 +8933,7 @@ declare
   v_status text;
   v_held   text;
   v_used   numeric;
+  v_back   numeric;
 begin
   -- One at a time, as every door that names or files takes it (00551).
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
@@ -8949,6 +8950,22 @@ begin
     -- go, and a folder's cleanup never removes it.
     update public.files f set owner_uploaded = true, updated_at = now()
      where f.id = v_twin and public.file_road_is_watched(f.source) and not f.owner_uploaded;
+    -- Its copy is not at the video platform: let go, or its original gone from its folder (00655). These bytes are the
+    -- same clip's, so they bring it back: the reservation becomes its copy, coming back, and the platform's word
+    -- finishes it as it finishes any return (file_media_ready: here again, and nothing else). Where the videos have no
+    -- room for it that is said as for any upload, and nothing changes.
+    select f.seconds into v_back from public.files f
+     where f.id = v_twin and f.kind = 'video' and public.file_road_is_watched(f.source)
+       and f.copy_state = any (array['away', 'lost']) and f.media_status = 'ready';
+    if found then
+      if public.file_video_room(p_tenant_id, coalesce(v_back, p_seconds)) = 'minutes' then
+        return jsonb_build_object('fate', 'minutes', 'file_id', null);
+      end if;
+      update public.files f
+         set copy_state = 'returning', copy_why = null, media_ref = p_media_ref, updated_at = now()
+       where f.id = v_twin;
+      return jsonb_build_object('fate', 'back', 'file_id', v_twin);
+    end if;
     return jsonb_build_object('fate', 'here', 'file_id', v_twin);
   end if;
   -- One whose bytes never all went, picked again where its upload could not go on: this one takes its place, and the purge
@@ -8982,7 +8999,7 @@ end $$;
 -- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s. An upload that meets a watched folder''s clip as its twin marks it its owner''s (00654, owner_uploaded).';
+COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, back, full or minutes, file_id}. The service role''s. An upload that meets a watched folder''s clip as its twin marks it its owner''s (00654, owner_uploaded); where that clip''s copy is away or lost, the upload''s reservation becomes its copy, coming back (00655, fate back), so the bytes its owner gave again are what it plays from.';
 
 
 --
@@ -37641,6 +37658,30 @@ COMMENT ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret
 
 
 --
+-- Name: source_files_tally(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_files_tally(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'files', count(*),
+    'away', count(*) filter (where f.kind = 'video' and f.copy_state <> 'here'),
+    'used', count(*) filter (where public.file_was_used(f.tenant_id, f.id)))
+    from public.files f
+   where f.tenant_id = p_tenant_id and public.file_road_is_watched(f.source) and f.removed_at is null;
+$$;
+
+
+--
+-- Name: FUNCTION source_files_tally(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_files_tally(p_tenant_id uuid) IS 'What came from a workspace''s watched folders and is still in its Library (00655): files (how many), away (clips whose copy is not at the video platform now, so they play only while a folder is watched), used (those a post or a video used, which stay whatever becomes of their folder). What a stop and a disconnect say before the press. The service role''s.';
+
+
+--
 -- Name: source_items_grace_end(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -37731,6 +37772,91 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) IS 'The seven-day cleanup (00654, the footage sources plan''s D3 as narrowed on 18 November): each item seen in its provider''s bin (gone) or moved out to a place its account can see (outside) p_grace_seconds ago, oldest first, p_limit at most. Its Library file is removed only if its own road is a watched folder''s, its owner did not also upload it, no other origin holds it and nothing used it (file_was_used), as a twin is removed: nothing is written to files_let_go. Then the item''s row is deleted. A file superseded at its provider p_grace_seconds ago (superseded_at) goes on the same terms, and one that stays loses its mark. It reads those two marks only: an item that vanished (no_access) and a file with no origin are never touched. Answers {removed, kept, cleared: tombstone rows deleted}. The service role''s.';
+
+
+--
+-- Name: source_items_passed(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Everything of the folder that is not in the Library and not a folder, by where it stands and why. A cause's one
+  -- file is named, so its sentence can name it.
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'state', g.state, 'why', g.why, 'videos', g.videos, 'photos', g.photos,
+           'name', case when g.videos + g.photos = 1 then g.name end)
+           order by g.state, g.why nulls first), '[]'::jsonb)
+    from (select i.state, i.why,
+                 count(*) filter (where i.kind = 'video') as videos,
+                 count(*) filter (where i.kind <> 'video') as photos,
+                 min(i.name) as name
+            from public.source_items i
+           where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+             and i.state = any (array['listed', 'waiting', 'taking', 'too_big', 'not_media', 'failed', 'gone', 'outside', 'no_access'])
+             and i.kind <> 'folder'
+           group by i.state, i.why) g;
+$$;
+
+
+--
+-- Name: FUNCTION source_items_passed(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) IS 'What a watched folder holds that is not in the Library (00655), by its state and cause: [{state, why, videos, photos, name}], name only where the group is one file. What the folder''s sheet lists: what waits, what was passed over, what could not be brought in, what was only listed. Runs as its caller: a member reads their own workspace''s rows.';
+
+
+--
+-- Name: source_items_tally(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- What was asked for and is not in yet: a first watch's fifty, or what arrived since. Few rows, by the state's index.
+  with moving as (
+    select i.state, i.why
+      from public.source_items i
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+       and i.state = any (array['waiting', 'taking'])
+  ),
+  -- Google counts a day in Pacific time, and a workspace's takes of a day are counted in the same day (00643).
+  today as (
+    select ((now() at time zone 'America/Los_Angeles')::date)::timestamp at time zone 'America/Los_Angeles' as began
+  )
+  select jsonb_build_object(
+    -- Photos and videos still where they were: every row but those gone, moved out or unreadable, less the folders.
+    'found', (select count(*) from public.source_items i
+               where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+                 and i.state <> all (array['gone', 'outside', 'no_access']))
+           - (select count(*) from public.source_items i
+               where i.source_id = p_source_id and i.kind = 'folder' and i.tenant_id = p_tenant_id
+                 and i.state <> all (array['gone', 'outside', 'no_access'])),
+    'in', (select count(*) from public.source_items i
+            where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.state = 'in'),
+    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace).
+    'coming', (select count(*) from moving m
+                where m.state = 'taking' or m.why is null
+                   or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder'])),
+    -- Landed today: what the day's takes brought in, so "12 of 40" is twelve of today's forty.
+    'landed', (select count(*) from public.source_items i, today t
+                where i.tenant_id = p_tenant_id and i.taken_at >= t.began
+                  and i.source_id = p_source_id and i.state = 'in'),
+    'budget', (select count(*) from moving m where m.state = 'waiting' and m.why = 'budget'),
+    'room', (select count(*) from moving m where m.state = 'waiting' and m.why = 'room'),
+    'library_full', (select count(*) from moving m where m.state = 'waiting' and m.why = 'library_full'),
+    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off')
+  );
+$$;
+
+
+--
+-- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens): found (photos and videos still where they were), in (in the Library), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), and those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off). Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
 
 
 --
@@ -49031,6 +49157,13 @@ CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (te
 
 
 --
+-- Name: files_copies_awaiting_room; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_copies_awaiting_room ON public.files USING btree (updated_at) WHERE ((copy_state = 'away'::text) AND (copy_why = 'room'::text));
+
+
+--
 -- Name: files_copies_here; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -52625,7 +52758,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENC
 -- Name: files workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said, copy_state, copy_why ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said) OR (old.copy_state IS DISTINCT FROM new.copy_state) OR (old.copy_why IS DISTINCT FROM new.copy_why))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -62990,11 +63123,37 @@ GRANT ALL ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secr
 
 
 --
+-- Name: FUNCTION source_files_tally(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION source_items_grace_end(p_grace_seconds integer, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_passed(p_tenant_id uuid, p_source_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) TO service_role;
 
 
 --

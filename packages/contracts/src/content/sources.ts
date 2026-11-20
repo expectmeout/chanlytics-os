@@ -13,12 +13,28 @@
  * workspace's minutes, a file a full Library stopped, a video longer than AI can watch. Once, after the card's own
  * sentence, with the reason, which is the one thing the owner can change. Never as an error.
  */
+import type { FootageAct, FootageStanding } from "../files/footage";
+import { FOOTAGE_SAID } from "../files/footage-said";
 import { FILE_VIDEO_SECONDS_MAX } from "../files/kinds";
 import type { FilmShot } from "../imports/business-reads";
 import { MIN_MS, SECOND_MS } from "../shared/time";
 import { groupedPlural } from "../shared/words";
 
-export type ContentSourcePlace = "website" | "google_listing" | "instagram";
+/** A place AI reads for what a business already shows. */
+type ContentReadPlace = "website" | "google_listing" | "instagram";
+
+/** A line's place: one AI reads, or a watched folder (the footage sources plan, F6), whose line is its own standing. */
+export type ContentSourcePlace = ContentReadPlace | "folder";
+
+/**
+ * The workspace's watched folder as the card is handed it (files/footage.ts, the one reading Settings and the Library
+ * say too): its name where one is watched, where it stands, and whether connecting one is offered here.
+ */
+export interface ContentFolder {
+  name: string | null;
+  standing: FootageStanding;
+  offered: boolean;
+}
 
 /** What a place's pages showed before each was judged: a website's read (business_reads.facts.media). */
 export interface ContentSourceSeen {
@@ -30,7 +46,7 @@ export interface ContentSourceSeen {
 
 /** One place, as the page is told it. */
 export interface ContentSourceDto {
-  place: ContentSourcePlace;
+  place: ContentReadPlace;
   /** Where it is: the site's address, the account's handle; null where none is known. A linked listing says "listing". */
   address: string | null;
   /** Being read or brought in now. */
@@ -71,8 +87,8 @@ export interface ContentSourceLine {
   place: ContentSourcePlace;
   name: string;
   status: string;
-  /** live: being read now; ok: something came; rest: nothing yet. */
-  tone: "live" | "ok" | "rest";
+  /** live: being read now; ok: something came; you: the owner's to mend; rest: nothing yet. */
+  tone: "live" | "ok" | "you" | "rest";
 }
 
 /**
@@ -94,6 +110,11 @@ export interface ContentSourcesSaid {
   ask: { placeholder: string };
   /** The clips the website's read wrote to film for a video; null where it wrote none or videos are not made here. */
   film: FilmSaid | null;
+  /**
+   * What the folder's line adds under it, where its state alone does not say enough: a wait that ends by itself, or
+   * what the owner must do and its one press. Null where there is no folder or its line says it all.
+   */
+  folder: { note: string; tone: "you" | "rest"; act: FootageAct | null } | null;
 }
 
 /** The longest video AI can watch, in minutes (files/kinds.ts FILE_VIDEO_SECONDS_MAX). */
@@ -107,6 +128,10 @@ export const CONTENT_SOURCE_WORDS = {
   },
   body: {
     unknown: "Paste your Instagram or website, and AI brings them in.",
+    /** The same, where a Google Drive folder can be watched here: the one sentence that changes. */
+    unknownWithDrive: "Paste your Instagram, website or Google Drive folder, and AI brings them in.",
+    /** A folder's files need no approval: said where a folder is the card's news. */
+    straight: FOOTAGE_SAID.straight,
     looking: "What AI finds waits in the Library for your approval.",
     found: "Keep the ones that are yours.",
     tooSmall: "The photos there are too small to post.",
@@ -269,11 +294,59 @@ function leftSaidOf(places: readonly ContentSourceDto[], videos: boolean): strin
   return sentences.length > 0 ? sentences.join(" ") : null;
 }
 
+/** A watched folder's line and what stands under it; null where no folder is watched. */
+function folderSaidOf(
+  folder: ContentFolder | null,
+): { line: ContentSourceLine; under: ContentSourcesSaid["folder"] } | null {
+  if (!folder?.name) return null;
+  const { standing } = folder;
+  // A folder that can't be opened mends itself once it opens: its note is plain and asks nothing (the canvas's Content 8).
+  const mends = standing.key === "cant_open";
+  return {
+    line: { place: "folder", name: folder.name, status: standing.badge, tone: standing.tone },
+    under: standing.note
+      ? {
+          note: standing.note,
+          tone: standing.tone === "you" && !mends ? "you" : "rest",
+          act: mends ? null : standing.act,
+        }
+      : null,
+  };
+}
+
 /**
  * The card: its state, its words and its lines. Looking wins while any place is read; then what came in; then, where a place
- * was read and brought nothing, why; and nothing known, where no place was ever read or named.
+ * was read and brought nothing, why; and nothing known, where no place was ever read or named. A watched folder is one more
+ * line, in its own standing's words: while it is the card's only news the card says where its files go, since they need no
+ * approval, and a folder on its way reads as looking.
  */
-export function contentSourcesSaid(sources: ContentSourcesDto, videos: boolean): ContentSourcesSaid {
+export function contentSourcesSaid(
+  sources: ContentSourcesDto,
+  videos: boolean,
+  folder: ContentFolder | null = null,
+): ContentSourcesSaid {
+  const watched = folderSaidOf(folder);
+  const places = placesSaid(sources, videos);
+  if (!watched) {
+    const offer = places.state === "unknown" && folder?.offered;
+    return { ...places, body: offer ? SOURCE_SAYS.body.unknownWithDrive : places.body, folder: null };
+  }
+  const lines = [...places.lines, watched.line];
+  // What the places found waits for a Keep, and says so; otherwise the folder is the news.
+  if (places.state === "found") return { ...places, lines, folder: watched.under };
+  const live = watched.line.tone === "live" || places.state === "looking";
+  return {
+    ...places,
+    state: live ? "looking" : places.state,
+    title: live ? SOURCE_SAYS.title.looking(videos) : SOURCE_SAYS.title.unknown(videos),
+    body: SOURCE_SAYS.body.straight,
+    lines,
+    folder: watched.under,
+  };
+}
+
+/** The card as the three places it reads alone say it: what contentSourcesSaid lays a watched folder over. */
+function placesSaid(sources: ContentSourcesDto, videos: boolean): Omit<ContentSourcesSaid, "folder"> {
   const known = sources.places.filter((s) => s.place !== "instagram" && s.address);
   const lines = sources.places.flatMap((s) => sourceLineOf(s, known.length > 0) ?? []);
   const ask = { placeholder: SOURCE_SAYS.ask.placeholder };

@@ -1,6 +1,7 @@
 /** Files: views. */
 
 import type { ContentSourcesDto } from "../content/sources";
+import type { FileCopyState, FileCopyWhy } from "./copy";
 import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
@@ -95,6 +96,12 @@ export interface FileDto {
   media_status: FileMediaStatus | null;
   /** What a video's sound is, in a few words (sound.ts soundSaidOf: "Spanish, 2 voices, music"); null until it was heard. */
   sound_said: string | null;
+  /**
+   * Where a video's copy at the video platform stands (copy.ts): everything but a watched folder's clip is `here`. One
+   * that is not plays only once it is back, and says why where it could not come (the dashboard's files/footage/copy-words.ts).
+   */
+  copy: FileCopyState;
+  copy_why: FileCopyWhy | null;
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
   /** Who the look counted; null until it has, or where it could not say. */

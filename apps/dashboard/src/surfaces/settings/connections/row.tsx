@@ -21,7 +21,7 @@
  * the state's place. On a desktop the button stands in the group's column, as it always has. Rows were 77 to 145px on
  * a phone.
  */
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { Fragment, useState, type MouseEvent, type ReactNode } from "react";
 import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { ConnectionKind, ConnectionLine as Row, ConnectionVerb } from "./model/setup";
 import { Button } from "../../kit/button/button";
@@ -338,6 +338,37 @@ function alsoButton(row: Row, run: ConnectionRowProps["run"], busy: boolean): Re
   });
 }
 
+/** What a row is attached to where that is more than one thing (a watched folder: the folder, the account, who connected it). */
+function RowFacts({ r }: Pick<ConnectionRowProps, "r">) {
+  if (!r.facts?.length) return null;
+  return (
+    <dl className="set-int-facts" data-testid={`connection-${r.kind}-facts`}>
+      {r.facts.map((fact) => (
+        <Fragment key={fact.label}>
+          <dt>{fact.label}</dt>
+          <dd>{fact.value}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
+/** The quiet acts beside a joined row's verb, the one that lets go last and in the danger tone. */
+function QuietActs({ r, run, busy }: Pick<ConnectionRowProps, "r" | "run" | "busy">) {
+  return (r.acts ?? []).map((verb) => (
+    <LinkButton
+      key={verb.to}
+      tone={verb.danger ? "danger" : undefined}
+      onClick={() => run({ ...r, verb })}
+      disabled={busy}
+      data-testid={`connection-${r.kind}-${verb.to.replace(/^verb:[a-z]+-/, "")}`}
+      {...verbGate(verb)}
+    >
+      {verb.label}
+    </LinkButton>
+  ));
+}
+
 /**
  * What a row's Settings opens, in place under its name: what it is attached to, what it says about itself, and its
  * acts, its own verb by its own name and Disconnect last where Chanlytics can disconnect it (Google's two: the
@@ -380,11 +411,13 @@ function rowSettings(
           <dd data-testid={`connection-${r.kind}-detail`}>{r.detail}</dd>
         </dl>
       ) : null}
+      <RowFacts r={r} />
       {saysMore(r, fixing ? { ...says, sentence: "" } : says)}
-      {!armed && ((act && !fixing) || also || disconnects || removable) ? (
+      {!armed && ((act && !fixing) || also || disconnects || removable || !!r.acts?.length) ? (
         <span className="set-acts">
           {fixing ? null : act}
           {also}
+          <QuietActs r={r} run={run} busy={busy} />
           {disconnects && verb ? (
             <LinkButton
               tone="danger"

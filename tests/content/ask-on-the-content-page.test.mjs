@@ -63,6 +63,17 @@ test("a link to their website or Instagram, or an @name, is theirs to bring in, 
   );
 });
 
+test("a Google Drive folder, by its link or named with none, is theirs to watch, proposed at once", () => {
+  const words = turnWords({ ...facts, pageView: "content:all" });
+  assert.match(
+    words,
+    /A Google Drive folder, by its link or when they say their photos and videos are kept in Google Drive/,
+  );
+  assert.match(words, /a folder is watched from then on/);
+  assert.match(words, /it goes straight into the Library/);
+  assert.doesNotMatch(words, /propose_|bring_in/, "the line names no tool");
+});
+
 test("connecting an Instagram account is said as another thing, for when they ask to connect", () => {
   const words = turnWords({ ...facts, pageView: "content:all" });
   assert.match(words, /Connecting an Instagram account, to answer its messages or to post, is another thing/);

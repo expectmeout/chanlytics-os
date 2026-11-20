@@ -14,16 +14,21 @@ import {
   CONTENT_SOURCE_WORDS,
   DAY_MS,
   SECOND_MS,
+  FOOTAGE_WORDS,
   contentSourcesSaid,
+  type ContentFolder,
   type ContentSourceLine,
   type ContentSourcePlace,
   type ContentSourcesDto,
   type ContentSourcesSaid,
+  type FootageAct,
 } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { LinePress } from "../../kit/line/line";
-import { refreshSurface } from "../../frame-verbs";
+import { LinkButton } from "../../kit/link-button/link-button";
+import { refreshSurface, useFrameToast } from "../../frame-verbs";
+import { useFolderRow } from "../../files/footage/settings-row";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { Panel } from "../../kit/panel/panel";
 import { AskLooking } from "../../files/photo";
@@ -35,14 +40,33 @@ const CARD_SAYS = CONTENT_SOURCE_WORDS;
 /** The reads the card comes with: Made's (Content's page) and the Library's (the files page). */
 type FoundCardSurface = "content" | "files";
 
-const FOUND_PLACE_GLYPH: Readonly<Record<ContentSourcePlace, "globe" | "place" | "instagram">> = {
+const FOUND_PLACE_GLYPH: Readonly<Record<ContentSourcePlace, "globe" | "place" | "instagram" | "folder">> = {
   website: "globe",
   google_listing: "place",
   instagram: "instagram",
+  folder: "folder",
 };
 
-/** A line's tone as the tiles' marks draw it: going while it is read, up once something came, still otherwise. */
-const STAND_OF: Readonly<Record<ContentSourceLine["tone"], string>> = { live: "going", ok: "up", rest: "still" };
+/**
+ * A line's tone as the tiles' marks draw it: going while it is read, up once something came, amber where it needs its
+ * owner, still otherwise.
+ */
+const STAND_OF: Readonly<Record<ContentSourceLine["tone"], string>> = {
+  live: "going",
+  ok: "up",
+  you: "need",
+  rest: "still",
+};
+
+/** What each of a folder's acts presses, on this card: Google's window, the chooser, or the steps to send. */
+const FOLDER_VERB: Readonly<Partial<Record<FootageAct, string>>> = {
+  connect: "verb:drive-connect",
+  reconnect: "verb:drive-connect",
+  connect_own: "verb:drive-connect",
+  choose: "verb:drive-choose",
+  choose_another: "verb:drive-choose",
+  copy_steps: "verb:drive-steps",
+};
 
 function SourceLine({ line }: { line: ContentSourceLine }) {
   // "Looking" turning into what came is the same line answering: its words fade where they stand (the kit's swap).
@@ -128,8 +152,17 @@ export function FoundCard(props: {
   /** The page's read the card came in, read again for a run that ends unheard (useReadsWhenLookingEnds). */
   surface: FoundCardSurface;
 }) {
-  const card = contentSourcesSaid(props.sources, props.videos);
+  // The watched folder, read where Settings reads it (files/footage): its line here says what its row says there.
+  const [toast, flash] = useFrameToast();
+  const drive = useFolderRow(flash, false);
+  const watched = drive.footage?.folder && drive.footage.folder.state !== "stopped" ? drive.footage.folder.name : null;
+  const folder: ContentFolder | null =
+    drive.footage && drive.standing
+      ? { name: watched, standing: drive.standing, offered: drive.footage.offered }
+      : null;
+  const card = contentSourcesSaid(props.sources, props.videos, folder);
   const looking = card.state === "looking";
+  const folderVerb = card.folder?.act ? FOLDER_VERB[card.folder.act] : undefined;
   useReadsWhenLookingEnds(props.sources, props.surface);
   // The card's own words change as a read runs and lands: they fade where they stand, and the card keeps its shape (the
   // review press rides the title's line, the input stays in every state), so nothing under it moves.
@@ -165,6 +198,20 @@ export function FoundCard(props: {
           ))}
         </ul>
       ) : null}
+      {card.folder ? (
+        <p className="cnv-found-note" data-tone={card.folder.tone} data-testid="cnv-found-folder-note">
+          {card.folder.note}
+          {card.folder.act && folderVerb ? (
+            <>
+              {" "}
+              <LinkButton onClick={() => drive.run(folderVerb)} data-testid="cnv-found-folder-act">
+                {FOOTAGE_WORDS.acts[card.folder.act]}
+              </LinkButton>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {drive.note}
       <AskLine
         about={ABOUT_CONTENT}
         onAsked={() => undefined}
@@ -183,6 +230,8 @@ export function FoundCard(props: {
         }
       />
       {props.onLibrary && card.film ? <FilmFold film={card.film} /> : null}
+      {drive.sheets}
+      {toast}
     </Panel>
   );
 }

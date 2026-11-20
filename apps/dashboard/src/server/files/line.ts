@@ -6,6 +6,7 @@
 import {
   FILE_SHELVES,
   clockOf,
+  footageStandingOf,
   keptSaidOf,
   shelfOf,
   whoStandsOf,
@@ -15,6 +16,7 @@ import {
   type FileQuality,
   type FileShelf,
   type FileSound,
+  type FootageDto,
 } from "@chanlytics/contracts";
 
 /** A file as Ask reads it: what the page reads, and the rest of what the look saw. Never its provider's id. */
@@ -182,4 +184,20 @@ export function fileIndexLineOf(fileForAsk: FileForAsk): string {
     lookSaid(fileForAsk),
   ].filter(Boolean);
   return fileForAsk.line ? `${head.join(" · ")}: ${fileForAsk.line}` : head.join(" · ");
+}
+
+/**
+ * What Ask is told of a watched Google Drive folder, in a line every turn (the canvas's Confirm 12: asked how the folder
+ * is doing, AI says it, with no card and no tool): which folder, whose Drive, and where it stands in the words Settings
+ * says. The time it was last read is left out, so the line changes only when the folder does. None where no Google
+ * account is connected.
+ */
+export function folderLineOf(footage: FootageDto): string | null {
+  const { account } = footage;
+  if (!account) return null;
+  const folder = footage.folder && footage.folder.state !== "stopped" ? { ...footage.folder, updated_at: null } : null;
+  const standing = footageStandingOf({ ...footage, folder }, () => "");
+  const holder = account.email ?? "the connected account";
+  const subject = folder ? `Google Drive folder “${folder.name}” (${holder}), watched` : `Google Drive (${holder})`;
+  return `${subject}: ${standing.badge}. ${standing.say.replace(/\.?$/, ".")}`;
 }

@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { FILE_WORDS as W, clockOf, fileViewOf, noteSaidOf, type FileDto, type FileSound } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { Notice } from "../kit/notice/notice";
+import { VideoKept, useCopyStanding } from "./footage/video-kept";
 import { Picture } from "./photo";
 import { fileVerbs } from "./verbs";
 
@@ -40,6 +41,24 @@ function reelAddressOf(player: string, reel: VideoReel): string {
   return url.toString();
 }
 
+/** A video still being made ready, or one that could not be: said where it will play. */
+function VideoNotReady({ file, said }: { file: FileDto; said: string }) {
+  const failed = file.media_status === "failed";
+  return (
+    <>
+      <span
+        className="files-big files-unseen"
+        role="img"
+        aria-label={`${said}: ${failed ? W.video.notPrepared : W.video.gettingReady}`}
+        data-testid={failed ? "fl-video-failed" : "fl-video-waits"}
+      >
+        {failed ? W.video.notPrepared : W.video.gettingReady}
+      </span>
+      {failed && <p className="files-says files-issues">{W.video.notPreparedNote}</p>}
+    </>
+  );
+}
+
 export /** The video in the sheet: the player once its address is in, the poster before, its state in words until it is ready. */
 function VideoOpened({ file, said, reel }: { file: FileDto; said: string; reel?: VideoReel }) {
   const [player, setPlayer] = useState<string | null>(null);
@@ -48,34 +67,39 @@ function VideoOpened({ file, said, reel }: { file: FileDto; said: string; reel?:
   const [arrived, setArrived] = useState<string | null>(null);
   const [unplayable, setUnplayable] = useState(false);
   const ready = file.media_status === "ready";
+  // A watched folder's clip may be kept with its provider (footage/copy-words.ts): it is asked for on a press of
+  // Play, never as the clip opens, and the page goes on by itself the moment it is back.
+  const [back, setBack] = useState(0);
+  const copy = useCopyStanding(file, () => setBack((turn) => turn + 1));
+  const here = copy.copy === "here";
+  const { hear } = copy;
   useEffect(() => {
-    if (!ready) return undefined;
+    if (!ready || !here) return undefined;
     let live = true;
     void fileVerbs.play(file.id).then((r) => {
       if (!live) return;
-      if (r.ok) setPlayer(r.data.player_url);
-      else setUnplayable(true);
+      if (!r.ok) return setUnplayable(true);
+      // The Library said it was at hand and the door says it is not: believe the door, which has just asked for it.
+      if (r.data.player_url === null) return hear(r.data.copy, r.data.copy_why);
+      return setPlayer(r.data.player_url);
     });
     return () => {
       live = false;
     };
-  }, [file.id, ready]);
-  if (!ready) {
-    const failed = file.media_status === "failed";
+    // `back` asks again once a clip that was away is here.
+  }, [file.id, ready, here, back, hear]);
+  if (!ready) return <VideoNotReady file={file} said={said} />;
+  if (!here)
     return (
-      <>
-        <span
-          className="files-big files-unseen"
-          role="img"
-          aria-label={`${said}: ${failed ? W.video.notPrepared : W.video.gettingReady}`}
-          data-testid={failed ? "fl-video-failed" : "fl-video-waits"}
-        >
-          {failed ? W.video.notPrepared : W.video.gettingReady}
-        </span>
-        {failed && <p className="files-says files-issues">{W.video.notPreparedNote}</p>}
-      </>
+      <VideoKept
+        file={file}
+        said={said}
+        standing={copy}
+        asking={copy.asking}
+        onPlay={() => void copy.ask()}
+        onComing={() => hear("returning", null)}
+      />
     );
-  }
   const src = player && reel ? reelAddressOf(player, reel) : player;
   return (
     <>

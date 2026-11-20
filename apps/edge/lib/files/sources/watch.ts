@@ -5,6 +5,7 @@
  *   The chooser   one level at a time, folders only: the account's own Drive, its shared drives, what was shared
  *                 with it, then the folder opened. Only the levels a person opens are read, no file is listed before
  *                 a folder is chosen, and no Google key reaches the browser.
+ *   A folder      one folder named by its id, for a pasted link: asked of its account, nothing listed.
  *   A watch       the folder validated (it exists, it can be listed, and where its changes are read), then its place
  *                 in the provider's changes saved BEFORE its first walk begins, so nothing that changes during the
  *                 walk is missed; then the walk's first step put on the ledger. Choosing a folder twice is one watch.
@@ -88,6 +89,25 @@ export async function listFolderChoices(
   try {
     const reply = await driveSource().listFolders(account.token, ask.where, ask.page);
     return reply.verdict === "ok" ? { ok: true, choices: reply.answer } : watchRefusalOf(reply);
+  } catch (error) {
+    return refusedKey(db, account.connection, log, error);
+  }
+}
+
+/**
+ * One folder as its account names it, by its id: what a pasted link is read to before anyone is asked to watch it.
+ * Nothing is listed and nothing is kept; a folder the account cannot open says so.
+ */
+export async function nameFolder(
+  db: Db,
+  ask: { tenantId: TenantId; connectionId: string; folderId: string },
+  log: Logger,
+): Promise<{ ok: true; folder: SourceFolder } | Refused> {
+  const account = await openAccount(db, ask, log);
+  if (!account.ok) return account;
+  try {
+    const reply = await driveSource().validateFolder(account.token, ask.folderId);
+    return reply.verdict === "ok" ? { ok: true, folder: reply.answer } : watchRefusalOf(reply);
   } catch (error) {
     return refusedKey(db, account.connection, log, error);
   }

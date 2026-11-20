@@ -23,11 +23,11 @@ type Db = SupabaseClient<Database>;
 export type FileRow = Database["public"]["Tables"]["files"]["Row"];
 
 /**
- * What a member's session may read (00551's and 00556's column grants): no fingerprint, never the copy's id or the video
- * platform's, and not the sound whole, which is read by id.
+ * What a member's session may read (00551's, 00556's and 00654's column grants): no fingerprint, never the copy's id or the
+ * video platform's, and not the sound whole, which is read by id. Where a watched clip's copy stands, and why, it may read.
  */
 const MEMBER_COLUMNS =
-  "id, tenant_id, status, source, source_ref, name, mime, bytes, width, height, look, look_status, shows, who_in_it, removed_at, created_at, updated_at, kind, seconds, media_status, sound_said";
+  "id, tenant_id, status, source, source_ref, name, mime, bytes, width, height, look, look_status, shows, who_in_it, removed_at, created_at, updated_at, kind, seconds, media_status, sound_said, copy_state, copy_why";
 
 /** Not a video still on its way: a picture has no media_status, and a video counts from its last byte. */
 const ARRIVED = "media_status.is.null,media_status.neq.uploading";
@@ -55,6 +55,8 @@ export type FileMemberRow = Pick<
   | "seconds"
   | "media_status"
   | "sound_said"
+  | "copy_state"
+  | "copy_why"
 >;
 
 /**

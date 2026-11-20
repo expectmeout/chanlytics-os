@@ -39,6 +39,8 @@ export function madePost(n: number, name: string, posts: PostDto[] = []): Conten
     seconds: null,
     media_status: null,
     sound_said: null,
+    copy: "here",
+    copy_why: null,
     shows: "graphic",
     who_in_it: "not_asked",
     people: null,

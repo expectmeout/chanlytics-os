@@ -19,6 +19,7 @@ import type {
   LineDto,
   SetupDto,
   EmailSetupDto,
+  FootageDto,
 } from "@chanlytics/contracts";
 import {
   numberHealth,
@@ -56,7 +57,7 @@ import {
 
 import { tryItNotes } from "./whatsapp-try-it";
 
-import { emailRow, instagramRow, mailboxRow } from "./setup-rows";
+import { driveRow, emailRow, instagramRow, mailboxRow } from "./setup-rows";
 
 export type ConnectionKind =
   | "whatsapp"
@@ -68,6 +69,7 @@ export type ConnectionKind =
   | "instagram"
   | "email"
   | "mailbox"
+  | "drive"
   | "deposits";
 export const CONNECTION_KINDS: readonly ConnectionKind[] = [
   "whatsapp",
@@ -79,6 +81,7 @@ export const CONNECTION_KINDS: readonly ConnectionKind[] = [
   "instagram",
   "email",
   "mailbox",
+  "drive",
   "deposits",
 ];
 
@@ -98,6 +101,8 @@ export interface ConnectionVerb {
   who: ConnectionWho;
   /** A page of someone else's that mends the row (Meta's billing page for a WhatsApp account), opened in a new tab. */
   href?: string;
+  /** An act that lets something go (Disconnect), drawn in the danger tone among a row's quiet acts. */
+  danger?: boolean;
 }
 
 export interface ConnectionLine {
@@ -123,6 +128,10 @@ export interface ConnectionLine {
    * the codes sent to the line. Empty for a row with none, which is nearly every row.
    */
   notes: ConnectionNote[];
+  /** What it is attached to where that is more than one thing (a watched folder: the folder, the account, who connected it). */
+  facts?: { label: string; value: string }[];
+  /** A joined row's quiet acts beside its verb, each by its own name, in order (Check now, Stop watching, Disconnect). */
+  acts?: ConnectionVerb[];
 }
 
 export interface ConnectionInputs {
@@ -164,6 +173,8 @@ export interface ConnectionInputs {
   instagram?: { ready: boolean } | null;
   /** Whether this workspace may connect Meta (decision 0117: the app's login held, `content_preview` on); absent is no. */
   meta?: { ready: boolean } | null;
+  /** Where the workspace's watched folder stands (GET sources); absent or null while it is not read: the row is Later. */
+  footage?: FootageDto | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
@@ -197,18 +208,21 @@ const ORDER: Record<ConnectionKind, number> = {
   instagram: 6,
   email: 7,
   mailbox: 8,
-  deposits: 9,
+  drive: 9,
+  deposits: 10,
 };
 
 /** A row as a builder says it: the group, tone, body and notes are the fold's (row()) unless the builder sets them. */
 export type ConnectionDraft = Omit<ConnectionLine, "group" | "tone" | "body" | "notes"> & {
+  /** A tone of the row's own, where its state's would say the wrong thing (a folder on its way is live, not green). */
+  tone?: ConnectionTone;
   body?: ConnectionLine["body"];
   notes?: ConnectionNote[];
 };
 type Draft = ConnectionDraft;
 
 function row(d: Draft): ConnectionLine {
-  return { ...d, group: GROUP[d.state], tone: TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
+  return { ...d, group: GROUP[d.state], tone: d.tone ?? TONE[d.state], body: d.body ?? null, notes: d.notes ?? [] };
 }
 
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
@@ -764,6 +778,7 @@ const ROW_BUILDERS: readonly ConnectionRowBuilder[] = [
   instagramRow,
   emailRow,
   mailboxRow,
+  driveRow,
   depositsRow,
 ];
 

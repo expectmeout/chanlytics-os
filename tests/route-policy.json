@@ -951,6 +951,13 @@
       "rate": "settings",
       "spend": false
     },
+    "GET files/[id]/copy": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST files/[id]/done": {
       "kind": "write",
       "scope": "workspace",
@@ -2692,6 +2699,83 @@
       "scope": "workspace",
       "role": null,
       "rate": null,
+      "spend": false
+    },
+    "POST sources/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources/connect/callback": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET sources/connect": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources/contents": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST sources/disconnect": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources/folder": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources/folders": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources/leaving": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "GET sources": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST sources/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST sources/watch": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
       "spend": false
     },
     "POST support/report": {

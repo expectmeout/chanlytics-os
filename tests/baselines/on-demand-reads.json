@@ -459,5 +459,40 @@
     "kind": "on-open",
     "fresh": "Read as Reports' Ads lens is drawn for a workspace with its Ads on, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
     "why": "The lens says the Ads page's own numbers over the same thirty days, which move once an hour. It is not Reports' surface, which follows the period Reports shows."
+  },
+  "apps/dashboard/src/surfaces/files/footage/ask-card.tsx GET sources/folder": {
+    "kind": "on-open",
+    "fresh": "Read once as AI's card for a pasted folder reaches the step after Connect: the folder as the connected account names it, or that the account cannot open it; nothing of it is kept once the card is decided.",
+    "why": "A folder whose link was pasted to AI is named once, when its card reaches the step that says which folder it is. Its name in Drive is not a thing the app keeps or is told of, and the card shows it for the length of one decision."
+  },
+  "apps/dashboard/src/surfaces/files/footage/chooser.tsx GET sources/folders": {
+    "kind": "on-open",
+    "fresh": "Read as the folder chooser opens a level (the three places a Google account keeps folders, then each folder a person opens), a page at a time; nothing of it is kept once the sheet goes.",
+    "why": "It lists what Google Drive holds at that moment, for a choice made in the same sitting. Nothing the app keeps is drawn from it: the folder chosen is read again by the server before it is watched."
+  },
+  "apps/dashboard/src/surfaces/files/footage/line.tsx GET sources/contents": {
+    "kind": "on-open",
+    "fresh": "Read as the folder's sheet opens from the Library's line: what the watched folder holds that is not in the Library, counted by its reason; nothing of it is kept once the sheet goes.",
+    "why": "The counts are made from the folder's own list as the sheet opens, and the line it was opened from reads the folder again by itself while files are on their way (use-footage.ts)."
+  },
+  "apps/dashboard/src/surfaces/files/footage/sheets.tsx GET sources/leaving": {
+    "kind": "on-open",
+    "fresh": "Read as Stop watching's or Disconnect's sheet opens: how many photos and videos came from the folder and how many clips are kept in Drive, said before the press; nothing of it is kept once the sheet goes.",
+    "why": "A count for one question, asked at the moment it is put. The press itself is what changes anything, and the folder is read again once it answers."
+  },
+  "apps/dashboard/src/surfaces/files/footage/use-footage.ts GET sources": {
+    "kind": "on-open",
+    "fresh": "Read as the first screen that says where the watched folder stands is drawn (the row in Settings, Content's card, the Library's line, a clip opened), after each press on it, when the owner comes back to the tab, and every eight seconds while its files are on their way; one read shared by all of them.",
+    "why": "Where a folder stands moves when its owner acts on it here or at Google, and as files land. Each of those reads it again, and a folder with nothing on its way is quiet until the tab is come back to. The feed does not tell of media_sources or source_items: registering a surface for it is owed with the folder's bell notices."
+  },
+  "apps/dashboard/src/surfaces/files/footage/use-footage.ts GET sources/connect": {
+    "kind": "on-open",
+    "fresh": "Not a read of anything kept: the address of Google's own sign-in window, built when the owner presses Connect.",
+    "why": "It answers a redirect to Google with a signed state, and holds nothing a page draws."
+  },
+  "apps/dashboard/src/surfaces/files/footage/video-kept.tsx GET files/[id]/copy": {
+    "kind": "on-open",
+    "fresh": "Read every ten seconds while a clip the owner pressed Play on is on its way back from Google Drive (or waits for room), and only while its page is open and in view; the moment it answers that the copy is here, the clip plays.",
+    "why": "It reads one row's two words and asks for nothing, so waiting never spends a return. The files surface hears the same change through the feed (00655 tells of copy_state), which redraws the Library's rows; this is the open clip's own wait, for a page whose feed was asleep."
   }
 }

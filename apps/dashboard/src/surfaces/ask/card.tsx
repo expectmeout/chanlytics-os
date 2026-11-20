@@ -20,6 +20,7 @@ import { LinePress } from "../kit/line/line";
 import { AskPieceCard, usePieceCard } from "./card-piece";
 import { AskPublishCard } from "./card-publish";
 import { AskPostCard, usePostCard } from "./card-post";
+import { useFolderCard, type FolderCard } from "../files/footage/ask-card";
 import {
   mayPressCard,
   AskCardActs,
@@ -144,11 +145,35 @@ type PieceCard = NonNullable<ReturnType<typeof usePieceCard>>;
  * What a press sends and says: a search's own, a post's own, a video's own, or the card itself. A card that draws a body of
  * its own (`own`) offers no Open beside its press: there is nothing to open before it.
  */
-const whatGoes = (p: AskProposal, lead: SearchCardView | null, post: PostCard | null, piece: PieceCard | null) => {
+const whatGoes = (
+  proposal: AskProposal,
+  lead: SearchCardView | null,
+  drawn: { post: PostCard | null; piece: PieceCard | null; folder: FolderCard | null },
+) => {
+  const { post, piece, folder } = drawn;
   if (lead) return { press: lead.press, card: lead.commit, own: true };
-  if (piece) return { press: piece.press, card: p, own: true };
-  return post ? { press: post.press, card: post.card, own: true } : { press: null, card: p, own: false };
+  // A watched folder's card: its one press is its step's (connect, choose), and at the last step the card's own.
+  if (folder) return { press: folder.press, card: folder.card, own: true };
+  if (piece) return { press: piece.press, card: proposal, own: true };
+  return post ? { press: post.press, card: post.card, own: true } : { press: null, card: proposal, own: false };
 };
+
+/** The card its head names: a post's or a watched folder's own where it draws one, else the card as AI made it. */
+const headCardOf = (proposal: AskProposal, post: PostCard | null, folder: FolderCard | null): AskProposal =>
+  post?.card ?? folder?.card ?? proposal;
+
+/** A folder's quiet second press, as the card's row draws it: its own act, or letting the card go. */
+const alsoOf = (folder: FolderCard | null, dismiss: () => void) =>
+  folder?.also
+    ? {
+        label: folder.also.label,
+        onClick: folder.also.act === "dismiss" ? dismiss : folder.also.act,
+        testid: "fo-card-also",
+      }
+    : null;
+
+/** What a card's one press does: a folder's own step (Google's window, the chooser) where it has one, else the card's. */
+const cardPressOf = (folder: FolderCard | null, own: () => unknown): (() => unknown) => folder?.act ?? own;
 
 /**
  * How a card stands, from what became of it: still to be decided (`idle`), folded to its head in a group (`shut`), a record
@@ -190,6 +215,7 @@ const AskCardBody = ({
   more,
   busy,
   onAgain,
+  folder = null,
 }: {
   p: AskProposal;
   lead: SearchCardView | null;
@@ -203,8 +229,11 @@ const AskCardBody = ({
   busy: boolean;
   /** The card's own press, again: what a video that was not made is tried anew by. Null where this person may not press. */
   onAgain: (() => void) | null;
+  /** A watched folder's card, at the step it stands at; null for every other card. */
+  folder?: FolderCard | null;
 }) => {
   if (lead) return <AskSearchCard lead={lead} t={t} alike={alike} />;
+  if (folder) return <>{folder.body}</>;
   if (post) return <AskPostCard p={p} card={post} t={t} onNav={onNav} />;
   if (piece) return <AskPieceCard p={p} card={piece} t={t} busy={busy} onNav={onNav} onRetry={onAgain} />;
   if (p.kind === "publish") return <AskPublishCard p={p} />;
@@ -236,18 +265,21 @@ export const AskCard = ({
   const post = usePostCard(p);
   const piece = usePieceCard(p, t, pressed.made, pressed.madeAt);
   const { idle, shut, quiet, follows, body } = cardStandsAs(state, p, step.fold, piece);
+  // A watched folder's card (files/footage/ask-card.tsx): connect, choose, watch, a step a press; once decided, its head
+  // names the folder watched.
+  const folder = useFolderCard(p, idle);
   // A search's card (Ruben, 23 Oct 2026): what it finds as rows, read, never edited here -- a change is said to Ask, which
   // makes the card again -- its line under them, and one press, for what the month has room for (contracts
   // leads/search/card.ts).
   const lead = idle ? searchCardView(p) : null;
-  const goes = whatGoes(p, lead, post, piece);
+  const goes = whatGoes(p, lead, { post, piece, folder });
   return (
     <div
       className={`ask-card ${state}${shut ? " ask-shut" : ""}${quiet ? " ask-quiet" : ""}`}
       data-testid="ask-card"
       data-kind={p.kind}
     >
-      {quiet ? null : <AskCardHead p={post ? post.card : p} fold={idle ? step.fold : null} />}
+      {quiet ? null : <AskCardHead p={headCardOf(p, post, folder)} fold={idle ? step.fold : null} />}
       {body ? (
         <AskCardBody
           p={p}
@@ -261,6 +293,7 @@ export const AskCard = ({
           more={more}
           busy={held}
           onAgain={mayPressCard(p) ? () => void approveWith(goes.card) : null}
+          folder={folder}
         />
       ) : null}
       {idle && step.note ? (
@@ -293,12 +326,15 @@ export const AskCard = ({
           waits={step.waits}
           hideOpen={hideOpen || goes.own}
           press={goes.press}
-          onApprove={() => (askTraitsOf(p.kind).reach === "public" ? onClock() : approveWith(goes.card))}
+          onApprove={cardPressOf(folder, () =>
+            askTraitsOf(p.kind).reach === "public" ? onClock() : approveWith(goes.card),
+          )}
           onDismiss={dismiss}
           onNav={onNav}
           more={more}
           onMore={() => setMore((m) => !m)}
           approveRef={approveRef}
+          also={alsoOf(folder, dismiss)}
         />
       ) : null}
       {/* Always drawn, so what fills it is announced; empty, it takes no room (ask.css). What a press in this tab made of

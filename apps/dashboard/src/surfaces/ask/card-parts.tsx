@@ -238,6 +238,7 @@ export const AskCardActs = ({
   more,
   onMore,
   approveRef,
+  also,
 }: {
   p: AskProposal;
   t: LineWords;
@@ -252,6 +253,8 @@ export const AskCardActs = ({
   more?: boolean;
   onMore?: () => void;
   approveRef?: RefObject<HTMLButtonElement | null>;
+  /** A quiet second press beside the card's own, where a card draws its own steps (a watched folder's Choose another). */
+  also?: { label: string; onClick: () => void; testid: string } | null;
 }) => {
   const A = askCalls();
   const pl = p.payload || {};
@@ -274,20 +277,23 @@ export const AskCardActs = ({
         </p>
       ) : null}
       {waits || !mayPress ? null : (
-        <Button
-          ref={approveRef}
-          variant="primary"
-          size="sm"
-          className="ask-press"
-          onClick={onApprove}
-          disabled={!!(press && press.disabled)}
-          aria-disabled={busy || undefined}
-          aria-busy={busy || undefined}
-          data-testid="ask-card-approve"
-          {...gate(gateKey, "press this card")}
-        >
-          {pressSays(p, t, { busy, acting, press })}
-        </Button>
+        <>
+          <Button
+            ref={approveRef}
+            variant="primary"
+            size="sm"
+            className="ask-press"
+            onClick={onApprove}
+            disabled={!!(press && press.disabled)}
+            aria-disabled={busy || undefined}
+            aria-busy={busy || undefined}
+            data-testid="ask-card-approve"
+            {...gate(gateKey, "press this card")}
+          >
+            {pressSays(p, t, { busy, acting, press })}
+          </Button>
+          <AskCardAlso also={also} busy={busy} />
+        </>
       )}
       {p.kind === "reply" && pl.conversation_id ? (
         <Button
@@ -315,6 +321,20 @@ export const AskCardActs = ({
     </div>
   );
 };
+
+/** A card's quiet second press beside its own, where it has one. */
+const AskCardAlso = ({
+  also,
+  busy,
+}: {
+  also: { label: string; onClick: () => void; testid: string } | null | undefined;
+  busy: boolean;
+}) =>
+  also ? (
+    <Button variant="quiet" size="sm" onClick={also.onClick} disabled={busy} data-testid={also.testid}>
+      {also.label}
+    </Button>
+  ) : null;
 
 /** Not now, on an idea of Ask's own: it rests it for a week. */
 export const AskNotNow = ({ t, busy, onDismiss }: { t: LineWords; busy: boolean; onDismiss: () => void }) => (

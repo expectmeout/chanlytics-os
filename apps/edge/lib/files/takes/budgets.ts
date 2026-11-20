@@ -124,6 +124,13 @@ export const COPY_RETURN = {
   askAfterMs: 2 * MIN_MS,
   /** One it still has not prepared by then is given up: the file stays away, and the next ask begins anew. */
   giveUpMs: HOUR_MS,
+  /**
+   * A copy that was asked for and found no room is asked for again by each half-hourly pass for this long, so it
+   * comes back by itself once another copy's rest ends (an hour at most). Past it the next ask is a person's.
+   */
+  roomAskForMs: 6 * HOUR_MS,
+  /** How many such copies one pass asks for again, for every workspace together. */
+  roomAsksASweep: 100,
 } as const;
 
 /**

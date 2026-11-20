@@ -21,13 +21,14 @@ import {
   type AskScope,
   type PageContext,
 } from "@chanlytics/contracts";
-import { filesLineOf } from "@/server/files/line";
+import { filesLineOf, folderLineOf } from "@/server/files/line";
 import type { RouteContext } from "../shared/with-route";
 import type { Member } from "../shared/route";
 import { log } from "@/server/shared/log";
 import { load, readerContext, type ReaderContext } from "../shared/reader";
 import * as readers from "../readers/facts";
 import { filesTallied } from "../readers/files";
+import { footage } from "../readers/footage";
 import { memberViews } from "../readers/notifications";
 import { getAttached, noWordsIn, type AttachedFile } from "../files/attached";
 import { runAskTurn } from "./loop/loop";
@@ -123,7 +124,7 @@ const ASK_ROUTE_MS = 150 * SECOND_MS;
  * (warm.ts), so the two write the same block. Kept across turns by the reader's own cache (five minutes).
  */
 export async function getTurnFacts(rc: ReaderContext): Promise<{ facts: WorkspaceFacts; timezone: string }> {
-  const [{ name, timezone }, cfg, policies, library] = await Promise.all([
+  const [{ name, timezone }, cfg, policies, library, drive] = await Promise.all([
     load(rc, readers.facts, undefined).then((r) => r.data),
     load(rc, readers.config, undefined).then((r) => r.data),
     // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
@@ -136,12 +137,24 @@ export async function getTurnFacts(rc: ReaderContext): Promise<{ facts: Workspac
       (r) => r.data.files,
       () => null,
     ),
+    // Where a watched folder stands, so "how is my folder doing?" needs no tool. A read that fails says nothing.
+    load(rc, footage, undefined).then(
+      (r) => r.data,
+      () => null,
+    ),
   ]);
   // The rows the pane draws (contracts policyClassOffered).
   const offered = policies.filter((p) => policyClassOffered(p.class));
   // At the turn's clock (rc.now), so the notes Ask is told are the ones the receptionist is told today.
   const facts = workspaceFacts(name, timezone, cfg?.config ?? null, rc.now, offered);
-  return { facts: { ...facts, filesLine: library ? filesLineOf(library, timezone) : null }, timezone };
+  return {
+    facts: {
+      ...facts,
+      filesLine: library ? filesLineOf(library, timezone) : null,
+      folderLine: drive ? folderLineOf(drive) : null,
+    },
+    timezone,
+  };
 }
 
 /** How long a question waits for the thread's last question to be answered, and how often it looks again. */
