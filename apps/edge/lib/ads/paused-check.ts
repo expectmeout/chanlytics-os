@@ -205,10 +205,10 @@ interface CheckAt {
 }
 
 /** Whether a removal took, as Meta's answer says: one Meta answered without saying so is kept as refused. */
-function removalTook(steps: CheckStep[], answer: MetaAdsAnswer, what: string): boolean {
+function removalTook(steps: CheckStep[], answer: MetaAdsAnswer, thing: string): boolean {
   if (answer.fault !== null) return false;
   if (parseMetaRemoved(answer.json)) return true;
-  Object.assign(steps.at(-1) ?? {}, { outcome: "refused", said: `Meta did not say the ${what} was removed.` });
+  Object.assign(steps.at(-1) ?? {}, { outcome: "refused", said: `Meta did not say the ${thing} was removed.` });
   return false;
 }
 
@@ -391,10 +391,18 @@ type CheckAsk = { draft: CheckedDraft } | { remove: string } | { tidy: string };
 
 /** What the door was asked for, read: a draft to check, a campaign to remove, or an ad to tidy; null unless one alone. */
 function checkAskOf(body: Partial<AdsCheckBody>): CheckAsk | null {
-  if ([body.draft, body.remove, body.tidy].filter((asked) => asked !== undefined).length !== 1) return null;
+  if ([body.draft, body.remove, body.tidy].filter((part) => part !== undefined).length !== 1) return null;
   if (body.draft) return { draft: body.draft };
   if (body.remove !== undefined) return isMetaId(body.remove) ? { remove: body.remove } : null;
   return body.tidy !== undefined && isMetaId(body.tidy) ? { tidy: body.tidy } : null;
+}
+
+/** The door's answer to a removal or a tidy: removed, or stopped where Meta or the rule refused, with each step. */
+async function answerRemoval(at: CheckAt, ask: { remove: string } | { tidy: string }): Promise<Response> {
+  const { steps, removed } = "remove" in ask ? await removeLeftover(at, ask.remove) : await tidyCheckAd(at, ask.tidy);
+  const outcome = removed ? "removed" : "stopped";
+  at.log.info("ads_check_done", { outcome, steps: steps.length, differs: [] });
+  return json(200, { ok: true, outcome, steps, differs: [] });
 }
 
 /** The door's work: the owner, the switch, the account and its sign-in asked first, then the check or the removal. */
@@ -429,12 +437,7 @@ export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): 
     pageId,
   };
   const at = { db, log, tenantId, signIn, account };
-  if ("remove" in ask || "tidy" in ask) {
-    const { steps, removed } = "remove" in ask ? await removeLeftover(at, ask.remove) : await tidyCheckAd(at, ask.tidy);
-    const outcome = removed ? "removed" : "stopped";
-    log.info("ads_check_done", { outcome, steps: steps.length, differs: [] });
-    return json(200, { ok: true, outcome, steps, differs: [] });
-  }
+  if (!("draft" in ask)) return answerRemoval(at, ask);
   const { steps, differs } = await runCheck(at, ask.draft);
   const outcome = differs === null ? "stopped" : differs.length === 0 ? "matches" : "differs";
   log.info("ads_check_done", { outcome, steps: steps.length, differs: differs ?? [] });

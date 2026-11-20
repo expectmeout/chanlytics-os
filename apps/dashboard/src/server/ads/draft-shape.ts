@@ -77,7 +77,7 @@ const MetaObjectId = z
 export const AdPausedCheckBodySchema = z
   .object({ draft: AdDraftStateSchema.optional(), remove: MetaObjectId.optional(), tidy: MetaObjectId.optional() })
   .refine(
-    (body) => [body.draft, body.remove, body.tidy].filter((asked) => asked !== undefined).length === 1,
+    (body) => [body.draft, body.remove, body.tidy].filter((part) => part !== undefined).length === 1,
     "A draft, a campaign to remove, or an ad to tidy.",
   );
 
