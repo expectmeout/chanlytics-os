@@ -428,8 +428,8 @@ worked out from what the hourly read already keeps, so an ad made in Meta rings 
 
 ## As built, 20 November 2026 · The paused-ad check (the Ads plan's step 4, "Checking against Meta without spending")
 
-The first requests sent to Meta to make anything, on Ruben's word, on his own ad account, with no card on it. No
-migration. Its order and what it showed are on the checks page (`docs/plans/2026-11-18-ads-meta-checks.md`).
+The first requests sent to Meta to make anything, on Ruben's word, on his own ad account: with no card on it for the
+first two runs, and with one for the third. No migration. Its order and what it showed are on the checks page (`docs/plans/2026-11-18-ads-meta-checks.md`).
 
 - **One owner's press, with no screen:** `POST /api/v1/ads/check` judges New ad's draft as its own route does and
   hands its first version to the edge (`apps/edge/lib/ads/paused-check.ts`), only where `ADS_WRITES` is `live` (never
