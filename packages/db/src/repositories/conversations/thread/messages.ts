@@ -13,6 +13,7 @@ import {
   DbFailure,
 } from "@chanlytics/contracts";
 import { IDS_PER_READ } from "../../people/pages";
+import { adTapFacts } from "./ad-tap";
 import { DELIVERED, effectiveAt, type Db, type LeadContext } from "./history";
 import type { Json } from "../../../types";
 import type { ContactId, TenantId } from "@chanlytics/contracts";
@@ -102,6 +103,8 @@ export function describeLead(
   }
   const links = proposalLinkWords(lead);
   if (links) bits.push(links);
+  // The ad they tapped before they wrote (0049, call 12), last because it ends in a fence: what the ad said, as data.
+  bits.push(...adTapFacts(lead.ad, channel));
   return bits.join(" ");
 }
 

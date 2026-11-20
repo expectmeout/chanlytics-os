@@ -38,7 +38,10 @@ export function injectionQuestion(): SystemOneQuestion {
   };
 }
 
-/** The tags someone else's words are fenced in. Five were in use before this module; it names them once. */
+/**
+ * The tags someone else's words are fenced in. Five were in use before this module; it names them once. `ad` is what an
+ * ad said where a person tapped it, as AI is told it when it answers them (db conversations/thread/ad-tap.ts).
+ */
 export type FenceTag =
   | "customer"
   | "profile_name"
@@ -49,7 +52,8 @@ export type FenceTag =
   | "conversation"
   | "places"
   | "note"
-  | "page";
+  | "page"
+  | "ad";
 
 /**
  * What a reader cannot see and a model can read: every format character (Unicode's Cf), which is the zero-width ones,
