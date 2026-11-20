@@ -2249,8 +2249,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
       // it just wrote avoids a second round trip, and how a permission-sensitive
-      // update counts what it changed. No select at all answers no rows.
-      return { data: q.selected ? hit.map(drawn()) : null, error: null };
+      // update counts what it changed. No select at all answers no rows. `.update(v, { count: "exact" })` says how many
+      // it changed, as PostgREST's count does.
+      return { data: q.selected ? hit.map(drawn()) : null, error: null, ...(q.counted ? { count: hit.length } : {}) };
     };
 
     const builder = {
@@ -2262,9 +2263,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         q.head = opts?.head === true;
         return proxy;
       },
-      update(values) {
+      update(values, opts) {
         q.op = "update";
         q.values = values;
+        if (opts?.count === "exact") q.counted = true;
         return proxy;
       },
       insert(values) {

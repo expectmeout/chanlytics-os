@@ -493,8 +493,8 @@ function sheetGroupOf(
     return {
       key: "older",
       head: `Older than ${FOOTAGE_NUMBERS.firstDays} days`,
-      // Asking AI for an older file is the canvas's call 7, not built: until it is, the sentence promises nothing.
-      say: () => "They stay in Drive.",
+      // Asking AI for them is the canvas's call 7 (propose_bring_in's `older`): the canvas's own sentence.
+      say: () => "They stay in Drive until you ask AI for them.",
     };
   if (state === "waiting" || state === "taking") {
     if (why === "budget")

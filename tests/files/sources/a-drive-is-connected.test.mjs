@@ -298,6 +298,37 @@ test("one workspace cannot reach another's account, folder or token", async () =
 
 /* ------------------------------------------------------------------------------------------------ a watch -- */
 
+test("the folder's older files are asked for (call 7): its listed photos and videos wait to be taken, nothing else moves", async () => {
+  const item = (id, kind, state) => ({
+    id: `00000000-0000-4000-8000-00000000000${id}`,
+    tenant_id: T,
+    source_id: SOURCE,
+    provider_id: `item-${id}`,
+    kind,
+    state,
+    why: null,
+  });
+  connected({
+    media_sources: [sourceRow({ state: "watching", folder_id: "old-folder" })],
+    source_items: [
+      item(1, "video", "listed"),
+      item(2, "image", "listed"),
+      item(3, "folder", "listed"),
+      item(4, "video", "in"),
+      item(5, "video", "too_big"),
+    ],
+  });
+  const [status, body] = await knock({ op: "older", source_id: SOURCE });
+  assert.deepEqual([status, body.asked], [200, 2]);
+  assert.deepEqual(
+    w.tables.source_items.map((row) => row.state),
+    ["waiting", "waiting", "listed", "in", "too_big"],
+    "a folder of the tree, a file in, one too big: as they were",
+  );
+  const [refused] = await knock({ op: "older", source_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee" });
+  assert.equal(refused, 404, "a folder not watched here asks for nothing");
+});
+
 test("a switch opens the new folder first: one Drive can't find leaves the folder watched now as it was, one it opens takes its place", async () => {
   connected({ media_sources: [sourceRow({ state: "watching", folder_id: "old-folder" })] });
   const [refused] = await knock({ op: "watch", connection_id: CONNECTION, folder_id: "no-such-folder", instead: true });

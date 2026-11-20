@@ -13,7 +13,7 @@
  *   { op: "folders", tenant_id, connection_id, place, folder_id?, page? }
  *                                                               → one level of the folder chooser, folders only
  *   { op: "folder", tenant_id, connection_id, folder_id }       → that folder as its account names it (a pasted link)
- *   { op: "watch", tenant_id, connection_id, folder_id, include_subfolders? }
+ *   { op: "watch", tenant_id, connection_id, folder_id, include_subfolders?, instead? }
  *                                                               → the folder watched: its place saved, its walk begun
  *   { op: "check" | "confirm" | "stop", tenant_id, source_id }  → read now; a held wave confirmed; no longer watched
  *
@@ -37,6 +37,7 @@ import { pg } from "../../shared/pg.js";
 import { sourcesOfferedIn, sourcesReadiness } from "./config.js";
 import { connectDrive, disconnectDrive, type ConnectRefusal } from "./connect.js";
 import {
+  askForOlderFiles,
   checkSourceNow,
   confirmSourceHold,
   listFolderChoices,
@@ -49,7 +50,17 @@ import {
 type Body = DoorRead<typeof SOURCES_DOOR>;
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const SOURCE_OPS = new Set(["connect", "disconnect", "folders", "folder", "watch", "check", "confirm", "stop"]);
+const SOURCE_OPS = new Set([
+  "connect",
+  "disconnect",
+  "folders",
+  "folder",
+  "watch",
+  "check",
+  "confirm",
+  "older",
+  "stop",
+]);
 
 /** A connect that did not finish, as the code a caller compares, with its reason beside it. */
 function connectRefused(reason: ConnectRefusal): Response {
@@ -172,6 +183,10 @@ async function sourceOp({ db, tenantId, log }: OpContext, op: string, body: Body
   if (op === "confirm") {
     const out = await confirmSourceHold(db, named);
     return out.ok ? json(200, { ok: true }) : watchRefused(out.reason);
+  }
+  if (op === "older") {
+    const out = await askForOlderFiles(db, named);
+    return out.ok ? json(200, { ok: true, asked: out.asked }) : watchRefused(out.reason);
   }
   const out = await stopWatching(db, named, log);
   return out.ok ? json(200, { ok: true, source_id: out.source.id }) : watchRefused(out.reason);

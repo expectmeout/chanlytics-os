@@ -119,7 +119,18 @@ export const FILE_LISTEN_DOOR = edgeDoor(
 export const SOURCES_DOOR = edgeDoor(
   "/api/admin/sources",
   z.object({
-    op: z.enum(["readiness", "connect", "disconnect", "folders", "folder", "watch", "check", "confirm", "stop"]),
+    op: z.enum([
+      "readiness",
+      "connect",
+      "disconnect",
+      "folders",
+      "folder",
+      "watch",
+      "check",
+      "confirm",
+      "older",
+      "stop",
+    ]),
     tenant_id: DOOR_ID.optional(),
     user_id: DOOR_ID.optional(),
     /** A connect: Google's code, and PKCE's verifier where the consent was asked with its challenge. */
@@ -154,5 +165,7 @@ export const SOURCES_DOOR = edgeDoor(
     source_id: z.string(),
     made: z.boolean(),
     scheduled: z.boolean(),
+    /** An `older`: how many of the folder's older files were asked for (the footage screens' call 7). */
+    asked: z.number(),
   }),
 );

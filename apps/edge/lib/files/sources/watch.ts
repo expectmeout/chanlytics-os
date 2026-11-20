@@ -18,6 +18,7 @@
 import { SECOND_MS, type SourceFolder, type SourceRefusal, type TenantId } from "@chanlytics/contracts";
 import { driveSource, type DriveFolderChoices, type DrivePlace } from "@chanlytics/channels/files";
 import {
+  askForListedItems,
   findMediaSource,
   findSourceConnection,
   listMediaSourcesOf,
@@ -204,6 +205,19 @@ export async function watchFolder(
   await scheduleWalk(db, source, kept.made ? "snapshot" : "reconcile");
   log.info("source_watched", { source: source.id, again: !kept.made, subfolders: ask.includeSubfolders });
   return { ok: true, source, made: kept.made };
+}
+
+/**
+ * The folder's older files, asked for (the footage screens' call 7): what its first look listed and did not bring in
+ * (older than the newest of the last thirty days) waits to be taken now, at the day's pace. Answers how many.
+ */
+export async function askForOlderFiles(
+  db: Db,
+  named: { tenantId: TenantId; sourceId: string },
+): Promise<{ ok: true; asked: number } | Refused> {
+  const source = await findMediaSource(db, named.tenantId, named.sourceId);
+  if (!source || (source.state !== "watching" && source.state !== "frozen")) return { ok: false, reason: "not_found" };
+  return { ok: true, asked: await askForListedItems(db, named) };
 }
 
 /** Check now: one read of the folder at once, unless one already waits or runs. */

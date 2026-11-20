@@ -380,6 +380,7 @@ export const ROUTES = {
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST sources/check": { method: "POST", path: "/api/v1/sources/check" },
   "POST sources/disconnect": { method: "POST", path: "/api/v1/sources/disconnect" },
+  "POST sources/older": { method: "POST", path: "/api/v1/sources/older" },
   "POST sources/remove": { method: "POST", path: "/api/v1/sources/remove" },
   "POST sources/stop": { method: "POST", path: "/api/v1/sources/stop" },
   "POST sources/watch": { method: "POST", path: "/api/v1/sources/watch" },
@@ -809,6 +810,7 @@ export type Routes = {
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST sources/check": typeof import("../../app/api/v1/sources/check/route").POST;
   "POST sources/disconnect": typeof import("../../app/api/v1/sources/disconnect/route").POST;
+  "POST sources/older": typeof import("../../app/api/v1/sources/older/route").POST;
   "POST sources/remove": typeof import("../../app/api/v1/sources/remove/route").POST;
   "POST sources/stop": typeof import("../../app/api/v1/sources/stop/route").POST;
   "POST sources/watch": typeof import("../../app/api/v1/sources/watch/route").POST;

@@ -325,6 +325,23 @@ export async function checkSourceNow(ctx: RouteContext, member: Member): Promise
   return { scheduled: answer.body.scheduled === true };
 }
 
+/**
+ * `POST sources/older`: the watched folder's older files, asked for on AI's card (the footage screens' call 7): what its
+ * first look left in Drive comes in by itself, at the day's pace. Answers how many were asked for.
+ */
+export async function askForOlderSourceFiles(ctx: RouteContext, member: Member): Promise<{ asked: number }> {
+  const watched = (await watchedOf(ctx, member.tenantId))?.id;
+  if (!watched) throw new AppError("conflict", "No folder is watched.", 409);
+  const answer = await edgeSources({
+    op: "older",
+    tenant_id: member.tenantId,
+    user_id: ctx.userId,
+    source_id: watched,
+  });
+  if (answer.status !== 200 || answer.body?.ok !== true) throw sourceRefusalOf(answer, "ask for the older files");
+  return { asked: typeof answer.body.asked === "number" ? answer.body.asked : 0 };
+}
+
 /** `POST sources/stop`: the folder is no longer watched. The account stays connected, and what came in stays. */
 export async function stopSourceWatch(ctx: RouteContext, member: Member): Promise<{ stopped: boolean }> {
   const watched = (await watchedOf(ctx, member.tenantId))?.id;

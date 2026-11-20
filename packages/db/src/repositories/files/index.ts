@@ -119,6 +119,7 @@ export type {
 } from "./posts";
 export { listFilesUnprinted } from "./prints";
 export {
+  askForListedItems,
   countSourceItems,
   insertSourceItems,
   keepSourceItemFacts,

@@ -329,3 +329,20 @@ export async function listNewestListed(
   if (error) throw new DbFailure(error, "cannot read the folder's newest items");
   return data.map((row) => row.provider_id);
 }
+
+/**
+ * The folder's older files asked for (the footage screens' call 7: "They stay in Drive until you ask AI for them"):
+ * every photo and video its listing found and nothing asked for yet waits to be taken, at the day's pace like any other.
+ * Answers how many were asked for.
+ */
+export async function askForListedItems(db: Db, ref: SourceRef): Promise<number> {
+  const { count, error } = await db
+    .from("source_items")
+    .update({ state: "waiting" }, { count: "exact" })
+    .eq("tenant_id", ref.tenantId)
+    .eq("source_id", ref.sourceId)
+    .eq("state", "listed")
+    .in("kind", ["image", "video"]);
+  if (error) throw new DbFailure(error, "cannot ask for the watched folder's older files");
+  return count ?? 0;
+}

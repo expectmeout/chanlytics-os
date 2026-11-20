@@ -712,6 +712,7 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST sources/watch":
     "the owner watched a folder: every screen that says where it stands reads the folder once the press answers",
   "POST sources/check": "a look at the watched folder was asked for: its screens read the folder again by themselves",
+  "POST sources/older": "the folder's older files were asked for: its screens read the folder again as they come in",
   "POST sources/stop":
     "the owner stopped watching a folder: every screen that says where it stands reads the folder once it answers",
   "POST sources/disconnect":
