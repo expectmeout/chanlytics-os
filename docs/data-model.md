@@ -192,6 +192,7 @@ The owner's own ad account on one platform, connected once (decision 0049, 00648
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `next_read_at` | timestamp with time zone | yes |  | When the account is next read at its platform (00650): written by each read, an hour on, or fifteen minutes on while one of its ads is being checked or is in its first two days. Null until its first read, which is due at once. |
 | `settle_at` | timestamp with time zone | yes |  | When the account's next fourteen-day look back is due (00650): once a day, at four in the morning in its own zone. The read that finds it due re-reads those days and marks the ones before them settled. |
+| `rung_at` | timestamp with time zone | yes |  | When the bell last looked at the account's ads (00658): each good read rings what turned since, and stamps it. Null, or older than connected_at, until the first look after a connect, which rings nothing. |
 
 Foreign keys:
 

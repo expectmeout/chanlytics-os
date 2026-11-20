@@ -350,6 +350,13 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
   // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
   ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
+  // An owner's ads (00658): each row names one ad and opens its drawer, so its door says so. Meta not running one until
+  // the owner acts is a warning; an ad that ended, spent its total or brought no one in a week is news.
+  ad_refused: { icon: "alert", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_unpaid: { icon: "money", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_ended: { icon: "flag", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_spent: { icon: "money", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_quiet: { icon: "chat", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
   // A watched folder or its account that needs someone (00657): its row opens Settings › Connections, where the folder's
   // row says the one thing to do. Its mark is the folder's, as the screens canvas's bell draws it.
   footage: { icon: "folder", tone: "warn", action: "Open Connections", to: "admin/integrations", own: true },
