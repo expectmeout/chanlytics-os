@@ -104,13 +104,21 @@ export const readMetaAccount = (log: Log, signIn: MetaSignIn, accountId: string)
 /** Whether a sign-in may read the Instagram account a Page is linked to. */
 export const readsInstagram = (scopes: readonly string[]): boolean => scopes.includes("instagram_basic");
 
-/** One Page, as Meta describes it now: its Instagram account too, where the sign-in may read it. */
+/**
+ * One Page, as Meta describes it now: its Instagram account too, where the sign-in may read it. Which fields Meta
+ * answered is said in the log, by name and never by value: its WhatsApp number is answered only to an app with Meta's
+ * Page Public Content or Metadata Access, and an answer without it is the only sign.
+ */
 export const readMetaPage = (
   log: Log,
   signIn: MetaSignIn,
   page: { id: string; instagram: boolean },
 ): Promise<Asked<MetaPage>> =>
-  askMetaAds(log, "page", callMetaAds(metaPageRequest(signIn.token, signIn.appSecret, page)), parseMetaPage);
+  askMetaAds(log, "page", callMetaAds(metaPageRequest(signIn.token, signIn.appSecret, page)), (json) => {
+    const fields = json !== null && typeof json === "object" && !Array.isArray(json) ? Object.keys(json).sort() : [];
+    log.info("ads_page_read", { fields });
+    return parseMetaPage(json);
+  });
 
 /** Whether a Page's ads have run from an ad account. A list Meta would not give is read as no. */
 export async function runsPage(log: Log, signIn: MetaSignIn, accountId: string, pageId: string): Promise<boolean> {

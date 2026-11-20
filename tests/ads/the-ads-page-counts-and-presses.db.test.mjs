@@ -13,6 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { DAY_MS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -227,8 +228,10 @@ test("the page's people, with the unnamed line, are the people Reports counts un
   );
   assert.equal(ok(await db.rpc("ad_people", { p_tenant_id: ws.tenant })).length, 1);
 
-  // What the platform says it spent in the same days stands beside it, never added to it.
-  const today = new Date().toISOString().slice(0, 10);
+  // What the platform says it spent in the same days stands beside it, never added to it. Two days back: the window
+  // ends on today in the workspace's own zone, which is still yesterday in UTC's for hours of every day, and this suite
+  // also runs with its clock twelve hours on (red at 00:02 UTC, 20 November).
+  const spentOn = new Date(Date.now() - 2 * DAY_MS).toISOString().slice(0, 10);
   ok(
     await db.rpc("ads_read_keep", {
       p_tenant_id: ws.tenant,
@@ -236,7 +239,7 @@ test("the page's people, with the unnamed line, are the people Reports counts un
       p_read: {
         account: {},
         next_read_at: new Date(Date.now() + 3_600_000).toISOString(),
-        days: [{ platform_ad_id: "23850000000000801", day: today, spend_minor: 4200, impressions: 900, clicks: 30 }],
+        days: [{ platform_ad_id: "23850000000000801", day: spentOn, spend_minor: 4200, impressions: 900, clicks: 30 }],
       },
     }),
   );

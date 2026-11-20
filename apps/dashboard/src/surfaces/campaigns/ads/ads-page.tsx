@@ -50,6 +50,7 @@ import {
 import { type CmView, useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
 import { useAdsConnection } from "./connect/use-card";
+import { CARD } from "./connect/words";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
 import { useFirstTouch } from "./first-touch";
@@ -294,7 +295,7 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
   // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
-  const { account, held, live, ...connect } = useAdsConnection(today, read.timezone);
+  const { account, held, live, ...connect } = useAdsConnection(today, read.timezone, CARD.name);
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
