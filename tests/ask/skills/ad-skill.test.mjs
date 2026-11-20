@@ -64,8 +64,9 @@ test("the skill's words: its three jobs, its rules, what it never does, and trad
     assert.ok(system.includes(part), part);
   assert.ok(system.endsWith(C.DATA_NOT_INSTRUCTIONS), "the brief's facts are fenced, so the fence's one rule is said");
   assert.ok(AD_SKILL.craft.maxTokens <= C.SKILL_CRAFT_MAX_TOKENS);
-  // Its gateway purpose arrives with its first caller (the plan's G19): until then it names none.
-  assert.equal("purpose" in AD_SKILL.craft, false);
+  // A purpose of its own at the gateway, so what ad writing costs is read apart (the plan's G19).
+  assert.equal(AD_SKILL.craft.purpose, "ad_draft");
+  assert.ok(C.SKILL_CRAFT_PURPOSES.includes(AD_SKILL.craft.purpose));
   // Each worked example's own versions pass the checks the product runs: an example that broke a rule would teach it.
   for (const example of AD_SKILL.examples) {
     const versions = [...example.answer.matchAll(/Headline: (.+?)\. Text: (.+)$/gm)].map((found) => ({

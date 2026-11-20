@@ -33,6 +33,7 @@ export const MODEL_PURPOSES = [
   "sender_read",
   "file_look",
   "preview_starters",
+  "ad_draft",
 ] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
@@ -358,6 +359,17 @@ export const MODEL_ROUTES = {
     retries: 0,
     maxTokens: 300,
     thinking: "off",
+  },
+  // An ad's words (the Ads plan's 6.7 and G19): the ad writer's craft call, on the model Ask's route asks, at the
+  // skill's own effort, with its thinking counted in what it may write. A line of the ledger of its own, so what ad
+  // writing costs is read apart from every other draft. The owner waits on New ad for it, inside the edge's minute.
+  ad_draft: {
+    attributed: "person",
+    model: OPUS_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 8000,
   },
 } as const satisfies Record<ModelPurpose, ModelRoute>;
 

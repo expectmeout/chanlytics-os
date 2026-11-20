@@ -23,7 +23,7 @@ import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
  * daily budget (apps/edge/lib/ai/ask-gateway.ts GATEWAY_PURPOSES), so the usage of each skill can be read apart from Ask's
  * rounds.
  */
-export const SKILL_CRAFT_PURPOSES = ["message_draft"] as const;
+export const SKILL_CRAFT_PURPOSES = ["message_draft", "ad_draft"] as const;
 export type SkillCraftPurpose = (typeof SKILL_CRAFT_PURPOSES)[number];
 
 /**

@@ -333,3 +333,32 @@ export async function recordReachOutBookedFrom(db: Db, tenantId: TenantId, appoi
   if (error) throw new DbFailure(error, "reach_out_booked_from");
   return typeof data === "number" ? data : 0;
 }
+
+/* ------------------------------------------------------ what was booked, by service */
+
+/** The statuses of a visit that was booked: a proposed time is not one yet, and a cancelled one no longer. */
+const BOOKED_STATUSES = ["booked", "kept", "missed"] as const;
+
+/**
+ * The service of each visit booked since a moment, newest first, up to `limit`: what counts which service a business
+ * books most (the Ads plan's G5). Under the caller's RLS. A visit that names no service is left out, and a busy book
+ * past the limit is counted by its newest visits, which is what "books most" asks.
+ */
+export async function listServicesBookedSince(
+  db: Db,
+  tenantId: TenantId,
+  sinceIso: string,
+  limit: number,
+): Promise<string[]> {
+  const { data, error } = await db
+    .from("appointments")
+    .select("service")
+    .eq("tenant_id", tenantId)
+    .in("status", [...BOOKED_STATUSES])
+    .gte("starts_at", sinceIso)
+    .not("service", "is", null)
+    .order("starts_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "services_booked_since");
+  return (data ?? []).flatMap((row) => (typeof row.service === "string" && row.service.trim() ? [row.service] : []));
+}

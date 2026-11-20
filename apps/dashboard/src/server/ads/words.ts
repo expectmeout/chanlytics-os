@@ -1,0 +1,128 @@
+import "server-only";
+import {
+  SECOND_MS,
+  adChangeOf,
+  minorPerUnit,
+  type AdChange,
+  type AdIssue,
+  type AdIssueCode,
+} from "@chanlytics/contracts";
+import { adWordIssues } from "../ask/skills/ad/brief";
+import type { CraftKept } from "../ask/skills/craft";
+import { writeAd } from "../ask/skills/ad/write";
+import type { ReaderContext } from "../shared/reader";
+import { adDraftAnswer, adDraftBrief, nextAdPicture, requireAdsOffered } from "./draft";
+import { readAdDraftFacts, type AdDraftFacts } from "./draft-facts";
+import type { AdDraftState, AdNoWords, AdWordsAnswer, AdWordsFault } from "./draft-shape";
+
+/**
+ * The ad writer, asked from New ad (POST ads/words; the Ads plan's 6.3 and 6.7): the words of a draft, three versions
+ * of them, and "Tell AI what to change", which answers with one change from the plan's closed list (G8) and never
+ * with free text. The one route of Ads that spends Chanlytics' own money, counted against the workspace's daily AI
+ * limit. Every answer is the whole draft as it now stands, judged again, so a change of AI's meets the same checks as
+ * one of the owner's. Nothing here calls Meta, and AI turns nothing on.
+ */
+
+/** How long one request gives the writer: inside the route's own minute, with room left to answer. */
+const WORDS_WAIT_MS = 50 * SECOND_MS;
+
+/** Why there are no words, as the screen says it. */
+const noWordsOf = (kept: CraftKept): AdNoWords =>
+  kept === "budget" ? "limit" : kept === "paused" ? "paused" : kept === "checks" ? "checks" : "other";
+
+/** The fault a line names for words that failed a check: Meta's rule by name where it is one, else the writer's own. */
+const FAULT_OF: Partial<Record<AdIssueCode, AdWordsFault>> = {
+  about_reader: "about_reader",
+  feel_bad: "feel_bad",
+  sure_result: "sure_result",
+  before_after: "before_after",
+  pressure: "pressure",
+};
+const faultOf = (issues: readonly AdIssue[]): AdWordsFault | null => {
+  const [first] = issues;
+  return first ? (FAULT_OF[first.code] ?? "other") : null;
+};
+
+/** What each request to the writer says of who asked. */
+interface AdWordsCaller {
+  rc: ReaderContext;
+  userId: string;
+}
+
+const callerOf = (who: AdWordsCaller) => ({
+  tenantId: who.rc.tenantId,
+  userId: who.userId,
+  deadline: Date.now() + WORDS_WAIT_MS,
+});
+
+/** A change of AI's, made to the draft. A new service takes the picture its own draft would, and waits for its words. */
+function changedDraft(
+  draft: AdDraftState,
+  change: AdChange,
+  facts: AdDraftFacts,
+  currency: string,
+): AdDraftState | null {
+  if (change.kind === "words") return { ...draft, versions: change.versions };
+  if (change.kind === "service") return { ...draft, service: change.service, versions: [], answers: {} };
+  if (change.kind === "picture") {
+    const next = nextAdPicture(facts, draft.picture);
+    return next === draft.picture ? null : { ...draft, picture: next };
+  }
+  if (change.kind === "area") return { ...draft, miles: change.miles };
+  if (change.kind === "amount") return { ...draft, total_minor: change.units * minorPerUnit(currency) };
+  return { ...draft, end_day: change.day };
+}
+
+/** `write`: three versions of the draft's words, or why there are none. */
+async function writeWords(who: AdWordsCaller, facts: AdDraftFacts, draft: AdDraftState, noPrice: boolean) {
+  const judged = adDraftAnswer(facts, draft);
+  if (!judged.can || facts.account === null) return judged;
+  // The draft as it was judged: a service Services no longer lists is the rule's own pick again.
+  const held = { ...draft, service: judged.draft.service };
+  const brief = adDraftBrief(facts, facts.account, held, { job: "write" }, noPrice);
+  const written = await writeAd(callerOf(who), brief);
+  if (!written.wrote) return { ...judged, wrote: { ok: false as const, why: noWordsOf(written.kept) } };
+  return { ...adDraftAnswer(facts, { ...held, versions: written.versions }), wrote: { ok: true as const } };
+}
+
+/** `change`: the one change the owner asked AI for, made where it is one a draft may take. */
+async function changeDraft(who: AdWordsCaller, facts: AdDraftFacts, draft: AdDraftState, asked: string) {
+  const judged = adDraftAnswer(facts, draft);
+  if (!judged.can || facts.account === null) return judged;
+  const others = facts.services
+    .filter((service) => !service.advertised && service.name !== judged.draft.service)
+    .map((service) => service.name);
+  const held = { ...draft, service: judged.draft.service };
+  const brief = adDraftBrief(facts, facts.account, held, {
+    job: "change",
+    change: { versions: draft.versions, asked, services: others, today: facts.today, ends: draft.end_day },
+  });
+  const written = await writeAd(callerOf(who), brief);
+  if (!written.wrote) {
+    // Words that would trip a check are a change not made, said with the rule they met; anything else is no answer.
+    if (written.kept === "checks")
+      return { ...judged, changed: { kind: "none" as const, fault: faultOf(written.issues) } };
+    return { ...judged, wrote: { ok: false as const, why: noWordsOf(written.kept) } };
+  }
+  const change = adChangeOf(written.answer, brief);
+  const next = change ? changedDraft(held, change, facts, facts.account.currency) : null;
+  if (!change || !next) return { ...judged, changed: { kind: "none" as const, fault: null } };
+  // Changed words are judged once more against the draft's own brief, as every change is.
+  const faults = change.kind === "words" ? adWordIssues(next.versions, adDraftBrief(facts, facts.account, next)) : [];
+  if (faults.length) return { ...judged, changed: { kind: "none" as const, fault: faultOf(faults) } };
+  return { ...adDraftAnswer(facts, next), changed: { kind: change.kind } };
+}
+
+/** POST ads/words: the writer's job on a draft, and the draft as it stands after it. */
+export async function writeAdWords(
+  who: AdWordsCaller,
+  body:
+    | { job: "write"; draft: AdDraftState; no_price?: boolean | undefined }
+    | { job: "change"; draft: AdDraftState; asked: string },
+): Promise<AdWordsAnswer> {
+  await requireAdsOffered(who.rc);
+  const facts = await readAdDraftFacts(who.rc);
+  return body.job === "write"
+    ? writeWords(who, facts, body.draft, body.no_price === true)
+    : changeDraft(who, facts, body.draft, body.asked);
+}

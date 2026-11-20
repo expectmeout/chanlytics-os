@@ -18,7 +18,7 @@
  *
  * The model writes and rewrites words. It never decides whether a check passed.
  */
-import { adSpecialKinds } from "../../../ads/draft";
+import { AD_BEFORE_AFTER, adSpecialKinds } from "../../../ads/draft";
 import { namesMoney, priceBreach, priceFigures, violatesNoPrices } from "../../../config/policy/prices";
 import { AD_VERSIONS, adLengths } from "./brief";
 import type { AdBrief, AdVersion } from "./brief";
@@ -67,7 +67,6 @@ const AD_FEEL_BAD =
 /** A result promised for sure. */
 const AD_SURE_RESULT =
   /\b(?:guarantee[ds]?|risk[- ]free|miracle|cures?|cured|permanent(?:ly)?|forever|instant(?:ly)? results?|results? in (?:just )?\d+|never again|for sure|garant[ií]a|garantizad[oa]s?|garantizamos|sin riesgo|milagros?|cura(?:mos|r)?|permanentes?|para siempre|resultados? (?:inmediatos?|garantizados?|en \d+)|nunca m[aá]s)\b/i;
-const AD_BEFORE_AFTER = /\bbefore[\s-]*(?:and|&|\/)[\s-]*after\b|\bantes y despu[eé]s\b/i;
 /** Hurry put on the reader. An owner's own deadline, where the facts hold it, is theirs to say. */
 const AD_PRESSURE =
   /(?<![\p{L}\d])(?:last chance|hurry|don't miss|act now|limited time|today only|while (?:supplies|spots) last|only \d+ (?:spots?|left)|[uú]ltima oportunidad|date prisa|ap[uú]rate|no te lo pierdas|solo (?:por )?hoy|tiempo limitado|quedan pocos?)\b/iu;

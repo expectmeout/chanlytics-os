@@ -71,6 +71,12 @@ export interface AdPicture {
   made: boolean;
 }
 
+/**
+ * A before set beside an after, said in words (English and Spanish): what Meta's rules on appearance turn down, of a
+ * picture as its look describes it and of an ad's own words alike (ask/skills/ad/checks.ts reads this one).
+ */
+export const AD_BEFORE_AFTER = /\bbefore[\s-]*(?:and|&|\/)[\s-]*after\b|\bantes y despu[eé]s\b/i;
+
 /** The shapes Meta's feeds take, as width over height, with the leeway its Ads Guide gives (3%). */
 const FEED_SHAPE = { tallest: (4 / 5) * 0.97, widest: 1.91 * 1.03 } as const;
 const PICTURE_MIN_WIDTH = 600;
