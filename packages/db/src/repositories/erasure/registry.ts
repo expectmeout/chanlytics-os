@@ -112,11 +112,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // leaves with the workspace.
   ad_drafts: all(WITH_WORKSPACE, "draft"),
   // An ad (00648): its name and what it says are the business's own advertising, written by the owner for the public,
-  // and leave with the workspace. The platform's ids for it and the platform's own words about it name nobody. No
-  // person the workspace serves is on the row: who an ad brought is read from contacts, never kept here. A day of an
-  // ad (ad_days) holds numbers alone.
+  // and leave with the workspace, and so does what the owner approved at Turn on (00662: the words, the area's address
+  // and the number a tap opens, all the business's own). The platform's ids for it, the platform's own words about it,
+  // where it shows and how its launch went name nobody. No person the workspace serves is on the row: who an ad brought
+  // is read from contacts, never kept here. A day of an ad (ad_days) holds numbers alone.
   ads: {
-    ...all(WITH_WORKSPACE, "name", "said"),
+    ...all(WITH_WORKSPACE, "name", "said", "approved"),
     ...all(
       NOT_PERSONAL,
       "platform_ad_id",
@@ -124,7 +125,15 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
       "platform_campaign_id",
       "platform_state",
       "platform_issue",
+      "launch",
+      "shown_on",
     ),
+  },
+  // What Chanlytics made at Meta for an ad (00662): each part's tagged name, the ad's own, and Meta's id for it. The
+  // business's advertising, leaving with the workspace; never a person.
+  ad_objects: {
+    ...all(WITH_WORKSPACE, "name"),
+    ...all(NOT_PERSONAL, "platform_id"),
   },
   // The model ledger (00273): which model answered and a hash of the system prompt, never a customer's turn. A shadow
   // row's question and answers are labels from the question's own options; the rows go at 400 days whatever a later

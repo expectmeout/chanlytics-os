@@ -8,7 +8,7 @@
  * check not met (the plan's 5.1). The press names the most the ad can cost and follows the amount as it is typed; while
  * it cannot be pressed it is grey, with the reason under it.
  */
-import { daysBetween, fileViewOf, minorPerUnit } from "@chanlytics/contracts";
+import { adMostOf, daysBetween, fileViewOf, minorPerUnit } from "@chanlytics/contracts";
 import type { AdSpecialKind } from "@chanlytics/contracts";
 import type { AdCheckDto, AdDraftAnswer, AdNoWords, AdWordsFault } from "@/server/ads/draft-shape";
 import { currencyWords, type NeedVM } from "../connect/card-model";
@@ -61,6 +61,9 @@ interface NewAdHere {
   told: AdTellResult | null;
   /** The card's own need for the ad account, as the page read it: the same line the card says, with the same act. */
   need: NeedVM | null;
+  /** Turn on is on its way; and what it was refused with, in the server's words, where it was. */
+  turning: boolean;
+  refused: string | null;
 }
 
 /** What a line's one act does. */
@@ -216,7 +219,8 @@ function waitsFor(here: NewAdHere): string | null {
   if (declared) return NEW.press.kind(KIND[declared].ad);
   if (answer.checks.length > 0) return NEW.press.check;
   if (!answer.owner) return NEW.press.owner;
-  return answer.turn_on === "not_yet" ? NEW.press.notYet : null;
+  if (answer.turn_on === "off") return NEW.press.off;
+  return answer.turn_on === "video" ? NEW.press.video : null;
 }
 
 /** What "Tell AI" last came to, as one quiet sentence. */
@@ -343,9 +347,10 @@ export function newAdView(here: NewAdHere): NewAdVM {
       },
     ],
     press: {
-      words: NEW.press.turnOn(moneyOf(local.total_minor, currency)),
-      can: waits === null,
-      under: waits ?? NEW.press.ready,
+      // The most it can cost, worked out in one place (contracts adMostOf): what the press names and carries.
+      words: NEW.press.turnOn(moneyOf(adMostOf(local), currency)),
+      can: waits === null && !here.turning,
+      under: here.turning ? NEW.press.turning : (here.refused ?? waits ?? NEW.press.ready),
     },
   };
 }

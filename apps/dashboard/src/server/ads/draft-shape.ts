@@ -79,6 +79,27 @@ export const AdPausedCheckBodySchema = z
   })
   .refine((body) => (body.draft === undefined) !== (body.remove === undefined), "A draft, or a campaign to remove.");
 
+/**
+ * POST ads/turn-on: the owner's press on New ad (decision 0050, call 3). It carries what the press showed, so a press
+ * drawn from an older draft is refused: the amount (the most it can cost), the end, the picture and the words. The
+ * server judges the workspace's kept draft afresh and turns it on only where every one of them is what it holds now.
+ */
+export const AdTurnOnBodySchema = z.object({
+  /** The press's own key: the same press twice makes one ad. */
+  key: z.string().regex(UUID),
+  expect: z.object({
+    service: z.string().trim().min(1).max(200),
+    picture: z.string().regex(UUID),
+    miles: z.number().int().min(0).max(10_000),
+    most_minor: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    end_day: z.string().regex(DAY_KEY),
+    versions: z
+      .array(z.object({ text: z.string().max(VERSION_MAX.text), headline: z.string().max(VERSION_MAX.headline) }))
+      .min(1)
+      .max(3),
+  }),
+});
+
 /** POST ads/words: the writer's two jobs on a draft. */
 export const AdWordsBodySchema = z.discriminatedUnion("job", [
   z.object({
@@ -129,8 +150,11 @@ interface AdDraftDto {
   label?: string | undefined;
 }
 
-/** How Turn on stands on this deployment: the job that makes an ad at Meta is not built yet. */
-export type AdTurnOn = "not_yet";
+/**
+ * How Turn on stands here: it may be pressed; turning an ad on from here is not on in this workspace on this
+ * deployment (the edge's switch); or the picture is a video, which Turn on does not send to Meta yet.
+ */
+export type AdTurnOn = "ready" | "off" | "video";
 
 /**
  * Why the draft's own rule proposes its amount (contracts ads/draft.ts): a starting amount, and why it is one; or the

@@ -14,7 +14,7 @@
 import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
-import { isMetaId, metaUnitsToMinor } from "./meta-account";
+import { isMetaId, metaAccountPath, metaUnitsToMinor } from "./meta-account";
 import { instantOf } from "./meta-read";
 
 /** Meta's id for what a make made; null where the answer names none (a dry run's answer, or a refusal). */
@@ -295,4 +295,42 @@ export function metaCampaignRemoveRequest(token: string, appSecret: string, camp
 /** Whether Meta says a removal took: its answer's `success`, and nothing else. */
 export function parseMetaRemoved(json: unknown): boolean {
   return valueAt(metaObject(json), "success") === true;
+}
+
+/* ------------------------------------------------------------ found by name */
+
+/** The part of an account a launch looks in for something it made: its campaigns, its ad sets, or its ads. */
+export type MetaPartEdge = "campaigns" | "adsets" | "ads";
+
+/**
+ * What an account holds under a name a launch gave it: the one way to know whether a make whose answer never came
+ * made anything (decision 0050, call 6), so it is never sent again. Meta's filter on a list's `name` (its campaign,
+ * ad set and ad references); its paused and active parts are listed, not its deleted ones. Not yet seen on an account.
+ */
+export function metaFoundByNameRequest(
+  token: string,
+  appSecret: string,
+  where: { accountId: string; edge: MetaPartEdge; name: string },
+): MetaRequest {
+  const name = where.name.trim();
+  if (!name || name.length > 400) throw new Error("a part's name is 1 to 400 characters");
+  return {
+    url: metaGraphUrl(`${metaAccountPath(where.accountId)}/${where.edge}`, {
+      fields: "id,name,status",
+      filtering: JSON.stringify([{ field: "name", operator: "EQUAL", value: name }]),
+      limit: "5",
+      ...metaProofQuery(token, appSecret),
+    }),
+    method: "GET",
+  };
+}
+
+/** Meta's id for the part named exactly so, or null where the account holds none: a filter that matched more is read whole. */
+export function parseMetaFoundByName(json: unknown, name: string): string | null {
+  const rows = edgeRows(json);
+  for (const row of rows) {
+    const part = metaObject(row);
+    if (metaText(valueAt(part, "name")) === name.trim()) return idOrNull(valueAt(part, "id"));
+  }
+  return null;
 }

@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import { isMissingDoor } from "../../shared/missing-door";
 import { tenantDb } from "../../shared/tenant-db";
-import type { Database } from "../../types";
+import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
@@ -112,6 +112,11 @@ export async function askAdTell(db: Db, tenantId: TenantId, adId: string): Promi
 export interface AdPendingRow {
   id: string;
   platform_ad_id: string;
+  /**
+   * The part whose switch a press sets: the ad's own, or, for an ad made here, its campaign, which holds its three
+   * versions and nothing else, so one switch pauses or turns on all of them (00662).
+   */
+  switch_id: string;
   intent: AdIntent;
   /** When the owner asked: the oldest ask of a kind is sent first. */
   intent_at: string;
@@ -128,7 +133,7 @@ const PRESSED_MAX = 200;
 export async function listPendingAds(db: Db, tenantId: TenantId, accountId: string): Promise<AdPendingRow[]> {
   const { data, error } = await tenantDb(db, tenantId)
     .from("ads")
-    .select("id, platform_ad_id, intent, intent_at, told_at, status")
+    .select("id, origin, platform_ad_id, platform_campaign_id, intent, intent_at, told_at, status")
     .eq("account_id", accountId)
     .eq("status", "made")
     .not("intent_at", "is", null)
@@ -138,10 +143,44 @@ export async function listPendingAds(db: Db, tenantId: TenantId, accountId: stri
   return data.flatMap((row) => {
     const pending = row.told_at === null || row.told_at < row.intent_at;
     const intent = row.intent === "on" || row.intent === "paused" ? row.intent : null;
-    return pending && intent !== null && row.platform_ad_id !== null
-      ? [{ id: row.id, platform_ad_id: row.platform_ad_id, intent, intent_at: row.intent_at, told_at: row.told_at }]
-      : [];
+    if (!pending || intent === null || row.platform_ad_id === null) return [];
+    const switchId = adSwitchIdOf(row) ?? row.platform_ad_id;
+    return [
+      {
+        id: row.id,
+        platform_ad_id: row.platform_ad_id,
+        switch_id: switchId,
+        intent,
+        intent_at: row.intent_at,
+        told_at: row.told_at,
+      },
+    ];
   });
+}
+
+/**
+ * The part whose switch an owner's press on an ad sets: an ad made here is paused and turned back on by its own
+ * campaign (00662), any other by its own switch. Null where the platform holds no part for it yet.
+ */
+export function adSwitchIdOf(row: {
+  origin: string;
+  platform_ad_id: string | null;
+  platform_campaign_id: string | null;
+}): string | null {
+  return row.origin === "chanlytics" && row.platform_campaign_id !== null
+    ? row.platform_campaign_id
+    : row.platform_ad_id;
+}
+
+/** The part a press on one ad switches (adSwitchIdOf), read from its row; null where there is none. */
+export async function findAdSwitchId(db: Db, tenantId: TenantId, adId: string): Promise<string | null> {
+  const { data, error } = await tenantDb(db, tenantId)
+    .from("ads")
+    .select("origin, platform_ad_id, platform_campaign_id")
+    .eq("id", adId)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "the part an ad's press switches");
+  return data ? adSwitchIdOf(data) : null;
 }
 
 /** An ad its platform holds, with what its badge is read from: what a disconnect that pauses first looks through. */
@@ -150,8 +189,12 @@ export interface AdMadeRow {
   name: string;
   version: number;
   platform: string;
+  origin: string;
+  platform_ad_id: string | null;
+  platform_campaign_id: string | null;
   status: string;
   intent: string;
+  launch: Json | null;
   platform_state: string | null;
   ends_at: string | null;
   budget_kind: string | null;
@@ -170,7 +213,7 @@ export async function listMadeAds(db: Db, tenantId: TenantId, accountId: string)
   const { data, error } = await tenantDb(db, tenantId)
     .from("ads")
     .select(
-      "id, name, version, platform, status, intent, platform_state, ends_at, budget_kind, budget_minor, budget_left_minor",
+      "id, name, version, platform, origin, platform_ad_id, platform_campaign_id, status, intent, launch, platform_state, ends_at, budget_kind, budget_minor, budget_left_minor",
     )
     .eq("account_id", accountId)
     .eq("status", "made")

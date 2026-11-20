@@ -126,6 +126,14 @@ export function adLeastTotal(account: { currency: string; minDailyMinor: number 
   return wholeUnitsUp(account.minDailyMinor * (Math.max(0, days) + 1), account.currency);
 }
 
+/**
+ * The most an ad made here can cost, worked out in one place (decision 0050, call 3): the total its ad set holds at
+ * Meta, which ends with its last day. Meta enforces a total with an end itself (call 4), so the total is the most, and
+ * nothing runs past its end. New ad's press names it ("Turn on · up to $70"), the press carries it, the route refuses
+ * a press that named another, and the launch reads it back at Meta before anything is switched on.
+ */
+export const adMostOf = (ad: { total_minor: number }): number => ad.total_minor;
+
 /** What is wrong with an amount, and the nearest amount that is right. */
 export interface AdAmountIssue {
   code: "under_least" | "over_most" | "not_whole";

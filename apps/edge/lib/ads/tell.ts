@@ -18,6 +18,7 @@ import {
 } from "@chanlytics/channels/ads";
 import { adLeftOn, adStateOfRow, SECOND_MS, type TenantId } from "@chanlytics/contracts";
 import {
+  adSwitchIdOf,
   listMadeAds,
   listPendingAds,
   markAdTold,
@@ -76,7 +77,7 @@ export async function tellAd(
   db: Db,
   log: Log,
   who: Telling,
-  ad: Pick<AdPendingRow, "id" | "platform_ad_id" | "intent">,
+  ad: Pick<AdPendingRow, "id" | "platform_ad_id" | "intent"> & { switch_id?: string | null },
 ): Promise<Told> {
   const { tenantId, signIn } = who;
   const kept = async (outcome: "told" | "refused" | "unknown", platformState: string | null, said: string | null) =>
@@ -92,7 +93,8 @@ export async function tellAd(
   if (who.writes !== "live") return done(await kept("told", SWITCH[ad.intent], null), null, null);
 
   const sent = await callMetaAds(
-    metaAdSwitchRequest(signIn.token, signIn.appSecret, ad.platform_ad_id, SWITCH[ad.intent]),
+    // An ad made here is switched at its own campaign, which holds its versions and nothing else (00662).
+    metaAdSwitchRequest(signIn.token, signIn.appSecret, ad.switch_id ?? ad.platform_ad_id, SWITCH[ad.intent]),
   );
   if (sent.fault === "revoked") return { outcome: "revoked", usage: sent.usage, said: sent.said };
   // Meta took nothing and said to come back: the press stays on its way.
@@ -192,7 +194,7 @@ export async function pauseLeftOn(
       db,
       log,
       { tenantId: who.tenantId, signIn: who.signIn, writes: who.writes, readBack: false },
-      { id: ad.id, platform_ad_id: kept.platformAdId, intent: "paused" },
+      { id: ad.id, platform_ad_id: kept.platformAdId, switch_id: adSwitchIdOf(ad), intent: "paused" },
     );
     usage = told.usage ?? usage;
     if (told.outcome !== "told") unconfirmed.push(ad.name);

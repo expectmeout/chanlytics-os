@@ -450,6 +450,47 @@ COMMENT ON FUNCTION public.ad_accounts_close_ad_bell() IS 'A trigger on ad_accou
 
 
 --
+-- Name: ad_accounts_stop_launches(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_accounts_stop_launches() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  -- Nothing more is sent to the platform for this account: a launch on its way stops where it is, and whatever it made
+  -- stays there, named and paused, for the owner to see and remove in Meta (the plan's 4.7, 8).
+  with stopped as (
+    update public.ads a
+       set status = 'failed',
+           launch = coalesce(a.launch, '{}'::jsonb)
+                    || jsonb_build_object('stopped', case new.status when 'revoked' then 'signed_out' else 'disconnected' end)
+     where a.tenant_id = new.tenant_id and a.account_id = new.id and a.status = 'sending'
+    returning a.id, a.platform, a.name
+  ), left_there as (
+    update public.ad_objects o
+       set state = 'left'
+     where o.tenant_id = new.tenant_id and o.ad_id in (select s.id from stopped s) and o.state in ('sent', 'made')
+    returning o.ad_id
+  )
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  select new.tenant_id, 'ad.setup_stopped', 'ads', 'ad', s.id,
+         jsonb_build_object('platform', s.platform, 'name', s.name,
+                            'why', case new.status when 'revoked' then 'signed_out' else 'disconnected' end,
+                            'left', (select count(*) from left_there l where l.ad_id = s.id))
+    from stopped s;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_accounts_stop_launches(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00662): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
+
+
+--
 -- Name: ad_bell_cause(text, uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -547,7 +588,10 @@ CREATE FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at 
              and x.day >= a.today - 7 and x.day < a.today and x.spend_minor > 0) = 7
      and not exists (select 1 from public.ad_entries e
                       where e.tenant_id = p_tenant_id and e.platform = a.platform
-                        and e.platform_ad_id = a.platform_ad_id
+                        and (e.platform_ad_id = a.platform_ad_id
+                             or e.platform_ad_id in (select o.platform_id from public.ad_objects o
+                                                      where o.tenant_id = p_tenant_id and o.ad_id = a.id
+                                                        and o.kind = 'ad' and o.platform_id is not null))
                         and e.created_at >= ((a.today - 7)::timestamp at time zone a.zone)
                         and e.created_at < p_at)
 $$;
@@ -557,7 +601,7 @@ $$;
 -- Name: FUNCTION ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it since the first of them). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
+COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it, or from any version of an ad made here, since the first of them; 00662). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
 
 
 --
@@ -988,6 +1032,120 @@ COMMENT ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, p_
 
 
 --
+-- Name: ad_held_for(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) RETURNS uuid
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The ad that is this id at the platform; else the ad made here that holds it as one version of its words.
+  select coalesce(
+           (select a.id
+              from public.ads a
+             where a.tenant_id = p_tenant_id and a.platform = p_platform and a.platform_ad_id = p_platform_ad_id),
+           (select o.ad_id
+              from public.ad_objects o
+              join public.ads a on a.id = o.ad_id and a.tenant_id = o.tenant_id
+             where o.tenant_id = p_tenant_id and o.kind = 'ad' and o.platform_id = p_platform_ad_id
+               and a.platform = p_platform
+             order by o.created_at
+             limit 1))
+$$;
+
+
+--
+-- Name: FUNCTION ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) IS 'The one ad Chanlytics holds for a platform''s id for an ad (00662): the ad that is that id, or the ad made here that holds it as one version of its words (ad_objects). An ad made here is three ads at the platform, and a tap on any of them came through the one ad the owner made. Null where Chanlytics holds none. SECURITY INVOKER: the caller''s RLS decides what is read.';
+
+
+--
+-- Name: ad_launch_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad     public.ads;
+  v_status text;
+  v_part   jsonb;
+begin
+  if p_kept is null or jsonb_typeof(p_kept) <> 'object' then
+    raise exception 'ad_launch_keep: what was kept is an object' using errcode = '22023';
+  end if;
+  v_status := nullif(p_kept ->> 'status', '');
+  if v_status is not null and v_status not in ('made', 'failed') then
+    raise exception 'ad_launch_keep: a launch ends made or failed' using errcode = '22023';
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id and a.origin = 'chanlytics'
+   for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+
+  -- Each part as the job saw it: written before its make is sent, then what came of it. Whatever exists at the
+  -- platform is kept, even for a launch already stopped: a part made after the stop is left there, named.
+  for v_part in select * from jsonb_array_elements(coalesce(p_kept -> 'objects', '[]'::jsonb)) loop
+    insert into public.ad_objects as o (tenant_id, ad_id, kind, version, name, platform_id, state, sent_at)
+    values (p_tenant_id, p_ad_id, v_part ->> 'kind', coalesce((v_part ->> 'version')::smallint, 0),
+            left(v_part ->> 'name', 400), nullif(v_part ->> 'platform_id', ''),
+            case when v_ad.status = 'failed' and v_part ->> 'state' = 'made' then 'left' else v_part ->> 'state' end,
+            case when v_part ->> 'state' = 'sent' then now() end)
+    on conflict (tenant_id, ad_id, kind, version) do update
+       set platform_id = coalesce(excluded.platform_id, o.platform_id),
+           state = excluded.state,
+           sent_at = coalesce(o.sent_at, excluded.sent_at);
+  end loop;
+
+  -- Where it ends, once: a launch made or stopped stays so. Its platform ids and word come with a made one.
+  if v_status is not null and v_ad.status = 'sending' then
+    update public.ads a
+       set status = v_status,
+           platform_campaign_id = coalesce(nullif(p_kept ->> 'campaign_id', ''), a.platform_campaign_id),
+           platform_set_id = coalesce(nullif(p_kept ->> 'set_id', ''), a.platform_set_id),
+           platform_ad_id = coalesce(nullif(p_kept ->> 'platform_ad_id', ''), a.platform_ad_id),
+           platform_state = coalesce(nullif(left(p_kept ->> 'platform_state', 100), ''), a.platform_state),
+           launch = coalesce(a.launch, '{}'::jsonb) || coalesce(p_kept -> 'launch', '{}'::jsonb),
+           read_at = case when v_status = 'made' then now() else a.read_at end
+     where a.id = p_ad_id
+    returning * into v_ad;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, case v_status when 'made' then 'ad.made' else 'ad.setup_stopped' end, 'ads', 'ad', p_ad_id,
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name,
+                               'why', v_ad.launch ->> 'stopped', 'said', v_ad.launch ->> 'said',
+                               'left', (select count(*) from public.ad_objects o
+                                         where o.ad_id = p_ad_id and o.state = 'left')));
+  elsif p_kept ? 'launch' then
+    update public.ads a
+       set launch = coalesce(a.launch, '{}'::jsonb) || (p_kept -> 'launch')
+     where a.id = p_ad_id
+    returning * into v_ad;
+  end if;
+
+  -- A launch still on its way is taken up again soon by its account's job, whatever pace the account is read at; one
+  -- just made is read soon, so the page says what the platform says of it.
+  if v_ad.status = 'sending' or v_status = 'made' then
+    update public.ad_accounts c
+       set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
+     where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  end if;
+  return jsonb_build_object('status', v_ad.status, 'intent', v_ad.intent, 'launch', v_ad.launch);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) IS 'Service-role only: what the launch of an ad made here came to, step by step (00662; decision 0050, calls 5 and 6). objects: each part as the job saw it (ad_objects: written sent before its make goes, then made with the platform''s id, refused, removed or left); a part made after the launch stopped is kept as left. status: made (with campaign_id, set_id, platform_ad_id and the platform''s word) or failed, once, from sending, with the event ad.made or ad.setup_stopped. launch: merged into ads.launch (step, unknown_at, stopped, said). While the launch is still on its way, and once it is made, its account''s next read is brought within a minute, so the job takes it up again and the page says what the platform says. Answers {status, intent, launch}; status not_found for an ad that is not one made here.';
+
+
+--
 -- Name: ad_may_resume(text, text, text, timestamp with time zone, boolean, bigint); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1029,9 +1187,7 @@ CREATE FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) RETURNS jsonb
            'name', coalesce(
                      (select a.name
                         from public.ads a
-                       where a.tenant_id = p_tenant_id
-                         and a.platform = r.platform
-                         and a.platform_ad_id = r.ad),
+                       where a.id = public.ad_held_for(p_tenant_id, r.platform, r.ad)),
                      (select e.said ->> 'headline'
                         from public.ad_entries e
                        where e.tenant_id = p_tenant_id
@@ -1048,7 +1204,7 @@ $$;
 -- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform; one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform, and an ad made here says it for each version of its words (ad_held_for, 00662); one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -1142,7 +1298,7 @@ CREATE FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date
                              and ((v.client_phone is not null and v.client_phone = x.phone_e164)
                                   or (v.client_email is not null and lower(v.client_email) = lower(x.email))))))
     from came x
-    left join ads a on a.tenant_id = p_tenant_id and a.platform = x.platform and a.platform_ad_id = x.ad
+    left join ads a on a.id = public.ad_held_for(p_tenant_id, x.platform, x.ad)
 $$;
 
 
@@ -1150,7 +1306,7 @@ $$;
 -- Name: FUNCTION ad_people_in(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought in a window, a row a person (00651; decision 0049, calls 5 and 6): the same people people_series counts under "An ad" (a first moment in the window, reached the business in it, alive, not merged away, first touch an ad), each with the ad Chanlytics holds for their first touch (null where it holds none) and whether they have booked since: a visit in the record (appointments) that starts after their first touch and is neither cancelled nor only asked for, theirs by the record''s link or, where a visit names no person, by its number or address. Worked out when read, kept nowhere. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought in a window, a row a person (00651; decision 0049, calls 5 and 6): the same people people_series counts under "An ad" (a first moment in the window, reached the business in it, alive, not merged away, first touch an ad), each with the ad Chanlytics holds for their first touch (ad_held_for, 00662: an ad made here for a tap on any version of its words; null where it holds none) and whether they have booked since: a visit in the record (appointments) that starts after their first touch and is neither cancelled nor only asked for, theirs by the record''s link or, where a visit names no person, by its number or address. Worked out when read, kept nowhere. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -1374,6 +1530,120 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) IS 'Service-role only: what telling a platform of an owner''s press came to (00652; decision 0050). told: when, and the platform''s word for the ad where it was read back. unknown: sent with no answer; it is never sent again, and the next read says what stands. refused: the platform would not take it; the ad is put back as the platform holds it and an ad.press_refused event says so with the platform''s words. A press made while this one was on its way answers again (kept on its way) or kept (let go: it could not have been made). Answers told, unknown, refused, again, kept or not_found.';
+
+
+--
+-- Name: ad_turn_on(uuid, uuid, uuid, timestamp with time zone, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_account public.ad_accounts;
+  v_draft   public.ad_drafts;
+  v_same    public.ads;
+  v_ad      uuid;
+  v_name    text;
+  v_total   bigint;
+  v_ends    timestamptz;
+  v_due     timestamptz;
+  v_asked   integer;
+begin
+  if p_key is null or p_ad is null or jsonb_typeof(p_ad) <> 'object' or jsonb_typeof(p_ad -> 'approved') <> 'object' then
+    raise exception 'ad_turn_on: a key, and the ad with what was approved' using errcode = '22023';
+  end if;
+  -- The owner alone turns an ad on (0050, call 2): asked here again, whoever knocked.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- The same press twice is answered once: the ad the first one made, wherever it has got to.
+  select * into v_same from public.ads a
+   where a.tenant_id = p_tenant_id and a.origin = 'chanlytics' and a.launch ->> 'key' = p_key::text;
+  if found then
+    return jsonb_build_object('outcome', 'same', 'ad_id', v_same.id, 'status', v_same.status);
+  end if;
+  select * into v_account from public.ad_accounts a
+   where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected'
+   for update;
+  if not found or v_account.external_id is null or v_account.currency is null then
+    return jsonb_build_object('outcome', 'not_connected');
+  end if;
+  -- While AI is stopped, no ad is turned on (0050, call 11): nobody would answer the people it brings.
+  if exists (select 1 from public.tenants t where t.id = p_tenant_id and t.sending_stopped_at is not null) then
+    return jsonb_build_object('outcome', 'stopped');
+  end if;
+  -- One launch an account at a time: the platform takes few calls an account, and the job makes one after another.
+  if exists (select 1 from public.ads a
+              where a.tenant_id = p_tenant_id and a.account_id = v_account.id and a.status = 'sending') then
+    return jsonb_build_object('outcome', 'busy');
+  end if;
+  -- The draft the press judged, as it was then: one changed since, or already turned on, is not this press's.
+  select * into v_draft from public.ad_drafts d where d.tenant_id = p_tenant_id for update;
+  if not found or v_draft.account_id <> v_account.id or v_draft.updated_at is distinct from p_draft_at then
+    return jsonb_build_object('outcome', 'stale');
+  end if;
+
+  v_name := nullif(left(btrim(coalesce(p_ad ->> 'name', '')), 500), '');
+  v_total := nullif(p_ad ->> 'total_minor', '')::bigint;
+  v_ends := nullif(p_ad ->> 'ends_at', '')::timestamptz;
+  if v_name is null or v_total is null or v_total <= 0 or v_ends is null or v_ends <= now() then
+    raise exception 'ad_turn_on: a name, a total and an end still ahead' using errcode = '22023';
+  end if;
+
+  insert into public.ads (
+    tenant_id, account_id, platform, origin, name, door, status, intent, intent_at, told_at,
+    budget_kind, budget_minor, budget_left_minor, budget_at, budget_shared, ends_at, approved, launch, shown_on, said
+  )
+  values (
+    p_tenant_id, v_account.id, 'meta', 'chanlytics', v_name, 'whatsapp', 'sending', 'on', now(), now(),
+    'total', v_total, v_total, 'set', false, v_ends, p_ad -> 'approved',
+    jsonb_build_object('key', p_key::text, 'step', 'make', 'since', now()),
+    case when jsonb_typeof(p_ad -> 'shown_on') = 'array'
+         then array(select jsonb_array_elements_text(p_ad -> 'shown_on')) end,
+    case when jsonb_typeof(p_ad -> 'said') = 'object' then p_ad -> 'said' end
+  )
+  returning id into v_ad;
+  -- The draft is the ad now: New ad opens on a fresh one, and a draft left for the owner has been seen to.
+  delete from public.ad_drafts d where d.id = v_draft.id;
+  update public.notifications n
+     set closed_at = now()
+   where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
+
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', v_ad, 'turn_on_ad', 'user', p_actor,
+          jsonb_build_object('platform', 'meta', 'name', v_name, 'total_minor', v_total,
+                             'currency', v_account.currency, 'ends_at', v_ends,
+                             'declared', coalesce(p_ad -> 'approved' -> 'declared', '"none"'::jsonb)));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.turned_on', 'ads', 'ad', v_ad,
+          jsonb_build_object('platform', 'meta', 'name', v_name, 'by', p_actor, 'total_minor', v_total,
+                             'ends_at', v_ends));
+
+  -- The account's job, at once (and never before the platform allows a call): the launch is its first work.
+  if not exists (select 1 from public.job_kinds k where k.kind = 'ad_read' and k.paused_at is not null) then
+    v_due := greatest(now(), coalesce(v_account.read_after, '-infinity'::timestamptz));
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'ad_read', v_due, jsonb_build_object('account_id', v_account.id::text))
+    on conflict do nothing;
+    get diagnostics v_asked = row_count;
+    if v_asked = 0 then
+      update public.jobs j
+         set due_at = v_due, updated_at = now()
+       where j.tenant_id = p_tenant_id and j.kind = 'ad_read' and j.state = 'scheduled'
+         and j.payload ->> 'account_id' = v_account.id::text and j.due_at > v_due;
+    end if;
+  end if;
+  return jsonb_build_object('outcome', 'kept', 'ad_id', v_ad, 'status', 'sending');
+end $$;
+
+
+--
+-- Name: FUNCTION ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00662; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
 
 
 --
@@ -1632,7 +1902,8 @@ begin
       select g.* from jsonb_to_recordset(coalesce(p_read -> 'ads', '[]'::jsonb)) as g(
         platform_ad_id text, name text, door text, platform_set_id text, platform_campaign_id text,
         budget_kind text, budget_minor bigint, budget_left_minor bigint, budget_at text, budget_shared boolean,
-        starts_at timestamptz, ends_at timestamptz, platform_state text, platform_issue text, intent text, said jsonb
+        starts_at timestamptz, ends_at timestamptz, platform_state text, platform_issue text, intent text, said jsonb,
+        shown_on text[]
       )
       where g.platform_ad_id is not null and g.platform_ad_id <> ''
     ), stood as (
@@ -1643,14 +1914,14 @@ begin
       insert into public.ads as a (
         tenant_id, account_id, platform, origin, name, door, platform_ad_id, platform_set_id, platform_campaign_id,
         budget_kind, budget_minor, budget_left_minor, budget_at, budget_shared, starts_at, ends_at,
-        status, intent, platform_state, platform_issue, said, read_at
+        status, intent, platform_state, platform_issue, said, shown_on, read_at
       )
       select p_tenant_id, p_account_id, v_account.platform, 'platform',
              coalesce(nullif(left(btrim(coalesce(g.name, '')), 500), ''), g.platform_ad_id),
              coalesce(g.door, 'other'), g.platform_ad_id, g.platform_set_id, g.platform_campaign_id,
              g.budget_kind, g.budget_minor, g.budget_left_minor, g.budget_at, g.budget_shared, g.starts_at, g.ends_at,
              'made', coalesce(g.intent, 'paused'), g.platform_state, nullif(left(coalesce(g.platform_issue, ''), 2000), ''),
-             g.said, now()
+             g.said, g.shown_on, now()
         from given g
       on conflict (tenant_id, platform, platform_ad_id) do update
          set name = case when a.origin = 'platform' then excluded.name else a.name end,
@@ -1669,6 +1940,10 @@ begin
              platform_state = excluded.platform_state,
              platform_issue = excluded.platform_issue,
              said = case when a.origin = 'platform' then excluded.said else a.said end,
+             shown_on = coalesce(excluded.shown_on, a.shown_on),
+             -- An ad made here whose last switch went unanswered is settled by this read: the platform has said.
+             launch = case when a.origin = 'chanlytics' and a.launch ? 'unknown_at' then a.launch - 'unknown_at'
+                           else a.launch end,
              read_at = now()
       returning a.id, a.name, a.platform_state, (xmax = 0) as made
     ), told as (
@@ -1743,7 +2018,7 @@ end $$;
 -- Name: FUNCTION ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00662); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
 
 
 --
@@ -41795,6 +42070,37 @@ COMMENT ON COLUMN public.ad_entries.said IS 'What the ad said where it was tappe
 
 
 --
+-- Name: ad_objects; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ad_objects (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    ad_id uuid NOT NULL,
+    kind text NOT NULL,
+    version smallint DEFAULT 0 NOT NULL,
+    name text NOT NULL,
+    platform_id text,
+    state text NOT NULL,
+    sent_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ad_objects_kind_check CHECK ((kind = ANY (ARRAY['campaign'::text, 'set'::text, 'picture'::text, 'ad'::text]))),
+    CONSTRAINT ad_objects_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 400))),
+    CONSTRAINT ad_objects_platform_id_check CHECK (((char_length(platform_id) >= 1) AND (char_length(platform_id) <= 200))),
+    CONSTRAINT ad_objects_state_check CHECK ((state = ANY (ARRAY['sent'::text, 'made'::text, 'refused'::text, 'removed'::text, 'left'::text]))),
+    CONSTRAINT ad_objects_version_check CHECK (((version >= 0) AND (version <= 3)))
+);
+
+
+--
+-- Name: TABLE ad_objects; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ad_objects IS 'What Chanlytics made at the platform for an ad made here (00662; decision 0049''s ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform''s id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.';
+
+
+--
 -- Name: ads; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -41827,6 +42133,10 @@ CREATE TABLE public.ads (
     read_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    approved jsonb,
+    launch jsonb,
+    shown_on text[],
+    CONSTRAINT ads_approved_check CHECK (((approved IS NULL) OR ((jsonb_typeof(approved) = 'object'::text) AND (octet_length((approved)::text) <= 20000)))),
     CONSTRAINT ads_budget_at_check CHECK ((budget_at = ANY (ARRAY['campaign'::text, 'set'::text]))),
     CONSTRAINT ads_budget_is_whole CHECK (((budget_kind IS NULL) = (budget_minor IS NULL))),
     CONSTRAINT ads_budget_kind_check CHECK ((budget_kind = ANY (ARRAY['total'::text, 'daily'::text]))),
@@ -41834,6 +42144,7 @@ CREATE TABLE public.ads (
     CONSTRAINT ads_budget_minor_check CHECK ((budget_minor >= 0)),
     CONSTRAINT ads_door_check CHECK ((door = ANY (ARRAY['whatsapp'::text, 'instagram'::text, 'messenger'::text, 'call'::text, 'form'::text, 'website'::text, 'other'::text]))),
     CONSTRAINT ads_intent_check CHECK ((intent = ANY (ARRAY['on'::text, 'paused'::text, 'ended'::text]))),
+    CONSTRAINT ads_launch_check CHECK (((launch IS NULL) OR ((jsonb_typeof(launch) = 'object'::text) AND (octet_length((launch)::text) <= 4000)))),
     CONSTRAINT ads_made_names_its_platform_id CHECK (((status <> 'made'::text) OR (platform_ad_id IS NOT NULL))),
     CONSTRAINT ads_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 500))),
     CONSTRAINT ads_origin_check CHECK ((origin = ANY (ARRAY['chanlytics'::text, 'platform'::text]))),
@@ -41844,6 +42155,7 @@ CREATE TABLE public.ads (
     CONSTRAINT ads_platform_set_id_check CHECK (((char_length(platform_set_id) >= 1) AND (char_length(platform_set_id) <= 200))),
     CONSTRAINT ads_platform_state_check CHECK (((char_length(platform_state) >= 1) AND (char_length(platform_state) <= 100))),
     CONSTRAINT ads_said_check CHECK (((said IS NULL) OR (jsonb_typeof(said) = 'object'::text))),
+    CONSTRAINT ads_shown_on_check CHECK (((shown_on IS NULL) OR (cardinality(shown_on) <= 10))),
     CONSTRAINT ads_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'sending'::text, 'failed'::text, 'made'::text]))),
     CONSTRAINT ads_version_check CHECK ((version > 0))
 );
@@ -41889,6 +42201,27 @@ COMMENT ON COLUMN public.ads.platform_state IS 'The platform''s own word for the
 --
 
 COMMENT ON COLUMN public.ads.intent_at IS 'When the owner last asked something of the ad here (a pause, a resume). Later than told_at means the platform has not been told yet: it is told when it will take the change, and the page says so until then.';
+
+
+--
+-- Name: COLUMN ads.approved; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.approved IS 'What the owner approved at Turn on, for an ad made here (00662; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account''s zone), the three versions of the words, the number a tap opens, the area''s address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform.';
+
+
+--
+-- Name: COLUMN ads.launch; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.launch IS 'Where the launch of an ad made here stands (00662): key (the press''s), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform''s own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform.';
+
+
+--
+-- Name: COLUMN ads.shown_on; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.shown_on IS 'Where the ad shows, as the platform holds it (00662): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known.';
 
 
 --
@@ -42978,7 +43311,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text, 'ad_account'::text, 'ad'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text, 'turn_on_ad'::text])))
 );
 
 
@@ -47847,6 +48180,22 @@ ALTER TABLE ONLY public.ad_entries
 
 
 --
+-- Name: ad_objects ad_objects_one_part; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_objects
+    ADD CONSTRAINT ad_objects_one_part UNIQUE (tenant_id, ad_id, kind, version);
+
+
+--
+-- Name: ad_objects ad_objects_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_objects
+    ADD CONSTRAINT ad_objects_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ads ads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -49458,6 +49807,13 @@ CREATE UNIQUE INDEX ad_entries_one_a_message ON public.ad_entries USING btree (m
 --
 
 CREATE UNIQUE INDEX ad_entries_one_a_ref ON public.ad_entries USING btree (tenant_id, platform, external_ref);
+
+
+--
+-- Name: ad_objects_by_platform_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ad_objects_by_platform_id ON public.ad_objects USING btree (tenant_id, platform_id) WHERE ((kind = 'ad'::text) AND (platform_id IS NOT NULL));
 
 
 --
@@ -52135,10 +52491,24 @@ CREATE TRIGGER ad_accounts_set_updated_at BEFORE UPDATE ON public.ad_accounts FO
 
 
 --
+-- Name: ad_accounts ad_accounts_stop_launches; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ad_accounts_stop_launches AFTER UPDATE OF status ON public.ad_accounts FOR EACH ROW WHEN (((old.status = 'connected'::text) AND (new.status = ANY (ARRAY['disconnected'::text, 'revoked'::text])))) EXECUTE FUNCTION public.ad_accounts_stop_launches();
+
+
+--
 -- Name: ad_drafts ad_drafts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: ad_objects ad_objects_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ad_objects_set_updated_at BEFORE UPDATE ON public.ad_objects FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -53783,7 +54153,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, standing, con
 -- Name: ads workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at, launch, shown_on ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at) OR (old.launch IS DISTINCT FROM new.launch) OR (old.shown_on IS DISTINCT FROM new.shown_on))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -54127,6 +54497,22 @@ ALTER TABLE ONLY public.ad_entries
 
 ALTER TABLE ONLY public.ad_entries
     ADD CONSTRAINT ad_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ad_objects ad_objects_ad_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_objects
+    ADD CONSTRAINT ad_objects_ad_id_same_workspace FOREIGN KEY (tenant_id, ad_id) REFERENCES public.ads(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: ad_objects ad_objects_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_objects
+    ADD CONSTRAINT ad_objects_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -56326,6 +56712,21 @@ CREATE POLICY ad_entries_member_select ON public.ad_entries FOR SELECT TO authen
 
 
 --
+-- Name: ad_objects; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ad_objects ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ad_objects ad_objects_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ad_objects_member_select ON public.ad_objects FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: ads; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -58281,6 +58682,14 @@ GRANT ALL ON FUNCTION public.ad_accounts_close_ad_bell() TO service_role;
 
 
 --
+-- Name: FUNCTION ad_accounts_stop_launches(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_accounts_stop_launches() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_accounts_stop_launches() TO service_role;
+
+
+--
 -- Name: FUNCTION ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -58362,6 +58771,23 @@ GRANT ALL ON FUNCTION public.ad_entry_keep(p_tenant_id uuid, p_message_id uuid, 
 
 
 --
+-- Name: FUNCTION ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_may_resume(p_origin text, p_platform_state text, p_budget_kind text, p_ends_at timestamp with time zone, p_budget_shared boolean, p_budget_left_minor bigint); Type: ACL; Schema: public; Owner: -
 --
 
@@ -58427,6 +58853,14 @@ GRANT ALL ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) TO serv
 
 REVOKE ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) TO service_role;
 
 
 --
@@ -65094,6 +65528,14 @@ GRANT ALL ON TABLE public.ad_drafts TO service_role;
 
 GRANT SELECT ON TABLE public.ad_entries TO authenticated;
 GRANT ALL ON TABLE public.ad_entries TO service_role;
+
+
+--
+-- Name: TABLE ad_objects; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ad_objects TO authenticated;
+GRANT ALL ON TABLE public.ad_objects TO service_role;
 
 
 --

@@ -663,6 +663,7 @@
     "00658_the_bell_rings_for_an_owner_s_ads.sql": "869b5b39d7c0e49ccc481b95b09d76472dff19ea423190c949ffe9ccf4059757",
     "00659_a_draft_ad_is_kept_and_left_for_the_owner.sql": "3f5a97ae4427a20290f57122b490870431d3af02506d1b58bce94a122eec0b01",
     "00660_each_small_draft_is_counted_apart.sql": "7868e94b9d1dd90d0239cb7eb3813926f5b8c39c146b5c6c816e7391b1684925",
-    "00661_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "4865a03c5690725e969859b056ddcefeca2194b49bc5e76ce96b8ed5a66dc862"
+    "00661_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "4865a03c5690725e969859b056ddcefeca2194b49bc5e76ce96b8ed5a66dc862",
+    "00662_an_owner_turns_an_ad_on.sql": "0f3ccdb73969b1b6697b0382eb6384a5adb068434f1d541709dc29d7fda41dbe"
   }
 }

@@ -129,7 +129,18 @@ export const NEW = {
     kind: (ad: string) => `${ad} can't be turned on here.`,
     check: "Turn on waits for the one thing above.",
     owner: "Only the owner can turn an ad on.",
-    notYet: "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent.",
+    off: "Turning an ad on from here isn't on in this workspace yet. Nothing is made at Meta.",
+    video: "Turn on sends a photo for now. Use the next picture to pick a photo.",
+    turning: "Turning it on…",
+    failed: "Couldn't reach Chanlytics, so nothing was made. Try again.",
+  },
+
+  /** After Turn on: the ad is being set up at Meta, and where to see it. */
+  turnedOn: {
+    title: "Setting it up at Meta",
+    body: "Chanlytics makes it paused first, checks it against what you approved, then turns it on.",
+    small: "Meta checks it before anyone sees it, usually within a day. It's on your Ads page now.",
+    act: "See the ad",
   },
 
   /** Where the words can't be written. */

@@ -9,6 +9,7 @@
 import { DAY_MS, HOUR_MS, MIN_MS, wallClockAt, zoneDayKey } from "@chanlytics/contracts";
 import type { MetaAd, MetaAdDay } from "@chanlytics/channels/ads";
 import type { AdDayReadRow, AdReadRow } from "@chanlytics/db/ads";
+import { shownNameOf } from "./tag.js";
 
 /** The read's pace (the plan's 6.6): every number of it, in one place. */
 export const ADS_PACE = {
@@ -93,10 +94,17 @@ export function doorOf(destination: string | null): AdReadRow["door"] {
   return "other";
 }
 
-/** What the owner has the ad set to at Meta, in Chanlytics' three words. A word not known is read as paused, never on. */
-export function intentOf(configured: MetaAd["configured"]): AdReadRow["intent"] {
-  if (configured === "ACTIVE") return "on";
-  return configured === "ARCHIVED" || configured === "DELETED" ? "ended" : "paused";
+/**
+ * What the owner has the ad set to at Meta, in Chanlytics' three words: on only where its own switch and the two above
+ * it are on, since an ad whose ad set or campaign is paused runs nowhere, whatever Meta's word for its review says (seen
+ * on the paused-ad check's ad, 20 November 2026). A word not known is read as paused, never on; a part above that Meta
+ * named no word for stops nothing.
+ */
+export function intentOf(ad: Pick<MetaAd, "configured" | "above">): AdReadRow["intent"] {
+  const { configured, above } = ad;
+  if (configured === "ARCHIVED" || configured === "DELETED") return "ended";
+  const heldAbove = [above.set, above.campaign].some((word) => word !== null && word !== "ACTIVE");
+  return configured === "ACTIVE" && !heldAbove ? "on" : "paused";
 }
 
 const GONE: readonly string[] = ["ARCHIVED", "DELETED"];
@@ -113,7 +121,8 @@ export function adRowsOf(ads: readonly MetaAd[], whole = true): AdReadRow[] {
     if (ad.budget && !GONE.includes(ad.state)) under.set(ad.budget.holderId, (under.get(ad.budget.holderId) ?? 0) + 1);
   return ads.map((ad) => ({
     platform_ad_id: ad.id,
-    name: ad.name,
+    // The tag a part Chanlytics made carries is its own, never an owner's to read (tag.ts).
+    name: shownNameOf(ad.name),
     door: doorOf(ad.destination),
     platform_set_id: ad.setId,
     platform_campaign_id: ad.campaignId,
@@ -126,8 +135,9 @@ export function adRowsOf(ads: readonly MetaAd[], whole = true): AdReadRow[] {
     ends_at: ad.endsAt,
     platform_state: ad.state,
     platform_issue: ad.issue,
-    intent: intentOf(ad.configured),
+    intent: intentOf(ad),
     said: Object.keys(ad.said).length > 0 ? { ...ad.said } : null,
+    shown_on: ad.shownOn,
   }));
 }
 

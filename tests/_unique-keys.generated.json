@@ -207,6 +207,39 @@
       "where": null
     },
     {
+      "table": "ad_objects",
+      "name": "ad_objects_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_objects",
+      "name": "ad_objects_one_part",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "ad_id"
+        },
+        {
+          "column": "kind"
+        },
+        {
+          "column": "version"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ads",
       "name": "ads_pkey",
       "primary": true,

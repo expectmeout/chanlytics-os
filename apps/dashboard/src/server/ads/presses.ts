@@ -19,15 +19,21 @@ import type { RouteContext } from "../shared/with-route";
 
 /** What a press came to, as the page reads it. */
 interface AdPressed {
-  /** told: Meta took it. sent: no answer yet. soon: sent when Meta will take it. took_back, same: nothing to send. */
-  outcome: "told" | "sent" | "soon" | "took_back" | "same";
+  /**
+   * told: Meta took it. sent: no answer yet. soon: sent when Meta will take it. took_back, same: nothing to send.
+   * asked: Check asked Meta what stands, and the page says it once that read is in.
+   */
+  outcome: "told" | "sent" | "soon" | "took_back" | "same" | "asked";
   version: number;
 }
 
 type Answer = EdgeAnswer<EdgeRead<"/api/admin/ads/press">>;
 
+/** An owner's press on an ad: Pause, turn it back on, or Check what Meta holds of one whose last switch went unanswered. */
+type AdPressOp = "pause" | "resume" | "check";
+
 /** The words a refusal of the edge's is said in. */
-function refusalOf(answer: Answer, op: "pause" | "resume"): AppError {
+function refusalOf(answer: Answer, op: AdPressOp): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
     return new AppError("forbidden", "Only the owner can pause an ad or turn one back on.", 403);
@@ -44,19 +50,17 @@ function refusalOf(answer: Answer, op: "pause" | "resume"): AppError {
   if (code === "not_found") return new AppError("not_found", "That ad is no longer here.", 404);
   if (code === "ad_not_ready")
     return new AppError("conflict", "This ad can't be changed from here right now. Change it in Meta.", 409);
-  return new AppError(
-    "upstream_provider",
-    `Couldn't ${op === "pause" ? "pause it" : "turn it back on"} just now. Nothing was changed. Try again.`,
-  );
+  const doing = op === "pause" ? "pause it" : op === "resume" ? "turn it back on" : "ask Meta about it";
+  return new AppError("upstream_provider", `Couldn't ${doing} just now. Nothing was changed. Try again.`);
 }
 
-const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same"];
+const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
 
 /** `POST ads/:id/pause` and `POST ads/:id/resume`: the press, handed to the edge. */
 export async function pressAd(
   ctx: RouteContext,
   member: Member,
-  press: { op: "pause" | "resume"; adId: string; version: number },
+  press: { op: AdPressOp; adId: string; version: number },
 ): Promise<AdPressed> {
   // A preview never reaches Meta under a business's name, as no provider door does.
   if (!edgeConfigured() || !deployment.providersLive)

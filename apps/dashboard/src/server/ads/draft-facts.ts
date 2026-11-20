@@ -11,6 +11,7 @@ import {
   guardrailsInForce,
   metaAdConfigOf,
   parseTenantConfigResult,
+  recordOrEmpty,
   zoneDayKey,
   type AdAccountCard,
   type AdDraftInputs,
@@ -37,6 +38,7 @@ import type { AdBusinessFacts } from "../ask/skills/ad/brief";
 import { getRoom } from "../ask/tools/read/calendar";
 import { listAdPictures, type AdPictures } from "../content/ad-pictures";
 import { getAppointmentWord } from "../people/deals";
+import { readAdsPressesOn } from "../connections/ads-ready";
 import { ADS_PAGE_DAYS, aiStoppedAt } from "../readers/ads-page";
 import type { ReaderContext } from "../shared/reader";
 import { getTenantFacts } from "../shared/tenant";
@@ -95,10 +97,15 @@ export interface AdDraftFacts {
   openTimes: number | null;
   /** The most the owner said any ad may cost, in the account's minor units; null until they say one (G6). */
   ownerMostMinor: number | null;
-  /** The workspace's kept draft for this account, and who kept it where that was someone else; null where none is. */
-  kept: { draft: AdDraftState; leftBy: string | null } | null;
+  /**
+   * The workspace's kept draft for this account, who kept it where that was someone else, and when it was kept: what
+   * Turn on's press names, so a draft changed since is refused. Null where none is.
+   */
+  kept: { draft: AdDraftState; leftBy: string | null; at: string } | null;
   /** AI is stopped (Stop everything): no draft is written while it is (decision 0050, call 11). */
   stopped: boolean;
+  /** Whether the edge turns ads on, and changes them, in this workspace from this deployment (its switch). */
+  presses: boolean;
   /** Whether this member is the owner. */
   owner: boolean;
 }
@@ -109,15 +116,21 @@ const sameName = (first: string, second: string): boolean => first.trim().toLowe
 const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts["language"] =>
   /^\s*(?:es\b|espa|span)/i.test(languages?.[0] ?? "") ? "es" : "en";
 
-/** The names of the ads made here that still run: a service one of them offers is not offered again (G5). */
+/**
+ * The services of the ads made here that still run, or are still being set up: a service one of them offers is not
+ * offered again (G5). An ad made here is named in a few words; the service it offers is what its owner approved.
+ */
 function runningHereOf(rows: readonly AdRow[], at: { today: string; timezone: string; nowMs: number }): string[] {
   return rows
-    .filter((row) => row.origin === "chanlytics" && row.status === "made")
+    .filter((row) => row.origin === "chanlytics" && (row.status === "made" || row.status === "sending"))
     .filter((row) => {
       const state = adStateOfRow(row, at);
       return state !== "ended" && state !== "finished";
     })
-    .map((row) => row.name);
+    .map((row) => {
+      const service = recordOrEmpty(row.approved).service;
+      return typeof service === "string" && service.trim() ? service : row.name;
+    });
 }
 
 /**
@@ -163,9 +176,10 @@ async function keptDraftOf(
   if (row === null || row.account_id !== accountId) return null;
   const parsed = AdDraftStateSchema.safeParse(row.draft);
   if (!parsed.success) return null;
-  if (row.kept_by === null || row.kept_by === rc.userId) return { draft: parsed.data, leftBy: null };
+  const at = row.updated_at;
+  if (row.kept_by === null || row.kept_by === rc.userId) return { draft: parsed.data, leftBy: null, at };
   const named = await findProfileName(rc.ctx.supabase, row.kept_by);
-  return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team" };
+  return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team", at };
 }
 
 /** The business an ad is written for, as its settings say it. */
@@ -269,6 +283,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     ownerMostMinor: (account ? live?.most_minor : null) ?? null,
     kept,
     stopped: aiStoppedAt(settings?.config) !== null,
+    presses: live !== null && ROLE_PERMS[rc.role].ads ? await readAdsPressesOn(rc.tenantId) : false,
     owner: ROLE_PERMS[rc.role].ads,
   };
 }

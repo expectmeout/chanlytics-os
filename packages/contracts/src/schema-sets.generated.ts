@@ -11,6 +11,8 @@ export const SCHEMA_SETS = {
   "ad_accounts.status": ["choosing", "connected", "revoked", "disconnected"],
   "ad_entries.kind": ["chat", "number", "call"],
   "ad_entries.platform": ["meta", "google", "tiktok"],
+  "ad_objects.kind": ["campaign", "set", "picture", "ad"],
+  "ad_objects.state": ["sent", "made", "refused", "removed", "left"],
   "ads.budget_at": ["campaign", "set"],
   "ads.budget_kind": ["total", "daily"],
   "ads.door": ["whatsapp", "instagram", "messenger", "call", "form", "website", "other"],
@@ -94,7 +96,7 @@ export const SCHEMA_SETS = {
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
     "change_playbook", "mark_visit", "change_step", "leave_sequence", "make_sequence",
     "discard_sequence", "answer_booking_request", "return_to_sequence", "not_a_customer", "reply_anyway",
-    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad",
+    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad", "turn_on_ad",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",
