@@ -26,7 +26,14 @@
  * Never fatal: a read that fails costs the ad's words, never the note about the person and never the reply.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CONVERSATION_GAP_MS, fenced, recordOrNull, type LeadChannel, type TenantId } from "@chanlytics/contracts";
+import {
+  AD_TOLD_MAX,
+  CONVERSATION_GAP_MS,
+  fenced,
+  recordOrNull,
+  type LeadChannel,
+  type TenantId,
+} from "@chanlytics/contracts";
 import { readAdNamed, readAdSaid } from "../../ads/entries";
 import { dbLogAndGoOn } from "../../../shared/observe";
 import type { Database } from "../../../types";
@@ -60,12 +67,6 @@ export interface AdTapTold {
   /** What the ad showed: a picture or a video (Meta's `media_type`), or neither where it said no kind that is known. */
   visual: "image" | "video" | null;
 }
-
-/**
- * How much of an ad AI is told, in characters. The entry keeps more (a headline of 300, words of 2,000: channels
- * AD_SAID_MAX); a reply needs what the ad offered, not all of it, and this is read on every turn of the conversation.
- */
-const AD_TOLD_MAX = { name: 120, headline: 160, body: 600 } as const;
 
 /** The ad's id on a message whose referral is an ad, as the entry's door reads it (00644 ad_entry_keep); else null. */
 function adRefOf(moment: ThreadMoment): string | null {

@@ -12,11 +12,12 @@
  * any other, and left out of the gate until a run has held it and someone has
  * read what was said. A hard case is never on trial.
  */
-import { priceBreach } from "@chanlytics/contracts";
+import { EVAL_DOOR, priceBreach } from "@chanlytics/contracts";
 
 /**
  * @typedef {{ intent?: string | string[], escalate?: boolean, language?: string, includes?: string[], excludes?: string[], min_confidence?: number, grounded?: boolean }} Expect
- * @typedef {{ id: string, text: string, expect?: Expect, hard?: boolean, provisional?: boolean, who?: { name: string, standIn?: boolean, returning?: boolean } }} EvalCase
+ * @typedef {{ name: string | null, headline: string | null, body: string | null, visual: "image" | "video" | null }} AdTold
+ * @typedef {{ id: string, text: string, history?: { role: string, content: string }[], expect?: Expect, hard?: boolean, provisional?: boolean, who?: { name: string, standIn?: boolean, returning?: boolean, ad?: AdTold | null } }} EvalCase
  * @typedef {{ id: string, ok: boolean, text?: string, escalate?: boolean, reason?: string | null, meta?: { intent?: string, confidence?: number, language?: string, facts_used?: string[] } | null, usage?: { input_tokens: number, output_tokens: number } | null, ms?: number, error?: string }} EvalResult
  */
 
@@ -89,6 +90,29 @@ export function validateCases(cases) {
       problems.push(`${c.id}: who names the person, with a name`);
   }
   return problems;
+}
+
+/**
+ * What of a case crosses the eval door (apps/edge/api/admin/eval.ts): its id and words, what came before, and who it
+ * speaks with, where it says. What it expects stays here, with the judge.
+ * @param {EvalCase} c
+ */
+export function doorCaseOf(c) {
+  return { id: c.id, text: c.text, ...(c.history ? { history: c.history } : {}), ...(c.who ? { who: c.who } : {}) };
+}
+
+/**
+ * What the eval door would refuse in a case set, by its own declaration (contracts EVAL_DOOR), one line per problem
+ * naming its case: found before the first batch is sent, so a refusal costs no batch that ran before it.
+ * @param {EvalCase[]} cases
+ */
+export function doorProblems(cases) {
+  const held = EVAL_DOOR.body.safeParse({ cases: cases.map(doorCaseOf) });
+  if (held.success) return [];
+  return held.error.issues.map((issue) => {
+    const [, at, ...field] = issue.path;
+    return `${cases[Number(at)]?.id ?? "a case"}: ${field.join(".") || "the case"} ${issue.message}`;
+  });
 }
 
 /**

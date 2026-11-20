@@ -14,8 +14,11 @@
  *
  * Small on purpose: at most six cases per request, sequential, inside the
  * function's budget; the runner batches. Body: { tenant_id, cases: [{ id,
- * text, history? }] } where history is prior turns [{ role, content }]. The
- * answer carries the prices the workspace may say (allowed_prices, contracts
+ * text, history?, who? }] } where history is prior turns [{ role, content }]
+ * and who is the made-up person the case speaks with (contracts EVAL_DOOR): the
+ * note about them is the live turn's own (db describeLead), so a case can show
+ * the model an ad a person tapped, or a profile name, as a live turn shows it.
+ * The answer carries the prices the workspace may say (allowed_prices, contracts
  * priceAllowance; null for the strict rule), so the runner judges a price
  * against the workspace's own switch.
  *
@@ -27,13 +30,23 @@
  * answered only while previews are switched on.
  */
 import { json, refuse } from "../shared/http.js";
+import { stop, type Refused } from "../shared/admin-door.js";
 import { workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { pg } from "../shared/pg.js";
 import { loadTenantRuntime, type TenantRuntime } from "../shared/tenant-runtime.js";
 import { findOpenings, takesRequests } from "../calendar/availability.js";
-import { resolveSystemPrompt, describeNow, fallbackMessages, priceAllowance, isTenantId } from "@chanlytics/contracts";
+import {
+  asContactId,
+  EVAL_DOOR,
+  resolveSystemPrompt,
+  describeNow,
+  fallbackMessages,
+  priceAllowance,
+  isTenantId,
+} from "@chanlytics/contracts";
 import { holdPlan, layerTwo } from "@chanlytics/core";
 import { findOldestActiveChannel, type RoutedChannel } from "@chanlytics/db/channels";
+import { describeLead } from "@chanlytics/db/conversations";
 import { brainCallOf, generateReply, type BrainReply } from "../ai/receptionist-brain.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
@@ -46,7 +59,28 @@ interface EvalCase {
   id: string;
   text: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  /** Who the case speaks with, unread until the door's schema reads it (casesWithPeople). */
+  who?: unknown;
 }
+
+/**
+ * The person a case may name, as the door declares it (contracts EVAL_DOOR): read through the declaration itself, so
+ * what the door takes and what the dashboard's side of it says cannot differ.
+ */
+const CASE_PERSON = EVAL_DOOR.body.shape.cases.unwrap().element.shape.who.unwrap();
+type CasePerson = ReturnType<typeof CASE_PERSON.parse>;
+
+/** A case with the person it names, as the door's schema read them: null where it names nobody. */
+interface CaseWithPerson {
+  evalCase: EvalCase;
+  person: CasePerson | null;
+}
+
+/**
+ * A made-up person's id. The note about a person says nothing of anyone without one ("New contact"), and nothing is
+ * read by it: describeLead is told who they are, never asked to look them up.
+ */
+const MADE_UP_PERSON = asContactId("00000000-0000-4000-8000-000000000000");
 
 /**
  * The model as a port, as on the steer door. Production passes nothing and
@@ -190,6 +224,47 @@ function caseRefusal(cases: readonly EvalCase[]): Response | null {
   return null;
 }
 
+/**
+ * Each case with the person it names, read by the door's own schema, before anything is read or asked; the first
+ * person out of their shape is refused. A case that names nobody carries none.
+ */
+function casesWithPeople(cases: readonly EvalCase[]): { ok: true; cases: CaseWithPerson[] } | Refused {
+  const read: CaseWithPerson[] = [];
+  for (const evalCase of cases) {
+    const person = evalCase.who === undefined ? null : CASE_PERSON.safeParse(evalCase.who);
+    if (person && !person.success) {
+      return stop(
+        refuse(
+          400,
+          "bad_request",
+          "who is { name, returning?, ad? }: a name of up to 200 characters, and the ad as AI is told it, each part one line",
+        ),
+      );
+    }
+    read.push({ evalCase, person: person ? person.data : null });
+  }
+  return { ok: true, cases: read };
+}
+
+/**
+ * The note about the person a case names, as a live turn on WhatsApp is handed it: written by the live turn's own
+ * describeLead from what the case says of them, never the case's text as it came. Nothing else is known of a made-up
+ * person, so nothing else is said: no history, no email, no deal, no notes.
+ */
+function noteAbout(person: CasePerson, now: Date, timezone: string): string {
+  const lead = {
+    contactId: MADE_UP_PERSON,
+    conversationId: null,
+    name: person.name,
+    returning: person.returning ?? false,
+    lastSeenAt: null,
+    history: [],
+    optedOut: false,
+    ad: person.ad ?? null,
+  };
+  return describeLead(lead, now, timezone, "whatsapp");
+}
+
 export async function evaluateCases(
   auth: Admitted,
   body: Partial<{ tenant_id?: string; cases?: EvalCase[] }>,
@@ -208,6 +283,8 @@ export async function evaluateCases(
   }
   const badCase = caseRefusal(cases);
   if (badCase) return badCase;
+  const asked = casesWithPeople(cases);
+  if (!asked.ok) return asked.response;
 
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -225,7 +302,7 @@ export async function evaluateCases(
   const holding = fallbackMessages(rt.brain, rt.known).error;
   const call = { ...brainCallOf(tenantId, rt), ...asks };
   const results = [];
-  for (const otherCase of cases) {
+  for (const { evalCase: otherCase, person } of asked.cases) {
     const t0 = Date.now();
     try {
       const result = await ask({
@@ -235,6 +312,8 @@ export async function evaluateCases(
         fallbackText: holding,
         nowNote,
         call,
+        // A case that names nobody is handed over as it always was: no note, not even an empty one.
+        ...(person ? { leadNote: noteAbout(person, now, rt.timezone ?? "UTC") } : {}),
       });
       results.push({
         id: otherCase.id,
