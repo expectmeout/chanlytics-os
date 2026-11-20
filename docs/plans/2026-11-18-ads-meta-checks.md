@@ -250,7 +250,10 @@ On Ruben's own ad account, with no card on file, so nothing can be charged. Each
 7. The ad's own switch on, then paused again, while the campaign above it stays paused.
 
 It leaves a paused campaign, a picture in the account's library and an unpublished post on the Page. It goes through
-Meta's check of an ad, so its words and picture are ones the checks of the plan's section 5.1 pass.
+Meta's check of an ad, so its words and picture are ones the checks of the plan's section 5.1 pass. Where Meta stops
+it after the campaign is made, the check deletes that campaign (Meta's DELETE on it, read on its campaign reference on
+20 November), so a check either finishes, paused, or leaves nothing. A campaign an earlier check left is removed the
+same way, by its id, and only where it is in the owner's account, paused, named as a check names it, with no ad.
 
 What it settles that no page does: whose sign-in Meta takes for an ad that opens WhatsApp; whether a dry run counts
 against the account's score; whether Meta refuses a total over a new account's day; the shortest run it takes; that
