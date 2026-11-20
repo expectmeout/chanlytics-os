@@ -8,16 +8,10 @@
  */
 import type { PersonDetailDto, PersonRowDto, PersonVisitsDto, PersonVM, VisitDto } from "@chanlytics/contracts";
 import { DAY_MS, HOUR_MS, MIN_MS, toPersonVM } from "@chanlytics/contracts";
-import { DEMO_ADS } from "../demo-ads";
+import { DEMO_ADS, DEMO_ZONE } from "../demo-ads";
 import { peopleSurfaceOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
 import type { PeopleSurface } from "./surface";
-
-/**
- * The zone a demo session's samples say their moments in: the made-up studio is in New York. One home, so the samples of the
- * surfaces that draw one (the Calendar, People, Reports and Campaigns' broadcasts) say the same hour.
- */
-export const DEMO_ZONE = "America/New_York";
 
 const phone = (last2: string) => `+130555501${last2}`;
 

@@ -3,7 +3,7 @@
  * `nowMs` and the day is always today (moved from bridge/today-sample/clock.ts when Today's own sample went).
  */
 import { zoneDayKey, zoneMidnight, MIN_MS } from "@chanlytics/contracts";
-import { DEMO_ZONE } from "../people/sample";
+import { DEMO_ZONE } from "../demo-ads";
 
 /**
  * Which day the sample is: the usual one the tests walk, a busy one that overflows every cap on the page, or

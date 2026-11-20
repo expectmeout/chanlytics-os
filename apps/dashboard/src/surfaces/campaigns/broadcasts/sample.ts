@@ -29,7 +29,7 @@ import {
 import type { AudienceOption } from "./audiences-surface";
 import type { BcData } from "./page/types";
 import type { BroadcastTemplate } from "./surface";
-import { DEMO_ZONE } from "../../people/sample";
+import { DEMO_ZONE } from "../../demo-ads";
 
 const DAY = DAY_MS;
 
