@@ -148,27 +148,6 @@ end $$;
 
 
 --
--- Name: COLUMN files.origin_left; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.files.origin_left IS 'How a watched file''s original left its folder (00657): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
-
-
---
--- Name: COLUMN files.origin_left_at; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s original left its folder (00657): the newest of its origins'' gone_at, where none still holds it in.';
-
-
---
--- Name: COLUMN media_sources.stopped_why; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.media_sources.stopped_why IS 'Why a watched folder is not read whole (00657): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
-
-
---
 -- Name: FUNCTION ad_account_connect(p_tenant_id uuid, p_actor uuid, p_platform text, p_account jsonb, p_secret jsonb, p_chosen boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
@@ -42956,6 +42935,20 @@ COMMENT ON COLUMN public.files.superseded_at IS 'When the item it came from let 
 
 
 --
+-- Name: COLUMN files.origin_left; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.origin_left IS 'How a watched file''s original left its folder (00657): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
+
+
+--
+-- Name: COLUMN files.origin_left_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s original left its folder (00657): the newest of its origins'' gone_at, where none still holds it in.';
+
+
+--
 -- Name: files_let_go; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -44782,6 +44775,13 @@ COMMENT ON COLUMN public.media_sources.hold_at IS 'When a read or a re-walk foun
 --
 
 COMMENT ON COLUMN public.media_sources.walk_units IS 'The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often.';
+
+
+--
+-- Name: COLUMN media_sources.stopped_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.stopped_why IS 'Why a watched folder is not read whole (00657): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
 
 
 --
@@ -51612,27 +51612,6 @@ CREATE TRIGGER ask_memory_lines_set_updated_at BEFORE UPDATE ON public.ask_memor
 
 
 --
--- Name: files files_ring_footage_in; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER files_ring_footage_in AFTER INSERT ON public.files FOR EACH ROW WHEN ((new.source = 'drive'::text)) EXECUTE FUNCTION public.files_ring_footage_in();
-
-
---
--- Name: media_sources media_sources_ring; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER media_sources_ring AFTER DELETE OR UPDATE OF state, hold_at, hold_confirmed_at ON public.media_sources FOR EACH ROW EXECUTE FUNCTION public.media_sources_ring();
-
-
---
--- Name: memberships memberships_wake_their_folders; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER memberships_wake_their_folders AFTER DELETE ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_wake_their_folders();
-
-
---
 -- Name: sequence_batches batch_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51962,6 +51941,13 @@ CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_sugg
 
 
 --
+-- Name: files files_ring_footage_in; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER files_ring_footage_in AFTER INSERT ON public.files FOR EACH ROW WHEN ((new.source = 'drive'::text)) EXECUTE FUNCTION public.files_ring_footage_in();
+
+
+--
 -- Name: google_connections google_connections_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -52158,6 +52144,13 @@ CREATE TRIGGER mailboxes_set_updated_at BEFORE UPDATE ON public.mailboxes FOR EA
 
 
 --
+-- Name: media_sources media_sources_ring; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER media_sources_ring AFTER DELETE OR UPDATE OF state, hold_at, hold_confirmed_at ON public.media_sources FOR EACH ROW EXECUTE FUNCTION public.media_sources_ring();
+
+
+--
 -- Name: media_sources media_sources_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -52183,6 +52176,13 @@ CREATE CONSTRAINT TRIGGER memberships_keep_an_owner AFTER DELETE OR UPDATE OF ro
 --
 
 CREATE TRIGGER memberships_start_the_bell AFTER INSERT ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_start_the_bell();
+
+
+--
+-- Name: memberships memberships_wake_their_folders; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER memberships_wake_their_folders AFTER DELETE ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_wake_their_folders();
 
 
 --
@@ -52550,17 +52550,17 @@ CREATE TRIGGER source_items_set_updated_at BEFORE UPDATE ON public.source_items 
 
 
 --
--- Name: files source_takes_release; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER source_takes_release AFTER UPDATE OF removed_at ON public.files FOR EACH ROW WHEN (((old.removed_at IS NULL) AND (new.removed_at IS NOT NULL))) EXECUTE FUNCTION public.source_takes_release();
-
-
---
 -- Name: source_items source_items_stamp_left; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER source_items_stamp_left AFTER DELETE OR UPDATE OF state, gone_at, file_id ON public.source_items FOR EACH ROW EXECUTE FUNCTION public.source_items_stamp_left();
+
+
+--
+-- Name: files source_takes_release; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_takes_release AFTER UPDATE OF removed_at ON public.files FOR EACH ROW WHEN (((old.removed_at IS NULL) AND (new.removed_at IS NOT NULL))) EXECUTE FUNCTION public.source_takes_release();
 
 
 --
@@ -57612,20 +57612,6 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
-
-
---
--- Name: COLUMN files.origin_left; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT(origin_left) ON TABLE public.files TO authenticated;
-
-
---
--- Name: COLUMN files.origin_left_at; Type: ACL; Schema: public; Owner: -
---
-
-GRANT SELECT(origin_left_at) ON TABLE public.files TO authenticated;
 
 
 --
@@ -65277,6 +65263,20 @@ GRANT SELECT(copy_state) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(copy_why) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.origin_left; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(origin_left) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.origin_left_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(origin_left_at) ON TABLE public.files TO authenticated;
 
 
 --

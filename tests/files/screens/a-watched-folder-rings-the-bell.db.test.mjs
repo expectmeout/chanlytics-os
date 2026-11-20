@@ -170,7 +170,7 @@ test("the day's new photos and videos are one row for the workspace, counted up 
         tenant_id: ws.T,
         status: "filed",
         source: "drive",
-        name: `bell-${stamp}-${n}.jpg`,
+        name: `bell-${stamp}-${n}`,
         mime: "image/jpeg",
         bytes: 1000 + n,
         fingerprint: `bell-fp-${stamp}-${ws.T}-${n}`,
