@@ -287,3 +287,61 @@ sign-in. No number is written here.
 - **The paused-ad check's gate is met at Meta:** the Page is linked to the number AI answers.
 - **To see on the paused ad:** that Meta takes a number that is linked to the Page and is not its primary one.
 - **Not this part's:** the card's own check of the Page's number, which is step 2's and has been told.
+
+## 20 November 2026 · The paused-ad check, run three times on Ruben's own account
+
+Run on Ruben's word, typed in the session that built it, through the owner's route (`POST /api/v1/ads/check`) with
+`ADS_WRITES` live on the production edge, with the business's sign-in that Chanlytics holds, in the order above. The
+account had no card on file for the first two runs; Ruben added one before the third. No id is kept here.
+
+### What it showed
+
+| Run | Step | What Meta did |
+|---|---|---|
+| First, $14.00 to a day fourteen days on | The account's least a day, and its Instagram accounts | Read: $1.00 a day; no Instagram account named |
+| | The campaign: dry run, then made | Taken. The campaign was made paused |
+| | The part that says who sees it, dry run | Refused: "Your ad set budget must be more than $14.48 or your ads may not deliver." |
+| | Nothing after it was sent | The paused, empty campaign was left at Meta, and removed later the same day by its id, once the check could |
+| Second, $15.00 to the same day, New ad's new proposal | The two reads and the campaign | As the first |
+| | The part that says who sees it: dry run, then made | Taken, with a total and its end in the account's zone, adults within 5 miles of the street address alone, Facebook's feed, stories and Reels, and the number AI answers named |
+| | The picture, placed in the account's library | Taken |
+| | One ad with its creative inside it, dry run with Meta's own look at it | Refused: "Update payment method: Visit the Billing and payment center to add a valid payment method." |
+| | What the check made | Removed: the campaign, with the part under it. The picture stays in the library |
+| Third, the same draft, with a card on the account | Every step of the second | As the second |
+| | One ad with its creative inside it, dry run with Meta's own look at it | Taken |
+| | The ad, made | Taken, paused, with its creative made inside it |
+| | The read back of the whole campaign | Matches what was sent, on every point compared: the campaign, the part that says who sees it and the ad each paused; no special kind; one part and one ad; a total, no amount a day; the end; the number AI answers; adults; 5 miles; Facebook's three places; the WhatsApp button; none of Meta's own changes on; never beside other advertisers' ads; the words as written |
+
+Between the second run and the third, New ad stopped offering any picture: a Drive folder brought in more files than
+it read, and none of them could be offered yet. That was mended in its own change the same evening, and the third run
+used the same picture as the second.
+
+### What it settles
+
+- **Meta's least for a total counts every calendar day the run touches,** today and the last day both: fourteen days
+  on at $1.00 a day was refused at $14.00 and taken at $15.00. The rule in code is this one since this day.
+- **The business's sign-in that Chanlytics holds makes every part:** the campaign, the part that says who sees it, the
+  picture, and the ad with its creative inside it. The Page's own sign-in is not needed.
+- **Meta's dry run covers every part, the ad's included,** and its own look at the words and the picture answers at
+  the dry run: these words and this picture passed it.
+- **The part that says who sees it takes the number AI answers,** though it is not the Page's primary one, and the
+  ad's button opens WhatsApp.
+- **An address alone, with no country, is enough for the area.**
+- **The ad account's Instagram accounts can be read** with that sign-in; this one names none, so the ad shows on
+  Facebook alone.
+- **An ad is not made, not even as a dry run, on an account with no payment method.** So "no card, so nothing can be
+  charged" never covers an ad. What keeps a made ad from spending is that it, the part above it and the campaign are
+  all paused, and that the read back says so before anything is switched on.
+- **What Meta holds is what was sent,** on every point the launch compares (decision 0050, call 4).
+- **A check either finishes or leaves nothing:** the second run's removal took, in one call.
+
+### Not settled
+
+Whether a dry run counts against the account's score (the edge's log keeps each call's share, unread here); what
+Meta's review of the paused ad comes to (an ad made paused is still reviewed); the ad's own switch through step 2's
+presses, once the account's hourly read takes the ad in; and Meta's own preview.
+
+### What stands at Meta now
+
+On Ruben's account, all paused: one campaign, one part that says who sees it, one ad under Meta's review, the picture
+in the account's library, and an unpublished post on the Page that the ad's creative made. With the campaign paused, nothing is shown and nothing is spent.
