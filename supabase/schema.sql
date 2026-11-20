@@ -668,13 +668,12 @@ CREATE FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p
   )
   select case p_kind
            when 'ad_refused' then jsonb_build_object(
-             'title', 'Meta didn''t approve ' || n.named,
+             'title', n.named || ' not approved by Meta',
              'body', coalesce('Meta said: “' || n.said || '” ', 'Meta didn''t say why. ')
                      || 'Fix it in Meta, and Meta checks it again.')
            when 'ad_unpaid' then jsonb_build_object(
-             'title', 'Meta couldn''t charge your card for ' || n.named,
-             'body', case when n.several then 'They don''t run' else 'It doesn''t run' end
-                     || ' until Meta can. Fix the payment method in Meta.')
+             'title', n.named || ' can''t run',
+             'body', 'Meta couldn''t charge your card. Fix the payment method in Meta.')
            when 'ad_ended' then jsonb_build_object(
              'title', n.named || ' ended',
              'body', case when n.several then 'They ran until ' || n.last_day || ', and Meta stopped showing them.'
@@ -684,7 +683,7 @@ CREATE FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p
              'body', case when n.several then 'Meta stopped showing them. Raise the total in Meta to run them longer.'
                           else 'Meta stopped showing it. Raise the total in Meta to run it longer.' end)
            when 'ad_quiet' then jsonb_build_object(
-             'title', 'No one wrote from ' || n.named || ' in 7 days',
+             'title', n.named || ' brought no one in 7 days',
              'body', 'It ran all 7 days, and Meta charges while it runs. Pause it, or change it in Meta.')
          end
     from n

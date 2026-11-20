@@ -192,8 +192,9 @@ grant execute on function public.ad_bell_hearers(uuid) to service_role;
 comment on function public.ad_bell_hearers(uuid) is
   'Who hears the bell''s five ad notices (00658): the members who may run ads (has_permission ads: the owner alone, decision 0050 call 2). A partner, an operator or a viewer is never told.';
 
--- A row's words: what happened and to which ad, then what to do. An ad's name is quoted and cut to fit a title, and a
--- cause that holds several ads names the first and how many more.
+-- A row's words: which ad and what happened, then why and what to do. The ad leads the title, so a phone's one line
+-- still says which ad. Its name is quoted and cut to fit, and a cause that holds several ads names the first and how
+-- many more.
 create or replace function public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text,
                                                 p_ends_at timestamptz, p_zone text)
 returns jsonb
@@ -210,13 +211,12 @@ as $$
   )
   select case p_kind
            when 'ad_refused' then jsonb_build_object(
-             'title', 'Meta didn''t approve ' || n.named,
+             'title', n.named || ' not approved by Meta',
              'body', coalesce('Meta said: “' || n.said || '” ', 'Meta didn''t say why. ')
                      || 'Fix it in Meta, and Meta checks it again.')
            when 'ad_unpaid' then jsonb_build_object(
-             'title', 'Meta couldn''t charge your card for ' || n.named,
-             'body', case when n.several then 'They don''t run' else 'It doesn''t run' end
-                     || ' until Meta can. Fix the payment method in Meta.')
+             'title', n.named || ' can''t run',
+             'body', 'Meta couldn''t charge your card. Fix the payment method in Meta.')
            when 'ad_ended' then jsonb_build_object(
              'title', n.named || ' ended',
              'body', case when n.several then 'They ran until ' || n.last_day || ', and Meta stopped showing them.'
@@ -226,7 +226,7 @@ as $$
              'body', case when n.several then 'Meta stopped showing them. Raise the total in Meta to run them longer.'
                           else 'Meta stopped showing it. Raise the total in Meta to run it longer.' end)
            when 'ad_quiet' then jsonb_build_object(
-             'title', 'No one wrote from ' || n.named || ' in 7 days',
+             'title', n.named || ' brought no one in 7 days',
              'body', 'It ran all 7 days, and Meta charges while it runs. Pause it, or change it in Meta.')
          end
     from n

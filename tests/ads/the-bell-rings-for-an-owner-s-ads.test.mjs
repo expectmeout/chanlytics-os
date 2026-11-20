@@ -51,7 +51,7 @@ test("each of the five is a line on the bell, mailed to nobody, and told to no p
 });
 
 test("a row opens its ad's drawer, and says so", () => {
-  const [row] = draw(kept("ad_refused", "Meta didn't approve “Spring offer”"));
+  const [row] = draw(kept("ad_refused", "“Spring offer” not approved by Meta"));
   assert.equal(row.to, adRoute(AD));
   assert.equal(parseAds(row.to.replace(/^campaigns\//, "")).ad, AD, "the Ads page reads the drawer's ad from it");
   assert.equal(row.action, "Open the ad");
@@ -60,11 +60,11 @@ test("a row opens its ad's drawer, and says so", () => {
 
 test("what waits on the owner is a warning; an ad that ended, spent its total or went quiet is news", () => {
   const rows = draw(
-    kept("ad_refused", "Meta didn't approve “A”"),
-    kept("ad_unpaid", "Meta couldn't charge your card for “A”"),
+    kept("ad_refused", "“A” not approved by Meta"),
+    kept("ad_unpaid", "“A” can't run"),
     kept("ad_ended", "“A” ended"),
     kept("ad_spent", "“A” spent its total"),
-    kept("ad_quiet", "No one wrote from “A” in 7 days"),
+    kept("ad_quiet", "“A” brought no one in 7 days"),
   );
   assert.deepEqual(
     rows.map((r) => [r.kind, r.tone]),
@@ -80,7 +80,7 @@ test("what waits on the owner is a warning; an ad that ended, spent its total or
 });
 
 test("a row the database closed reads as read and wears no warning", () => {
-  const [row] = draw(kept("ad_refused", "Meta didn't approve “A”", { closed_at: "2026-11-20T16:00:00.000Z" }));
+  const [row] = draw(kept("ad_refused", "“A” not approved by Meta", { closed_at: "2026-11-20T16:00:00.000Z" }));
   assert.equal(row.unread, false);
   assert.notEqual(row.tone, "warn");
 });

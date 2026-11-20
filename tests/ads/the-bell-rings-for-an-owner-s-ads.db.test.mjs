@@ -185,7 +185,7 @@ test(
     const id = await adIdOf(ws, "r1");
     assert.deepEqual(rows[0], {
       kind: "ad_refused",
-      title: "Meta didn't approve “Ad r1”",
+      title: "“Ad r1” not approved by Meta",
       body: "Meta said: “Your ad names a medical condition.” Fix it in Meta, and Meta checks it again.",
       route: `campaigns/ads:ad:${id}`,
       subject_type: "ad",
@@ -241,13 +241,13 @@ test("an ad made in Meta rings the same as one made here", { skip }, async () =>
     [
       [
         "ad_refused",
-        "Meta didn't approve “Made here”",
+        "“Made here” not approved by Meta",
         "Meta said: “Too much text.” Fix it in Meta, and Meta checks it again.",
         ws.owner,
       ],
       [
         "ad_refused",
-        "Meta didn't approve “Made in Meta”",
+        "“Made in Meta” not approved by Meta",
         "Meta said: “Too much text.” Fix it in Meta, and Meta checks it again.",
         ws.owner,
       ],
@@ -364,7 +364,7 @@ test(
       [rows[0].kind, rows[0].title, rows[0].body, rows[0].recipient_user_id],
       [
         "ad_quiet",
-        "No one wrote from “Winter offer” in 7 days",
+        "“Winter offer” brought no one in 7 days",
         "It ran all 7 days, and Meta charges while it runs. Pause it, or change it in Meta.",
         ws.owner,
       ],
@@ -404,8 +404,8 @@ test("a card Meta couldn't charge is told once, whether an ad or the account say
     [rows[0].kind, rows[0].title, rows[0].body, rows[0].recipient_user_id],
     [
       "ad_unpaid",
-      "Meta couldn't charge your card for “Spring offer” and 1 more",
-      "They don't run until Meta can. Fix the payment method in Meta.",
+      "“Spring offer” and 1 more can't run",
+      "Meta couldn't charge your card. Fix the payment method in Meta.",
       first.owner,
     ],
   );
