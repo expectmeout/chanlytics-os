@@ -9,7 +9,14 @@
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
-import { channelFor, MAILBOX_LEFT_ROW, type ChannelVM, type LineCodeDto, type SetupDto } from "@chanlytics/contracts";
+import {
+  channelFor,
+  MAILBOX_LEFT_ROW,
+  type ChannelVM,
+  type FootageDto,
+  type LineCodeDto,
+  type SetupDto,
+} from "@chanlytics/contracts";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
@@ -24,6 +31,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { adsInPreview, useAdsShown } from "../../campaigns/ads/shown";
+import { useFolderRow } from "../../files/footage/settings-row";
 import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
@@ -183,6 +191,8 @@ interface Asked {
   codes: LineCodeDto[];
   signupLeftOpenAt: string | null;
   signupSaid: string | null;
+  /** Where the watched folder stands (files/footage/use-footage.ts); null until it is read. */
+  footage: FootageDto | null;
 }
 
 /**
@@ -211,9 +221,11 @@ function rowsOf(
       imports: S ? (S.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
       meta: asked.meta ? { ready: asked.meta.ready } : null,
+      footage: asked.footage,
     },
     Date.now(),
-  );
+    // Google Drive is left out until the day it is offered here: a Later row would promise what nobody can connect yet.
+  ).filter((r) => r.kind !== "drive" || r.state !== "later");
   const said = asked.signupSaid;
   if (!said) return rows;
   // What the sign-up came to is on the row, first and in full, never behind the row's press (ConnectionNote.live).
@@ -435,6 +447,23 @@ function emailCardOf(
   );
 }
 
+/** Google's listing taken off the record, or its Business Profile disconnected: done, and what to say of it. */
+async function leaveGoogle(leaving: "remove" | "disconnect", profileToo: boolean): Promise<FrameFlash> {
+  const res = leaving === "remove" ? await googleVerbs.unlink() : await googleVerbs.disconnect();
+  if (!res.ok) return refusalToast(res, leaving === "remove" ? "Listing not removed" : "Google not disconnected");
+  return {
+    msg:
+      leaving === "remove" ? (
+        <>
+          The listing is off the record, with what was read from it
+          {profileToo ? " · and the Business Profile is disconnected" : ""}.
+        </>
+      ) : (
+        <>Google is disconnected. The public listing stays · replies and the full history do not.</>
+      ),
+  };
+}
+
 /** Connections, and the row its address names, open (`integrations/left`: the mailbox's left senders). */
 export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {
   const C = useSurface("channels");
@@ -461,6 +490,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
   const [signupSaid, setSignupSaid] = useState<string | null>(null);
   const [toastNode, flash] = useFrameToast();
+  // The watched folder's row: its read, its verbs and its sheets. Another Google connection here keeps the grant alive at
+  // Google once Drive is disconnected, which its sheet says before the press.
+  const drive = useFolderRow(flash, !!G?.dto.connection || !!S?.dto.email?.sending?.mailboxes.length);
   // The WhatsApp and phone rows, from the channels read (surfaces/channels/surface.ts), which hears them wherever the tab is:
   // undefined while it is read, null where it failed (the wiring's second audit, W-channel-team-plus-1, S3-1). Each says when a
   // customer last came in by the later of that read's time and Setup's, which hears the first call and the first message, so
@@ -492,10 +524,14 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   }
 
   const doors = { instagram: logins.ig.door, meta: logins.meta.door };
-  const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid };
+  const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid, footage: drive.footage };
   const rows = rowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
+    if (r.kind === "drive") {
+      if (r.verb) drive.run(r.verb.to);
+      return;
+    }
     void runVerb(r, {
       flash,
       setBusy,
@@ -516,24 +552,10 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       setArm(null);
       return;
     }
-    const res = what === "remove" ? await googleVerbs.unlink() : await googleVerbs.disconnect();
+    const toast = await leaveGoogle(what, !!G?.dto.connection);
     setBusy(false);
     setArm(null);
-    flash(
-      res.ok
-        ? {
-            msg:
-              what === "remove" ? (
-                <>
-                  The listing is off the record, with what was read from it
-                  {G && G.dto.connection ? " · and the Business Profile is disconnected" : ""}.
-                </>
-              ) : (
-                <>Google is disconnected. The public listing stays · replies and the full history do not.</>
-              ),
-          }
-        : refusalToast(res, what === "remove" ? "Listing not removed" : "Google not disconnected"),
-    );
+    flash(toast);
   };
   const email: SetupDto["email"] | null = S ? (S.dto.email ?? null) : null;
   const mail = { flash, note: mailboxNote, onNote: dropNote, openLeft: leftOpen };
@@ -567,6 +589,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
           />
         )}
         {r.kind === "instagram" && <LoginNotes logins={logins} />}
+        {r.kind === "drive" && drive.note}
         {/* A Later row has no block, but what a connect came back with is still said under it. */}
         {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
           <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} />
@@ -576,6 +599,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   return (
     <>
       <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} flash={flash} />
+      {drive.sheets}
       {toastNode}
     </>
   );

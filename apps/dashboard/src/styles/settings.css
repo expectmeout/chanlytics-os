@@ -570,6 +570,8 @@
 .set-int-open > .set-acts { flex: none; margin-top: 0; }
 /* What Fix opens leads with what is wrong, in the ink, and the act that mends it, over a hairline before the rest. */
 .set-int-fix { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+/* A fix with nothing under it (a Workspace that blocks apps: no folder, no account to let go) ends the fold: no line under it. */
+.set-int-fix:last-child { padding-bottom: 0; border-bottom: 0; }
 .set-int-problem { font-size: var(--set-hint); line-height: 1.5; color: var(--ink); text-wrap: pretty; }
 /* An open row is one piece: the pointer's ground would wash its Settings with it. */
 .set-conn > .set-int-row[data-open="true"]::before { background: none; }

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-412 handlers in 59 domains.
+424 handlers in 60 domains.
 
 ## activity
 
@@ -1129,6 +1129,12 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
 
 Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/files/[id]/route.ts`).
+
+### `GET /api/v1/files/[id]/copy`
+
+Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/copy/route.ts`).
 
 ### `POST /api/v1/files/[id]/done`
 
@@ -3393,6 +3399,84 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `what` | string | yes |  |
 
+## sources
+
+### `GET /api/v1/sources`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/route.ts`).
+
+### `POST /api/v1/sources/check`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sources/check/route.ts`).
+
+### `GET /api/v1/sources/connect`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/connect/route.ts`).
+
+### `GET /api/v1/sources/connect/callback`
+
+Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/connect/callback/route.ts`).
+
+### `GET /api/v1/sources/contents`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/contents/route.ts`).
+
+### `POST /api/v1/sources/disconnect`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sources/disconnect/route.ts`).
+
+### `GET /api/v1/sources/folder`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string | yes | at least 1 characters; at most 200 characters |
+
+### `GET /api/v1/sources/folders`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `place` | one of `"mine"`, `"drives"`, `"shared"`, `"folder"` | yes |  |
+| `folder_id` | string | no | at most 200 characters |
+| `page` | string | no | at most 4000 characters |
+
+### `GET /api/v1/sources/leaving`
+
+Reads; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/sources/leaving/route.ts`).
+
+### `POST /api/v1/sources/stop`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/sources/stop/route.ts`).
+
+### `POST /api/v1/sources/watch`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `folder_id` | string | yes | at least 1 characters; at most 200 characters |
+| `include_subfolders` | boolean | yes |  |
+| `instead` | boolean | yes |  |
+
 ## support
 
 ### `POST /api/v1/support/report`
@@ -4060,7 +4144,7 @@ Read with GET; takes no body.
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `op` | one of `"readiness"`, `"connect"`, `"disconnect"`, `"folders"`, `"watch"`, `"check"`, `"confirm"`, `"stop"` | yes |  |
+| `op` | one of `"readiness"`, `"connect"`, `"disconnect"`, `"folders"`, `"folder"`, `"watch"`, `"check"`, `"confirm"`, `"stop"` | yes |  |
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `code` | string | no | at most 4096 characters |

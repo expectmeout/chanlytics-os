@@ -230,6 +230,24 @@ test("the folder chooser reads one level at a time, folders only", async () => {
   assert.deepEqual((await knock({ op: "folders", connection_id: CONNECTION, place: "folder" }))[0], 400);
 });
 
+test("a pasted folder is named by its account, with nothing listed; a file, or a folder not there, is not", async () => {
+  connected();
+  assert.deepEqual(await knock({ op: "folder", connection_id: CONNECTION, folder_id: "clips" }), [
+    200,
+    { ok: true, folders: [{ id: "clips", name: "Clips" }], next_page: null },
+  ]);
+  assert.equal(w.drive.calls.length, 1, "one question to Drive: the folder itself");
+  for (const folder_id of ["no-such-folder", "a-file"]) {
+    const [status, answer] = await knock({ op: "folder", connection_id: CONNECTION, folder_id });
+    assert.deepEqual([status, answer.error], [404, "not_found"], folder_id);
+  }
+  assert.equal((await knock({ op: "folder", connection_id: CONNECTION }))[0], 400, "a folder is named by its id");
+  assert.equal(w.tables.media_sources.length, 0, "naming a folder watches nothing");
+  // Another workspace's knock finds no account of its own to ask through.
+  const [status, answer] = await knock({ op: "folder", connection_id: CONNECTION, folder_id: "clips" }, OTHER);
+  assert.deepEqual([status, answer.error], [404, "not_found"]);
+});
+
 test("one workspace cannot reach another's account, folder or token", async () => {
   connected({ media_sources: [sourceRow({ state: "watching" })] });
   for (const body of [

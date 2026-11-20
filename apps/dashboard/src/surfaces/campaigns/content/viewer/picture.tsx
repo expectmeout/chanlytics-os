@@ -33,7 +33,8 @@ function OpenFull({ href }: { href: string | null }) {
 /** A reel's player, as its own address: asked once the reel is ready (the read the player itself makes, shared). */
 function usePlayerAddress(file: FileDto): string | null {
   const [player, setPlayer] = useState<string | null>(null);
-  const ready = file.kind === "video" && file.media_status === "ready";
+  // A clip kept with its provider is asked for only on a press of Play (files/footage/video-kept.tsx): never here.
+  const ready = file.kind === "video" && file.media_status === "ready" && file.copy === "here";
   useEffect(() => {
     if (!ready) return undefined;
     let live = true;

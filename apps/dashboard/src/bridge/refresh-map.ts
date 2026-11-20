@@ -705,6 +705,15 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ads/account/check":
     "Chanlytics looked again at an ad account: its card reads the account once the look answers",
   "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",
+  // A watched folder's screens read the folder itself, one read shared by all of them (surfaces/files/footage/use-footage.ts):
+  // no surface holds it, and each press reads it again once it answers.
+  "POST sources/watch":
+    "the owner watched a folder: every screen that says where it stands reads the folder once the press answers",
+  "POST sources/check": "a look at the watched folder was asked for: its screens read the folder again by themselves",
+  "POST sources/stop":
+    "the owner stopped watching a folder: every screen that says where it stands reads the folder once it answers",
+  "POST sources/disconnect":
+    "the owner disconnected Google Drive: every screen that says where it stands reads the folder once it answers",
   // The door's answer names the calls it made, and the press re-reads each one's surfaces (bridge/ask/commit.ts tellDoorCalls).
   "POST ask/act":
     "a card acted on by the server: its answer names the calls it made, and the press reads again after each",

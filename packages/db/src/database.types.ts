@@ -13139,8 +13139,17 @@ export type Database = {
         }
         Returns: string
       }
+      source_files_tally: { Args: { p_tenant_id: string }; Returns: Json }
       source_items_grace_end: {
         Args: { p_grace_seconds: number; p_limit: number }
+        Returns: Json
+      }
+      source_items_passed: {
+        Args: { p_source_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      source_items_tally: {
+        Args: { p_source_id: string; p_tenant_id: string }
         Returns: Json
       }
       source_take_spend: {

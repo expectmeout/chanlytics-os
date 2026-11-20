@@ -21,6 +21,8 @@ import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
 import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
 import type { TileShape } from "../campaigns/content/model/tiles";
+import { copyRowLineOf } from "./footage/copy-words";
+import { heldFootage } from "./footage/use-footage";
 
 /** A photo's small picture on the grid. */
 export const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
@@ -152,6 +154,9 @@ function VideoWaits({ failed, name }: { failed: boolean; name: string }) {
  */
 function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   if (file.media_status !== "ready") return <VideoWaits failed={file.media_status === "failed"} name={name} />;
+  // A clip kept in Drive looks like any other; one coming back, or that can't, says so across its picture, in the words
+  // its row says on a phone (the canvas's Desk 2).
+  const kept = copyRowLineOf(file.copy, file.copy_why, { folder: heldFootage()?.folder?.name ?? null, leaves: null });
   return (
     <>
       <Picture
@@ -166,6 +171,11 @@ function VideoFrame({ file, name }: { file: FileDto; name: string }) {
           {clockOf(file.seconds)}
         </span>
       )}
+      {kept ? (
+        <span className="files-kept" data-tone={kept.tone} data-testid="fl-kept">
+          {kept.line}
+        </span>
+      ) : null}
     </>
   );
 }

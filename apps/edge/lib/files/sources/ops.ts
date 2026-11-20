@@ -12,6 +12,7 @@
  *                                                                 nothing else rides it, its row and folders gone
  *   { op: "folders", tenant_id, connection_id, place, folder_id?, page? }
  *                                                               → one level of the folder chooser, folders only
+ *   { op: "folder", tenant_id, connection_id, folder_id }       → that folder as its account names it (a pasted link)
  *   { op: "watch", tenant_id, connection_id, folder_id, include_subfolders? }
  *                                                               → the folder watched: its place saved, its walk begun
  *   { op: "check" | "confirm" | "stop", tenant_id, source_id }  → read now; a held wave confirmed; no longer watched
@@ -39,6 +40,7 @@ import {
   checkSourceNow,
   confirmSourceHold,
   listFolderChoices,
+  nameFolder,
   stopWatching,
   watchFolder,
   type WatchRefusal,
@@ -47,7 +49,7 @@ import {
 type Body = DoorRead<typeof SOURCES_DOOR>;
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const SOURCE_OPS = new Set(["connect", "disconnect", "folders", "watch", "check", "confirm", "stop"]);
+const SOURCE_OPS = new Set(["connect", "disconnect", "folders", "folder", "watch", "check", "confirm", "stop"]);
 
 /** A connect that did not finish, as the code a caller compares, with its reason beside it. */
 function connectRefused(reason: ConnectRefusal): Response {
@@ -138,6 +140,12 @@ async function accountOp({ db, tenantId, log }: OpContext, op: string, body: Bod
   }
   const folderId = textOrEmpty(body.folder_id);
   if (!folderId || folderId.length > 200) return refuse(400, "bad_request", "folder_id is a folder's id");
+  if (op === "folder") {
+    const named = await nameFolder(db, { tenantId, connectionId, folderId }, log);
+    return named.ok
+      ? json(200, { ok: true, folders: [{ id: named.folder.id, name: named.folder.name }], next_page: null })
+      : watchRefused(named.reason);
+  }
   const out = await watchFolder(
     db,
     { tenantId, connectionId, folderId, includeSubfolders: body.include_subfolders !== false },
@@ -177,7 +185,8 @@ export async function runSourcesOp(auth: Admitted, body: Body): Promise<Response
   const context: OpContext = { db, tenantId, by: personFor(auth, body.user_id), log };
   try {
     if (op === "connect") return await connectOp(context, body);
-    if (op === "disconnect" || op === "folders" || op === "watch") return await accountOp(context, op, body);
+    if (op === "disconnect" || op === "folders" || op === "folder" || op === "watch")
+      return await accountOp(context, op, body);
     return await sourceOp(context, op, body);
   } catch (error) {
     log.error("source_door_failed", { error: errField(error) });

@@ -113,6 +113,16 @@ function world({ files = [videoRow()], folder = [], takesVideos = true } = {}) {
       file_video_begin: (a) => {
         doors.push(["begin", a]);
         const twin = tables.files.find((f) => f.fingerprint === a.p_fingerprint && !f.removed_at);
+        // A watched clip whose copy is away or lost takes the reservation as its copy, coming back (00655).
+        if (twin && twin.source === "drive" && ["away", "lost"].includes(twin.copy_state)) {
+          Object.assign(twin, {
+            copy_state: "returning",
+            copy_why: null,
+            media_ref: a.p_media_ref,
+            owner_uploaded: true,
+          });
+          return { fate: "back", file_id: twin.id };
+        }
         if (twin) return { fate: "here", file_id: twin.id };
         tables.files.push(
           videoRow({ id: a.p_id, media_ref: a.p_media_ref, media_status: "uploading", fingerprint: a.p_fingerprint }),
@@ -238,6 +248,53 @@ test("a video's start: a reservation at Stream, then its row with every fact; a 
     { tenant_id: T, id: F, mime: "image/jpeg" },
   );
   assert.equal(bad.status, 400);
+});
+
+test("an upload that meets a watched clip whose video is away or gone brings it back: its reservation is kept, and the bytes are sent", async () => {
+  const LOST = "ffffffff-0000-4000-8000-0000000000aa";
+  const w = world({
+    files: [
+      videoRow({
+        id: LOST,
+        source: "drive",
+        media_ref: null,
+        copy_state: "lost",
+        copy_why: "not_found",
+        fingerprint: "c".repeat(64),
+      }),
+    ],
+  });
+  const calls = [];
+  answer = async (url, init = {}) => {
+    calls.push({ url, method: init.method ?? "GET" });
+    if (url === `${STREAM_API}?direct_user=true`)
+      return new Response(null, {
+        status: 201,
+        headers: { location: "https://upload.videodelivery.net/tus/back", "stream-media-id": UID },
+      });
+    throw new Error(`nothing answers ${url}`);
+  };
+  const started = await startVideoUpload(
+    { ok: true, via: "token", workspace: T, user: U },
+    {
+      tenant_id: T,
+      id: F,
+      name: "salon-tour",
+      mime: "video/mp4",
+      bytes: 5_000_000,
+      seconds: 3,
+      fingerprint: "c".repeat(64),
+    },
+  );
+  assert.deepEqual(
+    await started.json(),
+    { ok: true, fate: "back", file_id: LOST, upload_url: "https://upload.videodelivery.net/tus/back" },
+    "the answer names the clip already kept, and where its bytes go",
+  );
+  assert.ok(!calls.some((c) => c.method === "DELETE"), "the reservation is kept: it is the clip's copy now");
+  const row = w.tables.files.find((f) => f.id === LOST);
+  assert.deepEqual([row.copy_state, row.copy_why, row.media_ref], ["returning", null, UID]);
+  assert.equal(w.tables.files.length, 1, "no second file: it was never a new one");
 });
 
 test("the sheet: Stream's frames tiled for real at the plan's size, a first poster, the copy at Anthropic, then the sound's step", async () => {

@@ -155,7 +155,20 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
   ],
   // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
   // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
-  files: ["status", "name", "shows", "who_in_it", "look_status", "look", "removed_at", "media_status", "sound_said"],
+  // Where a watched clip's copy stands (00655): a clip coming back plays by itself, and its row says so meanwhile.
+  files: [
+    "status",
+    "name",
+    "shows",
+    "who_in_it",
+    "look_status",
+    "look",
+    "removed_at",
+    "media_status",
+    "sound_said",
+    "copy_state",
+    "copy_why",
+  ],
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab.
   notifications: ["closed_at"],
   // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from

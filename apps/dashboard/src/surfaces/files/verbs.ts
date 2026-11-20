@@ -172,17 +172,20 @@ async function addVideo(file: File, mime: FileVideoMime, onSent?: (sent: number)
   if (seconds !== null && seconds > FILE_VIDEO_SECONDS_MAX) return { kept: false, message: W.video.tooLong };
   const stored = keptUploadOf(fingerprint);
   const resumes = stored ? typeof (await readUploadOffset(stored.url)) === "number" : false;
-  let at = stored && resumes ? { id: stored.id, url: stored.url } : null;
+  let at: { id: string; url: string; back: boolean } | null =
+    stored && resumes ? { id: stored.id, url: stored.url, back: false } : null;
   if (!at) {
     const started = await askToStart({ mime, bytes: file.size, name: file.name, seconds, fingerprint });
     if (!started.ok) return { kept: false, message: started.message };
-    if (started.data.twin || !started.data.upload_url)
-      return { kept: true, twin: true, id: started.data.id, video: true };
-    at = { id: started.data.id, url: started.data.upload_url };
-    keepUpload(fingerprint, at);
+    if (!started.data.upload_url) return { kept: true, twin: true, id: started.data.id, video: true };
+    // A twin with an address to send to is a clip already kept whose video was not at hand: these bytes bring it back.
+    at = { id: started.data.id, url: started.data.upload_url, back: started.data.twin };
+    keepUpload(fingerprint, { id: at.id, url: at.url });
   }
   if (!(await sendVideo(at.url, file, onSent))) return { kept: false, message: W.video.notSaved };
   forgetUpload(fingerprint);
+  // A clip coming back is finished by the video platform's own word: it was never a new file, so nothing is proven.
+  if (at.back) return { kept: true, twin: true, id: at.id, video: true };
   await proven(at.id, file.name, mime);
   return { kept: true, twin: false, id: at.id, video: true };
 }

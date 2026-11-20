@@ -124,6 +124,12 @@ export async function startVideoUpload(
       await letGo("asked twice");
       return json(200, { ok: true, fate: "unreachable" });
     }
+    // Its twin is a watched clip whose copy was away or lost: this reservation is that clip's copy now, coming back,
+    // so it is kept and the browser sends its bytes to it. The platform's word finishes it as it does any return.
+    if (begun.fate === "back" && begun.file_id) {
+      log.info("video_started", { file: begun.file_id, bytes, seconds, back: true });
+      return json(200, { ok: true, fate: "back", file_id: begun.file_id, upload_url: reserved.uploadUrl });
+    }
     if (begun.fate !== "kept") {
       await letGo(begun.fate);
       return json(200, { ok: true, fate: begun.fate, file_id: begun.file_id });

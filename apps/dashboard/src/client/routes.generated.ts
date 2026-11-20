@@ -76,6 +76,7 @@ export const ROUTES = {
   "GET export": { method: "GET", path: "/api/v1/export" },
   "GET files": { method: "GET", path: "/api/v1/files" },
   "GET files/[id]": { method: "GET", path: "/api/v1/files/[id]" },
+  "GET files/[id]/copy": { method: "GET", path: "/api/v1/files/[id]/copy" },
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
@@ -151,6 +152,13 @@ export const ROUTES = {
   "GET settings/reach-out/note": { method: "GET", path: "/api/v1/settings/reach-out/note" },
   "GET settings/reach-out/told": { method: "GET", path: "/api/v1/settings/reach-out/told" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
+  "GET sources": { method: "GET", path: "/api/v1/sources" },
+  "GET sources/connect": { method: "GET", path: "/api/v1/sources/connect" },
+  "GET sources/connect/callback": { method: "GET", path: "/api/v1/sources/connect/callback" },
+  "GET sources/contents": { method: "GET", path: "/api/v1/sources/contents" },
+  "GET sources/folder": { method: "GET", path: "/api/v1/sources/folder" },
+  "GET sources/folders": { method: "GET", path: "/api/v1/sources/folders" },
+  "GET sources/leaving": { method: "GET", path: "/api/v1/sources/leaving" },
   "GET team": { method: "GET", path: "/api/v1/team" },
   "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
@@ -370,6 +378,10 @@ export const ROUTES = {
   "POST settings/reach-out/provider-wanted": { method: "POST", path: "/api/v1/settings/reach-out/provider-wanted" },
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
+  "POST sources/check": { method: "POST", path: "/api/v1/sources/check" },
+  "POST sources/disconnect": { method: "POST", path: "/api/v1/sources/disconnect" },
+  "POST sources/stop": { method: "POST", path: "/api/v1/sources/stop" },
+  "POST sources/watch": { method: "POST", path: "/api/v1/sources/watch" },
   "POST support/report": { method: "POST", path: "/api/v1/support/report" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
   "POST team/invite/[id]/resend": { method: "POST", path: "/api/v1/team/invite/[id]/resend" },
@@ -492,6 +504,7 @@ export type Routes = {
   "GET export": typeof import("../../app/api/v1/export/route").GET;
   "GET files": typeof import("../../app/api/v1/files/route").GET;
   "GET files/[id]": typeof import("../../app/api/v1/files/[id]/route").GET;
+  "GET files/[id]/copy": typeof import("../../app/api/v1/files/[id]/copy/route").GET;
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
@@ -567,6 +580,13 @@ export type Routes = {
   "GET settings/reach-out/note": typeof import("../../app/api/v1/settings/reach-out/note/route").GET;
   "GET settings/reach-out/told": typeof import("../../app/api/v1/settings/reach-out/told/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
+  "GET sources": typeof import("../../app/api/v1/sources/route").GET;
+  "GET sources/connect": typeof import("../../app/api/v1/sources/connect/route").GET;
+  "GET sources/connect/callback": typeof import("../../app/api/v1/sources/connect/callback/route").GET;
+  "GET sources/contents": typeof import("../../app/api/v1/sources/contents/route").GET;
+  "GET sources/folder": typeof import("../../app/api/v1/sources/folder/route").GET;
+  "GET sources/folders": typeof import("../../app/api/v1/sources/folders/route").GET;
+  "GET sources/leaving": typeof import("../../app/api/v1/sources/leaving/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
   "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
@@ -786,6 +806,10 @@ export type Routes = {
   "POST settings/reach-out/provider-wanted": typeof import("../../app/api/v1/settings/reach-out/provider-wanted/route").POST;
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
+  "POST sources/check": typeof import("../../app/api/v1/sources/check/route").POST;
+  "POST sources/disconnect": typeof import("../../app/api/v1/sources/disconnect/route").POST;
+  "POST sources/stop": typeof import("../../app/api/v1/sources/stop/route").POST;
+  "POST sources/watch": typeof import("../../app/api/v1/sources/watch/route").POST;
   "POST support/report": typeof import("../../app/api/v1/support/report/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
   "POST team/invite/[id]/resend": typeof import("../../app/api/v1/team/invite/[id]/resend/route").POST;

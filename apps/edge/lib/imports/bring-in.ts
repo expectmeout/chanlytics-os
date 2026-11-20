@@ -21,6 +21,8 @@ export async function bringInLink(auth: Admitted, body: DoorRead<typeof FILE_BRI
   const { db, tenantId } = at;
   const target = bringInOf(body.link ?? "");
   if (target.place === "none") return refuse(400, "bad_request", BRING_IN_WORDS.refused[target.why]);
+  // A Google Drive folder is watched, never read once: its own door takes it (api/admin/sources), and nothing is here.
+  if (target.place === "drive") return refuse(400, "bad_request", BRING_IN_WORDS.drive.summary);
   if (target.place === "instagram") {
     // An account read inside the day, or a day's reads used up, starts nothing and is no refusal: the card says which.
     const read = await scheduleInstagramRead(db, tenantId, target.handle);
