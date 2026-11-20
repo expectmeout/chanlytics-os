@@ -453,7 +453,11 @@ alter table public.files add column if not exists origin_left text;
 alter table public.files add column if not exists origin_left_at timestamptz;
 alter table public.files drop constraint if exists files_origin_left_check;
 alter table public.files add constraint files_origin_left_check
-  check ((origin_left is null) = (origin_left_at is null) and (origin_left is null or origin_left = any (array['gone', 'outside'])));
+  check (origin_left is null or origin_left = any (array['gone', 'outside']));
+-- How and when go together: a closed set stands alone in its own check, as the schema's sets are read (gen:schema-sets).
+alter table public.files drop constraint if exists files_origin_left_whole;
+alter table public.files add constraint files_origin_left_whole
+  check ((origin_left is null) = (origin_left_at is null));
 comment on column public.files.origin_left is
   'How a watched file''s original left its folder (00656): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
 comment on column public.files.origin_left_at is
