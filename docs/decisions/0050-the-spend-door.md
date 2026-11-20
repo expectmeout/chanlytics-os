@@ -436,5 +436,6 @@ migration. Its order and what it showed are on the checks page (`docs/plans/2026
   is in the owner's account, paused, named as a check names it, and has no ad.
 - **What it found:** Meta's least for a total counts every calendar day the run touches, so the rule in
   `packages/contracts/src/ads/draft.ts` says so now; and Meta makes no ad, not even as a dry run, on an account with no
-  payment method. Call 4's read back and compare of a whole ad, and the switch through step 2's presses, wait for a
-  card on the account: adding one is Ruben's, at Meta.
+  payment method. Ruben added a card, and the third run made one paused ad whose read back matched what was sent on
+  every point call 4 compares. The ad's own switch through step 2's presses waits for the account's read to take it
+  in.
