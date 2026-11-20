@@ -21,9 +21,14 @@ const {
   metaCreativeRequest,
   metaCreativeSpec,
 } = await import(at("packages/channels/src/ads/meta-make.ts"));
-const { metaCampaignReadBackRequest, parseMetaCampaignHeld, parseMetaMadeId, parseMetaRefusal } = await import(
-  at("packages/channels/src/ads/meta-made.ts")
-);
+const {
+  metaCampaignReadBackRequest,
+  metaCampaignRemoveRequest,
+  parseMetaCampaignHeld,
+  parseMetaMadeId,
+  parseMetaRefusal,
+  parseMetaRemoved,
+} = await import(at("packages/channels/src/ads/meta-made.ts"));
 const { minorToMetaUnits } = await import(at("packages/channels/src/ads/meta-account.ts"));
 
 const TOKEN = "token-for-this-file";
@@ -367,6 +372,7 @@ test("what a make answers: the id of what was made, or Meta's own words and the 
 
 const HELD = {
   id: CAMPAIGN,
+  account_id: ACCOUNT,
   name: "Chanlytics · First visit [cl:1a2b3c4d]",
   status: "PAUSED",
   effective_status: "PAUSED",
@@ -432,6 +438,7 @@ test("the read back asks for a campaign whole, in one call, with the token's pro
   assert.equal(url.searchParams.get("appsecret_proof"), PROOF);
   const fields = url.searchParams.get("fields");
   for (const field of [
+    "account_id",
     "special_ad_categories",
     "adsets{",
     "lifetime_budget",
@@ -446,6 +453,7 @@ test("the read back asks for a campaign whole, in one call, with the token's pro
 
 test("the read back is read into what a launch compares: paused, the total, the end, no special kind, WhatsApp", () => {
   const held = parseMetaCampaignHeld(HELD, "USD");
+  assert.equal(held.accountId, ACCOUNT, "the account it is in, so a removal can ask it is this one");
   assert.equal(held.paused, true);
   assert.equal(held.objective, "OUTCOME_ENGAGEMENT");
   assert.deepEqual(held.declared, []);
@@ -531,4 +539,25 @@ test("the read back says what differs: a switch on, a kind declared, a change of
   // A campaign with nothing under it yet reads as one, empty.
   const empty = parseMetaCampaignHeld({ id: CAMPAIGN, status: "PAUSED" }, "USD");
   assert.deepEqual([empty.sets, empty.ads, empty.declared, empty.objective], [[], [], [], null]);
+});
+
+test("a removal is Meta's DELETE on the campaign, with the token's proof and nothing else; it took only where Meta says so", () => {
+  const request = metaCampaignRemoveRequest(TOKEN, SECRET, CAMPAIGN);
+  assert.equal(request.method, "DELETE");
+  assert.equal(request.body, undefined);
+  const url = new URL(request.url);
+  assert.equal(url.pathname, `/v27.0/${CAMPAIGN}`);
+  assert.deepEqual([...url.searchParams.keys()].sort(), ["access_token", "appsecret_proof"]);
+  assert.equal(url.searchParams.get("appsecret_proof"), PROOF);
+  assert.throws(() => metaCampaignRemoveRequest(TOKEN, SECRET, `act_${ACCOUNT}`), /campaign/);
+  assert.throws(() => metaCampaignRemoveRequest(TOKEN, SECRET, `${CAMPAIGN}/adsets`), /campaign/);
+  assert.equal(parseMetaRemoved({ success: true }), true);
+  for (const answer of [
+    { success: false },
+    { success: "true" },
+    {},
+    null,
+    { error: { message: "Unsupported delete request." } },
+  ])
+    assert.equal(parseMetaRemoved(answer), false, JSON.stringify(answer));
 });

@@ -85,7 +85,8 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
-| `draft` | object | yes |  |
+| `draft` | object | no |  |
+| `remove` | string | no | matches `^\d{5,32}$` |
 
 ### `GET /api/v1/ads/connect`
 
@@ -3831,6 +3832,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `draft` | object | no |  |
+| `remove` | string | no | at least 5 characters; at most 32 characters |
 
 ### `POST /api/admin/ads/press`
 

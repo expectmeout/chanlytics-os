@@ -2,6 +2,7 @@
  * The ads domain: `@chanlytics/channels/ads`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  isMetaId,
   metaAccountId,
   metaAdAccountRequest,
   metaAssignedAdAccountsRequest,
@@ -27,7 +28,14 @@ export {
   parseMetaImageHash,
   parseMetaLeastADay,
 } from "./meta-library";
-export { metaCampaignReadBackRequest, parseMetaCampaignHeld, parseMetaMadeId, parseMetaRefusal } from "./meta-made";
+export {
+  metaCampaignReadBackRequest,
+  metaCampaignRemoveRequest,
+  parseMetaCampaignHeld,
+  parseMetaMadeId,
+  parseMetaRefusal,
+  parseMetaRemoved,
+} from "./meta-made";
 export type { MetaAdHeld, MetaAdSetHeld, MetaCampaignHeld, MetaRefusal } from "./meta-made";
 export {
   META_MILES,

@@ -64,23 +64,25 @@ test("5.1, a picture: only one that shows nobody, has no music, is no before and
 
 test("5.1, an amount: never under Meta's least for the run, over the owner's most, or a part of a unit", () => {
   const account = { currency: "USD", minDailyMinor: 100 };
-  // Meta's least is for a day and holds for a total: fourteen days at a dollar a day is fourteen dollars.
-  assert.equal(C.adLeastTotal(account, 14), 1400);
-  assert.equal(C.adLeastTotal({ currency: "USD", minDailyMinor: 135 }, 3), 500, "up to a whole dollar");
-  assert.equal(C.adLeastTotal({ currency: "JPY", minDailyMinor: 150 }, 14), 2100, "the yen is its own unit");
-  assert.equal(C.adLeastTotal(account, 0), 100, "a run is never under a day");
+  // Meta's least is for a day, holds for a total, and counts every calendar day the run touches: a run that ends
+  // fourteen days on touches fifteen, so a dollar a day is fifteen dollars. Meta refused $14.00 for such a run on the
+  // paused-ad check (20 November 2026), asking more than $14.48.
+  assert.equal(C.adLeastTotal(account, 14), 1500);
+  assert.equal(C.adLeastTotal({ currency: "USD", minDailyMinor: 135 }, 3), 600, "up to a whole dollar");
+  assert.equal(C.adLeastTotal({ currency: "JPY", minDailyMinor: 150 }, 14), 2250, "the yen is its own unit");
+  assert.equal(C.adLeastTotal(account, 0), 100, "a run that ends today touches one day");
 
   const amount = (totalMinor, over = {}) =>
     C.adAmountIssue({ totalMinor, days: 14, account, ownerMostMinor: null, ...over });
   assert.equal(amount(7000), null);
-  assert.equal(amount(1400), null);
-  assert.deepEqual(amount(1300), { code: "under_least", nearestMinor: 1400 });
-  assert.deepEqual(amount(0), { code: "under_least", nearestMinor: 1400 });
+  assert.equal(amount(1500), null);
+  assert.deepEqual(amount(1400), { code: "under_least", nearestMinor: 1500 });
+  assert.deepEqual(amount(0), { code: "under_least", nearestMinor: 1500 });
   assert.deepEqual(amount(7050), { code: "not_whole", nearestMinor: 7100 });
   assert.deepEqual(amount(12000, { ownerMostMinor: 10000 }), { code: "over_most", nearestMinor: 10000 });
   assert.equal(amount(10000, { ownerMostMinor: 10000 }), null);
   // An owner's most under Meta's least leaves no amount: Meta's least is what is said.
-  assert.deepEqual(amount(1400, { ownerMostMinor: 1000 }), { code: "over_most", nearestMinor: 1400 });
+  assert.deepEqual(amount(1500, { ownerMostMinor: 1000 }), { code: "over_most", nearestMinor: 1500 });
 });
 
 test("5.1, an end date: at least one whole day to run, and the nearest day that is", () => {
@@ -166,12 +168,13 @@ test("the picture: one about the service before a general one, a video before a 
 
 test("the amount and the end: a starting amount under five booked, the calendar's open times over it, a most (G6)", () => {
   const parts = (over) => C.adDraftOf(inputs(over)).parts;
-  // Nothing booked from ads yet: Meta's least for fourteen days, said as a starting amount, five miles, two weeks.
+  // Nothing booked from ads yet: Meta's least for the fifteen days a two-week run touches, said as a starting
+  // amount, five miles, two weeks.
   assert.deepEqual(parts(), {
     serviceId: "svc-follow",
     pictureId: "pic-2",
     miles: 5,
-    totalMinor: 1400,
+    totalMinor: 1500,
     basis: { kind: "starting", why: "few_booked" },
     days: 14,
     endDay: "2026-12-04",
@@ -190,8 +193,12 @@ test("the amount and the end: a starting amount under five booked, the calendar'
   const most = parts({ history: known, openTimes: 20, ownerMostMinor: 15000 });
   assert.deepEqual([most.totalMinor, most.basis], [15000, booked(20, "owner_most")], "the owner's most");
   const one = parts({ history: known, openTimes: 1 });
-  assert.deepEqual([one.totalMinor, one.basis], [1400, booked(1, "meta_least")], "never under Meta's least");
-  // With no calendar link, or no cost known: a starting amount, and no number promised.
+  assert.deepEqual([one.totalMinor, one.basis], [1500, booked(1, "meta_least")], "never under Meta's least");
+  // Under five booked, with no cost known, or with no calendar link: a starting amount, and no number promised.
+  assert.deepEqual(parts({ history: { ...known, booked: 4 }, openTimes: 6 }).basis, {
+    kind: "starting",
+    why: "few_booked",
+  });
   assert.deepEqual(parts({ history: { ...known, costPerBookedMinor: null }, openTimes: 6 }).basis, {
     kind: "starting",
     why: "few_booked",
@@ -199,7 +206,7 @@ test("the amount and the end: a starting amount under five booked, the calendar'
   assert.deepEqual(parts({ history: known, openTimes: null }).basis, { kind: "starting", why: "no_calendar" });
   // Before any total was turned on and with no most said, Meta's least is the ceiling too.
   const none = parts({ history: { ...known, largestTotalMinor: null }, openTimes: 20 });
-  assert.deepEqual([none.totalMinor, none.basis], [1400, booked(20, "nothing_turned_on")]);
+  assert.deepEqual([none.totalMinor, none.basis], [1500, booked(20, "nothing_turned_on")]);
   // Every amount a draft proposes passes the amount's own check.
   for (const over of [{}, { history: known, openTimes: 6 }, { history: known, openTimes: 20, ownerMostMinor: 15000 }]) {
     const draft = parts(over);
@@ -226,7 +233,7 @@ test("the amount at its edges: zero, four and five booked, no calendar, a full c
   // Zero and four booked from ads: Meta's least, a starting amount, whatever the calendar holds.
   for (const n of [0, 4]) {
     const draft = parts({ history: history(n), openTimes: 12 });
-    assert.deepEqual([draft.totalMinor, draft.basis], [1400, { kind: "starting", why: "few_booked" }], `${n} booked`);
+    assert.deepEqual([draft.totalMinor, draft.basis], [1500, { kind: "starting", why: "few_booked" }], `${n} booked`);
   }
   // Five booked: twelve open times at $9 a booking is $108, a whole number of dollars.
   assert.deepEqual(
@@ -237,10 +244,10 @@ test("the amount at its edges: zero, four and five booked, no calendar, a full c
   assert.deepEqual(parts({ history: history(5), openTimes: null }).basis, { kind: "starting", why: "no_calendar" });
   // Five booked, a full calendar: no open time over the run is no amount to work out, so a starting amount.
   const full = parts({ history: history(5), openTimes: 0 });
-  assert.deepEqual([full.totalMinor, full.basis], [1400, { kind: "starting", why: "full" }]);
+  assert.deepEqual([full.totalMinor, full.basis], [1500, { kind: "starting", why: "full" }]);
   // The yen has no minor unit: the least is whole yen, and so is what the open times come to, rounded up.
   const yen = (over) => parts({ account: { currency: "JPY", minDailyMinor: 150 }, ...over });
-  assert.deepEqual([yen().totalMinor, yen().basis], [2100, { kind: "starting", why: "few_booked" }]);
+  assert.deepEqual([yen().totalMinor, yen().basis], [2250, { kind: "starting", why: "few_booked" }]);
   const bookedYen = yen({ history: { booked: 7, costPerBookedMinor: 1234, largestTotalMinor: 100_000 }, openTimes: 3 });
   assert.deepEqual(
     [bookedYen.totalMinor, bookedYen.basis],
@@ -249,9 +256,17 @@ test("the amount at its edges: zero, four and five booked, no calendar, a full c
   // A dollar amount the open times come to in cents is rounded up to whole dollars: what an owner approves.
   assert.equal(parts({ history: { ...history(5), costPerBookedMinor: 1150 }, openTimes: 3 }).totalMinor, 3500);
   // Every one of them passes the amount's own check.
-  for (const over of [{ history: history(5), openTimes: 12 }, { history: history(5), openTimes: 0 }]) {
+  for (const over of [
+    { history: history(5), openTimes: 12 },
+    { history: history(5), openTimes: 0 },
+  ]) {
     const draft = parts(over);
-    const issue = C.adAmountIssue({ totalMinor: draft.totalMinor, days: draft.days, account: inputs().account, ownerMostMinor: null });
+    const issue = C.adAmountIssue({
+      totalMinor: draft.totalMinor,
+      days: draft.days,
+      account: inputs().account,
+      ownerMostMinor: null,
+    });
     assert.equal(issue, null);
   }
   const issueYen = C.adAmountIssue({

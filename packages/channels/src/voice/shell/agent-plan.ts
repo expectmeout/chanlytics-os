@@ -13,6 +13,7 @@ import {
   subsetEqual,
   type LiveVoiceLlm,
   type VoiceConvergencePlan,
+  type VoiceModelConfig,
   type VoiceShellTarget,
 } from "./tools";
 
@@ -87,7 +88,21 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
   if (toolsDiffer) patch.general_tools = desired.general_tools;
 
-  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools, notes: llmNotes(live) };
+  const modelPatch = planModel(live, drift);
+  const llmPatch = modelPatch ? { ...patch, model_config: modelPatch } : patch;
+  return { drift, llmPatch: Object.keys(llmPatch).length ? llmPatch : null, unknownTools, notes: llmNotes(live) };
+}
+
+/**
+ * A line on a model other than the product's (contracts RETELL_MODELS) is moved to it, as a call's write-up model is
+ * (planAgentSettings): the scripted calls of 20 November 2026 were the gate the change went through, so a line left
+ * behind answers otherwise than the one the calls proved. Its temperature is its own and goes with it unchanged; a line
+ * whose model could not be read is left as it is, since nothing is planned on a guess.
+ */
+function planModel(live: LiveVoiceLlm, drift: string[]): VoiceModelConfig | null {
+  if (typeof live.model !== "string" || live.model === RETELL_MODELS.llm) return null;
+  drift.push(`model is ${live.model}; the product's is ${RETELL_MODELS.llm}`);
+  return { type: "cascading", primary: { model: RETELL_MODELS.llm }, temperature: live.model_temperature ?? 0 };
 }
 
 /**
@@ -426,13 +441,9 @@ function agentNotes(live: LiveAgentSettings): string[] {
   return notes;
 }
 
-/** The LLM's settings that differ from the product's defaults and stay as they are: the model, the temperature. */
+/** The LLM's setting that differs from the product's default and stays as it is: the temperature. */
 function llmNotes(live: LiveVoiceLlm): string[] {
   const notes: string[] = [];
-  if (live.model && live.model !== RETELL_MODELS.llm)
-    notes.push(
-      `model is ${live.model}; the product's is ${RETELL_MODELS.llm} (kept: a model change goes through the gate)`,
-    );
   if (typeof live.model_temperature === "number" && live.model_temperature !== 0)
     notes.push(
       `temperature is ${live.model_temperature}; the product's is 0, so the facts are read, not improvised (kept)`,

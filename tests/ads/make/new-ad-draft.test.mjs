@@ -243,7 +243,7 @@ const wrote = (versions = VERSIONS, change = NO_CHANGE) => ({ versions, change, 
 /** A draft as the screen sends it back. */
 const sent = (answer, over = {}) => ({ ...answer.draft, picture: answer.draft.picture.id, ...over });
 
-test("a fresh draft: the service, the picture, five miles, Meta's least for fourteen days and its end, with no model asked", async () => {
+test("a fresh draft: the service, the picture, five miles, Meta's least for the days it touches and its end, with no model asked", async () => {
   modelSays(wrote());
   const { answer } = await fresh();
   assert.equal(answer.can, true);
@@ -252,8 +252,8 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     service: "Consultation",
     picture: { id: FILE(1), kind: "photo", name: "front-desk-1", made: false },
     miles: 5,
-    // $5 a day for fourteen days: a starting amount.
-    total_minor: 7000,
+    // $5 a day for the fifteen days a two-week run touches, today included: a starting amount.
+    total_minor: 7500,
     end_day: "2026-12-03",
     versions: [],
     answers: {},
@@ -269,8 +269,8 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     min_daily_minor: 500,
   });
   assert.deepEqual(answer.amount, {
-    least_minor: 7000,
-    proposed: { total_minor: 7000, days: 14, basis: { kind: "starting", why: "few_booked" } },
+    least_minor: 7500,
+    proposed: { total_minor: 7500, days: 14, basis: { kind: "starting", why: "few_booked" } },
     most_minor: null,
   });
   assert.equal(answer.left_by, null);
@@ -378,7 +378,10 @@ test("only a picture that shows nobody and has no music is offered, in a shape t
   );
   // Each picture missing says which: none at all, someone in each, music in each, none that fits an ad.
   assert.equal(await offeredOf([]), "picture_none");
-  assert.equal(await offeredOf([file(4, { width: 1080, height: 1920 }), file(5, { width: 400, height: 500 })]), "picture");
+  assert.equal(
+    await offeredOf([file(4, { width: 1080, height: 1920 }), file(5, { width: 400, height: 500 })]),
+    "picture",
+  );
   // A member's own word that nobody is in it is enough.
   assert.equal(await offeredOf([file(1, { who_in_it: "no_one", look: null, look_status: "waiting" })]), FILE(1));
   // A video before a photo, where its sound was heard and holds no music; one with music is never offered.
@@ -453,7 +456,7 @@ test("the words: the ad writer is asked once, under its own purpose, from the sh
   assert.deepEqual(judged.draft.versions, VERSIONS);
   assert.deepEqual(
     [judged.draft.total_minor, judged.amount.proposed.total_minor, judged.checks.length],
-    [12000, 7000, 0],
+    [12000, 7500, 0],
   );
   assert.equal(calls.length, 1);
 });
@@ -535,7 +538,7 @@ test("Tell AI what to change: one change from the closed list, judged again like
   assert.deepEqual([end.changed, end.draft.end_day, end.days], [{ kind: "end" }, "2026-12-20", 31]);
   // A change that breaks a rule is made, and the check says so with its one act: $40 is under Meta's least.
   const low = await tell("only 40 dollars", { kind: "amount", amount: 40 });
-  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7000 }]);
+  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7500 }]);
   // Another picture: the next that is fine in ads.
   const pictured = await tell("use another photo", { kind: "picture" });
   assert.deepEqual([pictured.changed, pictured.draft.picture.id !== held.picture], [{ kind: "picture" }, true]);
@@ -686,9 +689,9 @@ test("the amount: the calendar's open times, times what a booking from an ad has
   assert.ok(basis.open_times > 0, "an open day offers its half hours");
   // Never above the largest total turned on (the ad's $300, made in Meta), never under Meta's least: whole dollars.
   const wanted = Math.ceil((basis.open_times * 900) / 100) * 100;
-  const expected = Math.min(30_000, Math.max(7000, wanted));
+  const expected = Math.min(30_000, Math.max(7500, wanted));
   assert.deepEqual([answer.draft.total_minor, answer.amount.proposed.total_minor], [expected, expected]);
-  assert.equal(basis.held_to, wanted > 30_000 ? "largest_turned_on" : wanted < 7000 ? "meta_least" : null);
+  assert.equal(basis.held_to, wanted > 30_000 ? "largest_turned_on" : wanted < 7500 ? "meta_least" : null);
   assert.deepEqual(answer.checks, [], "the amount it proposes passes its own check");
 });
 
@@ -697,7 +700,7 @@ test("the amount at its edges: zero and four booked, no calendar link, a full ca
   for (const booked of [0, 4]) {
     const { answer, calendarRead } = await proposedOf(linked(), countsOf(booked, 3600));
     assert.deepEqual(answer.amount.proposed.basis, { kind: "starting", why: "few_booked" }, `${booked} booked`);
-    assert.equal(answer.draft.total_minor, 7000);
+    assert.equal(answer.draft.total_minor, 7500);
     assert.equal(calendarRead, false, `${booked} booked: nothing to lean on, so nothing is read`);
   }
   // Booked, but nothing spent yet: no cost to work from.
@@ -706,12 +709,12 @@ test("the amount at its edges: zero and four booked, no calendar link, a full ca
   // Five booked with no calendar link: a starting amount, said so.
   const unlinked = await proposedOf(world({ tables: { ads: [metaAd()] } }), countsOf(5, 4500));
   assert.deepEqual(unlinked.answer.amount.proposed.basis, { kind: "starting", why: "no_calendar" });
-  assert.equal(unlinked.answer.draft.total_minor, 7000);
+  assert.equal(unlinked.answer.draft.total_minor, 7500);
   // Five booked and a calendar with no open time over the run: a starting amount.
   const full = await proposedOf(linked(CLOSED), countsOf(5, 4500));
   assert.deepEqual(full.answer.amount.proposed.basis, { kind: "starting", why: "full" });
-  assert.equal(full.answer.draft.total_minor, 7000);
-  // A yen account: its least is whole yen (150 a day for fourteen days), and so is what its open times come to.
+  assert.equal(full.answer.draft.total_minor, 7500);
+  // A yen account: its least is whole yen (150 a day for the fifteen days a two-week run touches), and so is what its open times come to.
   const yen = (tables) => ({
     ...tables,
     ad_accounts: tables.ad_accounts.map((row) => ({
@@ -721,13 +724,13 @@ test("the amount at its edges: zero and four booked, no calendar link, a full ca
     })),
   });
   const starting = await proposedOf(yen(linked()), NO_COUNTS);
-  assert.deepEqual([starting.answer.draft.total_minor, starting.answer.amount.least_minor], [2100, 2100]);
+  assert.deepEqual([starting.answer.draft.total_minor, starting.answer.amount.least_minor], [2250, 2250]);
   const bookedYen = await proposedOf(yen(linked()), countsOf(7, 8638));
   const { basis } = bookedYen.answer.amount.proposed;
   assert.equal(basis.cost_minor, 1234, "8,638 yen over seven booked");
   assert.equal(
     bookedYen.answer.draft.total_minor,
-    Math.min(30_000, Math.max(2100, basis.open_times * 1234)),
+    Math.min(30_000, Math.max(2250, basis.open_times * 1234)),
     "whole yen: nothing to round",
   );
 });
@@ -831,7 +834,15 @@ test("AI's card drafts on New ad's own route: the service it named, with that se
 function toolOf(tables, role = "owner", question = "Make me an ad") {
   const who = seated(tables, role);
   const { build } = adDraftAct.actions[""];
-  const toolContext = { ctx: who.rc.ctx, tenantId: who.rc.tenantId, role, rc: who.rc, question, now: NOW, timezone: TZ };
+  const toolContext = {
+    ctx: who.rc.ctx,
+    tenantId: who.rc.tenantId,
+    role,
+    rc: who.rc,
+    question,
+    now: NOW,
+    timezone: TZ,
+  };
   return (input) => build(toolContext, input);
 }
 
@@ -866,8 +877,14 @@ test("AI's tool proposes the card and decides none of the draft; the most is onl
 /** A service named the way an owner might, in a sentence. */
 const LONG = "discovery call on Chanlytics and how it helps streamline parts of your business";
 const CALL_VERSIONS = [
-  { headline: "A call with Chanlytics", text: "A call about how Chanlytics helps a business run. Message us on WhatsApp to set a time." },
-  { headline: "Talk to Chanlytics", text: "Chanlytics helps a business with its daily work. Message us on WhatsApp to talk it through." },
+  {
+    headline: "A call with Chanlytics",
+    text: "A call about how Chanlytics helps a business run. Message us on WhatsApp to set a time.",
+  },
+  {
+    headline: "Talk to Chanlytics",
+    text: "Chanlytics helps a business with its daily work. Message us on WhatsApp to talk it through.",
+  },
   { headline: "Discovery call", text: "A discovery call with Chanlytics. Message us on WhatsApp to pick a time." },
 ];
 
