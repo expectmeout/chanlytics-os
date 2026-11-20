@@ -663,7 +663,7 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "calendar_people",
       // Photos an import found, waiting in Files (00551): a line on the bell.
       "files_waiting",
-      // A watched Google Drive folder (00656): one that needs someone, and the day's new photos and videos counted up
+      // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos counted up
       // in place; lines on the bell written by the database.
       "footage",
       "footage_in",

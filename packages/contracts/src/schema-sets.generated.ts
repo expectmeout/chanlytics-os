@@ -24,7 +24,7 @@ export const SCHEMA_SETS = {
     "receptionist", "reply_draft", "ask", "lead_json", "template_draft", "review_reply", "lead_judge",
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
     "receptionist_review", "fix_route", "website_read", "sender_read", "file_look", "preview_starters",
-    "file_words", "file_hear",
+    "ad_draft", "file_words", "file_hear",
   ],
   "anthropic_profiles.enforcement_status": ["unrestricted", "pending", "restricted", "banned"],
   "anthropic_profiles.kind": ["person", "workspace"],

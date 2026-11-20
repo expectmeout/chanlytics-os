@@ -62,7 +62,7 @@ async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<Foot
     // A first look is listing until the folder has been listed whole once.
     looking: state === "setting_up" || (source.walk_kind === "snapshot" && source.reconciled_at === null),
     held: source.hold_at !== null && source.hold_confirmed_at === null ? (source.hold_count ?? 0) : null,
-    // Why it is not read whole, as the sync says it in one word (00656 stopped_why).
+    // Why it is not read whole, as the sync says it in one word (00657 stopped_why).
     stopped_why: isOneOf(FOLDER_STOPPED_WHYS, source.stopped_why) ? source.stopped_why : null,
     over_listed: state === "watching" && source.stopped_why === "over_listed",
     updated_at: source.last_read_at,

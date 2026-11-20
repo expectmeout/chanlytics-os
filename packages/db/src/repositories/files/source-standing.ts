@@ -61,7 +61,7 @@ export async function countFolderStanding(db: Db, ref: SourceRef): Promise<Sourc
   };
 }
 
-/** What fills a workspace's sixty minutes of video, in seconds, by road (00656 video_minutes_by_road). */
+/** What fills a workspace's sixty minutes of video, in seconds, by road (00657 video_minutes_by_road). */
 export interface VideoMinutesByRoad {
   total: number;
   /** Watched clips that make room for a new one by themselves. */
@@ -163,7 +163,7 @@ export async function countSourcedFiles(db: Db, tenantId: TenantId): Promise<Sou
 const RemovedAnswer = z.object({ removed: z.number(), kept: z.number() });
 
 /**
- * "Remove what came from it too" (00656 source_files_remove), on the member's own session, which the door holds to
+ * "Remove what came from it too" (00657 source_files_remove), on the member's own session, which the door holds to
  * the settings permission: what the watched folders brought and nothing used leaves the Library; `kept` were used.
  */
 export async function removeSourcedFiles(db: Db, tenantId: TenantId): Promise<{ removed: number; kept: number }> {

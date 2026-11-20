@@ -53,7 +53,7 @@ alter table public.media_sources drop constraint if exists media_sources_stopped
 alter table public.media_sources add constraint media_sources_stopped_why_check
   check (stopped_why is null or stopped_why = any (array['signed_out', 'connector_left', 'cant_open', 'over_listed']));
 comment on column public.media_sources.stopped_why is
-  'Why a watched folder is not read whole (00656): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
+  'Why a watched folder is not read whole (00657): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
 
 -- The video platform's own storage spent is its own word (the review's finding 3), never "videos aren't on": a take
 -- and a return each wait with it, and the business is told only that it takes longer and Chanlytics keeps trying.
@@ -97,7 +97,7 @@ $$;
 revoke all on function public.footage_quoted(text) from public, anon, authenticated;
 grant execute on function public.footage_quoted(text) to service_role;
 comment on function public.footage_quoted(text) is
-  'A watched folder''s name as the bell says it (00656): in quotes, cut to 120 characters so every title fits.';
+  'A watched folder''s name as the bell says it (00657): in quotes, cut to 120 characters so every title fits.';
 
 create or replace function public.footage_hearers(p_tenant_id uuid, p_connector uuid)
 returns setof uuid
@@ -115,7 +115,7 @@ $$;
 revoke all on function public.footage_hearers(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.footage_hearers(uuid, uuid) to service_role;
 comment on function public.footage_hearers(uuid, uuid) is
-  'Who hears that a watched folder or its account needs someone (00656): the members who may change the workspace''s settings (has_permission settings) and whoever connected the folder, while they are a member. Service role and the footage bell''s triggers.';
+  'Who hears that a watched folder or its account needs someone (00657): the members who may change the workspace''s settings (has_permission settings) and whoever connected the folder, while they are a member. Service role and the footage bell''s triggers.';
 
 create or replace function public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text,
                                                p_title text, p_body text, p_connector uuid)
@@ -147,7 +147,7 @@ end $$;
 revoke all on function public.footage_ring(uuid, text, text, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.footage_ring(uuid, text, text, text, text, uuid) to service_role;
 comment on function public.footage_ring(uuid, text, text, text, text, uuid) is
-  'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00656), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
+  'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
 
 /* ------------------------------------------------------------------------- 3. the account Google signed out -- */
 
@@ -173,7 +173,7 @@ end $$;
 
 revoke all on function public.source_connections_ring() from public, anon, authenticated;
 comment on function public.source_connections_ring() is
-  'A trigger on source_connections (00656): Google signed the account out (health needs_reconnect) and the bell says "Google Drive needs you" to whoever may mend it; connected again, or the account let go, and the row closes for everyone.';
+  'A trigger on source_connections (00657): Google signed the account out (health needs_reconnect) and the bell says "Google Drive needs you" to whoever may mend it; connected again, or the account let go, and the row closes for everyone.';
 
 drop trigger if exists source_connections_ring on public.source_connections;
 create trigger source_connections_ring after update of health or delete on public.source_connections
@@ -242,7 +242,7 @@ end $$;
 
 revoke all on function public.media_sources_ring() from public, anon, authenticated;
 comment on function public.media_sources_ring() is
-  'A trigger on media_sources (00656): the folder paused because whoever connected it left, a folder that can''t be opened, or a wave of removals held for a second look rings the bell once, for whoever may mend it, and closes for everyone when it ends; a folder stopped or gone closes all of its rows.';
+  'A trigger on media_sources (00657): the folder paused because whoever connected it left, a folder that can''t be opened, or a wave of removals held for a second look rings the bell once, for whoever may mend it, and closes for everyone when it ends; a folder stopped or gone closes all of its rows.';
 
 drop trigger if exists media_sources_ring on public.media_sources;
 create trigger media_sources_ring after update of state, hold_at, hold_confirmed_at or delete on public.media_sources
@@ -301,7 +301,7 @@ end $$;
 
 revoke all on function public.files_ring_footage_in() from public, anon, authenticated;
 comment on function public.files_ring_footage_in() is
-  'A trigger on files (00656): a file that came from the watched folder brings the day''s bell row up to date in place, "46 new photos and videos", from the folder, for the whole workspace. Never a row for each file and never two in a day; the day is the workspace''s own.';
+  'A trigger on files (00657): a file that came from the watched folder brings the day''s bell row up to date in place, "46 new photos and videos", from the folder, for the whole workspace. Never a row for each file and never two in a day; the day is the workspace''s own.';
 
 drop trigger if exists files_ring_footage_in on public.files;
 create trigger files_ring_footage_in after insert on public.files
@@ -348,7 +348,7 @@ $$;
 revoke all on function public.video_minutes_by_road(uuid) from public, anon;
 grant execute on function public.video_minutes_by_road(uuid) to authenticated, service_role;
 comment on function public.video_minutes_by_road(uuid) is
-  'What fills a workspace''s sixty minutes of video, in seconds (00656, the footage screens'' call 3): total (toward the cap), can_step_aside (watched clips that make room by themselves, file_copies_let_go''s rule less its hour of rest), and by road: set_aside (found and set aside), own (added by the owner), made (made here), found (found online and kept). Runs as its caller: a member reads their own workspace''s videos.';
+  'What fills a workspace''s sixty minutes of video, in seconds (00657, the footage screens'' call 3): total (toward the cap), can_step_aside (watched clips that make room by themselves, file_copies_let_go''s rule less its hour of rest), and by road: set_aside (found and set aside), own (added by the owner), made (made here), found (found online and kept). Runs as its caller: a member reads their own workspace''s videos.';
 
 -- A clip that waits for room where none can step aside: "Videos are full" to whoever may make room, once; closed once
 -- no clip of the folder waits for room.
@@ -386,7 +386,7 @@ end $$;
 
 revoke all on function public.source_items_ring_full() from public, anon, authenticated;
 comment on function public.source_items_ring_full() is
-  'A trigger on source_items (00656, the footage screens'' call 3): a clip that begins to wait for room where none of the workspace''s videos can step aside (video_minutes_by_road) rings "Videos are full" once, for whoever may make room; the row closes once no clip of the folder waits for room.';
+  'A trigger on source_items (00657, the footage screens'' call 3): a clip that begins to wait for room where none of the workspace''s videos can step aside (video_minutes_by_road) rings "Videos are full" once, for whoever may make room; the row closes once no clip of the folder waits for room.';
 
 drop trigger if exists source_items_ring_full on public.source_items;
 create trigger source_items_ring_full after update of state, why on public.source_items
@@ -420,7 +420,7 @@ $$;
 revoke all on function public.piece_stage(uuid, text) from public, anon, authenticated;
 grant execute on function public.piece_stage(uuid, text) to service_role;
 comment on function public.piece_stage(uuid, text) is
-  'Where a video being made stands, said as it changes (00613, 00656): waiting for a clip''s full-size copy, or for clips coming back from a watched folder (from_drive), which no other door says. Answers whether it changed. The service role''s.';
+  'Where a video being made stands, said as it changes (00613, 00657): waiting for a clip''s full-size copy, or for clips coming back from a watched folder (from_drive), which no other door says. Answers whether it changed. The service role''s.';
 
 /* ------------------------------------------------------------ 8. a Library past a thousand rows is counted (call 4) -- */
 
@@ -442,7 +442,7 @@ $$;
 revoke all on function public.files_tallied(uuid) from public, anon;
 grant execute on function public.files_tallied(uuid) to authenticated, service_role;
 comment on function public.files_tallied(uuid) is
-  'A workspace''s Library counted (00656, the footage screens'' call 4): its files grouped by what the counts read (status, shows, source, kind, look_status), with how many of each and the newest one''s arrival, past a thousand as truly as under it. Not a video still on its way (uploading), as the list reads them. Runs as its caller: a member counts their own workspace''s files.';
+  'A workspace''s Library counted (00657, the footage screens'' call 4): its files grouped by what the counts read (status, shows, source, kind, look_status), with how many of each and the newest one''s arrival, past a thousand as truly as under it. Not a video still on its way (uploading), as the list reads them. Runs as its caller: a member counts their own workspace''s files.';
 
 /* ------------------------------------------------- 9. a file whose original left Drive says when it leaves too -- */
 
@@ -459,9 +459,9 @@ alter table public.files drop constraint if exists files_origin_left_whole;
 alter table public.files add constraint files_origin_left_whole
   check ((origin_left is null) = (origin_left_at is null));
 comment on column public.files.origin_left is
-  'How a watched file''s original left its folder (00656): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
+  'How a watched file''s original left its folder (00657): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
 comment on column public.files.origin_left_at is
-  'When a watched file''s original left its folder (00656): the newest of its origins'' gone_at, where none still holds it in.';
+  'When a watched file''s original left its folder (00657): the newest of its origins'' gone_at, where none still holds it in.';
 grant select (origin_left, origin_left_at) on public.files to authenticated;
 
 create or replace function public.source_items_stamp_left()
@@ -492,7 +492,7 @@ end $$;
 
 revoke all on function public.source_items_stamp_left() from public, anon, authenticated;
 comment on function public.source_items_stamp_left() is
-  'A trigger on source_items (00656): a file''s original seen in the bin or moved out, put back, or let go, so the file says how and when its original left (files.origin_left, origin_left_at), while no other origin holds it in.';
+  'A trigger on source_items (00657): a file''s original seen in the bin or moved out, put back, or let go, so the file says how and when its original left (files.origin_left, origin_left_at), while no other origin holds it in.';
 
 drop trigger if exists source_items_stamp_left on public.source_items;
 create trigger source_items_stamp_left after update of state, gone_at, file_id or delete on public.source_items
@@ -552,7 +552,7 @@ end $$;
 revoke all on function public.source_files_remove(uuid) from public, anon;
 grant execute on function public.source_files_remove(uuid) to authenticated, service_role;
 comment on function public.source_files_remove(uuid) is
-  'A member who may change the settings removes what came from the workspace''s watched folders (00656, the footage screens'' Settings 19): every such file no post or video used leaves the Library as file_remove takes one (hidden, let go, purged ten minutes on), and one event says how many. One the owner also added, and one a post or a video used, stays. Answers removed and kept.';
+  'A member who may change the settings removes what came from the workspace''s watched folders (00657, the footage screens'' Settings 19): every such file no post or video used leaves the Library as file_remove takes one (hidden, let go, purged ten minutes on), and one event says how many. One the owner also added, and one a post or a video used, stays. Answers removed and kept.';
 
 /* ------------------------------------------------------------------------ 11. whoever connected it, leaving -- */
 
@@ -575,7 +575,7 @@ end $$;
 
 revoke all on function public.memberships_wake_their_folders() from public, anon, authenticated;
 comment on function public.memberships_wake_their_folders() is
-  'A trigger on memberships (00656, the footage plan''s D13): a member left, so each folder their account reads is read at the next turn of the clock, where the sync finds them gone, pauses it and the bell says so. The rule itself stays the sync''s (openSource).';
+  'A trigger on memberships (00657, the footage plan''s D13): a member left, so each folder their account reads is read at the next turn of the clock, where the sync finds them gone, pauses it and the bell says so. The rule itself stays the sync''s (openSource).';
 
 drop trigger if exists memberships_wake_their_folders on public.memberships;
 create trigger memberships_wake_their_folders after delete on public.memberships

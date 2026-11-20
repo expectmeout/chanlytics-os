@@ -193,7 +193,16 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
   // Campaigns › Ads: its models, rules, money and words are its page's alone, in the dashboard's tree since they left
   // contracts (apps/dashboard/src/surfaces/campaigns/ads); the data, the addresses and the day arithmetic are the root's,
   // since Reports, People and Campaigns' routes read them too.
-  for (const name of ["adsModel", "adModel", "newAdModel", "moneyOf", "BUDGET_RULES", "DOOR_NEEDS", "DRAWER", "NEW_AD"])
+  for (const name of [
+    "adsModel",
+    "adModel",
+    "newAdView",
+    "moneyOf",
+    "BUDGET_RULES",
+    "DOOR_NEEDS",
+    "DRAWER",
+    "starterCopy",
+  ])
     assert.ok(!current.names.includes(name), `${name} is the Ads page's, by its own entry`);
   for (const name of ["addDays", "daysBetween", "parseAds", "adRoute", "ADS_WORDS"])
     assert.ok(current.names.includes(name), `${name} stays in the root entry for the frame's routes`);
@@ -220,7 +229,7 @@ test("a page-only module's names are in no page's entry, and in its own", () => 
     "Ask's own cards are in no page's entry",
   );
   // Ads' models and words are the page's own (surfaces/campaigns/ads): no entry of the package names them.
-  for (const name of ["adsModel", "newAdModel", "moneyOf"]) assert.ok(!current.names.includes(name), name);
+  for (const name of ["adsModel", "newAdView", "moneyOf"]) assert.ok(!current.names.includes(name), name);
   const lens = fs.readFileSync(path.join(ROOT, "packages/contracts/dist/report-lens.js"), "utf8");
   assert.match(lens, /metricWordsOf/);
   assert.match(lens, /toReceptionistReportVM/);

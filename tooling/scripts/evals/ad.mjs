@@ -34,7 +34,6 @@ import {
   MODEL_ROUTES,
   adBriefText,
   adChangeOf,
-  adCraftIssues,
   adJudgeQuestion,
   adJudgeSystem,
   adVerdict,
@@ -42,6 +41,8 @@ import {
   craftSystem,
   usageDollars,
 } from "@chanlytics/contracts";
+import { adBriefOf } from "../../../apps/dashboard/src/server/ask/skills/ad/brief.ts";
+import { adCraftIssues } from "../../../apps/dashboard/src/server/ask/skills/ad/checks.ts";
 import { AD_SKILL } from "../../../apps/dashboard/src/server/ask/skills/ad/skill.ts";
 import { argOf, evalKey, messagesClient, pct, structured } from "./skill-eval.mjs";
 
@@ -93,25 +94,35 @@ export function validateCases(cases) {
   return problems;
 }
 
-/** A case as the craft call's brief (contracts AdBrief). */
+/** What a case asks the writer to do, with what only that job is handed. */
+function askOf(entry) {
+  if (entry.job === "rewrite") return { job: "rewrite", refused: entry.refused };
+  if (entry.job === "change") return { job: "change", change: entry.change };
+  return { job: "write" };
+}
+
+/**
+ * A case as the craft call's brief, made by the builder New ad's route and AI's own turn use (adBriefOf), so a case is
+ * judged on the question the product asks: a price is handed only where the business quotes prices.
+ */
 export function briefOf(entry) {
-  return {
-    job: entry.job,
-    business: {
+  return adBriefOf(
+    {
       name: entry.business.name,
       tone: entry.business.tone ?? null,
       word: entry.business.word,
       neverPrices: !!entry.business.neverPrices,
+      language: entry.language,
     },
-    service: { name: entry.service.name, price: entry.service.price ?? null },
-    facts: entry.facts ?? [],
-    picture: entry.picture ?? null,
-    area: { place: entry.area?.place ?? null, miles: entry.area?.miles ?? 5 },
-    language: entry.language,
-    places: entry.places,
-    ...(entry.refused ? { refused: entry.refused } : {}),
-    ...(entry.change ? { change: entry.change } : {}),
-  };
+    {
+      service: { name: entry.service.name, price: entry.service.price ?? null },
+      facts: entry.facts ?? [],
+      picture: entry.picture ?? null,
+      area: { place: entry.area?.place ?? null, miles: entry.area?.miles ?? 5 },
+      places: entry.places,
+    },
+    askOf(entry),
+  );
 }
 
 /**

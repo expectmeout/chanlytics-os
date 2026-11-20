@@ -40,7 +40,8 @@ const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { AdDrawer } = await import(`${S}/surfaces/campaigns/ads/drawer/drawer.tsx`);
 const { AdPeople } = await import(`${S}/surfaces/campaigns/ads/drawer/people.tsx`);
 const { AdsPhone } = await import(`${S}/surfaces/campaigns/ads/ledger/phone.tsx`);
-const { NewAd } = await import(`${S}/surfaces/campaigns/ads/new/new-ad.tsx`);
+const { sampleAdSource } = await import(`${S}/surfaces/campaigns/ads/new/sample.ts`);
+const { NewAd } = await import(`${S}/surfaces/campaigns/ads/new/sheet.tsx`);
 const { ResultsSheet } = await import(`${S}/surfaces/campaigns/ads/results/results-sheet.tsx`);
 const { WaitingBlock } = await import(`${S}/surfaces/campaigns/ads/tiles.tsx`);
 const { adsDemoFold } = await import(`${S}/surfaces/reports/ads-demo.ts`);
@@ -175,12 +176,13 @@ const surfaces = {
     }),
   "New ad": () =>
     NewAd({
-      compose: ads.parseAds("ads:new").compose,
-      read,
-      config: CONFIG,
+      open: true,
+      source: sampleAdSource(read),
+      need: null,
       onClose() {},
-      onTurnOn: () => true,
-      flash() {},
+      onConnect() {},
+      onGo() {},
+      onTurnOn() {},
     }),
   "the Results sheet": () => ResultsSheet({ open: true, read, config: CONFIG, onClose() {} }),
   "Reports' lens": () => AdsLens({ fold, onScope() {} }),

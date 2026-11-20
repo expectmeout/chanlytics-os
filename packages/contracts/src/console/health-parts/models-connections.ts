@@ -33,6 +33,7 @@ const PURPOSE_WORDS: Record<ModelPurpose | HearingPurpose | "ask_warm", string> 
   sender_read: "Sorting mailbox senders",
   file_look: "Looking at files",
   preview_starters: "Writing a preview's first questions",
+  ad_draft: "Writing an ad's words",
   file_words: "Writing down what videos say",
   file_hear: "Listening to videos",
 };

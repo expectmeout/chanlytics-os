@@ -249,12 +249,12 @@ export const SERVER_NOTIFICATION_KINDS = [
   "preview_tried",
   "ad_account",
   /**
-   * A watched Google Drive folder, or its account, that needs someone (00656): Google signed the account out, whoever
+   * A watched Google Drive folder, or its account, that needs someone (00657): Google signed the account out, whoever
    * connected it left, the folder can't be opened, or a wave of removals waits for a second look. Written by the
    * database as the folder's state turns, to whoever may mend it, and closed by the database once it is mended.
    */
   "footage",
-  /** The day's new photos and videos from the watched folder (00656): one row a day, counted up in place. */
+  /** The day's new photos and videos from the watched folder (00657): one row a day, counted up in place. */
   "footage_in",
 ] as const;
 

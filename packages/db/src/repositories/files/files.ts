@@ -140,7 +140,7 @@ export async function listFilesFound(
 /**
  * The Library counted, grouped by what the counts read, with how many of each (`n`) and the newest one's arrival
  * (`created_at`): a few rows whatever its size, and true past a thousand, which a Library holding clips kept in Drive can
- * reach (00656 files_tallied).
+ * reach (00657 files_tallied).
  */
 export async function listFilesTallied(db: Db, tenantId: TenantId): Promise<FilesTalliedRow[]> {
   const { data, error } = await db.rpc("files_tallied", { p_tenant_id: tenantId });

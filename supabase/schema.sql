@@ -151,21 +151,21 @@ end $$;
 -- Name: COLUMN files.origin_left; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.origin_left IS 'How a watched file''s original left its folder (00656): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
+COMMENT ON COLUMN public.files.origin_left IS 'How a watched file''s original left its folder (00657): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
 
 
 --
 -- Name: COLUMN files.origin_left_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s original left its folder (00656): the newest of its origins'' gone_at, where none still holds it in.';
+COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s original left its folder (00657): the newest of its origins'' gone_at, where none still holds it in.';
 
 
 --
 -- Name: COLUMN media_sources.stopped_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.media_sources.stopped_why IS 'Why a watched folder is not read whole (00656): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
+COMMENT ON COLUMN public.media_sources.stopped_why IS 'Why a watched folder is not read whole (00657): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
 
 
 --
@@ -9345,7 +9345,7 @@ end $$;
 -- Name: FUNCTION files_ring_footage_in(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_ring_footage_in() IS 'A trigger on files (00656): a file that came from the watched folder brings the day''s bell row up to date in place, "46 new photos and videos", from the folder, for the whole workspace. Never a row for each file and never two in a day; the day is the workspace''s own.';
+COMMENT ON FUNCTION public.files_ring_footage_in() IS 'A trigger on files (00657): a file that came from the watched folder brings the day''s bell row up to date in place, "46 new photos and videos", from the folder, for the whole workspace. Never a row for each file and never two in a day; the day is the workspace''s own.';
 
 
 --
@@ -9368,7 +9368,7 @@ $$;
 -- Name: FUNCTION files_tallied(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_tallied(p_tenant_id uuid) IS 'A workspace''s Library counted (00656, the footage screens'' call 4): its files grouped by what the counts read (status, shows, source, kind, look_status), with how many of each and the newest one''s arrival, past a thousand as truly as under it. Not a video still on its way (uploading), as the list reads them. Runs as its caller: a member counts their own workspace''s files.';
+COMMENT ON FUNCTION public.files_tallied(p_tenant_id uuid) IS 'A workspace''s Library counted (00657, the footage screens'' call 4): its files grouped by what the counts read (status, shows, source, kind, look_status), with how many of each and the newest one''s arrival, past a thousand as truly as under it. Not a video still on its way (uploading), as the list reads them. Runs as its caller: a member counts their own workspace''s files.';
 
 
 --
@@ -9502,7 +9502,7 @@ $$;
 -- Name: FUNCTION footage_hearers(p_tenant_id uuid, p_connector uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) IS 'Who hears that a watched folder or its account needs someone (00656): the members who may change the workspace''s settings (has_permission settings) and whoever connected the folder, while they are a member. Service role and the footage bell''s triggers.';
+COMMENT ON FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) IS 'Who hears that a watched folder or its account needs someone (00657): the members who may change the workspace''s settings (has_permission settings) and whoever connected the folder, while they are a member. Service role and the footage bell''s triggers.';
 
 
 --
@@ -9521,7 +9521,7 @@ $$;
 -- Name: FUNCTION footage_quoted(p_name text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.footage_quoted(p_name text) IS 'A watched folder''s name as the bell says it (00656): in quotes, cut to 120 characters so every title fits.';
+COMMENT ON FUNCTION public.footage_quoted(p_name text) IS 'A watched folder''s name as the bell says it (00657): in quotes, cut to 120 characters so every title fits.';
 
 
 --
@@ -9557,7 +9557,7 @@ end $$;
 -- Name: FUNCTION footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) IS 'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00656), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
+COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) IS 'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
 
 
 --
@@ -18087,7 +18087,7 @@ end $$;
 -- Name: FUNCTION media_sources_ring(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.media_sources_ring() IS 'A trigger on media_sources (00656): the folder paused because whoever connected it left, a folder that can''t be opened, or a wave of removals held for a second look rings the bell once, for whoever may mend it, and closes for everyone when it ends; a folder stopped or gone closes all of its rows.';
+COMMENT ON FUNCTION public.media_sources_ring() IS 'A trigger on media_sources (00657): the folder paused because whoever connected it left, a folder that can''t be opened, or a wave of removals held for a second look rings the bell once, for whoever may mend it, and closes for everyone when it ends; a folder stopped or gone closes all of its rows.';
 
 
 --
@@ -18372,7 +18372,7 @@ end $$;
 -- Name: FUNCTION memberships_wake_their_folders(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.memberships_wake_their_folders() IS 'A trigger on memberships (00656, the footage plan''s D13): a member left, so each folder their account reads is read at the next turn of the clock, where the sync finds them gone, pauses it and the bell says so. The rule itself stays the sync''s (openSource).';
+COMMENT ON FUNCTION public.memberships_wake_their_folders() IS 'A trigger on memberships (00657, the footage plan''s D13): a member left, so each folder their account reads is read at the next turn of the clock, where the sync finds them gone, pauses it and the bell says so. The rule itself stays the sync''s (openSource).';
 
 
 --
@@ -24283,7 +24283,7 @@ $$;
 -- Name: FUNCTION piece_stage(p_piece_id uuid, p_stage text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) IS 'Where a video being made stands, said as it changes (00613, 00656): waiting for a clip''s full-size copy, or for clips coming back from a watched folder (from_drive), which no other door says. Answers whether it changed. The service role''s.';
+COMMENT ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) IS 'Where a video being made stands, said as it changes (00613, 00657): waiting for a clip''s full-size copy, or for clips coming back from a watched folder (from_drive), which no other door says. Answers whether it changed. The service role''s.';
 
 
 --
@@ -37857,7 +37857,7 @@ end $$;
 -- Name: FUNCTION source_connections_ring(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_connections_ring() IS 'A trigger on source_connections (00656): Google signed the account out (health needs_reconnect) and the bell says "Google Drive needs you" to whoever may mend it; connected again, or the account let go, and the row closes for everyone.';
+COMMENT ON FUNCTION public.source_connections_ring() IS 'A trigger on source_connections (00657): Google signed the account out (health needs_reconnect) and the bell says "Google Drive needs you" to whoever may mend it; connected again, or the account let go, and the row closes for everyone.';
 
 
 --
@@ -38016,7 +38016,7 @@ end $$;
 -- Name: FUNCTION source_files_remove(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_files_remove(p_tenant_id uuid) IS 'A member who may change the settings removes what came from the workspace''s watched folders (00656, the footage screens'' Settings 19): every such file no post or video used leaves the Library as file_remove takes one (hidden, let go, purged ten minutes on), and one event says how many. One the owner also added, and one a post or a video used, stays. Answers removed and kept.';
+COMMENT ON FUNCTION public.source_files_remove(p_tenant_id uuid) IS 'A member who may change the settings removes what came from the workspace''s watched folders (00657, the footage screens'' Settings 19): every such file no post or video used leaves the Library as file_remove takes one (hidden, let go, purged ten minutes on), and one event says how many. One the owner also added, and one a post or a video used, stays. Answers removed and kept.';
 
 
 --
@@ -38208,7 +38208,7 @@ end $$;
 -- Name: FUNCTION source_items_ring_full(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_items_ring_full() IS 'A trigger on source_items (00656, the footage screens'' call 3): a clip that begins to wait for room where none of the workspace''s videos can step aside (video_minutes_by_road) rings "Videos are full" once, for whoever may make room; the row closes once no clip of the folder waits for room.';
+COMMENT ON FUNCTION public.source_items_ring_full() IS 'A trigger on source_items (00657, the footage screens'' call 3): a clip that begins to wait for room where none of the workspace''s videos can step aside (video_minutes_by_road) rings "Videos are full" once, for whoever may make room; the row closes once no clip of the folder waits for room.';
 
 
 --
@@ -38244,7 +38244,7 @@ end $$;
 -- Name: FUNCTION source_items_stamp_left(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_items_stamp_left() IS 'A trigger on source_items (00656): a file''s original seen in the bin or moved out, put back, or let go, so the file says how and when its original left (files.origin_left, origin_left_at), while no other origin holds it in.';
+COMMENT ON FUNCTION public.source_items_stamp_left() IS 'A trigger on source_items (00657): a file''s original seen in the bin or moved out, put back, or let go, so the file says how and when its original left (files.origin_left, origin_left_at), while no other origin holds it in.';
 
 
 --
@@ -40510,7 +40510,7 @@ $$;
 -- Name: FUNCTION video_minutes_by_road(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) IS 'What fills a workspace''s sixty minutes of video, in seconds (00656, the footage screens'' call 3): total (toward the cap), can_step_aside (watched clips that make room by themselves, file_copies_let_go''s rule less its hour of rest), and by road: set_aside (found and set aside), own (added by the owner), made (made here), found (found online and kept). Runs as its caller: a member reads their own workspace''s videos.';
+COMMENT ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) IS 'What fills a workspace''s sixty minutes of video, in seconds (00657, the footage screens'' call 3): total (toward the cap), can_step_aside (watched clips that make room by themselves, file_copies_let_go''s rule less its hour of rest), and by road: set_aside (found and set aside), own (added by the owner), made (made here), found (found online and kept). Runs as its caller: a member reads their own workspace''s videos.';
 
 
 --
@@ -41403,7 +41403,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'file_words'::text, 'file_hear'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))

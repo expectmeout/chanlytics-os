@@ -550,7 +550,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
-  // What a watched folder brought, removed with Stop watching or Disconnect (00656): the Library and Content read again.
+  // What a watched folder brought, removed with Stop watching or Disconnect (00657): the Library and Content read again.
   "POST sources/remove": filesAndContentIfDrawn,
   // A post put on a place, moved to another time (00621) or taken off it is told to no page (00611): Content reads, and the
   // Calendar's posts at their times. One sent keeps its words on its file in the same step (keepPostWords): Files reads too.
@@ -707,6 +707,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ads/account/check":
     "Chanlytics looked again at an ad account: its card reads the account once the look answers",
   "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",
+  "POST ads/draft": "a new ad's draft, picked or judged again: nothing is kept, and New ad draws the answer",
+  "POST ads/words": "a draft's words, or one change of AI's to it: nothing is kept, and New ad draws the answer",
   // A watched folder's screens read the folder itself, one read shared by all of them (surfaces/files/footage/use-footage.ts):
   // no surface holds it, and each press reads it again once it answers.
   "POST sources/watch":

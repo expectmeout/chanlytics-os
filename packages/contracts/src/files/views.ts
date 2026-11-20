@@ -103,7 +103,7 @@ export interface FileDto {
   copy: FileCopyState;
   copy_why: FileCopyWhy | null;
   /**
-   * A watched file whose original left its folder (00656): seen in its provider's bin (gone) or moved out (outside), and
+   * A watched file whose original left its folder (00657): seen in its provider's bin (gone) or moved out (outside), and
    * when; null while its folder still holds it. Its row says the day it leaves (footage-numbers.ts graceDays).
    */
   origin_left?: "gone" | "outside" | null;
@@ -325,7 +325,7 @@ export function filesTallyOf(
   files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & {
     source?: FileSource | undefined;
     kind?: FileKind | undefined;
-    /** How many files the row stands for, where the database counted them grouped (00656); one where absent. */
+    /** How many files the row stands for, where the database counted them grouped (00657); one where absent. */
     n?: number | undefined;
   })[],
 ): FilesTally {

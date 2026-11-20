@@ -71,7 +71,7 @@ export interface FootageFolderDto {
   looking: boolean;
   /** A wave of removals is held until it is seen twice: how many left at once; null where none is held. */
   held: number | null;
-  /** Why it is not read whole, as the sync says it (00656); null while it is read whole. */
+  /** Why it is not read whole, as the sync says it (00657); null while it is read whole. */
   stopped_why: FolderStoppedWhy | null;
   /** It holds more than is listed. */
   over_listed: boolean;
@@ -82,7 +82,7 @@ export interface FootageFolderDto {
   videos: FootageVideoMinutesDto | null;
 }
 
-/** What fills a workspace's sixty minutes of video, in seconds (00656 video_minutes_by_road). */
+/** What fills a workspace's sixty minutes of video, in seconds (00657 video_minutes_by_road). */
 export interface FootageVideoMinutesDto {
   total: number;
   /** Watched clips that make room for a new one by themselves (within the hour, once rested). */
@@ -307,8 +307,8 @@ function readStanding(folder: FootageFolderDto, clock: (iso: string) => string):
 }
 
 /**
- * A folder that is not being read, and why, as the sync says it in one word (`stopped_why`, 00656): its account signed
- * out, its connector gone, or the folder itself shut. A paused folder with no word (kept before 00656) is read as its
+ * A folder that is not being read, and why, as the sync says it in one word (`stopped_why`, 00657): its account signed
+ * out, its connector gone, or the folder itself shut. A paused folder with no word (kept before 00657) is read as its
  * connector gone, as it was then.
  */
 function stoppedStanding(account: FootageAccountDto, folder: FootageFolderDto): FootageStanding | null {

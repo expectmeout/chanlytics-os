@@ -27,7 +27,7 @@ export const FILE_COPY_WAITS = [
   "videos_off",
   /** The video platform is preparing as many videos as it takes at once. */
   "busy",
-  /** The video platform's own storage is spent: nothing the business can change, and Chanlytics keeps trying (00656). */
+  /** The video platform's own storage is spent: nothing the business can change, and Chanlytics keeps trying (00657). */
   "stream_full",
   /** Its provider would not give it just now. */
   "unreadable",

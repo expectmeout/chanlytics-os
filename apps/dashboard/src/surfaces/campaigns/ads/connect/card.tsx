@@ -38,7 +38,7 @@ const DOT: Record<ConnectCardVM["state"], string> = {
 };
 
 /** A page of Meta's opens in a tab of its own: the owner comes back to this one, and the card looks again. */
-const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
+export const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /** A need's one act: a door to Meta, Meta's window again, or a page of the app. */
 function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) {
@@ -59,7 +59,7 @@ function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) 
 }
 
 /** The one thing missing, or the one stop: what happened, what it stops, and its one act. */
-function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
+export function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
   return (
     <div
       className="ads-conn-need"

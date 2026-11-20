@@ -19,7 +19,7 @@ import { postShapeAddress } from "../../../files/post-shapes";
 import { MessagePreview } from "../../parts/message-preview";
 
 /** The shapes a Meta feed ad is shown in. */
-export type FrameKind = "feed" | "story" | "reel";
+type FrameKind = "feed" | "story" | "reel";
 
 const FRAME_KINDS: readonly FrameKind[] = ["feed", "story", "reel"];
 

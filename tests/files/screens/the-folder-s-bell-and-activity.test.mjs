@@ -19,7 +19,7 @@ const { EMAILED_NOTIFICATION_KINDS, BELL_LINE_KINDS } = await import(
 const { activityWords } = await import(at("packages/contracts/src/workspace/activity/words.ts"));
 
 test("a folder that needs someone closes when mended; the day's new files are news, counted up in place", () => {
-  // Told once; the database closes it when mended (00656), so no mend the edge keeps is waited for.
+  // Told once; the database closes it when mended (00657), so no mend the edge keeps is waited for.
   assert.equal(NOTICE_ENDS.footage.ends, "news");
   assert.equal(NOTICE_ENDS.footage_in.ends, "news");
   for (const kind of ["footage", "footage_in"]) {

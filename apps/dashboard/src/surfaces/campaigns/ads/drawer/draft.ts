@@ -9,7 +9,7 @@ import { adWith, sameArea } from "@chanlytics/contracts";
 import type { AdArea, AdCopy, AdPatch, AdRead, AdsRead } from "@chanlytics/contracts";
 import { adServiceOf } from "../model/vm-base";
 import { areaOfValue } from "../model/drawer/edit-lists";
-import { starterCopy } from "../model/new-ad";
+import { starterCopy } from "../model/starter-copy";
 import type { ChipId } from "../model/vm-base";
 
 /** The words an edit can move: each wears a dot, and the foot counts them. */

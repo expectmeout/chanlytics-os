@@ -310,6 +310,11 @@ export const RATE = {
   person_draft: { limit: 60, windowMs: HOUR_MS, noun: "drafts" },
   /** A reach-out's preview (Part 4, R12): one business's email written by the model, counted in Ask's day as well. */
   reach_out_preview: { limit: 10, windowMs: MIN_MS, noun: "previews" },
+  /**
+   * An ad's words by the ad writer (the Ads plan's 6.7): New ad opened, AI told what to change, or a second try. Each
+   * is a craft call that thinks, counted in the day's AI limit as well, so the bucket is a person's and small.
+   */
+  ad_words: { limit: 30, windowMs: HOUR_MS, noun: "ad drafts" },
   lead_suggest: { limit: 10, windowMs: HOUR_MS, noun: "suggestion requests" },
   /**
    * The ideas as they were written (GET lead-suggestions), which asks no model: a page's own read, twice a load at most.

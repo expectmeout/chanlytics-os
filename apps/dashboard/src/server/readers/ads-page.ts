@@ -23,7 +23,7 @@ import {
   type AdRow,
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
-import { adsPressesOn } from "../ads/account";
+import { readAdsPressesOn } from "../connections/ads-ready";
 import { readerStamp, type Reader } from "../shared/reader";
 
 /** The days the page counts: the same thirty Reports' people lens opens on. */
@@ -141,7 +141,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     const [listed, counts, presses] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
-      status === "connected" && ROLE_PERMS[rc.role].ads ? adsPressesOn(rc.tenantId) : false,
+      status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];

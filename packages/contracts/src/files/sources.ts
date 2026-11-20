@@ -20,7 +20,7 @@ export const SOURCE_CONNECTION_HEALTHS = ["ok", "needs_reconnect", "blocked_by_a
 export const MEDIA_SOURCE_STATES = ["setting_up", "watching", "paused", "frozen", "stopped"] as const;
 
 /**
- * Why a watched folder is not read whole (media_sources.stopped_why, 00656): its account's grant was refused, whoever
+ * Why a watched folder is not read whole (media_sources.stopped_why, 00657): its account's grant was refused, whoever
  * connected it left the workspace, the folder cannot be opened, or it holds more than is listed. Null while read whole.
  */
 export const FOLDER_STOPPED_WHYS = ["signed_out", "connector_left", "cant_open", "over_listed"] as const;
@@ -96,7 +96,7 @@ export const SOURCE_ITEM_WHYS = [
   "videos_off",
   /** The video platform is preparing as many clips as it takes at once. */
   "busy",
-  /** The video platform's own storage is spent: nothing the business can change, and it is tried again (00656). */
+  /** The video platform's own storage is spent: nothing the business can change, and it is tried again (00657). */
   "stream_full",
   /** Its folder is not being read just now. */
   "folder",

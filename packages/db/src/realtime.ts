@@ -170,7 +170,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
     "copy_why",
   ],
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab. A notice counted up in
-  // place (00656, a watched folder's new photos and videos): the bell redraws its title.
+  // place (00657, a watched folder's new photos and videos): the bell redraws its title.
   notifications: ["closed_at", "title"],
   // The identity, the answers, the merge and the erasure of a person, and where they work and where their name came from
   // (0052). Not last_seen_at, offers_asked_at or the first-touch stamps, which a message writes.

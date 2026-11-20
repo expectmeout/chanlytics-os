@@ -98,7 +98,7 @@ function offersPausedWords(p: Record<string, unknown>, base: string): string {
 /**
  * A file removed: by a person, in the kind's own words; by Chanlytics a week after its original left Google Drive
  * (00654 source_items_grace_end, why source_gone), only because nothing used it; or all that a watched folder brought,
- * at once, beside Stop watching or Disconnect (00656 source_files_remove, why from_folder, with the count).
+ * at once, beside Stop watching or Disconnect (00657 source_files_remove, why from_folder, with the count).
  */
 function fileRemovedWords(p: Record<string, unknown>, base: string): string {
   const cause = textAt(p, "why");

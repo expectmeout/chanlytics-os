@@ -1267,7 +1267,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const r = (tables.business_records ?? []).find((x) => x.tenant_id === p_tenant_id);
       return r ? !String(r.ein ?? "").trim() : null;
     },
-    // A Library counted (00656 files_tallied): its files grouped by what the counts read, with how many of each and the
+    // A Library counted (00657 files_tallied): its files grouped by what the counts read, with how many of each and the
     // newest one's arrival; not a video still uploading, and none removed, as the SQL answers.
     files_tallied: ({ p_tenant_id }) => {
       const groups = new Map();

@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-426 handlers in 60 domains.
+428 handlers in 60 domains.
 
 ## activity
 
@@ -91,6 +91,15 @@ Reads; for any signed-in person, for themselves; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ads/connect/callback/route.ts`).
 
+### `POST /api/v1/ads/draft`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `aggregate` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `draft` | object | no |  |
+| `act` | one of `"next_picture"` | no |  |
+
 ### `GET /api/v1/ads/page`
 
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
@@ -105,6 +114,28 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `ad` | `"unnamed"` or string | yes |  |
 | `offset` | integer | no | ≥ 0; ≤ 100000 |
+
+### `POST /api/v1/ads/words`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `ad_words` rate; may spend the workspace's money.
+
+One of 2 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `job` | `"write"` | yes |  |
+| `draft` | object | yes |  |
+| `no_price` | boolean | no |  |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `job` | `"change"` | yes |  |
+| `draft` | object | yes |  |
+| `asked` | string | yes | at least 1 characters; at most 600 characters |
 
 ## ask
 
