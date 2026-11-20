@@ -22,6 +22,7 @@ export { bookedAfterTouch } from "./ads/booked-after-touch";
 export { AD_BOOKED_TO_FORECAST, AD_DRAFT_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adPictureIssue, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
+export { AD_TOLD_MAX } from "./ads/said";
 export { adAccountStateOf, adStateOf } from "./ads/states";
 export { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS, anthropicActed, anthropicPaused, enforcementActionsOf, enforcementStatusOf, enforcementWords, MODEL_PAUSED_WORDS, modelStandingOf } from "./ai/anthropic-enforcement";
 export { modelSubjectOf, profileDetailsOf, profileReferenceOf, subjectIdOf } from "./ai/anthropic-profiles";
