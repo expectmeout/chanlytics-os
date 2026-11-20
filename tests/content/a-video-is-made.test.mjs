@@ -458,7 +458,8 @@ test("a watched clip whose copy was let go is waited for as it comes back: the s
   assert.equal(machine.started.length, 0, "nothing is drawn from a copy that is not there");
   assert.equal(row().status, "making");
   assert.deepEqual(stepsOf(tables), [["piece_make", "start", "3"]]);
-  assert.equal(row().stage, "waiting_clip");
+  // Its card says the clips are coming back from Google Drive, about two minutes, never the twenty a new copy can take.
+  assert.equal(row().stage, "from_drive");
 });
 
 test("a watched clip whose original left its folder ends the video: its clips could not be used", async () => {

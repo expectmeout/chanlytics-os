@@ -135,8 +135,14 @@ export {
   SOURCE_ITEM_AWAY,
 } from "./source-items";
 export type { SourceItemFacts, SourceItemPlace, SourceItemRow, SourceRef } from "./source-items";
-export { countFolderStanding, countSourcedFiles, listSourceItemsPassed } from "./source-standing";
-export type { SourcedFilesTally, SourceItemsPassed, SourceItemsTally } from "./source-standing";
+export {
+  countFolderStanding,
+  countSourcedFiles,
+  listSourceItemsPassed,
+  readVideoMinutesByRoad,
+  removeSourcedFiles,
+} from "./source-standing";
+export type { SourcedFilesTally, SourceItemsPassed, SourceItemsTally, VideoMinutesByRoad } from "./source-standing";
 export {
   askToTakeAgain,
   endSourceTake,
@@ -176,10 +182,12 @@ export {
   patchSourceWalk,
   pullSourceReadSooner,
   putSourceCredentials,
+  readingAccountOf,
   saveBlockedSourceConnection,
   saveMediaSource,
   saveSourceConnection,
   stampSourceSignal,
+  watchedFolderOf,
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
 export { followPostCaption, movePostTime } from "./waiting-posts";

@@ -44,7 +44,13 @@ globalThis.fetch = async (input, init) => {
     });
   if (body.op === "folder")
     return edge.refusal
-      ? answer(409, { ok: false, error: "conflict", reason: edge.refusal })
+      ? // As the edge answers (sources/ops.ts watchRefused): `unreadable` is a code beside the reason `no_access`.
+        answer(
+          502,
+          edge.refusal === "unreadable"
+            ? { ok: false, error: "unreadable" }
+            : { ok: false, error: "conflict", reason: edge.refusal },
+        )
       : answer(200, { ok: true, folders: [edge.folder] });
   return answer(400, { ok: false, error: "bad_request" });
 };

@@ -12,7 +12,13 @@ import { FOOTAGE_NUMBERS } from "./footage-numbers";
 import { FOOTAGE_SAID, quotedName } from "./footage-said";
 import { FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX } from "./kinds";
 import { FILES_MAX } from "./limits";
-import type { MEDIA_SOURCE_STATES, SOURCE_CONNECTION_HEALTHS } from "./sources";
+import type {
+  FolderStoppedWhy,
+  MEDIA_SOURCE_STATES,
+  SOURCE_CONNECTION_HEALTHS,
+  SourceItemState,
+  SourceItemWhy,
+} from "./sources";
 
 export type SourceConnectionHealth = (typeof SOURCE_CONNECTION_HEALTHS)[number];
 export type WatchedFolderState = (typeof MEDIA_SOURCE_STATES)[number];
@@ -65,11 +71,27 @@ export interface FootageFolderDto {
   looking: boolean;
   /** A wave of removals is held until it is seen twice: how many left at once; null where none is held. */
   held: number | null;
+  /** Why it is not read whole, as the sync says it (00656); null while it is read whole. */
+  stopped_why: FolderStoppedWhy | null;
   /** It holds more than is listed. */
   over_listed: boolean;
   /** When it was last brought up to date. */
   updated_at: string | null;
   counts: FootageCountsDto;
+  /** What fills the videos' sixty minutes, read only while clips wait for room; null otherwise. */
+  videos: FootageVideoMinutesDto | null;
+}
+
+/** What fills a workspace's sixty minutes of video, in seconds (00656 video_minutes_by_road). */
+export interface FootageVideoMinutesDto {
+  total: number;
+  /** Watched clips that make room for a new one by themselves (within the hour, once rested). */
+  can_step_aside: number;
+  /** By road: found online and set aside, added by the owner, made here, found online and kept. */
+  set_aside: number;
+  own: number;
+  made: number;
+  found: number;
 }
 
 /** GET sources: where the workspace's footage stands, as every screen is told it. */
@@ -91,6 +113,7 @@ export type FootageStandingKey =
   | "bringing_in"
   | "waits_tomorrow"
   | "waits_room"
+  | "videos_full"
   | "library_full"
   | "videos_off"
   | "signed_out"
@@ -156,6 +179,20 @@ export const FOOTAGE_WORDS = {
   stepsCopied: "Copied",
 } as const;
 
+/** What fills the most of the sixty minutes, said as minutes of them: the owner's to look through first. */
+const FILL_ROADS = [
+  ["set_aside", "videos found online that you set aside"],
+  ["found", "videos found online"],
+  ["own", "videos you added"],
+  ["made", "videos made here"],
+] as const satisfies readonly (readonly [keyof FootageVideoMinutesDto, string])[];
+
+function videosFillWords(videos: FootageVideoMinutesDto): string {
+  const [road, words] = FILL_ROADS.reduce((most, next) => (videos[next[0]] > videos[most[0]] ? next : most));
+  const minutes = Math.max(1, Math.round(videos[road] / 60));
+  return `${minutes} of your ${FILE_VIDEO_MINUTES_MAX} minutes ${minutes === 1 ? "is" : "are"} ${words}.`;
+}
+
 /** The sentence for a wait that is the owner's or time's, and the short note that goes with it. */
 function waitStanding(folder: FootageFolderDto): FootageStanding | null {
   const { waits } = folder.counts;
@@ -177,6 +214,15 @@ function waitStanding(folder: FootageFolderDto): FootageStanding | null {
       say: `${FOOTAGE_NUMBERS.takesADay} a day come in from a folder. The rest follow tomorrow by themselves.`,
       note: "A day's allowance is used. They come in tomorrow by themselves.",
       act: null,
+    };
+  if (waits.room > 0 && folder.videos && folder.videos.can_step_aside <= 0)
+    return {
+      key: "videos_full",
+      badge: "Videos are full",
+      tone: "you",
+      say: `${waitWord(waits.room)}, and none of your videos can step aside. ${videosFillWords(folder.videos)} Remove some to make room.`,
+      note: `${waitWord(waits.room)}. ${videosFillWords(folder.videos)}`,
+      act: "open_library",
     };
   if (waits.room > 0)
     return {
@@ -260,10 +306,15 @@ function readStanding(folder: FootageFolderDto, clock: (iso: string) => string):
   };
 }
 
-/** A folder that is not being read, and why: its account signed out, its connector gone, or the folder itself shut. */
+/**
+ * A folder that is not being read, and why, as the sync says it in one word (`stopped_why`, 00656): its account signed
+ * out, its connector gone, or the folder itself shut. A paused folder with no word (kept before 00656) is read as its
+ * connector gone, as it was then.
+ */
 function stoppedStanding(account: FootageAccountDto, folder: FootageFolderDto): FootageStanding | null {
   const holder = account.email ?? "this account";
-  if (account.health === "needs_reconnect")
+  const paused = folder.state === "paused";
+  if (account.health === "needs_reconnect" || (paused && folder.stopped_why === "signed_out"))
     return {
       key: "signed_out",
       badge: "Needs you",
@@ -272,7 +323,7 @@ function stoppedStanding(account: FootageAccountDto, folder: FootageFolderDto): 
       note: `Google signed ${holder} out.`,
       act: "reconnect",
     };
-  if (folder.state === "paused") {
+  if (paused) {
     const by = account.connected_by;
     return {
       key: "connector_left",
@@ -386,6 +437,8 @@ export function footageLineOf(footage: FootageDto, standing: FootageStanding): F
         "They come in as room frees up, within the hour",
       );
     }
+    case "videos_full":
+      return line("alert", standing.badge, standing.note ?? "");
     case "library_full":
       return line(
         "alert",
@@ -410,8 +463,9 @@ export function footageLineOf(footage: FootageDto, standing: FootageStanding): F
 
 /** What a folder holds that is not in the Library, counted by where it stands and why (GET sources/contents). */
 export interface FootagePassedDto {
-  state: string;
-  why: string | null;
+  /** Typed by the closed sets (the review's finding 6), so a state or a cause added there is a compile error here. */
+  state: SourceItemState;
+  why: SourceItemWhy | null;
   videos: number;
   photos: number;
   /** The one file's name, where the count is one. */
@@ -450,7 +504,8 @@ function sheetGroupOf(
         say: () => `${FOOTAGE_NUMBERS.takesADay} a day come in. The rest follow by themselves.`,
       };
     if (why === "room")
-      return { key: "room", head: "Wait for room", say: () => "Clips nobody used lately make room within the hour." };
+      // Never "within the hour": where nothing can step aside, only the owner makes room (the review's finding 2).
+      return { key: "room", head: "Wait for room", say: () => "They come in as room frees up." };
     if (why === "library_full")
       return {
         key: "library_full",

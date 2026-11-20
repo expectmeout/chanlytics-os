@@ -26,7 +26,14 @@ import {
   type TokenGrant,
 } from "@chanlytics/channels/google";
 import { fetchFromProvider } from "@chanlytics/channels/shared";
-import { SECOND_MS, normalizeEmail, recordOrEmpty, videoPreviewOf, type TenantId } from "@chanlytics/contracts";
+import {
+  SECOND_MS,
+  normalizeEmail,
+  recordOrEmpty,
+  videoPreviewOf,
+  type SourceRefusal,
+  type TenantId,
+} from "@chanlytics/contracts";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
 import {
   deleteSourceConnection,
@@ -71,7 +78,8 @@ async function askRevoke(token: string): Promise<{ status: number }> {
 }
 
 /** Why a connect did not finish. */
-export type ConnectRefusal =
+export type ConnectRefusal = Extract<
+  SourceRefusal,
   | "not_available"
   | "not_enabled"
   | "failed"
@@ -79,7 +87,8 @@ export type ConnectRefusal =
   | "no_account"
   | "scope_missing"
   | "no_refresh_token"
-  | "credentials_failed";
+  | "credentials_failed"
+>;
 
 type ConnectOutcome =
   | { ok: true; connection: SourceConnectionRow; resumed: number }

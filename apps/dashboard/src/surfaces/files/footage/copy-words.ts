@@ -7,7 +7,14 @@
  * One sentence for each word of the closed sets (contracts files/copy.ts): what is happening, whether it ends by itself, and the one
  * thing to do. Never a code and never the provider's wording. Pure.
  */
-import { FILE_VIDEO_MINUTES_MAX, FOOTAGE_NUMBERS, type FileCopyState, type FileCopyWhy } from "@chanlytics/contracts";
+import {
+  DAY_MS,
+  FILE_VIDEO_MINUTES_MAX,
+  FOOTAGE_NUMBERS,
+  type FileCopyState,
+  type FileCopyWhy,
+  type FileDto,
+} from "@chanlytics/contracts";
 
 /** The one thing to do about a clip that is not playing; listening is offered beside it wherever the clip has sound. */
 export type CopyAct = "play" | "connect" | "open_drive" | "add_again";
@@ -90,7 +97,9 @@ function waitSaidOf(reason: FileCopyWhy, facts: CopyFacts): CopySaid {
       return {
         mark: "ring",
         head: "Waiting for room",
-        body: `Videos hold ${FILE_VIDEO_MINUTES_MAX} minutes at a time. This one plays as soon as another makes room, usually within the hour.`,
+        // Never "within the hour": where the owner's own videos fill the minutes, nothing steps aside by itself (the
+        // review's finding 2; the folder's line says "Videos are full" then, call 3).
+        body: `Videos hold ${FILE_VIDEO_MINUTES_MAX} minutes at a time. This one plays as soon as there is room.`,
         act: null,
         mends: true,
       };
@@ -198,7 +207,24 @@ export function copySaidOf(copy: FileCopyState, reason: FileCopyWhy | null, fact
 }
 
 /**
- * A row's one line for a clip that is coming back or can't; null for every other, which reads as any clip does.
+ * The day a file whose original left its folder leaves the Library, as a row says it ("Nov 26") in the workspace's own
+ * zone; null while it stays.
+ */
+export function leavesOn(file: Pick<FileDto, "origin_left_at">, zone: string): string | null {
+  if (!file.origin_left_at) return null;
+  const at = Date.parse(file.origin_left_at) + FOOTAGE_NUMBERS.graceDays * DAY_MS;
+  return Number.isFinite(at)
+    ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: zone }).format(new Date(at))
+    : null;
+}
+
+/** Why a row speaks of its original: the copy's own loss, or, for a file still here, its original having left. */
+export const rowReasonOf = (file: Pick<FileDto, "copy_why" | "origin_left">): FileCopyWhy | null =>
+  file.copy_why ?? file.origin_left ?? null;
+
+/**
+ * A row's one line for a clip that is coming back or can't, or a file whose original left its folder ("Deleted in Drive
+ * · leaves Nov 26", the canvas's Removed board); null for every other, which reads as any file does.
  * `alone` says the line stands for the whole row's line; otherwise it follows what the clip is ("Clip · 0:32 · …").
  */
 export function copyRowLineOf(
@@ -207,7 +233,7 @@ export function copyRowLineOf(
   facts: Pick<CopyFacts, "folder" | "leaves">,
 ): { line: string; tone: "live" | "you"; alone: boolean } | null {
   if (copy === "returning" || copy === "going") return { line: COPY_WORDS.row.returning, tone: "live", alone: true };
-  if (copy !== "lost") return null;
+  if (copy !== "lost" && reason !== "gone" && reason !== "outside") return null;
   if (reason === "gone") return { line: COPY_WORDS.row.binned(facts.leaves), tone: "you", alone: true };
   if (reason === "outside") return { line: COPY_WORDS.row.moved(facts.folder, facts.leaves), tone: "you", alone: true };
   if (reason === "not_found") return { line: COPY_WORDS.row.notFound, tone: "you", alone: false };

@@ -11,13 +11,15 @@ import { at } from "../../_cron-doors-world.mjs";
 import { importSrc } from "../../_source.mjs";
 
 const { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS } = await importSrc("packages/contracts/src/files/copy.ts");
-const { COPY_WORDS, copyRowLineOf, copySaidOf } = await importSrc(
+const { COPY_WORDS, copyRowLineOf, copySaidOf, leavesOn, rowReasonOf } = await importSrc(
   "apps/dashboard/src/surfaces/files/footage/copy-words.ts",
 );
 const { FOOTAGE_NUMBERS } = await importSrc("packages/contracts/src/files/footage-numbers.ts");
 const { connectStoppedOf } = await importSrc("packages/contracts/src/files/footage-setup.ts");
 const { SOURCE_PACE } = await import(at("apps/edge/lib/files/sources/pace.ts"));
-const { RETURN_BUDGETS, TAKE_BUDGETS, TAKE_HAND_OUT } = await import(at("apps/edge/lib/files/takes/budgets.ts"));
+const { RETURN_BUDGETS, SOURCE_GRACE, TAKE_BUDGETS, TAKE_HAND_OUT } = await import(
+  at("apps/edge/lib/files/takes/budgets.ts")
+);
 
 const facts = { folder: "Salon clips", account: "maria@example.com", leaves: "Nov 26", connected: true };
 const CODES = /_|\b(null|undefined|copy_state|stream|relay|token|quota|budget|job)\b/i;
@@ -86,6 +88,8 @@ test("the numbers a sentence quotes are the code's own", () => {
     takesADay: TAKE_BUDGETS.workspaceTakesADay,
     takesAtOnce: TAKE_HAND_OUT.inFlight,
     returnsADay: RETURN_BUDGETS.workspaceReturnsADay,
+    // The days a row says a file leaves on are the days the cleanup is asked with.
+    graceDays: SOURCE_GRACE.seconds / (24 * 60 * 60),
   });
   assert.ok(copySaidOf("away", "budget", facts).body.startsWith(`${RETURN_BUDGETS.workspaceReturnsADay} clips a day`));
 });
@@ -112,4 +116,26 @@ test("a connect that connected nothing says what happened, whether anything chan
     const said = connectStoppedOf(why);
     assert.ok(said.say.length > 10 && !CODES.test(said.say), `${why}: "${said.say}"`);
   }
+});
+
+test("a file whose original left its folder says the day it leaves, a photo as a clip, and nothing once it is put back", () => {
+  // Left Drive on 19 Nov: it leaves the Library on 26 Nov unless a post used it (the canvas's Removed board).
+  const left = { copy: "here", copy_why: null, origin_left: "gone", origin_left_at: "2026-11-19T12:00:00.000Z" };
+  assert.equal(leavesOn(left, "UTC"), "Nov 26");
+  assert.deepEqual(
+    copyRowLineOf(left.copy, rowReasonOf(left), { folder: "Salon clips", leaves: leavesOn(left, "UTC") }),
+    {
+      line: "Deleted in Drive · leaves Nov 26",
+      tone: "you",
+      alone: true,
+    },
+  );
+  const moved = { ...left, origin_left: "outside" };
+  assert.equal(
+    copyRowLineOf(moved.copy, rowReasonOf(moved), { folder: "Salon clips", leaves: leavesOn(moved, "UTC") }).line,
+    "Moved out of “Salon clips” · leaves Nov 26",
+  );
+  const back = { copy: "here", copy_why: null, origin_left: null, origin_left_at: null };
+  assert.equal(leavesOn(back, "UTC"), null);
+  assert.equal(copyRowLineOf(back.copy, rowReasonOf(back), { folder: "Salon clips", leaves: null }), null);
 });

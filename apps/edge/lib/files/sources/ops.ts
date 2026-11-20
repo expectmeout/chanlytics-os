@@ -34,7 +34,7 @@ import { personFor, workspaceFor, type Admitted } from "../../shared/admin-auth.
 import { json, refuse } from "../../shared/http.js";
 import { errField, logger, type Logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
-import { sourcesReadiness } from "./config.js";
+import { sourcesOfferedIn, sourcesReadiness } from "./config.js";
 import { connectDrive, disconnectDrive, type ConnectRefusal } from "./connect.js";
 import {
   checkSourceNow,
@@ -148,7 +148,13 @@ async function accountOp({ db, tenantId, log }: OpContext, op: string, body: Bod
   }
   const out = await watchFolder(
     db,
-    { tenantId, connectionId, folderId, includeSubfolders: body.include_subfolders !== false },
+    {
+      tenantId,
+      connectionId,
+      folderId,
+      includeSubfolders: body.include_subfolders !== false,
+      instead: body.instead === true,
+    },
     log,
   );
   return out.ok ? json(200, { ok: true, source_id: out.source.id, made: out.made }) : watchRefused(out.reason);
@@ -175,7 +181,7 @@ export async function runSourcesOp(auth: Admitted, body: Body): Promise<Response
   const workspace = workspaceFor(auth, body.tenant_id);
   if (!workspace.ok) return workspace.response;
   const op = textOrEmpty(body.op);
-  if (op === "readiness") return json(200, { ok: true, ...sourcesReadiness() });
+  if (op === "readiness") return json(200, { ok: true, ...sourcesReadiness(workspace.tenantId ?? null) });
   if (!SOURCE_OPS.has(op)) return refuse(400, "unknown_op");
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -183,6 +189,8 @@ export async function runSourcesOp(auth: Admitted, body: Body): Promise<Response
   if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const log = logger({ door: "sources", tenant_id: tenantId, op });
   const context: OpContext = { db, tenantId, by: personFor(auth, body.user_id), log };
+  // A new connect or watch is offered only where the deployment says (SOURCES_WORKSPACES); leaving always works.
+  if ((op === "connect" || op === "watch") && !sourcesOfferedIn(tenantId)) return connectRefused("not_available");
   try {
     if (op === "connect") return await connectOp(context, body);
     if (op === "disconnect" || op === "folders" || op === "folder" || op === "watch")

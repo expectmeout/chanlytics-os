@@ -6,7 +6,7 @@
  * Google gives a project 1 TB of Drive downloads and 400,000,000 units a day before it charges, and counts a day in
  * Pacific time. The database counts the same day (00643 source_take_spend), so "tomorrow" here is Google's tomorrow.
  */
-import { DAY_MS, HOUR_MS, MIN_MS, SECOND_MS, WEEK_MS } from "@chanlytics/contracts";
+import { DAY_MS, FOOTAGE_NUMBERS, HOUR_MS, MIN_MS, SECOND_MS, WEEK_MS } from "@chanlytics/contracts";
 
 /** A million of Google's units: its quota is written in them. */
 const MILLION_UNITS = 1_000_000;
@@ -162,6 +162,6 @@ export const LET_GO = {
  * one half-hourly pass settles, for every workspace together.
  */
 export const SOURCE_GRACE = {
-  seconds: (7 * DAY_MS) / SECOND_MS,
+  seconds: (FOOTAGE_NUMBERS.graceDays * DAY_MS) / SECOND_MS,
   aSweep: 500,
 } as const;

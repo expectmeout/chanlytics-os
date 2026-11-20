@@ -152,7 +152,9 @@ async function fetchAgain(returning: Returning, road: VideoRoad): Promise<Return
     if (!fetched.ok) {
       // Too many being prepared at once, or the account's own storage spent: nothing is wrong with this clip.
       if (fetched.busy || fetched.full) {
-        const reason = fetched.busy ? "busy" : "videos_off";
+        const reason = fetched.busy ? "busy" : "stream_full";
+        // Only the platform's owner can mend its storage: one error line for Health; the business is told it takes longer.
+        if (fetched.full) log.error("video_storage_full", { file: file.id, road: "return" });
         await undo(reason);
         log.info("copy_return", { file: file.id, waits: reason });
         return { returned: `waits:${reason}` };

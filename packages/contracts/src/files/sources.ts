@@ -20,6 +20,38 @@ export const SOURCE_CONNECTION_HEALTHS = ["ok", "needs_reconnect", "blocked_by_a
 export const MEDIA_SOURCE_STATES = ["setting_up", "watching", "paused", "frozen", "stopped"] as const;
 
 /**
+ * Why a watched folder is not read whole (media_sources.stopped_why, 00656): its account's grant was refused, whoever
+ * connected it left the workspace, the folder cannot be opened, or it holds more than is listed. Null while read whole.
+ */
+export const FOLDER_STOPPED_WHYS = ["signed_out", "connector_left", "cant_open", "over_listed"] as const;
+
+/**
+ * Why the edge's sources door did not do what it was asked (SOURCES_DOOR's `reason`, beside its code): a connect that
+ * did not finish, and an act on an account or a folder that was not done. One closed set both sides read (the review
+ * of 20 Nov, finding 5), so a reason the edge adds is a compile error where it is said, never a "Try again".
+ */
+export const SOURCE_REFUSALS = [
+  // A connect.
+  "not_available",
+  "not_enabled",
+  "failed",
+  "blocked_by_admin",
+  "no_account",
+  "scope_missing",
+  "no_refresh_token",
+  "credentials_failed",
+  // An act on an account or a folder.
+  "not_found",
+  "needs_reconnect",
+  "unavailable",
+  "no_access",
+  "too_many",
+  "busy",
+] as const;
+export type SourceRefusal = (typeof SOURCE_REFUSALS)[number];
+export type FolderStoppedWhy = (typeof FOLDER_STOPPED_WHYS)[number];
+
+/**
  * The walk a watched folder has in flight (media_sources.walk_kind, 00641): the first listing of its whole tree, a
  * re-walk that finds what its changes missed, or the contents of a folder that appeared or moved in.
  */
@@ -64,6 +96,8 @@ export const SOURCE_ITEM_WHYS = [
   "videos_off",
   /** The video platform is preparing as many clips as it takes at once. */
   "busy",
+  /** The video platform's own storage is spent: nothing the business can change, and it is tried again (00656). */
+  "stream_full",
   /** Its folder is not being read just now. */
   "folder",
   /** Its provider said "not now". */

@@ -9,12 +9,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   FILES_MAX,
   FILES_BUCKET,
+  FILE_KINDS,
+  FILE_LOOK_STATUSES,
+  FILE_SHOWS,
+  FILE_SOURCES,
+  FILE_STATUSES,
   type FileKind,
   type FileShelfFilter,
   DbFailure,
   isUuid,
   recordOrEmpty,
 } from "@chanlytics/contracts";
+import { z } from "zod";
+import { readAnswer } from "../../shared/read-json";
 import type { Database } from "../../types";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -27,7 +34,7 @@ export type FileRow = Database["public"]["Tables"]["files"]["Row"];
  * video platform's, and not the sound whole, which is read by id. Where a watched clip's copy stands, and why, it may read.
  */
 const MEMBER_COLUMNS =
-  "id, tenant_id, status, source, source_ref, name, mime, bytes, width, height, look, look_status, shows, who_in_it, removed_at, created_at, updated_at, kind, seconds, media_status, sound_said, copy_state, copy_why";
+  "id, tenant_id, status, source, source_ref, name, mime, bytes, width, height, look, look_status, shows, who_in_it, removed_at, created_at, updated_at, kind, seconds, media_status, sound_said, copy_state, copy_why, origin_left, origin_left_at";
 
 /** Not a video still on its way: a picture has no media_status, and a video counts from its last byte. */
 const ARRIVED = "media_status.is.null,media_status.neq.uploading";
@@ -57,6 +64,8 @@ export type FileMemberRow = Pick<
   | "sound_said"
   | "copy_state"
   | "copy_why"
+  | "origin_left"
+  | "origin_left_at"
 >;
 
 /**
@@ -128,21 +137,28 @@ export async function listFilesFound(
   return { rows: ids.flatMap((id) => byId.get(id) ?? []), total };
 }
 
-/** What each file says of itself and no more, for what counts them: a workspace at its cap is a few KB this way, and a megabyte with its looks. */
-export async function listFilesTallied(
-  db: Db,
-  tenantId: TenantId,
-): Promise<Pick<FileMemberRow, "status" | "shows" | "source" | "look_status" | "created_at" | "kind">[]> {
-  const { data, error } = await db
-    .from("files")
-    .select("status, shows, source, look_status, created_at, kind")
-    .eq("tenant_id", tenantId)
-    .is("removed_at", null)
-    .or(ARRIVED)
-    .limit(FILES_MAX);
+/**
+ * The Library counted, grouped by what the counts read, with how many of each (`n`) and the newest one's arrival
+ * (`created_at`): a few rows whatever its size, and true past a thousand, which a Library holding clips kept in Drive can
+ * reach (00656 files_tallied).
+ */
+export async function listFilesTallied(db: Db, tenantId: TenantId): Promise<FilesTalliedRow[]> {
+  const { data, error } = await db.rpc("files_tallied", { p_tenant_id: tenantId });
   if (error) throw new DbFailure(error, "files tallied");
-  return data ?? [];
+  return readAnswer("files_tallied", z.array(TalliedRow), data);
 }
+
+/** One group of a Library's files as files_tallied answers it: what the counts read, how many, and the newest arrival. */
+const TalliedRow = z.object({
+  status: z.enum(FILE_STATUSES),
+  shows: z.enum(FILE_SHOWS).nullable(),
+  source: z.enum(FILE_SOURCES),
+  kind: z.enum(FILE_KINDS),
+  look_status: z.enum(FILE_LOOK_STATUSES),
+  created_at: z.string(),
+  n: z.coerce.number(),
+});
+type FilesTalliedRow = z.infer<typeof TalliedRow>;
 
 /**
  * A page of one shelf, newest first, ending just before `before`: by the time and the id, so a file kept while a person scrolls moves

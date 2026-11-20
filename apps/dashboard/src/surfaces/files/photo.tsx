@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { FILE_WORDS as W, clockOf, fileSaidOf, fileViewOf, uploadNameOf, type FileDto } from "@chanlytics/contracts";
+import { knownZone } from "@/bridge/zone";
 import { Button } from "../kit/button/button";
 import { Meter } from "../kit/meter/meter";
 import { useSwapMotion } from "../kit/motion/use-swap-motion";
@@ -21,7 +22,7 @@ import { Press } from "../kit/press";
 import type { FrameFlash } from "../frame-verbs";
 import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingPhoto } from "./sending";
 import type { TileShape } from "../campaigns/content/model/tiles";
-import { copyRowLineOf } from "./footage/copy-words";
+import { copyRowLineOf, leavesOn, rowReasonOf } from "./footage/copy-words";
 import { heldFootage } from "./footage/use-footage";
 
 /** A photo's small picture on the grid. */
@@ -156,7 +157,10 @@ function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   if (file.media_status !== "ready") return <VideoWaits failed={file.media_status === "failed"} name={name} />;
   // A clip kept in Drive looks like any other; one coming back, or that can't, says so across its picture, in the words
   // its row says on a phone (the canvas's Desk 2).
-  const kept = copyRowLineOf(file.copy, file.copy_why, { folder: heldFootage()?.folder?.name ?? null, leaves: null });
+  const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
+    folder: heldFootage()?.folder?.name ?? null,
+    leaves: leavesOn(file, knownZone() ?? "UTC"),
+  });
   return (
     <>
       <Picture

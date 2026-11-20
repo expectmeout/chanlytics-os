@@ -15,7 +15,6 @@ import { CONNECTION, OTHER, OWNER, ROOT, SOURCE, T, firstWalk, runJobs, setEnv, 
 setEnv();
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { runSourcesOp } = await import(at("apps/edge/lib/files/sources/ops.ts"));
-const { SOURCE_WORDS } = await import(at("apps/edge/lib/files/sources/words.ts"));
 
 let w;
 beforeEach(() => resetBreakers());
@@ -78,6 +77,32 @@ test("the door says whether Drive is offered here, with the public half of its c
   });
   assert.equal(body.drive, true);
   assert.doesNotMatch(JSON.stringify(body), /client-secret/);
+});
+
+test("Drive is offered only in the workspaces SOURCES_WORKSPACES names: a connect or a watch elsewhere is refused before Google is asked", async () => {
+  const was = process.env.SOURCES_WORKSPACES;
+  try {
+    for (const [list, offered] of [
+      ["", false],
+      [OTHER, false],
+      [`${OTHER}, ${T}`, true],
+      ["*", true],
+    ]) {
+      process.env.SOURCES_WORKSPACES = list;
+      fresh();
+      const [, ready] = await knock({ op: "readiness" });
+      assert.equal(ready.drive, offered, `"${list}"`);
+      assert.equal(ready.oauth === null, !offered, `"${list}": the client's public half only where offered`);
+      if (offered) continue;
+      w.drive.grant(() => assert.fail("Google is never asked where Drive is not offered"));
+      const [status, body] = await knock({ op: "connect", code: "code-from-google", code_verifier: "v".repeat(43) });
+      assert.deepEqual([status, body.error, body.reason], [503, "no_oauth_client", "not_available"], `"${list}"`);
+      const [watchStatus] = await knock({ op: "watch", connection_id: CONNECTION, folder_id: "f" });
+      assert.equal(watchStatus, 503, `"${list}": a watch too`);
+    }
+  } finally {
+    process.env.SOURCES_WORKSPACES = was;
+  }
 });
 
 test("a connect trades the code for a grant, keeps its token in Vault and writes the account's row", async () => {
@@ -169,7 +194,7 @@ test("an organisation that blocks the app gives no grant: the workspace's row sa
 
 test("a reconnect of the same account writes over its row, replaces its token and resumes its paused folders", async () => {
   w = world({
-    source: { state: "paused", last_error: SOURCE_WORDS.signedOut, reconciled_at: "2026-11-10T00:00:00.000Z" },
+    source: { state: "paused", stopped_why: "signed_out", reconciled_at: "2026-11-10T00:00:00.000Z" },
     tables: { google_connections: [], mailbox_connections: [] },
   });
   setPg(w.db);
@@ -181,7 +206,7 @@ test("a reconnect of the same account writes over its row, replaces its token an
   assert.equal(w.tables.source_connections[0].health, "ok");
   assert.equal(w.vault.get(CONNECTION).refresh_token, "refresh-token-new");
   const source = w.source();
-  assert.deepEqual([source.state, source.last_error], ["watching", null]);
+  assert.deepEqual([source.state, source.stopped_why], ["watching", null]);
   assert.ok(
     Date.parse(source.next_read_at) <= Date.now(),
     "read at the clock's next turn, from the place its row kept",
@@ -272,6 +297,18 @@ test("one workspace cannot reach another's account, folder or token", async () =
 });
 
 /* ------------------------------------------------------------------------------------------------ a watch -- */
+
+test("a switch opens the new folder first: one Drive can't find leaves the folder watched now as it was, one it opens takes its place", async () => {
+  connected({ media_sources: [sourceRow({ state: "watching", folder_id: "old-folder" })] });
+  const [refused] = await knock({ op: "watch", connection_id: CONNECTION, folder_id: "no-such-folder", instead: true });
+  assert.notEqual(refused, 200);
+  assert.equal(w.source().state, "watching", "a folder that can't be watched never costs the one that is");
+  const [status, body] = await knock({ op: "watch", connection_id: CONNECTION, folder_id: ROOT, instead: true });
+  assert.equal(status, 200);
+  assert.notEqual(body.source_id, SOURCE);
+  assert.equal(w.source().state, "stopped", "stopped only once the new one opened");
+  assert.equal(w.tables.media_sources.find((row) => row.id === body.source_id).state, "setting_up");
+});
 
 test("a watch saves the folder's place in the changes before its first walk begins, so nothing in between is missed", async () => {
   connected();

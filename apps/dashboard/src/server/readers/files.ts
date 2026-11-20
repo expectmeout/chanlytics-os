@@ -60,6 +60,9 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
     sound_said: fileMember.sound_said,
     copy: isOneOf(FILE_COPY_STATES, fileMember.copy_state) ? fileMember.copy_state : "here",
     copy_why: isOneOf(FILE_COPY_WHYS, fileMember.copy_why) ? fileMember.copy_why : null,
+    origin_left:
+      fileMember.origin_left === "gone" || fileMember.origin_left === "outside" ? fileMember.origin_left : null,
+    origin_left_at: fileMember.origin_left_at,
     shows: fileMember.shows,
     who_in_it: fileMember.who_in_it,
     people: filePeopleOf(look?.people),

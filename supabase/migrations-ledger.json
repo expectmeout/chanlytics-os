@@ -657,6 +657,7 @@
     "00652_an_owner_pauses_an_ad_and_turns_it_back_on.sql": "7a4fa8da19daa2a3e439c993a7f075612100eb9b8618dbaef26870d6ad1e151a",
     "00653_an_owner_disconnects_their_ad_account.sql": "490fd1c86b0f795bc67df3373ad00ecd1c59d33f487754afc35c06d8ff1c0fea",
     "00654_a_watched_clip_s_copy_is_let_go_and_brought_back.sql": "a1240d30633111498f254653965a04bdfc49a0d612557a39d18b705cb15a90a7",
-    "00655_a_watched_folder_says_where_it_stands.sql": "c21bd565c58aa8ab904a7edad25b4c9d12a72204e94fa53de80c4735a5bb314b"
+    "00655_a_watched_folder_says_where_it_stands.sql": "c21bd565c58aa8ab904a7edad25b4c9d12a72204e94fa53de80c4735a5bb314b",
+    "00656_a_watched_folder_rings_the_bell.sql": "cd4ddda4e34b97bdd08efc32c271d898ddb50a7ea77ecaa923a06dc68e1b12be"
   }
 }

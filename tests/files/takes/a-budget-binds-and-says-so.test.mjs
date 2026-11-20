@@ -8,7 +8,6 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { resetBreakers } from "@chanlytics/channels/shared";
 import { squarePng } from "../../look/_png.mjs";
-import { at } from "../../_cron-doors-world.mjs";
 import { linesOf } from "../../_log-lines.mjs";
 import {
   T,
@@ -23,8 +22,6 @@ import {
   theWeb,
   world,
 } from "./_world.mjs";
-
-const { takeWaitLine } = await import(at("apps/edge/lib/files/takes/waits.ts"));
 
 after(() => {
   setPg(null);
@@ -71,10 +68,7 @@ test("a workspace's takes for the day bind: the files wait for tomorrow, the lin
     assert.equal(row.take_after, "2026-11-18T08:00:00.000Z", "until Google's day ends: midnight in Pacific time");
   }
   const said = waitsLine(lines);
-  assert.deepEqual(
-    [said.binds, said.waiting, said.line],
-    ["workspace_takes", 3, "3 photos and videos wait for tomorrow."],
-  );
+  assert.deepEqual([said.binds, said.waiting, said.why, said.videos_only], ["workspace_takes", 3, "budget", false]);
   assert.equal(
     web.calls.filter((c) => c.url.includes("alt=media")).length,
     2,
@@ -115,7 +109,7 @@ test("the platform's bytes for the day bind every workspace, and its units stop 
     const web = theWeb({ drive });
     const { result: ends, lines } = await linesOf(() => runTakes(w));
     assert.deepEqual(ends, [{ took: "waits:budget" }], binds);
-    assert.deepEqual([waitsLine(lines).binds, waitsLine(lines).line], [binds, "1 file waits for tomorrow."]);
+    assert.deepEqual([waitsLine(lines).binds, waitsLine(lines).waiting], [binds, 1]);
     assert.equal(web.copies.length, 0);
     assert.equal(w.tables.source_days[0].bytes, spent.bytes, "a take that waits spends no bytes");
   }
@@ -157,8 +151,8 @@ test("the videos are full: a clip waits for room on its own row, a photo still c
   const { result: ends, lines } = await linesOf(() => runTakes(w));
   assert.deepEqual(ends, [{ took: "waits:room" }, { took: "waits:room" }, { took: "in" }]);
   const said = waitsLine(lines);
-  assert.equal(said.line, "Your videos are full: 60 minutes at most. 2 clips wait until there is room.");
-  assert.ok(!/delete/i.test(said.line), "never 'Delete one' about a clip its owner did not add");
+  // The log keeps the word and the count; the owner's sentence is the screens' (contracts files/footage.ts).
+  assert.deepEqual([said.why, said.waiting, said.videos_only], ["room", 2, true]);
   assert.equal(web.copies.length, 0, "room is judged before the video platform is asked");
   assert.equal(w.tables.source_days[0].bytes, PHOTO.bytes.length, "and before the day's bytes are spent");
   const hours = (Date.parse(w.item(items[0].id).take_after) - Date.now()) / 3_600_000;
@@ -187,10 +181,7 @@ test("the Library is full: a file waits, its bytes are not kept, and the line sa
   const web = theWeb({ drive });
   const { result: ends, lines } = await linesOf(() => runTakes(w));
   assert.deepEqual(ends, [{ took: "waits:library_full" }, { took: "waits:library_full" }]);
-  assert.equal(
-    waitsLine(lines).line,
-    "Your Library is full: 1,000 files at most. 2 photos and videos wait until there is room.",
-  );
+  assert.deepEqual([waitsLine(lines).why, waitsLine(lines).waiting], ["library_full", 2]);
   assert.deepEqual(
     w.bucket.removed.length,
     w.bucket.uploaded.length,
@@ -207,16 +198,4 @@ test("a workspace that takes no videos yet keeps its clips waiting and its photo
   const web = theWeb({ drive });
   assert.deepEqual(await runTakes(w), [{ took: "waits:videos_off" }, { took: "in" }]);
   assert.equal(web.calls.filter((c) => c.url.includes("alt=media")).length, 1, "only the photo's bytes are read");
-});
-
-test("the folder's line says what waits in the owner's words, and nothing for a wait that ends by itself", () => {
-  assert.equal(takeWaitLine({ why: "budget", count: 40, videosOnly: true }), "40 clips wait for tomorrow.");
-  assert.equal(takeWaitLine({ why: "budget", count: 1, videosOnly: true }), "1 clip waits for tomorrow.");
-  assert.equal(
-    takeWaitLine({ why: "budget", count: 1_200, videosOnly: false }),
-    "1,200 photos and videos wait for tomorrow.",
-  );
-  for (const why of ["folder", "pace", "deadline", "retry", "videos_off"])
-    assert.equal(takeWaitLine({ why, count: 3, videosOnly: false }), null, why);
-  assert.equal(takeWaitLine({ why: "budget", count: 0, videosOnly: false }), null);
 });
