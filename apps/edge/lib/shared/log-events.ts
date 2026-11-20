@@ -38,6 +38,8 @@ export const LOG_EVENTS = [
   "admin_whisper",
   "ads_account_checked",
   "ads_ad_told",
+  "ads_check_done",
+  "ads_check_step",
   "ads_connect_refused",
   "ads_connected",
   "ads_deauthorize_unmatched",
