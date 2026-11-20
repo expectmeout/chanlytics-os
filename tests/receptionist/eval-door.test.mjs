@@ -13,10 +13,12 @@
  * for itself while the others answer, the log carrying counts and never the
  * words -- with the database read and never written.
  *
- * And the port's DEFAULT, which is what production runs: the last two cases
- * call POST the way Vercel calls it -- one argument, nothing in the port's
- * place -- and watch the REAL apps/edge/lib/ai/receptionist-brain.ts carry this door's
- * arguments to api.anthropic.com over a captured wire, once per case.
+ * And the port's DEFAULT, which is what production runs: the last cases call
+ * POST the way Vercel calls it -- the request, then the platform's own
+ * argument, which never reaches the port -- and watch the REAL
+ * apps/edge/lib/ai/receptionist-brain.ts carry this door's arguments to
+ * api.anthropic.com over a captured wire, once per case. Every other case
+ * hands its brain in with POST.with(brain).
  *
  * A case may name who it speaks with (`who`): the note about that person, as
  * the live turn's reader writes it, reaches the model beside that case, so a
@@ -60,9 +62,9 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
  * module load and the SDK keeps whatever globalThis.fetch was then (internal/
  * shims getDefaultFetch), so this function, and not a later swap, is what the
  * real generateReply speaks through for the rest of the process. That is what
- * lets the last cases in this file call POST the way Vercel calls it -- one
- * argument, nothing in the port's place -- and watch the door reach the model
- * itself, once per case. Answers are queued, one per call; unscripted it
+ * lets the last cases in this file call POST the way Vercel calls it -- the
+ * request and the platform's own argument, nothing of a test's -- and watch
+ * the door reach the model itself, once per case. Answers are queued, one per call; unscripted it
  * refuses, so nothing else here can drift onto the network by accident.
  */
 const wire = { calls: [], answers: [] };
@@ -100,7 +102,7 @@ const token = (o = {}) => {
 const minted = (headers, raw) =>
   Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, typeof v === "function" ? v(raw) : v]));
 const knock = (body, { headers, workspace = null, brain = null } = {}) =>
-  POST(
+  POST.with(brain)(
     new Request(`http://edge${AUD}`, {
       method: "POST",
       headers: minted(
@@ -109,7 +111,6 @@ const knock = (body, { headers, workspace = null, brain = null } = {}) =>
       ),
       body: JSON.stringify(body),
     }),
-    brain,
   );
 const answer = async (res) => [res.status, await res.json()];
 
@@ -888,8 +889,10 @@ test("who a case is with, out of its shape, is refused before anything is read o
 
 /**
  * The port has a default, and the default is what production runs: Vercel
- * dispatches these files as functions and calls POST(request) with one
- * argument (apps/edge/vercel.json). Every case above hands the brain in, so
+ * dispatches these files as functions and calls POST(request, event), the
+ * request and a FetchEvent of its own, `{ waitUntil }` (its Node launcher's web
+ * handlers), which the door's wrapper never hands on (apps/edge/lib/shared/log.ts
+ * `door`). Every case above hands the brain in, so
  * without these the seam's production branch would be held by the compiler
  * alone. Here the door is called exactly as the platform calls it and the REAL
  * apps/edge/lib/ai/receptionist-brain.ts is watched reaching api.anthropic.com -- once per
@@ -907,12 +910,14 @@ const said = (record, over = {}) => ({
   usage: { input_tokens: 900, output_tokens: 20 },
   ...over,
 });
+/** What the platform hands a door after the request: a FetchEvent, whose one field is `waitUntil`. */
+const PLATFORM_ARGUMENT = { waitUntil: () => undefined };
 /**
- * The call as the platform makes it: POST(request), and nothing else unless a
- * case passes something. Not knock(): that hands in a port, and a port is what
- * is being proven unnecessary.
+ * The call as the platform makes it: POST(request, its own argument), or
+ * another second argument a case passes. Not knock(): that hands in a port,
+ * and a port is what is being proven unnecessary.
  */
-const asVercelDoes = (T, cases, ...rest) => {
+const asVercelDoes = (T, cases, second = PLATFORM_ARGUMENT) => {
   const raw = JSON.stringify({ tenant_id: T, cases });
   return POST(
     new Request(`http://edge${AUD}`, {
@@ -920,11 +925,11 @@ const asVercelDoes = (T, cases, ...rest) => {
       headers: { "x-edge-token": token({ workspace: T })(raw), "content-type": "application/json" },
       body: raw,
     }),
-    ...rest,
+    second,
   );
 };
 
-test("the default: called the way Vercel calls it -- POST(request), nothing in the port's place -- the REAL brain is reached once per case, each with that case's own turns, the workspace's composed prompt and the clock and NOTHING else beside them; the fallback the door hands it is what a refusal comes back as; and the database is still never written", async () => {
+test("the default: called the way Vercel calls it -- POST(request, { waitUntil }), the platform's argument after the request -- the REAL brain is reached once per case, each with that case's own turns, the workspace's composed prompt and the clock and NOTHING else beside them; the fallback the door hands it is what a refusal comes back as; and the database is still never written", async () => {
   const T = fresh();
   const { tables, db } = world(T, {
     policies: [
@@ -1050,7 +1055,13 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
   );
 });
 
-test("a second argument that is not a port -- the { params } a framework may hand a route -- carries no generateReply, so the real brain answers just the same", async () => {
+test("a second argument at the address never reaches the port, even one shaped like a brain: only POST.with hands one in, so the real brain answers", async () => {
+  const shapedLikeABrain = {
+    ...PLATFORM_ARGUMENT,
+    generateReply: () => {
+      throw new Error("the platform's argument reached the port");
+    },
+  };
   const T = fresh();
   world(T);
   wire.answers.push(
@@ -1068,7 +1079,7 @@ test("a second argument that is not a port -- the { params } a framework may han
   const log = quiet();
   let status, body;
   try {
-    [status, body] = await answer(await asVercelDoes(T, [CASES[0]], { params: {} }));
+    [status, body] = await answer(await asVercelDoes(T, [CASES[0]], shapedLikeABrain));
   } finally {
     log.restore();
     wire.answers.length = 0;
