@@ -46,6 +46,9 @@ export const AdDraftBodySchema = z.object({
   act: z.enum(["next_picture"]).optional(),
 });
 
+/** POST ads/check: the draft New ad holds, sent to Meta once, made paused and read back. */
+export const AdPausedCheckBodySchema = z.object({ draft: AdDraftStateSchema });
+
 /** POST ads/words: the writer's two jobs on a draft. */
 export const AdWordsBodySchema = z.discriminatedUnion("job", [
   z.object({
