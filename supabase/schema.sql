@@ -59777,8 +59777,8 @@ GRANT ALL ON FUNCTION public.file_road_is_owners(p_source text) TO service_role;
 --
 
 REVOKE ALL ON FUNCTION public.file_road_is_watched(p_source text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.file_road_is_watched(p_source text) TO authenticated;
 GRANT ALL ON FUNCTION public.file_road_is_watched(p_source text) TO service_role;
+GRANT ALL ON FUNCTION public.file_road_is_watched(p_source text) TO authenticated;
 
 
 --
