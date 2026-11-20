@@ -5,8 +5,8 @@
  * makes every call; nothing here touches Meta.
  *
  * Only a draft that could be turned on is sent: written, with three versions of words that passed, nothing that would
- * stop it, and no special kind (decision 0050, calls 3 and 7). The first version is the one sent. The owner alone, as
- * every press that makes something at Meta is.
+ * stop it but the account having no card yet, and no special kind (decision 0050, calls 3 and 7). The first version is
+ * the one sent. The owner alone, as every press that makes something at Meta is.
  */
 import "server-only";
 import { AppError, ROLE_PERMS } from "@chanlytics/contracts";
@@ -17,7 +17,7 @@ import { readerContext } from "../shared/reader";
 import type { RouteContext } from "../shared/with-route";
 import { adDraftAnswer, requireAdsOffered } from "./draft";
 import { readAdDraftFacts } from "./draft-facts";
-import type { AdDraftState } from "./draft-shape";
+import type { AdCheckDto, AdDraftState } from "./draft-shape";
 
 /** How long the check may take at the edge: its calls are Meta's, one after another, inside the route's minute. */
 const CHECK_WAIT_MS = 57_000;
@@ -37,11 +37,17 @@ interface PausedCheckAnswer {
   differs: string[];
 }
 
+/**
+ * The one check the paused-ad check is sent past: the account has no card on file. That is what makes it safe, since
+ * with no card nothing can be charged, and Turn on itself still stops at it.
+ */
+const noCardYet = (check: AdCheckDto): boolean => check.code === "account" && check.check === "payment";
+
 /** Why a draft cannot be sent, in the words its owner reads. Null where it can. */
 function unsendable(answer: ReturnType<typeof adDraftAnswer>): string | null {
   if (!answer.can) return "A draft can't be written yet.";
   if (answer.draft.versions.length === 0) return "The draft has no words yet.";
-  if (answer.checks.length > 0) return "Something would stop this ad. Fix it on New ad first.";
+  if (answer.checks.some((check) => !noCardYet(check))) return "Something would stop this ad. Fix it on New ad first.";
   if (answer.declared !== "none") return "An ad of a special kind isn't made here.";
   return null;
 }
@@ -57,8 +63,8 @@ export async function runPausedAdCheck(
   await requireAdsOffered(rc);
   const facts = await readAdDraftFacts(rc);
   const answer = adDraftAnswer(facts, input.draft);
-  const why = unsendable(answer);
-  if (why || !answer.can) throw new AppError("conflict", why ?? "A draft can't be written yet.", 409);
+  const reason = unsendable(answer);
+  if (reason || !answer.can) throw new AppError("conflict", reason ?? "A draft can't be written yet.", 409);
   const [version] = answer.draft.versions;
   if (!version || !facts.address || !facts.whatsappNumber)
     throw new AppError("conflict", "The draft has no words, address or number yet.", 409);

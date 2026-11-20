@@ -83,7 +83,7 @@ interface AdsCheckBody {
 }
 
 /** One step, as the answer says it: what Meta did, its own words where it refused, and the id of what it made. */
-export interface CheckStep {
+interface CheckStep {
   at: string;
   outcome: string;
   said: string | null;
@@ -95,7 +95,7 @@ const DRY: MetaMakeHow = { dryRun: true };
 const PLACES_SENT = ["facebook:facebook_reels", "facebook:feed", "facebook:story"];
 
 /** One call to Meta for a step, its outcome kept on the list and in the log. Meta's own sentence where it refused. */
-async function step(
+async function sendStep(
   log: Log,
   steps: CheckStep[],
   at: string,
@@ -106,8 +106,8 @@ async function step(
   const refusal = answer.fault === null ? null : parseMetaRefusal(answer.json);
   // Only a make names what it made: a read's answer carries the id of what it read.
   const madeId = answer.fault === null && request.method === "POST" ? parseMetaMadeId(answer.json) : null;
-  const said = answer.fault === null ? null : (refusal?.words ?? answer.said);
-  steps.push({ at, outcome: answer.fault ?? "ok", said, id: madeId });
+  const words = answer.fault === null ? null : (refusal?.words ?? answer.said);
+  steps.push({ at, outcome: answer.fault ?? "ok", said: words, id: madeId });
   log.info("ads_check_step", {
     at,
     outcome: answer.fault ?? "ok",
@@ -119,7 +119,7 @@ async function step(
 }
 
 /** A read's answer, read; a step whose answer its parser cannot read is kept as refused, with why. */
-function readOf<T>(steps: CheckStep[], answer: MetaAdsAnswer, parse: (body: unknown) => T): T | null {
+function readStepAnswer<T>(steps: CheckStep[], answer: MetaAdsAnswer, parse: (body: unknown) => T): T | null {
   if (answer.fault !== null) return null;
   try {
     return parse(answer.json);
@@ -137,7 +137,7 @@ function endOfDayIn(timezone: string, day: string): string {
 }
 
 /** What Meta holds that is not what was sent: each by a short name. Empty where they agree. */
-export function checkDiffers(
+function checkDiffers(
   sent: { totalMinor: number; endsAt: string; whatsapp: string; miles: number; text: string; headline: string },
   held: MetaCampaignHeld,
 ): string[] {
@@ -191,18 +191,18 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
   const steps: CheckStep[] = [];
   const name = `Chanlytics · ${draft.service} · paused check [cl:${randomUUID().slice(0, 8)}]`;
   const accountId = account.externalId;
-  const least = await step(log, steps, "least_a_day", metaMinimumBudgetsRequest(token, appSecret, accountId));
-  const leastMinor = readOf(steps, least, (body) => parseMetaLeastADay(body, account.currency));
+  const least = await sendStep(log, steps, "least_a_day", metaMinimumBudgetsRequest(token, appSecret, accountId));
+  const leastMinor = readStepAnswer(steps, least, (body) => parseMetaLeastADay(body, account.currency));
   if (steps.at(-1)?.outcome === "ok") Object.assign(steps.at(-1) ?? {}, { said: `${leastMinor ?? "none"} a day` });
-  const instagram = await step(log, steps, "instagram", metaAccountInstagramRequest(token, appSecret, accountId));
-  const named = readOf(steps, instagram, parseMetaAccountInstagram);
+  const instagram = await sendStep(log, steps, "instagram", metaAccountInstagramRequest(token, appSecret, accountId));
+  const named = readStepAnswer(steps, instagram, parseMetaAccountInstagram);
   if (named) Object.assign(steps.at(-1) ?? {}, { said: `${named.length} named` });
 
   const campaignAsk = { accountId, name };
-  if ((await step(log, steps, "campaign_dry", metaCampaignRequest(token, appSecret, campaignAsk, DRY))).fault)
+  if ((await sendStep(log, steps, "campaign_dry", metaCampaignRequest(token, appSecret, campaignAsk, DRY))).fault)
     return { steps, differs: null };
   const key = () => ({ key: randomUUID() });
-  const campaignId = (await step(log, steps, "campaign", metaCampaignRequest(token, appSecret, campaignAsk, key())))
+  const campaignId = (await sendStep(log, steps, "campaign", metaCampaignRequest(token, appSecret, campaignAsk, key())))
     .madeId;
   if (!campaignId) return { steps, differs: null };
 
@@ -220,9 +220,9 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
     miles: draft.miles,
     instagram: false,
   };
-  if ((await step(log, steps, "ad_set_dry", metaAdSetRequest(token, appSecret, setAsk, DRY))).fault)
+  if ((await sendStep(log, steps, "ad_set_dry", metaAdSetRequest(token, appSecret, setAsk, DRY))).fault)
     return { steps, differs: null };
-  const setId = (await step(log, steps, "ad_set", metaAdSetRequest(token, appSecret, setAsk, key()))).madeId;
+  const setId = (await sendStep(log, steps, "ad_set", metaAdSetRequest(token, appSecret, setAsk, key()))).madeId;
   if (!setId) return { steps, differs: null };
 
   const bytes = await pictureBytes(at.db, at.tenantId, draft.picture);
@@ -230,8 +230,8 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
     steps.push({ at: "picture", outcome: "unread", said: "The picture could not be read from Files.", id: null });
     return { steps, differs: null };
   }
-  const image = await step(log, steps, "picture", metaAdImageRequest(token, appSecret, accountId, bytes));
-  const hash = readOf(steps, image, parseMetaImageHash);
+  const image = await sendStep(log, steps, "picture", metaAdImageRequest(token, appSecret, accountId, bytes));
+  const hash = readStepAnswer(steps, image, parseMetaImageHash);
   if (!hash) return { steps, differs: null };
 
   const adAsk = {
@@ -247,13 +247,13 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
       picture: { kind: "image" as const, hash },
     },
   };
-  if ((await step(log, steps, "ad_dry", metaAdRequest(token, appSecret, adAsk, DRY))).fault)
+  if ((await sendStep(log, steps, "ad_dry", metaAdRequest(token, appSecret, adAsk, DRY))).fault)
     return { steps, differs: null };
-  if (!(await step(log, steps, "ad", metaAdRequest(token, appSecret, adAsk, key()))).madeId)
+  if (!(await sendStep(log, steps, "ad", metaAdRequest(token, appSecret, adAsk, key()))).madeId)
     return { steps, differs: null };
 
-  const back = await step(log, steps, "read_back", metaCampaignReadBackRequest(token, appSecret, campaignId));
-  const held = readOf(steps, back, (body) => parseMetaCampaignHeld(body, account.currency));
+  const back = await sendStep(log, steps, "read_back", metaCampaignReadBackRequest(token, appSecret, campaignId));
+  const held = readStepAnswer(steps, back, (body) => parseMetaCampaignHeld(body, account.currency));
   if (!held) return { steps, differs: null };
   const sent = {
     totalMinor: draft.total_minor,
