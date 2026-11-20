@@ -1028,13 +1028,17 @@ test.describe("Phone shell on a real workspace", () => {
       const bell = page.getByRole("button", { name: /^Notifications/ });
       const reached = await bell.evaluate((el) => {
         const r = el.getBoundingClientRect();
-        return [
+        // The middle, then the four sides, each as a share of the bell's width and height.
+        const points: Array<[number, number]> = [
           [0.5, 0.5],
           [0.1, 0.5],
           [0.9, 0.5],
           [0.5, 0.1],
           [0.5, 0.9],
-        ].map(([fx, fy]) => el.contains(document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy)));
+        ];
+        return points.map(([fx, fy]) =>
+          el.contains(document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy)),
+        );
       });
       expect(reached, `${hash}: a press anywhere on the bell reaches it`).toEqual([true, true, true, true, true]);
       await bell.click();
