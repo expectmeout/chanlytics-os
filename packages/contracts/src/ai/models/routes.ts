@@ -454,5 +454,14 @@ export function readsAsModel(value: unknown): value is string {
  * Each read a web address aloud after a failed WhatsApp send, told by the booking tool to say "they can book online"; that
  * answer now says not to read one (apps/edge/lib/voice/call-booking-link.ts). The converger moves every line to this
  * model (channels voice/shell/agent-plan.ts planVoiceConvergence), the test line first.
+ *
+ * The same evening every line moved to 5.5 Haiku, then to Claude 5.5 Sonnet on Ruben's word ("lets put them all on
+ * sonnet 5.5 instead"): the most checks passed of the three, the provider's recommended model, at about 15 cents a
+ * minute billed against 8, and answering about a fifth of a second later (1,298 ms against 1,118, the median of each
+ * call's p50).
  */
-export const RETELL_MODELS = { llm: "claude-5.5-haiku", analysis: "gpt-6-luna", listenAnalysis: "gpt-5-nano" } as const;
+export const RETELL_MODELS = {
+  llm: "claude-5.5-sonnet",
+  analysis: "gpt-6-luna",
+  listenAnalysis: "gpt-5-nano",
+} as const;

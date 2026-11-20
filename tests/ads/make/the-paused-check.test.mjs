@@ -8,7 +8,7 @@
  * set names the number AI answers, a total and its end in the account's own zone. The picture goes as Files keeps it.
  * Where Meta refuses a step, nothing after it is sent and Meta's own words are said, and a campaign already made is
  * removed. The read back says what Meta holds that is not what was sent. And a campaign an earlier check left is removed
- * only where it is this account's, paused, named by a check, with no ad.
+ * only where it is this account's and named by a check, with it and everything under it paused.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -344,7 +344,7 @@ test("the read back says what Meta holds that is not what was sent", async () =>
   assert.deepEqual(body.differs, ["declared", "total", "number", "places", "ad_paused", "own_changes"]);
 });
 
-test("a campaign a check left is removed only where it is this account's, paused, named by a check, with no ad", async () => {
+test("a campaign a check left is removed only where it is this account's, named by a check, and everything in it is paused", async () => {
   const leftover = () => ({
     id: CAMPAIGN,
     account_id: META_ACCOUNT,
@@ -363,11 +363,36 @@ test("a campaign a check left is removed only where it is this account's, paused
   assert.equal(body.outcome, "removed");
   assert.equal(asked[1].url.pathname, `/v27.0/${CAMPAIGN}`);
 
+  // A finished check's campaign, its paused ad set and its paused ad under it: removed whole, in one call.
+  world();
+  held = {
+    ...heldAsSent(),
+    account_id: META_ACCOUNT,
+    name: "Chanlytics · First appointment · paused check [cl:1a2b3c4d]",
+  };
+  const [, whole] = await heard(await remove());
+  assert.deepEqual([names(), whole.outcome], [["read_back", "remove"], "removed"]);
+
   for (const [why, change] of [
     ["in another account", (campaign) => Object.assign(campaign, { account_id: "1200000000000099" })],
     ["not named by a check", (campaign) => Object.assign(campaign, { name: "Spring offer" })],
     ["switched on", (campaign) => Object.assign(campaign, { status: "ACTIVE" })],
-    ["with an ad under it", (campaign) => Object.assign(campaign, { ads: heldAsSent().ads })],
+    [
+      "with an ad switched on under it",
+      (campaign) => {
+        const { ads } = heldAsSent();
+        ads.data[0].status = "ACTIVE";
+        return Object.assign(campaign, { ads });
+      },
+    ],
+    [
+      "with an ad set switched on under it",
+      (campaign) => {
+        const { adsets } = heldAsSent();
+        adsets.data[0].status = "ACTIVE";
+        return Object.assign(campaign, { adsets });
+      },
+    ],
   ]) {
     world();
     held = change(leftover());

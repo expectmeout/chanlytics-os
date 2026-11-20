@@ -9,7 +9,7 @@
  * picture), then made; and the campaign read back whole, compared with what was sent. Where Meta refuses a step, nothing
  * after it is sent, the answer says Meta's own words, and a campaign already made is removed, with whatever is under it:
  * a check either finishes, paused, or leaves nothing. With `remove` in place of a draft, a campaign an earlier check
- * left is removed: one in this account, paused, named as a check names it, with no ad.
+ * left is removed: one in this account, named as a check names it, with it and everything under it paused.
  *
  * Nothing here can spend: every part is made paused, and the campaign above the ad stays paused, so the ad is never
  * shown. An ad made paused still goes through Meta's check of an ad, and a creative leaves an unpublished post on the
@@ -307,8 +307,10 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
 }
 
 /**
- * A campaign an earlier check made and left, removed: only one in this account, paused, named as a check names it, and
- * with no ad under it, read back first. Anything else is left as it stands, and the answer says so.
+ * A campaign an earlier check made and left, removed with whatever is under it: only one in this account, named as a
+ * check names it, with the campaign, every ad set and every ad under it paused by its own switch, read back first. A
+ * check's paused ad goes with it, so the ad a finished check made can be removed too. Anything else is left as it stands,
+ * and the answer says so.
  */
 async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps: CheckStep[]; removed: boolean }> {
   const { token, appSecret } = at.signIn;
@@ -317,8 +319,10 @@ async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps:
   const held = readStepAnswer(steps, back, (body) => parseMetaCampaignHeld(body, at.account.currency));
   if (!held) return { steps, removed: false };
   const inAccount = held.accountId === at.account.externalId.replace(/^act_/, "");
-  if (!inAccount || !held.name.includes(CHECK_MARK) || !held.paused || held.ads.length > 0) {
-    const reason = "Not a paused campaign a check left in this account with no ad, so it is left as it stands.";
+  const allPaused = held.paused && held.sets.every((set) => set.paused) && held.ads.every((ad) => ad.paused);
+  if (!inAccount || !held.name.includes(CHECK_MARK) || !allPaused) {
+    const reason =
+      "Not a campaign a check left in this account with everything in it paused, so it is left as it stands.";
     steps.push({ at: "remove", outcome: "refused", said: reason, id: null });
     return { steps, removed: false };
   }

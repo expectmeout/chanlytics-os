@@ -433,7 +433,7 @@ const agentOnShell = (id, llm) => ({
 const llmOnShell = (id) => ({
   llm_id: id,
   version: 1,
-  model_config: { type: "cascading", primary: { model: "claude-5.5-haiku", tier: "standard" }, temperature: 0 },
+  model_config: { type: "cascading", primary: { model: "claude-5.5-sonnet", tier: "standard" }, temperature: 0 },
   ...desiredVoiceShell(edgeFnUrl(), { "x-fn-secret": "fn-secret-nobody-may-see" }),
 });
 
@@ -553,7 +553,7 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
     assert.equal(ok.agent_id, "agent_ok");
     assert.equal(ok.channel_status, "active");
     assert.equal(ok.live_transcript, true, "transcript_updated is the setting the Live page depends on");
-    assert.equal(ok.model, "claude-5.5-haiku", "which text model the line runs: provisioning parity in one word");
+    assert.equal(ok.model, "claude-5.5-sonnet", "which text model the line runs: provisioning parity in one word");
     assert.deepEqual(ok.shell, { converged: true, drift: [] }, "on the product's shell");
     assert.deepEqual(
       ok.agent,

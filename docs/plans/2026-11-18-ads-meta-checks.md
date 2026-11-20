@@ -254,7 +254,8 @@ It leaves a paused campaign, a picture in the account's library and an unpublish
 Meta's check of an ad, so its words and picture are ones the checks of the plan's section 5.1 pass. Where Meta stops
 it after the campaign is made, the check deletes that campaign (Meta's DELETE on it, read on its campaign reference on
 20 November), so a check either finishes, paused, or leaves nothing. A campaign an earlier check left is removed the
-same way, by its id, and only where it is in the owner's account, paused, named as a check names it, with no ad.
+same way, by its id, and only where it is in the owner's account, named as a check names it, with it and everything
+under it paused, a finished check's paused ad included.
 
 What it settles that no page does: whose sign-in Meta takes for an ad that opens WhatsApp; whether a dry run counts
 against the account's score; whether Meta refuses a total over a new account's day; the shortest run it takes; that
@@ -358,5 +359,8 @@ word names that pause, so only a refusal would show); and Meta's own preview.
 
 ### What stands at Meta now
 
-On Ruben's account, all paused: one campaign, one part that says who sees it, one ad under Meta's review, the picture
-in the account's library, and an unpublished post on the Page that the ad's creative made. With the campaign paused, nothing is shown and nothing is spent.
+The check's campaign was removed later that evening, on Ruben's word, through the check's own removal: Meta read it
+back as his, named by the check, with it and everything under it paused, and took its removal with the part that says
+who sees it and the ad. Nothing was spent and nothing was shown. Left at Meta: the picture in the account's library,
+and the unpublished post on the Page that the ad's creative made. Meta's review of the ad came to nothing seen here:
+nothing came back refused while it stood.
