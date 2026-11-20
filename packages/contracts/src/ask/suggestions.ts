@@ -62,6 +62,11 @@ export interface SuggestionInput {
   leadIdeas?: string[];
   leadSearches?: string[];
   /**
+   * On Today: the questions the page wrote from its own lines (Today, calm, D10; contracts todayAsksOf), each what its
+   * row says and the words asked. None where the page has no line to ask about.
+   */
+  pageAsks?: ReadonlyArray<{ label: string; q: string }>;
+  /**
    * On Campaigns (the moment spec, A3): its campaigns as the page read them, each by its name, moment, state and
    * whether a run of it waits; none read yet is null, and the page's own chips wait for it.
    */
@@ -228,6 +233,14 @@ function pageChips(
   item: (typeof T)[keyof typeof T],
   add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string, own?: boolean) => void,
 ): boolean {
+  if (input.surface === "today") {
+    // Written from the lines the page shows, so they are this workspace's own, never a table's; in the page's own
+    // language, which has no Spanish yet: never English questions under Spanish words.
+    if (input.language !== "es")
+      for (const a of input.pageAsks ?? [])
+        add(a.q, "ask", "arrow-up", false, a.label === a.q ? undefined : a.label, true);
+    return false;
+  }
   if (input.surface === "leads") {
     // The section under the field keeps three, and they must be these.
     const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);

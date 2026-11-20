@@ -330,3 +330,94 @@ test("More is no place: its press opens what it opens, lights nothing, and moves
   tree = again(draw);
   assert.deepEqual(lit(tree), ["Today"]);
 });
+
+/* -------------------------------------- folded ------------------------------------------ */
+
+const MORE_OF = { label: "Menu", word: "More", glyph: h("svg"), onPress() {} };
+const foldOf = (over = {}) => ({ label: "Back to Today", onBack() {}, field() {}, ...over });
+
+test("folded, the place on screen is the way back by its new name, and every other place is out of the keys' and a reader's way", () => {
+  fresh();
+  const tree = bar({ more: MORE_OF, fold: foldOf() });
+  const nav = navOf(tree);
+  assert.equal(nav.props["data-folded"], "", "the bar says it is folded, which its rules read");
+  const tabs = tabsOf(tree);
+  assert.deepEqual(
+    tabs.map((t) => [
+      classes(t).includes("tab-bar-way"),
+      t.props["aria-label"],
+      t.props["aria-hidden"],
+      t.props.tabIndex,
+    ]),
+    [
+      [true, "Back to Today", undefined, undefined],
+      [false, undefined, true, -1],
+      [false, undefined, true, -1],
+      [false, undefined, true, -1],
+    ],
+  );
+  assert.deepEqual(
+    tabs.map((t) => t.props["aria-current"]),
+    [undefined, undefined, undefined, undefined],
+    "the way back is no longer said as the page: it is a way out of what stands over it",
+  );
+  const more = all(tree, (n) => n.type === "button")[0];
+  assert.equal(more.props["aria-hidden"], true);
+  assert.equal(more.props.tabIndex, -1);
+  const room = all(tree, (n) => classes(n).includes("tab-bar-field"));
+  assert.equal(room.length, 1, "one room for the field, after the places");
+  assert.equal(all(bar({ more: MORE_OF }), (n) => classes(n).includes("tab-bar-field")).length, 0, "and none unfolded");
+  assert.equal("data-folded" in navOf(bar()).props, false, "unfolded, the bar says nothing of folding");
+});
+
+test("folded, a press on the way back goes back, and a press on any other place does nothing", () => {
+  fresh();
+  const picked = [];
+  let back = 0;
+  let opened = 0;
+  const tree = bar({
+    onPick: (id) => picked.push(id),
+    more: { ...MORE_OF, onPress: () => (opened += 1) },
+    fold: foldOf({ onBack: () => (back += 1) }),
+  });
+  const tabs = tabsOf(tree);
+  const way = clickOn(tabs[0]);
+  tabs[0].props.onClick(way);
+  assert.equal(back, 1);
+  assert.equal(way.prevented, 1, "the app takes the press: the address does not move");
+  tabs[2].props.onClick(clickOn(tabs[2]));
+  tabs[2].props.onPointerDown({
+    pointerType: "touch",
+    isPrimary: true,
+    button: 0,
+    timeStamp: 10,
+    currentTarget: tabs[2],
+  });
+  assert.deepEqual(picked, [], "no place is moved to from under a field");
+  assert.equal(all(tree, (n) => n.type === "button")[0].props.onClick, undefined, "More opens nothing while folded");
+  assert.equal(opened, 0);
+  assert.equal(back, 1);
+});
+
+test("where no place holds the page, More is the way back", () => {
+  fresh();
+  let back = 0;
+  const tree = bar({ picked: null, more: MORE_OF, fold: foldOf({ label: "Back", onBack: () => (back += 1) }) });
+  assert.deepEqual(
+    tabsOf(tree).map((t) => classes(t).includes("tab-bar-way")),
+    [false, false, false, false],
+  );
+  const more = all(tree, (n) => n.type === "button")[0];
+  assert.deepEqual(classes(more), ["tab-bar-tab", "tab-bar-way"]);
+  assert.equal(more.props["aria-label"], "Back");
+  assert.equal(more.props["aria-hidden"], undefined);
+  more.props.onClick();
+  assert.equal(back, 1);
+});
+
+test("the field's room is handed to whoever owns the field, the same function on every draw", () => {
+  fresh();
+  const field = () => {};
+  const room = all(bar({ fold: foldOf({ field }) }), (n) => classes(n).includes("tab-bar-field"))[0];
+  assert.equal(room.props.ref, field);
+});

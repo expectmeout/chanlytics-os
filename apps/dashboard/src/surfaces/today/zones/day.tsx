@@ -42,6 +42,7 @@ import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from 
 import { TODAY_HELPERS } from "../helpers";
 import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
+import { askOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 
 /** The runs that go on their own today, soonest first: a batch held for a stop, a message set for later, a reach-out's run. */
@@ -438,6 +439,8 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
     ? null
     : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
   const runs = runsOfTheDay(zone);
+  // AI is handed the day's question where the day has a visit to say (D10).
+  useTodayAsks("day", [zone && zone.cells.length ? askOf(zone.tomorrow ? L.asks.tomorrow : L.asks.day) : null]);
   if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length)
     return (
       <>

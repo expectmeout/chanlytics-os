@@ -62,6 +62,8 @@ export interface TodayLeakVM {
   peopleLead: string | null;
   /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
   ask: string;
+  /** The finding as a person would ask about it: what AI offers where it is opened from Today (Today, calm, D10). */
+  question: string;
   /** The door. */
   cta: { label: string; to: string };
   /** The act, when the list this is about has one it can actually run. */
@@ -191,6 +193,7 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
       people: [],
       peopleLead: null,
       ask: askWhy(empty, booking.headline),
+      question: "Is my calendar the right one?",
       cta: { label: "Check it", to: CALENDAR_SETTING_ROUTE },
       also: null,
     };
@@ -207,6 +210,8 @@ function neverBookedLeak({ reports, list, step }: LeakFacts): TodayLeakVM | null
     icon: "calendar",
     text,
     head: booked === 0 ? `None of ${asked} who wrote got booked` : `Only ${booked} of ${asked} who wrote got booked`,
+    question:
+      booked === 0 ? `Why did none of the ${asked} get booked?` : `Why did only ${booked} of ${asked} get booked?`,
     sub: `In the last ${reports.rangeLabel}.`,
     math,
     people: [],
@@ -233,6 +238,7 @@ function unansweredLeak({ reports, noReply }: LeakFacts): TodayLeakVM | null {
     icon: "alert",
     text,
     head: `${first.none} message${first.none === 1 ? "" : "s"} got no answer`,
+    question: first.none === 1 ? "Which message got no answer?" : `Which ${first.none} messages got no answer?`,
     sub: `Of ${reports.messages.total} in the last ${reports.rangeLabel}. AI answered ${first.ai}, you answered ${first.you}.`,
     math,
     people: noReply
@@ -269,6 +275,8 @@ function consultsWaitingLeak({ people, dealsAt }: LeakFacts): TodayLeakVM | null
     icon: "calendar",
     text,
     head: `${length} consultation${length === 1 ? "" : "s"} with no next step`,
+    question:
+      length === 1 ? "Which consultation has no next step?" : `Which ${length} consultations have no next step?`,
     sub: "In the last week, with nothing booked or proposed since.",
     math,
     people: held.slice(0, 2).map((r) => ({
@@ -358,6 +366,10 @@ function proposalsWaitingLeak({ people, list, dealsAt }: LeakFacts): TodayLeakVM
     head,
     sub,
     math,
+    question:
+      waiting.length === 1
+        ? "Which proposal is still waiting?"
+        : `Which ${waiting.length} proposals are still waiting?`,
     people: inHand ? yoursToFollowUp(waiting) : [],
     peopleLead: inHand ? "Yours to follow up" : null,
     ask: askWhy(text, math),
@@ -393,6 +405,7 @@ function unreachableLeak({ people, list }: LeakFacts): TodayLeakVM | null {
     icon: "users",
     text,
     head: noNumber ? "Nobody can be sent an offer yet" : "Nobody has said yes to offers",
+    question: "Why can nobody be sent an offer?",
     sub: `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages.`,
     math,
     people: [],
@@ -415,6 +428,7 @@ function quietLeak({ people, list, step }: LeakFacts): TodayLeakVM | null {
     icon: "clock",
     text,
     head: `${quiet.count} people have gone quiet`,
+    question: `Who are the ${quiet.count} people gone quiet?`,
     sub: "No word from you in 30 days.",
     math,
     people: [],

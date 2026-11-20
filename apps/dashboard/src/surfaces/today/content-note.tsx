@@ -21,6 +21,7 @@ import {
   MIN_MS,
   contentRouteOf,
   contentWords,
+  TODAY_LINE_WORDS,
   fileSaidOf,
   fileViewOf,
   postStoppedWhyOf,
@@ -30,6 +31,7 @@ import {
 import { routeDoor } from "../frame-verbs";
 import { Icon } from "../kit/icon/icon";
 import { useSurface } from "../use-surface";
+import { askOf, useTodayAsks } from "./calm/asks";
 import { CalmList, CalmRow } from "./calm/lines";
 import { keptContentToday, readContentToday } from "./content-note-read";
 
@@ -86,6 +88,17 @@ export function TodayContentLine() {
     askedAt.current = now;
     void readContentToday().then(setToday);
   }, [day]);
+  // AI is handed the week's question where the week made something to post (D10).
+  const week = today?.week ?? [];
+  useTodayAsks("content", [
+    week.length
+      ? askOf(
+          week.every((made) => made.file.kind === "video")
+            ? TODAY_LINE_WORDS.asks.videos
+            : TODAY_LINE_WORDS.asks.pieces,
+        )
+      : null,
+  ]);
   if (!today || (today.week.length === 0 && today.making.length === 0 && !today.stopped)) return null;
   return (
     <CalmList label={W.title} testid="today-content">

@@ -22,6 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import { ASK_FOUND_SHOWN, ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
 import { routeDoor } from "../../frame-verbs";
+import { askOf, useTodayAsks } from "../calm/asks";
 import { Lead, LeadActs } from "../calm/lead";
 import { CalmList, CalmRow } from "../calm/lines";
 import type { PeopleListsLike } from "../leaks";
@@ -411,6 +412,13 @@ export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean
   const [everyRow, setEveryRow] = useState(false);
   // While anyone waits it is one line (D20): analysis never outranks a person, and the rest fold under it.
   const waiting = useWaitsOnToday();
+  // The lines hand AI what they ask (D10): the first findings' own questions, asked once by the part that lists them.
+  useTodayAsks(
+    "found",
+    lines && draws
+      ? [...found.rows, ...found.rest].slice(0, 2).map((r) => (r.question ? askOf(r.question) : null))
+      : [],
+  );
   if (!draws) return toastNode;
   const [first, ...others] = [...found.rows, ...found.rest];
   const listed = held ? others : [...found.rows, ...found.rest];

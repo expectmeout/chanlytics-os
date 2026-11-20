@@ -25,6 +25,7 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import {
   DEFAULT_TIMEZONE,
+  isPersonRow,
   NEED_YOU_WORDS as W,
   TODAY_LINE_WORDS,
   TODAY_NAMED_MAX,
@@ -33,6 +34,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { FailedRead } from "../../kit/empty/empty";
+import { askOf, useTodayAsks } from "../calm/asks";
 import { needsYouActed } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
@@ -174,6 +176,13 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   });
   // How many need you is the one count, which hears what was acted on here.
   useActedTold(kept);
+  // AI is handed who waits first (D10), in the card's own order: the first person still waiting, then the first run.
+  const firstWaiting = order.find((r) => isPersonRow(r) && !ctx.kept.has(r.id)) ?? null;
+  const firstRun = waits.parts.find((x) => x.question) ?? null;
+  useTodayAsks("waits", [
+    firstWaiting ? askOf(TODAY_LINE_WORDS.asks.person(firstWaiting.who)) : null,
+    firstRun?.question ? askOf(firstRun.question) : null,
+  ]);
   const lead =
     card?.holder === "queue"
       ? { row: order.find((r) => r.id === card.id) ?? null, ctx }

@@ -56,14 +56,20 @@ const threadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null =>
 export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
   const words = rowWords(row);
   const conversationId = threadOf(row, ctx);
+  // A visit to mark says when it was ("Wed, Nov 18, 10:30 – 11 AM"), not how long anyone has waited: that is its first
+  // fact under the name, so the name keeps its room, and the slot at the line's end stays for a wait.
+  const was = row.kind === "visit" && words.wait ? words.wait.words : null;
   const base = {
     first: { face: faceOf(row) },
     name: words.trail ? `${words.name} · ${words.trail}` : words.name,
     // What was said, fact by fact (who, since when, whose): each whole or not there, the warning in its tone.
-    facts: saidOf(row)
-      .split(FACT_DOT)
-      .map((fact) => toned(fact, words.saidToneOn, words.saidTone)),
-    wait: words.wait,
+    facts: [
+      ...(was ? [was] : []),
+      ...saidOf(row)
+        .split(FACT_DOT)
+        .map((fact) => toned(fact, words.saidToneOn, words.saidTone)),
+    ],
+    wait: was ? null : words.wait,
     // One line for who or what, one for what was said: the whole of it is in the card, or behind the press.
     tight: true,
     testid: words.testid,

@@ -36,8 +36,16 @@ export { todayBackOf, todayDayFoot, todayWentFoot, todayZoneDay } from "./day/zo
 export type { TodayBackVM, TodayZoneCellVM, TodayZoneDayVM, TodayZoneLineVM } from "./day/zone";
 export { QUOTE_MAX } from "./facts";
 export { figureDoorOf, todayProof } from "./figures";
-export { alsoWords, contentWords, dayCameToWords, TODAY_LINE_WORDS, TODAY_NAMED_MAX } from "./lines";
-export type { TodayAlsoCounts, TodayLineWords } from "./lines";
+export {
+  alsoWords,
+  contentWords,
+  dayCameToWords,
+  TODAY_ASKS_MAX,
+  TODAY_LINE_WORDS,
+  TODAY_NAMED_MAX,
+  todayAsksOf,
+} from "./lines";
+export type { TodayAlsoCounts, TodayAsk, TodayLineWords } from "./lines";
 export { emailWires, TODAY_BOOKED_SHOWN } from "./metrics";
 export type { MetricsChannelDto, MetricsSummaryDto, TodayBookedDto, TodayBookingsDto } from "./metrics";
 export {

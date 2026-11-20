@@ -14,6 +14,7 @@ import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
+import { askOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 import { borrowed, useMoved } from "../shell";
 import { useDayTurned } from "./head";
@@ -50,6 +51,9 @@ export function DayCameTo() {
   // Once the day has turned the head has said what was booked and what AI answered (head.tsx): this says neither again.
   const turned = useDayTurned();
   const words = vm ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  // AI is handed the line's question where AI answered anything (D10).
+  const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
+  useTodayAsks("did", [words && answered ? askOf(TODAY_LINE_WORDS.asks.did) : null]);
   if (!words) return null;
   return (
     <CalmList label={words.title} testid="today-came-to">

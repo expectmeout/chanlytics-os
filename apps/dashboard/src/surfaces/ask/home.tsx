@@ -12,6 +12,7 @@ import {
   type AskLanguage,
   type AskNotice,
   type AskScope,
+  type AskSuggestion,
   type AskSurface,
   type AskThreadVM,
 } from "@chanlytics/contracts";
@@ -66,6 +67,10 @@ interface LineRowsAsk {
   scope: AskScope | null;
   threads: AskThreadVM[];
   view: string;
+  /** The page's own questions (ownAsksOf), read once by the Line for the rows and for the home's title. */
+  own: readonly AskSuggestion[];
+  /** The home is the page's own questions as rows, under a title: a phone's opened from Today (Today, calm, D10). */
+  titled: boolean;
 }
 
 const ahAgo = (ms: number) => {
@@ -78,7 +83,34 @@ const ahAgo = (ms: number) => {
 };
 
 // Every row carries what activating it does: a route, words to ask, words to finish on the line, or a thread to open.
-export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }: LineRowsAsk): LineSection[] => {
+/**
+ * The page's own questions, three at most: only where they were written for this workspace (Leads' ideas, the
+ * person's own searches, what Today wrote from its lines). A question from a table is a preset, and AI needs none
+ * (Ruben, 12 and 17 Nov 2026); those still match what is typed, and an answer's own next questions are AI's.
+ */
+export const ownAsksOf = ({
+  A,
+  t,
+  lang,
+  surface,
+  scope,
+}: Pick<LineRowsAsk, "A" | "t" | "lang" | "surface" | "scope">) =>
+  A.suggestions(surface, scope, lang)
+    .filter((s) => s.kind !== "act" && s.q !== t.needsQ && s.own)
+    .slice(0, 3);
+
+export const buildLineRows = ({
+  A,
+  t,
+  lang,
+  query,
+  surface,
+  scope,
+  threads,
+  view,
+  own,
+  titled,
+}: LineRowsAsk): LineSection[] => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
   const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
@@ -114,6 +146,29 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
     // which it means; alone they only said the field again, under it.
     return sections.length > 1 ? sections : [];
   }
+  // What AI said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
+  // said it would ask itself then, which clears it (the route's `following`).
+  const due = A.followUpsDue ? A.followUpsDue() : [];
+  const followUps: LineSection[] = due.length
+    ? [
+        {
+          key: "follow",
+          label: t.followUpsDue,
+          items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
+        },
+      ]
+    : [];
+  // A phone's home opened from Today (Today, calm, D10): the questions Today wrote from its own lines, a row each, by
+  // the field. The page under it has just said who needs you and what AI found, so neither is said again here.
+  if (titled)
+    return [
+      ...followUps,
+      {
+        key: "about",
+        label: t.aboutToday,
+        items: own.map((s) => ({ type: "page", label: s.label || s.q, q: s.q })),
+      },
+    ];
   // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer). The counts its
   // sentence was built from are the hero's pills while a phone's field is in use (line/under.ts); Earlier is the head's (spec 5.2).
   const parts = A.rightNowParts
@@ -155,27 +210,14 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
         },
       ],
     });
-  // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
-  // said it would ask itself then, which clears it (the route's `following`).
-  const due = A.followUpsDue ? A.followUpsDue() : [];
-  if (due.length)
-    sections.push({
-      key: "follow",
-      label: t.followUpsDue,
-      items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
-    });
-  // The page's questions as chips only where they were written for this workspace (Leads' ideas, the person's own
-  // searches): a question from a table is a preset, and AI needs none (Ruben, 12 and 17 Nov 2026). They still match
-  // what is typed (above), and an answer's own next questions are AI's.
-  const asks = A.suggestions(surface, scope, lang)
-    .filter((s) => s.kind !== "act" && s.q !== t.needsQ && s.own)
-    .slice(0, 3);
-  // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
-  if (asks.length)
+  sections.push(...followUps);
+  // The page's own questions as chips. On Leads the consent rule stands under them (spec F3), one dim line; nowhere
+  // else has a note.
+  if (own.length)
     sections.push({
       key: "about",
-      label: t.askAbout(surface),
-      items: asks.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
+      label: surface === "today" ? t.aboutToday : t.askAbout(surface),
+      items: own.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
       note: surface === "leads" ? t.leadsConsent : null,
     });
   return sections;
@@ -297,6 +339,8 @@ export const AskRows = ({
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
         {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+        {/* A question of the page's (Today, calm, D10): the arrow says a press asks it. */}
+        {it.type === "page" ? <Icon name="arrow-up" size={14} className="ask-row-go" /> : null}
         {/* Not now is the kit's x, as a conversation's is: a notice is its fact, its act and its x (docs/words.md). */}
         {it.rest ? (
           <span

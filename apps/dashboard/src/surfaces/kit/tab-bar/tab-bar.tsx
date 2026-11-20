@@ -14,8 +14,21 @@
  * At rest the lit tab draws its own fill, with nothing measured.
  *
  * The place on screen pressed again is said too (`onPick`), and its frame takes it to the place's top.
+ *
+ * Folded (`fold`; Today, calm, 19 Nov 2026, D8), the bar is a field's capsule: every place but the one on screen fades
+ * toward it and takes no press, that one keeps its glyph alone and becomes the way back, and the room beside it is the
+ * field's, drawn by whoever owns the field (AI's Line) into the element the bar hands over. The bar is as tall as what
+ * the field holds. It is one element throughout, so folding and unfolding are its own movements (kit.css).
  */
-import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { viewDeck } from "../motion/view-deck";
 import { cx } from "../variants";
 import { afterPaint } from "../view-tabs/after-paint";
@@ -58,6 +71,15 @@ export type TabBarMore = {
   onPress: () => void;
 };
 
+/** The bar folded into the place on screen, holding a field: the way back, and where the field is drawn. */
+export type TabBarFold = {
+  /** What the place it folded into says to a screen reader, now that a press on it goes back ("Back to Today"). */
+  label: string;
+  onBack: () => void;
+  /** Handed the element the field is drawn into, and null as it goes: the same function on every draw. */
+  field: (el: HTMLElement | null) => void;
+};
+
 /** A bar of places: its name, the place on screen, the places, what pressing one does, and More. */
 export type TabBarProps = {
   /** What the bar is, to a screen reader ("Main"). */
@@ -68,6 +90,8 @@ export type TabBarProps = {
   /** Move to a place. Called for the place on screen too, which its frame takes to the place's top. */
   onPick: (id: string) => void;
   more?: TabBarMore;
+  /** Folded into the place on screen, a field in the room beside it; null or left out, the bar of places. */
+  fold?: TabBarFold | null;
   testid?: string;
   className?: string;
 };
@@ -80,7 +104,7 @@ const ownPress = (e: MouseEvent) =>
 const touchPress = (e: PointerEvent) => e.pointerType !== "mouse" && e.isPrimary && e.button === 0;
 
 /** The places a thumb goes, the one on screen lit. */
-export function TabBar({ label, picked, places, onPick, more, testid, className }: TabBarProps) {
+export function TabBar({ label, picked, places, onPick, more, fold = null, testid, className }: TabBarProps) {
   // The place pressed, lit until the address says it is the page's own.
   const [pending, setPending] = useState<string | null>(null);
   const bar = useRef<HTMLElement>(null);
@@ -95,6 +119,26 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
     return () => clearTimeout(t);
   }, [pending]);
   const lit = pending ?? picked;
+  // Folded, the way back is the place on screen; where no place holds the page (Reports, Settings), More.
+  const way = fold ? (lit ?? (more ? "more" : null)) : null;
+  const folded = !!fold;
+  // What a place is while the bar is folded: the way back, named as that, or out of a reader's and the keys' way.
+  const foldedAs = (id: string) =>
+    !fold ? null : id === way ? { "aria-label": fold.label } : { "aria-hidden": true, tabIndex: -1 };
+  // The bar is as tall as what its field holds (a question of several lines): said to its own rules as the field grows.
+  useLayoutEffect(() => {
+    const nav = bar.current;
+    const room = nav ? nav.querySelector<HTMLElement>(":scope > .tab-bar-field") : null;
+    if (!folded || !nav || !room || typeof ResizeObserver !== "function") return undefined;
+    const fit = () => nav.style.setProperty("--tab-bar-held", `${room.offsetHeight}px`);
+    const seen = new ResizeObserver(fit);
+    seen.observe(room);
+    fit();
+    return () => {
+      seen.disconnect();
+      nav.style.removeProperty("--tab-bar-held");
+    };
+  }, [folded]);
 
   const press = (tab: HTMLElement, place: TabBarPlace) => {
     if (place.id !== lit) {
@@ -105,13 +149,18 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
     afterPaint(() => onPick(place.id));
   };
   const down = (e: PointerEvent<HTMLAnchorElement>, place: TabBarPlace) => {
-    if (!touchPress(e)) return;
+    if (fold || !touchPress(e)) return;
     touched.current = { id: place.id, at: e.timeStamp };
     press(e.currentTarget, place);
   };
   const click = (e: MouseEvent<HTMLAnchorElement>, place: TabBarPlace) => {
     if (!ownPress(e)) return;
     e.preventDefault();
+    // Folded, the one place that takes a press is the way back.
+    if (fold) {
+      if (place.id === way) fold.onBack();
+      return;
+    }
     const was = touched.current;
     touched.current = null;
     if (was && was.id === place.id && e.timeStamp - was.at <= TOUCH_CLICK_MS) return;
@@ -121,14 +170,22 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
   // The frame's chrome at the window's foot (`data-chrome="foot"`): a row's page carried back by a thumb shows it under
   // it, and one pushed in takes it away with the list (kit/motion/held-list.ts).
   return (
-    <nav ref={bar} className={cx("tab-bar", className)} aria-label={label} data-testid={testid} data-chrome="foot">
+    <nav
+      ref={bar}
+      className={cx("tab-bar", className)}
+      aria-label={label}
+      data-testid={testid}
+      data-chrome="foot"
+      {...(fold ? { "data-folded": "" } : null)}
+    >
       <span className="tab-bar-pill" aria-hidden="true" />
       {places.map((place) => (
         <a
           key={place.id}
           href={place.href}
-          className={cx("tab-bar-tab", lit === place.id && "active")}
-          aria-current={picked === place.id ? "page" : undefined}
+          className={cx("tab-bar-tab", lit === place.id && "active", way === place.id && "tab-bar-way")}
+          aria-current={!fold && picked === place.id ? "page" : undefined}
+          {...foldedAs(place.id)}
           data-testid={place.testid}
           draggable={false}
           onPointerEnter={place.warm}
@@ -146,15 +203,23 @@ export function TabBar({ label, picked, places, onPick, more, testid, className 
               </span>
             ) : null}
           </span>
-          {place.label}
+          <span className="tab-bar-word">{place.label}</span>
         </a>
       ))}
       {more ? (
-        <button type="button" className="tab-bar-tab" aria-label={more.label} onClick={more.onPress}>
+        <button
+          type="button"
+          className={cx("tab-bar-tab", way === "more" && "tab-bar-way")}
+          aria-label={more.label}
+          {...foldedAs("more")}
+          onClick={fold ? (way === "more" ? fold.onBack : undefined) : more.onPress}
+        >
           <span className="tab-bar-glyph">{more.glyph}</span>
-          {more.word}
+          <span className="tab-bar-word">{more.word}</span>
         </button>
       ) : null}
+      {/* The field's room, drawn into by whoever owns the field (`fold.field`). */}
+      {fold ? <div className="tab-bar-field" ref={fold.field} /> : null}
     </nav>
   );
 }

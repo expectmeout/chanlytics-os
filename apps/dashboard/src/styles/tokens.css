@@ -139,6 +139,9 @@
   --radius-row: 14px;
   /* A capsule around a 36px control with 6px of room (the Inbox's reply box, I1): 18 + 6. */
   --radius-3xl: 24px;
+  /* The phone's tab bar once it holds a field (kit.css, the bar folded): a capsule's corner at the bar's own 62px, which
+     stays that as a question of several lines makes the bar taller, where --radius-full would round it further. */
+  --radius-bar: 31px;
   /* The top corners of the phone's action sheet (the kit's Menu from the bottom edge): the sheet's 16 and 6 more. */
   --radius-sheet: 22px;
   /* A tile of Ask's three where CSS draws them small (a photo's corner while Ask looks): the mark's own corners, 0.26 of a side. */

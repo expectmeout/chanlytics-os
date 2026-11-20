@@ -1,5 +1,6 @@
 /** What the Line draws: plain functions, not components, making its elements in the order AskReal always did. */
 import type { MouseEvent, PointerEvent } from "react";
+import { createPortal } from "react-dom";
 import { fileViewOf, type AskMessageVM } from "@chanlytics/contracts";
 import type { Line } from "./types";
 import { Button } from "../../kit/button/button";
@@ -228,13 +229,22 @@ export const arHero = ({
   quick,
   heroQ,
   view,
+  homeTitled,
+  dock,
 }: Line) => (
   <div className={`ask-hero${heroMode}${view === "earlier" ? " away" : ""}`} ref={heroRef} data-testid="ask-hero">
     <span className="ask-hero-stage" ref={faceRef} {...holdThree} data-testid="ask-hero-stage">
-      <AskFace className="ask-hero-canvas" testId="ask-line-face" />
+      {/* On a phone's bar the three are carried in from their circle, whole (hooks.tsx useArOpen): they do not also come in. */}
+      <AskFace className="ask-hero-canvas" testId="ask-line-face" enter={!dock} />
     </span>
     {standing && parts ? <AskNowPills people={parts.people} runs={parts.runs} searches={parts.searches} t={t} /> : null}
-    {talk.listening && !thread ? (
+    {/* The home's title, where the home is the page's own questions (Today, calm, D10). */}
+    {homeTitled && !talk.listening ? (
+      <h2 className="ask-home-title" data-testid="ask-home-title">
+        {t.homeTitle}
+      </h2>
+    ) : null}
+    {talk.listening && !thread && !dock ? (
       <p className="ask-heard" aria-live="polite" data-testid="ask-heard">
         {query || t.listening}
       </p>
@@ -251,7 +261,9 @@ export const arHero = ({
 
 // While a phone listens its foot is the pill to let go of, over the band (still drawn, hidden, so the mic that holds
 // the finger is there for the lift), with a way back to typing that keeps the words heard (spec 5.3).
-export const arFoot = ({ phone, talk, typing, t, liftMic }: Line) =>
+// On the frame's bar the finger is on the circle, which is the press to let go of: the field says so and fills with the
+// words heard, and only the way back to typing stands over it (Today, calm, D8).
+export const arFoot = ({ phone, talk, typing, t, liftMic, dock }: Line) =>
   phone && talk.listening ? (
     <div className="ask-letgo-wrap">
       <Button
@@ -264,50 +276,44 @@ export const arFoot = ({ phone, talk, typing, t, liftMic }: Line) =>
       >
         {t.typeInstead}
       </Button>
-      <LinePress kind="letgo" aria-pressed="true" onPointerUp={liftMic} data-testid="ask-letgo">
-        <Icon name="mic" size={18} />
-        {t.letGo}
-      </LinePress>
+      {dock ? null : (
+        <LinePress kind="letgo" aria-pressed="true" onPointerUp={liftMic} data-testid="ask-letgo">
+          <Icon name="mic" size={18} />
+          {t.letGo}
+        </LinePress>
+      )}
     </div>
   ) : null;
 
 // The band: the field at the foot (ask.css orders it last), the scope and the one button in it; the three and what Ask
 // reads are the hero's. On a phone it is hidden under the pill to let go of while it listens.
-const arStage = ({
-  talk,
-  live,
-  stageRef,
-  scope,
-  setScope,
-  setActive,
-  t,
-  inputRef,
-  active,
-  surface,
-  query,
-  setQuery,
-  composing,
-  M,
-  onKey,
-  hold,
-  slideFrom,
-  heroRef,
-  setComposing,
-  rowsDrawn,
-  rows,
-  showRows,
-  sel,
-  move,
-  right,
-  attached,
-  attach,
-  detach,
-  attachAgain,
-}: Line) => {
+const arStage = (ln: Line) => {
+  const { talk, live, stageRef, scope, setScope, setActive, t, rows, showRows, sel, move, right, attached, attach } =
+    ln;
+  const { detach, attachAgain, dock, query } = ln;
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
+  const field = arField(ln, activeId);
+  // The field's row. On a phone where the frame's bar stands it is drawn in the bar's own capsule, and the one press in
+  // the circle beside it (Today, calm, D8): AI has no second capsule there, and what the question is about stays here.
+  const press = <span className="ask-line-right">{right}</span>;
+  // On the bar the + stands at the field's end, where the one press stood, in the order a reader and Tab meet them, and
+  // only while the field is in use: at rest the bar is the way back and what to ask, as drawn, and the field's words
+  // have the whole room (ask.css). `data-holds` keeps it while the field holds words or photos (never `data-held`, which
+  // is a list held out of sight, components.css).
+  const plus = <AskAttachPress t={t} attach={attach} />;
+  const row = (
+    <div
+      className={`ask-stage-row${dock ? " docked" : ""}`}
+      {...(dock && (query.trim() || attached.length) ? { "data-holds": "" } : null)}
+    >
+      {dock ? null : plus}
+      {field}
+      {dock ? plus : press}
+    </div>
+  );
   return (
     <div
-      className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`}
+      className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}${dock ? " docked" : ""}`}
       ref={stageRef}
       data-testid="ask-line"
     >
@@ -337,58 +343,85 @@ const arStage = ({
           {/* the open thread's scope too, so its next question goes with none (the Phase 5 plan, D9) */}
         </div>
       ) : null}
-      <div className="ask-stage-row">
-        <AskAttachPress t={t} attach={attach} />
-        <LineField
-          ref={inputRef}
-          rows={1}
-          listening={talk.listening}
-          className="ask-line-input"
-          placeholder={
-            talk.listening
-              ? t.listening
-              : active
-                ? active.messages?.at(-1)?.proposals?.some((p) => !p.outcome && askCardHasWords(p.kind))
-                  ? t.changeAnything
-                  : t.follow
-                : surface === "leads"
-                  ? t.describeLeads
-                  : surface === "campaigns"
-                    ? campaignsAskOf(t)
-                    : t.placeholder
-          }
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (composing) M.mood.hear(0.5);
-          }}
-          onKeyDown={onKey}
-          onKeyUp={(e) => hold.onKeyUp(e)}
-          onPaste={(e) => pastedPhotos(e, attach)}
-          onFocus={() => {
-            if (!arPhone()) return;
-            slideFrom.current = ahSlideFrom(stageRef.current, heroRef.current);
-            setComposing(true);
-          }}
-          onBlur={() => setComposing(false)}
-          role="combobox"
-          aria-expanded={rowsDrawn && rows.length > 0}
-          aria-controls={rowsDrawn ? "ask-rows" : undefined}
-          aria-activedescendant={activeId}
-          aria-autocomplete="list"
-          aria-label={t.dialogName}
-          data-testid="ask-input"
-          maxLength={1000}
-          enterKeyHint="send"
-          autoCapitalize="sentences"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        <span className="ask-line-right">{right}</span>
-      </div>
+      {dock ? (dock.field ? createPortal(row, dock.field) : null) : row}
+      {dock?.press ? createPortal(press, dock.press) : null}
     </div>
   );
 };
+
+/** The field itself: what it says while empty, what it holds, and its keys. */
+const arField = (
+  {
+    talk,
+    t,
+    inputRef,
+    active,
+    surface,
+    query,
+    setQuery,
+    composing,
+    M,
+    onKey,
+    hold,
+    slideFrom,
+    stageRef,
+    heroRef,
+    setComposing,
+    rowsDrawn,
+    rows,
+    attach,
+    dock,
+  }: Line,
+  activeId: string | undefined,
+) => (
+  <LineField
+    ref={inputRef}
+    rows={1}
+    listening={talk.listening}
+    className="ask-line-input"
+    placeholder={
+      talk.listening
+        ? dock
+          ? t.letGo
+          : t.listening
+        : active
+          ? active.messages?.at(-1)?.proposals?.some((p) => !p.outcome && askCardHasWords(p.kind))
+            ? t.changeAnything
+            : t.follow
+          : surface === "leads"
+            ? t.describeLeads
+            : surface === "campaigns"
+              ? campaignsAskOf(t)
+              : t.placeholder
+    }
+    value={query}
+    onChange={(e) => {
+      setQuery(e.target.value);
+      if (composing) M.mood.hear(0.5);
+    }}
+    onKeyDown={onKey}
+    onKeyUp={(e) => hold.onKeyUp(e)}
+    onPaste={(e) => pastedPhotos(e, attach)}
+    onFocus={() => {
+      if (!arPhone()) return;
+      slideFrom.current = ahSlideFrom(stageRef.current, heroRef.current);
+      setComposing(true);
+    }}
+    onBlur={() => setComposing(false)}
+    role="combobox"
+    aria-expanded={rowsDrawn && rows.length > 0}
+    aria-controls={rowsDrawn ? "ask-rows" : undefined}
+    aria-activedescendant={activeId}
+    aria-autocomplete="list"
+    aria-label={t.dialogName}
+    data-testid="ask-input"
+    maxLength={1000}
+    enterKeyHint="send"
+    autoCapitalize="sentences"
+    autoComplete="off"
+    spellCheck={false}
+  />
+);
 
 // The middle is one scroller (spec 5.1, 5.5): on the home, the hero and the rows; in a conversation, the thread (the
 // spec 2026-09-27-ask-chat-on-a-phone, D1): every earlier turn in full, then the newest question, the three and its
@@ -402,6 +435,7 @@ const arMiddle = ({
   listen,
   restful,
   noticeWaits,
+  homeTitled,
   composingRows,
   bodyRef,
   body,
@@ -425,7 +459,7 @@ const arMiddle = ({
   editWords,
 }: Line) => (
   <div
-    className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}${thread ? " thread" : ""}${listen ? " dim" : ""}`}
+    className={`ask-line-body${restful ? " rest" : ""}${composingRows ? " composing" : ""}${thread ? " thread" : ""}${listen ? " dim" : ""}${homeTitled ? " titled" : ""}`}
     ref={bodyRef}
   >
     {thread ? (
@@ -439,7 +473,8 @@ const arMiddle = ({
         onEdit={editWords}
       />
     ) : null}
-    <div className={`ask-now${restful && noticeWaits ? " waiting" : ""}`}>
+    {/* The page's own questions wait on no read (Today, calm, D10): only what AI noticed holds the home back. */}
+    <div className={`ask-now${restful && noticeWaits && !homeTitled ? " waiting" : ""}`}>
       {thread && (nowQ || nowFiles.length) ? <AskQuestion text={nowQ} files={nowFiles} t={t} now /> : null}
       {hero}
       {body}
@@ -474,6 +509,7 @@ const arOverField = ({
   submit,
   below,
   bodyRef,
+  dock,
 }: Line) => {
   const nextRow =
     thread && !composing && !talk.listening && !live && drawn && !nextInThread && drawn.answer.do.next.length ? (
@@ -484,7 +520,7 @@ const arOverField = ({
     thread && !composing && !talk.listening && live ? <div className="ask-next-row hold" aria-hidden="true" /> : null;
   return (
     <>
-      {listen ? <AskListen heard={talk.listening ? query || t.listening : ""} /> : null}
+      {listen ? <AskListen heard={talk.listening && !dock ? query || t.listening : ""} /> : null}
       {nextRow || held}
       {thread && below && !listen ? (
         <AskLatest t={t} overNext={!!nextRow} onPress={() => ahPinNow(bodyRef.current)} />
@@ -524,6 +560,7 @@ export const arLineView = (ln: Line) => {
     // carry the motion.
     <div
       className="ask-overlay ask-line-scrim"
+      data-docked={ln.dock ? "" : undefined}
       role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -534,9 +571,12 @@ export const arLineView = (ln: Line) => {
       <div
         ref={dialogRef}
         className={`ask-modal ask-real ask-line${dropping ? " dropping" : ""}`}
+        data-docked={ln.dock ? "" : undefined}
         {...dropProps}
         role={phone ? "dialog" : "complementary"}
-        aria-modal={phone ? "true" : undefined}
+        // With its field in the frame's bar, the dialog is not all there is to reach: the page under it is taken away
+        // by the frame instead (shell-chrome.tsx), and the bar and the circle stay a reader's.
+        aria-modal={phone && !ln.dock ? "true" : undefined}
         tabIndex={-1}
         aria-label={t.dialogName}
         data-testid="ask-real"

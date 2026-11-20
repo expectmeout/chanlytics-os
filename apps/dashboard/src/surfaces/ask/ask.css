@@ -1217,7 +1217,8 @@ body.ask-open .tb-ask .tb-ask-face {
 /* ---- The Line's layout, a phone's screen and a desk's panel alike (the Stage's spec, section 5; Ruben, 16 Oct 2026:
    the desk's Line is the phone's, docked at the right). The phone's own (its screen, the keys, its ✦, its touch sizes)
    is the block after this one. ---- */
-.phone-ask {
+.phone-ask,
+.ask-ground {
   display: none;
 }
 /* The middle is one scroller (surfaces/ask/line/ draws the thread and the hero in it), so they scroll with the answer. At
@@ -1979,11 +1980,7 @@ body.ask-open .tb-ask .tb-ask-face {
     z-index: 1;
     translate: 0 calc(0.225 * 14px);
   }
-  .phone-ask:focus-visible {
-    outline: 2px solid var(--ink);
-    outline-offset: 2px;
-  }
-  .phone-ask:active {
+  .phone-ask:not([data-folded]):active {
     transform: scale(0.96);
   }
   /* The disc, and its dot. The disc is the cards' surface, lifted by their shadow and nothing else: no hairline, the
@@ -2340,5 +2337,422 @@ body.ask-open .tb-ask .tb-ask-face {
       linear-gradient(#000 0 0) content-box exclude,
       linear-gradient(#000 0 0);
     pointer-events: none;
+  }
+}
+
+/* ---- One bar on a phone (Today, calm, 19 Nov 2026, D8 to D12; surfaces/frame/shell-chrome.tsx, bridge/ask/dock.ts) ----
+   With AI open the frame's own tab bar is AI's field and the circle beside it AI's one press: the bar folds into the
+   place on screen (the kit's TabBar, kit.css) and the Line draws its field into the bar's room and its mic, Send or Stop
+   into the circle's, so there is one capsule of glass at the thumb and never a second of AI's. AI's screen (`data-docked`)
+   wears no glass and no veil of its own: the page fades to its own ground under it, and the bar and the circle stand
+   over it as they stood over the page. The three leave the circle in one arc and land in AI's home, which sits by the
+   field (line/hooks.tsx useArOpen, kit/motion/arc.ts); closed, they go home the same way (frame/phone-ask-face.tsx).
+   Not inside the native app, whose own tab bar stands there: AI keeps the field of its own above. */
+@media (max-width: 720px) {
+  /* The circle is one element, open or closed: closed, the three on it are the press that opens AI. */
+  .phone-ask-press {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: var(--radius-circle);
+    padding: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .phone-ask-press:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+  .phone-ask-arc {
+    display: block;
+  }
+  /* The mic as AI closes: under the real one while AI is open, it stays as that one goes, and fades from 240 ms as the
+     three land, so the circle is never empty (D9). Closed, it is not seen. */
+  .phone-ask-mic {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--ink);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--duration-fast) var(--ease-out) 240ms;
+  }
+  .phone-ask[data-folded] > .phone-ask-mic {
+    visibility: hidden;
+    opacity: 1;
+    transition: none;
+  }
+  /* While AI holds the circle its own three are kept drawn and unseen, and take no press. */
+  .phone-ask[data-folded] > .phone-ask-press {
+    visibility: hidden;
+    pointer-events: none;
+    /* A frame or two after AI's own three are drawn where these stand (they are drawn once AI's screen is painted), so
+       the circle is never empty as they leave it. */
+    transition: visibility 0s linear 40ms;
+  }
+  /* Open, it holds AI's one press: the mic comes in as the three leave (from 80 ms, as they clear the circle), so the
+     circle is never empty. */
+  .phone-ask-held {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    animation: ask-held-in var(--duration-base) var(--ease-out) 80ms backwards;
+  }
+  @keyframes ask-held-in {
+    from {
+      opacity: 0;
+      scale: 0.8;
+    }
+  }
+  .phone-ask-held .ask-send {
+    width: 50px;
+    height: 50px;
+  }
+  /* At rest the mic is the ink's glyph on the circle's own glass, as the three were: the ink circle is Send's and Stop's. */
+  .phone-ask-held .ask-send[aria-pressed="false"] {
+    background: none;
+    color: var(--ink);
+  }
+  /* Over AI's screen, and on the keys once the field is in use, where AI's own field stood. They drop back under what
+     the page opens only once AI's screen has gone: the layer waits out its leaving, the rest moves as it did. */
+  .phone-places,
+  .phone-ask {
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      translate var(--duration-fast) var(--ease-out),
+      visibility 0s linear 0s,
+      bottom 250ms var(--ease-out),
+      z-index 0s linear var(--duration-slow);
+  }
+  .phone-places[data-folded],
+  .phone-ask[data-folded] {
+    z-index: 322;
+    transition:
+      bottom 250ms var(--ease-out),
+      z-index 0s linear 0s;
+  }
+  /* On the keys, as an open thread's reply box stands (mobile.css, the thread pane): over what they cover, over the
+     address an iPhone's browser floats above them (--keys-pill), the home bar under them; from the moment the field is
+     focused at the height the last keyboard had (kb-expected), never lower than where the bar rests (a first keyboard
+     has no last height, and the bar dropped 6px before it rose). Going down with the keys as they leave (kb-leaving). */
+  .phone-places[data-folded],
+  .phone-ask[data-folded] {
+    --on-keys: 0px;
+  }
+  html.kb-up .phone-places[data-folded],
+  html.kb-up .phone-ask[data-folded] {
+    --on-keys: calc(var(--kb, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) + 8px);
+    bottom: max(var(--bar-foot), var(--on-keys));
+  }
+  html.kb-expected .phone-places[data-folded],
+  html.kb-expected .phone-ask[data-folded] {
+    --on-keys: calc(var(--kb-last, 0px) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) + 8px);
+    bottom: max(var(--bar-foot), var(--on-keys));
+  }
+  html.kb-leaving .phone-places[data-folded],
+  html.kb-leaving .phone-ask[data-folded] {
+    bottom: var(--bar-foot);
+    transition:
+      bottom 350ms var(--ease-in-out),
+      z-index 0s linear 0s;
+  }
+
+  /* Three layers, from the page up: the ground, the bar and the circle, AI's screen. The ground is the page's own (its
+     paper and its light, as the app's root draws them), come over the page as AI opens and gone as it closes; the bar
+     and the circle keep their glass over it; and AI's screen is over all of it, with no glass and no veil of its own,
+     so the three are seen lifting off the circle, never from under its glass. The screen takes no press where it is
+     empty: a press there is the bar's or the circle's, or nothing's, the page under the ground being taken away. */
+  .ask-ground {
+    display: block;
+    position: fixed;
+    /* Short of the foot Safari reads and faded there, as every wash is (tokens.css --foot-clear), so its bottom bar stays
+       glass while AI is open. */
+    inset: 0 0 var(--foot-clear, 0px);
+    mask-image: var(--foot-fade, none);
+    z-index: 321;
+    background-color: var(--bg);
+    background-image: var(--surface-page-top), var(--surface-page-light);
+    background-repeat: no-repeat;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--duration-base) var(--ease-in),
+      visibility 0s linear var(--duration-base);
+  }
+  /* It takes a press or a drag that lands beside AI's screen, the bar and the circle, so the page under it never scrolls
+     while it is out of sight. */
+  .ask-ground[data-on] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    touch-action: none;
+    transition: opacity var(--duration-base) var(--ease-out);
+  }
+  .ask-overlay.ask-line-scrim[data-docked] {
+    z-index: 324;
+    bottom: var(--foot-clear, 0px);
+    background: transparent;
+    backdrop-filter: none;
+    animation: none;
+    pointer-events: none;
+  }
+  .ask-overlay[data-docked] > .ask-line {
+    pointer-events: none;
+  }
+  .ask-overlay[data-docked] > .ask-line > * {
+    pointer-events: auto;
+  }
+  /* Leaving (kit/motion/leaving.ts draws a still copy): the copy is kept while its words go; the three in it are gone at
+     once, since the circle's own come home from there. */
+  .ask-overlay.ask-line-scrim[data-docked][data-leaving="true"] {
+    animation: ask-docked-out 280ms linear forwards;
+  }
+  @keyframes ask-docked-out {
+    to {
+      visibility: visible;
+    }
+  }
+  .ask-overlay[data-docked][data-leaving="true"] .ask-hero-stage {
+    visibility: hidden;
+  }
+  .ask-overlay[data-docked][data-leaving="true"] > .ask-line {
+    animation: wash-out 160ms var(--ease-in) forwards;
+  }
+  /* A copy plays every arrival again from its start: nothing in it arrives, it only goes. */
+  .ask-overlay[data-docked][data-leaving="true"] > .ask-line * {
+    animation: none;
+  }
+  /* The window keeps the bar's room at its foot, and the keys' under that once they are up (below). Weighed as the
+     keyboard's own rules for the window are (html.kb-up .ask-modal.ask-line), so as the keys leave the room is the bar's. */
+  html .ask-overlay[data-docked] > .ask-line {
+    height: calc(100dvh - var(--vv-top, 0px) - var(--foot-clear, 0px));
+    /* The bar is its field's room and 12px round it (--ask-room, which the Line keeps: line.tsx), and 8px over it. */
+    padding-bottom: calc(var(--bar-foot) + var(--ask-room, 50px) + 20px + var(--ask-keys) - var(--foot-clear, 0px));
+    animation: none;
+  }
+  /* With the keys up, the bar's room stands on them, as the bar does (above). */
+  html:is(.kb-up, .kb-expected):not(.kb-leaving) .ask-overlay[data-docked] > .ask-line {
+    padding-bottom: max(
+      calc(var(--bar-foot) + var(--ask-room, 50px) + 20px - var(--foot-clear, 0px)),
+      calc(
+        var(--ask-keys) + var(--keys-pill, 0px) - env(safe-area-inset-bottom, 0px) + var(--ask-room, 50px) + 28px -
+          var(--foot-clear, 0px)
+      )
+    );
+  }
+  /* (Weighed light, so the rule that stills a leaving copy, above, outranks it.) */
+  .ask-line[data-docked] > :where(.ask-line-head, .ask-line-body.thread) {
+    animation: wash-in var(--duration-base) var(--ease-out);
+  }
+  /* The close is the bell's own circle, where the bell stands (components.css, the phone's 32px bell: the control
+     layer's fill and depth, a thumb's reach as a margin round it): opening, the circle holds still and its glyph
+     turns into the x. Earlier keeps the head's left. */
+  .ask-line[data-docked] > .ask-line-head {
+    min-height: 48px;
+    padding: 4px var(--gutter-page) 0 8px;
+  }
+  .ask-line[data-docked] .ask-line-close {
+    position: relative;
+    width: 32px;
+    min-width: 0;
+    height: 32px;
+    min-height: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--surface-control-fill);
+    box-shadow: var(--surface-control-depth);
+    color: var(--ink-muted);
+  }
+  .ask-line[data-docked] .ask-line-close::before {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+  .ask-line[data-docked] .ask-line-close > svg {
+    animation: ask-close-in var(--duration-slow) var(--ease-out) 80ms backwards;
+  }
+  @keyframes ask-close-in {
+    from {
+      opacity: 0;
+      rotate: -60deg;
+      scale: 0.7;
+    }
+  }
+  /* What is left of AI's own band there: the photos beside a question and what it is about, on the page's ground. */
+  .ask-line .ask-stage.docked {
+    margin: 0 14px;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  /* The field's row, in the bar's room: the field, then the + at its end, where the one press stood. */
+  .ask-stage-row.docked {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    gap: 2px;
+    padding: 0 4px;
+  }
+  /* The + while the field is in use (focused, or holding words or photos), at the old field's 36px; at rest it folds away
+     and the words have its room, each of the field's sayings whole on a 375px phone. It stays a moment after the field
+     lets go of focus, so a tap on it, which takes focus from the field first, still lands. */
+  .ask-stage-row.docked > .ask-attach {
+    width: 36px;
+    height: 36px;
+    transition:
+      width var(--duration-base) var(--ease-out),
+      opacity var(--duration-fast) var(--ease-out) 80ms,
+      visibility 0s linear 0s;
+  }
+  .ask-stage-row.docked:not(:focus-within, [data-holds]) > .ask-attach {
+    width: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      width var(--duration-base) var(--ease-out) 300ms,
+      opacity var(--duration-fast) var(--ease-out) 300ms,
+      visibility 0s linear 500ms;
+  }
+  /* What the field says while empty, where it runs past the field's end on a small phone with the + in: it fades at
+     the edge, as a row of chips does, never cut through a letter. */
+  .ask-stage-row.docked > .ask-line-input:placeholder-shown {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+  .ask-latest {
+    transition: bottom 250ms var(--ease-out);
+  }
+  .ask-line[data-docked] .ask-latest {
+    bottom: calc(var(--bar-foot) + var(--ask-keys, 0px) + var(--ask-foot, 0px) + 78px);
+  }
+  .ask-line[data-docked] .ask-latest[data-over-next="1"] {
+    bottom: calc(var(--bar-foot) + var(--ask-keys, 0px) + var(--ask-foot, 0px) + 120px);
+  }
+
+  /* AI's home sits by the field, not at the top (D12): at rest and while the field is in use, what the middle holds
+     stands at its foot. */
+  .ask-line[data-docked] .ask-line-body.rest > :last-child,
+  .ask-line[data-docked] .ask-line-body.composing > :last-child {
+    margin-bottom: 0;
+  }
+  .ask-line[data-docked] .ask-line-body.rest,
+  .ask-line[data-docked] .ask-line-body.composing {
+    padding-bottom: 20px;
+  }
+  /* The home is there at once, the three with it: they are seen leaving their circle and landing (D9), so the home
+     does not wait unseen for what AI noticed to be read, as it does where it stands centred (`.ask-now.waiting`).
+     What AI noticed comes into room kept for it under Right now, so nothing above it moves as it arrives. */
+  .ask-line[data-docked] .ask-now.waiting {
+    visibility: visible;
+  }
+  .ask-line[data-docked] .ask-line-body.rest:not(.titled) .ask-rows {
+    justify-content: flex-start;
+    min-height: 168px;
+  }
+  /* Opened from Today, the home is the three, its title and the page's own questions, down the left edge (D10): the
+     three at a mark's size, each question a row with a hairline over it, the arrow saying a press asks it. */
+  .ask-line-body.titled .ask-hero {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 0 20px;
+  }
+  .ask-line-body.titled .ask-hero-stage {
+    width: 84px;
+    height: 72px;
+    margin: 0 0 0 -20px;
+  }
+  .ask-home-title {
+    margin: 0 0 14px;
+    font-size: var(--text-hero);
+    line-height: 32px;
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--ink);
+  }
+  .ask-line-body.titled .ask-rows {
+    align-items: stretch;
+    gap: 14px;
+    padding: 0 20px;
+  }
+  .ask-line-body.titled .ask-rows-sec.list > .ask-rows-label {
+    padding: 0 2px 6px;
+    font-size: var(--text-aside);
+    font-weight: var(--weight-semibold);
+  }
+  .ask-row.page {
+    gap: 12px;
+    min-height: 52px;
+    padding: 0 2px;
+    border-top: 1px solid var(--line);
+    border-radius: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ask-row.page[aria-selected="true"] {
+    background: transparent;
+  }
+  .ask-row.page:active {
+    background: var(--selected-fill);
+  }
+  /* A question is said whole: one that does not fit a line takes a second, never an ellipsis. */
+  .ask-row.page .ask-row-label {
+    padding: 10px 0;
+    font-size: var(--text-md);
+  }
+  .ask-row-go {
+    flex: none;
+    color: var(--ink-faint);
+  }
+  /* The home arrives out of the field, nearest first: the last question, then the ones over it, their name, the title. */
+  /* (Each weighs one class, so the rule that stills a leaving copy, above, outranks it.) */
+  :where(.ask-line-body.titled) :where(.ask-row.page, .ask-rows-label),
+  .ask-home-title {
+    animation: ask-home-rise var(--duration-slow) var(--ease-out) 340ms backwards;
+  }
+  :where(.ask-line-body.titled .ask-rows-label) {
+    animation-delay: 320ms;
+  }
+  :where(.ask-line-body.titled .ask-row.page):nth-last-child(3) {
+    animation-delay: 280ms;
+  }
+  :where(.ask-line-body.titled .ask-row.page):nth-last-child(2) {
+    animation-delay: 240ms;
+  }
+  :where(.ask-line-body.titled .ask-row.page):nth-last-child(1) {
+    animation-delay: 200ms;
+  }
+  .ask-line-body.titled .ask-rows {
+    animation: none;
+  }
+  @keyframes ask-home-rise {
+    from {
+      opacity: 0;
+      translate: 0 12px;
+    }
+  }
+}
+@media (max-width: 720px) and (prefers-reduced-motion: reduce) {
+  .phone-ask-held,
+  .ask-line[data-docked] .ask-line-close > svg,
+  .ask-line[data-docked] > :where(.ask-line-head, .ask-line-body.thread),
+  :where(.ask-line-body.titled) :where(.ask-row.page, .ask-rows-label),
+  .ask-home-title {
+    animation: none;
+  }
+  .phone-places,
+  .phone-ask,
+  .ask-ground,
+  .ask-ground[data-on],
+  .ask-stage-row.docked > .ask-attach,
+  .ask-latest {
+    transition: none;
   }
 }

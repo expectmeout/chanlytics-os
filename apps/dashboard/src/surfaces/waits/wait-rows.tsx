@@ -115,6 +115,8 @@ export interface WaitPart {
   /** What waits, as a title of its own (Today's line and card), and whose it is, under that title. */
   head: string;
   whose: string;
+  /** What a person would ask AI about it, where it is one run's (Today, calm, D10); null for a list of several. */
+  question: string | null;
   /** What stands under that fact where the fact is a title: the sentence less what the fact has said. */
   why: string;
   cta: WaitAct;
@@ -143,6 +145,7 @@ function toSendPart(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: 
     short: TO_SEND_ALL_WORDS.short(t.count, t.from),
     head: TO_SEND_ALL_WORDS.short(t.count, t.from),
     whose: TO_SEND_ALL_WORDS.meta,
+    question: null,
     why: sentence,
     cta: { label: TO_SEND_ALL_WORDS.open, kind: p.verbKind(), onClick: press },
     also: null,
@@ -168,6 +171,7 @@ function coldEmailPart(c: Extract<WaitRowOf<BroadcastVM>, { kind: "cold_email" }
     short: paused ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
     head: paused ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
     whose: W.name,
+    question: null,
     why: sentence,
     cta: { label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open },
     also: null,
@@ -188,6 +192,7 @@ function approvalsPart(first: BroadcastVM, runs: readonly BroadcastVM[], p: Wait
     short: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(names),
     // How many wait is the title, and who they are stands under it.
     head: W.name(runs.length),
+    question: null,
     whose: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(names),
     why: sentence,
     cta: { label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open },
@@ -226,6 +231,7 @@ function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
     },
     short: own ? said.short : CAMPAIGNS_PAUSED_WORDS,
     head: own ? ("head" in said ? said.head : said.short) : CAMPAIGNS_PAUSED_WORDS,
+    question: own && "question" in said ? said.question : null,
     why: own ? why : CAMPAIGNS_PAUSED_WORDS,
   };
 }
@@ -270,6 +276,7 @@ function runPart(run: BroadcastVM, late: boolean, ports: WaitRowsPorts, acts: Ru
     short: lines.short,
     head: lines.head,
     whose: runTitleOf(run),
+    question: lines.question,
     why: lines.why,
     cta: verbs.cta,
     also: verbs.also,

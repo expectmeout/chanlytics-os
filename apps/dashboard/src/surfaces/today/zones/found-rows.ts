@@ -50,6 +50,8 @@ export interface AskFoundRowVM {
   peopleLead: string | null;
   /** What Ask why asks, the rule's sentence and its arithmetic; null for a row Ask is not asked about. */
   ask: string | null;
+  /** The row as a person would ask about it (Today, calm, D10); null for a row AI wrote, which asks nothing of itself. */
+  question: string | null;
 }
 
 export interface AskFoundVM {
@@ -83,7 +85,12 @@ export const ASK_FOUND_WORDS = {
 } as const;
 
 /** A row that names nobody and is not asked about: every row but a rule's. */
-const NAMES_NOBODY: Pick<AskFoundRowVM, "people" | "peopleLead" | "ask"> = { people: [], peopleLead: null, ask: null };
+const NAMES_NOBODY: Pick<AskFoundRowVM, "people" | "peopleLead" | "ask" | "question"> = {
+  people: [],
+  peopleLead: null,
+  ask: null,
+  question: null,
+};
 
 /** A rule's row: its tag and sentence, the arithmetic as its why, who it names and what Ask why asks, and its door. */
 const ruleRow = (todayLeak: TodayLeakVM): AskFoundRowVM => ({
@@ -99,6 +106,7 @@ const ruleRow = (todayLeak: TodayLeakVM): AskFoundRowVM => ({
   people: todayLeak.people,
   peopleLead: todayLeak.peopleLead,
   ask: todayLeak.ask,
+  question: todayLeak.question,
 });
 
 /** A card's words where it says them for this row (a finding's payload), else null. */

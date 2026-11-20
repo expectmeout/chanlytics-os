@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/bridge/mascot";
 import { ROUTE_WAIT_MS } from "@/bridge/surface-registry";
 import { trapFocus } from "../../kit/focus/trap";
+import { flyArc } from "../../kit/motion/arc";
 import {
   ahSlide,
   useAskAway,
@@ -20,7 +21,21 @@ import {
   useHoldSpace,
 } from "../hooks";
 import { tabMemory } from "../shell";
-import { arEscape, arFaceFrom, arNowKey, arOverAsk, arPhone, arRoute, arScopeLabel, arStill } from "./place";
+import {
+  arDiscBox,
+  arDocked,
+  arEscape,
+  arFaceFrom,
+  arNowKey,
+  arOverAsk,
+  arPhone,
+  arRoute,
+  arScopeLabel,
+  arStill,
+} from "./place";
+
+/** How long the three take from the phone's circle to AI's home (Today, calm, D9: one arc, under half a second). */
+const AR_FLY_MS = 440;
 
 /** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. The hold is the one mic, and its words go the typed way (the spec's §3.5 as amended 5 Oct, evening): their reads drawn as they run, the answer read aloud in Ask's voice as it lands (arSubmitter). */
 export const useArVoice = (ln: Line) => {
@@ -214,8 +229,18 @@ export const useArOpen = ({
     if (!open || typeof document === "undefined") return;
     const body = document.body;
     if (body && body.classList) body.classList.add("ask-open");
-    const from = arFaceFrom();
     const to = faceRef.current;
+    // On a phone where the frame's bar stands the three leave their circle in one arc, up and then across, and land
+    // in AI's home by the field (Today, calm, D9; kit/motion/arc.ts).
+    const disc = arDocked() ? arDiscBox() : null;
+    const face = disc && to ? to.querySelector<HTMLElement>("canvas") : null;
+    if (disc && to && face && !arStill()) {
+      const box = face.getBoundingClientRect();
+      const fit = MASCOT.fitSide;
+      const scale = box.width && box.height ? fit(disc.width, disc.height) / fit(box.width, box.height) : 1;
+      void flyArc(to, face, disc, box, { ms: AR_FLY_MS, way: "rise", scale });
+    }
+    const from = disc ? null : arFaceFrom();
     if (from && to && to.animate && !arStill()) {
       const a = from.getBoundingClientRect();
       const b = to.getBoundingClientRect();
@@ -332,6 +357,7 @@ export const useArFocus = ({
   talk,
   typing,
   away,
+  dock,
 }: Line) => {
   const phone = arPhone();
   // The field with a mouse and keys; else the dialog, so no keyboard rises until a tap asks (S10; focusAsDrawn).
@@ -350,9 +376,12 @@ export const useArFocus = ({
   useAskFocus(dialogRef, open && !field, [open]);
   // A phone's takeover keeps Tab inside it; a desk's panel lets Tab go on to the page, and as it closes gives focus back
   // to what had it before it opened, unless the member has put it somewhere since (../hooks.ts useAskGiveBack).
+  // On the frame's bar its field and its press are outside the dialog, and the page under it is taken away by the frame:
+  // focus is held and given back as ever, and Tab goes on from the dialog to the field and the circle.
+  const docked = !!dock;
   useEffect(
-    () => (open && phone && dialogRef.current ? trapFocus(dialogRef.current) : undefined),
-    [open, phone, dialogRef],
+    () => (open && phone && dialogRef.current ? trapFocus(dialogRef.current, { wrap: !docked }) : undefined),
+    [open, phone, dialogRef, docked],
   );
   useAskGiveBack(open && !phone, dialogRef);
   // Listening ended after "Type instead": the words heard are in the field, and the field takes focus to finish them.

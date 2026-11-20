@@ -48,9 +48,47 @@ export const TODAY_LINE_WORDS = {
   tomorrowStarts: (when: string): string => `Tomorrow starts at ${when}`,
   /** What was finished on this visit, for a reader: the name of the list its lines stand in. */
   doneHere: "Done on this visit",
+  /**
+   * The questions AI opens on from Today (D10), each written from a line the page shows: who waits, the day, the
+   * week's new pieces, what AI answered. What AI found asks its own, written beside its head (today/leaks.ts).
+   */
+  asks: {
+    person: (name: string): string => `What does ${name} want?`,
+    day: "What is left of today?",
+    tomorrow: "What is on tomorrow?",
+    videos: "Which video should I post first?",
+    pieces: "What should I post first?",
+    did: "What did AI answer today?",
+  },
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
 } as const;
+
+/**
+ * A question AI offers from a line of Today (D10): what its row says, and the words asked, which say more where the
+ * line has numbers behind it (what AI found asks with its arithmetic).
+ */
+export interface TodayAsk {
+  label: string;
+  q: string;
+}
+
+/** How many questions AI opens on from Today. */
+export const TODAY_ASKS_MAX = 3;
+
+/**
+ * The questions AI opens on from Today: one for each line that has one, in the order the lines stand on the page, none
+ * said twice, three at most. No line, no question: a quiet page hands AI none, and AI opens as it does anywhere.
+ */
+export function todayAsksOf(lines: ReadonlyArray<TodayAsk | null>): TodayAsk[] {
+  const asks: TodayAsk[] = [];
+  for (const line of lines) {
+    if (!line || !line.label.trim() || asks.some((a) => a.label === line.label)) continue;
+    asks.push(line);
+    if (asks.length === TODAY_ASKS_MAX) break;
+  }
+  return asks;
+}
 
 /** How many lines of who waits Today names under its card (D16): past them, one line counts what is left. */
 export const TODAY_NAMED_MAX = 3;
