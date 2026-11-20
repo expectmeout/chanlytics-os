@@ -309,6 +309,40 @@ test("where a draft cannot be written, the one thing missing is said: a service,
   );
 });
 
+test("a folder of clips nobody has looked at, or a run of photos of people, never buries the one picture fine in ads", async () => {
+  // 20 Nov 2026: a Drive folder's clips, none looked at yet, pushed the one photo fine in ads out of the newest 24 read,
+  // and every draft said a picture was missing. Many more than that now, and newer than the photo.
+  const id = (n) => `f${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
+  const newer = (n) => `2026-11-19T${String(10 + (n % 10)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}:00Z`;
+  const fine = file(1, { created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" });
+  const clips = Array.from({ length: 60 }, (_, n) =>
+    file(1, {
+      id: id(100 + n),
+      name: `drive-clip-${n}`,
+      kind: "video",
+      mime: "video/mp4",
+      seconds: 20,
+      media_status: "ready",
+      look: null,
+      look_status: "waiting",
+      created_at: newer(n),
+      updated_at: newer(n),
+    }),
+  );
+  const people = Array.from({ length: 40 }, (_, n) =>
+    file(1, {
+      id: id(200 + n),
+      name: `team-${n}`,
+      look: { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] },
+      created_at: newer(n),
+      updated_at: newer(n),
+    }),
+  );
+  const { answer } = await fresh(world({ tables: { files: [fine, ...clips, ...people] } }));
+  assert.equal(answer.can, true, "a draft can be written");
+  assert.equal(answer.draft.picture.id, FILE(1), "the one picture fine in ads, however many newer files there are");
+});
+
 test("only a picture that shows nobody and has no music is offered, in a shape the feed takes: never one to crop (G15)", async () => {
   const offeredOf = async (files) => {
     const { answer } = await fresh(world({ tables: { files } }));
