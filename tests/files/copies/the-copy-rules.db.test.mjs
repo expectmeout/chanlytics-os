@@ -760,11 +760,13 @@ test(
       ["source_items_grace_end", { p_grace_seconds: 0, p_limit: 1 }],
       ["video_seconds_free", { p_tenant_id: ws.T }],
       ["video_seconds_held", { p_tenant_id: ws.T }],
-      ["file_road_is_watched", { p_source: "drive" }],
     ]) {
       const refused = await member.rpc(name, args);
       assert.ok(refused.error, `${name}: a member's session is refused`);
     }
+    // Which roads are watched is a member's to ask (00661): it reads nothing, and their read of what fills the videos
+    // asks it.
+    assert.equal(ok(await member.rpc("file_road_is_watched", { p_source: "drive" }), "a road asked"), true);
     assert.equal((await fileNow(file.id)).copy_state, "away", "and nothing a member called moved it");
     const mine = ok(await member.from("files").select("id, copy_state, copy_why").eq("id", file.id), "own files");
     assert.deepEqual(mine, [{ id: file.id, copy_state: "away", copy_why: "room" }]);

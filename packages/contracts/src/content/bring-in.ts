@@ -8,7 +8,7 @@
  * the business's own, so it goes straight into the Library: its card is the folder's own steps (connect, choose, watch),
  * and its last press watches the folder. Google Photos, which no app can watch, and a link to one file each say so.
  */
-import { asText, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
+import { asText, refuseWith, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
 import { FOOTAGE_SAID } from "../files/footage-said";
 import { agoWords, waitedLabel } from "../shared/time";
 import { recordOrEmpty } from "../shared/unknown";
@@ -173,19 +173,22 @@ export const bringInSpec: ProposalSpecAboveOperator = {
   doing: "bring in photos and videos from a link",
   gate: "settings",
   // A Drive folder is watched, by the folder's own door: the card hands in what its steps settled (the folder, whether
-  // the folders inside it count, and whether it takes another's place). Its older files (call 7) are asked for by theirs.
+  // the folders inside it count, and whether it takes another's place), which a press read on the server takes from the
+  // press (`settles`). Its older files (call 7) are asked for by theirs.
+  settles: ["folder_id", "folder_name", "include_subfolders", "instead"],
   commit: ({ payload }) => {
     if (payload.place === "drive_older") return { route: "POST sources/older", body: {} };
-    return payload.place === "drive"
-      ? {
-          route: "POST sources/watch",
-          body: {
-            folder_id: asText(payload.folder_id),
-            include_subfolders: payload.include_subfolders !== false,
-            instead: payload.instead === true,
-          },
-        }
-      : { route: "POST content/bring-in", body: { link: asText(payload.link) } };
+    if (payload.place !== "drive") return { route: "POST content/bring-in", body: { link: asText(payload.link) } };
+    // No folder settled: said in words, and nothing is sent (a door's own refusal of an empty id is no owner's sentence).
+    if (!asText(payload.folder_id)) return refuseWith(FOOTAGE_SAID.chooseFirst);
+    return {
+      route: "POST sources/watch",
+      body: {
+        folder_id: asText(payload.folder_id),
+        include_subfolders: payload.include_subfolders !== false,
+        instead: payload.instead === true,
+      },
+    };
   },
   receipt: (card, data) => {
     if (card.payload.place === "drive_older") {

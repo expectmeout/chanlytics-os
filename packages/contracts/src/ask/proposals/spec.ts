@@ -109,6 +109,13 @@ export interface ProposalSpec {
    */
   made?(p: VerbCard, data: unknown): string | null;
   undo?: ProposalUndo;
+  /**
+   * The payload's keys a card's own steps settle in the browser before its press (AI's folder card: the folder chosen,
+   * whether the folders inside it count, whether it takes another's place). A press read on the server (D15) takes
+   * these from the press over what the turn kept, and nothing else of it: what AI proposed is never rewritten by a
+   * press. Absent, the card is pressed as the turn kept it.
+   */
+  settles?: readonly string[];
   /** Where the card's Open goes, or null; `outcome` is what became of it. */
   open(p: Pick<AskProposal, "payload">, outcome: AskProposalOutcome | null): string | null;
 }
