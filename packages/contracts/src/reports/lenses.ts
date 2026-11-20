@@ -160,7 +160,7 @@ export function campaignScopeOfKey(key: string): CampaignScope | null {
 export type LensScope = AdsScope | CampaignScope;
 
 /** Whether a scope is Ads' (every ad, a platform, one ad): Campaigns' one sequence is not. */
-export const isAdsScope = (scope: LensScope): scope is AdsScope => scope.kind !== "sequence";
+const isAdsScope = (scope: LensScope): scope is AdsScope => scope.kind !== "sequence";
 
 /** The word a lens's address says it is narrowed to: none for every one, or for a scope that is not the lens's. */
 function narrowedKey(id: LensId, scope: LensScope | null): string | null {

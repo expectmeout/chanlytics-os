@@ -61,7 +61,6 @@ export { isReportDto, toHeadlineVM } from "./headline";
 export type { ReportHeadlineDto, ReportHeadlineVM } from "./headline";
 export {
   campaignReportRoute,
-  isAdsScope,
   isLensParam,
   LENS_ROUTES,
   lensEmpty,

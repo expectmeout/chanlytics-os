@@ -80,7 +80,7 @@ export const newAdFromRoute = (how: AdStart, id: string): string => `${ADS_ROUTE
 /** What results are narrowed to: every ad, the ads of one platform, or one ad. */
 export type AdsScope = { kind: "all" } | { kind: "platform"; platform: AdPlatform } | { kind: "ad"; id: string };
 
-export const ADS_SCOPE_ALL: AdsScope = { kind: "all" };
+const ADS_SCOPE_ALL: AdsScope = { kind: "all" };
 
 const SCOPE_PLATFORMS: readonly AdPlatform[] = ["meta", "google", "tiktok"];
 

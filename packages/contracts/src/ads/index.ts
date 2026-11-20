@@ -12,7 +12,6 @@ export type {
 export {
   adRoute,
   ADS_ROUTE,
-  ADS_SCOPE_ALL,
   ADS_WORDS,
   adsScopeKey,
   adsScopeOfKey,
