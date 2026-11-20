@@ -75,7 +75,7 @@ const skillBullets = (lines: readonly string[]): string => lines.map((l) => `- $
  * its worked examples, and the one rule line for words someone else wrote (contracts ai/fence.ts), since the draft it is
  * handed is fenced.
  */
-export function craftSystem(skill: AskSkill): string {
+export function craftSystem(skill: Pick<AskSkill, "role" | "when" | "rules" | "never" | "examples">): string {
   return [
     skill.role,
     `What you write:\n${skillBullets(skill.when.jobs)}`,

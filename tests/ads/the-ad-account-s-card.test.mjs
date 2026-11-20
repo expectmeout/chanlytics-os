@@ -29,6 +29,7 @@ const without = (...ids) => READY.map((check) => (ids.includes(check.id) ? { ...
 const account = (over = {}) => ({
   id: "acc-1",
   external_id: "1200000000000042",
+  business_id: null,
   status: "connected",
   standing: "active",
   name: "Harbor",
@@ -155,11 +156,31 @@ test("one thing missing: the rest folds into a count, and the first check not me
     [noWhatsApp.need.title, noWhatsApp.need.act.words, noWhatsApp.need.act.kind, noWhatsApp.need.act.to],
     ["AI doesn't answer a WhatsApp number yet", "Connect WhatsApp", "route", "admin/integrations"],
   );
+
+  // Meta named no WhatsApp number (it names one only to an app with its Page Public Content or Metadata Access): both
+  // checks are unsaid, their dots still, and nothing asks the owner to link what may already be linked.
+  const unsaid = card(
+    account({ checks: READY.map((check) => (check.id.includes("whatsapp") ? { ...check, ok: null } : check)) }),
+  );
+  assert.equal(unsaid.need, null);
+  assert.equal(unsaid.ready, "3 of 5 ready");
+  assert.deepEqual(
+    unsaid.checks.map((check) => check.state),
+    ["ok", "ok", "ok", "unsaid", "unsaid"],
+  );
 });
 
 test("an account Meta turned off, one it could not charge, and one the sign-in may only look at", () => {
   const off = card(account({ standing: "disabled", checks: without("account-active") }));
   assert.deepEqual([off.need.title, off.need.act.words], ["Meta has this ad account turned off", "Open Meta"]);
+  // "Open Meta" opens the account's own page, where Meta says why and the review is asked for, where both ids are kept;
+  // Meta's general page where the business is not.
+  assert.equal(
+    card(account({ standing: "disabled", checks: without("account-active"), business_id: "583355900000001" })).need.act
+      .href,
+    "https://business.facebook.com/business-support-home/583355900000001/1200000000000042/?business_id=583355900000001",
+  );
+  assert.equal(off.need.act.href, "https://business.facebook.com/accountquality");
   const unpaid = card(account({ standing: "unsettled", checks: without("account-active") }));
   assert.deepEqual(
     [unpaid.need.title, unpaid.need.act.words],
@@ -279,15 +300,27 @@ test("the five checks are read from what is kept of the account and the number A
   assert.deepEqual(kept({ account: "disabled", funding: "ok" }, page).at(0), false);
   // Not read yet is not known, never "missing".
   assert.deepEqual(kept({}, page).slice(0, 2), [null, null]);
-  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}), [true, true, false, false, false]);
+  // Meta names a Page's WhatsApp number only to an app with its Page Public Content or Metadata Access, and one at
+  // most of the fifty a Page may hold (the first real account: two numbers linked, none named). None named settles
+  // neither check, never "missing"; a number named that is not AI's leaves AI's own unknown, as it may be linked beside.
+  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}), [true, true, false, null, null]);
+  assert.deepEqual(kept({ account: "active", funding: "ok" }, { page_id: "100200300400500" }), [
+    true,
+    true,
+    true,
+    null,
+    null,
+  ]);
   assert.deepEqual(kept({ account: "active", funding: "ok" }, { ...page, page_whatsapp: "15550109999" }), [
     true,
     true,
     true,
     true,
-    false,
+    null,
   ]);
+  // A workspace whose AI answers no WhatsApp number is known to miss the last, whatever Meta names.
   assert.deepEqual(kept({ account: "active", funding: "ok" }, page, null).at(4), false, "AI answers no number");
+  assert.deepEqual(kept({ account: "active", funding: "ok" }, {}, null).at(4), false);
   // What is kept is read defensively: an odd value is left out alone.
   assert.deepEqual(adStandingOf({ account: "thriving", funding: "ok" }), { funding: "ok" });
   assert.deepEqual(metaAdConfigOf({ page_id: 7, choices: [{ external_id: "1" }], scopes: ["ads_read", 3] }), {

@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { lensModel, liveModel, sheetModel } = await import(
+const { firstReadOf, lensModel, liveModel, sheetModel } = await import(
   at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts")
 );
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
@@ -231,6 +231,22 @@ test("before anyone has written from an ad the page says how many ads there are,
     ["On · made in Meta", "Paused · made in Meta"],
   );
   assert.deepEqual(liveModel(page(), SAID).head, { strong: null, rest: "Meta shows no ads in this ad account yet." });
+  // Before its first read nothing is known of an account's ads, so the page never says Meta shows none: it says it is
+  // reading, and where that first read failed, that the clock asks again. Reports' lens says the same head.
+  const unread = (failed) => page({ account: { ...page().account, read_at: null, read_failed: failed } });
+  assert.deepEqual(liveModel(unread(false), SAID).head, { strong: null, rest: "Reading your ads from Meta…" });
+  assert.equal(lensModel(unread(false), SAID).head, "Reading your ads from Meta…");
+  assert.deepEqual(liveModel(unread(true), SAID).head, {
+    strong: null,
+    rest: "Couldn't read your ads from Meta yet. Chanlytics tries again by itself.",
+  });
+  assert.deepEqual(
+    [unread(false), unread(true), page()].map((one) => firstReadOf(one.account)),
+    ["reading", "failed", null],
+  );
+  // People an ad brought are counted by Chanlytics, not read from Meta: they are said before the first read too.
+  const counted = page({ account: unread(false).account, unnamed: { people: 3, booked: 1 } });
+  assert.deepEqual(liveModel(counted, SAID).head, { strong: "1 of 3", rest: " new people from your ads have booked." });
   // A run that is over stays listed only while it has numbers to show.
   const old = page({
     ads: [ad("a"), ad("done", { state: "ended" }), ad("spent", { state: "finished", spend_minor: 100 })],

@@ -821,7 +821,7 @@ export function connectionRows(connectionInputs: ConnectionInputs, nowMs = Date.
 
 export const CONNECTION_GROUP_WORDS: Record<
   ConnectionGroup,
-  { title: string; sub: (rows: ConnectionLine[]) => string }
+  { title: string; sub: (rows: readonly Pick<ConnectionLine, "state">[]) => string }
 > = {
   connected: {
     title: "Connected",

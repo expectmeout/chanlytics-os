@@ -366,7 +366,12 @@ export async function runAdRead(
   if (stopped(learned)) {
     if (learned.fault === "revoked") return revoked();
     await keepAdsRead(db, tenantId, account.id, failedRead(learned, reading.account, nowMs));
-    log.info("ads_read_failed", { fault: learned.fault, calls: reading.calls, usage_pct: learned.usage?.pct ?? null });
+    log.info("ads_read_failed", {
+      fault: learned.fault,
+      calls: reading.calls,
+      usage_pct: learned.usage?.pct ?? null,
+      ms: Date.now() - nowMs,
+    });
     return out("failed", reading.calls);
   }
   const kept = await keepAdsRead(db, tenantId, account.id, learned.read);
@@ -380,6 +385,7 @@ export async function runAdRead(
     moved: kept.moved,
     cut: learned.cut,
   };
-  log.info("ads_read", { ...read, usage_pct: reading.usage?.pct ?? null });
+  // How long a read took, from the account's first question to its last write: what a real read is timed by.
+  log.info("ads_read", { ...read, usage_pct: reading.usage?.pct ?? null, ms: Date.now() - nowMs });
   return { read };
 }

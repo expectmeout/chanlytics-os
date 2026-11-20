@@ -63,6 +63,14 @@
   font-weight: var(--weight-medium);
   color: var(--ink);
 }
+/* A fact and its door into Meta ("None", "Set one in Meta"): side by side with a gap, the door under the fact where
+   the two do not fit on one line. No mark between them, so nothing hangs at a line's end. */
+.ads-conn-facts .ads-conn-fact-door {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-3);
+}
 .ads-conn .ads-conn-ready {
   gap: var(--space-1);
   align-self: flex-start;

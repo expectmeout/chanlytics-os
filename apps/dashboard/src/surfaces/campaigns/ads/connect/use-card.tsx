@@ -35,8 +35,11 @@ interface AdsConnection {
   card: ReactNode;
 }
 
-/** The connection, where `on` says this page draws it; `timezone` is the zone its days are said in. */
-export function useAdsConnection(on: boolean, timezone: string): AdsConnection {
+/**
+ * The connection, where `on` says this page draws it; `timezone` is the zone its days are said in, and `title` the name
+ * its card goes by on this page.
+ */
+export function useAdsConnection(on: boolean, timezone: string, title: string): AdsConnection {
   const account = useAdAccount(on);
   const held = on && holdsAccount(account);
   const live = useAdsLive(held, `${account.dto?.meta?.status ?? ""}:${account.dto?.meta?.read_at ?? ""}`);
@@ -61,6 +64,7 @@ export function useAdsConnection(on: boolean, timezone: string): AdsConnection {
     vm === null ? null : (
       <>
         <ConnectCard
+          title={title}
           vm={vm}
           acts={{ connect: account.connect, choose: (id) => void account.choose(id), open: () => setOpen(true) }}
         />

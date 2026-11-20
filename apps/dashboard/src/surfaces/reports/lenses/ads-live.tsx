@@ -9,9 +9,9 @@ import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsLiveDto } from "@chanlytics/contracts";
 import { lensModel } from "../../campaigns/ads/live/model";
 import { LENS } from "../../campaigns/ads/live/words";
+import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { Panel } from "../../kit/panel/panel";
 import { routeDoor } from "../../frame-verbs";
 import { RptSection } from "../blocks";
 
@@ -28,16 +28,12 @@ export function AdsLiveLens({ dto }: { dto: AdsLiveDto }) {
       <p className="rpt-ads-pane" data-testid="ads-lens-window">
         {LENS.window}
       </p>
-      <Panel as="section" className="rpt-ads-live" aria-label={ADS_WORDS.adsTab}>
-        <dl className="ads-conn-facts" data-testid="ads-lens-figures">
-          {vm.figures.map((figure) => (
-            <div key={figure.label}>
-              <dt>{figure.label}</dt>
-              <dd className="tabular">{figure.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Panel>
+      {/* The strip every lens draws (RptStrip in blocks.tsx): the kit's figure in a list of terms, four across. */}
+      <dl className="rpt-figures quad" data-testid="ads-lens-figures" aria-label={ADS_WORDS.adsTab}>
+        {vm.figures.map((figure) => (
+          <Figure key={figure.label} className="rpt-cell" label={figure.label} value={figure.value} />
+        ))}
+      </dl>
       {vm.rows.length > 0 ? (
         <div className="ck-table-wrap">
           <table className="ck-table ads-res-table" data-testid="ads-lens-table">

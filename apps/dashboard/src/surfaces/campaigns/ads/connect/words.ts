@@ -10,6 +10,11 @@ import type { AdCardCheckId } from "@chanlytics/contracts";
 
 export const CARD = {
   name: "Facebook and Instagram",
+  /**
+   * The card's name in Settings › Connections, where it sits under the Meta row of Instagram's messages: said as the
+   * ads, so the two are never read as one connection. On the Ads page the page already says it is ads.
+   */
+  inConnections: "Facebook and Instagram ads",
   notConnected: "Not connected",
   checking: "Checking",
   connected: "Connected",
@@ -55,6 +60,9 @@ export const CHECK: Record<AdCardCheckId, { label: string; neededFor: string }> 
   "whatsapp-linked": { label: "WhatsApp number linked to the Page", neededFor: "A new ad" },
   "chanlytics-whatsapp": { label: "That number is the one AI answers", neededFor: "A new ad" },
 };
+
+/** Beside a check Meta does not answer for an app like Chanlytics (a Page's WhatsApp numbers): never a fault of the owner's. */
+export const CHECK_UNSAID = "Meta doesn't share this";
 
 /** One thing missing or one stop: what happened, whether it mends itself or what it stops, and its one act. */
 export interface NeedWords {
@@ -174,7 +182,16 @@ export const QUESTION = {
 
 /** Where each act opens Meta. Each is Meta's own page for the thing; the account's id narrows it where Meta takes one. */
 export const META_DOOR = {
-  quality: "https://business.facebook.com/accountquality",
+  /**
+   * Where Meta says why it turned an ad account off, and where its review is asked for: the account's own page in
+   * Business Support Home where both ids are known, else the general one. Seen on one account on 19 November 2026,
+   * signed in as a person with access to its portfolio: Meta's own link from the overview opened this path, and the path
+   * with only `business_id` opened the same account again once it was lifted. `accountquality` lands on the overview.
+   */
+  quality: (businessId: string | null, accountId: string | null) =>
+    businessId && accountId
+      ? `https://business.facebook.com/business-support-home/${encodeURIComponent(businessId)}/${encodeURIComponent(accountId)}/?business_id=${encodeURIComponent(businessId)}`
+      : "https://business.facebook.com/accountquality",
   billing: (accountId: string | null) =>
     accountId === null
       ? "https://business.facebook.com/billing_hub/payment_settings"

@@ -47,7 +47,8 @@ export interface CheckVM {
   label: string;
   neededFor: string;
   /** ok, missing, or not known yet (the platform has not said, or the card is still checking). */
-  state: "ok" | "missing" | "unknown";
+  /** `unknown` while the card checks (its dot turns); `unsaid` where Meta does not say, and the dot is still. */
+  state: "ok" | "missing" | "unknown" | "unsaid";
 }
 
 export interface ConnectCardVM {
@@ -104,7 +105,7 @@ function needOfChecks(card: AdAccountCard): NeedVM | null {
     };
   const words = needOf(missing.id, number);
   const how: Record<AdCardCheckId, NeedHow | null> = {
-    "account-active": { kind: "meta", href: META_DOOR.quality },
+    "account-active": { kind: "meta", href: META_DOOR.quality(card.business_id, card.external_id) },
     payment: { kind: "meta", href: META_DOOR.billing(card.external_id) },
     "page-linked": null,
     "whatsapp-linked": { kind: "meta", href: META_DOOR.whatsapp },
@@ -130,8 +131,9 @@ function needOfOutcome(why: string): NeedVM {
 
 const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
   AD_CARD_CHECKS.map((id) => {
-    const ok = checking ? null : (card?.checks.find((check) => check.id === id)?.ok ?? null);
-    return { id, ...CHECK[id], state: ok === null ? "unknown" : ok ? "ok" : "missing" };
+    if (checking || card === null) return { id, ...CHECK[id], state: "unknown" };
+    const ok = card.checks.find((check) => check.id === id)?.ok ?? null;
+    return { id, ...CHECK[id], state: ok === null ? "unsaid" : ok ? "ok" : "missing" };
   });
 
 /** Who Meta charges, the Page, and Meta's own limit. */
