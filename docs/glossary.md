@@ -178,6 +178,7 @@ holds that.
 | **Surface**  | A page's data and what draws it, under `src/surfaces`                                                  | Feature, page            |
 | **Seam**     | Where one layer hands to another, so either can change alone                                           | Boundary                 |
 | **Brain**    | The receptionist's call to its model and what it decides from the answer                               | Agent, LLM step          |
+| **Judge**    | The model that reads a skill's words against its rubric in an eval, a verdict for each criterion       | Grader, LLM judge        |
 | **Fold**     | A group of rows or turns collapsed to one line                                                         | Collapsed group          |
 | **Flash**    | A short line that appears after a press, and goes                                                      | Toast                    |
 | **Peek**     | A sheet that shows a row without leaving the list                                                      | Preview panel            |

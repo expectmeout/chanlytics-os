@@ -25,7 +25,6 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   APPOINTMENT_WORDS,
@@ -45,6 +44,7 @@ import {
   messageVerdict,
 } from "@chanlytics/contracts";
 import { CUSTOMER_MESSAGE_SKILL } from "../../../apps/dashboard/src/server/ask/skills/customer-message/skill.ts";
+import { argOf, evalKey, messagesClient, pct, structured } from "./skill-eval.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, "../../..");
@@ -54,23 +54,6 @@ const WRITER_MODEL = MODEL_ROUTES.ask.model;
 /** The judge: the same model, at high effort, reading strictly. */
 const JUDGE_MODEL = MODEL_ROUTES.ask.model;
 const JUDGE_MAX_TOKENS = 6_000;
-
-/** The eval key: the environment's, else the one line of .env.evals at the root that names it. */
-function evalKey() {
-  if (process.env.ANTHROPIC_EVAL_KEY) return process.env.ANTHROPIC_EVAL_KEY;
-  const file = path.join(ROOT, ".env.evals");
-  if (!fs.existsSync(file)) return "";
-  const line = fs
-    .readFileSync(file, "utf8")
-    .split(/\r?\n/)
-    .find((l) => l.startsWith("ANTHROPIC_EVAL_KEY="));
-  return line
-    ? line
-        .slice("ANTHROPIC_EVAL_KEY=".length)
-        .trim()
-        .replace(/^["']|["']$/g, "")
-    : "";
-}
 
 /** The case set. */
 export function loadCases(file = CASES) {
@@ -154,36 +137,6 @@ export function patternFailures(c, versions) {
   ];
 }
 
-/** The SDK the edge asks the model through (lib/ai/model.ts), loaded only for a live run, on the eval key. */
-async function messagesClient() {
-  const require = createRequire(path.join(ROOT, "apps/edge/package.json"));
-  const { default: Anthropic } = await import(pathToFileURL(require.resolve("@anthropic-ai/sdk")).href);
-  return new Anthropic({ apiKey: evalKey(), maxRetries: 1 });
-}
-
-/** One structured answer, read by its zod; null for a refusal, a cut answer or one out of shape. */
-async function structured(client, { model, maxTokens, system, question, schema, zod }) {
-  const res = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: "user", content: question }],
-    output_config: { effort: "high", format: { type: "json_schema", schema } },
-  });
-  if (res.stop_reason === "refusal" || res.stop_reason === "max_tokens") return { answer: null, usage: res.usage };
-  const text = res.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  let parsed;
-  try {
-    parsed = zod.safeParse(JSON.parse(text));
-  } catch {
-    return { answer: null, usage: res.usage };
-  }
-  return { answer: parsed.success ? parsed.data : null, usage: res.usage };
-}
-
 /** The writer, as the dashboard asks it: the skill's own words, the brief, its schema, its effort, its ceiling. */
 async function write(client, brief) {
   const t0 = Date.now();
@@ -215,12 +168,6 @@ async function judge(client, c, brief, versions, missing, couldNot) {
   const patterns = patternFailures(c, versions);
   return { ...verdict, pass: verdict.pass && patterns.length === 0, failed: [...verdict.failed, ...patterns] };
 }
-
-const argOf = (argv, name, fallback) => {
-  const at = argv.indexOf(name);
-  return at >= 0 ? argv[at + 1] : fallback;
-};
-const pct = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0;
 
 async function main() {
   const argv = process.argv;

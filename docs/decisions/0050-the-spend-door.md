@@ -328,3 +328,31 @@ account is let go, so Chanlytics can do nothing with it. Meta is not asked to wi
 the call, and it is not known whether withdrawing the ads sign-in would also end the same business's WhatsApp or
 Instagram connection, which share the Meta app. Until that is seen on a real account, the card says where the owner
 removes Chanlytics at Meta themselves, and `withdrawn_at` stays empty. This is Ruben's to confirm or change.
+
+## As built, 19 November 2026 · The requests that make an ad, and the draft (the Ads plan's step 4, its first part)
+
+Built and not sent: nothing here has reached Meta, no verb, route or job calls it yet, and there is no migration.
+Meta's own pages were read first; what they showed and what it changed is in
+`docs/plans/2026-11-18-ads-meta-checks.md`.
+
+- **The request builders** (`packages/channels/src/ads/meta-make.ts`): the campaign, the ad set, the creative and the
+  ad. Every make is paused, carries the token's proof in its body, and has its dry-run form. The amount is a total with
+  its end on the ad set, sent in Meta's own units, exact or not at all (call 4). Where an ad shows is named, the area
+  is a circle around the business for adults, and each of Meta's own changes to the picture and the words is switched
+  off by name.
+- **An ad made here is three ads at Meta,** one for each version of its words, under one ad set and one total, in a
+  campaign of its own. Meta's way to put several texts in one ad shows a headline with a text nobody approved
+  together. So an `ads` row made here has three ads among its `ad_objects`, and a read folds them into one.
+- **What Meta answers** (`meta-made.ts`): the id of what was made, Meta's own words for a refusal with the field it
+  blames, and a campaign read back whole in what call 4's compare needs: paused, the total and its end, no special
+  kind declared, WhatsApp as where a tap goes with the number AI answers, and none of Meta's own changes on. That
+  number is always named in the request: a Page can hold several, and Meta opens its primary one where none is named.
+- **A create carries a key** that Meta's page says makes it safe to repeat. Call 6 says an outcome the job cannot tell
+  is settled by a read of the tagged name, "never by sending again". For a create, sending again with the same key is
+  the surer of the two; a switch takes no key, so call 6 stands for it. The builders carry the key; whether the job
+  sends again with it is Ruben's to decide, and nothing does yet.
+- **Call 13's test account.** Meta's pages for its ads interface no longer hold a test ad account, so the first ad on a
+  real account is on Ruben's own, with every ad paused, as Meta's own page for an ad recommends.
+- **The draft's rules and call 7's checks on words** (`packages/contracts/src/ads/draft.ts`,
+  `packages/contracts/src/ask/skills/ad/checks.ts`): what code picks of a draft, and each thing that stops an ad's
+  words, its amount, its end or its picture before Turn on. The model writes words and never decides a check.
