@@ -507,7 +507,6 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
   );
   assert.deepEqual(acts("operator"), [
     "press_card",
-    // A new ad drafted in New ad (the Ads plan's 6.3): an operator may draft; Turn on is the owner's.
     "propose_ad",
     "propose_call",
     "propose_deal",
