@@ -12,7 +12,7 @@ Amended on 18 November 2026 by "Pause, Resume and Disconnect say what is true" (
 Built so far: the owner-only `ads` permission (migration 00645); Pause, Resume and a Disconnect that is never refused
 (19 November 2026, #2443); the requests that make an ad, built and not sent (#2452); New ad's one screen, with the ad
 writer's own purpose (#2456, migration 00656); call 15, the bell's five ad notices to the owner alone (20 November
-2026, migration 00658, not applied); and, while AI is stopped, no ad turned back on from the page and one press that
+2026, #2459, migration 00658); and, while AI is stopped, no ad turned back on from the page and one press that
 pauses every ad still on (20 November 2026). Turn on, the job that makes an ad and never leaves one running, is not.
 
 ## Context
