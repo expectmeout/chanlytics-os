@@ -15,7 +15,7 @@ import {
   type CalendarWeekDto,
   MIN_MS,
 } from "@chanlytics/contracts";
-import { DEMO_ZONE } from "./sample-clock";
+import { DEMO_ZONE } from "../people/sample";
 import type { SampleClock, SampleDay } from "./sample-clock";
 
 type SamplePerson = NonNullable<CalendarItemDto["person"]>;

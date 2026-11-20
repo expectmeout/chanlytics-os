@@ -9,7 +9,6 @@ import {
   ASK_PAGE_ROUTES,
   LENS_ROUTES,
   REPORT_LENSES,
-  adsReportRoute,
   isLensParam,
   lensEmpty,
   lensIsShown,
@@ -153,13 +152,13 @@ test("Ads is shown where ads are on, and nowhere else; the other six, Pipeline a
 test("Ads' address says the days and what it is narrowed to, after the lens: every ad is no word, and nothing else is read", () => {
   const DAYS = { from: "2026-09-11", to: "2026-10-10" };
   const KEY = "2026-09-11~2026-10-10";
-  assert.equal(adsReportRoute(DAYS), `reports/ads:${KEY}`, "the Results sheet's foot: the same days, every ad");
-  assert.equal(adsReportRoute(DAYS, { kind: "all" }), `reports/ads:${KEY}`);
-  assert.equal(adsReportRoute(DAYS, { kind: "platform", platform: "google" }), `reports/ads:${KEY}:platform:google`);
-  assert.equal(adsReportRoute(DAYS, { kind: "ad", id: "5b0e8c1a" }), `reports/ads:${KEY}:ad:5b0e8c1a`);
-  assert.equal(adsReportRoute(null), "reports/ads");
+  assert.equal(lensRoute("ads", DAYS, { kind: "all" }), `reports/ads:${KEY}`, "the same days, every ad");
+  assert.equal(lensRoute("ads", DAYS, { kind: "all" }), `reports/ads:${KEY}`);
+  assert.equal(lensRoute("ads", DAYS, { kind: "platform", platform: "google" }), `reports/ads:${KEY}:platform:google`);
+  assert.equal(lensRoute("ads", DAYS, { kind: "ad", id: "5b0e8c1a" }), `reports/ads:${KEY}:ad:5b0e8c1a`);
+  assert.equal(lensRoute("ads", null, { kind: "all" }), "reports/ads");
   assert.equal(
-    adsReportRoute(null, { kind: "ad", id: "x" }),
+    lensRoute("ads", null, { kind: "ad", id: "x" }),
     "reports/ads:ad:x",
     "a scope with no days is the period kept",
   );
@@ -180,7 +179,7 @@ test("Ads' address says the days and what it is narrowed to, after the lens: eve
     const at = reportsRouteParts(route);
     assert.equal(at?.lens, "ads", route);
     assert.equal(
-      adsReportRoute(at.days, at.scope ?? { kind: "all" }),
+      lensRoute("ads", at.days, at.scope ?? { kind: "all" }),
       route,
       `${route}: the address is read back to itself`,
     );

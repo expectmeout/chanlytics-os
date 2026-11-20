@@ -470,7 +470,7 @@ export { campaignLedgerDtoOf, isCampaignLedgerSeriesDto, isCampaignStuckRawDto }
 export { closedOf } from "./reports/closed";
 export { channelsOf, daysWords, endedOn, fmtDay, hoursOf, priorOf, quantile, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, reportHourWords, weekOf, dayPointOf } from "./reports/dtos";
 export { isReportDto, toHeadlineVM } from "./reports/headline";
-export { adsReportRoute, campaignReportRoute, isAdsScope, isLensParam, LENS_ROUTES, lensEmpty, lensesFor, lensIsShown, lensOf, lensOfRoute, lensRoute, REPORT_LENSES, reportsParamParts, reportsRouteParts, reviewRoute, CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./reports/lenses";
+export { campaignReportRoute, isAdsScope, isLensParam, LENS_ROUTES, lensEmpty, lensesFor, lensIsShown, lensOf, lensOfRoute, lensRoute, REPORT_LENSES, reportsParamParts, reportsRouteParts, reviewRoute, CAMPAIGN_SCOPE_ALL, campaignScopeKey, campaignScopeOfKey } from "./reports/lenses";
 export { peopleNowOf } from "./reports/people/now";
 export { isPeopleSeriesDto, peopleDtoOf } from "./reports/people/record";
 export { CAMPAIGNS_RESULTS_PERIOD, fixedDaysOf, isReportDays, isReportPeriod, monthDaysAt, REPORT_MOST_DAYS, REPORT_PERIOD_DEFAULT, REPORT_PERIOD_IDS, REPORT_PERIOD_STORAGE, reportDaysAsked, reportDaysCount, reportDaysRefusal, reportPeriodOf, reportRangeAsked, reportRangeKey, reportRangeOfKey, sameReportRange } from "./reports/periods";
