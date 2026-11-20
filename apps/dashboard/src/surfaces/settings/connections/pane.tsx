@@ -38,6 +38,7 @@ import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
+import type { AdsPlace } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -45,10 +46,17 @@ type WaConfig = SignupDoor | null | undefined;
 const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
-/** A workspace's own ad account is the card Campaigns › Ads draws; a demo session draws the sample's rows. */
-function AdAccountCard({ flash }: { flash: (f: FrameFlash) => void }) {
-  return adsInPreview() ? <RealAdAccount /> : <AdAccounts flash={flash} />;
+/**
+ * Where the workspace's own ad account goes among the groups (ad-account-real.tsx): the place the pane keeps for it, in
+ * the group its account stands in, and what it counts as there. A demo session draws the sample's rows after the groups.
+ */
+interface AdsHere {
+  place: AdsPlace;
+  slot: (element: HTMLElement | null) => void;
 }
+
+/** The place for the ad account's card in a group: an element the card is drawn into, never a box of its own. */
+const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -306,9 +314,13 @@ function groupCard(o: {
   note: string | null;
   setNote: (n: string | null) => void;
   row: (r: Row) => ReactNode;
+  /** The workspace's ad account, where it stands in this group: under the Meta row, counted as a row is. */
+  ads: AdsHere | null;
 }): ReactNode {
-  const { g, list, note, setNote, row } = o;
+  const { g, list, note, setNote, row, ads } = o;
   const W = CONNECTION_GROUP_WORDS;
+  const counted = ads ? [...list, { state: ads.place.state }] : list;
+  const beside = ads !== null && list.some((r) => r.kind === "instagram");
   return (
     <section
       key={g}
@@ -320,7 +332,7 @@ function groupCard(o: {
         <h2 className="rec-card-title" id={`connections-${g}-title`}>
           {W[g].title}
         </h2>
-        <span className="rec-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
+        <span className="rec-card-sub">{counted.length ? W[g].sub(counted) : "nothing yet"}</span>
       </div>
       {note && list.some((r) => r.kind === "google_profile") && (
         <RecordRow
@@ -331,7 +343,7 @@ function groupCard(o: {
           act={{ label: "Ok", onClick: () => setNote(null) }}
         />
       )}
-      {list.length === 0 && g === "connected" && (
+      {counted.length === 0 && g === "connected" && (
         <RecordRow
           id="connections-none"
           label={W[g].title}
@@ -339,8 +351,55 @@ function groupCard(o: {
           value={null}
         />
       )}
-      {list.map(row)}
+      {list.map((r) =>
+        beside && ads && r.kind === "instagram" ? (
+          <Fragment key={r.kind}>
+            {row(r)}
+            {adsSlotOf(ads)}
+          </Fragment>
+        ) : (
+          row(r)
+        ),
+      )}
+      {ads && !beside ? adsSlotOf(ads) : null}
     </section>
+  );
+}
+
+/**
+ * The groups in the page's order, and the workspace's ad account in the group it stands in: its card says where once its
+ * account is read (ad-account-real.tsx), and is drawn into the place kept for it there. A demo session draws the
+ * sample's rows after the groups.
+ */
+function ConnectionGroups(props: {
+  rows: Row[];
+  note: string | null;
+  setNote: (n: string | null) => void;
+  row: (r: Row) => ReactNode;
+  adsShown: boolean;
+  flash: (f: FrameFlash) => void;
+}) {
+  const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
+  const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
+  const { note, setNote, row } = props;
+  return (
+    <>
+      {connectionGroupsOf(props.rows).map(({ g, list }) =>
+        groupCard({
+          g,
+          list,
+          note,
+          setNote,
+          row,
+          ads: props.adsShown && adsPlace?.group === g ? { place: adsPlace, slot: setAdsSlot } : null,
+        }),
+      )}
+      {props.adsShown && (
+        <Suspense fallback={null}>
+          {adsInPreview() ? <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} /> : <AdAccounts flash={props.flash} />}
+        </Suspense>
+      )}
+    </>
   );
 }
 
@@ -516,12 +575,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     );
   return (
     <>
-      {connectionGroupsOf(rows).map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
-      {adsShown && (
-        <Suspense fallback={null}>
-          <AdAccountCard flash={flash} />
-        </Suspense>
-      )}
+      <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} flash={flash} />
       {toastNode}
     </>
   );

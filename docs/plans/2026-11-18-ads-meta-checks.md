@@ -125,8 +125,19 @@ The same owner, the same evening, on the build with both fixes. From the edge's 
   browser built into a desktop app, which names itself to every site, on a day a tool drove that browser through the
   owner's Meta settings. Chanlytics never drives Meta's pages for an owner; the card's words for a turned-off account,
   and its look again, were right.
-- **A Page not linked to a WhatsApp number** reads false on both WhatsApp checks, so no ad that opens WhatsApp can be
-  made on the account until it is. Step 4's check on a paused ad waits for that link.
+- **The Page's WhatsApp numbers are not Meta's to tell Chanlytics.** Both WhatsApp checks read false, while the Page
+  already had a number linked, its primary, before the first Connect. The Page reference says why: its
+  `whatsapp_number`, `has_whatsapp_number` and `has_whatsapp_business_number` "can be read with Page Public Content
+  Access or Page Public Metadata Access", features Chanlytics' app does not hold, and `whatsapp_number` is one string
+  for a Page that may hold fifty numbers, one of them primary ("the default number we'll use for ads, posts, and other
+  experiences", Meta's own Page settings). No edge of the Page lists them. So the checks now say a number is linked,
+  and is AI's, only where Meta names it; where Meta names none they read "Meta doesn't share this", never "missing",
+  and a number named that is not AI's leaves AI's own unknown. `ads_page_read` logs which fields Meta's Page answer
+  held, by name, so the next read confirms the field is left out. Whether an ad may name AI's number is for the ad's
+  own check (step 4), which names the number.
+- **Linking a number to the Page.** AI's number was linked in Meta's Page settings with "Connect another number", in one
+  press and with no code, since its WhatsApp account and the Page are in the same portfolio. It was not made primary:
+  that moves where the Page's own WhatsApp button sends people, and is the owner's call.
 - **The account's own page at Meta.** Meta's pages document only the bare Account Quality page, which lands on Business
   Support Home's overview with no account. Seen on this account, signed in as its owner: Meta's own link from that
   overview opened `business-support-home/<business id>/<ad account id>/?business_id=<business id>` (with more query parts
