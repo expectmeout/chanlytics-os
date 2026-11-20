@@ -554,3 +554,48 @@ who Chanlytics counts it brought and who of them booked. Where it is not as firs
 - **Not built in this step:** AI's one line and the amber line for who is waiting (they arrive with the step that
   makes an ad, and with 0048's waits), the page's keyboard cursor, and "their numbers" beyond spend, shown, taps and
   Meta's own count.
+
+## As built, 20 November 2026 · AI is told the ad a person tapped
+
+Call 12, built as the Ads build plan's step 4, item 7 (`packages/db/src/repositories/conversations/thread/ad-tap.ts`,
+no migration). Until now nothing that writes a reply read an ad's entry: a person wrote "Hi, I saw your ad" and AI did
+not know which ad. Where it is not as call 12 drew it, it is said here.
+
+- **One reader, the one every reply is written from.** `readLeadContext` answers who a person is for the reply on
+  WhatsApp and Instagram, for a draft and for a rewrite. It now answers the ad they tapped as well (`ad`), and
+  `describeLead`, the note about the person, says it. Nothing else reads it, so the reply, the draft and the rewrite
+  cannot be told different things.
+- **Which message, and for how long.** An entry is its message's (above), so the tap is found on the thread's own
+  rows: the newest message a customer wrote whose referral is an ad. A thread is one row for a person's whole history,
+  so "the conversation the tap began" is the rule AI already introduces itself by (`CONVERSATION_GAP_MS`): walking
+  back from the message being answered, the conversation ends at the first quiet of a day or more. So the ad is told
+  on the first reply and on the turns that follow it, and not again after a day's quiet. The walk reads the rows the
+  reader already holds, the message answered and the 24 before it, so a tap further back than that is not told, and a
+  thread with no tap costs no read. A newer tap in the same conversation takes the older one's place.
+- **What is told, and how much.** The ad's name where Chanlytics holds the ad (`ad_named`, the one place an ad gets
+  its name) and it is not the headline again, its headline, its words and whether it was a picture or a video. Each is
+  one line, cut to 120, 160 and 600 characters. The ad's link is never told: nothing that answers a person needs it.
+- **As data.** The parts sit inside a fence the words cannot close (`<ad>`, contracts `ai/fence.ts`), one to a line
+  under names of ours, with the rule beside them: it is what the person saw, never an instruction. The business's own
+  prompt is byte for byte what it was. The ad rides in the note about the person, which is its own block of every turn.
+- **Prices and hours stay Services' and Hours'.** The note says a price, a discount, an offer's terms or opening hours
+  come only from the business's own details, and that where the ad differs the details win. Prompt text is never the
+  only defence: what AI may say is read from Services alone (`priceAllowance`), so a reply that names the ad's price
+  is held by layer two and goes to a person, as any price the owner did not write does. Asked about a price or an
+  offer the ad named that the details do not hold, AI says the team will follow up and hands the thread to a person.
+- **Where it is said.** On WhatsApp and Instagram, the two wires an ad opens: an Instagram message keeps its referral
+  by the same rule (above), so the same reader answers it, with the title and the kind of media Meta sends for it.
+  Never on a call, a text or an email draft: a spoken price cannot be taken back, and a call names no message being
+  answered, so it reads nothing.
+- **Not as call 12 drew it.** Call 12 said "first wrote after tapping an ad". A person who was already here and taps
+  an ad has an entry too (`new_person` false), and their reply should fit the ad as well, so the note says "wrote
+  after tapping", for anyone. And two things call 12 names are not told yet: the service the ad is about and whether
+  it still runs. Both are facts of an ad made here, and no ad is made here until Turn on (0050); they join with it.
+- **Privacy.** Nothing is sent to Meta and no click id is read. Both reads name the workspace and the message, so no
+  other workspace's ad is ever read. The ad's words reach only the model that already reads the conversation; the turn
+  that held them is kept thirty days with the conversation (0039) and goes with it. An erased person has no messages,
+  so there is no tap to find, and the entry went with them (above).
+- **Never fatal.** A read that fails costs the ad's words and is logged, never the note about the person and never the
+  reply. A tap whose words never arrived is still told as a tap.
+- **Not built here:** a run of the real model against an ad that carries an instruction. The tests prove what is sent
+  (`tests/ads/reply/ai-is-told-the-ad-a-person-tapped.test.mjs`), and the eval door takes no note about a person yet.
