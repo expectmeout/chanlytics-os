@@ -67,7 +67,10 @@ export interface LiveVM {
   notes: string[];
   /** After a disconnect: what Connect would bring back. */
   again: string | null;
-  /** Connected and read, with no ad in the account: what will be here, beside New ad. */
+  /**
+   * Connected and read, with no ad in the account: that Meta shows none, beside New ad, where the ads would be (a
+   * desk draws no head sentence, so the page says it here; a phone says it once, here and not under the head).
+   */
   empty: string | null;
 }
 
@@ -254,7 +257,7 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
     rows: ads.map((ad) => rowOf(ad, dto, said, currency)),
     notes: notesOf(dto, ads),
     again: dto.account.status === "disconnected" ? LIVE.disconnected.again : null,
-    empty: connected && firstReadOf(dto.account) === null && dto.ads.length === 0 ? LIVE.empty : null,
+    empty: connected && firstReadOf(dto.account) === null && dto.ads.length === 0 ? LIVE.noAds.rest : null,
   };
 }
 

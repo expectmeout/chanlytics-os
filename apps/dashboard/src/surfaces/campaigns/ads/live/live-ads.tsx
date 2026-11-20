@@ -112,7 +112,8 @@ export function LiveAds(p: LiveAdsProps) {
           </>
         }
       />
-      {phone ? (
+      {/* With no ad in the account the page says so once, where the ads would be (live-page.tsx). */}
+      {phone && vm.empty === null ? (
         <p className="ads-lead" data-testid="ads-lead">
           {sentence}
         </p>

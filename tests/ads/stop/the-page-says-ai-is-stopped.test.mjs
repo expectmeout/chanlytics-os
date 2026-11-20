@@ -120,8 +120,8 @@ test("a paused ad's drawer offers no turning back on while AI is stopped, and do
   assert.equal(sheetModel(page(), ID(1), SAID).foot.kind, "pause");
 });
 
-test("an account read with no ad in it says what will be here, beside New ad; not while it is still being read", () => {
-  assert.equal(liveModel(page({ ads: [] }), SAID).empty, LIVE.empty);
+test("an account read with no ad in it says so where the ads would be, beside New ad; not while it is still being read", () => {
+  assert.equal(liveModel(page({ ads: [] }), SAID).empty, LIVE.noAds.rest);
   assert.equal(liveModel(page(), SAID).empty, null, "with ads, the ads are the page");
   const reading = page({ ads: [], account: { ...page().account, read_at: null } });
   assert.equal(liveModel(reading, SAID).empty, null, "an account not read yet is said as reading, not as empty");
@@ -224,11 +224,11 @@ test("the page says it at its top, and the one press pauses every ad still on th
   assert.equal(STOP.paused(2), "2 ads are paused. Meta still bills what they already showed.");
 });
 
-test("with AI running the page says nothing of a stop, and an account with no ad says what will be here", async () => {
+test("with AI running the page says nothing of a stop, and an account with no ad says so where the ads would be", async () => {
   const running = (await heldPage(page({ stopped_at: null })))();
   assert.equal(byTestId(running, "ads-stop"), null);
   const empty = (await heldPage(page({ ads: [], stopped_at: null })))();
-  assert.match(textOf(byTestId(empty, "ads-live-empty")), new RegExp(LIVE.empty));
+  assert.match(textOf(byTestId(empty, "ads-live-empty")), new RegExp(LIVE.noAds.rest));
   assert.ok(byTestId(empty, "ads-live-empty-new"), "with New ad beside it");
 });
 

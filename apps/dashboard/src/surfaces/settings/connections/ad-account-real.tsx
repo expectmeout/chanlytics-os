@@ -23,13 +23,14 @@ export interface AdsPlace {
 
 /**
  * Where the card stands, by its account's status and the card it draws: null until the account is read. A connected
- * account with something that stops its ads, or one Meta signed Chanlytics out of, needs attention, as a row would.
+ * account with something that stops its ads, ads still on while AI is stopped, or an account Meta signed Chanlytics
+ * out of, needs attention, as a row would.
  */
-export function adsPlaceOf(status: string | null, vm: ConnectCardVM | null): AdsPlace | null {
+export function adsPlaceOf(status: string | null, vm: ConnectCardVM | null, stopped = false): AdsPlace | null {
   if (vm === null) return null;
   if (status === "revoked") return { group: "connected", state: "attention" };
   if (status === "connected")
-    return { group: "connected", state: vm.need?.tone === "warn" ? "attention" : "connected" };
+    return { group: "connected", state: vm.need?.tone === "warn" || stopped ? "attention" : "connected" };
   if (vm.state === "question") return { group: "available", state: "waiting_you" };
   return { group: "available", state: vm.state === "checking" ? "waiting_them" : "none" };
 }
@@ -49,7 +50,7 @@ export function RealAdAccount({
     CARD.inConnections,
     "card",
   );
-  const place = adsPlaceOf(connection.account.dto?.meta?.status ?? null, connection.vm);
+  const place = adsPlaceOf(connection.account.dto?.meta?.status ?? null, connection.vm, connection.stop !== null);
   const group = place?.group ?? null;
   const state = place?.state ?? null;
   // Told only when it moves: the pane draws the place in that group, and counts the card there.

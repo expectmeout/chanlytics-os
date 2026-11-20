@@ -20,8 +20,6 @@ export const LIVE = {
     rest: ads === 1 ? " is in your Meta account." : " are in your Meta account.",
   }),
   noAds: { strong: null, rest: "Meta shows no ads in this ad account yet." },
-  /** Under it, where the ads would be: what will be here, and New ad. */
-  empty: "Your ads show here, with who each one brings.",
   /** The head while an account just connected has not been read: nothing is known of its ads yet. */
   reading: { strong: null, rest: "Reading your ads from Meta…" },
   /** The head where its first read failed: what stood is nothing, and the clock asks again. */
