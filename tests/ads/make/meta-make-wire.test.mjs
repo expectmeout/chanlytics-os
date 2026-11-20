@@ -187,9 +187,19 @@ test("the ad set opens WhatsApp and holds a total with its end, in Meta's own un
     /end comes after/,
   );
   assert.throws(() => metaAdSetRequest(TOKEN, SECRET, { ...SET_ASK, campaignId: "not-an-id" }, DRY), /campaign/);
-  // A Page with no number kept names the Page alone.
-  const bare = formOf(metaAdSetRequest(TOKEN, SECRET, { ...SET_ASK, whatsappNumber: null }, DRY));
-  assert.deepEqual(JSON.parse(bare.get("promoted_object")), { page_id: PAGE });
+  // The number AI answers is always named. A Page can hold several numbers, and with none named Meta opens the Page's
+  // own first one: an ad would then bring people to a number nobody answers for the business here. So no request is
+  // built without it.
+  for (const whatsappNumber of ["", "no number", "12345", "1".repeat(16)])
+    assert.throws(
+      () => metaAdSetRequest(TOKEN, SECRET, { ...SET_ASK, whatsappNumber }, DRY),
+      /WhatsApp number/,
+      JSON.stringify(whatsappNumber),
+    );
+  const dry = JSON.parse(formOf(metaAdSetRequest(TOKEN, SECRET, SET_ASK, DRY)).get("promoted_object"));
+  const real = JSON.parse(formOf(metaAdSetRequest(TOKEN, SECRET, SET_ASK, { key: KEY })).get("promoted_object"));
+  assert.equal(dry.whatsapp_phone_number, "13055550142");
+  assert.deepEqual(real, dry, "the dry run names the same number the make does");
 });
 
 test("who sees it: adults in the circle, on the places named, and nowhere Meta adds by itself", () => {

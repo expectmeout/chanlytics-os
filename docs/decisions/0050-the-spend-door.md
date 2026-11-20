@@ -345,7 +345,8 @@ Meta's own pages were read first; what they showed and what it changed is in
   together. So an `ads` row made here has three ads among its `ad_objects`, and a read folds them into one.
 - **What Meta answers** (`meta-made.ts`): the id of what was made, Meta's own words for a refusal with the field it
   blames, and a campaign read back whole in what call 4's compare needs: paused, the total and its end, no special
-  kind declared, WhatsApp as where a tap goes, and none of Meta's own changes on.
+  kind declared, WhatsApp as where a tap goes with the number AI answers, and none of Meta's own changes on. That
+  number is always named in the request: a Page can hold several, and Meta opens its primary one where none is named.
 - **A create carries a key** that Meta's page says makes it safe to repeat. Call 6 says an outcome the job cannot tell
   is settled by a read of the tagged name, "never by sending again". For a create, sending again with the same key is
   the surer of the two; a switch takes no key, so call 6 stands for it. The builders carry the key; whether the job

@@ -230,11 +230,11 @@ On Ruben's own ad account, with no card on file, so nothing can be charged. Each
 1. A read of the account's least for a day, and of the Instagram account its Page is linked to.
 2. The campaign as a dry run: an ad that opens WhatsApp, declared as no special kind. Then the campaign itself.
 3. The part that says who sees it as a dry run: adults within the miles of the address, a total with its end, the
-   places named, the Page and its WhatsApp number. Then the part itself.
+   places named, the Page, and the WhatsApp number AI answers, named itself. Then the part itself.
 4. The picture, placed in the account's library.
 5. One ad with its creative inside it as a dry run, with Meta's own look at the words asked for. Then the ad itself.
 6. One read of all three, compared with what was sent: the amount, the end, paused, no special kind, WhatsApp as where
-   it opens, and none of Meta's own changes on.
+   it opens, the number AI answers as the one it opens, and none of Meta's own changes on.
 7. The ad's own switch on, then paused again, while the campaign above it stays paused.
 
 It leaves a paused campaign, a picture in the account's library and an unpublished post on the Page. It goes through
@@ -249,3 +249,26 @@ Chanlytics holds; and that Meta's own preview answers to it.
 
 Any account, any ad, and any page behind a sign-in. Meta's help pages for advertisers answered a plain reader with
 nothing, so the sizes and the music rule are from its Ads Guide and its Music Guidelines, which did.
+
+## 19 November 2026 · A Page that holds two WhatsApp numbers
+
+Reported late on 19 November by the session that works in Meta's own settings on Ruben's word, after it linked the
+number AI answers to his Page. It was not seen by the session that built the requests, which opens no page behind a
+sign-in. No number is written here.
+
+### What it showed
+
+| Looked at | What it showed |
+|---|---|
+| The Page's linked WhatsApp numbers | Two. One was already there, marked as the Page's primary number. The number AI answers was added beside it, and is not the primary one. Meta took the link in one press with no code, since the number's WhatsApp account and the Page sit in the same business portfolio |
+| What Meta says of a primary number | That it is the default "for ads, posts, and other experiences". A Page can hold up to fifty numbers |
+| Meta's guide for these ads | The number an ad opens is named on the part that says who sees it, and the guide marks it optional |
+
+### What it changes
+
+- **An ad made here always names the number AI answers.** Left out, an ad would open the Page's primary number, which
+  on this Page is another one, and people would write where AI does not answer. The request is not built without the
+  number, and what Meta holds is compared with it before anything is turned on.
+- **The paused-ad check's gate is met at Meta:** the Page is linked to the number AI answers.
+- **To see on the paused ad:** that Meta takes a number that is linked to the Page and is not its primary one.
+- **Not this part's:** the card's own check of the Page's number, which is step 2's and has been told.

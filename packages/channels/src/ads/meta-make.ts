@@ -135,9 +135,13 @@ export interface MetaAdSetAsk {
   /** When it may start, as an ISO moment; absent for at once. And when it ends, which a total must have. */
   startsAt?: string;
   endsAt: string;
-  /** The Page the ad runs as, and the WhatsApp number it opens, digits only, where one is kept. */
+  /**
+   * The Page the ad runs as, and the WhatsApp number a tap opens: the one AI answers. Always named. A Page can hold
+   * several numbers, and where a request names none Meta opens the Page's own first one, which may be a number nobody
+   * answers for the business here (Meta's guide calls the field optional; seen on a Page with two, 19 November 2026).
+   */
   pageId: string;
-  whatsappNumber: string | null;
+  whatsappNumber: string;
   centre: MetaAreaCentre;
   miles: number;
   /** Whether the ads under it name an Instagram account: Instagram's places are asked for only then. */
@@ -191,7 +195,8 @@ export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSe
   const endsAt = momentSent(ask.endsAt, "the end");
   const startsAt = ask.startsAt === undefined ? null : momentSent(ask.startsAt, "the start");
   if (startsAt !== null && startsAt >= endsAt) throw new Error("the end comes after the start");
-  const number = ask.whatsappNumber?.replace(/\D/g, "") ?? "";
+  const number = ask.whatsappNumber.replace(/\D/g, "");
+  if (number.length < 7 || number.length > 15) throw new Error("the WhatsApp number the ad opens is not one");
   return makeRequest(
     `${metaAccountPath(ask.accountId)}/adsets`,
     {
@@ -207,7 +212,7 @@ export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSe
       end_time: endsAt,
       promoted_object: JSON.stringify({
         page_id: metaIdOf(ask.pageId, "the Page"),
-        ...(number ? { whatsapp_phone_number: number } : {}),
+        whatsapp_phone_number: number,
       }),
       targeting: JSON.stringify(targetingOf(ask)),
     },
