@@ -450,7 +450,7 @@ test("the page and its doors: Campaigns is real (Sequences, decision 0060), and 
   // rule D): today-page.test.mjs and inbox-counts.test.mjs run it.
   const rows = readCode("apps/dashboard/src/surfaces/waits/wait-rows.tsx");
   assert.ok(
-    rows.includes('testid="brief-run-row"') && rows.includes("runsPending()"),
+    rows.includes('testid: "brief-run-row"') && rows.includes("runsPending()"),
     "Today's queue shows a run that waits, from the surface it already has",
   );
   const { AFTER } = await importSrc("apps/dashboard/src/bridge/refresh-map.ts");

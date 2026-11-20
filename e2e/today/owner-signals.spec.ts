@@ -42,22 +42,22 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
     await signIn(page);
   });
 
-  test("Today names it -- nobody can be sent an offer -- with its arithmetic, and its door opens who said yes, whose list's step is the QR", async ({
+  test("Today names it -- nobody can be sent an offer -- with its count, and its door opens who said yes, whose list's step is the QR", async ({
     page,
   }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    // A rule of the workspace's own counts, a row of Ask found (Today in three zones, 2 Nov 2026).
+    // A rule of the workspace's own counts, a finding of AI found's (Today, calm, 19 Nov 2026): its card or a line.
     const rows = await expectFoundWellFormed(page);
-    const reach = rows.find((r) => r.key === "rule:unreachable");
+    const reach = rows.find((r) => r.head === "Nobody has said yes to offers");
     expect(
       reach,
-      `the seeded workspace said yes to messages and nothing to offers; AI found said: ${JSON.stringify(rows)}`,
+      `the seeded workspace said yes to messages and nothing to offers; AI found said: ${JSON.stringify(rows.map((r) => r.head))}`,
     ).toBeTruthy();
-    expect(reach!.text).toMatch(/^\d+ people have said yes to messages, but nobody has said yes to offers\.$/);
-    // One act on the row (the phone pass, #2081): the people it counts, where the list's own step goes on to the QR.
-    expect(reach!.act).toBe("See them");
-    await page.locator('[data-key="rule:unreachable"]').getByTestId("today-found-act").click();
+    expect(reach!.sub).toMatch(/^\d+ people have said yes to messages\.$/);
+    // One door on it (the phone pass, #2081): the people it counts, where the list's own step goes on to the QR.
+    if (reach!.card) expect(reach!.act).toBe("See them");
+    await reach!.door.click();
     await expect.poll(() => routeOf(page.url())).toBe("clients/seg:opted_in");
     await page
       .getByTestId("list-action")
@@ -71,9 +71,9 @@ test.describe("What the owner could not have seen, and the door to the fix", () 
   }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    const reach = (await expectFoundWellFormed(page)).find((r) => r.key === "rule:unreachable");
+    const reach = (await expectFoundWellFormed(page)).find((r) => r.head === "Nobody has said yes to offers");
     expect(reach, "the seeded state").toBeTruthy();
-    const said = Number(/^(\d+) people/.exec(reach!.text)?.[1]);
+    const said = Number(/^(\d+) people/.exec(reach!.sub)?.[1]);
     // The list the number is, as People names it: Said yes to messages, opened from People, not a URL built from the
     // row, whose one act the test above takes.
     await page.goto("/#/clients/seg:opted_in");

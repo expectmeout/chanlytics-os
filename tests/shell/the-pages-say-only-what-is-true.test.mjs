@@ -376,7 +376,8 @@ Object.assign(globalThis.window, {
 // Today's pages are TSX (decision 0015): they draw the kit's AttnRow and read the day over the seam.
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { DayZone } = await import("../../apps/dashboard/src/surfaces/today/zones/day.tsx");
-const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday } = await import("../today/zones/_on-today.mjs");
 const { setSurfaceValue, surfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const todayWith = (channels) =>
@@ -406,7 +407,7 @@ const mountToday = (vm) => {
   const hero = textOf(TodayAlertBand());
   cells = [];
   frames.begin();
-  const queue = textOf(NeedYou());
+  const queue = textOf(NeedYouOnToday());
   return { hero, queue };
 };
 

@@ -1,7 +1,7 @@
 /** What is under the line, and the keys that walk it. */
 import type { KeyboardEvent } from "react";
 import type { FoldedTurn, Line, LineTaken } from "./types";
-import { buildLineRows, flatRows, type LineRow } from "../home";
+import { buildLineRows, flatRows, ownAsksOf, type LineRow } from "../home";
 import { answerMoves, freshNext } from "../turn";
 import { arEscape } from "./place";
 
@@ -20,6 +20,7 @@ export const arUnder = ({
   live,
   quick,
   composing,
+  phone,
 }: Line) => {
   const turns = active ? A.turns(active.messages) : []; // its questions and their answers, in order (palette.ts)
   const latest = turns.at(-1) ?? null;
@@ -32,7 +33,14 @@ export const arUnder = ({
   // rows and the jumps included, and Enter sends), so nothing is built or walked; nor for words typed that find no place
   // to jump to and no question that matches (buildLineRows draws them none), which the field holds and Enter asks.
   const rowsShown = showRows && !composing;
-  const sections = rowsShown ? buildLineRows({ A, t, lang, query, surface, scope, threads, view }) : [];
+  // The page's own questions, read once: the rows draw them, and on a phone opened from Today they are the home, under
+  // its title (Today, calm, D10, D12), which stays while the field is in use and while words are typed, so the three
+  // hold their place until a question is asked.
+  const own = showRows && view === "rows" ? ownAsksOf({ A, t, lang, surface, scope }) : [];
+  const homeTitled = phone && surface === "today" && !(active || quick) && own.length > 0;
+  const sections = rowsShown
+    ? buildLineRows({ A, t, lang, query, surface, scope, threads, view, own, titled: homeTitled })
+    : [];
   const rows = flatRows(sections);
   const rowsDrawn = rowsShown && (view === "earlier" || !query.trim() || rows.length > 0);
   const drawn =
@@ -53,6 +61,7 @@ export const arUnder = ({
     rowsDrawn,
     sections,
     rows,
+    homeTitled,
     drawn,
     moves,
     words,
@@ -260,6 +269,7 @@ export const arHeroState = ({
   composing,
   composingRows,
   thread,
+  homeTitled,
 }: Line) => {
   // Small once an answer is written, and while words are typed at home with the field not composing (a desk's, or a
   // phone's left with words once its keyboard went), so their rows stand under the three and not a screen below them.
@@ -274,7 +284,9 @@ export const arHeroState = ({
   // sentence says the same counts, so the pills wait: a thing is said once (Ruben, 17 Nov 2026: "2 sends waiting" over
   // "2 campaign runs are waiting for your approval" read as messy; docs/words.md, a badge never repeats the line under it).
   const parts = A.rightNowParts ? A.rightNowParts(lang) : null;
-  const standing = !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && composingRows;
+  // Not over Today's own home: the page under it has just said them (D10).
+  const standing =
+    !!parts && !!(parts.people || parts.runs || parts.searches) && !talk.listening && composingRows && !homeTitled;
   return { heroSmall, heroMode, heroQ, restful, parts, standing };
 };
 

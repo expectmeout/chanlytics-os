@@ -53,6 +53,11 @@ export interface SetupCardVM {
    * counted with Setup's; "Needs you" beside "Your plan" while a payment failed.
    */
   left: string;
+  /**
+   * How many are left, where `left` counts the card's own rows ("2 left"): what a line that takes one more step says with
+   * it (setupCardLeftWith). Null where `left` says something else: the first run's steps, Go live's, a payment.
+   */
+  count: number | null;
   /** While calls are not answered: the one row, which opens the first run where it stands. */
   /** `ctaShort` is the button on a phone, where it sits beside the words (canvas P9). */
   start: { name: string; sentence: string; status: string; cta: string; ctaShort: string; to: string } | null;
@@ -139,7 +144,6 @@ const CARD_SHORT_VERBS: Record<string, string> = {
   "Set up forwarding": "Forward",
   "Set alerts": "Alerts",
   "Get their yes": "Ask",
-  "Turn on": "Turn on",
 };
 
 /** An act's word on a phone: its own short word, else its first. */
@@ -215,7 +219,8 @@ const CARD_REMIND = {
   stateWords: SETUP_STATE_WORDS.not_started,
   words: "Your calendar is in. Remind each customer the day before.",
   home: "Turn it on any time in Campaigns.",
-  label: "Turn on",
+  // What the press does (Today, calm, D26): it opens the reminder to be set up; nothing is turned on by it.
+  label: "Set up",
   // New sequence on the day-before moment, its line written in (sequences/address.ts newSequenceRoute): the composer's
   // Turn on went with its moment mode (the closed-loop audit of 17 Oct 2026, G).
   to: "campaigns/sequences/new:moment:visit_tomorrow",
@@ -315,6 +320,17 @@ const stepsAfter = (fr: ReturnType<typeof firstRunOf>): string[] =>
     .filter((s) => s.state !== "done" && s.key !== fr.current)
     .map((s) => inSentence(firstRunStepDefOf(s.key).name));
 
+/** How many are left, as the card's line says it. */
+const leftWords = (count: number): string => `${count} left`;
+
+/**
+ * What the card's line says is left with more counted among it (Today, calm, D21: cold email's mailbox step joins
+ * setting up): the count where the card counts its rows, else the card's own words.
+ */
+export function setupCardLeftWith(card: Pick<SetupCardVM, "left" | "count">, more: number): string {
+  return card.count === null ? card.left : leftWords(card.count + more);
+}
+
 /** Today's card: what is left to set up, or null when nothing is. */
 export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCardVM | null {
   const words = SETUP_CARD_WORDS;
@@ -324,6 +340,7 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
   if (billing && billing.state === "waiting_you" && billing.verb)
     return {
       ...CARD_BILLING,
+      count: null,
       start: null,
       kept: [],
       rows: [{ ...billing, put: null, short: cardShortOf(billing) }],
@@ -341,6 +358,7 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
     return {
       title: FINISH_SETTING_UP,
       left: `${left} ${left === 1 ? "step" : "steps"} left`,
+      count: null,
       start: {
         // Said as it is: nothing answers yet; WhatsApp answers and calls do not; or calls are answered and a step is open.
         name: def.name,
@@ -374,6 +392,7 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
     return {
       title: words.goingLive,
       left: rows.length ? words.needYou(rows.length) : words.next(GO_LIVE.name),
+      count: null,
       // Nothing of the owner's left on Go live (the number still on its way): the one row back to it.
       start: rows.length
         ? null
@@ -421,9 +440,11 @@ export function setupCardOf(vm: SetupVM, setupCardWho?: SetupCardWho): SetupCard
         }
       : null;
   // The reminder is a row of the card as drawn, so it is counted and hidden with Setup's; it is kept in Sequences.
+  const count = rows.length + (remind ? 1 : 0);
   return {
     title: FINISH_SETTING_UP,
-    left: `${rows.length + (remind ? 1 : 0)} left`,
+    left: leftWords(count),
+    count,
     start: null,
     kept: [],
     rows,

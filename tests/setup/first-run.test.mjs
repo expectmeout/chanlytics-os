@@ -610,7 +610,8 @@ test("after the first run, with the calendar in, Today's card carries one door t
     nameShort: "Reminders",
     stateWords: "Not started",
     words: "Your calendar is in. Remind each customer the day before.",
-    label: "Turn on",
+    // What the press does (Today, calm, D26): it opens the reminder to be set up; nothing is turned on by it.
+    label: "Set up",
     to: "campaigns/sequences/new:moment:visit_tomorrow",
     put: {
       week: "Put off for a week.",

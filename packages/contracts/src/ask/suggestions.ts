@@ -62,6 +62,11 @@ export interface SuggestionInput {
   leadIdeas?: string[];
   leadSearches?: string[];
   /**
+   * On Today: the questions the page wrote from its own lines (Today, calm, D10; the dashboard's bridge/ask/page-asks.ts
+   * todayAsksOf), each what its row says and the words asked. None where the page has no line to ask about.
+   */
+  pageAsks?: ReadonlyArray<{ label: string; q: string }>;
+  /**
    * On Campaigns (the moment spec, A3): its campaigns as the page read them, each by its name, moment, state and
    * whether a run of it waits; none read yet is null, and the page's own chips wait for it.
    */
@@ -216,34 +221,76 @@ function clipWords(s: string, cap: number): string {
   return w.length > cap ? `${w.slice(0, cap - 1).trimEnd()}…` : w;
 }
 
+/** How a page's chips are added: the question, its kind and glyph, whether it is fast, its label, and whether it is its own. */
+type AddChip = (
+  q: string,
+  kind: AskSuggestion["kind"],
+  icon: string,
+  fast?: boolean,
+  label?: string,
+  own?: boolean,
+) => void;
+
 /**
- * A page's own chips, which come first: on Leads the first day's ideas, each a search to propose, or the latest
- * searches' own words to find more; on Campaigns (the moment spec, A3) three ideas on the first day, each a setup to
- * ask, then why a campaign waits and what is working, and a win-back only where none runs. Answers whether a win-back
- * needs no act here -- one runs, or a chip of the page's offers it already -- which the Act group reads, so it is
- * offered once. (Out of buildAskSuggestions, which the complexity ratchet holds.)
+ * Today's: the questions written from the lines the page shows, so they are this workspace's own, never a table's; in the
+ * page's own language, which has no Spanish yet: never English questions under Spanish words.
  */
-function pageChips(
-  input: SuggestionInput,
+function todayChips(input: SuggestionInput, add: AddChip): void {
+  if (input.language === "es") return;
+  for (const a of input.pageAsks ?? []) add(a.q, "ask", "arrow-up", false, a.label === a.q ? undefined : a.label, true);
+}
+
+/**
+ * Leads': the first day's ideas, each a search to propose, three, since the section under the field keeps three; else the
+ * latest searches' own words to find more. An idea is its plan in words (00398), and a search's words can run long: the
+ * chip clips them, the question sent keeps them whole.
+ */
+function leadsChips(input: SuggestionInput, item: (typeof T)[keyof typeof T], add: AddChip): void {
+  const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
+  for (const w of ideas) add(w, "ask", "search", false, clipWords(w, 48), true);
+  if (ideas.length) return;
+  for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
+    add(
+      item.moreLike.replace("{asked}", a),
+      "ask",
+      "search",
+      false,
+      item.moreLike.replace("{asked}", clipWords(a, 40)),
+      true,
+    );
+}
+
+/**
+ * Campaigns' (the moment spec, A3): three ideas on the first day, each a setup to ask; then why a campaign waits and what
+ * is working, and a win-back only where none runs (on, and not past its last day: S1-3).
+ */
+function campaignsChips(
+  rows: NonNullable<NonNullable<SuggestionInput["campaigns"]>["rows"]>,
   item: (typeof T)[keyof typeof T],
-  add: (q: string, kind: AskSuggestion["kind"], icon: string, fast?: boolean, label?: string, own?: boolean) => void,
-): boolean {
+  add: AddChip,
+): void {
+  if (rows.length === 0) {
+    for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(item[k], "ask", "bolt");
+    return;
+  }
+  const waiting = rows.find((r) => r.waiting);
+  if (waiting) add(item.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
+  add(item.working, "ask", "trending-up");
+  if (!rows.some((r) => isWinBack(r.trigger) && r.runs)) add(item.winBackIdea, "ask", "bolt");
+}
+
+/**
+ * A page's own chips, which come first: Today's, Leads', the ads', Content's and Campaigns'. Answers whether a win-back
+ * needs no act here -- one runs, or a chip of the page's offers it already -- which the Act group reads, so it is offered
+ * once. (Out of buildAskSuggestions, which the complexity ratchet holds.)
+ */
+function pageChips(input: SuggestionInput, item: (typeof T)[keyof typeof T], add: AddChip): boolean {
+  if (input.surface === "today") {
+    todayChips(input, add);
+    return false;
+  }
   if (input.surface === "leads") {
-    // The section under the field keeps three, and they must be these.
-    const ideas = (input.leadIdeas ?? []).filter(Boolean).slice(0, 3);
-    // An idea is its plan in words (00398), which can run long: the chip clips them, the question sent keeps them whole.
-    for (const w of ideas) add(w, "ask", "search", false, clipWords(w, 48), true);
-    // A search's own words can run long; the chip shows them clipped, the question sent keeps them whole.
-    if (!ideas.length)
-      for (const a of (input.leadSearches ?? []).filter(Boolean).slice(0, 2))
-        add(
-          item.moreLike.replace("{asked}", a),
-          "ask",
-          "search",
-          false,
-          item.moreLike.replace("{asked}", clipWords(a, 40)),
-          true,
-        );
+    leadsChips(input, item, add);
     return false;
   }
   if (input.onAds) {
@@ -261,15 +308,7 @@ function pageChips(
   }
   const rows = input.surface === "campaigns" ? (input.campaigns?.rows ?? null) : null;
   if (!rows) return false;
-  if (rows.length === 0) {
-    for (const k of ["setUp", "winBackIdea", "offerIdea"] as const) add(item[k], "ask", "bolt");
-    return true;
-  }
-  const waiting = rows.find((r) => r.waiting);
-  if (waiting) add(item.whyWaiting.replace("{name}", waiting.name), "ask", "clock");
-  add(item.working, "ask", "trending-up");
-  // A win-back is offered where none runs (on, and not past its last day: S1-3), and then as the page's own chip alone.
-  if (!rows.some((r) => isWinBack(r.trigger) && r.runs)) add(item.winBackIdea, "ask", "bolt");
+  campaignsChips(rows, item, add);
   return true;
 }
 

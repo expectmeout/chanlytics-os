@@ -31,7 +31,7 @@ import {
   type WaitingThread,
   type Waits,
 } from "@chanlytics/contracts";
-import { waitRowsOf } from "@/surfaces/waits/rows";
+import { waitRowKey, waitRowsOf } from "@/surfaces/waits/rows";
 import { onSurfaceMoved } from "@/bridge/surface-status";
 import { approvalDaysNow } from "./campaigns/broadcasts/when-words";
 import { ixWaiting, ixWaitsOnYou, vetoKeyOf } from "./inbox/rules";
@@ -226,6 +226,20 @@ export function useNeedsYou(): number | null {
  */
 export function useWaitsOnToday(): boolean {
   return (useNeedsYou() ?? 0) > 0;
+}
+
+/** The first of the rows of the runs waiting, by its key (waits/rows.ts waitRowKey); null where none waits. */
+const firstWaitNow = (): string | null => {
+  const [first] = waitRowsOf(waitingRunsNow(), []);
+  return first ? waitRowKey(first) : null;
+};
+
+/**
+ * The first row of the runs waiting, as a hook: what Today's card holds once no person waits before it (Today, calm,
+ * D15: the card is what the head's count counts, and the count holds these rows).
+ */
+export function useFirstWait(): string | null {
+  return useSyncExternalStore(hearNeedsYou, firstWaitNow, firstWaitNow);
 }
 
 /** The parts, as a hook: drawn again when a part changes (a hold becomes a held send, a run is approved), by nothing else. */

@@ -17,7 +17,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { roleGate, refusalOf, ROLE_PERMS, stateOf, toTodayVM } from "@chanlytics/contracts";
-import { installStubReact, fresh, again, find, byTestId, kitPages } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, find, byTestId, kitPages, textOf } from "../_stub-react.mjs";
 
 /* -------------------------------- the words -------------------------------- */
 
@@ -253,7 +253,7 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
 /* ------------------------------------ Today ------------------------------------ */
 
 // Today's Need you is TSX (surfaces/today/zones/need-you.tsx): drawn by import, over the day the seam holds.
-const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+const { NeedYouOnToday } = await import("./zones/_on-today.mjs");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const metrics = {
@@ -315,16 +315,26 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
     __broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
   });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
+  // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts):
+  // the Inbox read and empty, the runs as the window has them.
+  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
+  setSurfaceValue("broadcasts", globalThis.window.__BROADCASTS);
   try {
     fresh();
-    const tree = again(() => NeedYou());
-    // The row's own props, as the page handed them to the kit's AttnRow (the element, not the div it draws).
-    const run = find(tree, (n) => n.type === AttnRow && n.props.testid === "brief-run-row")?.props;
-    assert.ok(run, "the run waiting for approval");
-    assert.ok(run.cta.gate, "REGRESSION: the run's Approve carried no gate while its Stop did");
-    assert.equal(run.cta.gate["data-tip"], "Only an owner or operator can approve a run.");
+    const tree = again(() => NeedYouOnToday());
+    // Nobody else waits, so the run holds Today's card (Today, calm, D15), its Approve the card's own press.
+    const approve = find(tree, (n) => n.props?.["data-testid"] === "today-card-act");
+    assert.ok(approve, "the run waiting for approval holds the card, its Approve the card's press");
+    assert.equal(textOf(approve), "Approve all 3");
+    assert.equal(
+      approve.props["data-tip"],
+      "Only an owner or operator can approve a run.",
+      "REGRESSION: the run's Approve carried no gate while its Stop did",
+    );
   } finally {
     setSurfaceValue("today", undefined);
+    setSurfaceValue("inbox", undefined);
+    setSurfaceValue("broadcasts", undefined);
   }
 });
 

@@ -10,38 +10,6 @@
 .ny-groups {
   gap: var(--space-1);
 }
-.ny-group:first-child > .ny-group-head {
-  padding-top: var(--space-1);
-}
-.ny-group-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) 10px;
-  padding: 18px 0 6px;
-}
-.ny-group-title {
-  font-size: var(--text-aside);
-  line-height: 18px;
-  font-weight: var(--weight-semibold);
-  color: var(--ink-muted);
-}
-.ny-group-n {
-  margin-left: -4px;
-  font-size: var(--text-aside);
-  line-height: 18px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-dim);
-}
-/* "Reply · 2", as the canvas says a group's count after its name. */
-.ny-group-n::before {
-  content: "·\00a0";
-}
-/* How many wait on you for a word: amber, warn's own meaning, as the head's dot and the menu's count say it. */
-.ny-group-n[data-tone="warn"] {
-  font-weight: var(--weight-semibold);
-  color: var(--warn-ink);
-}
 
 /* How long they have waited, or when the row's clock runs out, by itself at the name line's right: the dim ink, amber
    past a day or where the clock is near (contracts needYouWaitOf). */
@@ -219,26 +187,6 @@
   align-items: center;
   min-height: 40px;
   border-top: 1px solid var(--line);
-}
-/* What a group could not hold: its press at the group's foot. */
-.ny-more {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  min-height: 40px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  text-decoration: none;
-}
-@media (hover: hover) {
-  .ny-more:hover {
-    color: var(--ink);
-  }
-}
-.ny-more:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 /* A row open in place on a desk is drawn whole: what was said stands in its work, so its one line goes. Up next on a phone keeps
    its line, and its work stands close under it. */
@@ -776,120 +724,4 @@
 /* Read, beside whose words they are, where the row is drawn short of them (a phone's card): at the head's right. */
 .ny-read {
   margin-left: auto;
-}
-
-/* The sheet that walks Need you on a phone (walk-sheet.tsx; one sheet, 9 Nov 2026): who, where it stands and the arrows in one
-   line; what was said; the answer; what to tell Ask; the presses held still in a flat foot, the quiet one sized by its word and
-   the act taking the rest of the width; and a send from the row before still counting down at the top, with its Undo. */
-.ny-walk-body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 2px 0 14px;
-}
-.ny-walk-foot {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.ny-walk-foot > .ny-acts {
-  flex-wrap: nowrap;
-}
-.ny-walk-foot > .ny-acts > .ny-room {
-  display: none;
-}
-.ny-walk-foot > .ny-acts > :last-child {
-  flex: 1 1 auto;
-  justify-content: center;
-  min-width: 0;
-}
-.ny-walk-foot > .ny-acts > :first-child:not(:last-child):not(.ny-room) {
-  flex: none;
-}
-.ny-walk-stack {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  gap: var(--space-2);
-}
-.ny-walk-pager {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  color: var(--ink-muted);
-}
-.ny-walk-of {
-  padding: 0 1px;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.ny-walk-back {
-  transform: scaleX(-1);
-}
-.ny-walk-door {
-  margin-left: 3px;
-  color: var(--ink-dim);
-  vertical-align: -1px;
-}
-.ny-walk-whole {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 2px;
-  min-height: 32px;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  text-decoration: none;
-}
-.ny-walk-last {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
-  border-radius: var(--radius-lg);
-  background: var(--accent-soft);
-  font-size: var(--text-sm);
-  color: var(--ink);
-}
-.ny-walk-last-words {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-variant-numeric: tabular-nums;
-}
-.ny-walk-end {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: var(--space-3) 0 var(--space-2);
-  font-size: var(--text-base);
-  line-height: 1.43;
-  text-align: center;
-  color: var(--ink-muted);
-}
-.ny-walk-end > b {
-  font-size: var(--text-xl);
-  line-height: 1.4;
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.012em;
-  color: var(--ink);
-}
-.ny-walk-end-tick {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  margin-bottom: var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--ok-soft);
-  color: var(--ok-ink);
-}
-.ny-walk-end-door {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  text-decoration: none;
 }

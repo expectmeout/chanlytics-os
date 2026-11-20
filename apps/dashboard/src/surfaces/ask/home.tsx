@@ -7,28 +7,20 @@
 import { Fragment, useEffect, useState } from "react";
 import {
   NOTICE_SAID_BY_RIGHT_NOW,
-  type AskAnswer,
-  type AskBreakdown as Breakdown,
   type AskLanguage,
   type AskNotice,
   type AskScope,
+  type AskSuggestion,
   type AskSurface,
   type AskThreadVM,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
 import type { FrameFlash } from "../frame-verbs";
-import { BarChart, BarList } from "../kit/charts/bar";
-import { ChartCard, SegmentBar } from "../kit/charts/card";
-import type { ChartConfig, ChartRow } from "../kit/charts/geometry";
-import { LineChart } from "../kit/charts/line";
 import { Icon } from "../kit/icon/icon";
 import { LinePress } from "../kit/line/line";
 import type { useAskSpeech } from "./hooks";
 import { byKeyLines, deleteKeyOf, secondAct } from "./second-act";
 import type { LineWords } from "./words";
-
-/** A chart of numbers the turn read. */
-type Chart = NonNullable<AskAnswer["show"]["chart"]>;
 
 /** A row of the Line: what it says, and what taking it does (a route, words to ask or to finish, a thread to open). */
 export interface LineRow {
@@ -66,6 +58,10 @@ interface LineRowsAsk {
   scope: AskScope | null;
   threads: AskThreadVM[];
   view: string;
+  /** The page's own questions (ownAsksOf), read once by the Line for the rows and for the home's title. */
+  own: readonly AskSuggestion[];
+  /** The home is the page's own questions as rows, under a title: a phone's opened from Today (Today, calm, D10). */
+  titled: boolean;
 }
 
 const ahAgo = (ms: number) => {
@@ -78,7 +74,84 @@ const ahAgo = (ms: number) => {
 };
 
 // Every row carries what activating it does: a route, words to ask, words to finish on the line, or a thread to open.
-export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view }: LineRowsAsk): LineSection[] => {
+/**
+ * The page's own questions, three at most: only where they were written for this workspace (Leads' ideas, the
+ * person's own searches, what Today wrote from its lines). A question from a table is a preset, and AI needs none
+ * (Ruben, 12 and 17 Nov 2026); those still match what is typed, and an answer's own next questions are AI's.
+ */
+export const ownAsksOf = ({
+  A,
+  t,
+  lang,
+  surface,
+  scope,
+}: Pick<LineRowsAsk, "A" | "t" | "lang" | "surface" | "scope">) =>
+  A.suggestions(surface, scope, lang)
+    .filter((s) => s.kind !== "act" && s.q !== t.needsQ && s.own)
+    .slice(0, 3);
+
+/**
+ * While typing: the words as a question, the places to jump to and the questions that match. The words are a row only
+ * beside somewhere to jump or a question that matches, where Enter has to say which it means; alone they only said the
+ * field again, under it.
+ */
+function typedSections(
+  typed: string,
+  { A, t, lang, surface, scope }: Pick<LineRowsAsk, "A" | "t" | "lang" | "surface" | "scope">,
+) {
+  const sections: LineSection[] = [{ key: "ask", items: [{ type: "ask", label: typed, q: typed }] }];
+  const jumps = A.jump(typed);
+  if (jumps.length)
+    sections.push({
+      key: "jump",
+      label: t.jump,
+      items: jumps.map((j) => ({ type: "jump", label: j.label, sub: j.sub, meta: t.kind[j.kind] || "", to: j.to })),
+    });
+  const hits = A.suggestions(surface, scope, lang).filter(
+    (s) => (s.label || s.q).toLowerCase().includes(typed.toLowerCase()) && s.q !== typed,
+  );
+  if (hits.length)
+    sections.push({
+      key: "match",
+      items: hits.map((s) => ({
+        type: s.kind === "act" ? "act" : "sug",
+        label: s.label || s.q,
+        q: s.q,
+        compose: s.compose,
+        meta: s.kind === "act" ? t.tagCard : undefined,
+      })),
+    });
+  return sections.length > 1 ? sections : [];
+}
+
+/**
+ * What AI said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it said it
+ * would ask itself then, which clears it (the route's `following`).
+ */
+function followUpSections(ask: LineRowsAsk["A"], words: LineWords): LineSection[] {
+  const due = ask.followUpsDue ? ask.followUpsDue() : [];
+  if (!due.length) return [];
+  return [
+    {
+      key: "follow",
+      label: words.followUpsDue,
+      items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
+    },
+  ];
+}
+
+export const buildLineRows = ({
+  A,
+  t,
+  lang,
+  query,
+  surface,
+  scope,
+  threads,
+  view,
+  own,
+  titled,
+}: LineRowsAsk): LineSection[] => {
   const q = query.trim();
   // A conversation is one 36px line: its question, and its time at the right (spec 4.3).
   const thread = (th: AskThreadVM): LineRow => ({ type: "thread", label: th.title, meta: ahAgo(th.lastAtMs), th });
@@ -87,33 +160,19 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
     const list = q ? threads.filter((th) => th.title.toLowerCase().includes(q.toLowerCase())) : threads;
     return [{ key: "earlier", label: t.earlier, items: list.map(thread) }];
   }
-  if (q) {
-    const sections: LineSection[] = [{ key: "ask", items: [{ type: "ask", label: q, q }] }];
-    const jumps = A.jump(q);
-    if (jumps.length)
-      sections.push({
-        key: "jump",
-        label: t.jump,
-        items: jumps.map((j) => ({ type: "jump", label: j.label, sub: j.sub, meta: t.kind[j.kind] || "", to: j.to })),
-      });
-    const hits = A.suggestions(surface, scope, lang).filter(
-      (s) => (s.label || s.q).toLowerCase().includes(q.toLowerCase()) && s.q !== q,
-    );
-    if (hits.length)
-      sections.push({
-        key: "match",
-        items: hits.map((s) => ({
-          type: s.kind === "act" ? "act" : "sug",
-          label: s.label || s.q,
-          q: s.q,
-          compose: s.compose,
-          meta: s.kind === "act" ? t.tagCard : undefined,
-        })),
-      });
-    // The words as a question are a row only beside somewhere to jump or a question that matches, where Enter has to say
-    // which it means; alone they only said the field again, under it.
-    return sections.length > 1 ? sections : [];
-  }
+  if (q) return typedSections(q, { A, t, lang, surface, scope });
+  const followUps = followUpSections(A, t);
+  // A phone's home opened from Today (Today, calm, D10): the questions Today wrote from its own lines, a row each, by
+  // the field. The page under it has just said who needs you and what AI found, so neither is said again here.
+  if (titled)
+    return [
+      ...followUps,
+      {
+        key: "about",
+        label: t.aboutToday,
+        items: own.map((s) => ({ type: "page", label: s.label || s.q, q: s.q })),
+      },
+    ];
   // At rest: Right now is the first row, and ↵ on the empty line asks who needs you (the quick answer). The counts its
   // sentence was built from are the hero's pills while a phone's field is in use (line/under.ts); Earlier is the head's (spec 5.2).
   const parts = A.rightNowParts
@@ -155,27 +214,14 @@ export const buildLineRows = ({ A, t, lang, query, surface, scope, threads, view
         },
       ],
     });
-  // What Ask said it would come back to, come due (bridge/ask/follow-ups.ts): its own line, and pressed, what it
-  // said it would ask itself then, which clears it (the route's `following`).
-  const due = A.followUpsDue ? A.followUpsDue() : [];
-  if (due.length)
-    sections.push({
-      key: "follow",
-      label: t.followUpsDue,
-      items: due.map((f) => ({ type: "follow", label: f.said, q: f.prompt, following: f.id })),
-    });
-  // The page's questions as chips only where they were written for this workspace (Leads' ideas, the person's own
-  // searches): a question from a table is a preset, and AI needs none (Ruben, 12 and 17 Nov 2026). They still match
-  // what is typed (above), and an answer's own next questions are AI's.
-  const asks = A.suggestions(surface, scope, lang)
-    .filter((s) => s.kind !== "act" && s.q !== t.needsQ && s.own)
-    .slice(0, 3);
-  // On Leads the consent rule stands under the section's chips (spec F3), one dim line; nowhere else has a note.
-  if (asks.length)
+  sections.push(...followUps);
+  // The page's own questions as chips. On Leads the consent rule stands under them (spec F3), one dim line; nowhere
+  // else has a note.
+  if (own.length)
     sections.push({
       key: "about",
-      label: t.askAbout(surface),
-      items: asks.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
+      label: surface === "today" ? t.aboutToday : t.askAbout(surface),
+      items: own.map((s) => ({ type: "sug", label: s.label || s.q, q: s.q })),
       note: surface === "leads" ? t.leadsConsent : null,
     });
   return sections;
@@ -222,6 +268,45 @@ export const AskNowPills = ({
 // Right now is one option: its pills, its sentence and Brief me (a span dressed as the kit's button: one row, one door,
 // Enter or a press anywhere on it asks; a second option would be the same question twice). A section's chips sit in a
 // wrap under its rows, so Earlier is its rows, then the chip for the rest.
+/**
+ * What stands at a row's end: its meta, the arrow on a question of the page's (Today, calm, D10: a press asks it), and a
+ * pointer's x, Not now on what AI noticed (a notice is its fact, its act and its x, docs/words.md) or a conversation's
+ * delete. Called, not drawn.
+ */
+function rowEnd(
+  it: LineRow,
+  { t, onRest, onDelete }: { t: LineWords; onRest?: (key: string) => void; onDelete: (th: AskThreadVM) => void },
+) {
+  const rest = it.rest;
+  const th = it.th;
+  return (
+    <>
+      {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
+      {it.type === "page" ? <Icon name="arrow-up" size={14} className="ask-row-go" /> : null}
+      {rest ? (
+        <span
+          {...secondAct(() => onRest?.(rest))}
+          className="line-remove ask-row-rest"
+          title={t.notNow}
+          data-testid="ask-row-rest"
+        >
+          <Icon name="x" size={10} />
+        </span>
+      ) : null}
+      {it.type === "thread" ? (
+        <span
+          {...secondAct(() => th && onDelete(th))}
+          className="line-remove ask-row-del"
+          title={t.deleteThread}
+          data-testid="ask-row-del"
+        >
+          <Icon name="x" size={10} />
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export const AskRows = ({
   sections,
   sel,
@@ -296,28 +381,7 @@ export const AskRows = ({
           <span className="ask-row-label">{it.label}</span>
           {it.sub ? <span className="ask-row-sub">{it.sub}</span> : null}
         </span>
-        {it.meta ? <span className="ask-row-meta">{it.meta}</span> : null}
-        {/* Not now is the kit's x, as a conversation's is: a notice is its fact, its act and its x (docs/words.md). */}
-        {it.rest ? (
-          <span
-            {...secondAct(() => it.rest && onRest?.(it.rest))}
-            className="line-remove ask-row-rest"
-            title={t.notNow}
-            data-testid="ask-row-rest"
-          >
-            <Icon name="x" size={10} />
-          </span>
-        ) : null}
-        {it.type === "thread" ? (
-          <span
-            {...secondAct(() => it.th && onDelete(it.th))}
-            className="line-remove ask-row-del"
-            title={t.deleteThread}
-            data-testid="ask-row-del"
-          >
-            <Icon name="x" size={10} />
-          </span>
-        ) : null}
+        {rowEnd(it, { t, onRest, onDelete })}
       </div>
     );
   };
@@ -485,89 +549,5 @@ export const AskActs = ({
         </LinePress>
       ) : null}
     </span>
-  );
-};
-
-// Two or three series on the ink ramp's ends and middle, so thin lines read apart; one is the kit's one data hue.
-const ASK_SERIES_COLORS = ["var(--chart-ramp-5)", "var(--chart-ramp-3)", "var(--chart-ramp-1)"];
-
-// A chart of numbers the turn read (contracts AskChart) in the card every chart stands in, with its legend, its Table and
-// its CSV: a line over time, columns by day or week, stacked where there are two or three series, bars for a few things
-// compared, each the chart kit's own part on its validated palette, with where it was read from under the card.
-export const AskChart = ({ c, t, onNav }: { c: Chart; t: LineWords; onNav: (to: string) => void }) => {
-  const config: ChartConfig = {};
-  const keys = c.series.map((label, i) => {
-    const key = `s${i}`;
-    config[key] = { label, color: (c.series.length > 1 && ASK_SERIES_COLORS[i]) || "var(--chart-1)" };
-    return key;
-  });
-  const rows: Array<ChartRow & Record<string, string | number | undefined>> = c.points.map((p) => ({
-    label: p.label,
-    short: p.label,
-    ...Object.fromEntries(keys.map((key, i) => [key, p.values[i]])),
-  }));
-  const plot =
-    c.kind === "bars" ? (
-      <BarList rows={c.points.map((p, i) => ({ id: String(i), label: p.label, value: p.values[0] ?? 0 }))} />
-    ) : c.kind === "columns" ? (
-      <BarChart data={rows} keys={keys} config={config} height={140} ariaLabel={c.label} />
-    ) : (
-      <LineChart
-        data={rows}
-        keys={keys.map((key) => ({ key, fill: keys.length === 1 }))}
-        config={config}
-        height={140}
-        ariaLabel={c.label}
-      />
-    );
-  const table = {
-    columns: [c.kind === "bars" ? t.chartName : t.chartWhen, ...c.series],
-    rows: c.points.map((p) => [p.label, ...p.values]),
-  };
-  return (
-    <div className="ask-chart" data-testid="ask-chart" data-kind={c.kind}>
-      <ChartCard title={c.label} config={config} legend={keys.length > 1 ? null : false} table={table}>
-        {plot}
-      </ChartCard>
-      <span className="ask-breakdown-from">
-        {t.from} {c.source.label}
-        {c.source.door ? (
-          <LinePress kind="open" onClick={() => onNav(c.source.to)}>
-            {t.open}
-          </LinePress>
-        ) : null}
-      </span>
-    </div>
-  );
-};
-
-// One whole in its parts, on the chart kit's bar (chart-core.jsx SegmentBar), coloured as Reports colours who answered:
-// the parts in the kit's blues in order, the one marked for attention in the warn status with its icon.
-const AT_PART_COLORS = ["var(--chart-1)", "var(--chart-1-soft)", "var(--chart-ramp-2)", "var(--chart-ramp-1)"];
-export const AskBreakdown = ({ b, t, onNav }: { b: Breakdown; t: LineWords; onNav: (to: string) => void }) => {
-  const config: Record<string, { label: string; color: string; icon?: string }> = {};
-  let n = 0;
-  const rows = b.parts.map((p, k) => {
-    const key = `p${k}`;
-    config[key] = p.warn
-      ? { label: p.label, color: "var(--warn)", icon: "alert" }
-      : { label: p.label, color: AT_PART_COLORS[n++] || "var(--chart-1)" };
-    return { key, value: p.value };
-  });
-  const title = `${b.total} ${b.label}`;
-  return (
-    <div className="ask-breakdown" data-testid="ask-breakdown">
-      <SegmentBar title={title} rows={rows} config={config} small />
-      {b.source ? (
-        <span className="ask-breakdown-from">
-          {t.from} {b.source.label}
-          {b.source.door ? (
-            <LinePress kind="open" onClick={() => b.source && onNav(b.source.to)}>
-              {t.open}
-            </LinePress>
-          ) : null}
-        </span>
-      ) : null}
-    </div>
   );
 };

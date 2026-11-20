@@ -305,10 +305,9 @@ test("problems found before saving: nothing is sent, each box says what it needs
 
 /* ------------------------- Today: a refusal wears its tone ------------------------- */
 
-// Today's queue is TSX (decision 0015): it draws the kit's AttnRow, reads the day over the seam, and asks its verbs of the
-// wire (surfaces/inbox/verbs.ts over window.fetch), which this test answers.
-const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-const { AttnRow } = await import("../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+// Today's queue is TSX (decision 0015): it draws the page's card and its lines (Today, calm), reads the day over the seam,
+// and asks its verbs of the wire (surfaces/inbox/verbs.ts over window.fetch), which this test answers.
+const { NeedYouOnToday } = await import("../today/zones/_on-today.mjs");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -442,28 +441,31 @@ test("REGRESSION (A13): a refused approve on Today toasts in the danger tone, sa
       NOW,
     ),
   );
+  // What the head counts, and so what the card holds, is read with the Inbox and the runs' own read (surfaces/needs-you.ts).
+  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
+  setSurfaceValue("broadcasts", globalThis.window.__BROADCASTS);
   cells = [];
   frames.begin();
-  const tree = NeedYou();
-  // The rows the queue drew, as the props it handed the kit's row.
-  const rows = [];
-  walk(tree, (n) => {
-    if (n.type === AttnRow) rows.push(n.props);
-  });
-  // A row carries its one verb since canvas E3: snooze and resolve are the thread's, in the Inbox (inbox/verbs.ts), and
-  // their refusals are said there. The handoff row stands, with no second verb to refuse.
-  const handoff = rows.find((p) => p.testid === "queue-handoff");
-  assert.ok(handoff && !handoff.also, "the handoff row stands, with its one verb");
+  const tree = NeedYouOnToday();
+  // Zoe waits, so she holds Today's card (Today, calm, D15); the run is a line under it, whose press opens the run.
+  // Snooze and resolve are the thread's, in the Inbox (inbox/verbs.ts, canvas E3), and their refusals are said there.
+  assert.ok(byTestId(tree, "today-card"), "the person waiting holds the card");
+  assert.ok(byTestId(tree, "brief-run-row"), "the run waiting for approval is a line under it");
   assert.deepEqual(
     wire,
     ["GET /api/v1/conversations/drafts"],
     "nothing changed yet: the one ask is the read of the drafts kept for the rows drawn (decision 0071)",
   );
-  const run = rows.find((p) => p.testid === "brief-run-row");
-  assert.ok(run, "the run waiting for approval");
-  await run.cta.onClick();
+  // With nobody else waiting, the run holds the card, and its Approve is the card's press.
+  setSurfaceValue("today", toTodayVM(metrics("2026-09-06T12:00:00Z"), [], [], [], NOW));
+  const alone = NeedYouOnToday();
+  const approve = byTestId(alone, "today-card-act");
+  assert.ok(approve, "the run's Approve, the card's press");
+  await approve.props.onClick();
   assert.equal(flashes.at(-1).tone, "danger");
   assert.equal(say(flashes.at(-1).msg), "Not approved — That run was already approved.");
+  setSurfaceValue("inbox", undefined);
+  setSurfaceValue("broadcasts", undefined);
 });
 
 /* ------------------------------ People and Lists ------------------------------ */

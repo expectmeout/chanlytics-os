@@ -11,6 +11,7 @@
  * the frame and the page move in one render, the router's. Without it (the mockup, a test) the frame hears the address.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useAskDocked } from "@/bridge/ask/dock";
 import type { ReactNode } from "react";
 import { isAdsParam } from "@chanlytics/contracts";
 import type { fillDoors as FillDoors } from "../frame-doors";
@@ -113,6 +114,8 @@ export function ChanlyticsApp({
   const [heard, setRoute] = useState<ShellRoute>(parseRoute());
   const route = routeNow !== null ? routeParts(routeNow) : heard;
   const [askOpen, setAskOpen] = useState(false);
+  // AI's Line stands on the phone's bar: the bar folds and the circle is AI's press while it does (bridge/ask/dock.ts).
+  const askDocked = useAskDocked();
   const inboxNeeds = useInboxNeeds();
   const at = routeAt(route);
   const { page, param } = at;
@@ -192,6 +195,7 @@ export function ChanlyticsApp({
     navOpen,
     setNavOpen,
     askOpen,
+    askDocked,
     setAskOpen,
     openAsk,
     inboxNeeds,

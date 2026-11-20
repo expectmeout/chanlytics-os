@@ -65,6 +65,35 @@ export const arFaceFrom = () => {
   return el && el.getBoundingClientRect().width ? el : null;
 };
 
+/**
+ * Whether the frame's own bar stands on this phone, so AI's field is the bar's (Today, calm, D8; bridge/ask/dock.ts): drawn,
+ * and on screen. Not inside the native app, whose own tab bar stands there, nor over a page that took the screen and
+ * sent the bar away: there AI keeps a field of its own.
+ */
+export const arDocked = (): boolean => {
+  if (typeof document === "undefined" || !("querySelector" in document) || !arPhone()) return false;
+  const bar = document.querySelector<HTMLElement>(".phone-places");
+  return !!bar && bar.getClientRects().length > 0;
+};
+
+/** One tile of the three on the phone's circle, and the canvas they were drawn on there (ask.css `.phone-ask-face`). */
+const DISC_FACE = { width: 45, height: 38 } as const;
+const DISC_FACE_DROP = 0.225 * 14;
+
+/** Where the three stood on the phone's circle before AI opened: its middle, at the size they were drawn there. */
+export const arDiscBox = (): { left: number; top: number; width: number; height: number } | null => {
+  if (typeof document === "undefined" || !("querySelector" in document)) return null;
+  const disc = document.querySelector<HTMLElement>(".phone-ask");
+  const box = disc ? disc.getBoundingClientRect() : null;
+  if (!box || !box.width) return null;
+  return {
+    left: box.left + (box.width - DISC_FACE.width) / 2,
+    // The three were drawn a hair under the circle's middle there (ask.css `.phone-ask-face`, 0.225 of a tile).
+    top: box.top + (box.height - DISC_FACE.height) / 2 + DISC_FACE_DROP,
+    ...DISC_FACE,
+  };
+};
+
 /** What Ask puts over the page itself, whose presses are not a press outside a desk's panel: its toasts, a card's menu, pop or sheet, and the top bar's Ask, which toggles it. */
 export const arOverAsk = () => `${AH_OPEN_OVER}, .pp-toast-stack, .tb-ask`;
 
