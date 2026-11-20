@@ -180,11 +180,11 @@ const TEXT_AFTER_WHATSAPP =
 /** Spoken when the carrier refused the text in the moment: the number most likely takes no texts (a landline). */
 const textNotDelivered = (publishedNumber: string | null) =>
   publishedNumber
-    ? `The text message could not be delivered — that number may not take texts. Tell the caller they can book online, or reach us on ${publishedNumber}, and take ${NO_LINK_DETAILS} so the team can follow up.`
-    : `The text message could not be delivered — that number may not take texts. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
+    ? `The text message could not be delivered — that number may not take texts. Tell the caller they can book on the business's website, without reading out its address, or reach us on ${publishedNumber}, and take ${NO_LINK_DETAILS} so the team can follow up.`
+    : `The text message could not be delivered — that number may not take texts. Tell the caller they can book on the business's website, without reading out its address, and take ${NO_LINK_DETAILS} so the team can follow up.`;
 
 /** Spoken when the text may not have gone, for any reason of ours: never that it went, never the caller's phone. */
-const TEXT_UNSURE = `The text message may not have gone out. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
+const TEXT_UNSURE = `The text message may not have gone out. Tell the caller they can book on the business's website, without reading out its address, and take ${NO_LINK_DETAILS} so the team can follow up.`;
 
 /**
  * The booking link by text from the workspace's texting line, or null when it has none the door would send on (core
