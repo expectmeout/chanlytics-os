@@ -84,7 +84,15 @@ const NOTIFICATION_DELIVERY = {
   // place. Lines on the bell, written by the database as the folder's state turns; the folder's row says the rest.
   footage: "bell",
   footage_in: "bell",
-  // A draft ad someone left for the owner (00658): a line on the owner's bell, written by the database as it is kept, and
+  // An owner's ads (00658, decision 0050 call 15): Meta didn't approve one or couldn't charge for one, one ended or spent
+  // its total, or no one wrote from one in a week. Lines on the owner's bell, written by the database as each read turns
+  // them; Campaigns › Ads says the rest. Which of these are also emailed is Ruben's open call (0050, "Not decided here").
+  ad_refused: "bell",
+  ad_unpaid: "bell",
+  ad_ended: "bell",
+  ad_spent: "bell",
+  ad_quiet: "bell",
+  // A draft ad someone left for the owner (00659): a line on the owner's bell, written by the database as it is kept, and
   // closed when the owner keeps it.
   ad_draft: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
@@ -362,7 +370,13 @@ export const BELL_LINE_KINDS = [
   // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos.
   "footage",
   "footage_in",
-  // A draft ad left for the owner (00658).
+  // An owner's ads (00658): on the owner's bell alone until a topic offers their phone (decision 0050, call 15).
+  "ad_refused",
+  "ad_unpaid",
+  "ad_ended",
+  "ad_spent",
+  "ad_quiet",
+  // A draft ad left for the owner (00659).
   "ad_draft",
 ] as const satisfies readonly ServerNotificationKind[];
 

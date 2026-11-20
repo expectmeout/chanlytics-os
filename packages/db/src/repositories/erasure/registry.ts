@@ -107,7 +107,7 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(WITH_WORKSPACE, "external_id", "name", "config"),
     ...all(NOT_PERSONAL, "currency", "timezone", "standing", "read_error"),
   },
-  // A draft of a new ad (00658): what New ad chose and the ad writer's words, the business's own advertising for the
+  // A draft of a new ad (00659): what New ad chose and the ad writer's words, the business's own advertising for the
   // public, never a person it serves (an ad says nothing of a person: the writer's checks hold it to the service). It
   // leaves with the workspace.
   ad_drafts: all(WITH_WORKSPACE, "draft"),

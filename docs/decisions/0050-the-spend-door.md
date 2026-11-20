@@ -380,9 +380,50 @@ writer's words under a purpose of their own (`ad_draft`).
   or gambling ad, the screen asks; a no is what the press would tell Meta, and a yes is not run here, with a door to
   Meta.
 
+## As built, 20 November 2026 · The bell rings for an owner's ads (call 15)
+
+Built with nothing sent to Meta. One migration is written and not applied: `00658`
+(`supabase/migrations/00658_the_bell_rings_for_an_owner_s_ads.sql`). Nothing waits for Meta's gates: each notice is
+worked out from what the hourly read already keeps, so an ad made in Meta rings from the day this ships.
+
+- **Five kinds, one cause each:** `ad_refused` (Meta didn't approve an ad, in Meta's own words in quotes), `ad_unpaid`
+  (Meta couldn't charge the card for one), `ad_ended` (one that was on reached its last day), `ad_spent` (the total it sits
+  under is spent) and `ad_quiet` (it ran every one of the last seven days and no one wrote from it: the plan's G9). Each
+  row names its ad, says the one thing to do, and opens that ad's drawer (`campaigns/ads:ad:<id>`).
+- **Worked out by the read's own door.** `ads_read_keep` measures what stood at the bell's last look at the account
+  (`ad_accounts.rung_at`) before it writes, and after a good read hands that to `ad_bell_ring`: a cause that stands now
+  and did not then rings once; a row whose cause no longer stands closes for everyone. So nothing rings again on the
+  next read, a cause that clears and comes back is told again, and a read that fails measures nothing. A ring that fails
+  leaves the last look where it was, so the next good read rings it. The bell never costs a read what it learned.
+- **Nothing old is news.** The first look after an account connects rings nothing. An ad first seen by a later read rings
+  only for Meta's check of it (not approved, or the card), never for a run that ended, spent or went quiet before
+  Chanlytics held it.
+- **One cause, one row.** Ads under one ad set end together, ads under one budget spend it together, and one card stops
+  every ad of an account: each is one row naming the first ad by name and how many more.
+- **The card is told once.** An ad's card row and the account's own payment row (00653) are one cause: an ad's row
+  rings only where the account's standing says nothing, and the account's row is not rung while an ad's is open. Both
+  close once Meta can charge again, and the account's signed-out row closes at the first good read after it connects
+  again: the account rows had never closed before.
+- **The owner alone.** One row for each member who may run ads (`has_permission ads`: the owner), never a partner, an
+  operator or a viewer. The step 2 account rows stay the workspace's, as they were.
+- **When a run is over** is contracts `adStateOf`'s rule, written again in SQL beside it (a total spent; ended by its
+  owner; removed; or the day after its last day in the account's zone), so the bell never says an ad ended while its
+  drawer says On. An ad ended by its owner's press, or removed in Meta, rings nothing: that was a person's act.
+- **"No one wrote" counts every tap that reached Chanlytics** (`ad_entries`, a new person or not), and only for an ad
+  whose tap opens a chat Chanlytics receives: an ad that opens a website, a form or a call is never said to have
+  brought no one.
+- **A disconnect closes the ads' rows** (a trigger on `ad_accounts`): nothing about those ads can be done here.
+- **Not as call 15 drew it.** Call 15 declares each as a topic in Settings › Notifications, with the phone told. They are
+  lines on the bell alone for now (`BELL_LINE_KINDS`), as the account's two rows are: a topic would show on every
+  workspace's Settings while Ads is on for one (D7). Joining a topic is one change, with `PUSH_KINDS` and a push for
+  each row, when Ads opens to more workspaces. **Which of the five also email is still Ruben's** (Not decided here,
+  above): none does yet; the review proposed mail always for the first two.
+- **"Your ad account was disconnected"** is call 15's third Needs you. A sign-out by Meta is the account's row of 00653;
+  an owner's own disconnect is their press, and rings nothing.
+
 ## As built, 20 November 2026, later · A draft is kept, and left for the owner (the Ads plan's step 4, its third part)
 
-Built with nothing sent to Meta. One migration is written and not applied: `00658`.
+Built with nothing sent to Meta. One migration is written and not applied: `00659`.
 
 - **Call 2's draft has its row.** A workspace keeps one draft (`ad_drafts`), written only by a member's door,
   `ad_draft_keep`, which an owner, an operator or a partner who showed the second factor may call: drafting touches no

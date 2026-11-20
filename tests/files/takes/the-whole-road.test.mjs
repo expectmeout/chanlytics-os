@@ -35,7 +35,7 @@ for (const name of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process
 
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { sourceTaker } = await import(at("apps/edge/lib/files/takes/step.ts"));
-const { answerKeyDoor } = await import(at("apps/edge/lib/files/takes/key-door.ts"));
+const { POST: keyDoorAddress } = await import(at("apps/edge/api/sources/key.ts"));
 const { receiveStreamWebhook } = await import(at("apps/edge/lib/files/video-webhook.ts"));
 const { DRIVE_UNITS } = await import(at("apps/edge/lib/files/takes/budgets.ts"));
 
@@ -153,6 +153,14 @@ const relayKnock = (copy, method = "GET") =>
     body: JSON.stringify({ ticket: new URL(copy.input).searchParams.get("ticket"), method, range: "bytes=0-" }),
   });
 
+/**
+ * The knock answered at the door's own address, as the platform calls it: the request, and a second argument of the
+ * platform's own. On 20 November 2026 that argument took the sync's place and every real clip was refused, while a
+ * test that called the door's function by itself passed.
+ */
+const PLATFORM_ARGUMENT = { waitUntil: () => undefined };
+const answeredAtTheAddress = (copy, method) => keyDoorAddress(relayKnock(copy, method), PLATFORM_ARGUMENT);
+
 const fileOf = (providerId) => w.tables.files.find((file) => file.id === w.item(providerId).file_id);
 const standingOf = (providerId) => [w.item(providerId).state, w.item(providerId).why ?? null];
 const recordsOf = (providerId) => w.drive.count(`/drive/v3/files/${providerId}`);
@@ -164,7 +172,7 @@ async function cameIn() {
   await firstWalk(w);
   await runTakes();
   const [copy] = kept.copies;
-  assert.equal((await answerKeyDoor(relayKnock(copy))).status, 200);
+  assert.equal((await answeredAtTheAddress(copy)).status, 200);
   const word = delivery({ uid: copy.uid, readyToStream: true, status: { state: "ready" }, duration: 8 });
   assert.equal((await receiveStreamWebhook(word)).status, 200);
   assert.deepEqual(
@@ -218,7 +226,7 @@ test("a folder is watched and what it holds comes in: listed by the walk, taken 
   );
 
   // The relay shows the ticket at the key door, which opens the folder through the same sync and counts its read.
-  const key = await answerKeyDoor(relayKnock(copy));
+  const key = await answeredAtTheAddress(copy);
   assert.equal(key.status, 200);
   assert.deepEqual(await key.json(), { access_token: "access-token-1", file_id: "clip-1" });
 
@@ -240,7 +248,7 @@ test("a folder is watched and what it holds comes in: listed by the walk, taken 
   );
   assert.deepEqual([day.takes, day.bytes], [2, 56_000_000 + 4096], "and the day's takes and bytes beside them");
   // Once the ticket's clip is in, the same ticket opens nothing.
-  assert.equal((await answerKeyDoor(relayKnock(copy))).status, 404);
+  assert.equal((await answeredAtTheAddress(copy)).status, 404);
   assert.ok(takes.handOuts.length >= 3, "asked as the walk ended, as each take ended and as the clip settled");
 });
 

@@ -53,6 +53,7 @@ export type Database = {
           read_at: string | null
           read_error: string | null
           revoked_at: string | null
+          rung_at: string | null
           settle_at: string | null
           standing: Json
           status: string
@@ -82,6 +83,7 @@ export type Database = {
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          rung_at?: string | null
           settle_at?: string | null
           standing?: Json
           status: string
@@ -111,6 +113,7 @@ export type Database = {
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          rung_at?: string | null
           settle_at?: string | null
           standing?: Json
           status?: string
@@ -8984,6 +8987,41 @@ export type Database = {
       ad_account_revoked: {
         Args: { p_account_id: string; p_how: string; p_tenant_id: string }
         Returns: boolean
+      }
+      ad_bell_cause: {
+        Args: {
+          p_account_id: string
+          p_ad_id: string
+          p_budget_at: string
+          p_campaign_id: string
+          p_kind: string
+          p_set_id: string
+        }
+        Returns: string
+      }
+      ad_bell_causes: {
+        Args: { p_account_id: string; p_at: string; p_tenant_id: string }
+        Returns: {
+          ad_id: string
+          cause: string
+          kind: string
+        }[]
+      }
+      ad_bell_hearers: { Args: { p_tenant_id: string }; Returns: string[] }
+      ad_bell_ring: {
+        Args: { p_account_id: string; p_before: string[]; p_tenant_id: string }
+        Returns: Json
+      }
+      ad_bell_words: {
+        Args: {
+          p_ends_at: string
+          p_kind: string
+          p_many: number
+          p_name: string
+          p_said: string
+          p_zone: string
+        }
+        Returns: Json
       }
       ad_credentials_drop: { Args: { p_account_id: string }; Returns: boolean }
       ad_credentials_get: { Args: { p_account_id: string }; Returns: Json }

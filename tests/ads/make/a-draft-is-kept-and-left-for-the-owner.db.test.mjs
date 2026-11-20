@@ -1,5 +1,5 @@
 /**
- * 00658 on a real Postgres: a draft ad is kept, and one left for the owner rings their bell (the Ads plan's 6.2 and
+ * 00659 on a real Postgres: a draft ad is kept, and one left for the owner rings their bell (the Ads plan's 6.2 and
  * G18; decision 0050, call 2), and the owner's most is kept on the ad account (G6).
  *
  * What must hold. A workspace keeps one draft, each keep in place of the one before, for an ad account of its own. An

@@ -1,8 +1,8 @@
 /**
- * A workspace's draft of a new ad (ad_drafts, 00658; the Ads plan's 4.6, 6.2 and G18): the one place the table is
+ * A workspace's draft of a new ad (ad_drafts, 00659; the Ads plan's 4.6, 6.2 and G18): the one place the table is
  * typed, and the owner's most an ad may cost (G6), kept on the ad account. A member reads their workspace's draft
  * under its row rules; each write is a member's door, called as the member signed in, which decides who may. A
- * database that has not run 00658 keeps no draft and holds none, which is how New ad stood before it (either deploy
+ * database that has not run 00659 keeps no draft and holds none, which is how New ad stood before it (either deploy
  * order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -26,7 +26,7 @@ export async function findAdDraft(db: Db, tenantId: TenantId): Promise<AdDraftRo
     .select("id, account_id, draft, kept_by, updated_at")
     .maybeSingle();
   if (error) {
-    // A database that has not run 00658 keeps none.
+    // A database that has not run 00659 keeps none.
     if (error.code === "42P01" || error.code === "PGRST205") return null;
     throw new DbFailure(error, "ad draft");
   }

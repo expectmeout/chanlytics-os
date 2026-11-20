@@ -1,4 +1,4 @@
--- 00658 · A draft ad is kept, and one left for the owner rings their bell (the Ads plan's step 4, the parts New ad's
+-- 00659 · A draft ad is kept, and one left for the owner rings their bell (the Ads plan's step 4, the parts New ad's
 -- first build left out: 6.2, 6.3, G6 and G18; decision 0050, calls 2 and 12).
 --
 -- New ad held its draft in the tab's own storage, so a draft lived on one device, an operator or a partner could not
@@ -42,7 +42,8 @@ alter table public.notifications add constraint notifications_kind_check
                            'reach_out_replied', 'reach_out_day', 'booking_notice', 'opted_out', 'booking',
                            'member_joined', 'member_left', 'note_to_keep', 'reply_held', 'ask_cards', 'website_form',
                            'files_waiting', 'video_ready', 'post_up', 'post_stopped', 'preview_tried',
-                           'ad_account', 'footage', 'footage_in', 'ad_draft']));
+                           'ad_account', 'footage', 'footage_in',
+                           'ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet', 'ad_draft']));
 
 /* ------------------------------------------------------------------------------------------ 2. the draft row -- */
 
@@ -83,7 +84,7 @@ grant select on public.ad_drafts to authenticated;
 grant all on public.ad_drafts to service_role;
 
 comment on table public.ad_drafts is
-  'A workspace''s one draft of a new ad (00658; the Ads plan''s 4.6, 6.2 and G18): what New ad chose and the ad writer''s words, for the ad account it was drafted for. Members read it; ad_draft_keep writes it. Never trusted: every read, and Turn on''s press, judges it afresh from the business as it stands.';
+  'A workspace''s one draft of a new ad (00659; the Ads plan''s 4.6, 6.2 and G18): what New ad chose and the ad writer''s words, for the ad account it was drafted for. Members read it; ad_draft_keep writes it. Never trusted: every read, and Turn on''s press, judges it afresh from the business as it stands.';
 comment on column public.ad_drafts.draft is
   'What New ad chose, as server/ads/draft-shape.ts holds it: the service by its name, the picture''s file id, the miles, the amount in minor units, the end day, the words (three versions or none) and the answers to Meta''s special-kind question.';
 comment on column public.ad_drafts.kept_by is
@@ -167,7 +168,7 @@ end $$;
 revoke all on function public.ad_draft_keep(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.ad_draft_keep(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.ad_draft_keep(uuid, uuid, jsonb) is
-  'A member''s door (00658; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. Answers {kept, draft_id, rung}; kept false, and nothing written, for an account not of this workspace.';
+  'A member''s door (00659; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. Answers {kept, draft_id, rung}; kept false, and nothing written, for an account not of this workspace.';
 
 /* ----------------------------------------------------------------------------------- 4. the owner's most (G6) -- */
 
@@ -175,7 +176,7 @@ alter table public.ad_accounts add column if not exists most_minor bigint;
 alter table public.ad_accounts drop constraint if exists ad_accounts_most_minor_check;
 alter table public.ad_accounts add constraint ad_accounts_most_minor_check check (most_minor is null or most_minor > 0);
 comment on column public.ad_accounts.most_minor is
-  'The most the owner said any ad may cost, in this account''s minor units (00658; the Ads plan''s G6), said once in a sentence to AI. Null until they say one: a draft''s amount is then never above the largest total turned on. Written only by ad_account_most.';
+  'The most the owner said any ad may cost, in this account''s minor units (00659; the Ads plan''s G6), said once in a sentence to AI. Null until they say one: a draft''s amount is then never above the largest total turned on. Written only by ad_account_most.';
 
 create or replace function public.ad_account_most(p_tenant_id uuid, p_most_minor bigint)
 returns boolean
@@ -206,4 +207,4 @@ end $$;
 revoke all on function public.ad_account_most(uuid, bigint) from public, anon;
 grant execute on function public.ad_account_most(uuid, bigint) to authenticated, service_role;
 comment on function public.ad_account_most(uuid, bigint) is
-  'The owner''s door (00658; the Ads plan''s G6): the most any ad may cost, in the connected Meta account''s minor units, kept on that account, or let go with null. The owner alone (caller_has_permission ads). True where a connected account took it.';
+  'The owner''s door (00659; the Ads plan''s G6): the most any ad may cost, in the connected Meta account''s minor units, kept on that account, or let go with null. The owner alone (caller_has_permission ads). True where a connected account took it.';

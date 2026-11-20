@@ -656,7 +656,14 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     [
       // An ad account that needs its owner (00653): a line on the bell from the database, opening Campaigns › Ads.
       "ad_account",
-      // A draft ad left for the owner (00658): a line on the owner's bell from the database, opening New ad.
+      // An owner's ads (00658): five lines on the owner's bell from the database, each opening its ad. Which of them is
+      // also emailed is Ruben's open call (decision 0050, "Not decided here"), so none is yet.
+      "ad_ended",
+      "ad_quiet",
+      "ad_refused",
+      "ad_spent",
+      "ad_unpaid",
+      // A draft ad left for the owner (00659): a line on the owner's bell from the database, opening New ad.
       "ad_draft",
       // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.
       "ask_cards",

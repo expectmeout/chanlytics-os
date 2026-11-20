@@ -1,6 +1,6 @@
 /**
  * A new ad's draft as it crosses between New ad's screen and its two routes (POST ads/draft, POST ads/words; the Ads
- * plan's 4.6): what the screen sends, and what every answer says. The workspace keeps its one draft (ad_drafts, 00658),
+ * plan's 4.6): what the screen sends, and what every answer says. The workspace keeps its one draft (ad_drafts, 00659),
  * and each answer is that draft judged afresh from the business as it stands now, so nothing a browser sent, or a
  * member kept, is trusted for more than what was chosen.
  *
@@ -63,6 +63,9 @@ export const AdDraftBodySchema = z.object({
    */
   most: z.number().int().positive().max(100_000_000).optional(),
 });
+
+/** POST ads/check: the draft New ad holds, sent to Meta once, made paused and read back. */
+export const AdPausedCheckBodySchema = z.object({ draft: AdDraftStateSchema });
 
 /** POST ads/words: the writer's two jobs on a draft. */
 export const AdWordsBodySchema = z.discriminatedUnion("job", [
