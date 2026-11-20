@@ -849,7 +849,6 @@
     },
     "POST /api/sources/key": {
       "wrapper": "door",
-      "verb": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts",
       "knock": "knockIsRelays",
       "knock_in": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts"
     },
