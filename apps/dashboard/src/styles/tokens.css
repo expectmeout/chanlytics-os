@@ -302,6 +302,10 @@
   /* The washes the top and the foot stand on, so their words read over any picture. */
   --viewer-top-wash: linear-gradient(to bottom, oklch(0 0 0 / 0.45), transparent);
   --viewer-foot-wash: linear-gradient(to top, oklch(0 0 0 / 0.82) 0%, oklch(0 0 0 / 0.55) 55%, transparent);
+  /* The dim over a clip's own still while its video is kept with its provider, so the line that says so reads on it;
+     deeper where its original is gone, and the still greyed under it. */
+  --viewer-still-dim: oklch(0 0 0 / 0.6);
+  --viewer-gone-dim: oklch(0 0 0 / 0.78);
   /* The line under the name, "2 of 8" and Details: the picture's ink, a step back. */
   --viewer-ink-dim: oklch(1 0 0 / 0.78);
   --viewer-ink-faint: oklch(1 0 0 / 0.7);

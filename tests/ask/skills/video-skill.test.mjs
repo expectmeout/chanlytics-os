@@ -32,7 +32,7 @@ test("the video maker is its guide: each way a video has been arranged well, as 
   assert.ok(C.SKILL_GUIDE_MAX < VIDEO_GUIDE_MAX);
   assert.ok(block.length <= VIDEO_GUIDE_MAX, `${block.length} characters`);
   assert.ok(isAskSkillId("video"));
-  assert.deepEqual(ASK_SKILL_IDS, ["customer_message", "video"]);
+  assert.deepEqual(ASK_SKILL_IDS, ["customer_message", "video", "ad"]);
 });
 
 test("a question's own words ask for it, in English and Spanish, and only then", () => {

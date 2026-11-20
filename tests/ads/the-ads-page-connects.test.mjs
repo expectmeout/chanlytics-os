@@ -206,3 +206,53 @@ test("Reports › Ads draws its four figures as every lens draws its strip: the 
     ],
   );
 });
+
+test("Settings › Connections: the ad account stands in its group as a row does, and the group counts it", async () => {
+  const { adsPlaceOf } = await import(`${S}/surfaces/settings/connections/ad-account-real.tsx`);
+  const { CONNECTION_GROUP_WORDS } = await import(`${S}/surfaces/settings/connections/model/setup.ts`);
+  const vm = (state, tone = null) => ({ state, need: tone ? { tone } : null });
+  // Not read yet: nowhere. Connected: in Connected, needing attention only where something stops its ads.
+  assert.equal(adsPlaceOf(null, null), null);
+  assert.deepEqual(adsPlaceOf("connected", vm("connected")), { group: "connected", state: "connected" });
+  assert.deepEqual(adsPlaceOf("connected", vm("connected", "warn")), { group: "connected", state: "attention" });
+  assert.deepEqual(adsPlaceOf("connected", vm("connected", "calm")), { group: "connected", state: "connected" });
+  assert.deepEqual(adsPlaceOf("revoked", vm("signed-out")), { group: "connected", state: "attention" });
+  // Before one is connected: Available, waiting on the owner while two are to be chosen from.
+  assert.deepEqual(adsPlaceOf(null, vm("none")), { group: "available", state: "none" });
+  assert.deepEqual(adsPlaceOf("choosing", vm("question")), { group: "available", state: "waiting_you" });
+  assert.deepEqual(adsPlaceOf(null, vm("checking")), { group: "available", state: "waiting_them" });
+  assert.deepEqual(adsPlaceOf("disconnected", vm("left")), { group: "available", state: "none" });
+  // The group's head counts the card with its rows: three rows and the ad account are four, and its need is said.
+  const W = CONNECTION_GROUP_WORDS;
+  const rows = [{ state: "connected" }, { state: "connected" }, { state: "connected" }];
+  assert.equal(W.connected.sub([...rows, { state: "connected" }]), "4 connected");
+  assert.equal(W.connected.sub([...rows, { state: "attention" }]), "4 connected · 1 needs attention");
+  assert.equal(W.available.sub([{ state: "none" }, { state: "waiting_you" }]), "something here waits on you");
+});
+
+test("the card says its name as its page gives it: the Ads page's own, and the ads in Connections", async () => {
+  const { CARD } = await import(`${S}/surfaces/campaigns/ads/connect/words.ts`);
+  assert.equal(CARD.inConnections, "Facebook and Instagram ads");
+  const page = await pageWith({ offered: true, can_connect: true, meta: null });
+  const card = byTestId(page.draw(), "ads-conn");
+  assert.equal(card.props["aria-label"], CARD.name);
+});
+
+test("a check Meta does not answer says so, its dot still: never turning as if it were being checked", async () => {
+  const { CardChecks } = await import(`${S}/surfaces/campaigns/ads/connect/card.tsx`);
+  const { CHECK_UNSAID } = await import(`${S}/surfaces/campaigns/ads/connect/words.ts`);
+  fresh();
+  const tree = again(() =>
+    CardChecks({
+      checks: [
+        { id: "whatsapp-linked", label: "WhatsApp number linked to the Page", neededFor: "A new ad", state: "unsaid" },
+        { id: "payment", label: "Payment method in Meta", neededFor: "Turn on, Resume", state: "unknown" },
+      ],
+      neededFor: false,
+    }),
+  );
+  const [unsaid, checking] = all(tree, (n) => n.type === "li");
+  assert.equal(textOf(unsaid), `WhatsApp number linked to the Page${CHECK_UNSAID}`);
+  assert.equal(find(unsaid, (n) => n.props?.className === "ads-dot").props["data-turning"], undefined);
+  assert.equal(find(checking, (n) => n.props?.className === "ads-dot").props["data-turning"], "true");
+});

@@ -16,7 +16,7 @@ import { LinkButton } from "../../../kit/link-button/link-button";
 import { Panel } from "../../../kit/panel/panel";
 import { routeDoor } from "../../../frame-verbs";
 import type { CheckVM, ConnectCardVM, NeedAct, NeedVM } from "./card-model";
-import { CARD, QUESTION } from "./words";
+import { CARD, CHECK_UNSAID, QUESTION } from "./words";
 
 /** What the card's presses do. */
 interface CardActs {
@@ -38,7 +38,7 @@ const DOT: Record<ConnectCardVM["state"], string> = {
 };
 
 /** A page of Meta's opens in a tab of its own: the owner comes back to this one, and the card looks again. */
-const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
+export const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
 /** A need's one act: a door to Meta, Meta's window again, or a page of the app. */
 function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) {
@@ -59,7 +59,7 @@ function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) 
 }
 
 /** The one thing missing, or the one stop: what happened, what it stops, and its one act. */
-function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
+export function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
   return (
     <div
       className="ads-conn-need"
@@ -88,6 +88,7 @@ export function CardChecks({ checks, neededFor }: { checks: readonly CheckVM[]; 
             aria-hidden="true"
           />
           <span className="ads-conn-check">{check.label}</span>
+          {check.state === "unsaid" ? <span className="ads-conn-for">{CHECK_UNSAID}</span> : null}
           {neededFor ? <span className="ads-conn-for">{check.neededFor}</span> : null}
         </li>
       ))}
@@ -182,10 +183,10 @@ function CardWord({ vm, onOpen }: { vm: ConnectCardVM; onOpen: () => void }) {
   );
 }
 
-/** The ad account's card. */
-export function ConnectCard({ vm, acts }: { vm: ConnectCardVM; acts: CardActs }) {
+/** The ad account's card, under the name the page that draws it says it by (`title`). */
+export function ConnectCard({ vm, acts, title }: { vm: ConnectCardVM; acts: CardActs; title: string }) {
   return (
-    <Panel as="section" className="ads-conn" aria-label={CARD.name} data-state={vm.state} data-testid="ads-conn">
+    <Panel as="section" className="ads-conn" aria-label={title} data-state={vm.state} data-testid="ads-conn">
       <div className="ads-conn-head">
         <span
           className="ads-dot"
@@ -193,7 +194,7 @@ export function ConnectCard({ vm, acts }: { vm: ConnectCardVM; acts: CardActs })
           data-turning={vm.state === "checking" ? "true" : undefined}
           aria-hidden="true"
         />
-        <b>{CARD.name}</b>
+        <b>{title}</b>
         <CardWord vm={vm} onOpen={acts.open} />
       </div>
       {vm.says.map((said) => (

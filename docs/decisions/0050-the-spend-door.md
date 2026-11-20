@@ -328,3 +328,95 @@ account is let go, so Chanlytics can do nothing with it. Meta is not asked to wi
 the call, and it is not known whether withdrawing the ads sign-in would also end the same business's WhatsApp or
 Instagram connection, which share the Meta app. Until that is seen on a real account, the card says where the owner
 removes Chanlytics at Meta themselves, and `withdrawn_at` stays empty. This is Ruben's to confirm or change.
+
+## As built, 19 November 2026 · The requests that make an ad, and the draft (the Ads plan's step 4, its first part)
+
+Built and not sent: nothing here has reached Meta, no verb, route or job calls it yet, and there is no migration.
+Meta's own pages were read first; what they showed and what it changed is in
+`docs/plans/2026-11-18-ads-meta-checks.md`.
+
+- **The request builders** (`packages/channels/src/ads/meta-make.ts`): the campaign, the ad set, the creative and the
+  ad. Every make is paused, carries the token's proof in its body, and has its dry-run form. The amount is a total with
+  its end on the ad set, sent in Meta's own units, exact or not at all (call 4). Where an ad shows is named, the area
+  is a circle around the business for adults, and each of Meta's own changes to the picture and the words is switched
+  off by name.
+- **An ad made here is three ads at Meta,** one for each version of its words, under one ad set and one total, in a
+  campaign of its own. Meta's way to put several texts in one ad shows a headline with a text nobody approved
+  together. So an `ads` row made here has three ads among its `ad_objects`, and a read folds them into one.
+- **What Meta answers** (`meta-made.ts`): the id of what was made, Meta's own words for a refusal with the field it
+  blames, and a campaign read back whole in what call 4's compare needs: paused, the total and its end, no special
+  kind declared, WhatsApp as where a tap goes with the number AI answers, and none of Meta's own changes on. That
+  number is always named in the request: a Page can hold several, and Meta opens its primary one where none is named.
+- **A create carries a key** that Meta's page says makes it safe to repeat. Call 6 says an outcome the job cannot tell
+  is settled by a read of the tagged name, "never by sending again". For a create, sending again with the same key is
+  the surer of the two; a switch takes no key, so call 6 stands for it. The builders carry the key; whether the job
+  sends again with it is Ruben's to decide, and nothing does yet.
+- **Call 13's test account.** Meta's pages for its ads interface no longer hold a test ad account, so the first ad on a
+  real account is on Ruben's own, with every ad paused, as Meta's own page for an ad recommends.
+- **The draft's rules and call 7's checks on words** (`packages/contracts/src/ads/draft.ts`,
+  `apps/dashboard/src/server/ask/skills/ad/checks.ts`, moved from contracts on 20 November since the server alone
+  runs them): what code picks of a draft, and each thing that stops an ad's
+  words, its amount, its end or its picture before Turn on. The model writes words and never decides a check.
+
+## As built, 20 November 2026 · New ad's one screen (the Ads plan's step 4, its second part)
+
+Built with nothing sent to Meta. One migration is written and not applied: `00656`, which lets the ledger count the ad
+writer's words under a purpose of their own (`ad_draft`).
+
+- **Call 7, the checks, run on the server after every change** (`apps/dashboard/src/server/ads/draft-checks.ts`,
+  over the rules in `packages/contracts/src/ads/draft.ts` and the server's `ask/skills/ad/checks.ts`). `POST ads/draft` judges
+  whatever draft the screen sends against the business as it stands now, and answers each thing that stops Turn on
+  as one line with its one act. The model writes words and is never asked whether a check passed.
+- **The server keeps no draft.** Until Turn on there is no row: the screen holds the draft for the tab, and the server
+  trusts nothing in it beyond what the owner chose (the service by its name, the picture by its id, the amount, the
+  miles, the end, the words). A row arrives with Turn on's own door, which is the next part.
+- **The ad writer has one caller** (`server/ads/words.ts`, `POST ads/words`, `spend: true`, thirty an hour): three
+  versions for a draft, or the one change the owner told AI to make, from the closed list. Words that fail a check
+  are never shown; a change whose words would fail is not made, and says which rule.
+- **Turn on is not built.** The press is drawn and cannot be pressed: `turn_on: "not_yet"` from one function, and under
+  the press "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent." Calls 2 to 6 (the
+  press carrying what it expects, the job that makes everything paused, reads it back and compares it) are untouched.
+- **A special kind is asked, never guessed** (the plan's G7). Where a draft reads as a job, housing, finance, politics
+  or gambling ad, the screen asks; a no is what the press would tell Meta, and a yes is not run here, with a door to
+  Meta.
+
+## As built, 20 November 2026 · The bell rings for an owner's ads (call 15)
+
+Built with nothing sent to Meta. One migration is written and not applied: `00658`
+(`supabase/migrations/00658_the_bell_rings_for_an_owner_s_ads.sql`). Nothing waits for Meta's gates: each notice is
+worked out from what the hourly read already keeps, so an ad made in Meta rings from the day this ships.
+
+- **Five kinds, one cause each:** `ad_refused` (Meta didn't approve an ad, in Meta's own words in quotes), `ad_unpaid`
+  (Meta couldn't charge the card for one), `ad_ended` (one that was on reached its last day), `ad_spent` (the total it sits
+  under is spent) and `ad_quiet` (it ran every one of the last seven days and no one wrote from it: the plan's G9). Each
+  row names its ad, says the one thing to do, and opens that ad's drawer (`campaigns/ads:ad:<id>`).
+- **Worked out by the read's own door.** `ads_read_keep` measures what stood at the bell's last look at the account
+  (`ad_accounts.rung_at`) before it writes, and after a good read hands that to `ad_bell_ring`: a cause that stands now
+  and did not then rings once; a row whose cause no longer stands closes for everyone. So nothing rings again on the
+  next read, a cause that clears and comes back is told again, and a read that fails measures nothing. A ring that fails
+  leaves the last look where it was, so the next good read rings it. The bell never costs a read what it learned.
+- **Nothing old is news.** The first look after an account connects rings nothing. An ad first seen by a later read rings
+  only for Meta's check of it (not approved, or the card), never for a run that ended, spent or went quiet before
+  Chanlytics held it.
+- **One cause, one row.** Ads under one ad set end together, ads under one budget spend it together, and one card stops
+  every ad of an account: each is one row naming the first ad by name and how many more.
+- **The card is told once.** An ad's card row and the account's own payment row (00653) are one cause: an ad's row
+  rings only where the account's standing says nothing, and the account's row is not rung while an ad's is open. Both
+  close once Meta can charge again, and the account's signed-out row closes at the first good read after it connects
+  again: the account rows had never closed before.
+- **The owner alone.** One row for each member who may run ads (`has_permission ads`: the owner), never a partner, an
+  operator or a viewer. The step 2 account rows stay the workspace's, as they were.
+- **When a run is over** is contracts `adStateOf`'s rule, written again in SQL beside it (a total spent; ended by its
+  owner; removed; or the day after its last day in the account's zone), so the bell never says an ad ended while its
+  drawer says On. An ad ended by its owner's press, or removed in Meta, rings nothing: that was a person's act.
+- **"No one wrote" counts every tap that reached Chanlytics** (`ad_entries`, a new person or not), and only for an ad
+  whose tap opens a chat Chanlytics receives: an ad that opens a website, a form or a call is never said to have
+  brought no one.
+- **A disconnect closes the ads' rows** (a trigger on `ad_accounts`): nothing about those ads can be done here.
+- **Not as call 15 drew it.** Call 15 declares each as a topic in Settings › Notifications, with the phone told. They are
+  lines on the bell alone for now (`BELL_LINE_KINDS`), as the account's two rows are: a topic would show on every
+  workspace's Settings while Ads is on for one (D7). Joining a topic is one change, with `PUSH_KINDS` and a push for
+  each row, when Ads opens to more workspaces. **Which of the five also email is still Ruben's** (Not decided here,
+  above): none does yet; the review proposed mail always for the first two.
+- **"Your ad account was disconnected"** is call 15's third Needs you. A sign-out by Meta is the account's row of 00653;
+  an owner's own disconnect is their press, and rings nothing.

@@ -399,6 +399,11 @@ const GLYPHS: Record<string, Drawing> = {
       <path d="M6 10l-3 3.5" />
     </svg>
   ),
+  folder: (p) => (
+    <svg {...p}>
+      <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.6l1.5 1.6h4.9A1.5 1.5 0 0 1 14 6.1v5.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" />
+    </svg>
+  ),
   image: (p) => (
     <svg {...p}>
       <rect x="2" y="3" width="12" height="10" rx="1.5" />

@@ -267,6 +267,8 @@ export const ASK_EXAMPLES = [
 export interface WorkspaceFacts {
   /** What the business's files are, in a line (contracts filesLineOf); none where they could not be read. */
   filesLine?: string | null;
+  /** Where a watched Google Drive folder stands, in a line (server files/line.ts folderLineOf); none where none is. */
+  folderLine?: string | null;
   businessName: string;
   timezone: string;
   hoursLines: string[];
@@ -390,6 +392,7 @@ export function factsBlock(workspaceFacts: WorkspaceFacts): string {
   if (workspaceFacts.bookingNotes.length) lines.push(`Booking notes: ${workspaceFacts.bookingNotes.join("; ")}.`);
   lines.push(calendarFact(workspaceFacts));
   if (workspaceFacts.filesLine) lines.push(workspaceFacts.filesLine);
+  if (workspaceFacts.folderLine) lines.push(workspaceFacts.folderLine);
   return lines.join("\n");
 }
 

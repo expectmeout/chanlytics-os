@@ -12,7 +12,8 @@
  *                                                                 nothing else rides it, its row and folders gone
  *   { op: "folders", tenant_id, connection_id, place, folder_id?, page? }
  *                                                               → one level of the folder chooser, folders only
- *   { op: "watch", tenant_id, connection_id, folder_id, include_subfolders? }
+ *   { op: "folder", tenant_id, connection_id, folder_id }       → that folder as its account names it (a pasted link)
+ *   { op: "watch", tenant_id, connection_id, folder_id, include_subfolders?, instead? }
  *                                                               → the folder watched: its place saved, its walk begun
  *   { op: "check" | "confirm" | "stop", tenant_id, source_id }  → read now; a held wave confirmed; no longer watched
  *
@@ -33,12 +34,14 @@ import { personFor, workspaceFor, type Admitted } from "../../shared/admin-auth.
 import { json, refuse } from "../../shared/http.js";
 import { errField, logger, type Logger } from "../../shared/log.js";
 import { pg } from "../../shared/pg.js";
-import { sourcesReadiness } from "./config.js";
+import { sourcesOfferedIn, sourcesReadiness } from "./config.js";
 import { connectDrive, disconnectDrive, type ConnectRefusal } from "./connect.js";
 import {
+  askForOlderFiles,
   checkSourceNow,
   confirmSourceHold,
   listFolderChoices,
+  nameFolder,
   stopWatching,
   watchFolder,
   type WatchRefusal,
@@ -47,7 +50,17 @@ import {
 type Body = DoorRead<typeof SOURCES_DOOR>;
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-const SOURCE_OPS = new Set(["connect", "disconnect", "folders", "watch", "check", "confirm", "stop"]);
+const SOURCE_OPS = new Set([
+  "connect",
+  "disconnect",
+  "folders",
+  "folder",
+  "watch",
+  "check",
+  "confirm",
+  "older",
+  "stop",
+]);
 
 /** A connect that did not finish, as the code a caller compares, with its reason beside it. */
 function connectRefused(reason: ConnectRefusal): Response {
@@ -138,9 +151,21 @@ async function accountOp({ db, tenantId, log }: OpContext, op: string, body: Bod
   }
   const folderId = textOrEmpty(body.folder_id);
   if (!folderId || folderId.length > 200) return refuse(400, "bad_request", "folder_id is a folder's id");
+  if (op === "folder") {
+    const named = await nameFolder(db, { tenantId, connectionId, folderId }, log);
+    return named.ok
+      ? json(200, { ok: true, folders: [{ id: named.folder.id, name: named.folder.name }], next_page: null })
+      : watchRefused(named.reason);
+  }
   const out = await watchFolder(
     db,
-    { tenantId, connectionId, folderId, includeSubfolders: body.include_subfolders !== false },
+    {
+      tenantId,
+      connectionId,
+      folderId,
+      includeSubfolders: body.include_subfolders !== false,
+      instead: body.instead === true,
+    },
     log,
   );
   return out.ok ? json(200, { ok: true, source_id: out.source.id, made: out.made }) : watchRefused(out.reason);
@@ -159,6 +184,10 @@ async function sourceOp({ db, tenantId, log }: OpContext, op: string, body: Body
     const out = await confirmSourceHold(db, named);
     return out.ok ? json(200, { ok: true }) : watchRefused(out.reason);
   }
+  if (op === "older") {
+    const out = await askForOlderFiles(db, named);
+    return out.ok ? json(200, { ok: true, asked: out.asked }) : watchRefused(out.reason);
+  }
   const out = await stopWatching(db, named, log);
   return out.ok ? json(200, { ok: true, source_id: out.source.id }) : watchRefused(out.reason);
 }
@@ -167,7 +196,7 @@ export async function runSourcesOp(auth: Admitted, body: Body): Promise<Response
   const workspace = workspaceFor(auth, body.tenant_id);
   if (!workspace.ok) return workspace.response;
   const op = textOrEmpty(body.op);
-  if (op === "readiness") return json(200, { ok: true, ...sourcesReadiness() });
+  if (op === "readiness") return json(200, { ok: true, ...sourcesReadiness(workspace.tenantId ?? null) });
   if (!SOURCE_OPS.has(op)) return refuse(400, "unknown_op");
   const db = pg();
   if (!db) return refuse(503, "no_database");
@@ -175,9 +204,12 @@ export async function runSourcesOp(auth: Admitted, body: Body): Promise<Response
   if (!isTenantId(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   const log = logger({ door: "sources", tenant_id: tenantId, op });
   const context: OpContext = { db, tenantId, by: personFor(auth, body.user_id), log };
+  // A new connect or watch is offered only where the deployment says (SOURCES_WORKSPACES); leaving always works.
+  if ((op === "connect" || op === "watch") && !sourcesOfferedIn(tenantId)) return connectRefused("not_available");
   try {
     if (op === "connect") return await connectOp(context, body);
-    if (op === "disconnect" || op === "folders" || op === "watch") return await accountOp(context, op, body);
+    if (op === "disconnect" || op === "folders" || op === "folder" || op === "watch")
+      return await accountOp(context, op, body);
     return await sourceOp(context, op, body);
   } catch (error) {
     log.error("source_door_failed", { error: errField(error) });

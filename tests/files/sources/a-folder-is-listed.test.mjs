@@ -13,7 +13,6 @@ import { ROOT, SOURCE, T, firstWalk, runJobs, schedule, setEnv, world } from "./
 setEnv();
 const { sweepSources } = await import(at("apps/edge/lib/files/sources/sweep.ts"));
 const { SOURCE_PACE } = await import(at("apps/edge/lib/files/sources/pace.ts"));
-const { SOURCE_WORDS } = await import(at("apps/edge/lib/files/sources/words.ts"));
 
 let w;
 beforeEach(() => resetBreakers());
@@ -512,7 +511,7 @@ test("a watched folder that cannot be read is frozen with nothing marked, and th
   await clockTurn(w);
   const frozen = w.source();
   assert.equal(frozen.state, "frozen");
-  assert.equal(frozen.last_error, SOURCE_WORDS.unreadable);
+  assert.equal(frozen.stopped_why, "cant_open");
   assert.equal(frozen.walk_kind, null, "its walk ended where it stood");
   assert.equal(w.items().filter((row) => ["gone", "outside", "no_access"].includes(row.state)).length, 0);
 
@@ -531,7 +530,7 @@ test("a watched folder that cannot be read is frozen with nothing marked, and th
   w.tables.media_sources[0].next_read_at = new Date(Date.now() - 1000).toISOString();
   await clockTurn(w);
   assert.equal(w.source().state, "watching");
-  assert.equal(w.source().last_error, null);
+  assert.equal(w.source().stopped_why, null);
 });
 
 test("a walk that ended asks for its workspace's takes at once, and what each job spent is on the day's line", async () => {

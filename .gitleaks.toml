@@ -30,6 +30,11 @@
 #   a key is refused by its shape, so it plants a made-up Stripe secret key
 #   (tests/ask/remembers/what-ask-keeps.test.mjs). The scan read
 #   it as real on #1792 (22 Oct 2026).
+# - The key a request to make an ad carries so Meta can tell a repeat from a
+#   new one: a test pins that a real make sends it and a dry run does not
+#   (tests/ads/make/meta-make-wire.test.mjs). A made-up id of the shape Meta's
+#   page recommends, in a variable named KEY, and no credential: it opens
+#   nothing (#2452, 20 Nov 2026).
 
 [extend]
 useDefault = true
@@ -44,5 +49,6 @@ regexes = [
   '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJ1c2VyLTEifQ\.c2lnbmF0dXJlLXBsYW50ZWQ''',
   '''sk-ts-live-Zk9xQ2mV7rT4nB8wL1pC6hD3fG5j''',
   '''^organizationCity$''',
+  '''0b0f6c1e-7f0a-4a55-9d53-0c7a1b2f3d4e''',
 ]
 paths = ['''^supabase/migrations-ledger\.json$''']

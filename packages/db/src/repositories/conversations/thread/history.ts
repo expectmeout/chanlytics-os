@@ -16,6 +16,7 @@ import {
 import type { Database } from "../../../types";
 import { saysMissing } from "../../../shared/missing-door";
 import { dbLog } from "../../../shared/observe";
+import { readAdTap, tappedMessageOf, type AdTapTold, type ThreadMoment } from "./ad-tap";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
 export type Db = SupabaseClient<Database>;
@@ -240,6 +241,12 @@ export interface LeadContext {
    * proposal out for another, and the receptionist hears each. Empty where none; optional so every fake still compiles.
    */
   otherDeals?: DealFacts[];
+  /**
+   * The ad they tapped before they wrote, while the conversation that tap began is under way (ad-tap.ts; decision 0049,
+   * call 12): read only where a message is being answered, so a call is told none. Null where there is none. Optional
+   * so every fake still compiles.
+   */
+  ad?: AdTapTold | null;
 }
 
 /** The same answer for contacts.offers_asked_at or marketing_channels, on a database the migration that adds them has not reached. */
@@ -337,9 +344,9 @@ export async function readLeadContext(
     .maybeSingle();
   if (vErr) throw new Error(`readLeadContext/conversation: ${vErr.message}`);
 
-  const { history, lastTurnAt } = conv
+  const { history, lastTurnAt, tap } = conv
     ? await turnsBefore(db, tenantId, conv.id, historyLimit, answering)
-    : { history: [], lastTurnAt: null };
+    : { history: [], lastTurnAt: null, tap: null };
 
   // Their deal, read beside the note (0004): a context lookup must never cost the reply, so an error is no deal. The
   // whole list, because the current one may be the oldest: a running engagement outlives any number of newer proposals
@@ -391,10 +398,25 @@ export async function readLeadContext(
     proposalUrl: proposalLinkOf(current, contact.proposal_url),
     deal: current ? dealRowFacts(current) : null,
     otherDeals: others.map((d) => ({ ...dealRowFacts(d), proposal_url: d.proposal_url })),
+    ad: await readAdTap(db, tenantId, tap),
   };
 }
 
-/** A person's turns, and when the newest happened, without the message being answered (readLeadContext's `answering`). */
+/** The rows that happened, as the tap's walk reads them (ad-tap.ts): a customer's, or one of ours that left. */
+const threadMomentsOf = (rows: Array<HistoryRow & { id: string }>): ThreadMoment[] =>
+  rows
+    .filter((m) => m.direction !== "outbound" || isOneOf(DELIVERED, m.status))
+    .map((m) => ({
+      id: m.id,
+      atMs: effectiveAt(m),
+      fromCustomer: m.direction === "inbound" && m.sender === "customer",
+      meta: m.meta,
+    }));
+
+/**
+ * A person's turns, and when the newest happened, without the message being answered (readLeadContext's `answering`),
+ * and the ad tap of the conversation that message is in (ad-tap.ts), read off the same rows.
+ */
 async function turnsBefore(db: Db, tenantId: TenantId, conversationId: string, limit: number, answering?: string) {
   const { data: rows, error } = await db
     .from("messages")
@@ -407,7 +429,8 @@ async function turnsBefore(db: Db, tenantId: TenantId, conversationId: string, l
   const before = (rows ?? []).filter((m) => m.id !== answering);
   const newest = keptTurns(before).at(-1);
   const lastTurnAt = newest ? new Date(effectiveAt(newest)).toISOString() : null;
-  return { history: assembleHistory(before, limit), lastTurnAt };
+  const tap = answering ? tappedMessageOf(threadMomentsOf(rows), answering) : null;
+  return { history: assembleHistory(before, limit), lastTurnAt, tap };
 }
 
 /** A deal row's facts as the receptionist and the phone read them: its stage, its service and its days. */

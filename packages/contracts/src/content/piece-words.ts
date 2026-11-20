@@ -3,6 +3,7 @@
  * press and as the video is made, checked and ready; why a plan can't be made; why one asked for was not; and the bell's lines.
  * Every sentence a page or the bell says of one comes from here. A line is one fact, and a button a verb she would say.
  */
+import { FOOTAGE_SAID } from "../files/footage-said";
 import { fileSaidOf } from "../files/views";
 import type { PieceFail, PieceStage } from "./piece-making";
 import type { PieceCount, PieceLanguage, PieceQuoteSource, PieceWont } from "./pieces";
@@ -122,7 +123,7 @@ export const PIECE_WORDS: PieceWords = {
   making: "You can close this. It lands in Content, under Made, and your bell says so.",
   caption: "Caption",
   busy: "Three videos are being made right now. Make this one once one of them is done.",
-  off: "Videos aren't on for this workspace yet.",
+  off: FOOTAGE_SAID.videosOff,
   notDrawn: "The stills couldn't be drawn. Making it still works.",
   boardSaid: "Each part of the video in order, with its words where the video shows them",
   follows: {
@@ -130,6 +131,7 @@ export const PIECE_WORDS: PieceWords = {
     stage: {
       queued: () => "Starting",
       waiting_clip: () => "Your clip is still being made ready, so this one takes longer: up to 20 minutes.",
+      from_drive: () => "Getting your clips from Google Drive. About 2 minutes, then it's put together.",
       drawing: () => "Putting it together",
       saving: () => "Putting it in Content",
     },
@@ -206,6 +208,7 @@ const PIECE_WORDS_ES: PieceWords = {
     stage: {
       queued: () => "Empezando",
       waiting_clip: () => "Tu clip todavía se está preparando, así que este tarda más: hasta 20 minutos.",
+      from_drive: () => "Trayendo tus clips de Google Drive. Unos 2 minutos, y después se arma.",
       drawing: () => "Armándolo",
       saving: () => "Guardándolo en Contenido",
     },

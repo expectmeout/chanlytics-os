@@ -210,10 +210,9 @@ test.describe("Campaigns › Ads, a workspace's preview", () => {
 
     await page.getByTestId("ads-head-new").click();
     await expect(page.getByTestId("ads-new-body")).toBeVisible();
-    await page.getByRole("button", { name: /^Next: the ad/ }).click();
-    await expect(page.getByTestId("ads-new-files-door")).toBeVisible();
+    await expect(page.getByTestId("ads-new-turn-on")).toContainText("Turn on");
     await page.goBack();
-    await page.goBack();
+    await expect(page.getByTestId("ads-new-body")).toBeHidden();
 
     await page.goto("/#/reports/ads");
     await expect(page.getByTestId("ads-lens")).toBeVisible();

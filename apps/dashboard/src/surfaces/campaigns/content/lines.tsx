@@ -21,12 +21,14 @@ import {
   type ContentPageDto,
   type FileDto,
 } from "@chanlytics/contracts";
-import { pageClock } from "@/bridge/zone";
+import { knownZone, pageClock } from "@/bridge/zone";
 import { askAbout } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Press } from "../../kit/press";
 import { GroupHead } from "../../kit/head/group-head";
+import { copyRowLineOf, leavesOn, rowReasonOf } from "../../files/footage/copy-words";
+import { heldFootage } from "../../files/footage/use-footage";
 import { Picture, rowPictureOf } from "../../files/photo";
 import { tileShapeOf } from "./model/tiles";
 import { aheadDayOf, postedWhenOf, tileDayOf } from "./model/tile-day";
@@ -196,18 +198,32 @@ export function PieceLines({
  * what Ask's look saw in it where it said; a press opens it.
  */
 export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen: (fileId: string) => void }) {
+  // The watched folder's name, where it was read (files/footage): a file moved out of it is said by it.
+  const folder = heldFootage()?.folder?.name ?? null;
   return (
     <div className="cnv-lines" data-testid="cnv-file-lines">
       {files.map((file) => {
         const what =
           file.kind === "video" && file.seconds !== null ? W.piece.clip(clockOf(file.seconds)) : W.piece.photo;
+        // A clip kept with its provider looks like any other. Only one that is coming back, or can't, says so.
+        const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
+          folder,
+          leaves: leavesOn(file, knownZone() ?? "UTC"),
+        });
+        const seen = file.line ? `${what} · ${file.line.replace(/\.$/, "")}` : what;
         return (
           <div key={file.id} className="cnv-line" data-testid="cnv-file-line">
             <Press className="cnv-line-open" onClick={() => onOpen(file.id)}>
               <Thumb file={file} />
               <span className="cnv-line-words">
                 <b>{fileSaidOf(file.name)}</b>
-                <span>{file.line ? `${what} · ${file.line.replace(/\.$/, "")}` : what}</span>
+                {kept ? (
+                  <span data-tone={kept.tone === "live" ? "going" : "need"} data-testid="cnv-file-kept">
+                    {kept.alone ? kept.line : `${what} · ${kept.line}`}
+                  </span>
+                ) : (
+                  <span>{seen}</span>
+                )}
               </span>
             </Press>
           </div>

@@ -68,6 +68,8 @@ export async function bringInFor(
 ): Promise<BringInAnswer> {
   const target = bringInOf(input.link);
   if (target.place === "none") throw new AppError("validation", BRING_IN_WORDS.refused[target.why]);
+  // A Google Drive folder is watched by its own door (POST sources/watch, which its card commits to): never read here.
+  if (target.place === "drive") throw new AppError("validation", BRING_IN_WORDS.drive.summary);
   if (!edgeConfigured()) throw new AppError("internal", BRING_IN_NOT_STARTED);
   const answer = await callEdge(
     "/api/admin/files/bring-in",

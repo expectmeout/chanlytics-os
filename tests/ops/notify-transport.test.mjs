@@ -656,6 +656,13 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     [
       // An ad account that needs its owner (00653): a line on the bell from the database, opening Campaigns › Ads.
       "ad_account",
+      // An owner's ads (00658): five lines on the owner's bell from the database, each opening its ad. Which of them is
+      // also emailed is Ruben's open call (decision 0050, "Not decided here"), so none is yet.
+      "ad_ended",
+      "ad_quiet",
+      "ad_refused",
+      "ad_spent",
+      "ad_unpaid",
       // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.
       "ask_cards",
       "booking",
@@ -663,6 +670,10 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "calendar_people",
       // Photos an import found, waiting in Files (00551): a line on the bell.
       "files_waiting",
+      // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos counted up
+      // in place; lines on the bell written by the database.
+      "footage",
+      "footage_in",
       "video_ready",
       // A post set for its time went up, or was held (00616): a line on the bell.
       "post_up",

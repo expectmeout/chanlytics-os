@@ -13,7 +13,7 @@
  * three platforms), a line under it for an account that could not be read, four figures with their one quiet line and its
  * doors (how it is counted, Results), the Ask line, the ledger by what an ad asks people to do or by platform, and three tiles.
  * On a phone: the sentence the frame's head leaves out, the muted lines, the pane line, and one list with the Ask line last
- * (ledger/phone.tsx). An ad opens in its drawer (drawer/drawer.tsx), New ad in its composer (new/new-ad.tsx) and Results in its
+ * (ledger/phone.tsx). An ad opens in its drawer (drawer/drawer.tsx), New ad in its one screen (new/sheet.tsx) and Results in its
  * sheet (results/results-sheet.tsx), all always mounted and open by the address, so Back closes them. The ledger takes the keys
  * Messages' does (parts/ledger-keys.ts): J and K or the arrows walk a cursor, Enter opens the row, focus comes home to the row a
  * drawer was opened from, and an ad just turned on is scrolled to once the composer has gone.
@@ -22,22 +22,18 @@
 // them (as the Inbox's new-conversation sheet loads sheet.css). Results' rules load with the sheet (results/results.css).
 import "./ads.css";
 import "./drawer/drawer.css";
-import "./new/new.css";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdPlatform, AdsAddress } from "@chanlytics/contracts";
 import { CHOOSE, HEAD } from "./model/words-page";
-import { EXAMPLE, GATE, PLATFORM_OWNER, REVIEW_WITHIN } from "./model/words";
-import { NEW_AD } from "./model/words-new";
-import { adFollowOn } from "./model/new-ad-parts";
+import { EXAMPLE, GATE } from "./model/words";
 import { adsModel } from "./model/page";
-import type { AdDraft } from "./model/new-ad";
 import type { AdsGroupBy, AdsVM, AskVM, HeadVM } from "./model/page";
 import { Button } from "../../kit/button/button";
 import { ActWords } from "../../kit/head/act-words";
 import { Icon } from "../../kit/icon/icon";
-import { afterMove, askAbout, askOnScreenKey, gate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
+import { askAbout, askOnScreenKey, gate, navigate, setAskOnScreen, useFrameToast } from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import {
   pressRowOpener,
@@ -50,6 +46,7 @@ import {
 import { type CmView, useCmPhone } from "../parts/split";
 import { AskLine } from "./ask-line";
 import { useAdsConnection } from "./connect/use-card";
+import { CARD } from "./connect/words";
 import { AdDrawer } from "./drawer/drawer";
 import { Figures } from "./figures";
 import { useFirstTouch } from "./first-touch";
@@ -58,7 +55,9 @@ import { ChooseCards, NoAdsCard, V0Page } from "./hero";
 import { AdsLedger } from "./ledger/ledger";
 import { LiveAds } from "./live/live-ads";
 import { AdsPhone } from "./ledger/phone";
-import { NewAd } from "./new/new-ad";
+import { sampleAdSource } from "./new/sample";
+import { NewAd } from "./new/sheet";
+import { NEW } from "./new/words";
 import { PreviewNote } from "./preview-note";
 import { ResultsSheet } from "./results/results-sheet";
 import { PaneLine, ReadNotes } from "./standing";
@@ -293,8 +292,14 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const [hushed, setHushed] = useState<string | null>(null);
   const today = example === "v0" && adsInPreview();
   const touch = useFirstTouch(today);
+  // The workspace's own ad account is read wherever no example was chosen from the page's menu. An address that names
+  // an ad or New ad opens on the example's ads (opensOnOfAddress), and that is right only for a workspace that holds
+  // no account: with one held, a reload with New ad open is still the workspace's own New ad.
+  const own = adsInPreview() && (today || adsOpening() === "v0");
   // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
-  const { account, held, live, ...connect } = useAdsConnection(today, read.timezone);
+  const { account, held, live, ...connect } = useAdsConnection(own, read.timezone, CARD.name);
+  // Until that account has answered, New ad on such an address is not the example's to draw.
+  const unanswered = own && !today && account.dto === null && !account.failed;
   useAskKnowsThePage(today);
   const vm = useMemo(
     () => adsModel(touch.firstTouch ? { ...read, firstTouch: touch.firstTouch } : read, config, groupBy),
@@ -315,27 +320,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
       flash(tellOf(verbs.chooseAccount(platform, externalId), CHOOSE.done(name))),
     onGroupBy: setGroupBy,
   };
-  // Turn on: New ad closes itself into this. The composer raises no toast of its own; the page closes it, lands the row and
-  // says that the platform will check it, with an Undo that pauses the row (nothing is spent while it is checked). A draft that
-  // asked for the Google ad as well goes on to it once the composer has gone.
-  const turnOn = (draft: AdDraft, maxMinor: number | null): boolean => {
-    const out = verbs.turnOn(draft, maxMinor);
-    if (!out.ok) {
-      flash(tellOf(out, ""));
-      return false;
-    }
-    const then = out.id ? adFollowOn(draft, out.id) : null;
-    if (then === null) nav.close();
-    else afterMove(nav.close, () => nav.push(then));
-    if (out.id) keys.arrive(out.id);
-    flash({
-      msg: NEW_AD.turnOnToast({ owner: PLATFORM_OWNER[draft.platform], within: REVIEW_WITHIN[draft.platform] }),
-      undo: () => {
-        out.undo();
-        flash({ msg: NEW_AD.undone });
-      },
-    });
-    return true;
+  // New ad on the example: the same one screen, fed from the example itself (new/sample.ts). Its press makes nothing,
+  // and says so.
+  const sample = useMemo(() => sampleAdSource(read), [read]);
+  const sampleTurnedOn = () => {
+    nav.close();
+    flash({ msg: NEW.press.sampleDone });
   };
   if (held && live.dto)
     return (
@@ -347,6 +337,7 @@ export function AdsPage({ param, view }: AdsPageProps) {
         timezone={read.timezone}
         card={connect.card}
         connect={{ word: connect.vm?.button ?? null, press: account.connect }}
+        need={connect.vm?.need ?? null}
         nav={{ push: nav.push, close: nav.close }}
         again={() => {
           live.again();
@@ -412,12 +403,13 @@ export function AdsPage({ param, view }: AdsPageProps) {
         onGo={nav.push}
       />
       <NewAd
-        compose={address.compose}
-        read={read}
-        config={config}
+        open={address.compose !== null && !unanswered}
+        source={sample}
+        need={null}
         onClose={nav.close}
-        onTurnOn={turnOn}
-        flash={flash}
+        onConnect={account.connect}
+        onGo={navigate}
+        onTurnOn={sampleTurnedOn}
       />
       <ResultsSheet open={address.results} read={read} config={config} onClose={nav.close} />
       {toastNode}

@@ -1364,6 +1364,17 @@
   padding: 0;
   list-style: none;
 }
+/* What a watched folder's line adds under the lines: a wait that ends by itself, or what its owner must do and the press. */
+.cnv-found-note {
+  margin: 0;
+  padding-left: 30px;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-dim);
+}
+.cnv-found-note[data-tone="you"] {
+  color: var(--warn-ink);
+}
 .cnv-found-line {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;

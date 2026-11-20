@@ -48,6 +48,17 @@ export function metaUnitsToMinor(amount: unknown, currency: string): number | nu
   return units === null ? null : Math.round((units * minorPerUnit(currency)) / metaPerUnit(currency));
 }
 
+/**
+ * An amount in the currency's ISO minor units, as Meta is told one: in Meta's own units. Null where Meta cannot hold
+ * it whole (12.5 forint, which Meta counts in whole forint) or it is no amount: what an owner approved is sent exact
+ * or not at all, never rounded on the way.
+ */
+export function minorToMetaUnits(minor: number, currency: string): number | null {
+  if (!Number.isSafeInteger(minor) || minor <= 0) return null;
+  const units = (minor * metaPerUnit(currency)) / minorPerUnit(currency);
+  return Number.isSafeInteger(units) ? units : null;
+}
+
 /** An amount Meta gave as a decimal of the currency itself (what an ad spent: "12.34"), in ISO minor units. */
 export function metaDecimalToMinor(amount: unknown, currency: string): number | null {
   const said = typeof amount === "number" ? String(amount) : amount;
@@ -60,6 +71,8 @@ export function metaDecimalToMinor(amount: unknown, currency: string): number | 
 /** Meta's id for an ad account, bare: digits alone, whether it came with its `act_` or without. */
 export const metaAccountId = (id: string): string => id.replace(/^act_/, "");
 const account = (id: string): string => `act_${encodeURIComponent(metaAccountId(id))}`;
+/** An ad account's own address under the Graph, `act_<id>`: where its campaigns, ad sets, creatives and ads are made. */
+export const metaAccountPath = (id: string): string => account(id);
 
 /**
  * What an account is asked for: only what the saved sign-in's five permissions reach. The business that owns it is not
@@ -132,6 +145,8 @@ export function metaPageRequest(
 /* ----------------------------------------------------------------- answers */
 
 const ID = /^\d{5,32}$/;
+/** Whether a string is an id as Meta writes one: digits alone. */
+export const isMetaId = (id: string): boolean => ID.test(id);
 
 /**
  * Meta's number for where an account stands, in Chanlytics' words (the ad account's `account_status`, read on Meta's

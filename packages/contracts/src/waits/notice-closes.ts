@@ -183,6 +183,38 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "An ad account signed out by its platform, or one it cannot charge, is told once when it turns. Campaigns › Ads and the account's card say it for as long as it lasts, with the one thing to do.",
   },
+  // Closed by the database itself the moment it is mended (00657 media_sources_ring, source_connections_ring,
+  // source_items_ring_full): connected again, the folder readable again, the second look settled, room made, or let go.
+  footage: {
+    ends: "news",
+    why: "A folder that needs someone is told once, to whoever can fix it · the row closes itself once it is fixed.",
+  },
+  footage_in: {
+    ends: "news",
+    why: "The day's new photos and videos are one row, counted up in place · they are in the Library, and nothing waits.",
+  },
+  // Closed by the database itself at the read that finds the cause gone (00658 ad_bell_ring), or when the owner
+  // disconnects the account: the ad fixed, paid for, written from, paused, its total raised or its run extended.
+  ad_refused: {
+    ends: "news",
+    why: "An ad Meta didn't approve is told once, to the owner · the row closes itself once Meta approves it or it stops.",
+  },
+  ad_unpaid: {
+    ends: "news",
+    why: "A card Meta couldn't charge is told once for the account · the row closes itself once Meta can charge it.",
+  },
+  ad_ended: {
+    ends: "news",
+    why: "An ad that reached its last day is told once · its drawer says what it brought, and nothing waits.",
+  },
+  ad_spent: {
+    ends: "news",
+    why: "An ad that spent its total is told once · the row closes itself if the total is raised in Meta.",
+  },
+  ad_quiet: {
+    ends: "news",
+    why: "A week with no one writing from a running ad is told once · the row closes once someone writes or it stops.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

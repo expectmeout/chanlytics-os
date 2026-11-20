@@ -9,6 +9,25 @@ export {
   SOURCES_DOOR,
 } from "./edge-doors";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files";
+export { FOOTAGE_WORDS, footageLineOf, footageSheetOf, footageStandingOf } from "./footage";
+export type {
+  FootageAccountDto,
+  FootageAct,
+  FootageCountsDto,
+  FootageDto,
+  FootageFolderDto,
+  FootageLine,
+  FootagePassedDto,
+  FootageSheetRow,
+  FootageStanding,
+  FootageStandingKey,
+  FootageWaitsDto,
+  SourceConnectionHealth,
+  WatchedFolderState,
+} from "./footage";
+export { FOOTAGE_NUMBERS } from "./footage-numbers";
+export { connectStoppedOf, FOOTAGE_SETUP } from "./footage-setup";
+export type { ConnectStopped } from "./footage-setup";
 export {
   FILE_IMAGE_MIMES,
   FILE_KINDS,
@@ -110,8 +129,17 @@ export {
   vttOf,
 } from "./sound";
 export type { FileSound, HeardBy, SoundCue, SoundEvent, SoundNote, SoundPart, SoundWords } from "./sound";
-export { SOURCE_ITEM_STATES, SOURCE_WALK_KINDS } from "./sources";
+export {
+  FOLDER_STOPPED_WHYS,
+  MEDIA_SOURCE_STATES,
+  SOURCE_CONNECTION_HEALTHS,
+  SOURCE_ITEM_STATES,
+  SOURCE_ITEM_WHYS,
+  SOURCE_REFUSALS,
+  SOURCE_WALK_KINDS,
+} from "./sources";
 export type {
+  FolderStoppedWhy,
   SourceChange,
   SourceChanges,
   SourceChannel,
@@ -123,6 +151,7 @@ export type {
   SourceItemState,
   SourceItemWhy,
   SourceProviderContract,
+  SourceRefusal,
   SourceReply,
   SourceWalkKind,
 } from "./sources";
@@ -156,6 +185,7 @@ export {
   fileFolderOf,
   fileNameOf,
   fileSaidOf,
+  filesCountedOf,
   filesTallyOf,
   fileViewOf,
   inboxCleanOf,

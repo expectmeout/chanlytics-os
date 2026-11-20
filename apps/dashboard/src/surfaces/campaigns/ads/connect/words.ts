@@ -10,6 +10,11 @@ import type { AdCardCheckId } from "@chanlytics/contracts";
 
 export const CARD = {
   name: "Facebook and Instagram",
+  /**
+   * The card's name in Settings › Connections, where it sits under the Meta row of Instagram's messages: said as the
+   * ads, so the two are never read as one connection. On the Ads page the page already says it is ads.
+   */
+  inConnections: "Facebook and Instagram ads",
   notConnected: "Not connected",
   checking: "Checking",
   connected: "Connected",
@@ -55,6 +60,9 @@ export const CHECK: Record<AdCardCheckId, { label: string; neededFor: string }> 
   "whatsapp-linked": { label: "WhatsApp number linked to the Page", neededFor: "A new ad" },
   "chanlytics-whatsapp": { label: "That number is the one AI answers", neededFor: "A new ad" },
 };
+
+/** Beside a check Meta does not answer for an app like Chanlytics (a Page's WhatsApp numbers): never a fault of the owner's. */
+export const CHECK_UNSAID = "Meta doesn't share this";
 
 /** One thing missing or one stop: what happened, whether it mends itself or what it stops, and its one act. */
 export interface NeedWords {

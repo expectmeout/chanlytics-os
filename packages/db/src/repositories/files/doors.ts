@@ -225,7 +225,8 @@ export async function recordFilePurged(db: Db, tenantId: TenantId, id: string): 
  * kept by an earlier asking says the reservation it holds, which may not be this call's.
  */
 export type VideoFate = {
-  fate: "kept" | "here" | "full" | "minutes";
+  /** `back`: its twin is a watched clip whose copy was away or lost, and this reservation is now that copy (00655). */
+  fate: "kept" | "here" | "back" | "full" | "minutes";
   file_id: string | null;
   media_ref: string | null;
 };
@@ -266,7 +267,13 @@ export async function beginFileVideo(
 /** A video door's answer, read: its fate, the row, and the reservation a row kept earlier holds. */
 function videoFateOf(data: unknown, doing: string): VideoFate {
   const answer = recordOrEmpty(data);
-  if (answer.fate !== "kept" && answer.fate !== "here" && answer.fate !== "full" && answer.fate !== "minutes")
+  if (
+    answer.fate !== "kept" &&
+    answer.fate !== "here" &&
+    answer.fate !== "back" &&
+    answer.fate !== "full" &&
+    answer.fate !== "minutes"
+  )
     throw new Error(`${doing}: no fate answered`);
   return {
     fate: answer.fate,

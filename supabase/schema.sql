@@ -280,10 +280,17 @@ begin
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (p_tenant_id, 'ad_account.standing', 'setup', 'ad_account', p_account_id,
             jsonb_build_object('platform', v_row.platform, 'from', v_row.standing, 'to', v_standing));
-    -- The platform cannot charge for the account, and could before: said once on the bell, when it turns.
+    -- The platform cannot charge for the account, and could before: said once on the bell, when it turns. Not where
+    -- the bell already tells of the card on an ad of this account (00658's ad_unpaid): one card, one row.
     v_unpaid := (v_standing ->> 'funding' = 'none' or v_standing ->> 'account' = 'unsettled')
             and not (v_row.standing ->> 'funding' = 'none' or v_row.standing ->> 'account' = 'unsettled');
-    if coalesce(v_unpaid, false) then
+    if coalesce(v_unpaid, false)
+       and not exists (select 1
+                         from public.notifications n
+                         join public.ads d on d.id::text = n.subject_id
+                        where n.tenant_id = p_tenant_id and n.kind = 'ad_unpaid' and n.closed_at is null
+                          and n.subject_type = 'ad' and n.created_at >= now() - interval '30 days'
+                          and d.tenant_id = p_tenant_id and d.account_id = p_account_id) then
       begin
         insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id)
         values (p_tenant_id, 'ad_account', 'Meta can''t charge your ad account',
@@ -304,7 +311,7 @@ end $$;
 -- Name: FUNCTION ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what a read of a connected ad account at its platform learned (00649, 00653; decision 0049). Given standing and config it writes them (config key by key over what stood), with the account''s name and zone where given, stamps the read, clears the last failure and keeps the platform''s pace (usage_pct, read_after); an ad_account.standing event only where what the account stands on or the facts beside it moved, and a line on the bell the first time the platform cannot charge for it. Given error, a read that failed: its words and the pace are kept and what stood, stands. Answers moved, kept, failed, or not_connected for an account that is not connected, where nothing is written.';
+COMMENT ON FUNCTION public.ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; decision 0049). Given standing and config it writes them (config key by key over what stood), with the account''s name and zone where given, stamps the read, clears the last failure and keeps the platform''s pace (usage_pct, read_after); an ad_account.standing event only where what the account stands on or the facts beside it moved, and a line on the bell the first time the platform cannot charge for it, unless an open ad_unpaid row already tells of the card on one of its ads. Given error, a read that failed: its words and the pace are kept and what stood, stands. Answers moved, kept, failed, or not_connected for an account that is not connected, where nothing is written.';
 
 
 --
@@ -361,6 +368,342 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id uuid, p_how text) IS 'Service-role only: the platform took Chanlytics'' access to an ad account back (00649, 00653; decision 0049): the account is revoked, with when, an ad_account.revoked event says how it was learned (a read the platform refused, the platform''s own call, or no token kept), every press still on its way is let go, and a line on the bell tells the workspace. Its last numbers stay; nothing is read or changed until the owner connects again. One that still waited to be chosen was never connected: its row goes with its token, and the bell says nothing. True where it was connected or waiting to be chosen; false, and nothing written, otherwise.';
+
+
+--
+-- Name: ad_accounts_close_ad_bell(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_accounts_close_ad_bell() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_subject text;
+begin
+  begin
+    -- Through the one door that closes rows (00421).
+    for v_subject in
+      select distinct n.subject_id
+        from public.notifications n
+        join public.ads d on d.id::text = n.subject_id
+       where n.tenant_id = new.tenant_id
+         and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
+         and n.closed_at is null
+         and n.created_at >= now() - interval '30 days'
+         and n.subject_type = 'ad'
+         and d.tenant_id = new.tenant_id and d.account_id = new.id
+    loop
+      perform public.notifications_close_about(new.tenant_id,
+                                               array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'],
+                                               'ad', v_subject);
+    end loop;
+  exception when others then
+    -- The bell's close never costs the owner their disconnect.
+    raise warning 'ad_accounts_close_ad_bell: %', sqlerrm;
+  end;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_accounts_close_ad_bell(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_accounts_close_ad_bell() IS 'A trigger on ad_accounts (00658): an account the owner disconnects closes every open row of the bell''s five ad notices about its ads, for everyone. Nothing about those ads can be done here any more, and the Ads page says what was left on.';
+
+
+--
+-- Name: ad_bell_cause(text, uuid, uuid, text, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select case p_kind
+           when 'ad_unpaid' then p_account_id::text
+           when 'ad_spent' then coalesce(p_budget_at || ':' || case p_budget_at
+                                                                when 'set' then p_set_id
+                                                                when 'campaign' then p_campaign_id
+                                                              end,
+                                         p_ad_id::text)
+           when 'ad_ended' then coalesce('set:' || p_set_id, p_ad_id::text)
+           else p_ad_id::text
+         end
+$$;
+
+
+--
+-- Name: FUNCTION ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text) IS 'The key one of the bell''s five ad causes is known by, read off one of its ads (00658): the ad itself (ad_refused, ad_quiet), its account (ad_unpaid), the budget it sits under (ad_spent: set or campaign and the platform''s id), or its ad set (ad_ended). The ring and the close both ask it, so a row is matched to its cause whichever of the cause''s ads it names.';
+
+
+--
+-- Name: ad_bell_causes(uuid, uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) RETURNS TABLE(kind text, cause text, ad_id uuid)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  with account as (
+    select a.id, coalesce(a.timezone, 'UTC') as zone,
+           coalesce(a.standing ->> 'funding' = 'none' or a.standing ->> 'account' = 'unsettled', false) as unpaid
+      from public.ad_accounts a
+     where a.id = p_account_id and a.tenant_id = p_tenant_id
+  ), held as (
+    select d.id, d.platform, d.platform_ad_id, d.platform_state, d.intent, d.door, account.zone,
+           public.ad_bell_cause('ad_refused', d.id, d.account_id, d.budget_at, d.platform_set_id,
+                                d.platform_campaign_id) as own_key,
+           public.ad_bell_cause('ad_unpaid', d.id, d.account_id, d.budget_at, d.platform_set_id,
+                                d.platform_campaign_id) as card_key,
+           public.ad_bell_cause('ad_spent', d.id, d.account_id, d.budget_at, d.platform_set_id,
+                                d.platform_campaign_id) as budget_key,
+           public.ad_bell_cause('ad_ended', d.id, d.account_id, d.budget_at, d.platform_set_id,
+                                d.platform_campaign_id) as set_key,
+           (p_at at time zone account.zone)::date as today,
+           coalesce(d.budget_kind = 'total'
+                    and (case when d.budget_left_minor is null then 0
+                              else d.budget_minor - d.budget_left_minor end) >= d.budget_minor, false) as finished,
+           coalesce((d.ends_at at time zone account.zone)::date < (p_at at time zone account.zone)::date,
+                    false) as past_end,
+           coalesce(d.platform_state in ('ARCHIVED', 'DELETED'), false) as removed
+      from public.ads d, account
+     where d.tenant_id = p_tenant_id and d.account_id = p_account_id and d.status = 'made'
+  ), ad as (
+    select h.*, (h.finished or h.past_end or h.removed or h.intent = 'ended') as run_over from held h
+  )
+  -- Meta didn't approve it, and its run is not over.
+  select 'ad_refused', a.own_key, a.id
+    from ad a
+   where a.platform_state = 'DISAPPROVED' and not a.run_over
+  union all
+  -- Meta couldn't charge the card for it, its run not over. The account's own standing says the same of every ad, so
+  -- it is the same cause, kept without an ad: the ring tells of an ad's card only where the account does not.
+  select 'ad_unpaid', a.card_key, a.id
+    from ad a
+   where a.platform_state = 'PENDING_BILLING_INFO' and not a.run_over
+  union all
+  select 'ad_unpaid', public.ad_bell_cause('ad_unpaid', null, account.id, null, null, null), null::uuid
+    from account
+   where account.unpaid
+  union all
+  -- The total it sits under is spent.
+  select 'ad_spent', a.budget_key, a.id
+    from ad a
+   where a.finished and not a.removed
+  union all
+  -- It was on, and reached its last day with money left: ended by its run, not by its owner or the platform's bin.
+  select 'ad_ended', a.set_key, a.id
+    from ad a
+   where a.past_end and not a.finished and not a.removed and a.intent = 'on'
+  union all
+  -- It ran every one of the seven days before today in its account's zone, it is still running, a tap on it opens a
+  -- chat Chanlytics receives, and nobody wrote from it in those days or today so far.
+  select 'ad_quiet', a.own_key, a.id
+    from ad a
+   where not a.run_over and a.platform_state = 'ACTIVE' and a.door in ('whatsapp', 'instagram')
+     and (select count(*) from public.ad_days x
+           where x.tenant_id = p_tenant_id and x.ad_id = a.id
+             and x.day >= a.today - 7 and x.day < a.today and x.spend_minor > 0) = 7
+     and not exists (select 1 from public.ad_entries e
+                      where e.tenant_id = p_tenant_id and e.platform = a.platform
+                        and e.platform_ad_id = a.platform_ad_id
+                        and e.created_at >= ((a.today - 7)::timestamp at time zone a.zone)
+                        and e.created_at < p_at)
+$$;
+
+
+--
+-- Name: FUNCTION ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it since the first of them). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
+
+
+--
+-- Name: ad_bell_hearers(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_hearers(p_tenant_id uuid) RETURNS SETOF uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select m.user_id
+    from public.memberships m
+   where m.tenant_id = p_tenant_id
+     and public.has_permission(m.user_id, p_tenant_id, 'ads')
+$$;
+
+
+--
+-- Name: FUNCTION ad_bell_hearers(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_hearers(p_tenant_id uuid) IS 'Who hears the bell''s five ad notices (00658): the members who may run ads (has_permission ads: the owner alone, decision 0050 call 2). A partner, an operator or a viewer is never told.';
+
+
+--
+-- Name: ad_bell_ring(uuid, uuid, text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_zone   text;
+  v_now    text[];
+  v_rung   integer := 0;
+  v_closed integer := 0;
+  v_n      integer;
+  v_gone   record;
+begin
+  select coalesce(a.timezone, 'UTC') into v_zone
+    from public.ad_accounts a
+   where a.id = p_account_id and a.tenant_id = p_tenant_id;
+  if not found then
+    return jsonb_build_object('rung', 0, 'closed', 0);
+  end if;
+  v_now := array(select distinct c.kind || ':' || c.cause
+                   from public.ad_bell_causes(p_tenant_id, p_account_id, now()) c);
+
+  -- A row whose cause no longer stands closes, for everyone: the ad fixed, paid for, turned back on, written from,
+  -- paused, or its total raised. Through the one door that closes rows (00421).
+  for v_gone in
+    select distinct n.kind, n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
+     where n.tenant_id = p_tenant_id
+       and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
+       and n.closed_at is null
+       and n.created_at >= now() - interval '30 days'
+       and n.subject_type = 'ad'
+       and d.tenant_id = p_tenant_id and d.account_id = p_account_id
+       and not (n.kind || ':' || public.ad_bell_cause(n.kind, d.id, d.account_id, d.budget_at, d.platform_set_id,
+                                                      d.platform_campaign_id) = any (v_now))
+  loop
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array[v_gone.kind], 'ad', v_gone.subject_id);
+  end loop;
+  -- The account's own rows (00653) close with their cause too: a card Meta can charge again, and an account read
+  -- again, which is one Meta signed back in.
+  if not ('ad_unpaid:' || p_account_id::text = any (v_now)) then
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array['ad_account'], 'ad_account',
+                                                            p_account_id::text, 'Meta can''t charge your ad account');
+  end if;
+  v_closed := v_closed + public.notifications_close_about(p_tenant_id, array['ad_account'], 'ad_account',
+                                                          p_account_id::text,
+                                                          'Meta signed Chanlytics out of your ad account');
+
+  -- What turned since the last look rings, once. Nothing rings on the first look after a connect.
+  if p_before is not null then
+    with now_causes as (
+      select c.kind, c.cause, c.ad_id from public.ad_bell_causes(p_tenant_id, p_account_id, now()) c
+    ), fresh as (
+      select c.kind, c.cause
+        from now_causes c
+        left join public.ads d on d.id = c.ad_id
+       where not (c.kind || ':' || c.cause = any (p_before))
+       group by c.kind, c.cause
+      -- A card the account's own standing tells of is the account's row (00653), never an ad's as well.
+      having bool_and(c.ad_id is not null)
+         -- An ad first seen by this read rings only for Meta's check of it: a run that ended, spent or went quiet
+         -- before Chanlytics held it is not news.
+         and (c.kind in ('ad_refused', 'ad_unpaid') or bool_or(d.created_at < now()))
+    ), named as (
+      select distinct on (c.kind, c.cause)
+             c.kind, c.cause, d.id, d.name, d.platform_issue, d.ends_at,
+             count(*) over (partition by c.kind, c.cause) as many
+        from now_causes c
+        join fresh f on f.kind = c.kind and f.cause = c.cause
+        join public.ads d on d.id = c.ad_id
+       order by c.kind, c.cause, d.name, d.id
+    ), worded as (
+      select w.kind, w.cause, w.id,
+             public.ad_bell_words(w.kind, w.name, w.many::integer, w.platform_issue, w.ends_at, v_zone) as said
+        from named w
+    ), rung as (
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                        recipient_user_id)
+      select p_tenant_id, w.kind, w.said ->> 'title', w.said ->> 'body', 'campaigns/ads:ad:' || w.id::text, 'ad',
+             w.id::text, h.user_id
+        from worded w
+       cross join public.ad_bell_hearers(p_tenant_id) as h(user_id)
+       -- Never a second open row for one cause.
+       where not exists (
+               select 1
+                 from public.notifications o
+                 join public.ads od on od.id::text = o.subject_id
+                where o.tenant_id = p_tenant_id and o.kind = w.kind and o.recipient_user_id = h.user_id
+                  and o.closed_at is null and o.subject_type = 'ad'
+                  and o.created_at >= now() - interval '30 days'
+                  and od.tenant_id = p_tenant_id
+                  and public.ad_bell_cause(o.kind, od.id, od.account_id, od.budget_at, od.platform_set_id,
+                                           od.platform_campaign_id) = w.cause)
+      returning 1
+    )
+    select count(*) into v_n from rung;
+    v_rung := v_n;
+  end if;
+
+  return jsonb_build_object('rung', v_rung, 'closed', v_closed);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) IS 'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
+
+
+--
+-- Name: ad_bell_words(text, text, integer, text, timestamp with time zone, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with n as (
+    select '“' || case when char_length(p_name) > 80 then left(p_name, 79) || '…' else p_name end || '”'
+             || case when p_many > 1 then ' and ' || (p_many - 1)::text || ' more' else '' end as named,
+           p_many > 1 as several,
+           nullif(left(btrim(coalesce(p_said, '')), 300), '') as said,
+           to_char(p_ends_at at time zone coalesce(p_zone, 'UTC'), 'Dy FMDD Mon') as last_day
+  )
+  select case p_kind
+           when 'ad_refused' then jsonb_build_object(
+             'title', n.named || ' not approved by Meta',
+             'body', coalesce('Meta said: “' || n.said || '” ', 'Meta didn''t say why. ')
+                     || 'Fix it in Meta, and Meta checks it again.')
+           when 'ad_unpaid' then jsonb_build_object(
+             'title', n.named || ' can''t run',
+             'body', 'Meta couldn''t charge your card. Fix the payment method in Meta.')
+           when 'ad_ended' then jsonb_build_object(
+             'title', n.named || ' ended',
+             'body', case when n.several then 'They ran until ' || n.last_day || ', and Meta stopped showing them.'
+                          else 'It ran until ' || n.last_day || ', and Meta stopped showing it.' end)
+           when 'ad_spent' then jsonb_build_object(
+             'title', n.named || case when n.several then ' spent their total' else ' spent its total' end,
+             'body', case when n.several then 'Meta stopped showing them. Raise the total in Meta to run them longer.'
+                          else 'Meta stopped showing it. Raise the total in Meta to run it longer.' end)
+           when 'ad_quiet' then jsonb_build_object(
+             'title', n.named || ' brought no one in 7 days',
+             'body', 'It ran all 7 days, and Meta charges while it runs. Pause it, or change it in Meta.')
+         end
+    from n
+$$;
+
+
+--
+-- Name: FUNCTION ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) IS 'The title and body of one of the bell''s five ad notices (00658): which ad, quoted and cut to fit, with how many more a cause holds; what happened, Meta''s own words in quotes where it refused one; and the one thing to do.';
 
 
 --
@@ -1137,12 +1480,26 @@ declare
   v_adopted integer := 0;
   v_moved   integer := 0;
   v_days    integer := 0;
+  v_before  text[];
+  v_rang    boolean := false;
 begin
   select * into v_account from public.ad_accounts a
    where a.id = p_account_id and a.tenant_id = p_tenant_id
    for update;
   if not found or v_account.status <> 'connected' then
     return jsonb_build_object('outcome', 'not_connected');
+  end if;
+
+  -- What stood for the bell at its last look (00658), measured before anything is written. None before the first look
+  -- after a connect. The bell's measure never costs the read.
+  if v_account.rung_at is not null and v_account.rung_at >= coalesce(v_account.connected_at, '-infinity'::timestamptz) then
+    begin
+      v_before := array(select distinct c.kind || ':' || c.cause
+                          from public.ad_bell_causes(p_tenant_id, p_account_id, v_account.rung_at) c);
+    exception when others then
+      raise warning 'ads_read_keep: %', sqlerrm;
+      v_before := null;
+    end;
   end if;
 
   -- The account's own part first: its standing and facts, or that the read failed and when to ask again.
@@ -1237,16 +1594,26 @@ begin
        where a.id = x.ad_id and a.tenant_id = p_tenant_id and a.account_id = p_account_id
          and x.tenant_id = p_tenant_id and x.day < (p_read ->> 'settled_before')::date and not x.settled;
     end if;
+
+    -- The bell (00658): what turned since its last look rings, and what cleared closes. A ring that fails leaves the
+    -- last look where it was, so the next good read rings it; it never costs this read what it learned.
+    begin
+      perform public.ad_bell_ring(p_tenant_id, p_account_id, v_before);
+      v_rang := true;
+    exception when others then
+      raise warning 'ads_read_keep: %', sqlerrm;
+    end;
   end if;
 
   -- When it is read next, and looked back over next: the edge's pace, never before the platform allows. Whether the
-  -- platform's notices are subscribed is kept as the read found it.
+  -- platform's notices are subscribed is kept as the read found it, and when the bell last looked, where it rang.
   update public.ad_accounts a
      set next_read_at = greatest(
            coalesce(nullif(p_read ->> 'next_read_at', '')::timestamptz, now() + interval '1 hour'),
            coalesce(a.read_after, '-infinity'::timestamptz)),
          settle_at = coalesce(nullif(p_read ->> 'settle_at', '')::timestamptz, a.settle_at),
-         notices_at = case p_read ->> 'notices' when 'subscribed' then now() when 'dropped' then null else a.notices_at end
+         notices_at = case p_read ->> 'notices' when 'subscribed' then now() when 'dropped' then null else a.notices_at end,
+         rung_at = case when v_rang then now() else a.rung_at end
    where a.id = p_account_id;
 
   return jsonb_build_object('outcome', v_outcome, 'adopted', v_adopted, 'moved', v_moved, 'days', v_days);
@@ -1257,7 +1624,7 @@ end $$;
 -- Name: FUNCTION ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. next_read_at, settle_at and notices are kept on the account. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
 
 
 --
@@ -8933,6 +9300,7 @@ declare
   v_status text;
   v_held   text;
   v_used   numeric;
+  v_back   numeric;
 begin
   -- One at a time, as every door that names or files takes it (00551).
   perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
@@ -8949,6 +9317,22 @@ begin
     -- go, and a folder's cleanup never removes it.
     update public.files f set owner_uploaded = true, updated_at = now()
      where f.id = v_twin and public.file_road_is_watched(f.source) and not f.owner_uploaded;
+    -- Its copy is not at the video platform: let go, or its original gone from its folder (00655). These bytes are the
+    -- same clip's, so they bring it back: the reservation becomes its copy, coming back, and the platform's word
+    -- finishes it as it finishes any return (file_media_ready: here again, and nothing else). Where the videos have no
+    -- room for it that is said as for any upload, and nothing changes.
+    select f.seconds into v_back from public.files f
+     where f.id = v_twin and f.kind = 'video' and public.file_road_is_watched(f.source)
+       and f.copy_state = any (array['away', 'lost']) and f.media_status = 'ready';
+    if found then
+      if public.file_video_room(p_tenant_id, coalesce(v_back, p_seconds)) = 'minutes' then
+        return jsonb_build_object('fate', 'minutes', 'file_id', null);
+      end if;
+      update public.files f
+         set copy_state = 'returning', copy_why = null, media_ref = p_media_ref, updated_at = now()
+       where f.id = v_twin;
+      return jsonb_build_object('fate', 'back', 'file_id', v_twin);
+    end if;
     return jsonb_build_object('fate', 'here', 'file_id', v_twin);
   end if;
   -- One whose bytes never all went, picked again where its upload could not go on: this one takes its place, and the purge
@@ -8982,7 +9366,7 @@ end $$;
 -- Name: FUNCTION file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, full or minutes, file_id}. The service role''s. An upload that meets a watched folder''s clip as its twin marks it its owner''s (00654, owner_uploaded).';
+COMMENT ON FUNCTION public.file_video_begin(p_tenant_id uuid, p_id uuid, p_media_ref text, p_name text, p_mime text, p_bytes bigint, p_fingerprint text, p_seconds numeric, p_actor uuid) IS 'A member''s video on its way (00556), once the video platform holds its reservation: the row, uploading, with every fact the browser gave, so the platform''s word alone can finish it. Answers {fate: kept, here, back, full or minutes, file_id}. The service role''s. An upload that meets a watched folder''s clip as its twin marks it its owner''s (00654, owner_uploaded); where that clip''s copy is away or lost, the upload''s reservation becomes its copy, coming back (00655, fate back), so the bytes its owner gave again are what it plays from.';
 
 
 --
@@ -9252,6 +9636,88 @@ COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit 
 
 
 --
+-- Name: files_ring_footage_in(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.files_ring_footage_in() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_source  public.media_sources;
+  v_zone    text;
+  v_day     timestamptz;
+  v_count   integer;
+  v_title   text;
+  v_body    text;
+  v_row     uuid;
+begin
+  select * into v_source from public.media_sources s
+   where s.tenant_id = new.tenant_id and s.state <> 'stopped'
+   order by s.created_at desc limit 1;
+  if not found then
+    return new;
+  end if;
+  -- Two files landing at once count once each and keep one row: the second waits for the first's count.
+  perform pg_advisory_xact_lock(hashtext('footage_in:' || new.tenant_id::text));
+  select t.timezone into v_zone from public.tenants t where t.id = new.tenant_id;
+  v_day := date_trunc('day', now() at time zone coalesce(v_zone, 'UTC')) at time zone coalesce(v_zone, 'UTC');
+  select count(*) into v_count from public.files f
+   where f.tenant_id = new.tenant_id and f.source = 'drive' and f.created_at >= v_day and f.removed_at is null;
+  v_title := case when v_count = 1 then '1 new photo or video'
+                  else to_char(v_count, 'FM999,999,999') || ' new photos and videos' end;
+  v_body := 'From ' || public.footage_quoted(v_source.folder_name) || ' · in your Library';
+
+  select n.id into v_row from public.notifications n
+   where n.tenant_id = new.tenant_id
+     and n.kind = 'footage_in'
+     and n.subject_type = 'media_source'
+     and n.subject_id = v_source.id::text
+     and n.closed_at is null
+     and n.created_at >= v_day
+   order by n.created_at desc
+   limit 1;
+  if v_row is not null then
+    update public.notifications n set title = v_title, body = v_body, created_at = now() where n.id = v_row;
+  else
+    insert into public.notifications (tenant_id, kind, title, body, subject_type, subject_id)
+    values (new.tenant_id, 'footage_in', v_title, v_body, 'media_source', v_source.id::text);
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION files_ring_footage_in(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.files_ring_footage_in() IS 'A trigger on files (00657): a file that came from the watched folder brings the day''s bell row up to date in place, "46 new photos and videos", from the folder, for the whole workspace. Never a row for each file and never two in a day; the day is the workspace''s own.';
+
+
+--
+-- Name: files_tallied(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.files_tallied(p_tenant_id uuid) RETURNS TABLE(status text, shows text, source text, kind text, look_status text, created_at timestamp with time zone, n bigint)
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select f.status, f.shows, f.source, f.kind, f.look_status, max(f.created_at) as created_at, count(*) as n
+    from public.files f
+   where f.tenant_id = p_tenant_id and f.removed_at is null
+     and (f.media_status is null or f.media_status <> 'uploading')
+   group by f.status, f.shows, f.source, f.kind, f.look_status
+$$;
+
+
+--
+-- Name: FUNCTION files_tallied(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.files_tallied(p_tenant_id uuid) IS 'A workspace''s Library counted (00657, the footage screens'' call 4): its files grouped by what the counts read (status, shows, source, kind, look_status), with how many of each and the newest one''s arrival, past a thousand as truly as under it. Not a video still on its way (uploading), as the list reads them. Runs as its caller: a member counts their own workspace''s files.';
+
+
+--
 -- Name: files_toward_cap(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -9361,6 +9827,83 @@ CREATE FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with ti
               then hold_s end as ai_hold_s
     from firsts
 $$;
+
+
+--
+-- Name: footage_hearers(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) RETURNS SETOF uuid
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  select m.user_id
+    from public.memberships m
+   where m.tenant_id = p_tenant_id
+     and (public.has_permission(m.user_id, p_tenant_id, 'settings') or m.user_id = p_connector)
+$$;
+
+
+--
+-- Name: FUNCTION footage_hearers(p_tenant_id uuid, p_connector uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) IS 'Who hears that a watched folder or its account needs someone (00657): the members who may change the workspace''s settings (has_permission settings) and whoever connected the folder, while they are a member. Service role and the footage bell''s triggers.';
+
+
+--
+-- Name: footage_quoted(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.footage_quoted(p_name text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$
+  select '“' || case when char_length(p_name) > 120 then left(p_name, 119) || '…' else p_name end || '”'
+$$;
+
+
+--
+-- Name: FUNCTION footage_quoted(p_name text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.footage_quoted(p_name text) IS 'A watched folder''s name as the bell says it (00657): in quotes, cut to 120 characters so every title fits.';
+
+
+--
+-- Name: footage_ring(uuid, text, text, text, text, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_rung integer;
+begin
+  insert into public.notifications (tenant_id, kind, title, body, subject_type, subject_id, recipient_user_id)
+  select p_tenant_id, 'footage', p_title, p_body, p_subject_type, p_subject_id, h.user_id
+    from public.footage_hearers(p_tenant_id, p_connector) as h(user_id)
+   where not exists (
+           select 1 from public.notifications n
+            where n.tenant_id = p_tenant_id
+              and n.kind = 'footage'
+              and n.subject_type = p_subject_type
+              and n.subject_id = p_subject_id
+              and n.title = p_title
+              and n.recipient_user_id = h.user_id
+              and n.closed_at is null
+              and n.created_at >= now() - interval '30 days');
+  get diagnostics v_rung = row_count;
+  return v_rung;
+end $$;
+
+
+--
+-- Name: FUNCTION footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) IS 'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
 
 
 --
@@ -17825,6 +18368,75 @@ COMMENT ON FUNCTION public.may_read_workspace(p_tenant uuid) IS 'Whether the cal
 
 
 --
+-- Name: media_sources_ring(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.media_sources_ring() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_name      text;
+  v_account   public.source_connections;
+  v_who       text;
+  v_wave      text;
+begin
+  if tg_op = 'DELETE' then
+    perform public.notifications_close_about(old.tenant_id, array['footage'], 'media_source', old.id::text);
+    return old;
+  end if;
+  if new.state = 'stopped' then
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'media_source', new.id::text);
+    return new;
+  end if;
+  v_name := public.footage_quoted(new.folder_name);
+  select * into v_account from public.source_connections c where c.id = new.connection_id;
+
+  -- Paused because whoever connected it left (the sync's D13). Paused by a sign-out is the account's notice, never a
+  -- second one for the folder.
+  if new.state = 'paused' and old.state is distinct from 'paused' and new.stopped_why = 'connector_left' then
+    select nullif(btrim(p.display_name), '') into v_who from public.profiles p where p.user_id = v_account.connected_by;
+    perform public.footage_ring(new.tenant_id, 'media_source', new.id::text, v_name || ' is paused',
+                                coalesce(v_who || ' connected it and has left.', 'Whoever connected it has left.')
+                                  || ' Connect your own Google account.',
+                                null);
+  elsif old.state = 'paused' and new.state is distinct from 'paused' then
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'media_source', new.id::text,
+                                             public.footage_quoted(old.folder_name) || ' is paused');
+  end if;
+
+  if new.state = 'frozen' and old.state is distinct from 'frozen' then
+    perform public.footage_ring(new.tenant_id, 'media_source', new.id::text, 'Can''t open ' || v_name,
+                                'Nothing was removed. Chanlytics keeps trying.', v_account.connected_by);
+  elsif old.state = 'frozen' and new.state is distinct from 'frozen' then
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'media_source', new.id::text,
+                                             'Can''t open ' || public.footage_quoted(old.folder_name));
+  end if;
+
+  -- A wave of removals held for a second look (the sync's hold): one notice, closed when the second look settles it.
+  if new.hold_at is not null and old.hold_at is null then
+    v_wave := to_char(new.hold_count, 'FM999,999,999') || ' files left ' || v_name || ' at once';
+    perform public.footage_ring(new.tenant_id, 'media_source', new.id::text, v_wave,
+                                'Nothing was removed. Chanlytics looks again tomorrow.', v_account.connected_by);
+  elsif old.hold_at is not null and (new.hold_at is null
+                                     or (new.hold_confirmed_at is not null and old.hold_confirmed_at is null)) then
+    -- Settled by the second look, or answered by a person (confirm): either way nothing waits on the owner now.
+    v_wave := to_char(old.hold_count, 'FM999,999,999') || ' files left ' || public.footage_quoted(old.folder_name)
+              || ' at once';
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'media_source', new.id::text, v_wave);
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION media_sources_ring(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.media_sources_ring() IS 'A trigger on media_sources (00657): the folder paused because whoever connected it left, a folder that can''t be opened, or a wave of removals held for a second look rings the bell once, for whoever may mend it, and closes for everyone when it ends; a folder stopped or gone closes all of its rows.';
+
+
+--
 -- Name: member_decision(uuid, text, uuid, text, jsonb, text, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -18080,6 +18692,33 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.memberships_start_the_bell() IS 'A member''s bell starts when they join (00622, decision 0124): their row in notification_reads, both moments at the seat''s created_at, so nothing from before is new or unread to them. A member who comes back starts again from the new seat, and keeps what they read past it. It never stops a seat from being made.';
+
+
+--
+-- Name: memberships_wake_their_folders(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.memberships_wake_their_folders() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  update public.media_sources s
+     set next_read_at = now(), updated_at = now()
+    from public.source_connections c
+   where c.id = s.connection_id
+     and c.tenant_id = old.tenant_id
+     and c.connected_by = old.user_id
+     and s.state in ('watching', 'frozen');
+  return old;
+end $$;
+
+
+--
+-- Name: FUNCTION memberships_wake_their_folders(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.memberships_wake_their_folders() IS 'A trigger on memberships (00657, the footage plan''s D13): a member left, so each folder their account reads is read at the next turn of the clock, where the sync finds them gone, pauses it and the bell says so. The rule itself stays the sync''s (openSource).';
 
 
 --
@@ -23979,7 +24618,7 @@ CREATE FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) RETURNS boolea
   with staged as (
     update public.pieces p set stage = p_stage, updated_at = now()
      where p.id = p_piece_id and p.status = 'making' and p.stage is distinct from p_stage
-       and p_stage = any (array['queued', 'waiting_clip', 'drawing', 'saving'])
+       and p_stage = any (array['queued', 'waiting_clip', 'from_drive', 'drawing', 'saving'])
     returning p.id
   )
   select exists (select 1 from staged);
@@ -23990,7 +24629,7 @@ $$;
 -- Name: FUNCTION piece_stage(p_piece_id uuid, p_stage text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) IS 'Where a video being made stands, said as it changes (00613): waiting for a clip''s full-size copy, most of all, which no other door says. Answers whether it changed. The service role''s.';
+COMMENT ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) IS 'Where a video being made stands, said as it changes (00613, 00657): waiting for a clip''s full-size copy, or for clips coming back from a watched folder (from_drive), which no other door says. Answers whether it changed. The service role''s.';
 
 
 --
@@ -37538,6 +38177,36 @@ COMMENT ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) IS 'Whether a wo
 
 
 --
+-- Name: source_connections_ring(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_connections_ring() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if tg_op = 'DELETE' then
+    perform public.notifications_close_about(old.tenant_id, array['footage'], 'source_connection', old.id::text);
+    return old;
+  end if;
+  if new.health = 'needs_reconnect' and old.health is distinct from 'needs_reconnect' then
+    perform public.footage_ring(new.tenant_id, 'source_connection', new.id::text, 'Google Drive needs you',
+                                format('Google signed %s out. Nothing new comes in.', new.email), new.connected_by);
+  elsif old.health = 'needs_reconnect' and new.health is distinct from 'needs_reconnect' then
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'source_connection', new.id::text);
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION source_connections_ring(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_connections_ring() IS 'A trigger on source_connections (00657): Google signed the account out (health needs_reconnect) and the bell says "Google Drive needs you" to whoever may mend it; connected again, or the account let go, and the row closes for everyone.';
+
+
+--
 -- Name: source_credentials_drop(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -37641,6 +38310,86 @@ COMMENT ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secret
 
 
 --
+-- Name: source_files_remove(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_files_remove(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor   uuid := auth.uid();
+  v_removed integer := 0;
+  v_kept    integer := 0;
+  v_file    record;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- One at a time, as every door that files or removes takes it (00551).
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  for v_file in
+    select f.id, f.fingerprint, public.file_was_used(f.tenant_id, f.id) as used
+      from public.files f
+     where f.tenant_id = p_tenant_id and public.file_road_is_watched(f.source) and f.removed_at is null
+       and not f.owner_uploaded
+  loop
+    if v_file.used then
+      v_kept := v_kept + 1;
+      continue;
+    end if;
+    update public.files f set removed_at = now(), updated_at = now() where f.id = v_file.id;
+    insert into public.files_let_go (tenant_id, fingerprint) values (p_tenant_id, v_file.fingerprint)
+    on conflict (tenant_id, fingerprint) do nothing;
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    values (p_tenant_id, 'file_purge', now() + interval '10 minutes',
+            jsonb_build_object('file_id', v_file.id, 'why', 'remove'));
+    v_removed := v_removed + 1;
+  end loop;
+  if v_removed > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'file.removed', 'setup', 'workspace', p_tenant_id,
+            jsonb_build_object('by', v_actor, 'bulk', true, 'count', v_removed, 'why', 'from_folder'));
+  end if;
+  return jsonb_build_object('removed', v_removed, 'kept', v_kept);
+end $$;
+
+
+--
+-- Name: FUNCTION source_files_remove(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_files_remove(p_tenant_id uuid) IS 'A member who may change the settings removes what came from the workspace''s watched folders (00657, the footage screens'' Settings 19): every such file no post or video used leaves the Library as file_remove takes one (hidden, let go, purged ten minutes on), and one event says how many. One the owner also added, and one a post or a video used, stays. Answers removed and kept.';
+
+
+--
+-- Name: source_files_tally(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_files_tally(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  select jsonb_build_object(
+    'files', count(*),
+    'away', count(*) filter (where f.kind = 'video' and f.copy_state <> 'here'),
+    'used', count(*) filter (where public.file_was_used(f.tenant_id, f.id)))
+    from public.files f
+   where f.tenant_id = p_tenant_id and public.file_road_is_watched(f.source) and f.removed_at is null;
+$$;
+
+
+--
+-- Name: FUNCTION source_files_tally(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_files_tally(p_tenant_id uuid) IS 'What came from a workspace''s watched folders and is still in its Library (00655): files (how many), away (clips whose copy is not at the video platform now, so they play only while a folder is watched), used (those a post or a video used, which stay whatever becomes of their folder). What a stop and a disconnect say before the press. The service role''s.';
+
+
+--
 -- Name: source_items_grace_end(integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -37731,6 +38480,169 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) IS 'The seven-day cleanup (00654, the footage sources plan''s D3 as narrowed on 18 November): each item seen in its provider''s bin (gone) or moved out to a place its account can see (outside) p_grace_seconds ago, oldest first, p_limit at most. Its Library file is removed only if its own road is a watched folder''s, its owner did not also upload it, no other origin holds it and nothing used it (file_was_used), as a twin is removed: nothing is written to files_let_go. Then the item''s row is deleted. A file superseded at its provider p_grace_seconds ago (superseded_at) goes on the same terms, and one that stays loses its mark. It reads those two marks only: an item that vanished (no_access) and a file with no origin are never touched. Answers {removed, kept, cleared: tombstone rows deleted}. The service role''s.';
+
+
+--
+-- Name: source_items_passed(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- Everything of the folder that is not in the Library and not a folder, by where it stands and why. A cause's one
+  -- file is named, so its sentence can name it.
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'state', g.state, 'why', g.why, 'videos', g.videos, 'photos', g.photos,
+           'name', case when g.videos + g.photos = 1 then g.name end)
+           order by g.state, g.why nulls first), '[]'::jsonb)
+    from (select i.state, i.why,
+                 count(*) filter (where i.kind = 'video') as videos,
+                 count(*) filter (where i.kind <> 'video') as photos,
+                 min(i.name) as name
+            from public.source_items i
+           where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+             and i.state = any (array['listed', 'waiting', 'taking', 'too_big', 'not_media', 'failed', 'gone', 'outside', 'no_access'])
+             and i.kind <> 'folder'
+           group by i.state, i.why) g;
+$$;
+
+
+--
+-- Name: FUNCTION source_items_passed(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) IS 'What a watched folder holds that is not in the Library (00655), by its state and cause: [{state, why, videos, photos, name}], name only where the group is one file. What the folder''s sheet lists: what waits, what was passed over, what could not be brought in, what was only listed. Runs as its caller: a member reads their own workspace''s rows.';
+
+
+--
+-- Name: source_items_ring_full(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_ring_full() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_source public.media_sources;
+  v_minutes jsonb;
+begin
+  select * into v_source from public.media_sources s where s.id = coalesce(new.source_id, old.source_id);
+  if not found then
+    return new;
+  end if;
+  if new.state = 'waiting' and new.why = 'room' then
+    v_minutes := public.video_minutes_by_road(new.tenant_id);
+    if (v_minutes ->> 'can_step_aside')::numeric = 0 then
+      perform public.footage_ring(new.tenant_id, 'media_source', v_source.id::text, 'Videos are full',
+                                  'Clips from ' || public.footage_quoted(v_source.folder_name)
+                                    || ' wait, and none of your videos can step aside. Remove some to make room.',
+                                  (select c.connected_by from public.source_connections c
+                                    where c.id = v_source.connection_id));
+    end if;
+  elsif not exists (select 1 from public.source_items i
+                     where i.tenant_id = new.tenant_id and i.source_id = v_source.id
+                       and i.state = 'waiting' and i.why = 'room') then
+    perform public.notifications_close_about(new.tenant_id, array['footage'], 'media_source', v_source.id::text,
+                                             'Videos are full');
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION source_items_ring_full(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_ring_full() IS 'A trigger on source_items (00657, the footage screens'' call 3): a clip that begins to wait for room where none of the workspace''s videos can step aside (video_minutes_by_road) rings "Videos are full" once, for whoever may make room; the row closes once no clip of the folder waits for room.';
+
+
+--
+-- Name: source_items_stamp_left(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_stamp_left() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_file uuid;
+begin
+  foreach v_file in array array[case when tg_op <> 'INSERT' then old.file_id end,
+                                case when tg_op <> 'DELETE' then new.file_id end]
+  loop
+    continue when v_file is null;
+    update public.files f
+       set origin_left    = l.how,
+           origin_left_at = l.at
+      from (select (array_agg(i.state order by i.gone_at desc))[1] as how, max(i.gone_at) as at
+              from public.source_items i
+             where i.file_id = v_file and i.state = any (array['gone', 'outside']) and i.gone_at is not null
+               and not exists (select 1 from public.source_items k where k.file_id = v_file and k.state = 'in')) l
+     where f.id = v_file
+       and (f.origin_left is distinct from l.how or f.origin_left_at is distinct from l.at);
+  end loop;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION source_items_stamp_left(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_stamp_left() IS 'A trigger on source_items (00657): a file''s original seen in the bin or moved out, put back, or let go, so the file says how and when its original left (files.origin_left, origin_left_at), while no other origin holds it in.';
+
+
+--
+-- Name: source_items_tally(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- What was asked for and is not in yet: a first watch's fifty, or what arrived since. Few rows, by the state's index.
+  with moving as (
+    select i.state, i.why
+      from public.source_items i
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+       and i.state = any (array['waiting', 'taking'])
+  ),
+  -- Google counts a day in Pacific time, and a workspace's takes of a day are counted in the same day (00643).
+  today as (
+    select ((now() at time zone 'America/Los_Angeles')::date)::timestamp at time zone 'America/Los_Angeles' as began
+  )
+  select jsonb_build_object(
+    -- Photos and videos still where they were: every row but those gone, moved out or unreadable, less the folders.
+    'found', (select count(*) from public.source_items i
+               where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+                 and i.state <> all (array['gone', 'outside', 'no_access']))
+           - (select count(*) from public.source_items i
+               where i.source_id = p_source_id and i.kind = 'folder' and i.tenant_id = p_tenant_id
+                 and i.state <> all (array['gone', 'outside', 'no_access'])),
+    'in', (select count(*) from public.source_items i
+            where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.state = 'in'),
+    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace).
+    'coming', (select count(*) from moving m
+                where m.state = 'taking' or m.why is null
+                   or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder'])),
+    -- Landed today: what the day's takes brought in, so "12 of 40" is twelve of today's forty.
+    'landed', (select count(*) from public.source_items i, today t
+                where i.tenant_id = p_tenant_id and i.taken_at >= t.began
+                  and i.source_id = p_source_id and i.state = 'in'),
+    'budget', (select count(*) from moving m where m.state = 'waiting' and m.why = 'budget'),
+    'room', (select count(*) from moving m where m.state = 'waiting' and m.why = 'room'),
+    'library_full', (select count(*) from moving m where m.state = 'waiting' and m.why = 'library_full'),
+    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off')
+  );
+$$;
+
+
+--
+-- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens): found (photos and videos still where they were), in (in the Library), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), and those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off). Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
 
 
 --
@@ -39906,6 +40818,48 @@ COMMENT ON FUNCTION public.trigger_sweep_health() IS 'Asks the edge to judge the
 
 
 --
+-- Name: video_minutes_by_road(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.video_minutes_by_road(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with counted as (
+    select f.id, f.source, f.status, f.owner_uploaded, f.copy_state, f.media_status, f.media_ref,
+           coalesce(f.seconds, 0) as seconds
+      from public.files f
+     where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed'
+       and f.copy_state = any (array['here', 'going', 'returning'])
+  )
+  select jsonb_build_object(
+    'total', coalesce(sum(c.seconds), 0),
+    'can_step_aside', coalesce(sum(c.seconds) filter (
+      where public.file_road_is_watched(c.source) and not c.owner_uploaded and c.copy_state = 'here'
+        and c.media_status = 'ready' and c.media_ref is not null
+        and exists (select 1 from public.source_items i
+                      join public.media_sources s on s.id = i.source_id
+                     where i.tenant_id = p_tenant_id and i.file_id = c.id and i.state = 'in'
+                       and s.state = any (array['setting_up', 'watching']))), 0),
+    'set_aside', coalesce(sum(c.seconds) filter (where c.status = 'set_aside'), 0),
+    'own', coalesce(sum(c.seconds) filter (where c.status <> 'set_aside'
+                                             and (c.source = 'upload' or c.owner_uploaded)), 0),
+    'made', coalesce(sum(c.seconds) filter (where c.status <> 'set_aside' and c.source = 'made'), 0),
+    'found', coalesce(sum(c.seconds) filter (
+      where c.status <> 'set_aside' and not c.owner_uploaded
+        and c.source = any (array['google_profile', 'google_listing', 'website', 'instagram'])), 0))
+    from counted c
+$$;
+
+
+--
+-- Name: FUNCTION video_minutes_by_road(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) IS 'What fills a workspace''s sixty minutes of video, in seconds (00657, the footage screens'' call 3): total (toward the cap), can_step_aside (watched clips that make room by themselves, file_copies_let_go''s rule less its hour of rest), and by road: set_aside (found and set aside), own (added by the owner), made (made here), found (found online and kept). Runs as its caller: a member reads their own workspace''s videos.';
+
+
+--
 -- Name: video_seconds_free(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -40499,6 +41453,7 @@ CREATE TABLE public.ad_accounts (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     next_read_at timestamp with time zone,
     settle_at timestamp with time zone,
+    rung_at timestamp with time zone,
     CONSTRAINT ad_accounts_config_check CHECK ((jsonb_typeof(config) = 'object'::text)),
     CONSTRAINT ad_accounts_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT ad_accounts_external_id_check CHECK (((char_length(external_id) >= 1) AND (char_length(external_id) <= 200))),
@@ -40567,6 +41522,13 @@ COMMENT ON COLUMN public.ad_accounts.next_read_at IS 'When the account is next r
 --
 
 COMMENT ON COLUMN public.ad_accounts.settle_at IS 'When the account''s next fourteen-day look back is due (00650): once a day, at four in the morning in its own zone. The read that finds it due re-reads those days and marks the ones before them settled.';
+
+
+--
+-- Name: COLUMN ad_accounts.rung_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_accounts.rung_at IS 'When the bell last looked at the account''s ads (00658): each good read rings what turned since, and stamps it. Null, or older than connected_at, until the first look after a connect, which rings nothing.';
 
 
 --
@@ -40795,7 +41757,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'file_words'::text, 'file_hear'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -42108,15 +43070,19 @@ CREATE TABLE public.files (
     copy_returned_at timestamp with time zone,
     owner_uploaded boolean DEFAULT false NOT NULL,
     superseded_at timestamp with time zone,
+    origin_left text,
+    origin_left_at timestamp with time zone,
     CONSTRAINT files_copy_shape CHECK ((((copy_state = 'here'::text) OR ((kind = 'video'::text) AND (source = 'drive'::text))) AND ((copy_state <> ALL (ARRAY['away'::text, 'lost'::text])) OR (media_ref IS NULL)) AND ((copy_why IS NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text]))))),
     CONSTRAINT files_copy_state_check CHECK ((copy_state = ANY (ARRAY['here'::text, 'going'::text, 'away'::text, 'returning'::text, 'lost'::text]))),
-    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'folder'::text, 'videos_off'::text, 'busy'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
+    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'folder'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
     CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_status IS NOT NULL) AND ((media_ref IS NOT NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text, 'returning'::text])))))),
     CONSTRAINT files_media_status_check CHECK ((media_status = ANY (ARRAY['uploading'::text, 'processing'::text, 'ready'::text, 'failed'::text]))),
     CONSTRAINT files_mime_check CHECK ((mime = ANY (ARRAY['image/jpeg'::text, 'image/png'::text, 'image/webp'::text, 'image/heic'::text, 'image/heif'::text, 'video/mp4'::text, 'video/quicktime'::text, 'video/webm'::text]))),
     CONSTRAINT files_name_shape CHECK (((char_length(name) >= 1) AND (char_length(name) <= 60) AND (name = lower(name)) AND (name !~ '[[:space:][:cntrl:]/\\.<>"''&]'::text) AND (name !~ '^-|-$|--'::text))),
+    CONSTRAINT files_origin_left_check CHECK (((origin_left IS NULL) OR (origin_left = ANY (ARRAY['gone'::text, 'outside'::text])))),
+    CONSTRAINT files_origin_left_whole CHECK (((origin_left IS NULL) = (origin_left_at IS NULL))),
     CONSTRAINT files_picture_print_check CHECK (((picture_print IS NULL) OR (picture_print ~ '^[0-9a-f]{32}$'::text))),
     CONSTRAINT files_shows_check CHECK ((shows = ANY (ARRAY['storefront'::text, 'interior'::text, 'work'::text, 'team'::text, 'product'::text, 'menu'::text, 'logo'::text, 'graphic'::text, 'other'::text]))),
     CONSTRAINT files_sound_said_shape CHECK (((sound_said IS NULL) OR ((char_length(sound_said) >= 1) AND (char_length(sound_said) <= 120)))),
@@ -42341,6 +43307,20 @@ COMMENT ON COLUMN public.files.owner_uploaded IS 'Its owner uploaded it too (006
 --
 
 COMMENT ON COLUMN public.files.superseded_at IS 'When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone''s, and the mark is cleared if an item holds it again. Null: never superseded.';
+
+
+--
+-- Name: COLUMN files.origin_left; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.origin_left IS 'How a watched file''s original left its folder (00657): gone (seen in its provider''s bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library.';
+
+
+--
+-- Name: COLUMN files.origin_left_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s original left its folder (00657): the newest of its origins'' gone_at, where none still holds it in.';
 
 
 --
@@ -44086,6 +45066,7 @@ CREATE TABLE public.media_sources (
     hold_count integer,
     hold_confirmed_at timestamp with time zone,
     walk_units integer DEFAULT 0 NOT NULL,
+    stopped_why text,
     CONSTRAINT media_sources_busy_reads_check CHECK ((busy_reads >= 0)),
     CONSTRAINT media_sources_change_cursor_check CHECK (((change_cursor IS NULL) OR (char_length(change_cursor) <= 4000))),
     CONSTRAINT media_sources_channel_id_check CHECK (((char_length(channel_id) >= 1) AND (char_length(channel_id) <= 200))),
@@ -44100,6 +45081,7 @@ CREATE TABLE public.media_sources (
     CONSTRAINT media_sources_last_error_check CHECK (((last_error IS NULL) OR (char_length(last_error) <= 300))),
     CONSTRAINT media_sources_read_gap_seconds_check CHECK ((read_gap_seconds > 0)),
     CONSTRAINT media_sources_state_check CHECK ((state = ANY (ARRAY['setting_up'::text, 'watching'::text, 'paused'::text, 'frozen'::text, 'stopped'::text]))),
+    CONSTRAINT media_sources_stopped_why_check CHECK (((stopped_why IS NULL) OR (stopped_why = ANY (ARRAY['signed_out'::text, 'connector_left'::text, 'cant_open'::text, 'over_listed'::text])))),
     CONSTRAINT media_sources_walk_is_whole CHECK ((((walk_kind IS NULL) = (walk_started_at IS NULL)) AND ((walk_kind IS NULL) = (walk_touched_at IS NULL)))),
     CONSTRAINT media_sources_walk_kind_check CHECK ((walk_kind = ANY (ARRAY['snapshot'::text, 'reconcile'::text, 'subtree'::text]))),
     CONSTRAINT media_sources_walk_run_check CHECK ((walk_run >= 0)),
@@ -44168,6 +45150,13 @@ COMMENT ON COLUMN public.media_sources.hold_at IS 'When a read or a re-walk foun
 --
 
 COMMENT ON COLUMN public.media_sources.walk_units IS 'The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often.';
+
+
+--
+-- Name: COLUMN media_sources.stopped_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.media_sources.stopped_why IS 'Why a watched folder is not read whole (00657): signed_out (its account''s grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at.';
 
 
 --
@@ -44351,7 +45340,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -44907,7 +45896,7 @@ CREATE TABLE public.pieces (
     CONSTRAINT pieces_failed_why_check CHECK ((failed_why = ANY (ARRAY['clips'::text, 'draw'::text, 'store'::text, 'unknown'::text]))),
     CONSTRAINT pieces_plan_shape CHECK (((jsonb_typeof(plan) = 'object'::text) AND (jsonb_typeof(look) = 'object'::text))),
     CONSTRAINT pieces_shape_check CHECK ((shape = ANY (ARRAY['hook_cut'::text, 'blocks'::text]))),
-    CONSTRAINT pieces_stage_check CHECK ((stage = ANY (ARRAY['queued'::text, 'waiting_clip'::text, 'drawing'::text, 'saving'::text]))),
+    CONSTRAINT pieces_stage_check CHECK ((stage = ANY (ARRAY['queued'::text, 'waiting_clip'::text, 'from_drive'::text, 'drawing'::text, 'saving'::text]))),
     CONSTRAINT pieces_status_check CHECK ((status = ANY (ARRAY['making'::text, 'made'::text, 'failed'::text])))
 );
 
@@ -45977,7 +46966,7 @@ CREATE TABLE public.source_items (
     CONSTRAINT source_items_state_check CHECK ((state = ANY (ARRAY['listed'::text, 'waiting'::text, 'taking'::text, 'in'::text, 'too_big'::text, 'not_media'::text, 'let_go'::text, 'failed'::text, 'outside'::text, 'gone'::text, 'no_access'::text]))),
     CONSTRAINT source_items_take_tries_check CHECK ((take_tries >= 0)),
     CONSTRAINT source_items_walk_page_check CHECK (((walk_page IS NULL) OR (char_length(walk_page) <= 4000))),
-    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
+    CONSTRAINT source_items_why_check CHECK (((why IS NULL) OR (why = ANY (ARRAY['budget'::text, 'room'::text, 'library_full'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'folder'::text, 'pace'::text, 'deadline'::text, 'retry'::text, 'lost'::text, 'kind'::text, 'empty'::text, 'too_small'::text, 'unreadable'::text, 'bytes'::text, 'seconds'::text, 'pixels'::text, 'stopped'::text, 'stream'::text, 'not_found'::text]))))
 );
 
 
@@ -49031,6 +50020,13 @@ CREATE INDEX fact_suggestions_waiting ON public.fact_suggestions USING btree (te
 
 
 --
+-- Name: files_copies_awaiting_room; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_copies_awaiting_room ON public.files USING btree (updated_at) WHERE ((copy_state = 'away'::text) AND (copy_why = 'room'::text));
+
+
+--
 -- Name: files_copies_here; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -50928,6 +51924,13 @@ ALTER INDEX public.events_tenant_subject ATTACH PARTITION public.events_default_
 
 
 --
+-- Name: ad_accounts ad_accounts_close_ad_bell; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ad_accounts_close_ad_bell AFTER UPDATE OF status ON public.ad_accounts FOR EACH ROW WHEN (((new.status = 'disconnected'::text) AND (old.status IS DISTINCT FROM 'disconnected'::text))) EXECUTE FUNCTION public.ad_accounts_close_ad_bell();
+
+
+--
 -- Name: ad_accounts ad_accounts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51320,6 +52323,13 @@ CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_sugg
 
 
 --
+-- Name: files files_ring_footage_in; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER files_ring_footage_in AFTER INSERT ON public.files FOR EACH ROW WHEN ((new.source = 'drive'::text)) EXECUTE FUNCTION public.files_ring_footage_in();
+
+
+--
 -- Name: google_connections google_connections_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51516,6 +52526,13 @@ CREATE TRIGGER mailboxes_set_updated_at BEFORE UPDATE ON public.mailboxes FOR EA
 
 
 --
+-- Name: media_sources media_sources_ring; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER media_sources_ring AFTER DELETE OR UPDATE OF state, hold_at, hold_confirmed_at ON public.media_sources FOR EACH ROW EXECUTE FUNCTION public.media_sources_ring();
+
+
+--
 -- Name: media_sources media_sources_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51541,6 +52558,13 @@ CREATE CONSTRAINT TRIGGER memberships_keep_an_owner AFTER DELETE OR UPDATE OF ro
 --
 
 CREATE TRIGGER memberships_start_the_bell AFTER INSERT ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_start_the_bell();
+
+
+--
+-- Name: memberships memberships_wake_their_folders; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER memberships_wake_their_folders AFTER DELETE ON public.memberships FOR EACH ROW EXECUTE FUNCTION public.memberships_wake_their_folders();
 
 
 --
@@ -51866,6 +52890,13 @@ CREATE TRIGGER sequences_set_updated_at BEFORE UPDATE ON public.sequences FOR EA
 
 
 --
+-- Name: source_connections source_connections_ring; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_connections_ring AFTER DELETE OR UPDATE OF health ON public.source_connections FOR EACH ROW EXECUTE FUNCTION public.source_connections_ring();
+
+
+--
 -- Name: source_connections source_connections_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -51887,10 +52918,24 @@ CREATE TRIGGER source_items_copies_follow_gone AFTER DELETE ON public.source_ite
 
 
 --
+-- Name: source_items source_items_ring_full; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_items_ring_full AFTER UPDATE OF state, why ON public.source_items FOR EACH ROW WHEN ((((new.why = 'room'::text) AND (new.state = 'waiting'::text)) IS DISTINCT FROM ((old.why = 'room'::text) AND (old.state = 'waiting'::text)))) EXECUTE FUNCTION public.source_items_ring_full();
+
+
+--
 -- Name: source_items source_items_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER source_items_set_updated_at BEFORE UPDATE ON public.source_items FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: source_items source_items_stamp_left; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER source_items_stamp_left AFTER DELETE OR UPDATE OF state, gone_at, file_id ON public.source_items FOR EACH ROW EXECUTE FUNCTION public.source_items_stamp_left();
 
 
 --
@@ -52625,7 +53670,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENC
 -- Name: files workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said, copy_state, copy_why ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said) OR (old.copy_state IS DISTINCT FROM new.copy_state) OR (old.copy_why IS DISTINCT FROM new.copy_why))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -52730,7 +53775,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.messages REFERENCING
 -- Name: notifications workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF closed_at ON public.notifications FOR EACH ROW WHEN ((old.closed_at IS DISTINCT FROM new.closed_at)) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF closed_at, title ON public.notifications FOR EACH ROW WHEN (((old.closed_at IS DISTINCT FROM new.closed_at) OR (old.title IS DISTINCT FROM new.title))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -56984,6 +58029,54 @@ GRANT ALL ON FUNCTION public.ad_account_revoked(p_tenant_id uuid, p_account_id u
 
 
 --
+-- Name: FUNCTION ad_accounts_close_ad_bell(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_accounts_close_ad_bell() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_accounts_close_ad_bell() TO service_role;
+
+
+--
+-- Name: FUNCTION ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_cause(p_kind text, p_ad_id uuid, p_account_id uuid, p_budget_at text, p_set_id text, p_campaign_id text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_bell_hearers(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_hearers(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_hearers(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_credentials_drop(p_account_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -58550,6 +59643,23 @@ GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limi
 
 
 --
+-- Name: FUNCTION files_ring_footage_in(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.files_ring_footage_in() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_ring_footage_in() TO service_role;
+
+
+--
+-- Name: FUNCTION files_tallied(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.files_tallied(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_tallied(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.files_tallied(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION files_toward_cap(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -58572,6 +59682,30 @@ GRANT ALL ON FUNCTION public.finish_broadcast(p_tenant_id uuid, p_id uuid, p_eve
 REVOKE ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO authenticated;
 GRANT ALL ON FUNCTION public.first_replies(p_tenant_id uuid, p_start timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION footage_hearers(p_tenant_id uuid, p_connector uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.footage_hearers(p_tenant_id uuid, p_connector uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION footage_quoted(p_name text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.footage_quoted(p_name text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.footage_quoted(p_name text) TO service_role;
+
+
+--
+-- Name: FUNCTION footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) TO service_role;
 
 
 --
@@ -59927,6 +61061,14 @@ GRANT ALL ON FUNCTION public.may_read_workspace(p_tenant uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION media_sources_ring(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.media_sources_ring() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.media_sources_ring() TO service_role;
+
+
+--
 -- Name: FUNCTION member_decision(p_tenant_id uuid, p_subject_type text, p_subject_id uuid, p_verb text, p_payload jsonb, p_via text, p_undo_of uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59993,6 +61135,14 @@ GRANT ALL ON FUNCTION public.memberships_keep_an_owner() TO service_role;
 
 REVOKE ALL ON FUNCTION public.memberships_start_the_bell() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.memberships_start_the_bell() TO service_role;
+
+
+--
+-- Name: FUNCTION memberships_wake_their_folders(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.memberships_wake_their_folders() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.memberships_wake_their_folders() TO service_role;
 
 
 --
@@ -62966,6 +64116,14 @@ GRANT ALL ON FUNCTION public.sole_proprietor_of(p_tenant_id uuid) TO service_rol
 
 
 --
+-- Name: FUNCTION source_connections_ring(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_connections_ring() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_connections_ring() TO service_role;
+
+
+--
 -- Name: FUNCTION source_credentials_drop(p_connection_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -62990,11 +64148,62 @@ GRANT ALL ON FUNCTION public.source_credentials_put(p_connection_id uuid, p_secr
 
 
 --
+-- Name: FUNCTION source_files_remove(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_files_remove(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_files_remove(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.source_files_remove(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION source_files_tally(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_files_tally(p_tenant_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION source_items_grace_end(p_grace_seconds integer, p_limit integer); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.source_items_grace_end(p_grace_seconds integer, p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_passed(p_tenant_id uuid, p_source_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.source_items_passed(p_tenant_id uuid, p_source_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_ring_full(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_ring_full() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_ring_full() TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_stamp_left(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_stamp_left() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_stamp_left() TO service_role;
+
+
+--
+-- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) TO service_role;
 
 
 --
@@ -63466,6 +64675,15 @@ GRANT ALL ON FUNCTION public.trigger_sequences_clock(p_at timestamp with time zo
 
 REVOKE ALL ON FUNCTION public.trigger_sweep_health() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.trigger_sweep_health() TO service_role;
+
+
+--
+-- Name: FUNCTION video_minutes_by_road(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.video_minutes_by_road(p_tenant_id uuid) TO service_role;
 
 
 --
@@ -64475,6 +65693,20 @@ GRANT SELECT(copy_state) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(copy_why) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.origin_left; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(origin_left) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.origin_left_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(origin_left_at) ON TABLE public.files TO authenticated;
 
 
 --

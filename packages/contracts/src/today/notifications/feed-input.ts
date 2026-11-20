@@ -248,6 +248,25 @@ export const SERVER_NOTIFICATION_KINDS = [
    */
   "preview_tried",
   "ad_account",
+  /**
+   * A watched Google Drive folder, or its account, that needs someone (00657): Google signed the account out, whoever
+   * connected it left, the folder can't be opened, or a wave of removals waits for a second look. Written by the
+   * database as the folder's state turns, to whoever may mend it, and closed by the database once it is mended.
+   */
+  "footage",
+  /** The day's new photos and videos from the watched folder (00657): one row a day, counted up in place. */
+  "footage_in",
+  /**
+   * An owner's ads (00658, decision 0050 call 15): Meta didn't approve one, couldn't charge the card for one, one ended,
+   * one spent its total, or no one wrote from one in seven days while it ran. Worked out by the database from each read
+   * of the ad account, rung once when the cause turns and closed for everyone once it clears, to the owner alone. Each
+   * row names the ad and opens its drawer.
+   */
+  "ad_refused",
+  "ad_unpaid",
+  "ad_ended",
+  "ad_spent",
+  "ad_quiet",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

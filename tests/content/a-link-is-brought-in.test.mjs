@@ -1,6 +1,6 @@
 /**
  * A link to a business's photos and videos, read in code (contracts content/bring-in.ts): its website, its Instagram account,
- * or a place nothing here brings in and why; and the card's words.
+ * a Google Drive folder to watch, or a place nothing here brings in and why; and the card's words.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,11 +31,69 @@ test("one post, a player, a folder or another social page is refused, each with 
   assert.deepEqual(bringInOf("https://www.instagram.com/reel/C1abc/"), { place: "none", why: "post" });
   assert.deepEqual(bringInOf("https://youtu.be/abc"), { place: "none", why: "player" });
   assert.deepEqual(bringInOf("https://vimeo.com/42"), { place: "none", why: "player" });
-  assert.deepEqual(bringInOf("https://drive.google.com/drive/folders/x"), { place: "none", why: "drive" });
+  assert.deepEqual(bringInOf("https://photos.google.com/album/AF1Qip"), { place: "none", why: "photos" });
+  assert.deepEqual(bringInOf("https://photos.app.goo.gl/abc123"), { place: "none", why: "photos" });
+  assert.deepEqual(bringInOf("https://drive.google.com/file/d/1AbCdEfGhIjKlMnOp/view"), {
+    place: "none",
+    why: "drive_file",
+  });
+  assert.deepEqual(bringInOf("https://docs.google.com/document/d/1AbCdEfGhIjKlMnOp/edit"), {
+    place: "none",
+    why: "drive_file",
+  });
   assert.deepEqual(bringInOf("https://www.tiktok.com/@harbor"), { place: "none", why: "social" });
   assert.deepEqual(bringInOf("my photos are on my phone"), { place: "none", why: "not_a_link" });
   assert.deepEqual(bringInOf("javascript:alert(1)"), { place: "none", why: "not_a_link" });
-  for (const why of ["post", "player", "drive", "social", "not_a_link"]) assert.ok(BRING_IN_WORDS.refused[why]);
+  for (const why of ["post", "player", "photos", "drive_file", "social", "not_a_link"])
+    assert.ok(BRING_IN_WORDS.refused[why]);
+});
+
+test("a Google Drive folder is a place to watch: by its link, by Drive's front page, or by its name with no link", () => {
+  const id = "1AbCdEfGhIjKlMnOpQrStUv";
+  assert.deepEqual(bringInOf(`https://drive.google.com/drive/folders/${id}`), { place: "drive", folderId: id });
+  assert.deepEqual(bringInOf(`https://drive.google.com/drive/u/1/folders/${id}?usp=sharing`), {
+    place: "drive",
+    folderId: id,
+  });
+  // No folder named yet: the owner chooses one on the card.
+  for (const said of [
+    "https://drive.google.com",
+    "drive.google.com/drive/my-drive",
+    "Google Drive",
+    "my drive",
+    "a Drive folder",
+  ])
+    assert.deepEqual(bringInOf(said), { place: "drive", folderId: null }, said);
+  // Words about Drive that are not its name stay words.
+  assert.deepEqual(bringInOf("everything is in google drive somewhere"), { place: "none", why: "not_a_link" });
+  // A folder's link whose id is no id is one file's worth of nothing: refused, never guessed at.
+  assert.deepEqual(bringInOf("https://drive.google.com/drive/folders/x"), { place: "none", why: "drive_file" });
+});
+
+test("a folder's card says what watching it does, and its press watches the folder its steps settled", () => {
+  assert.equal(BRING_IN_WORDS.drive.title("Salon reels"), "Watch “Salon reels”");
+  assert.equal(BRING_IN_WORDS.drive.title(null), "Watch a Google Drive folder");
+  assert.match(BRING_IN_WORDS.drive.summary, /straight into the Library/);
+  const payload = { place: "drive", link: "google drive", folder_id: "1AbCdEfGhIjKl", folder_name: "Salon reels" };
+  assert.deepEqual(bringInSpec.commit({ payload: { ...payload, include_subfolders: false, instead: true } }), {
+    route: "POST sources/watch",
+    body: { folder_id: "1AbCdEfGhIjKl", include_subfolders: false, instead: true },
+  });
+  // What the card did not say is the careful side: the folders inside count, and nothing is switched.
+  assert.deepEqual(bringInSpec.commit({ payload }).body, {
+    folder_id: "1AbCdEfGhIjKl",
+    include_subfolders: true,
+    instead: false,
+  });
+  assert.equal(
+    bringInSpec.receipt({ payload }, { state: "watching" }),
+    "Watching “Salon reels”. The first photos and videos show up in your Library as they come in.",
+  );
+  // A website's card still goes to its own door.
+  assert.deepEqual(bringInSpec.commit({ payload: { link: "harbor.example" } }), {
+    route: "POST content/bring-in",
+    body: { link: "harbor.example" },
+  });
 });
 
 test("the card says what it brings in, and videos only where the workspace takes them", () => {

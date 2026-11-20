@@ -777,6 +777,59 @@ test(
 );
 
 test(
+  "an upload that meets a watched clip whose copy is away or lost hands it its reservation, and the clip comes back by it",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const upload = (file, mediaRef) =>
+      db.rpc("file_video_begin", {
+        p_tenant_id: ws.T,
+        p_id: randomUUID(),
+        p_media_ref: mediaRef,
+        p_name: "clip",
+        p_mime: "video/quicktime",
+        p_bytes: 50_000_000,
+        p_fingerprint: file.fingerprint,
+        p_seconds: 60,
+      });
+    // Lost: its folder's item was moved out, so nothing can give its original back.
+    const lost = await clip(ws, { copy_state: "away" });
+    ok(
+      await db
+        .from("source_items")
+        .update({ state: "outside", gone_at: daysAgo(1) })
+        .eq("id", lost.item.id),
+      "moved",
+    );
+    assert.equal((await fileNow(lost.file.id)).copy_state, "lost", "its row says so by itself (the trigger)");
+    const ref = `copies-back-${randomUUID()}`;
+    const begun = ok(await upload(lost.file, ref), "the upload");
+    assert.deepEqual([begun.fate, begun.file_id], ["back", lost.file.id]);
+    const coming = await fileNow(lost.file.id);
+    assert.deepEqual(
+      [coming.copy_state, coming.copy_why, coming.media_ref, coming.owner_uploaded, coming.media_status],
+      ["returning", null, ref, true, "ready"],
+      "coming back by the upload's own reservation, its owner's now, its media_status untouched",
+    );
+    // The video platform's word finishes it as it finishes any return: here again, and nothing else.
+    const word = ok(
+      await db.rpc("file_media_ready", { p_media_ref: ref, p_seconds: 60, p_width: 1080, p_height: 1920 }),
+      "the platform's word",
+    );
+    assert.equal(word.fate, "returned");
+    const back = await fileNow(lost.file.id);
+    assert.deepEqual([back.copy_state, back.media_ref, back.look_status], ["here", ref, lost.file.look_status]);
+    // Away, with its original still in the folder: the same, since these are the same bytes.
+    const away = await clip(ws, { copy_state: "away" });
+    assert.equal(ok(await upload(away.file, `copies-back-${randomUUID()}`), "an away clip").fate, "back");
+    // One whose copy is here is answered as before: already kept, and the reservation is the caller's to let go.
+    const here = await clip(ws, {});
+    assert.equal(ok(await upload(here.file, `copies-back-${randomUUID()}`), "a clip that plays").fate, "here");
+    assert.equal((await fileNow(here.file.id)).copy_state, "here");
+  },
+);
+
+test(
   "an upload that meets a watched folder's file marks it its owner's, and it is never let go or cleaned up",
   { skip },
   async () => {

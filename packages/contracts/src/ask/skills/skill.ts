@@ -23,7 +23,7 @@ import { DATA_NOT_INSTRUCTIONS } from "../../ai/fence";
  * daily budget (apps/edge/lib/ai/ask-gateway.ts GATEWAY_PURPOSES), so the usage of each skill can be read apart from Ask's
  * rounds.
  */
-export const SKILL_CRAFT_PURPOSES = ["message_draft"] as const;
+export const SKILL_CRAFT_PURPOSES = ["message_draft", "ad_draft"] as const;
 export type SkillCraftPurpose = (typeof SKILL_CRAFT_PURPOSES)[number];
 
 /**
@@ -75,7 +75,7 @@ const skillBullets = (lines: readonly string[]): string => lines.map((l) => `- $
  * its worked examples, and the one rule line for words someone else wrote (contracts ai/fence.ts), since the draft it is
  * handed is fenced.
  */
-export function craftSystem(skill: AskSkill): string {
+export function craftSystem(skill: Pick<AskSkill, "role" | "when" | "rules" | "never" | "examples">): string {
   return [
     skill.role,
     `What you write:\n${skillBullets(skill.when.jobs)}`,

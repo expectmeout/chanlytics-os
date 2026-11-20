@@ -8,6 +8,8 @@
  *               asked itself, as it is for an upload, and the row is written as the webhook would have. One whose
  *               job died before the platform was asked is away again; one the platform still has not prepared after
  *               an hour is given up.
+ *   no room     asked for (Play, AI, a video being made) and the videos were full: asked for again here, so it
+ *               comes back by itself once another copy makes room, and nobody is told to ask again.
  *   the grace   an item seen in its provider's bin, or moved out to a place its account can see, seven days ago: its
  *               Library file leaves only if nothing used it and no other origin holds it, and its row goes. One
  *               statement for every workspace (source_items_grace_end), which reads tombstones alone: a file with
@@ -20,12 +22,14 @@ import { SECOND_MS } from "@chanlytics/contracts";
 import {
   endSourceGrace,
   failCopyReturn,
+  listCopiesAwaitingRoom,
   listCopiesMoving,
   markFileMediaFailed,
   markFileMediaReady,
   type CopyMoving,
 } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
+import { scheduleJobOnce } from "@chanlytics/jobs";
 import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errField, logger } from "../../shared/log.js";
@@ -80,11 +84,30 @@ async function moveCopyOn(db: Db, account: StreamAccount, copy: CopyMoving, nowM
     await failCopyReturn(db, { tenantId: copy.tenant_id, fileId: copy.id, reason: "stopped", mediaRef: null });
 }
 
-/** The pass. Answers how many copies it asked after and what the cleanup did. */
+/**
+ * Copies that wait for room, asked for again: each one's return goes back on the ledger (held once a file, so one
+ * already waiting or running is left alone), and the return itself judges whether there is room now. Answers how many.
+ */
+async function askAgainForRoom(db: Db, nowMs: number): Promise<number> {
+  const waiting = await listCopiesAwaitingRoom(db, {
+    since: new Date(nowMs - COPY_RETURN.roomAskForMs),
+    limit: COPY_RETURN.roomAsksASweep,
+  });
+  for (const copy of waiting)
+    await scheduleJobOnce(db, {
+      tenantId: copy.tenant_id,
+      kind: "copy_return",
+      dueAt: new Date(nowMs),
+      payload: { file_id: copy.id },
+    });
+  return waiting.length;
+}
+
+/** The pass. Answers how many copies it asked after, how many it asked for again, and what the cleanup did. */
 export async function keepCopiesMoving(
   db: Db,
   nowMs: number,
-): Promise<{ copies: number; removed: number; kept: number; cleared: number }> {
+): Promise<{ copies: number; asked: number; removed: number; kept: number; cleared: number }> {
   const log = logger({});
   const account = streamAccount();
   const moving = account
@@ -101,7 +124,12 @@ export async function keepCopiesMoving(
       }),
     );
   }
+  // A read that fails here is a line: the cleanup below still runs.
+  const askedAgain = await askAgainForRoom(db, nowMs).catch((failure: unknown) => {
+    log.error("files_sweep_failed", { part: "copies_room", error: errField(failure) });
+    return 0;
+  });
   const grace = await endSourceGrace(db, { graceSeconds: SOURCE_GRACE.seconds, limit: SOURCE_GRACE.aSweep });
   if (grace.cleared > 0) log.info("copy_grace", grace);
-  return { copies: moving.length, ...grace };
+  return { copies: moving.length, asked: askedAgain, ...grace };
 }

@@ -193,7 +193,7 @@ test("the guide read answers a skill's guide by its id, and names the skills for
   const run = guideTool.actions[""].run;
   assert.deepEqual(await run({}, { skill: "customer_message" }), { skill: "customer_message", guide: GUIDE });
   assert.deepEqual(await run({}, { skill: "review_reply" }), {
-    error: "No skill is called review_reply. The skills: customer_message, video.",
+    error: "No skill is called review_reply. The skills: customer_message, video, ad.",
   });
   assert.deepEqual(await run({}, { skill: "video" }), { skill: "video", guide: skillGuide("video") });
   assert.ok(guideTool.actions[""].input.safeParse({}).success, "with no skill it reads the product as before");

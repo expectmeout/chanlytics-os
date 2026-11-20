@@ -6,6 +6,8 @@ import "server-only";
 import {
   AppError,
   DAY_MS,
+  FILE_COPY_STATES,
+  FILE_COPY_WHYS,
   FILE_TYPES,
   FILE_WORDS as W,
   HOUR_MS,
@@ -19,6 +21,8 @@ import {
   filePathOf,
   isOneOf,
   postPathOf,
+  type FileCopyState,
+  type FileCopyWhy,
   type FileShows,
   type PostPlace,
 } from "@chanlytics/contracts";
@@ -48,6 +52,8 @@ import { writeDoorRefusal, type RouteContext } from "@/server/shared/with-route"
 const VIEW_LINK_S = WEEK_MS / SECOND_MS;
 const VIEW_KEEP_S = (6 * DAY_MS) / SECOND_MS;
 const POSTER_KEEP_S = HOUR_MS / SECOND_MS;
+/** How long a clip's sound may be listened to from one address: a sitting. */
+const SOUND_LINK_S = (6 * HOUR_MS) / SECOND_MS;
 /** How long the edge has to sign a player's address: one token, one signed poster. */
 const PLAY_MS = 8 * SECOND_MS;
 /** Storage's word, in its answer's body, for a file that is not in the bucket (decision 0099 reads the body's code the same way). */
@@ -179,8 +185,26 @@ const downloadAddressOf = (
 ): string =>
   `${signedUrl}&download=${encodeURIComponent(`${file.name}${shape ? `-${shape}` : ""}.${FILE_TYPES[file.mime]}`)}`;
 
+/**
+ * A video's sound alone, as a redirect to its own file in the clip's folder (what the ears were sent, kept with its
+ * stills): a clip whose video is kept with its provider can still be listened to. A clip with no sound has none.
+ */
+async function soundOf(file: FileMemberRow): Promise<Response> {
+  const link = await bucket().createSignedUrl(fileMadePathOf(file.tenant_id, file.id, "audio"), SOUND_LINK_S);
+  if (link.error) {
+    if (link.error.statusCode === STORAGE_MISSING) throw new AppError("not_found", W.video.noSound, 404);
+    log.error("file_view_sign_failed", { tenant_id: file.tenant_id, error: link.error.message });
+    throw new AppError("unavailable", W.failedRead);
+  }
+  return new Response(null, {
+    status: 302,
+    headers: { location: link.data.signedUrl, "cache-control": `private, max-age=${POSTER_KEEP_S}` },
+  });
+}
+
 export async function viewFile(file: FileMemberRow, url: URL): Promise<Response> {
   const download = url.searchParams.has("download");
+  if (file.kind === "video" && url.searchParams.has("sound")) return soundOf(file);
   // A video made here keeps its own file in its folder (00613), and gives it; a clip a member sent stays with them.
   const madeVideo = file.kind === "video" && file.source === "made";
   if (file.kind === "video") {
@@ -221,10 +245,11 @@ export async function viewFile(file: FileMemberRow, url: URL): Promise<Response>
  * GET files/[id]/play: the player's address for a video, under a token the edge signs for an hour, for this member's session:
  * one asking per sheet opened, none per tile. A video still being made ready, or Stream unreachable, is said in words.
  */
-export async function playFile(
-  ctx: RouteContext,
-  file: FileMemberRow,
-): Promise<{ player_url: string; expires_at: string }> {
+/** What Play answers: the player's address, or where a clip's copy stands and why (the browser's files/footage/copy-words.ts). */
+type FilePlayed =
+  { player_url: string; expires_at: string } | { player_url: null; copy: FileCopyState; copy_why: FileCopyWhy | null };
+
+export async function playFile(ctx: RouteContext, file: FileMemberRow): Promise<FilePlayed> {
   if (file.kind !== "video") throw new AppError("validation", W.video.notAVideo);
   if (file.media_status !== "ready") throw new AppError("validation", W.video.gettingReady);
   if (!edgeConfigured()) throw new AppError("internal", W.video.cantPlay);
@@ -234,9 +259,23 @@ export async function playFile(
     { workspace: file.tenant_id, user: ctx.userId, timeoutMs: PLAY_MS },
   );
   const reply = answer.body;
-  if (answer.status !== 200 || typeof reply?.player_url !== "string" || typeof reply.expires_at !== "string") {
-    log.warn("file_play_failed", { tenant_id: file.tenant_id, status: answer.status });
-    throw new AppError("internal", W.video.cantPlay);
-  }
-  return { player_url: reply.player_url, expires_at: reply.expires_at };
+  if (answer.status === 200 && typeof reply?.player_url === "string" && typeof reply.expires_at === "string")
+    return { player_url: reply.player_url, expires_at: reply.expires_at };
+  // A watched folder's clip whose copy is not at hand: this ask is what brings it back, and the page says where it
+  // stands in its own words. Never a failure.
+  if (answer.status === 200 && isOneOf(FILE_COPY_STATES, reply?.copy) && reply.copy !== "here")
+    return { player_url: null, copy: reply.copy, copy_why: isOneOf(FILE_COPY_WHYS, reply.why) ? reply.why : null };
+  log.warn("file_play_failed", { tenant_id: file.tenant_id, status: answer.status });
+  throw new AppError("internal", W.video.cantPlay);
+}
+
+/**
+ * GET files/[id]/copy: where a clip's copy stands now, read off its own row on the member's session. What a page that
+ * waits for a clip to come back asks while it waits: it asks for nothing, so waiting never spends a return.
+ */
+export function copyOfFile(file: FileMemberRow): { copy: FileCopyState; copy_why: FileCopyWhy | null } {
+  return {
+    copy: isOneOf(FILE_COPY_STATES, file.copy_state) ? file.copy_state : "here",
+    copy_why: isOneOf(FILE_COPY_WHYS, file.copy_why) ? file.copy_why : null,
+  };
 }

@@ -117,7 +117,7 @@ const CONFIGURED: readonly string[] = ["ACTIVE", "PAUSED", "ARCHIVED", "DELETED"
 const isConfigured = (word: string): word is NonNullable<MetaAd["configured"]> => CONFIGURED.includes(word);
 
 /** A moment as Meta writes one (ISO 8601 with an offset), as an ISO instant; null for anything else. */
-function instantOf(value: unknown): string | null {
+export function instantOf(value: unknown): string | null {
   const text = metaText(value);
   const ms = text ? Date.parse(text) : NaN;
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;

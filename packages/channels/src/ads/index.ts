@@ -2,6 +2,7 @@
  * The ads domain: `@chanlytics/channels/ads`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  isMetaId,
   metaAccountId,
   metaAdAccountRequest,
   metaAssignedAdAccountsRequest,
@@ -19,6 +20,41 @@ export type { MetaAdAccount, MetaPage } from "./meta-account";
 export { callMetaAds, metaConfirmed } from "./meta-call";
 export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta-call";
 export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
+export {
+  metaAccountInstagramRequest,
+  metaAdImageRequest,
+  metaMinimumBudgetsRequest,
+  parseMetaAccountInstagram,
+  parseMetaImageHash,
+  parseMetaLeastADay,
+} from "./meta-library";
+export {
+  metaCampaignReadBackRequest,
+  metaCampaignRemoveRequest,
+  parseMetaCampaignHeld,
+  parseMetaMadeId,
+  parseMetaRefusal,
+  parseMetaRemoved,
+} from "./meta-made";
+export type { MetaAdHeld, MetaAdSetHeld, MetaCampaignHeld, MetaRefusal } from "./meta-made";
+export {
+  META_MILES,
+  META_OWN_CHANGES,
+  metaAdRequest,
+  metaAdSetRequest,
+  metaCampaignRequest,
+  metaCreativeRequest,
+  metaCreativeSpec,
+} from "./meta-make";
+export type {
+  MetaAdAsk,
+  MetaAdSetAsk,
+  MetaAreaCentre,
+  MetaCampaignAsk,
+  MetaCreativeAsk,
+  MetaCreativePicture,
+  MetaMakeHow,
+} from "./meta-make";
 export {
   META_ADS_PAGE,
   META_DAYS_PAGE,

@@ -5,7 +5,7 @@
  * Trade-neutral (Harbor Studio, never a trade's own words); the appointment word comes in as an argument, never written in.
  *
  * Words only, no data: the models make the values these take, and the pages draw what the models hand them. The page's
- * own sentences are words-page.ts, the drawer's words-drawer.ts, New ad's words-new.ts.
+ * own sentences are words-page.ts, the drawer's words-drawer.ts, New ad's new/words.ts.
  */
 import { plural } from "@chanlytics/contracts";
 import type { AdCheckId, AdDoor, AdPlatform, AdState } from "@chanlytics/contracts";
@@ -285,6 +285,15 @@ export const REFUSED = {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The sentence (drawer and New ad)
+
+/** An ad's area as a word of its sentence: miles around the business, or TikTok's ZIP codes. */
+export const AREA_WORDS = { zip: "these ZIP codes", miles: (n: number) => `${n} miles` };
+
+/** The row for the page a Google ad opens: the number a call button rings is on it. */
+export const OPENS_WORDS = {
+  numberOnPage: "Your number is on the page it opens, as text",
+  hostedNote: "Chanlytics puts it there",
+};
 
 export const SENTENCE = {
   show: "Show ",

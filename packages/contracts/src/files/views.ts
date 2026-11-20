@@ -1,6 +1,7 @@
 /** Files: views. */
 
 import type { ContentSourcesDto } from "../content/sources";
+import type { FileCopyState, FileCopyWhy } from "./copy";
 import type { FileKind, FileMediaStatus } from "./kinds";
 import type { PostPlan, PostShapeName } from "./post";
 import type { FileSound } from "./sound";
@@ -95,6 +96,18 @@ export interface FileDto {
   media_status: FileMediaStatus | null;
   /** What a video's sound is, in a few words (sound.ts soundSaidOf: "Spanish, 2 voices, music"); null until it was heard. */
   sound_said: string | null;
+  /**
+   * Where a video's copy at the video platform stands (copy.ts): everything but a watched folder's clip is `here`. One
+   * that is not plays only once it is back, and says why where it could not come (the dashboard's files/footage/copy-words.ts).
+   */
+  copy: FileCopyState;
+  copy_why: FileCopyWhy | null;
+  /**
+   * A watched file whose original left its folder (00657): seen in its provider's bin (gone) or moved out (outside), and
+   * when; null while its folder still holds it. Its row says the day it leaves (footage-numbers.ts graceDays).
+   */
+  origin_left?: "gone" | "outside" | null;
+  origin_left_at?: string | null;
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
   /** Who the look counted; null until it has, or where it could not say. */
@@ -312,20 +325,26 @@ export function filesTallyOf(
   files: readonly (Pick<FileDto, "status" | "shows" | "look_status"> & {
     source?: FileSource | undefined;
     kind?: FileKind | undefined;
+    /** How many files the row stands for, where the database counted them grouped (00657); one where absent. */
+    n?: number | undefined;
   })[],
 ): FilesTally {
   const shelves: FilesTally["shelves"] = {};
   for (const f of files) {
     const shelf = shelfOf(f);
-    shelves[shelf] = (shelves[shelf] ?? 0) + 1;
+    shelves[shelf] = (shelves[shelf] ?? 0) + (f.n ?? 1);
   }
   const kept = files.filter((f) => f.status === "filed" && f.source !== "made");
   return {
-    total: files.length,
-    kept: kept.length,
-    videos: kept.filter((f) => f.kind === "video").length,
-    waiting: files.filter((f) => f.status === "inbox").length,
-    looking: files.filter((f) => f.look_status === "waiting").length,
+    total: filesCountedOf(files),
+    kept: filesCountedOf(kept),
+    videos: filesCountedOf(kept.filter((f) => f.kind === "video")),
+    waiting: filesCountedOf(files.filter((f) => f.status === "inbox")),
+    looking: filesCountedOf(files.filter((f) => f.look_status === "waiting")),
     shelves,
   };
 }
+
+/** How many files rows stand for: each its own `n` where the database counted them grouped, else one. */
+export const filesCountedOf = (rows: readonly { n?: number | undefined }[]): number =>
+  rows.reduce((sum, row) => sum + (row.n ?? 1), 0);

@@ -317,6 +317,29 @@ export async function listCopiesMoving(db: Db, range: { before: Date; limit: num
   return data;
 }
 
+/**
+ * The sweep's second read across workspaces: copies that were asked for and found no room (away, why `room`), whose
+ * wait was written since `since`, the longest waiting first. Each is asked for again, so a clip someone pressed Play
+ * on comes back by itself once another makes room (the footage sources plan, P5, gate 3). By the index of the same
+ * name (00655), which holds only those rows.
+ */
+export async function listCopiesAwaitingRoom(
+  db: Db,
+  range: { since: Date; limit: number },
+): Promise<Pick<CopyMoving, "id" | "tenant_id">[]> {
+  const { data, error } = await platformWide(db)
+    .from("files")
+    .select("id, tenant_id")
+    .eq("copy_state", "away")
+    .eq("copy_why", "room")
+    .is("removed_at", null)
+    .gte("updated_at", range.since.toISOString())
+    .order("updated_at", { ascending: true })
+    .limit(range.limit);
+  if (error) throw new DbFailure(error, "cannot read the copies that wait for room");
+  return data;
+}
+
 const GraceAnswer = z.object({ removed: z.number(), kept: z.number(), cleared: z.number() });
 
 /**

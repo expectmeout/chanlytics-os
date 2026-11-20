@@ -243,6 +243,20 @@ const ANNOUNCES = {
     "Content's Needs you, which the row opens on the piece, reads the posts that stopped as it comes on screen, with why (00616).",
   ad_account:
     "Campaigns › Ads, which the row opens, reads the ad account and its ads as it comes on screen and when the owner comes back to the tab; its card reads the account the same way (00653). The feed tells of ad_accounts, and the Ads page does not hear it yet: one already open reads again when it is next looked at.",
+  ad_refused:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads as the page comes on screen and when the owner comes back to the tab, with Meta's reason; the Ads page does not hear the feed yet, and the row closes itself at the read that finds the ad approved or stopped (00658).",
+  ad_unpaid:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads as the page comes on screen and when the owner comes back to the tab; the account's card says the payment problem, and the row closes itself at the read that finds Meta can charge again (00658).",
+  ad_ended:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads and what each brought as the page comes on screen and when the owner comes back to the tab (00658).",
+  ad_spent:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads and the budget each sits under as the page comes on screen and when the owner comes back to the tab (00658).",
+  ad_quiet:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads who each ad brought as the page comes on screen and when the owner comes back to the tab; the row closes itself at the read after someone writes from it (00658).",
+  footage:
+    "Settings › Connections, which the row opens, reads the watched folder's standing (GET sources) as its row comes on screen and when the owner comes back to the tab; the feed does not tell of media_sources or source_connections, and the row closes by itself once the database sees it mended (00657).",
+  footage_in:
+    "The Library, which the row opens, reads the folder's line as it comes on screen and every few seconds while files are on their way, and hears file as each one lands (00657).",
   preview_tried:
     "The lead, which the row opens, reads its preview as its sheet opens (its messages, its calls, what it said is not right), and Today reads the leads who tried theirs as it comes on screen; the feed does not tell of lead_previews, so a page already open reads it again when it is next opened (00632).",
 };

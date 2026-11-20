@@ -41,7 +41,9 @@ const noteCard = (n) => ({
   needs: "operator",
   title: `Note ${n}`,
   summary: "Prefers mornings",
-  made_at: new Date(NOW.getTime() - 60_000).toISOString(),
+  // A minute old by the real clock, which an act reads to refuse a card left over a week (run.ts, askCardLapsed). Made
+  // from NOW, the card lapsed a week after NOW and every case went red from then on (20 Nov 2026).
+  made_at: new Date(Date.now() - 60_000).toISOString(),
   undo: "Undo",
   origin: { by: "asked", strangers: false },
   payload: {

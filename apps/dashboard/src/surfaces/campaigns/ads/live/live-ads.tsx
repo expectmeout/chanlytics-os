@@ -1,19 +1,25 @@
 /**
  * Campaigns › Ads with an account connected, signed out or let go: the whole page, real (the Ads plan's 4.4, 4.5, 4.8
- * and 4.9). The head says the page's one sentence beside Ask; the coral button is Connect again or Connect where the
- * card gives one, and absent while connected (New ad arrives with the step that makes an ad). Under it who is charged
- * or what was spent, then the page's body (live-page.tsx), and an ad's drawer, open by the address, so Back closes it.
+ * and 4.9). The head says the page's one sentence beside Ask; the coral button is never hidden (the plan's D1):
+ * Connect again or Connect where the card gives one, and + New once an account is connected. Under it who is charged
+ * or what was spent, then the page's body (live-page.tsx), an ad's drawer and New ad's one screen (new/sheet.tsx),
+ * each open by the address, so Back closes it.
  */
-import { ADS_WORDS } from "@chanlytics/contracts";
+import { ADS_WORDS, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
-import { askAbout } from "../../../frame-verbs";
+import { ActWords } from "../../../kit/head/act-words";
+import { askAbout, gate, navigate } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
+import type { NeedVM } from "../connect/card-model";
+import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
+import { NewAd } from "../new/sheet";
+import { LIVE_AD_SOURCE } from "../new/source";
 import { AdSheet } from "./ad-sheet";
 import { LiveBody } from "./live-page";
 import { liveModel, sheetModel } from "./model";
@@ -29,6 +35,8 @@ interface LiveAdsProps {
   /** The ad account's card, and its word for the coral button where an owner may press it. */
   card: ReactNode;
   connect: { word: string | null; press: () => void };
+  /** The ad account's own need, as its card says it: New ad says the same line for a card check not met. */
+  need: NeedVM | null;
   nav: { push: (route: string) => void; close: () => void };
   again: () => void;
   flash: (flash: FrameFlash) => void;
@@ -81,6 +89,17 @@ export function LiveAds(p: LiveAdsProps) {
                 {p.connect.word}
               </Button>
             ) : null}
+            {p.connect.word === null && dto.account.status === "connected" ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => p.nav.push(newAdRoute())}
+                data-testid="ads-head-new"
+                {...gate("approve", GATE.turnOn)}
+              >
+                <ActWords icon={<Icon name="plus" size={14} />} words={HEAD.newAd} />
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -94,6 +113,16 @@ export function LiveAds(p: LiveAdsProps) {
       </p>
       <LiveBody vm={vm} card={p.card} onOpen={p.nav.push} />
       <AdSheet vm={sheet} timezone={said.timezone} acts={acts} onClose={p.nav.close} onGo={p.nav.push} />
+      <NewAd
+        open={address.compose !== null}
+        source={LIVE_AD_SOURCE}
+        need={p.need}
+        onClose={p.nav.close}
+        onConnect={p.connect.press}
+        onGo={navigate}
+        // The job that makes an ad at Meta is not built yet: the press is drawn, and cannot be pressed (new/model.ts).
+        onTurnOn={() => undefined}
+      />
       {p.toast}
     </div>
   );

@@ -6,7 +6,7 @@
  * Google gives a project 1 TB of Drive downloads and 400,000,000 units a day before it charges, and counts a day in
  * Pacific time. The database counts the same day (00643 source_take_spend), so "tomorrow" here is Google's tomorrow.
  */
-import { DAY_MS, HOUR_MS, MIN_MS, SECOND_MS, WEEK_MS } from "@chanlytics/contracts";
+import { DAY_MS, FOOTAGE_NUMBERS, HOUR_MS, MIN_MS, SECOND_MS, WEEK_MS } from "@chanlytics/contracts";
 
 /** A million of Google's units: its quota is written in them. */
 const MILLION_UNITS = 1_000_000;
@@ -124,6 +124,13 @@ export const COPY_RETURN = {
   askAfterMs: 2 * MIN_MS,
   /** One it still has not prepared by then is given up: the file stays away, and the next ask begins anew. */
   giveUpMs: HOUR_MS,
+  /**
+   * A copy that was asked for and found no room is asked for again by each half-hourly pass for this long, so it
+   * comes back by itself once another copy's rest ends (an hour at most). Past it the next ask is a person's.
+   */
+  roomAskForMs: 6 * HOUR_MS,
+  /** How many such copies one pass asks for again, for every workspace together. */
+  roomAsksASweep: 100,
 } as const;
 
 /**
@@ -155,6 +162,6 @@ export const LET_GO = {
  * one half-hourly pass settles, for every workspace together.
  */
 export const SOURCE_GRACE = {
-  seconds: (7 * DAY_MS) / SECOND_MS,
+  seconds: (FOOTAGE_NUMBERS.graceDays * DAY_MS) / SECOND_MS,
   aSweep: 500,
 } as const;

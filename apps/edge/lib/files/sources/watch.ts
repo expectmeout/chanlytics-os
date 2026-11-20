@@ -5,6 +5,7 @@
  *   The chooser   one level at a time, folders only: the account's own Drive, its shared drives, what was shared
  *                 with it, then the folder opened. Only the levels a person opens are read, no file is listed before
  *                 a folder is chosen, and no Google key reaches the browser.
+ *   A folder      one folder named by its id, for a pasted link: asked of its account, nothing listed.
  *   A watch       the folder validated (it exists, it can be listed, and where its changes are read), then its place
  *                 in the provider's changes saved BEFORE its first walk begins, so nothing that changes during the
  *                 walk is missed; then the walk's first step put on the ledger. Choosing a folder twice is one watch.
@@ -14,9 +15,10 @@
  *
  * How many folders a workspace may watch is an entitlement, not the schema's: one at launch (the plan's D5).
  */
-import { SECOND_MS, type SourceFolder, type TenantId } from "@chanlytics/contracts";
+import { SECOND_MS, type SourceFolder, type SourceRefusal, type TenantId } from "@chanlytics/contracts";
 import { driveSource, type DriveFolderChoices, type DrivePlace } from "@chanlytics/channels/files";
 import {
+  askForListedItems,
   findMediaSource,
   findSourceConnection,
   listMediaSourcesOf,
@@ -42,7 +44,8 @@ const SOURCES_A_WORKSPACE = 1;
 
 /** Why an act on an account or a folder was not done. */
 export type WatchRefusal =
-  "not_found" | "needs_reconnect" | "unavailable" | "no_access" | "too_many" | { restMs: number };
+  | Extract<SourceRefusal, "not_found" | "needs_reconnect" | "unavailable" | "no_access" | "too_many">
+  | { restMs: number };
 
 type Refused = { ok: false; reason: WatchRefusal };
 
@@ -93,6 +96,25 @@ export async function listFolderChoices(
   }
 }
 
+/**
+ * One folder as its account names it, by its id: what a pasted link is read to before anyone is asked to watch it.
+ * Nothing is listed and nothing is kept; a folder the account cannot open says so.
+ */
+export async function nameFolder(
+  db: Db,
+  ask: { tenantId: TenantId; connectionId: string; folderId: string },
+  log: Logger,
+): Promise<{ ok: true; folder: SourceFolder } | Refused> {
+  const account = await openAccount(db, ask, log);
+  if (!account.ok) return account;
+  try {
+    const reply = await driveSource().validateFolder(account.token, ask.folderId);
+    return reply.verdict === "ok" ? { ok: true, folder: reply.answer } : watchRefusalOf(reply);
+  } catch (error) {
+    return refusedKey(db, account.connection, log, error);
+  }
+}
+
 /** A folder's walk asked for: the first step of the run after its newest. */
 async function scheduleWalk(db: Db, source: MediaSourceRow, walk: "snapshot" | "reconcile"): Promise<void> {
   await scheduleJobOnce(db, {
@@ -109,6 +131,8 @@ interface WatchAsk {
   connectionId: string;
   folderId: string;
   includeSubfolders: boolean;
+  /** In place of the folders watched now: they stop only once this one is opened and its place read. */
+  instead?: boolean;
 }
 
 /** A folder its account may read, and the place its changes are read from: asked before it is watched. */
@@ -139,11 +163,14 @@ export async function watchFolder(
   const others = (await listMediaSourcesOf(db, ask.tenantId)).filter((row) => row.state !== "stopped");
   const already = others.find((row) => row.connection_id === ask.connectionId && row.folder_id === ask.folderId);
   if (already) return { ok: true, source: already, made: false };
-  if (others.length >= SOURCES_A_WORKSPACE) return { ok: false, reason: "too_many" };
+  if (!ask.instead && others.length >= SOURCES_A_WORKSPACE) return { ok: false, reason: "too_many" };
   const found = await findFolderAndPlace(account.token, ask.folderId).catch((error: unknown) =>
     refusedKey(db, account.connection, log, error),
   );
   if (!found.ok) return found;
+  // A switch: everything that can fail at the provider has answered, so the folders watched now stop here, and the
+  // workspace never ends watching nothing (the plan session's review of 20 Nov, finding 4).
+  if (ask.instead) for (const row of others) await stopWatching(db, { tenantId: ask.tenantId, sourceId: row.id }, log);
   const { folder, cursor } = found;
   const kept = await saveMediaSource(db, {
     tenant_id: ask.tenantId,
@@ -168,7 +195,7 @@ export async function watchFolder(
         drive_id: folder.driveId,
         include_subfolders: ask.includeSubfolders,
         change_cursor: cursor,
-        last_error: null,
+        stopped_why: null,
         last_error_at: null,
       },
     });
@@ -178,6 +205,19 @@ export async function watchFolder(
   await scheduleWalk(db, source, kept.made ? "snapshot" : "reconcile");
   log.info("source_watched", { source: source.id, again: !kept.made, subfolders: ask.includeSubfolders });
   return { ok: true, source, made: kept.made };
+}
+
+/**
+ * The folder's older files, asked for (the footage screens' call 7): what its first look listed and did not bring in
+ * (older than the newest of the last thirty days) waits to be taken now, at the day's pace. Answers how many.
+ */
+export async function askForOlderFiles(
+  db: Db,
+  named: { tenantId: TenantId; sourceId: string },
+): Promise<{ ok: true; asked: number } | Refused> {
+  const source = await findMediaSource(db, named.tenantId, named.sourceId);
+  if (!source || (source.state !== "watching" && source.state !== "frozen")) return { ok: false, reason: "not_found" };
+  return { ok: true, asked: await askForListedItems(db, named) };
 }
 
 /** Check now: one read of the folder at once, unless one already waits or runs. */
@@ -240,7 +280,7 @@ export async function stopWatching(
       hold_at: null,
       hold_count: null,
       hold_confirmed_at: null,
-      last_error: null,
+      stopped_why: null,
       last_error_at: null,
     },
   });

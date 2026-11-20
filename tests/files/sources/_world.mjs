@@ -83,6 +83,8 @@ export function setEnv() {
   process.env.GOOGLE_OAUTH_CLIENT_ID = "client-id.apps.googleusercontent.com";
   process.env.GOOGLE_OAUTH_CLIENT_SECRET = "client-secret-for-this-file";
   process.env.SOURCES_OAUTH_REDIRECT = "https://app.example.com/api/v1/sources/callback";
+  // Offered in every workspace here; the list's own rule is held by a-drive-is-connected.test.mjs.
+  process.env.SOURCES_WORKSPACES = "*";
   process.env.EDGE_ORIGIN = "https://edge.example.com";
 }
 
@@ -106,6 +108,7 @@ export function sourceRow(over = {}) {
     channel_expires_at: null,
     reconciled_at: null,
     last_error: null,
+    stopped_why: null,
     last_error_at: null,
     last_read_at: null,
     signalled_at: null,

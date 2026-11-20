@@ -426,6 +426,23 @@ span.files-big {
   pointer-events: none;
 }
 
+/* A clip coming back from Google Drive, or whose original is gone: said across its picture, which steps back under it. */
+.files-kept {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  text-align: center;
+  color: var(--media-ink);
+  text-shadow: var(--media-ink-shadow);
+  background: var(--viewer-still-dim);
+  pointer-events: none;
+}
+
 /* On its way: a blank tile until its turn, then its picture clearing as it goes, a touch small until it lands. One that hasn't arrived isn't one to press. */
 .files-going {
   cursor: default;

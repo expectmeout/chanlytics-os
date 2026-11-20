@@ -270,6 +270,8 @@ export const GATEWAY_PURPOSES = [
   "sequence_draft",
   // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
   "message_draft",
+  // An ad's words, by the ad writer skill (the Ads plan's 6.7): a craft call at the skill's effort, counted apart (G19).
+  "ad_draft",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */
@@ -278,12 +280,14 @@ const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose
 /**
  * The registry's purpose a gateway purpose is asked as (contracts ai/models/routes.ts): Ask's turn is Ask's route (the template
  * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), a customer message the skill writes
- * the template drafter's (a message's words, the ledger's word for them, so no new purpose for its CHECK), the lead and
- * list drafts the small JSON route. The route names the fallback and bounds the try.
+ * the template drafter's (a message's words, the ledger's word for them, so no new purpose for its CHECK), an ad's words
+ * their own (00656: what ad writing costs is read apart), the lead and list drafts the small JSON route. The route names
+ * the fallback and bounds the try.
  */
 export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
   if (isAsk(purpose)) return "ask";
   if (purpose === "message_draft") return "template_draft";
+  if (purpose === "ad_draft") return "ad_draft";
   return purpose === "lead_suggest" ? "lead_suggest" : "lead_json";
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
@@ -323,7 +327,7 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
  */
 export const GATEWAY_MODELS: readonly string[] = [
   ...new Set(
-    (["ask", "lead_json", "lead_suggest", "template_draft"] as const).flatMap((p) =>
+    (["ask", "lead_json", "lead_suggest", "template_draft", "ad_draft"] as const).flatMap((p) =>
       [MODEL_ROUTES[p].model, MODEL_ROUTES[p].fallback].filter((m): m is NonNullable<typeof m> => m !== null),
     ),
   ),
@@ -355,7 +359,7 @@ const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number 
     ? askRoundCap(effort)
     : purpose === "ask_warm"
       ? ASK_WARM_MAX_TOKENS
-      : purpose === "message_draft"
+      : purpose === "message_draft" || purpose === "ad_draft"
         ? SKILL_CRAFT_MAX_TOKENS
         : purpose === "sequence_draft"
           ? SEQUENCE_DRAFT_MAX_TOKENS

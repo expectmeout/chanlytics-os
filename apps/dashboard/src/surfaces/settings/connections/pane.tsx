@@ -9,7 +9,14 @@
  * still draws it by its old name, which seed-globals publishes (settings/globals.ts), until Settings' frame moves.
  */
 import { Fragment, Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
-import { channelFor, MAILBOX_LEFT_ROW, type ChannelVM, type LineCodeDto, type SetupDto } from "@chanlytics/contracts";
+import {
+  channelFor,
+  MAILBOX_LEFT_ROW,
+  type ChannelVM,
+  type FootageDto,
+  type LineCodeDto,
+  type SetupDto,
+} from "@chanlytics/contracts";
 import {
   CONNECTION_GROUP_WORDS,
   connectionRows,
@@ -24,6 +31,7 @@ import { FailedRead } from "../../kit/empty/empty";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { adsInPreview, useAdsShown } from "../../campaigns/ads/shown";
+import { useFolderRow } from "../../files/footage/settings-row";
 import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
@@ -38,6 +46,7 @@ import { ConnectionRow, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
+import type { AdsPlace } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -45,10 +54,17 @@ type WaConfig = SignupDoor | null | undefined;
 const AdAccounts = lazy(() => import("./ad-accounts").then((m) => ({ default: m.AdAccounts })));
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
 
-/** A workspace's own ad account is the card Campaigns › Ads draws; a demo session draws the sample's rows. */
-function AdAccountCard({ flash }: { flash: (f: FrameFlash) => void }) {
-  return adsInPreview() ? <RealAdAccount /> : <AdAccounts flash={flash} />;
+/**
+ * Where the workspace's own ad account goes among the groups (ad-account-real.tsx): the place the pane keeps for it, in
+ * the group its account stands in, and what it counts as there. A demo session draws the sample's rows after the groups.
+ */
+interface AdsHere {
+  place: AdsPlace;
+  slot: (element: HTMLElement | null) => void;
 }
+
+/** The place for the ad account's card in a group: an element the card is drawn into, never a box of its own. */
+const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
 /** What the browser came back from Google with, said once. */
 function googleNote(): string | null {
@@ -175,6 +191,8 @@ interface Asked {
   codes: LineCodeDto[];
   signupLeftOpenAt: string | null;
   signupSaid: string | null;
+  /** Where the watched folder stands (files/footage/use-footage.ts); null until it is read. */
+  footage: FootageDto | null;
 }
 
 /**
@@ -203,9 +221,11 @@ function rowsOf(
       imports: S ? (S.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
       meta: asked.meta ? { ready: asked.meta.ready } : null,
+      footage: asked.footage,
     },
     Date.now(),
-  );
+    // Google Drive is left out until the day it is offered here: a Later row would promise what nobody can connect yet.
+  ).filter((r) => r.kind !== "drive" || r.state !== "later");
   const said = asked.signupSaid;
   if (!said) return rows;
   // What the sign-up came to is on the row, first and in full, never behind the row's press (ConnectionNote.live).
@@ -306,9 +326,13 @@ function groupCard(o: {
   note: string | null;
   setNote: (n: string | null) => void;
   row: (r: Row) => ReactNode;
+  /** The workspace's ad account, where it stands in this group: under the Meta row, counted as a row is. */
+  ads: AdsHere | null;
 }): ReactNode {
-  const { g, list, note, setNote, row } = o;
+  const { g, list, note, setNote, row, ads } = o;
   const W = CONNECTION_GROUP_WORDS;
+  const counted = ads ? [...list, { state: ads.place.state }] : list;
+  const beside = ads !== null && list.some((r) => r.kind === "instagram");
   return (
     <section
       key={g}
@@ -320,7 +344,7 @@ function groupCard(o: {
         <h2 className="rec-card-title" id={`connections-${g}-title`}>
           {W[g].title}
         </h2>
-        <span className="rec-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
+        <span className="rec-card-sub">{counted.length ? W[g].sub(counted) : "nothing yet"}</span>
       </div>
       {note && list.some((r) => r.kind === "google_profile") && (
         <RecordRow
@@ -331,7 +355,7 @@ function groupCard(o: {
           act={{ label: "Ok", onClick: () => setNote(null) }}
         />
       )}
-      {list.length === 0 && g === "connected" && (
+      {counted.length === 0 && g === "connected" && (
         <RecordRow
           id="connections-none"
           label={W[g].title}
@@ -339,8 +363,55 @@ function groupCard(o: {
           value={null}
         />
       )}
-      {list.map(row)}
+      {list.map((r) =>
+        beside && ads && r.kind === "instagram" ? (
+          <Fragment key={r.kind}>
+            {row(r)}
+            {adsSlotOf(ads)}
+          </Fragment>
+        ) : (
+          row(r)
+        ),
+      )}
+      {ads && !beside ? adsSlotOf(ads) : null}
     </section>
+  );
+}
+
+/**
+ * The groups in the page's order, and the workspace's ad account in the group it stands in: its card says where once its
+ * account is read (ad-account-real.tsx), and is drawn into the place kept for it there. A demo session draws the
+ * sample's rows after the groups.
+ */
+function ConnectionGroups(props: {
+  rows: Row[];
+  note: string | null;
+  setNote: (n: string | null) => void;
+  row: (r: Row) => ReactNode;
+  adsShown: boolean;
+  flash: (f: FrameFlash) => void;
+}) {
+  const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
+  const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
+  const { note, setNote, row } = props;
+  return (
+    <>
+      {connectionGroupsOf(props.rows).map(({ g, list }) =>
+        groupCard({
+          g,
+          list,
+          note,
+          setNote,
+          row,
+          ads: props.adsShown && adsPlace?.group === g ? { place: adsPlace, slot: setAdsSlot } : null,
+        }),
+      )}
+      {props.adsShown && (
+        <Suspense fallback={null}>
+          {adsInPreview() ? <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} /> : <AdAccounts flash={props.flash} />}
+        </Suspense>
+      )}
+    </>
   );
 }
 
@@ -376,6 +447,23 @@ function emailCardOf(
   );
 }
 
+/** Google's listing taken off the record, or its Business Profile disconnected: done, and what to say of it. */
+async function leaveGoogle(leaving: "remove" | "disconnect", profileToo: boolean): Promise<FrameFlash> {
+  const res = leaving === "remove" ? await googleVerbs.unlink() : await googleVerbs.disconnect();
+  if (!res.ok) return refusalToast(res, leaving === "remove" ? "Listing not removed" : "Google not disconnected");
+  return {
+    msg:
+      leaving === "remove" ? (
+        <>
+          The listing is off the record, with what was read from it
+          {profileToo ? " · and the Business Profile is disconnected" : ""}.
+        </>
+      ) : (
+        <>Google is disconnected. The public listing stays · replies and the full history do not.</>
+      ),
+  };
+}
+
 /** Connections, and the row its address names, open (`integrations/left`: the mailbox's left senders). */
 export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | null }) => {
   const C = useSurface("channels");
@@ -402,6 +490,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   const [leftOpenAt, setLeftOpenAt] = useState<string | null>(() => signupLeftOpenAt());
   const [signupSaid, setSignupSaid] = useState<string | null>(null);
   const [toastNode, flash] = useFrameToast();
+  // The watched folder's row: its read, its verbs and its sheets. Another Google connection here keeps the grant alive at
+  // Google once Drive is disconnected, which its sheet says before the press.
+  const drive = useFolderRow(flash, !!G?.dto.connection || !!S?.dto.email?.sending?.mailboxes.length);
   // The WhatsApp and phone rows, from the channels read (surfaces/channels/surface.ts), which hears them wherever the tab is:
   // undefined while it is read, null where it failed (the wiring's second audit, W-channel-team-plus-1, S3-1). Each says when a
   // customer last came in by the later of that read's time and Setup's, which hears the first call and the first message, so
@@ -433,10 +524,14 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   }
 
   const doors = { instagram: logins.ig.door, meta: logins.meta.door };
-  const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid };
+  const asked = { whatsapp: waCfg, ...doors, codes, signupLeftOpenAt: leftOpenAt, signupSaid, footage: drive.footage };
   const rows = rowsOf(channels, asked, S, G);
   const run = (r: Row) => {
     if (busy) return;
+    if (r.kind === "drive") {
+      if (r.verb) drive.run(r.verb.to);
+      return;
+    }
     void runVerb(r, {
       flash,
       setBusy,
@@ -457,24 +552,10 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
       setArm(null);
       return;
     }
-    const res = what === "remove" ? await googleVerbs.unlink() : await googleVerbs.disconnect();
+    const toast = await leaveGoogle(what, !!G?.dto.connection);
     setBusy(false);
     setArm(null);
-    flash(
-      res.ok
-        ? {
-            msg:
-              what === "remove" ? (
-                <>
-                  The listing is off the record, with what was read from it
-                  {G && G.dto.connection ? " · and the Business Profile is disconnected" : ""}.
-                </>
-              ) : (
-                <>Google is disconnected. The public listing stays · replies and the full history do not.</>
-              ),
-          }
-        : refusalToast(res, what === "remove" ? "Listing not removed" : "Google not disconnected"),
-    );
+    flash(toast);
   };
   const email: SetupDto["email"] | null = S ? (S.dto.email ?? null) : null;
   const mail = { flash, note: mailboxNote, onNote: dropNote, openLeft: leftOpen };
@@ -508,6 +589,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
           />
         )}
         {r.kind === "instagram" && <LoginNotes logins={logins} />}
+        {r.kind === "drive" && drive.note}
         {/* A Later row has no block, but what a connect came back with is still said under it. */}
         {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (
           <ConnectedMailboxes email={email} flash={flash} note={mailboxNote} onNote={dropNote} />
@@ -516,12 +598,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
     );
   return (
     <>
-      {connectionGroupsOf(rows).map(({ g, list }) => groupCard({ g, list, note, setNote, row }))}
-      {adsShown && (
-        <Suspense fallback={null}>
-          <AdAccountCard flash={flash} />
-        </Suspense>
-      )}
+      <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} flash={flash} />
+      {drive.sheets}
       {toastNode}
     </>
   );

@@ -7,14 +7,25 @@
  */
 import {
   agoWords,
+  clockStamp,
+  CONTENT_LIBRARY_ROUTE,
   EMAIL_NOT_ANSWERED_SENTENCE,
+  FOOTAGE_WORDS,
+  footageStandingOf,
   googleAudienceWords,
   META_LINE_OFF_WHY,
   META_LINE_WORDS,
   META_LINES,
   SETUP_STATE_WORDS,
 } from "@chanlytics/contracts";
-import type { ChannelVM, ConnectionNote, MetaLines } from "@chanlytics/contracts";
+import type {
+  ChannelVM,
+  ConnectionNote,
+  FootageAct,
+  FootageDto,
+  FootageStandingKey,
+  MetaLines,
+} from "@chanlytics/contracts";
 
 import type { ConnectionDraft, ConnectionInputs, ConnectionVerb } from "./setup";
 
@@ -228,5 +239,115 @@ function metaRow(ig: ChannelVM | null, metaReady: boolean): ConnectionDraft {
     sentence:
       "Sign in with Instagram or Facebook. One connection answers your Instagram DMs now, and brings posting, trending sounds, comments and numbers as each is built.",
     verb: metaReady ? (ig ? { ...META_CONNECT_VERB, label: "Connect again" } : META_CONNECT_VERB) : null,
+  };
+}
+
+/* --------------------------------------------------------------------------------------------- Google Drive -- */
+
+const DRIVE = { kind: "drive" as const, icon: "folder", title: FOOTAGE_WORDS.provider };
+const driveVerb = (act: FootageAct, to: string): ConnectionVerb => ({
+  label: FOOTAGE_WORDS.acts[act],
+  to,
+  who: "owner",
+});
+
+/** The one act each standing asks for, as the row's verb: a sign-in, the chooser, the Library, or the steps to send. */
+const DRIVE_VERBS: Record<FootageAct, ConnectionVerb> = {
+  connect: driveVerb("connect", "verb:drive-connect"),
+  reconnect: driveVerb("reconnect", "verb:drive-connect"),
+  connect_own: driveVerb("connect_own", "verb:drive-connect"),
+  choose: driveVerb("choose", "verb:drive-choose"),
+  choose_another: driveVerb("choose_another", "verb:drive-choose"),
+  open_library: { label: FOOTAGE_WORDS.acts.open_library, to: CONTENT_LIBRARY_ROUTE, who: "operator" },
+  copy_steps: driveVerb("copy_steps", "verb:drive-steps"),
+};
+const DRIVE_CHECK: ConnectionVerb = { label: FOOTAGE_WORDS.check, to: "verb:drive-check", who: "owner" };
+const DRIVE_STOP: ConnectionVerb = { label: FOOTAGE_WORDS.stop, to: "verb:drive-stop", who: "owner" };
+const DRIVE_DISCONNECT: ConnectionVerb = {
+  label: FOOTAGE_WORDS.disconnect,
+  to: "verb:drive-disconnect",
+  who: "owner",
+  danger: true,
+};
+
+/** Where each standing puts the row: joined and well, joined and asking for someone, joined with nothing watched, or not joined. */
+const DRIVE_STATE: Record<FootageStandingKey, ConnectionDraft["state"]> = {
+  not_connected: "none",
+  blocked: "attention",
+  not_watching: "off",
+  looking: "connected",
+  bringing_in: "connected",
+  waits_tomorrow: "connected",
+  waits_room: "connected",
+  // Nothing can step aside, so only the owner can make room (call 3): joined, and asking for someone.
+  videos_full: "attention",
+  videos_off: "connected",
+  checking_left: "connected",
+  watching: "connected",
+  library_full: "attention",
+  signed_out: "attention",
+  connector_left: "attention",
+  // It mends itself once the folder opens again: joined, its badge amber, its way on a quiet act (the canvas's Settings 10).
+  cant_open: "connected",
+};
+
+const DRIVE_TONE = { live: "accent", ok: "ok", you: "warn", rest: "plain" } as const;
+
+/** A watched folder's quiet acts, by their own names: a look now and a stop while it is read, and Disconnect last. */
+function driveActs(footage: FootageDto, key: FootageStandingKey): ConnectionVerb[] {
+  if (!footage.account || key === "not_connected" || key === "blocked") return [];
+  const folder = footage.folder && footage.folder.state !== "stopped" ? footage.folder : null;
+  const read = folder && (folder.state === "watching" || folder.state === "frozen");
+  const another = key === "cant_open" ? [DRIVE_VERBS.choose_another] : [];
+  return [...another, ...(read ? [DRIVE_CHECK] : []), ...(folder ? [DRIVE_STOP] : []), DRIVE_DISCONNECT];
+}
+
+/**
+ * Google Drive: the folder a business has Chanlytics watch for its photos and videos (the footage sources plan, P5).
+ * One row, its state in the words Content's card and the Library's line say too (contracts footageStandingOf), the
+ * folder, the account and who connected it under it, and its one act. A workspace where connecting is not offered and
+ * nothing is connected has it Later, which the page leaves out until the day it is offered.
+ */
+export function driveRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs: number }): ConnectionDraft {
+  const footage = connectionInputs.footage ?? null;
+  if (!footage || (!footage.account && !footage.offered))
+    return {
+      ...DRIVE,
+      detail: null,
+      state: "later",
+      stateWords: "Later",
+      sentence: "New photos and videos come in from a folder by themselves.",
+      verb: null,
+    };
+  const standing = footageStandingOf(footage, (iso) => clockStamp(Date.parse(iso), connectionInputs.tz, nowMs));
+  const { account, folder } = footage;
+  const watched = folder && folder.state !== "stopped" ? folder : null;
+  const facts = [
+    ...(watched ? [{ label: FOOTAGE_WORDS.facts.folder, value: watched.name }] : []),
+    ...(account?.email ? [{ label: FOOTAGE_WORDS.facts.account, value: account.email }] : []),
+    ...(account && (account.by_you || account.connected_by)
+      ? [
+          {
+            label: FOOTAGE_WORDS.facts.by,
+            value: account.by_you ? FOOTAGE_WORDS.facts.you : (account.connected_by ?? ""),
+          },
+        ]
+      : []),
+  ];
+  return {
+    ...DRIVE,
+    detail: null,
+    state: DRIVE_STATE[standing.key],
+    // Coral is for what is live and now, green for quiet and well, amber for what needs someone; a wait says nothing.
+    tone: DRIVE_TONE[standing.tone],
+    stateWords: standing.badge,
+    sentence: standing.say,
+    // A member who may not change it reads where it stands, and is offered nothing to press.
+    verb:
+      standing.act && standing.key !== "cant_open" && (footage.can_change || standing.act === "open_library")
+        ? DRIVE_VERBS[standing.act]
+        : null,
+    ...(facts.length > 0 && account?.health !== "blocked_by_admin" ? { facts } : {}),
+    ...(footage.can_change ? { acts: driveActs(footage, standing.key) } : {}),
   };
 }

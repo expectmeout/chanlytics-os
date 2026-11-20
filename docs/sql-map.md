@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 187 | 187 |
-| reader | 82 | 0 |
-| the server's | 394 | 333 |
+| door | 188 | 188 |
+| reader | 86 | 0 |
+| the server's | 403 | 338 |
 | computed column | 3 | 0 |
-| trigger | 105 | 75 |
-| all | 771 | 595 |
+| trigger | 112 | 82 |
+| all | 792 | 608 |
 
 ## Called by nothing
 
@@ -49,8 +49,14 @@ being read is dropped by a migration.
 | --- | --- | --- | --- | --- |
 | `ad_account_connect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner's ad account connected (00649, decision 0049 step P1). |
 | `ad_account_disconnect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner disconnects their ad account (00653; |
-| `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653; |
+| `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
+| `ad_accounts_close_ad_bell` | trigger | the server | trigger `ad_accounts_close_ad_bell on ad_accounts` | A trigger on ad_accounts (00658): |
+| `ad_bell_cause` | the server's | the server | SQL `ad_bell_causes`, `ad_bell_ring` | The key one of the bell's five ad causes is known by, read off one of its ads (00658): |
+| `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every made ad of one ad account under each of the bell's five ad causes at a moment, with the cause's key (00658): |
+| `ad_bell_hearers` | the server's | the server | SQL `ad_bell_ring` | Who hears the bell's five ad notices (00658): |
+| `ad_bell_ring` | the server's | the server | SQL `ads_read_keep` | The bell's five ad notices for one ad account, after a good read (00658, decision 0050 call 15): |
+| `ad_bell_words` | the server's | the server | SQL `ad_bell_ring` | The title and body of one of the bell's five ad notices (00658): |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
@@ -67,7 +73,7 @@ being read is dropped by a migration.
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
-| `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, decision 0049). |
+| `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
 | `ai_shadow_agreement` | the server's | the server | nothing at run time | A second model's agreement with the primary over the last p_days, per purpose, question and port: |
@@ -104,7 +110,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 17 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ask_memory_write`, `create_mailbox` and 18 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -221,7 +227,7 @@ being read is dropped by a migration.
 | `file_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A person removed a file (00551, 00616): |
 | `file_restore` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's Undo of a delete, with the settings permission (00616): |
 | `file_road_is_owners` | the server's | the server | SQL `file_twin_fate` | Whether a road is the owner's own word (00643): |
-| `file_road_is_watched` | the server's | the server | SQL `file_copies_free_at`, `file_copies_let_go` and 3 more | Whether a road is a watched folder (00654): |
+| `file_road_is_watched` | the server's | the server | SQL `file_copies_free_at`, `file_copies_let_go` and 6 more | Whether a road is a watched folder (00654): |
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
@@ -231,14 +237,19 @@ being read is dropped by a migration.
 | `file_upload_lapsed` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A video whose bytes never arrived, a day on (00556): |
 | `file_video_begin` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A member's video on its way (00556), once the video platform holds its reservation: |
 | `file_video_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | A found video on its way (00626), let in by its length where its road says it (00643, p_seconds). |
-| `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 2 more | Whether a video of this length may come in (00643): |
+| `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 3 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
-| `file_was_used` | the server's | the server | SQL `source_items_grace_end` | Whether a file was used (00654): |
+| `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
+| `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
+| `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |
 | `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |
 | `finish_broadcast` | the server's | the server | code `packages/db/src/repositories/events/delivery.ts` | A run that sent its last batch: |
 | `first_replies` | reader | a signed-in person, the server | code `apps/dashboard/src/server/metrics/metrics.ts`, `packages/contracts/src/today/metrics.ts` and 1 more; SQL `metrics_summary`, `platform_metrics_roll` and 2 more |  |
+| `footage_hearers` | the server's | the server | SQL `footage_ring` | Who hears that a watched folder or its account needs someone (00657): |
+| `footage_quoted` | the server's | the server | SQL `files_ring_footage_in`, `media_sources_ring` and 1 more | A watched folder's name as the bell says it (00657): |
+| `footage_ring` | the server's | the server | SQL `media_sources_ring`, `source_connections_ring` and 1 more | One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
 | `get_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts` |  |
@@ -249,7 +260,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 31 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 33 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -392,6 +403,7 @@ being read is dropped by a migration.
 | `mark_visit` | door | a signed-in person, the server | code `apps/dashboard/src/server/calendar/visits.ts`, `packages/contracts/src/need-you/groups.ts` and 2 more | A member says what became of a visit (00397, decision 0002 step 8): |
 | `marketing_consent_on_erase` | trigger | the server | trigger `contacts_erase_clears_marketing on contacts` |  |
 | `may_read_workspace` | door | a signed-in person, the server | SQL `lead_allowance`, `lead_search_widens` and 2 more | Whether the caller (auth.uid(), never a parameter) may read this workspace: |
+| `media_sources_ring` | trigger | the server | trigger `media_sources_ring on media_sources` | A trigger on media_sources (00657): |
 | `member_decision` | door | a signed-in person, the server | SQL `change_playbook`, `message_call_back` and 5 more | A decision written as the caller's own (00357): |
 | `member_has_address` | the server's | the server | code `packages/db/src/repositories/calendar/notices.ts`; SQL `reach_out_booked_from` | Is this address a member's of the workspace: |
 | `member_push_off_set` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/member-alerts.ts` | Remembers which notification kinds the caller's phones are not told in one workspace: |
@@ -400,6 +412,7 @@ being read is dropped by a migration.
 | `member_withdraw_message` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member withdraws one queued message of the workspace, on their own session (00387), through withdraw_queued: |
 | `memberships_keep_an_owner` | trigger | the server | trigger `memberships_keep_an_owner on memberships` | A workspace keeps an owner while anyone is in it (00271): |
 | `memberships_start_the_bell` | trigger | the server | trigger `memberships_start_the_bell on memberships` | A member's bell starts when they join (00622, decision 0124): |
+| `memberships_wake_their_folders` | trigger | the server | trigger `memberships_wake_their_folders on memberships` | A trigger on memberships (00657, the footage plan's D13): |
 | `merge_people` | door | a signed-in person, the server | code `apps/dashboard/src/server/people/merge-people.ts`, `packages/contracts/src/people/person-merge.ts` and 1 more | An owner merges two records of one person (decision 0028): |
 | `message_call_back` | door | a signed-in person, the server | code `packages/db/src/repositories/conversations/control.ts` | A member calls back a send in its grace (00387): |
 | `message_carries_link` | reader | a signed-in person, the server | SQL `messages_note_booking_link` | Whether these words carry this link (K7): |
@@ -427,7 +440,7 @@ being read is dropped by a migration.
 | `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00593): |
 | `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
-| `notifications_close_about` | the server's | the server | SQL `batch_closes_its_notices`, `escalation_closes_its_notices` and 4 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
+| `notifications_close_about` | the server's | the server | SQL `ad_accounts_close_ad_bell`, `ad_bell_ring` and 9 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
 | `notifications_read_through` | door | a signed-in person, the server | code `apps/dashboard/src/server/notices/bell.ts`, `packages/db/src/repositories/notices/devices.ts` | A member reads their bell through (00614, 00622, decision 0124). |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `number_drift` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Where lines and tenant_channels disagree in a way that is actually wrong: |
@@ -506,7 +519,7 @@ being read is dropped by a migration.
 | `piece_end` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A video that could not be made (00613): |
 | `piece_file_begin` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video on its way into the video platform (00613; |
 | `piece_sent` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | A drawn video's bytes have all gone into the video platform (00613): |
-| `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613): |
+| `piece_stage` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | Where a video being made stands, said as it changes (00613, 00657): |
 | `piece_step` | the server's | the server | code `packages/db/src/repositories/files/pieces.ts` | The machine a video is being drawn on, kept or let go (00613); |
 | `platform_acts_forward` | trigger | the server | trigger `platform_acts_forward on platform_acts` |  |
 | `platform_admin_add` | the server's | the server | nothing at run time | Adds a person to the Console's staff by email with a role, or changes the role of one who is staff already (00467). |
@@ -741,10 +754,17 @@ being read is dropped by a migration.
 | `sms_sweep_text_canary` | the server's | the server | the clock, `text-canary` | The daily text canary's clock (00595): |
 | `sms_sweep_texts` | the server's | the server | the clock, `texts-sweep` | The texts sweep's clock (00594): |
 | `sole_proprietor_of` | the server's | the server | code `packages/db/src/repositories/workspace/control-plane/config.ts` | Whether a workspace's business on record has no tax id: |
+| `source_connections_ring` | trigger | the server | trigger `source_connections_ring on source_connections` | A trigger on source_connections (00657): |
 | `source_credentials_drop` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: deletes a footage account's token from Vault (00641). |
 | `source_credentials_get` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: a footage account's token from Vault, or null (00641). |
 | `source_credentials_put` | the server's | the server | code `packages/db/src/repositories/files/sources.ts` | Service-role only: stores a footage account's token in Vault under source-creds-<id> and points credentials_ref at it (00641). |
+| `source_files_remove` | door | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A member who may change the settings removes what came from the workspace's watched folders (00657, the footage screens' Settings 19): |
+| `source_files_tally` | the server's | the server | code `packages/db/src/repositories/files/source-standing.ts` | What came from a workspace's watched folders and is still in its Library (00655): |
 | `source_items_grace_end` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The seven-day cleanup (00654, the footage sources plan's D3 as narrowed on 18 November): |
+| `source_items_passed` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | What a watched folder holds that is not in the Library (00655), by its state and cause: |
+| `source_items_ring_full` | trigger | the server | trigger `source_items_ring_full on source_items` | A trigger on source_items (00657, the footage screens' call 3): |
+| `source_items_stamp_left` | trigger | the server | trigger `source_items_stamp_left on source_items` | A trigger on source_items (00657): |
+| `source_items_tally` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A watched folder's files counted where they stand (00655, the footage sources plan's screens): |
 | `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00643, the footage sources plan's D15): |
 | `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00643, decision 0115): |
 | `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00643): |
@@ -803,6 +823,7 @@ being read is dropped by a migration.
 | `trigger_registration_sweep` | the server's | the server | the clock, `registration-sweep` | Asks the edge to finish carrier registrations the carriers have answered. |
 | `trigger_sequences_clock` | the server's | the server | the clock, `sequences-clock` | The one clock every sequence runs on (0060, S2): |
 | `trigger_sweep_health` | the server's | the server | the clock, `sweep-health` | Asks the edge to judge the other sweeps and email the platform operator if any of them stopped reaching it. |
+| `video_minutes_by_road` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts`; SQL `source_items_ring_full` | What fills a workspace's sixty minutes of video, in seconds (00657, the footage screens' call 3): |
 | `video_seconds_free` | the server's | the server | SQL `file_copies_let_go`, `file_video_room` | The seconds of video a workspace still has room for (00654): |
 | `video_seconds_held` | the server's | the server | SQL `video_seconds_toward_cap` | The seconds of video a workspace's takes hold (00654): |
 | `video_seconds_toward_cap` | the server's | the server | SQL `file_video_begin`, `piece_file_begin` and 1 more | How many seconds of video count toward a workspace's video minutes (contracts FILE_VIDEO_MINUTES_MAX): |

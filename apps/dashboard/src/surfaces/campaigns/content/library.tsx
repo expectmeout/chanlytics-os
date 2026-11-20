@@ -7,6 +7,7 @@
 import { useEffect } from "react";
 import type { ContentMadeDto } from "@chanlytics/contracts";
 import type { FrameFlash } from "../../frame-verbs";
+import { FolderLine } from "../../files/footage/line";
 import { LibraryInContent } from "../../files/pane";
 import { useSurface } from "../../use-surface";
 import { FileLines } from "./lines";
@@ -37,18 +38,22 @@ export default function ContentLibrary({
     onPieces(files ? files.map((file) => ({ file, posts: [] })) : null);
   }, [files, onPieces]);
   return (
-    <LibraryInContent
-      flash={flash}
-      onOpen={onOpen}
-      onAdder={onAdder}
-      rows={layout === "list" ? (shown, open) => <FileLines files={shown} onOpen={open} /> : null}
-      empty={
-        sources
-          ? ({ add, videos }) => (
-              <FoundCard sources={sources} videos={videos} onAdd={add} onLibrary={null} surface="files" />
-            )
-          : null
-      }
-    />
+    <>
+      {/* A watched folder's news, over the list; an empty Library says it on its own card (FoundCard). */}
+      {files && files.length > 0 ? <FolderLine /> : null}
+      <LibraryInContent
+        flash={flash}
+        onOpen={onOpen}
+        onAdder={onAdder}
+        rows={layout === "list" ? (shown, open) => <FileLines files={shown} onOpen={open} /> : null}
+        empty={
+          sources
+            ? ({ add, videos }) => (
+                <FoundCard sources={sources} videos={videos} onAdd={add} onLibrary={null} surface="files" />
+              )
+            : null
+        }
+      />
+    </>
   );
 }

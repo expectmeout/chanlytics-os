@@ -19,6 +19,17 @@ import { platformWide } from "../../shared/tenant-db";
 type Db = SupabaseClient<Database>;
 export type SourceConnectionRow = Database["public"]["Tables"]["source_connections"]["Row"];
 export type MediaSourceRow = Database["public"]["Tables"]["media_sources"]["Row"];
+
+/**
+ * The account a workspace's folders are read through: one that reads, never the word that one could not (a blocked
+ * Workspace). One rule for every screen and press (the review of 20 Nov, finding 8).
+ */
+export const readingAccountOf = (accounts: readonly SourceConnectionRow[]): SourceConnectionRow | null =>
+  accounts.find((account) => account.health !== "blocked_by_admin") ?? null;
+
+/** The folder a workspace watches (one a workspace): any not stopped. One rule for every screen and press. */
+export const watchedFolderOf = (sources: readonly MediaSourceRow[]): MediaSourceRow | null =>
+  sources.find((source) => source.state !== "stopped") ?? null;
 type ConnectionPatch = Database["public"]["Tables"]["source_connections"]["Update"];
 type SourcePatch = Database["public"]["Tables"]["media_sources"]["Update"];
 type SourceState = SchemaSet<"media_sources.state">;

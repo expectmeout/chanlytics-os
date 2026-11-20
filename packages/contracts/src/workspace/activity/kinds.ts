@@ -95,6 +95,20 @@ function offersPausedWords(p: Record<string, unknown>, base: string): string {
   return reason ? `${base} · ${reason}` : base;
 }
 
+/**
+ * A file removed: by a person, in the kind's own words; by Chanlytics a week after its original left Google Drive
+ * (00654 source_items_grace_end, why source_gone), only because nothing used it; or all that a watched folder brought,
+ * at once, beside Stop watching or Disconnect (00657 source_files_remove, why from_folder, with the count).
+ */
+function fileRemovedWords(p: Record<string, unknown>, base: string): string {
+  const cause = textAt(p, "why");
+  if (cause === "source_gone") return "Chanlytics removed a file · deleted in Google Drive a week ago, and never used";
+  const count = numberAt(p, "count");
+  if (cause === "from_folder" && count !== null)
+    return `${count === 1 ? "1 photo or video" : `${count.toLocaleString("en-US")} photos and videos`} from the watched folder ${count === 1 ? "was" : "were"} removed`;
+  return base;
+}
+
 /** A kind's words, then the facts a reader wants after them: each one the payload gave, in order, and none it did not. */
 const joinBits = (base: string, bits: readonly (string | null)[]): string => {
   const sentence = bits.filter((b): b is string => !!b);
@@ -268,6 +282,9 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["lead.stage", leadStageWords],
   ["lead.not_a_fit", leadNotAFitWords],
   ["lead.emailed", leadEmailedWords],
+  // A file deleted in the watched folder, a week on (00654 source_items_grace_end, why source_gone): Chanlytics removed
+  // it, not a person, and only because nothing used it. Any other removal is a person's, in the kind's own words.
+  ["file.removed", fileRemovedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
   ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
   ["mailbox_connection.provider_wanted", (p, base) => joinBits(base, [textAt(p, "provider")])],

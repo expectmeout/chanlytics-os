@@ -558,6 +558,9 @@
 /* What a row opens under itself (the locations to choose among, the business
    record) starts where the row's words do. */
 .set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
+/* The workspace's ad account (ad-account-real.tsx), in its group under the Meta row: the Ads page's own card, across
+   the group's columns, set apart from the rows as each row is from the next. */
+.set-conn > .conn-ads-slot { padding: var(--set-row-y) 0; border-top: 1px solid var(--line); }
 /* A row's Settings (row.tsx rowSettings), opened in place on a line of its own under its name: what it is attached to,
    what it says, and its acts. Ruben, 20 Oct 2026: the number is said here, never on the row. */
 .set-int-open { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 2px 0 6px; }
@@ -567,6 +570,8 @@
 .set-int-open > .set-acts { flex: none; margin-top: 0; }
 /* What Fix opens leads with what is wrong, in the ink, and the act that mends it, over a hairline before the rest. */
 .set-int-fix { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+/* A fix with nothing under it (a Workspace that blocks apps: no folder, no account to let go) ends the fold: no line under it. */
+.set-int-fix:last-child { padding-bottom: 0; border-bottom: 0; }
 .set-int-problem { font-size: var(--set-hint); line-height: 1.5; color: var(--ink); text-wrap: pretty; }
 /* An open row is one piece: the pointer's ground would wash its Settings with it. */
 .set-conn > .set-int-row[data-open="true"]::before { background: none; }

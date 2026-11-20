@@ -2490,5 +2490,20 @@
       "excludes": ["can't open", "cannot open", "Meta's own screen"],
       "no_write": true
     }
+  },
+  {
+    "id": "content_drive_folder_is_watched",
+    "text": "all our videos are in a google drive folder",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "campaigns/content",
+      "view": "content:all"
+    },
+    "expect": {
+      "proposals_any": ["bring_in"],
+      "excludes": ["can't open", "cannot open", "can't access", "upload them"],
+      "no_write": true
+    }
   }
 ]

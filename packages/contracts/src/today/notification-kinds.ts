@@ -80,6 +80,18 @@ const NOTIFICATION_DELIVERY = {
   // An ad account that needs its owner (00653): the platform signed Chanlytics out, or cannot charge for it. A line on
   // the bell, written by the database as it learns it; Campaigns › Ads says the rest.
   ad_account: "bell",
+  // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos counted up in
+  // place. Lines on the bell, written by the database as the folder's state turns; the folder's row says the rest.
+  footage: "bell",
+  footage_in: "bell",
+  // An owner's ads (00658, decision 0050 call 15): Meta didn't approve one or couldn't charge for one, one ended or spent
+  // its total, or no one wrote from one in a week. Lines on the owner's bell, written by the database as each read turns
+  // them; Campaigns › Ads says the rest. Which of these are also emailed is Ruben's open call (0050, "Not decided here").
+  ad_refused: "bell",
+  ad_unpaid: "bell",
+  ad_ended: "bell",
+  ad_spent: "bell",
+  ad_quiet: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -352,6 +364,15 @@ export const BELL_LINE_KINDS = [
   "preview_tried",
   // An ad account that needs its owner (00653): signed out by its platform, or a payment the platform cannot take.
   "ad_account",
+  // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos.
+  "footage",
+  "footage_in",
+  // An owner's ads (00658): on the owner's bell alone until a topic offers their phone (decision 0050, call 15).
+  "ad_refused",
+  "ad_unpaid",
+  "ad_ended",
+  "ad_spent",
+  "ad_quiet",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

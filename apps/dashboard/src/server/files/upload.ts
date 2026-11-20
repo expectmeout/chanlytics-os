@@ -114,6 +114,9 @@ async function startVideo(ctx: RouteContext, member: Member, input: StartAsked):
   if (fate === "kept" && typeof reply?.upload_url === "string")
     return { id, upload_url: reply.upload_url, twin: false };
   if (fate === "here" && typeof reply?.file_id === "string") return { id: reply.file_id, upload_url: null, twin: true };
+  // Already kept, and its video was not at hand: these bytes bring it back (00655), so they are sent after all.
+  if (fate === "back" && typeof reply?.file_id === "string" && typeof reply.upload_url === "string")
+    return { id: reply.file_id, upload_url: reply.upload_url, twin: true };
   if (fate === "full") throw new AppError("validation", W.full);
   if (fate === "minutes") throw new AppError("validation", W.video.full);
   if (fate === "too_long") throw new AppError("validation", W.video.tooLong);

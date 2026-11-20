@@ -1267,6 +1267,27 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       const r = (tables.business_records ?? []).find((x) => x.tenant_id === p_tenant_id);
       return r ? !String(r.ein ?? "").trim() : null;
     },
+    // A Library counted (00657 files_tallied): its files grouped by what the counts read, with how many of each and the
+    // newest one's arrival; not a video still uploading, and none removed, as the SQL answers.
+    files_tallied: ({ p_tenant_id }) => {
+      const groups = new Map();
+      for (const f of tables.files ?? []) {
+        if (f.tenant_id !== p_tenant_id || f.removed_at || f.media_status === "uploading") continue;
+        const row = {
+          status: f.status,
+          shows: f.shows ?? null,
+          source: f.source,
+          kind: f.kind ?? "image",
+          look_status: f.look_status ?? "waiting",
+        };
+        const key = JSON.stringify(row);
+        const held = groups.get(key) ?? { ...row, created_at: f.created_at, n: 0 };
+        held.n += 1;
+        if (String(f.created_at) > String(held.created_at)) held.created_at = f.created_at;
+        groups.set(key, held);
+      }
+      return [...groups.values()];
+    },
     // The leads a workspace may count this month (00512's lead_allowance, decision 0090): the trial's while its
     // billing says trialing, else the month's, as contracts' leadAllowanceFor says.
     lead_allowance: ({ p_tenant_id }) => {
@@ -2228,8 +2249,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
       // it just wrote avoids a second round trip, and how a permission-sensitive
-      // update counts what it changed. No select at all answers no rows.
-      return { data: q.selected ? hit.map(drawn()) : null, error: null };
+      // update counts what it changed. No select at all answers no rows. `.update(v, { count: "exact" })` says how many
+      // it changed, as PostgREST's count does.
+      return { data: q.selected ? hit.map(drawn()) : null, error: null, ...(q.counted ? { count: hit.length } : {}) };
     };
 
     const builder = {
@@ -2241,9 +2263,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         q.head = opts?.head === true;
         return proxy;
       },
-      update(values) {
+      update(values, opts) {
         q.op = "update";
         q.values = values;
+        if (opts?.count === "exact") q.counted = true;
         return proxy;
       },
       insert(values) {

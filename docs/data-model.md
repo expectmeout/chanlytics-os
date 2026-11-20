@@ -18,7 +18,7 @@ what the script writes.
 | --- | --- | --- |
 | [`ad_accounts`](#ad_accounts) | `packages/db/src/repositories/ads/accounts.ts` | on, 1 policy |
 | [`ad_days`](#ad_days) | none | on, 1 policy |
-| [`ad_entries`](#ad_entries) | none | on, 1 policy |
+| [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts` | on, 1 policy |
 | [`ads`](#ads) | `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
@@ -192,6 +192,7 @@ The owner's own ad account on one platform, connected once (decision 0049, 00648
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `next_read_at` | timestamp with time zone | yes |  | When the account is next read at its platform (00650): written by each read, an hour on, or fifteen minutes on while one of its ads is being checked or is in its first two days. Null until its first read, which is due at once. |
 | `settle_at` | timestamp with time zone | yes |  | When the account's next fourteen-day look back is due (00650): once a day, at four in the morning in its own zone. The read that finds it due re-reads those days and marks the ones before them settled. |
+| `rung_at` | timestamp with time zone | yes |  | When the bell last looked at the account's ads (00658): each good read rings what turned since, and stamps it. Null, or older than connected_at, until the first look after a connect, which rings nothing. |
 
 Foreign keys:
 
@@ -234,7 +235,7 @@ Foreign keys:
 
 One row each time someone reaches a workspace through an ad (decision 0049, 00644): the platform and its own id for the ad, the kind of entry, whether it made the person, the message that carried it, and what the ad said. Its person is its message's. Written by one door, ad_entry_keep: opened by the first-touch trigger in the message's own transaction, its words kept by the edge afterwards. It enriches and counts nothing: counts of people per ad read contacts.acquired_via and acquired_ref. No click id is kept. Members read; the service role writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/ads/entries.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1487,6 +1488,8 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `copy_returned_at` | timestamp with time zone | yes |  | When a return of the copy last spent the day's budget (00654 file_copy_return_begin): a workspace's returns of a day are counted from it. |
 | `owner_uploaded` | boolean | no | `false` | Its owner uploaded it too (00654): a watched folder's file that an upload met as its twin, written by the upload's door. It is theirs from then on, as any upload: its copy is never let go, and a folder's cleanup never removes it. |
 | `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
+| `origin_left` | text | yes |  | How a watched file's original left its folder (00657): gone (seen in its provider's bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library. |
+| `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
 
 Foreign keys:
 
@@ -2568,6 +2571,7 @@ One folder a business has Chanlytics watch (the footage sources plan, 00639): th
 | `hold_count` | integer | yes |  |  |
 | `hold_confirmed_at` | timestamp with time zone | yes |  |  |
 | `walk_units` | integer | no | `0` | The units its last whole walk spent at its provider, or has spent so far while one is in flight: the gap to its next routine re-walk is set from it, so a large tree is walked less often. |
+| `stopped_why` | text | yes |  | Why a watched folder is not read whole (00657): signed_out (its account's grant was refused), connector_left (whoever connected it left the workspace), cant_open (the folder cannot be opened), over_listed (it holds more than is listed); null while it is read whole. When: last_error_at. |
 
 Foreign keys:
 

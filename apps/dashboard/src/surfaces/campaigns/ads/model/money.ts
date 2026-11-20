@@ -44,14 +44,6 @@ export const perDayOf = (minor: number, currency: string): string => `${moneyOf(
 export const leftOfMoney = (left: number, total: number, currency: string): string =>
   `${moneyOf(left, currency)} left of ${moneyOf(total, currency)}`;
 
-/** The currency's symbol on its own: `$`, `£`. */
-export function currencySymbol(currency: string): string {
-  const parts = numberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(
-    0,
-  );
-  return parts.find((p) => p.type === "currency")?.value ?? currency;
-}
-
 /** A whole number of units, as the minor units an amount is held in, by the currency's own. */
 export const minorOfUnits = (units: number, currency: string): number => Math.round(units * minorPerUnit(currency));
 

@@ -28,15 +28,25 @@ export function driveSignalAddress(): string | null {
  * What the dashboard is told to start a connect with: whether Drive is offered here, the public half of its client, and
  * Google's consent screen's audience, so the page says Google's warning before Connect.
  */
-export function sourcesReadiness(): {
+export function sourcesReadiness(tenantId: string | null): {
   drive: boolean;
   oauth: { client_id: string; redirect_uri: string } | null;
   audience: GoogleAudience | null;
 } {
-  const client = driveClient();
+  const client = sourcesOfferedIn(tenantId) ? driveClient() : null;
   return {
     drive: client !== null,
     oauth: client ? { client_id: client.clientId, redirect_uri: client.redirectUri } : null,
     audience: client ? googleAudience() : null,
   };
+}
+
+/**
+ * Whether a watched folder is offered in this workspace: SOURCES_WORKSPACES names it, or names every one (`*`). Empty
+ * offers it nowhere, so the deployment's Google client can be set for one workspace's timed run with no customer seeing
+ * Connect. A folder already watched is read on whatever the list says: the list gates a new connect and watch alone.
+ */
+export function sourcesOfferedIn(tenantId: string | null): boolean {
+  const listed = (env.SOURCES_WORKSPACES ?? "").split(",").map((id) => id.trim());
+  return listed.includes("*") || (tenantId !== null && listed.includes(tenantId));
 }

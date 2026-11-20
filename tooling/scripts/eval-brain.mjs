@@ -15,11 +15,17 @@
  * model call, so the set is small and the run is deliberate. The full
  * exchange is saved under tooling/backups/ (ignored), never committed.
  *
+ * A case may name a made-up person it speaks with (`who`: a name, whether they
+ * wrote before, and the ad they tapped as AI is told it), and the edge hands the
+ * model the note about them that a live WhatsApp turn would: so a case can put
+ * an ad, or a profile name, that carries an instruction in front of the real
+ * model. The whole set is held to the door's shape before the first batch.
+ *
  * Exit 0 = every case passed. 1 = failures listed. 2 = could not run.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { signEdgeToken } from "@chanlytics/channels/tokens";
-import { judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
+import { doorCaseOf, doorProblems, heardResults, judgeCase, validateCases, formatReport } from "./eval-judge.mjs";
 
 const BASE = process.env.BASE_URL || "https://chanlytics-messaging.vercel.app";
 const SECRET = process.env.EDGE_CALL_SECRET;
@@ -41,7 +47,10 @@ const credential = (body) =>
     : { "x-diag-key": KEY };
 
 const cases = JSON.parse(readFileSync(file, "utf8"));
-const problems = validateCases(cases);
+// A set that can be judged, then one the door takes whole (a case's `who` is held to its shape there): every model
+// call costs money, so a refusal is found here rather than after the batches before it have run.
+const unjudgeable = validateCases(cases);
+const problems = unjudgeable.length ? unjudgeable : doorProblems(cases);
 if (problems.length) {
   console.error("case set problems:\n  " + problems.join("\n  "));
   process.exit(2);
@@ -53,9 +62,7 @@ const results = [];
 // sends none, and the judge takes the strict rule.
 let allowed = null;
 for (let i = 0; i < cases.length; i += BATCH) {
-  const batch = cases
-    .slice(i, i + BATCH)
-    .map(({ id, text, history }) => ({ id, text, ...(history ? { history } : {}) }));
+  const batch = cases.slice(i, i + BATCH).map(doorCaseOf);
   const body = JSON.stringify({ tenant_id: TENANT, cases: batch });
   const res = await fetch(`${BASE}/api/admin/eval`, {
     method: "POST",
@@ -72,7 +79,10 @@ for (let i = 0; i < cases.length; i += BATCH) {
   process.stderr.write(`batch ${i / BATCH + 1}: ${batch.length} cases, prompt ${data.prompt_chars} chars\n`);
 }
 
-const report = formatReport(cases, results, allowed);
+// Judged as heard: a case naming a person counts only where the edge told the model who they are. The answers are kept
+// as they came, beside the verdicts.
+const heard = heardResults(cases, results);
+const report = formatReport(cases, heard, allowed);
 console.log(report.text);
 mkdirSync("tooling/backups", { recursive: true });
 const out = `tooling/backups/eval-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
@@ -91,7 +101,7 @@ writeFileSync(
         id: c.id,
         ...judgeCase(
           c,
-          results.find((r) => r.id === c.id),
+          heard.find((r) => r.id === c.id),
           allowed,
         ),
       })),

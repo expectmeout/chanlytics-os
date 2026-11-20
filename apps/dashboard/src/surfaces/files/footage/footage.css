@@ -1,0 +1,320 @@
+/* A watched folder's own parts (the footage sources plan, P5): the folder chooser, the last step, the two ways of
+   letting a folder go, the Library's line and a clip kept in Drive. Every primitive is the kit's (the sheet, the
+   button, the row, the switch); here is where they stand, and the few lines of words between them. Every value is a
+   token. */
+
+/* ---- the folder chooser: one level, its folders in a column, its way back over them ---- */
+.fo-chooser {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+/* A name is never cut here: it wraps, and the row grows with it. */
+.fo-folder {
+  cursor: pointer;
+}
+.fo-folder > * {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.fo-crumb {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-1) 0 var(--space-2);
+}
+/* The way back points back. */
+.fo-crumb > svg {
+  rotate: 180deg;
+}
+/* What a level says where it lists no folders. */
+.fo-says {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-6) 0;
+}
+.fo-says > b {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fo-says > p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+/* A level being read: a still outline of the rows to come, no motion. */
+.fo-outline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+}
+.fo-outline > span {
+  display: block;
+  width: 46%;
+  height: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-inset-fill);
+}
+.fo-outline > span:nth-child(2) {
+  width: 30%;
+}
+.fo-outline > span:nth-child(3) {
+  width: 58%;
+}
+/* The foot: what the press would watch, said over it; the press as wide as the sheet. */
+.fo-foot {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.fo-foot > p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.fo-foot > p > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+/* ---- the last step: three facts, one switch, what watching means, and what became of the press ---- */
+.fo-watch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.fo-watch-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+.fo-watch-facts > dt {
+  color: var(--ink-muted);
+}
+.fo-watch-facts > dd {
+  margin: 0;
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.fo-watch-says,
+.fo-watch-fine,
+.fo-leave > p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.fo-leave {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.fo-leave > p[data-strong] {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* What became of a press, in one line: on its way, done, the owner's to mend, or simply said. */
+.fo-told {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.fo-told[data-tone="live"] {
+  color: var(--accent-ink);
+}
+.fo-told[data-tone="done"] {
+  color: var(--ok-ink);
+}
+.fo-told[data-tone="you"] {
+  color: var(--warn-ink);
+}
+
+/* ---- a clip kept in Drive, opened: its own still, dimmed, and where its video stands said in its middle ---- */
+.fo-kept {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 46vh;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--viewer-ground);
+}
+/* In Content's viewer it fills the screen, as the player it stands in for does. */
+.cnv-viewer-picture > .fo-kept {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  border-radius: 0;
+}
+.fo-kept-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.fo-kept-words {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  background: var(--viewer-still-dim);
+  color: var(--media-ink);
+  text-align: center;
+  /* A still full of its own words (a review, a price board) must not read through the line laid over it. */
+  text-shadow: var(--media-ink-shadow);
+}
+/* A clip whose original is gone: the still steps further back, greyed, as the canvas's "gone" draws it. */
+.fo-kept[data-copy="lost"] > .fo-kept-words {
+  background: var(--viewer-gone-dim);
+}
+.fo-kept[data-copy="lost"] > .fo-kept-still {
+  filter: grayscale(1);
+}
+.fo-kept-words > b {
+  max-width: 30ch;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  text-wrap: balance;
+}
+.fo-kept-words > p {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--viewer-ink-dim);
+  text-wrap: pretty;
+}
+.fo-kept-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+/* On its way by itself: the one thing that moves. */
+.fo-kept-ring {
+  width: var(--space-6);
+  height: var(--space-6);
+  border: 2px solid var(--viewer-reel-track);
+  border-top-color: var(--viewer-reel-run);
+  border-radius: var(--radius-full);
+  animation: fo-turn calc(var(--duration-slow) * 3) linear infinite;
+}
+@keyframes fo-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fo-kept-ring {
+    animation: none;
+  }
+}
+
+/* ---- the Library's one line: the folder's news over the list, its act or its way in at its end ---- */
+.fo-line {
+  /* On a desk the Library's pane is a column of fixed height that scrolls: the line keeps its own height in it. */
+  flex: none;
+  margin: 0 0 var(--space-3);
+  cursor: pointer;
+}
+.fo-line[data-tone="you"] {
+  color: var(--warn-ink);
+}
+/* Its second words wrap rather than cut. */
+.fo-line .fo-line-said {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+/* The folder's sheet: a row a thing, its count at the row's end, its reason under it. */
+.fo-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.fo-row-said {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.fo-row-said:last-child {
+  border-bottom: 0;
+}
+.fo-row-said > dt {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.fo-row-said > dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+.fo-row-said > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+
+/* ---- AI's card for a folder: a step's words, and over them what the step before made true ---- */
+.fo-asked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fo-asked > p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.fo-asked > .fo-done {
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* "Remove what came from it too": never the default, so a quiet press centred under what stays (the canvas's Settings 19). */
+.fo-leave-also {
+  display: flex;
+  justify-content: center;
+}
