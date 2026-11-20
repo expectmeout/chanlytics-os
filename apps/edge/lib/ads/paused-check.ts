@@ -209,11 +209,11 @@ async function removeStep(at: CheckAt, steps: CheckStep[], campaignId: string): 
 async function makeUnder(
   at: CheckAt,
   draft: CheckedDraft,
-  made: { steps: CheckStep[]; name: string; campaignId: string },
+  under: { steps: CheckStep[]; name: string; campaignId: string },
 ): Promise<string[] | null> {
   const { log, signIn, account } = at;
   const { token, appSecret } = signIn;
-  const { steps, name, campaignId } = made;
+  const { steps, name, campaignId } = under;
   const accountId = account.externalId;
   const endsAt = endOfDayIn(account.timezone, draft.end_day);
   const setAsk = {
@@ -320,7 +320,7 @@ async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps:
 }
 
 /** What the door was asked for, read: a draft to check, or a campaign to remove; null where it is neither, or both. */
-function askOf(body: Partial<AdsCheckBody>): { draft: CheckedDraft } | { remove: string } | null {
+function checkAskOf(body: Partial<AdsCheckBody>): { draft: CheckedDraft } | { remove: string } | null {
   if (body.draft && body.remove === undefined) return { draft: body.draft };
   if (!body.draft && body.remove !== undefined && isMetaId(body.remove)) return { remove: body.remove };
   return null;
@@ -332,7 +332,7 @@ export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): 
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  const ask = askOf(body);
+  const ask = checkAskOf(body);
   if (!isTenantId(tenantId) || !UUID.test(userId) || !ask)
     return refuse(400, "bad_request", "tenant_id, user_id, and a draft or Meta's id for a campaign to remove");
   const db = pg();
