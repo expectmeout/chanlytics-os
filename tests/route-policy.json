@@ -51,6 +51,13 @@
       "rate": null,
       "spend": false
     },
+    "POST ads/check": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET ads/connect/callback": {
       "kind": "read",
       "scope": "account",
