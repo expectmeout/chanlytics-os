@@ -9,7 +9,7 @@ import { installStubReact, find, textOf } from "../../_stub-react.mjs";
 
 installStubReact();
 const S = "../../../apps/dashboard/src/surfaces";
-const { AskChart } = await import(`${S}/ask/home.tsx`);
+const { AskChart } = await import(`${S}/ask/charts.tsx`);
 const { askText } = await import(`${S}/ask/words.ts`);
 const { ChartCard } = await import(`${S}/kit/charts/card.tsx`);
 const { BarChart, BarList } = await import(`${S}/kit/charts/bar.tsx`);

@@ -11,7 +11,7 @@
  * A row opens its run through the frame's move, so a run opens over the page it was pressed on (rule C): Today and the
  * Inbox stay under it, and Back closes it.
  */
-import { Fragment, type ReactElement } from "react";
+import type { ReactElement } from "react";
 import {
   CAMPAIGNS_PAUSED_WORDS,
   TO_SEND_ALL_WORDS,
@@ -28,7 +28,7 @@ import {
   todayRunWords,
   type BroadcastVM,
 } from "@chanlytics/contracts";
-import { WAIT_ROW_WORDS, waitRowsOf, type WaitRowOf } from "./rows";
+import { WAIT_ROW_WORDS, waitRowKey, waitRowsOf, type WaitRowOf } from "./rows";
 import { bcLateWords, bcOpensOnItsSheet } from "../campaigns/broadcasts/when-words";
 import { AttnRow } from "../kit/attention/attn-row";
 import { gatedProps } from "../frame-verbs";
@@ -90,15 +90,43 @@ interface WaitRowsDrawn {
   cut: number;
 }
 
-/** What a row is called: To send's and cold email's own names, how many runs wait where they are folded, or the run's. */
-const waitRowName = (row: WaitRowOf<BroadcastVM>): string =>
-  row.kind === "to_send"
-    ? TO_SEND_ALL_WORDS.title
-    : row.kind === "cold_email"
-      ? WAIT_ROW_WORDS.cold.name
-      : row.kind === "run"
-        ? runTitleOf(row.run)
-        : WAIT_ROW_WORDS.approvals.name(row.runs.length);
+/** A row's verb: what it says, how it is drawn, what it does, and what holds it back. */
+interface WaitAct {
+  label: string;
+  kind?: string;
+  onClick: () => unknown;
+  busy?: boolean;
+  gate?: Record<string, unknown>;
+}
+
+/**
+ * A row of the runs waiting, in its parts: what any drawing of it says and does. The kit's attention row here, which the
+ * Inbox's Needs you draws; a line of Today's, or its card (today/calm/wait.tsx).
+ */
+export interface WaitPart {
+  /** The same wherever the row is drawn or named (rows.ts waitRowKey). */
+  key: string;
+  testid: string;
+  /** What the row is called: To send's and cold email's own names, how many runs wait where they are folded, or the run's. */
+  name: string;
+  whole: { meta: string; sentence: string; status: readonly string[] };
+  /** Its one fact, where the row is a line tall. */
+  short: string;
+  /** What waits, as a title of its own (Today's line and card), and whose it is, under that title. */
+  head: string;
+  whose: string;
+  /** What a person would ask AI about it, where it is one run's (Today, calm, D10); null for a list of several. */
+  question: string | null;
+  /** What stands under that fact where the fact is a title: the sentence less what the fact has said. */
+  why: string;
+  cta: WaitAct;
+  also: WaitAct | null;
+  /** The row's own press: its run, or its list, over the page it was pressed on. */
+  open: () => void;
+}
+
+/** A row's parts before its key, which is the list's to give. */
+type Keyless = Omit<WaitPart, "key">;
 
 /** The run's home, where its row opens it: over the page it was pressed on, where that page is no home of Campaigns'. */
 const homeOf = (r: BroadcastVM) => runRoute(r.id, r.sequence_id);
@@ -107,92 +135,70 @@ const homeOf = (r: BroadcastVM) => runRoute(r.id, r.sequence_id);
  * To send's one row: how many emails wait for you to send them, from how many reach-outs. Its press opens the list as a
  * sheet over the page (the frame's move, see-over.ts `inPlace`), as a run's row opens its run: never unfolded under it.
  */
-function toSendRow(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: WaitRowsPorts): ReactElement {
+function toSendPart(t: Extract<WaitRowOf<BroadcastVM>, { kind: "to_send" }>, p: WaitRowsPorts): Keyless {
   const press = () => p.nav(TO_SEND_ROUTE);
-  return (
-    <Fragment key="run-to-send">
-      <AttnRow
-        initials="▶"
-        glyph="bolt"
-        name={TO_SEND_ALL_WORDS.title}
-        {...rowSaidOf(
-          p,
-          {
-            meta: TO_SEND_ALL_WORDS.meta,
-            sentence: TO_SEND_ALL_WORDS.sentence(t.count, t.from),
-            status: [TO_SEND_ALL_WORDS.status],
-          },
-          TO_SEND_ALL_WORDS.short(t.count, t.from),
-        )}
-        tone="escalated"
-        cta={{ label: TO_SEND_ALL_WORDS.open, kind: p.verbKind(), onClick: press }}
-        also={null}
-        onOpen={press}
-        testid="brief-to-send"
-      />
-    </Fragment>
-  );
+  const sentence = TO_SEND_ALL_WORDS.sentence(t.count, t.from);
+  return {
+    testid: "brief-to-send",
+    name: TO_SEND_ALL_WORDS.title,
+    whole: { meta: TO_SEND_ALL_WORDS.meta, sentence, status: [TO_SEND_ALL_WORDS.status] },
+    short: TO_SEND_ALL_WORDS.short(t.count, t.from),
+    head: TO_SEND_ALL_WORDS.short(t.count, t.from),
+    whose: TO_SEND_ALL_WORDS.meta,
+    question: null,
+    why: sentence,
+    cta: { label: TO_SEND_ALL_WORDS.open, kind: p.verbKind(), onClick: press },
+    also: null,
+    open: press,
+  };
 }
 
 /**
  * Cold email's one row (decision 0120, D8): what is held for a look and what waits for an OK in all its runs, and the
  * first opened, the held one first, whose screen walks the rest. Paused, it says so, as every run's row does.
  */
-function coldEmailRow(c: Extract<WaitRowOf<BroadcastVM>, { kind: "cold_email" }>, p: WaitRowsPorts): ReactElement {
+function coldEmailPart(c: Extract<WaitRowOf<BroadcastVM>, { kind: "cold_email" }>, p: WaitRowsPorts): Keyless {
   const W = WAIT_ROW_WORDS.cold;
   const [first] = c.runs;
   const open = () => (first ? p.nav(homeOf(first)) : undefined);
-  return (
-    <AttnRow
-      key="run-cold-email"
-      initials="▶"
-      glyph="bolt"
-      name={W.name}
-      // A held email is answered whether or not campaigns are paused; an OK is not asked for while they are.
-      {...rowSaidOf(
-        p,
-        {
-          meta: W.meta(c.from),
-          sentence: campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.sentence(c),
-          status: p.phone ? [] : W.status(c),
-        },
-        campaignsPaused() && c.held === 0 ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
-      )}
-      tone="escalated"
-      cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
-      also={null}
-      onOpen={open}
-      testid="brief-cold-email"
-    />
-  );
+  // A held email is answered whether or not campaigns are paused; an OK is not asked for while they are.
+  const paused = campaignsPaused() && c.held === 0;
+  const sentence = paused ? CAMPAIGNS_PAUSED_WORDS : W.sentence(c);
+  return {
+    testid: "brief-cold-email",
+    name: W.name,
+    whole: { meta: W.meta(c.from), sentence, status: p.phone ? [] : W.status(c) },
+    short: paused ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
+    head: paused ? CAMPAIGNS_PAUSED_WORDS : W.short(c),
+    whose: W.name,
+    question: null,
+    why: sentence,
+    cta: { label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open },
+    also: null,
+    open,
+  };
 }
 
 /** Two or more runs waiting for an OK, one row: who they are, and the first opened, whose screen walks the rest. */
-function approvalsRow(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitRowsPorts): ReactElement {
+function approvalsPart(first: BroadcastVM, runs: readonly BroadcastVM[], p: WaitRowsPorts): Keyless {
   const W = WAIT_ROW_WORDS.approvals;
   const open = () => p.nav(homeOf(first));
-  return (
-    <AttnRow
-      key={`runs-${first.id}`}
-      initials="▶"
-      glyph="bolt"
-      name={W.name(runs.length)}
-      {...rowSaidOf(
-        p,
-        {
-          meta: W.meta,
-          sentence: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.sentence(runs.map(runTitleOf)),
-          status: p.phone ? [] : W.status,
-        },
-        campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(runs.map(runTitleOf)),
-      )}
-      tone="escalated"
-      cta={{ label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open }}
-      also={null}
-      onOpen={open}
-      testid="brief-runs-row"
-    />
-  );
+  const names = runs.map(runTitleOf);
+  const sentence = campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.sentence(names);
+  return {
+    testid: "brief-runs-row",
+    name: W.name(runs.length),
+    whole: { meta: W.meta, sentence, status: p.phone ? [] : W.status },
+    short: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(names),
+    // How many wait is the title, and who they are stands under it.
+    head: W.name(runs.length),
+    question: null,
+    whose: campaignsPaused() ? CAMPAIGNS_PAUSED_WORDS : W.short(names),
+    why: sentence,
+    cta: { label: p.phone ? WAIT_ROW_WORDS.review : W.open, kind: p.verbKind(), onClick: open },
+    also: null,
+    open,
+  };
 }
 
 /**
@@ -210,6 +216,8 @@ function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
   // sentence and opens the run, where Skip is, instead of an Approve that answers 409.
   const lateWords = held ? null : late ? bcLateWords(run) : null;
   const said = held ?? (lateWords ? { ...words.late, sentence: lateWords } : words.waiting);
+  // Under its one fact, where that fact is a title: the sentence less what the fact has said.
+  const under = held ? held.why : (lateWords ?? words.waiting.why);
   // A held email and a run too late say their own words whatever is paused; a wait for an OK says campaigns are paused.
   const own = !!held || !!lateWords || !campaignsPaused();
   return {
@@ -222,6 +230,9 @@ function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
       status: ports.phone && said === words.waiting ? [] : said.status,
     },
     short: own ? said.short : CAMPAIGNS_PAUSED_WORDS,
+    head: own ? ("head" in said ? said.head : said.short) : CAMPAIGNS_PAUSED_WORDS,
+    question: own && "question" in said ? said.question : null,
+    why: own ? under : CAMPAIGNS_PAUSED_WORDS,
   };
 }
 
@@ -255,42 +266,71 @@ function runVerbsOf(run: BroadcastVM, ports: WaitRowsPorts, acts: RunActs, at: {
 }
 
 /** A run's own row: what it waits for, and Approve where an OK alone sends it, else Open, where its screen answers it. */
-function runRow(run: BroadcastVM, late: boolean, ports: WaitRowsPorts, acts: RunActs): ReactElement {
+function runPart(run: BroadcastVM, late: boolean, ports: WaitRowsPorts, acts: RunActs): Keyless {
   const lines = runSaidOf(run, late, ports);
   const verbs = runVerbsOf(run, ports, acts, lines);
-  return (
-    <AttnRow
-      key={`run-${run.id}`}
-      initials="▶"
-      glyph="bolt"
-      name={runTitleOf(run)}
-      {...rowSaidOf(ports, lines.whole, lines.short)}
-      tone="escalated"
-      cta={verbs.cta}
-      also={verbs.also}
-      onOpen={verbs.open}
-      testid="brief-run-row"
-    />
-  );
+  return {
+    testid: "brief-run-row",
+    name: runTitleOf(run),
+    whole: lines.whole,
+    short: lines.short,
+    head: lines.head,
+    whose: runTitleOf(run),
+    question: lines.question,
+    why: lines.why,
+    cta: verbs.cta,
+    also: verbs.also,
+    open: verbs.open,
+  };
+}
+
+/** The rows a page has room for, in their parts, how many rows there are, and how many it had no room for. */
+interface WaitParts {
+  parts: WaitPart[];
+  count: number;
+  cut: number;
 }
 
 /**
  * The rows of the runs waiting for you, as many as the page has room for: those waiting first, then those too late to
- * approve, through the same row. What the page had no room for is counted in rows, as the group that draws them counts
+ * approve, each in its parts. What the page had no room for is counted in rows, as the group that draws them counts
  * its rows (Today in three zones: a folded row is one), for the door to the rest.
  */
-export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDrawn {
+export function waitParts(ports: WaitRowsPorts, room: number): WaitParts {
   const { waiting, late } = runsPending();
   // To send opens as a sheet over the page (see-sheet.tsx), never under its row, so the rows never hold it open.
-  const rows = waitRowsOf(waiting, p.late === false ? [] : late);
-  const acts = runActsOf(p.flash, p.acting);
+  const rows = waitRowsOf(waiting, ports.late === false ? [] : late);
+  const acts = runActsOf(ports.flash, ports.acting);
   const shown = rows.slice(0, Math.max(0, room));
-  const drawn = shown.flatMap((row) => {
-    if (row.kind === "to_send") return [toSendRow(row, p)];
-    if (row.kind === "cold_email") return [coldEmailRow(row, p)];
-    if (row.kind === "run") return [runRow(row.run, row.late, p, acts)];
+  const parts = shown.flatMap((row): WaitPart[] => {
+    const key = waitRowKey(row);
+    if (row.kind === "to_send") return [{ key, ...toSendPart(row, ports) }];
+    if (row.kind === "cold_email") return [{ key, ...coldEmailPart(row, ports) }];
+    if (row.kind === "run") return [{ key, ...runPart(row.run, row.late, ports, acts) }];
     const [first] = row.runs;
-    return first ? [approvalsRow(first, row.runs, p)] : [];
+    return first ? [{ key, ...approvalsPart(first, row.runs, ports) }] : [];
   });
-  return { drawn, names: shown.map(waitRowName), count: rows.length, cut: rows.length - shown.length };
+  return { parts, count: rows.length, cut: rows.length - shown.length };
+}
+
+/** A row drawn as the kit's attention row: its name, what it says (all of it, or, slim, its one fact) and its verbs. */
+const attnRowOf = (part: WaitPart, ports: WaitRowsPorts): ReactElement => (
+  <AttnRow
+    key={part.key}
+    initials="▶"
+    glyph="bolt"
+    name={part.name}
+    {...rowSaidOf(ports, part.whole, part.short)}
+    tone="escalated"
+    cta={part.cta}
+    also={part.also}
+    onOpen={part.open}
+    testid={part.testid}
+  />
+);
+
+/** The same rows drawn, each one's name in the rows' order: what a line that folds them says it holds. */
+export function waitRows(p: WaitRowsPorts, room: number = Infinity): WaitRowsDrawn {
+  const { parts, count, cut } = waitParts(p, room);
+  return { drawn: parts.map((x) => attnRowOf(x, p)), names: parts.map((x) => x.name), count, cut };
 }

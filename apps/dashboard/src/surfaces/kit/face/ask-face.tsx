@@ -29,12 +29,15 @@ export const AskFace = ({
   tone = "page",
   ground = "page",
   side,
+  enter = true,
   testId,
 }: {
   className?: string;
   tone?: MountOptions["tone"];
   ground?: string;
   side?: number;
+  /** Whether the three come in as they are first drawn; false where they are carried in whole from somewhere else. */
+  enter?: boolean;
   testId?: string;
 }) => {
   const ref = useRef(null);
@@ -43,6 +46,7 @@ export const AskFace = ({
     if (!canvas) return undefined;
     const opts: MountOptions = { tone };
     if (side) opts.side = side;
+    if (!enter) opts.enter = false;
     if (ground === "raised") opts.env = { tokens: groundTokens(ground) };
     const m = MASCOT.mount(canvas, opts);
     if (!m) return undefined;

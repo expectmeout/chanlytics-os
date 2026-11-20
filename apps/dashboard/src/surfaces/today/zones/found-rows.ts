@@ -28,6 +28,12 @@ export interface AskFoundRowVM {
   /** What it is, in a few words: "Booking gap", "Ask's idea". */
   tag: string;
   sentence: string;
+  /**
+   * The row as a line of Today says it (Today, calm, D4): what it is in a few words, and one quieter line under it, its
+   * numbers where it has any. None under it where the row has nothing more to say.
+   */
+  head: string;
+  sub: string | null;
   /** Why, said under the sentence on a press, beside Not today. */
   why: string;
   /**
@@ -44,6 +50,8 @@ export interface AskFoundRowVM {
   peopleLead: string | null;
   /** What Ask why asks, the rule's sentence and its arithmetic; null for a row Ask is not asked about. */
   ask: string | null;
+  /** The row as a person would ask about it (Today, calm, D10); null for a row AI wrote, which asks nothing of itself. */
+  question: string | null;
 }
 
 export interface AskFoundVM {
@@ -77,7 +85,12 @@ export const ASK_FOUND_WORDS = {
 } as const;
 
 /** A row that names nobody and is not asked about: every row but a rule's. */
-const NAMES_NOBODY: Pick<AskFoundRowVM, "people" | "peopleLead" | "ask"> = { people: [], peopleLead: null, ask: null };
+const NAMES_NOBODY: Pick<AskFoundRowVM, "people" | "peopleLead" | "ask" | "question"> = {
+  people: [],
+  peopleLead: null,
+  ask: null,
+  question: null,
+};
 
 /** A rule's row: its tag and sentence, the arithmetic as its why, who it names and what Ask why asks, and its door. */
 const ruleRow = (todayLeak: TodayLeakVM): AskFoundRowVM => ({
@@ -85,12 +98,15 @@ const ruleRow = (todayLeak: TodayLeakVM): AskFoundRowVM => ({
   source: "rule",
   tag: todayLeak.tag,
   sentence: todayLeak.text,
+  head: todayLeak.head,
+  sub: todayLeak.sub,
   why: todayLeak.math,
   act: { label: todayLeak.cta.label, to: todayLeak.cta.to },
   card: null,
   people: todayLeak.people,
   peopleLead: todayLeak.peopleLead,
   ask: todayLeak.ask,
+  question: todayLeak.question,
 });
 
 /** A card's words where it says them for this row (a finding's payload), else null. */
@@ -120,6 +136,8 @@ function noticedRow(askMorningCard: AskMorningCard): AskFoundRowVM {
     source: "noticed",
     tag: cardSays(askMorningCard, "tag") ?? ASK_FOUND_WORDS.noticed,
     sentence: cardSays(askMorningCard, "sentence") ?? askMorningCard.line ?? askMorningCard.title,
+    head: cardSays(askMorningCard, "sentence") ?? askMorningCard.line ?? askMorningCard.title,
+    sub: cardSays(askMorningCard, "why") ?? (askMorningCard.summary || null),
     why: cardSays(askMorningCard, "why") ?? askMorningCard.summary,
     act: cardAct(askMorningCard),
     card: askMorningCard,
@@ -132,25 +150,29 @@ function noticedRow(askMorningCard: AskMorningCard): AskFoundRowVM {
  * (ask.ts AskProposal.summary: "the exact change"), and the card's act: Approve, Open in Ask for a step of a plan, or a
  * fix card's door, never an Approve that has nothing to approve.
  */
-const ideaRow = (c: AskMorningCard): AskFoundRowVM => ({
-  key: c.id,
+const ideaRow = (idea: AskMorningCard): AskFoundRowVM => ({
+  key: idea.id,
   source: "idea",
   tag: ASK_FOUND_WORDS.idea,
-  sentence: c.line ?? c.title,
-  why: c.summary,
-  act: cardAct(c),
-  card: c,
+  sentence: idea.line ?? idea.title,
+  head: idea.line ?? idea.title,
+  sub: idea.summary || null,
+  why: idea.summary,
+  act: cardAct(idea),
+  card: idea,
   ...NAMES_NOBODY,
 });
 
 /** A call worth a listen, or a lead who tried their receptionist: the queue's row, with its one door. */
-const queueRow = (r: TodayQueueRowVM): AskFoundRowVM => ({
-  key: `${r.kind}:${r.id}`,
-  source: r.kind === "tried" ? "tried" : "call",
-  tag: r.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
-  sentence: [r.who, r.sentence].filter(Boolean).join(": "),
-  why: r.status.join(" · "),
-  act: { label: r.cta.label, to: r.cta.to },
+const queueRow = (row: TodayQueueRowVM): AskFoundRowVM => ({
+  key: `${row.kind}:${row.id}`,
+  source: row.kind === "tried" ? "tried" : "call",
+  tag: row.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
+  sentence: [row.who, row.sentence].filter(Boolean).join(": "),
+  head: row.who || row.sentence,
+  sub: row.who ? row.sentence || null : null,
+  why: row.status.join(" · "),
+  act: { label: row.cta.label, to: row.cta.to },
   card: null,
   ...NAMES_NOBODY,
 });

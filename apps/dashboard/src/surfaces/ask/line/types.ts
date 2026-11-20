@@ -13,6 +13,7 @@ import type {
   AskThreadVM,
 } from "@chanlytics/contracts";
 import type { AskApi } from "@/bridge/ask";
+import type { AskDock } from "@/bridge/ask/dock";
 import type { Mascot } from "@/bridge/mascot";
 import type { FrameFlash } from "../../frame-verbs";
 import type { ahSlideFrom, useAskSpeech, useAskTalk, useHoldPress, useHoldSpace } from "../hooks";
@@ -182,6 +183,8 @@ export interface Line extends LineState {
   route: LineRoute;
   surface: AskSurface;
   phone: boolean;
+  /** On a phone where the frame's bar stands: the rooms the field and the one press are drawn into (bridge/ask/dock.ts); null elsewhere. */
+  dock: AskDock | null;
   // The acts (acts.tsx).
   nav: (to: string, how?: { leave?: boolean }) => void;
   editWords: (text?: unknown) => void;
@@ -216,6 +219,8 @@ export interface Line extends LineState {
   showRows: boolean;
   composingRows: boolean;
   rowsDrawn: boolean;
+  /** The home is the page's own questions (a phone opened from Today): its title stands over them. */
+  homeTitled: boolean;
   sections: LineSection[];
   rows: LineRow[];
   drawn: DrawnAnswer | null;

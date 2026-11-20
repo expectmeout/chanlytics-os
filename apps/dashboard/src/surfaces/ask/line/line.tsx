@@ -13,6 +13,8 @@
  * through askCalls(). No key symbol is drawn (D17): the shortcuts sheet lists the keys (contracts SHORTCUTS), opened by ? or
  * the account menu.
  */
+import { useLayoutEffect } from "react";
+import { sayAskDocked, useAskDock } from "@/bridge/ask/dock";
 import { MASCOT } from "@/bridge/mascot";
 import { useAskFoot, useAskGrow, useAskLatest, useAskWarm } from "../hooks";
 import { askCalls } from "../shell";
@@ -31,11 +33,27 @@ import {
   useArVoice,
   useArWalk,
 } from "./hooks";
-import { arPhone, arRoute } from "./place";
+import { arDocked, arPhone, arRoute } from "./place";
 import { useArLine } from "./state";
 import { arSubmitter } from "./turns";
 import type { Line } from "./types";
 import { arActivate, arHeroState, arOnKey, arUnder } from "./under";
+
+/** How tall the field's room on the frame's bar is, said to the Line's window as --ask-room while the Line stands on the bar. */
+const useAskRoom = (room: HTMLElement | null, dialog: Line["dialogRef"]) => {
+  useLayoutEffect(() => {
+    const box = dialog.current;
+    if (!room || !box || typeof ResizeObserver !== "function") return undefined;
+    const fit = () => box.style.setProperty("--ask-room", `${room.offsetHeight}px`);
+    const seen = new ResizeObserver(fit);
+    seen.observe(room);
+    fit();
+    return () => {
+      seen.disconnect();
+      box.style.removeProperty("--ask-room");
+    };
+  }, [room, dialog]);
+};
 
 // ---- The Line -------------------------------------------------------------------------------------------------------
 // `ln` is the Line as drawn so far: the props and parts, the state, the acts, then what each hook and builder above
@@ -55,6 +73,20 @@ export const AskReal = ({ open, onClose }: { open: boolean; onClose: () => void 
   const { dropping, ...dropProps } = useArDrop(ln.attach);
   ln.dropping = dropping;
   ln.dropProps = dropProps;
+  // On a phone where the frame's bar stands, the field and the one press are drawn in the frame's rooms: the Line says
+  // it is here, and the frame folds its bar and hands the rooms over (bridge/ask/dock.ts). Known
+  // before the hooks, which hold focus and fly the three by it.
+  const dock = useAskDock();
+  const docked = open && !!A && arDocked();
+  useLayoutEffect(() => {
+    if (!docked) return undefined;
+    sayAskDocked(true);
+    return () => sayAskDocked(false);
+  }, [docked]);
+  ln.dock = docked ? dock : null;
+  // The bar grows with what its field holds (a question of several lines): the Line keeps that much room at its foot, so
+  // nothing of it stands under the bar (ask.css --ask-room).
+  useAskRoom(docked ? dock.field : null, ln.dialogRef);
   ln.submit = arSubmitter(ln);
   Object.assign(ln, useArVoice(ln));
   useAskWarm(ln); // and a question on its way warms the model's cache (../hooks.ts)

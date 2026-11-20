@@ -6,11 +6,21 @@
  * its first page, or up to the top of that page when it is on it already, as a phone's tab bar does.
  */
 import { useEffect } from "react";
+import { askDockRef } from "@/bridge/ask/dock";
 import type { TabBar } from "../kit/tab-bar/tab-bar";
 import { frameGlyph, fromGlobal } from "./frame-window";
 import { PHONE_MORE, PHONE_TABS, PHONE_WARM_ROUTES } from "./places";
 import { pageToTop } from "./shell-hooks";
 import { shellAddress } from "./shell-routes";
+
+/** What the place the bar folded into says, now that it is the way back from AI. */
+const PHONE_BACK = { to: (place: string): string => `Back to ${place}`, plain: "Back" } as const;
+
+/** AI open on a phone: the place on screen is the way back, named as that, and AI's field is drawn in the bar beside it. */
+const askFold = (onAskBack: (() => void) | null, here: { label: string } | null) =>
+  onAskBack
+    ? { label: here ? PHONE_BACK.to(here.label) : PHONE_BACK.plain, onBack: onAskBack, field: askDockRef.field }
+    : null;
 
 interface PhoneTabsProps {
   page: string;
@@ -19,6 +29,8 @@ interface PhoneTabsProps {
   onNavigate: (to: string) => void;
   onMenu: () => void;
   onPlace: () => void;
+  /** AI is open on a phone: the bar folds into the place on screen and holds AI's field (Today, calm, D8); a press on that place closes AI. */
+  onAskBack?: (() => void) | null;
 }
 
 /**
@@ -26,7 +38,7 @@ interface PhoneTabsProps {
  * for the place a painted frame on). A place another holds is moved to with the page cut in (`onPlace`); the place on
  * screen pressed again goes to its first page, or to the top.
  */
-export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace }: PhoneTabsProps) {
+export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace, onAskBack = null }: PhoneTabsProps) {
   // What a thumb goes to, kept warm: first asked for on a phone as the router arrives (workspace.ts warmPhonePlaces), and from
   // here once the page is idle, again when the tab comes back to the screen or is first pressed after the router let them go,
   // and when a finger reaches a tab (workspace.ts keepWarm, warmRoute).
@@ -74,6 +86,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
         warm: () => warm(t.route),
       }))}
       onPick={pick}
+      fold={askFold(onAskBack, here)}
       more={{
         label: PHONE_MORE.label,
         word: PHONE_MORE.word,

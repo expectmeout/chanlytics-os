@@ -1432,18 +1432,24 @@ const TAB_BAR_PLACES = [
 /**
  * The tab bar as TabBar draws it, as wide as a phone's (the gallery's own layout): the four places and More, `lit` the
  * place lit and `page` the one the address names, a place's count over its glyph; `glide` the lozenge's place part way.
+ * `fold` is the bar folded into the place lit, a field's room after its places (TabBar's `fold`): that place the way
+ * back, by the name it says then, every other place and More out of a reader's and the keys' way.
  */
-const kitTabBar = (lit, counts = {}, { glide = null, page = lit } = {}) =>
-  `<div class="gx-phone-bar"><nav class="tab-bar" aria-label="Main"${glide ? ' data-glide=""' : ""}>` +
+const kitTabBar = (lit, counts = {}, { glide = null, page = lit, fold = null } = {}) =>
+  `<div class="gx-phone-bar"><nav class="tab-bar" aria-label="Main"${glide ? ' data-glide=""' : ""}${fold ? ' data-folded=""' : ""}>` +
   `<span class="tab-bar-pill" aria-hidden="true"${glide ? ` style="transform: ${glide};"` : ""}></span>` +
   TAB_BAR_PLACES.map(
     ([word, glyph]) =>
-      `<a class="tab-bar-tab${word === lit ? " active" : ""}" href="#"${word === page ? ' aria-current="page"' : ""} draggable="false">` +
+      `<a class="tab-bar-tab${word === lit ? " active" : ""}${fold && word === lit ? " tab-bar-way" : ""}" href="#"` +
+      `${!fold && word === page ? ' aria-current="page"' : ""}${fold && word === lit ? ` aria-label="${fold}"` : ""}` +
+      `${fold && word !== lit ? ' aria-hidden="true" tabindex="-1"' : ""} draggable="false">` +
       `<span class="tab-bar-glyph">${icon(glyph, 18)}` +
-      `${counts[word] ? `<span class="tab-bar-count tally tally-icon tally-warn">${counts[word]}</span>` : ""}</span>${word}</a>`,
+      `${counts[word] ? `<span class="tab-bar-count tally tally-icon tally-warn">${counts[word]}</span>` : ""}</span>` +
+      `<span class="tab-bar-word">${word}</span></a>`,
   ).join("") +
-  `<button type="button" class="tab-bar-tab" aria-label="Menu"><span class="tab-bar-glyph">${icon("menu", 18)}</span>More</button>` +
-  `</nav></div>`;
+  `<button type="button" class="tab-bar-tab" aria-label="Menu"${fold ? ' aria-hidden="true" tabindex="-1"' : ""}>` +
+  `<span class="tab-bar-glyph">${icon("menu", 18)}</span><span class="tab-bar-word">More</span></button>` +
+  `${fold ? '<div class="tab-bar-field"></div>' : ""}</nav></div>`;
 
 /** The kit's segmented control: a radio group of three, the second chosen. */
 const kitSegmented = () =>
@@ -2097,6 +2103,15 @@ export const FAMILIES = [
       {
         id: "tab-bar",
         html: kitTabBar("Today", { Inbox: 3 }),
+      },
+      // Folded into the place on screen, a field's room beside it: the first place, and one with places before it.
+      {
+        id: "tab-bar-folded",
+        html: kitTabBar("Today", { Inbox: 3 }, { fold: "Back to Today" }),
+      },
+      {
+        id: "tab-bar-folded-later",
+        html: kitTabBar("Calendar", {}, { fold: "Back to Calendar" }),
       },
     ],
   },

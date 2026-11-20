@@ -17,8 +17,9 @@
  * the page keeps its two columns and Ask found under the day: not read yet is never nothing found. On a quiet desk the
  * day stood alone in one column and split in two as Ask found came, which moved the day across the page.
  */
-import { useWaitsOnToday } from "../needs-you";
+import { useFirstWait, useWaitsOnToday } from "../needs-you";
 import { useSurface } from "../use-surface";
+import type { TodayCard } from "./calm/lead";
 import { useNeedYouModel } from "./need-you-model";
 import { canDo } from "./shell";
 import { useFoundModel } from "./zones/found";
@@ -35,6 +36,8 @@ export interface TodayArrangement {
   /** Nothing waits and nothing was found, known to be nothing: the day alone, one column. */
   alone: boolean;
   coral: CoralHolder;
+  /** The one card: the thing most worth doing, which the page draws first and whole; every other item is a line. */
+  card: TodayCard;
 }
 
 /** What the arrangement is worked out from: what each part will draw. */
@@ -58,6 +61,38 @@ interface ArrangementReads {
   found: { draws: boolean; acts: boolean };
   /** The member may approve: Ask found's acts are approvals or doors past one. */
   mayAct: boolean;
+  /** Need you's focus row, by its id: the person or the ask drawn whole; null where none is. */
+  focus: string | null;
+  /** The first row of the runs waiting for a word, by its key (waits/rows.ts waitRowKey); null where none waits. */
+  waitFirst: string | null;
+  /** To do's first row still open, by its id; null where it draws none. */
+  todoFirst: string | null;
+  /** The to-do the member pressed, while it is still open: it takes the card, as a line of Need you's pressed does. */
+  todoPressed: string | null;
+  /** Ask found's first row, by its key; null where it has none. */
+  foundFirst: string | null;
+}
+
+/**
+ * The card, in the walk the coral already takes (the Moments board): a person waiting, even one whose own press takes no
+ * coral (a reply going on its own, whose press is Stop); else To do's first; else setting up, never over someone waiting;
+ * else what Ask found, once what it is drawn from is known: not read yet is never nothing found.
+ */
+function todayCardOf(
+  reads: Pick<
+    ArrangementReads,
+    "read" | "known" | "focus" | "waitFirst" | "todoFirst" | "todoPressed" | "waiting" | "setupActs" | "foundFirst"
+  >,
+): TodayCard {
+  if (!reads.read) return null;
+  if (reads.todoPressed) return { holder: "todo", id: reads.todoPressed };
+  if (reads.focus) return { holder: "queue", id: reads.focus };
+  // What the head counts takes the card before what it does not (D15): a run waiting for a word, then To do.
+  if (reads.waitFirst) return { holder: "wait", id: reads.waitFirst };
+  if (reads.todoFirst) return { holder: "todo", id: reads.todoFirst };
+  if (!reads.waiting && reads.setupActs) return { holder: "setup", id: "setup" };
+  if (reads.known && reads.foundFirst) return { holder: "found", id: reads.foundFirst };
+  return null;
 }
 
 /** The arrangement, from what each part will draw. Pure: the page's tests hold the walk here. */
@@ -72,7 +107,7 @@ export function arrangementOf(reads: ArrangementReads): TodayArrangement {
         : lead && reads.found.acts && reads.mayAct
           ? "found"
           : null;
-  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral };
+  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral, card: todayCardOf(reads) };
 }
 
 /** Today's arrangement, read in the page's render from the same reads its parts draw from. */
@@ -80,6 +115,7 @@ export function useTodayArrangement(): TodayArrangement {
   const vm = useSurface("today");
   const needYou = useNeedYouModel(vm ?? null);
   const waiting = useWaitsOnToday();
+  const waitFirst = useFirstWait();
   const setupActs = useSetupActs();
   const found = useFoundModel();
   return arrangementOf({
@@ -92,5 +128,10 @@ export function useTodayArrangement(): TodayArrangement {
     setupActs,
     found: { draws: found.draws, acts: found.acts },
     mayAct: canDo("approve"),
+    focus: needYou?.focus ?? null,
+    waitFirst,
+    todoFirst: needYou?.todo.rows.find((r) => !needYou.todo.kept[r.id])?.id ?? null,
+    todoPressed: needYou?.todo.rows.find((r) => r.id === needYou.opened && !needYou.todo.kept[r.id])?.id ?? null,
+    foundFirst: found.found.rows[0]?.key ?? null,
   });
 }

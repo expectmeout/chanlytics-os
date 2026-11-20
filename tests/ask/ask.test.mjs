@@ -1582,10 +1582,10 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
       shell.includes("onClick={s.openAsk}") &&
       shell.includes('data-testid="phone-ask"'),
   );
-  assert.ok(
-    shell.includes("if (s.askOpen) return false;"),
-    "hidden while the Line is open; the drawer leaves it with the bar (shell-status.test.mjs opens the drawer)",
-  );
+  // Open on the web's bar the circle holds AI's own press, its three kept unseen (Today, calm, D8, D9); in the native app,
+  // whose AI has a screen of its own, it goes while the Line is open. The drawer leaves it with the bar (shell-status).
+  assert.ok(shell.includes("if (s.askOpen && window.__IN_APP) return false;"), "gone under the native app's own Line");
+  assert.ok(shell.includes("askDockRef.press"), "on the bar, the circle is where AI's one press is drawn");
   const askCss = readRaw("apps/dashboard/src/surfaces/ask/ask.css").replace(/\s+/g, " ");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
   // Glass is the one look: the circle's place is the rule after the base one (".phone-ask" at the end of the phone block),

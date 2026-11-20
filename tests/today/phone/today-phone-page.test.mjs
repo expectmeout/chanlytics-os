@@ -1,19 +1,15 @@
 /**
- * Today on a phone, EXECUTED on the stub React (decision 0076; docs/superpowers/specs/2026-10-28-today-on-a-phone-design.md;
- * Today in three zones, 2 Nov 2026): Need you under the head with no head and no Ask's line of its own, its groups each a
- * pane under its name, who waits on the owner first and To do a group of its own after them, one card and the rest short,
- * a short row opening the walk rather than opening in place, the coral passing from Need you to To do when nobody waits,
- * and the day's four figures in Today so far by their short names. On a desk the same list keeps its head and door, and
- * opens a row in place. After his look on a phone (29 Oct 2026): each thing said once above the fold (how long someone
- * waited beside their name, a run's wait in its sentence, the brief's first line with Read), a foot where the list left
- * someone out, and under the head only the warnings that stop customers being answered.
+ * Today on a phone, EXECUTED on the stub React (decision 0076; Today, calm, 19 Nov 2026): who waits on the owner first,
+ * the first of them the page's card and the rest lines, To do's after them, the coral the card's and passing to To do's
+ * when nobody waits; a reply never written on Today (D8). After his look on a phone (29 Oct 2026): each thing said once
+ * above the fold (how long someone waited beside their name, a run's wait under its title), and under the head only the
+ * warnings that stop customers being answered.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { NOTE_WORDS, clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
+import { clockTime, toTodayVM, zoneDayKey } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, all, find, byTestId, textOf, classes, press } from "../../_stub-react.mjs";
 import { unmarkedTimes } from "../../shell/views/_unmarked-times.mjs";
-import { headline } from "../_headline.mjs";
 import { NOW, ZONE, escalation, metrics, msg, peopleWithSteps, thread, waiting } from "../record/_world.mjs";
 
 const went = [];
@@ -48,8 +44,9 @@ W.fetch = async () =>
     headers: { "content-type": "application/json" },
   });
 const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-const { TodayHeadFigures } = await import("../../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
-const { PhoneSoFar } = await import("../../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+const { useTodayArrangement } = await import("../../../apps/dashboard/src/surfaces/today/arrangement.ts");
+/** Who waits on you as the page draws it, with the card its arrangement names (Today, calm). */
+const NeedYouOnToday = () => NeedYou({ card: useTodayArrangement().card });
 const { TodayAlertBand } = await import("../../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { useNeedYouLine } = await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
@@ -82,79 +79,44 @@ const draw = (Comp) => {
   fresh();
   return W.React.createElement(Comp, {});
 };
-const rowsOf = (tree, kind) => all(tree, (n) => n.props?.["data-testid"] === `queue-${kind}`);
+/** The page's one card, and the lines under it a reader and a thumb reach (not the one folded under the card). */
+const cardOf = (tree) => byTestId(tree, "today-card");
+const linesOf = (tree) =>
+  all(byTestId(tree, "today-queue"), (n) => classes(n).includes("calm-line") && !n.props["data-folded"]);
 const isPrimary = (n) => classes(n).some((c) => c === "btn-primary" || c === "primary");
 const pressesOf = (tree) => all(tree, (n) => n.type === "button");
 
-test("on a phone Need you is the people under the page's head, and To do is a group of its own after them", () => {
+test("on a phone who waited longest holds the card, the next are lines, and To do's step comes after the people, never among them", () => {
   phone = true;
   set(twoWaiting());
-  const queue = draw(NeedYou);
-  assert.equal(byTestId(queue, "today-queue-count"), null, "the count is the page's head, not the list's");
-  assert.equal(
-    textOf(byTestId(queue, "today-queue-door")),
-    "Inbox",
-    "its first group's head holds the way there, as the day's the Calendar's",
-  );
-  assert.equal(all(queue, (n) => n.props?.["data-testid"] === "today-queue-door").length, 1, "once");
-  assert.equal(byTestId(queue, "today-queue-ask"), null, "each card says what AI prepared: no line over them");
-  assert.equal(byTestId(queue, "today-queue").props["data-phone"], true);
-  const todo = byTestId(queue, "today-group-todo");
-  assert.ok(todo, "To do is a group of Need you");
-  const groups = all(queue, (n) => classes(n).includes("ny-group")).map((g) => g.props["data-testid"]);
-  assert.equal(groups.at(-1), "today-group-todo", `after the people who wait: ${groups.join(", ")}`);
-  const people = rowsOf(queue, "handoff");
-  assert.equal(people.length, 2, "both people waiting");
-  assert.ok(
-    people.every((p) => !all(todo, (n) => n === p).length),
-    "neither in To do",
-  );
-  assert.equal(rowsOf(todo, "step").length, 1, "Ben's step is To do's");
-  assert.ok(textOf(todo).includes("Call Ben"), textOf(todo));
-});
-
-test("on a phone the day's four figures stand in Today so far, each by its short name", () => {
-  phone = true;
-  set(twoWaiting());
-  const card = draw(PhoneSoFar);
-  assert.ok(textOf(card).includes("Today so far"), textOf(card));
-  const names = all(card, (n) => classes(n).includes("tc-fig-w")).map(textOf);
-  // A word each, so the row of four is one line: "new people" broke in its 65px (the phone pass, 3 Nov 2026).
-  assert.deepEqual(names, ["booked", "answered", "calls", "new"]);
-  phone = false;
-  // A desk's four stand in the frame's head beside the greeting (figures.tsx TodayHeadFigures), by the same short names
-  // (the 10/10 read, 2 Nov 2026: "answered by the receptionist" made its cell three times another's), the whole name its
-  // title; Today so far is a phone's alone (zones/page.tsx).
-  const desk = draw(TodayHeadFigures);
+  const page = draw(NeedYouOnToday);
+  assert.match(textOf(cardOf(page)), /Sofia Reyes/, "the longest wait holds the card");
   assert.deepEqual(
-    all(desk, (n) => classes(n).includes("tc-fig-w")).map(textOf),
-    ["booked", "answered", "calls", "new"],
-    "a desk says the short names too",
+    linesOf(page).map((l) => l.props["data-testid"]),
+    ["queue-handoff", "queue-step"],
+    "Ana's line, then Ben's step",
   );
-  assert.ok(
-    all(desk, (n) => classes(n).includes("tc-fig"))
-      .map((n) => n.props.title)
-      .includes("answered by AI"),
-    "and the whole name is the figure's title",
-  );
-  phone = true;
+  assert.match(textOf(linesOf(page)[1]), /Call Ben/);
+  assert.equal(byTestId(page, "today-queue-door"), null, "no head over the lines: the page's head says how many");
 });
 
 test("every time Today's blocks say, says so: a copy some minutes old draws none of them (decision 0101)", () => {
   phone = true;
   set(threeWaiting());
-  const queue = draw(NeedYou);
-  assert.match(textOf(queue), /\d+h/, "the fixture says a wait");
-  assert.deepEqual(unmarkedTimes(queue), []);
-  assert.deepEqual(unmarkedTimes(draw(PhoneSoFar)), []);
+  const page = draw(NeedYouOnToday);
+  assert.match(textOf(page), /\d+h/, "the fixture says a wait");
+  assert.deepEqual(unmarkedTimes(page), []);
 });
 
-test("Need you holds each wait to the business's own target, and the open card says why it was handed over in words", () => {
+test("Need you holds each wait to the business's own target, and the card says why it was handed over in words", () => {
   phone = true;
   set(twoWaiting());
+  // Said where a reader sees it: the card's, then each line's (the card's own line is folded under it).
   const waits = (tree) =>
-    all(tree, (n) => classes(n).includes("cl-attn-wait")).map((n) => [textOf(n), !!n.props["data-long"]]);
-  assert.deepEqual(waits(draw(NeedYou)), [
+    [cardOf(tree), ...linesOf(tree)]
+      .flatMap((part) => all(part, (n) => classes(n).includes("calm-wait")))
+      .map((n) => [textOf(n), !!n.props["data-long"]]);
+  assert.deepEqual(waits(draw(NeedYouOnToday)), [
     ["3h", false],
     ["2h", false],
   ]);
@@ -164,7 +126,7 @@ test("Need you holds each wait to the business's own target, and the open card s
   });
   try {
     assert.deepEqual(
-      waits(draw(NeedYou)),
+      waits(draw(NeedYouOnToday)),
       [
         ["3h", true],
         ["2h", true],
@@ -174,11 +136,9 @@ test("Need you holds each wait to the business's own target, and the open card s
   } finally {
     setSurfaceValue("settings", undefined);
   }
-  // On a desk, beside the name of the row it has open; on a phone Up next is its line, and the sheet says the rest.
-  phone = false;
-  const [card] = rowsOf(draw(NeedYou), "handoff");
-  phone = true;
-  assert.equal(textOf(find(card, (n) => classes(n).includes("cl-attn-meta"))), "asked for a person");
+  const card = cardOf(draw(NeedYouOnToday));
+  // Said as a sentence starts, its first letter raised by the card's style (calm.css .calm-why::first-letter).
+  assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), "asked for a person");
   assert.equal(
     find(card, (n) => classes(n).includes("set-mark")),
     null,
@@ -186,99 +146,59 @@ test("Need you holds each wait to the business's own target, and the open card s
   );
 });
 
-test("on a phone a reply is never written on Today: each row's Reply opens its conversation, AI's draft asked for its box (D8)", () => {
+test("on a phone a reply is never written on Today: the card's press opens their conversation, AI's draft asked for its box, and so does the next one's line (D8)", async () => {
   phone = true;
   went.length = 0;
   const vm = twoWaiting();
   set(vm);
-  const queue = draw(NeedYou);
-  const [first, second] = rowsOf(queue, "handoff");
-  assert.ok(textOf(first).includes("Sofia Reyes"), "the longest wait first");
-  assert.equal(byTestId(first, "queue-handoff-work"), null, "no reply worked on Today, the first's neither");
-  assert.equal(byTestId(second, "queue-handoff-work"), null, "nor the second's");
-  const reply = find(second, (n) => n.type === "button" && textOf(n) === "Reply");
-  assert.ok(reply, "its one press");
-  press(reply);
-  const after = again(() => W.React.createElement(NeedYou, {}));
-  const walk = find(after, (n) => typeof n.type === "function" && n.type.name === "WalkSheet" && n.props.at);
-  assert.equal(walk, null, "no walk opens over Today");
-  const ana = vm.queue.rows.find((r) => r.who === "Ana Reyes");
-  assert.deepEqual(went, [`inbox/th-${ana.conversationId}`], "her conversation, where the draft waits in the box");
+  const page = draw(NeedYouOnToday);
+  assert.equal(byTestId(page, "queue-handoff-work"), null, "no reply worked on Today");
+  const act = byTestId(cardOf(page), "today-card-act");
+  assert.match(textOf(act), /Reply/, "the card's one press");
+  press(act);
+  const sofiaRow = vm.queue.rows.find((r) => r.who === "Sofia Reyes");
+  assert.deepEqual(went, [`inbox/th-${sofiaRow.conversationId}`], "her conversation, where the draft waits in the box");
+  went.length = 0;
+  // Ana's line is the door to her conversation, where hers is written too (D8 of 17 Nov): the frame's own door, which
+  // goes the line's way (frame-doors.ts routeDoor).
+  W.routeDoor = (await import("../../../apps/dashboard/src/surfaces/frame-doors.ts")).routeDoor;
+  try {
+    const [ana] = linesOf(draw(NeedYouOnToday));
+    const door = find(ana, (n) => typeof n.props?.href === "string");
+    const anaRow = vm.queue.rows.find((r) => r.who === "Ana Reyes");
+    assert.match(door.props.href, new RegExp(`inbox/th-${anaRow.conversationId}$`));
+    door.props.onClick({ button: 0, preventDefault() {} });
+    assert.deepEqual(went, [`inbox/th-${anaRow.conversationId}`]);
+  } finally {
+    delete W.routeDoor;
+  }
   went.length = 0;
 });
 
-test("the coral is Need you's first act while someone waits, and To do's when nobody does", () => {
+test("the coral is the card's: who waits first while anyone does, To do's first when nobody does", () => {
   phone = true;
   set(twoWaiting());
-  const queue = draw(NeedYou);
-  assert.equal(pressesOf(queue).filter(isPrimary).length, 1, "one coral in Need you");
-  const todo = byTestId(queue, "today-group-todo");
-  assert.equal(pressesOf(todo).filter(isPrimary).length, 0, "To do is quiet under the people");
+  const page = draw(NeedYouOnToday);
+  const corals = pressesOf(page).filter(isPrimary);
+  assert.equal(new Set(corals).size, 1, "one coral");
+  assert.ok(all(cardOf(page), (n) => corals.includes(n)).length > 0, "the card's");
   set(nobodyWaiting());
-  const calm = draw(NeedYou);
-  assert.equal(pressesOf(calm).filter(isPrimary).length, 1, "one coral still");
-  assert.equal(
-    pressesOf(byTestId(calm, "today-group-todo")).filter(isPrimary).length,
-    1,
-    "with nobody waiting, To do's Done is the coral",
-  );
+  const calm = draw(NeedYouOnToday);
+  assert.equal(cardOf(calm).props["data-holder"], "todo", "with nobody waiting, To do's step holds the card");
+  assert.equal(new Set(pressesOf(cardOf(calm)).filter(isPrimary)).size, 1, "and its Done is the coral");
 });
-
-test("on a desk the queue has its head and door, the steps in To do after the people, and each reply a row whose press opens its conversation (D8)", () => {
-  phone = false;
-  went.length = 0;
-  const vm = twoWaiting();
-  set(vm);
-  const queue = draw(NeedYou);
-  assert.ok(byTestId(queue, "today-queue-door"), "its head, with its door");
-  assert.equal(byTestId(queue, "today-queue-count"), null, "how many is the page head's, said once");
-  const todo = byTestId(queue, "today-group-todo");
-  assert.equal(rowsOf(todo, "step").length, 1, "Ben's step is To do's (decision 0007), in its group");
-  assert.equal(rowsOf(queue, "step").length, 1, "and nowhere else");
-  const [first, second] = rowsOf(queue, "handoff");
-  assert.equal(
-    byTestId(first, "queue-handoff-work"),
-    null,
-    "Up next is a row: its reply is written in its conversation",
-  );
-  assert.equal(byTestId(second, "queue-handoff-work"), null, "and so is the next");
-  press(find(second, (n) => n.type === "button" && textOf(n).includes("Reply")));
-  const opened = rowsOf(
-    again(() => W.React.createElement(NeedYou, {})),
-    "handoff",
-  );
-  assert.equal(byTestId(opened[1], "queue-handoff-work"), null, "never opened in place");
-  const ana = vm.queue.rows.find((r) => r.who === "Ana Reyes");
-  assert.deepEqual(went, [`inbox/th-${ana.conversationId}`], "the press went to her conversation");
-  went.length = 0;
-  assert.equal(byTestId(queue, "today-queue").props["data-phone"], undefined);
-  phone = true;
-});
-
-/** `n` people waiting on a person, an hour apart, the first the longest: more than the card holds past six. */
-const manyWaiting = (n) => {
-  const at = (h) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
-  const threads = Array.from({ length: n }, (_, i) =>
-    thread(`cv-${i}`, `Person ${i}`, [msg(`m${i}`, "Can someone call me?", at(n - i + 1))], { state: "needs_human" }),
-  );
-  const held = threads.map((t, i) => ({ ...escalation(), id: `e-${i}`, conversation_id: t.id, created_at: at(n - i) }));
-  return toTodayVM(metrics(), threads, held, [], NOW);
-};
-const footOf = (tree) => find(tree, (n) => classes(n).includes("tq-foot"));
 
 // A desk said it twice too: "Email, waited 5d" over "Escalated · wrote by email · since Mon 5:02 PM" (the refined canvas,
 // 31 Oct 2026), so the wait is said once there as well, in the meta line beside the name.
 test("how long someone waited is said once, beside their name, on a phone and on a desk", () => {
-  phone = true;
-  set(twoWaiting());
-  const once = (row) => textOf(row).split("3h").length === 2;
-  const [sofiaRow] = rowsOf(draw(NeedYou), "handoff");
-  assert.ok(once(sofiaRow), textOf(sofiaRow));
-  assert.ok(!textOf(sofiaRow).includes("since "), `no since on a phone: ${textOf(sofiaRow)}`);
-  phone = false;
-  const [deskRow] = rowsOf(draw(NeedYou), "handoff");
-  assert.ok(once(deskRow), `a desk says the wait, once: ${textOf(deskRow)}`);
-  assert.ok(!textOf(deskRow).includes("since "), `and no since: ${textOf(deskRow)}`);
+  const once = (tree) => textOf(tree).split("3h").length === 2;
+  for (const width of [true, false]) {
+    phone = width;
+    set(twoWaiting());
+    const card = cardOf(draw(NeedYouOnToday));
+    assert.ok(once(card), textOf(card));
+    assert.ok(!textOf(card).includes("since "), `and no since: ${textOf(card)}`);
+  }
   phone = true;
 });
 
@@ -303,27 +223,7 @@ test("how many were done today follows how many need you, where no list head say
   assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
 });
 
-test("on a phone a group's foot says how many more wait and goes to them, and nothing stands under the list", () => {
-  phone = true;
-  set(twoWaiting());
-  assert.equal(
-    footOf(draw(NeedYou)),
-    null,
-    "REGRESSION: a pill under a divider, where every other card's door is in its head",
-  );
-  // Up next and five waiting on you (contracts NEED_YOU_CAPS); past them the group's own foot is the way to the rest.
-  set(manyWaiting(8));
-  const queue = draw(NeedYou);
-  assert.equal(rowsOf(queue, "handoff").length, 6, "Up next and the five waiting");
-  assert.equal(footOf(queue), null);
-  const door = byTestId(byTestId(queue, "today-group-waiting"), "today-group-waiting-more");
-  assert.equal(textOf(door).trim(), "2 more waiting", "with the door to them");
-  assert.match(door.props.href, /\/inbox$/);
-  // The one Inbox door is the list's head, on a phone as on a desk.
-  assert.ok(byTestId(queue, "today-queue-door"), "one door on the head");
-});
-
-test("on a phone a run waiting for your OK says so once, in its sentence, and opens with Review", () => {
+test("on a phone a run waiting for your OK says so once, in its title, and opens with Review", () => {
   const reach = {
     id: "b-reach",
     name: "Movers nearby",
@@ -336,26 +236,24 @@ test("on a phone a run waiting for your OK says so once, in its sentence, and op
     when: "today 6:00 PM",
     counts: { sent: 0, replied: 0 },
   };
+  // On the seam, which the page's card reads, and on the window, which the lines read.
+  setSurfaceValue("broadcasts", { rows: [reach] });
   W.__BROADCASTS = { rows: [reach] };
   try {
     phone = true;
-    set(twoWaiting());
-    const row = byTestId(draw(NeedYou), "brief-run-row");
-    assert.ok(row, "the run is a row");
-    assert.ok(textOf(row).includes("Waits for you to approve"), textOf(row));
-    assert.ok(!textOf(row).includes("Waiting for your approval"), `said once: ${textOf(row)}`);
+    set(nobodyWaiting());
+    W.__PEOPLE = { rows: [], fetchedAt: NOW.getTime() };
+    const card = cardOf(draw(NeedYouOnToday));
+    assert.equal(card.props["data-holder"], "wait", "the run holds the card");
+    const said = textOf(card);
+    assert.match(said, /7 businesses wait for your approval/, "its title says it waits");
+    assert.equal(said.split(/wait(s)? for (your approval|you to approve)/i).length, 4, `said once: ${said}`);
     assert.ok(
-      find(row, (n) => n.type === "button" && textOf(n) === "Review"),
+      find(card, (n) => n.type === "button" && textOf(n) === "Review"),
       "Review, what is done there",
     );
-    phone = false;
-    const desk = byTestId(draw(NeedYou), "brief-run-row");
-    assert.ok(textOf(desk).includes("Waiting for your approval"), "a desk keeps its state line");
-    assert.ok(
-      find(desk, (n) => n.type === "button" && textOf(n) === "Open"),
-      "and its Open",
-    );
   } finally {
+    setSurfaceValue("broadcasts", undefined);
     delete W.__BROADCASTS;
     phone = true;
   }
@@ -442,54 +340,7 @@ test("a call back that has waited past a week says in its sheet that it may be l
   assert.ok(!textOf(work(DAY_MS)).includes(NEED_YOU_WORDS.staleCall), "a call back under a week is simply owed");
 });
 
-test("on a phone Need you is one pane, its groups small labels over its rows, as a desk's are", () => {
-  phone = true;
-  set(twoWaiting());
-  const queue = draw(NeedYou);
-  const groups = all(queue, (n) => classes(n).includes("ny-group"));
-  assert.ok(groups.length > 0, "the groups");
-  assert.equal(
-    find(queue, (n) => classes(n).includes("ny-pane")),
-    null,
-    "REGRESSION: five cards on a phone",
-  );
-  assert.ok(byTestId(queue, "today-queue-door"), "the list's own head, with its door");
-  assert.ok(
-    groups.some((g) => g.props["data-testid"] === "today-group-todo"),
-    "To do among them",
-  );
-});
-
-test("Need you has no cuts over it, on a desk or a phone: its groups are its order (the canvas of 2 Nov 2026)", () => {
-  // Two verbs ask (the replies, and a run's approval) over four rows: the old list drew its chips to cut them here.
-  const run = (id) => ({
-    id,
-    name: `Win-back ${id}`,
-    state: "pending_approval",
-    playbook_id: null,
-    audience: { kind: "segment", label: "Quiet" },
-    recipient_count: 3,
-    scheduled_for: new Date(Date.now() + 2 * 3_600_000).toISOString(),
-    started_at: null,
-    when: "today 6:00 PM",
-    counts: { sent: 0, replied: 0 },
-  });
-  const stripOf = () => find(draw(NeedYou), (n) => typeof n.type === "function" && n.type.name === "SubTabs");
-  try {
-    for (const width of [true, false]) {
-      phone = width;
-      W.__BROADCASTS = { rows: [run("b-1")] };
-      set(threeWaiting());
-      assert.equal(stripOf(), null, "the groups say what each row asks: no chips to cut them");
-      assert.ok(byTestId(draw(NeedYou), "today-group-ok"), "the run waits for your OK in its group");
-    }
-  } finally {
-    delete W.__BROADCASTS;
-    phone = true;
-  }
-});
-
-test("on a phone AI's reply is never shown or sent on Today: Up next's press says it is ready and opens its conversation (D8)", () => {
+test("on a phone AI's reply is never shown or sent on Today: the card's press says it is ready and opens its conversation (D8)", () => {
   phone = true;
   // Sofia wrote an hour ago on WhatsApp: the window is open, so Ask's reply can be sent from the card.
   // A thread of its own: the drafts the tab holds outlive a test, and an earlier one read Sofia's and was refused.
@@ -518,16 +369,15 @@ test("on a phone AI's reply is never shown or sent on Today: Up next's press say
   try {
     went.length = 0;
     set(vm);
-    const queue = draw(NeedYou);
-    const row = rowsOf(queue, "handoff")[0];
-    assert.equal(byTestId(row, "queue-handoff-work"), null, "no card of AI's words");
-    assert.equal(textOf(queue).includes("Six of us is $540"), false, "the words wait in the conversation's box");
+    const page = draw(NeedYouOnToday);
+    assert.equal(byTestId(page, "queue-handoff-work"), null, "no card of AI's words");
+    assert.equal(textOf(page).includes("Six of us is $540"), false, "the words wait in the conversation's box");
     assert.equal(
-      find(queue, (n) => n.type === "button" && textOf(n) === "Send"),
+      find(page, (n) => n.type === "button" && textOf(n) === "Send"),
       null,
       "nothing is sent from Today",
     );
-    const reply = find(row, (n) => n.type === "button" && textOf(n).includes("Reply"));
+    const reply = byTestId(cardOf(page), "today-card-act");
     assert.ok(
       find(reply, (n) => classes(n).includes("ny-ready")),
       "AI's mark says its reply is ready",
@@ -564,7 +414,7 @@ test("the head says AI has a reply ready only where its words can go: never over
       ],
     });
     set(vm);
-    draw(NeedYou);
+    draw(NeedYouOnToday);
     return again(() => useNeedYouLine(surfaceValue("today") ?? null));
   };
   try {
@@ -579,7 +429,7 @@ test("the head says AI has a reply ready only where its words can go: never over
   }
 });
 
-test("on a phone the page is one column in the canvas's order: AI found leads where Need you draws no pane, setting up goes under the work while anyone waits, and the page's end is last", async () => {
+test("on a phone the page is one column in the calm order: the band, what holds the card, who waits, the day and what is left, the page's end last", async () => {
   phone = true;
   const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
   const order = () => {
@@ -587,232 +437,25 @@ test("on a phone the page is one column in the canvas's order: AI found leads wh
     const page = again(() => TodayZones());
     const root = page.rendered ?? page;
     assert.equal(root.props["data-testid"], "today-phone");
-    return root.props.children.filter(Boolean).map((c) => c.type?.name ?? c.props?.["data-testid"]);
+    return [root.props.children]
+      .flat(Infinity)
+      .filter(Boolean)
+      .flatMap((c) => (c.type === W.React.Fragment ? [c.props.children].flat(Infinity).filter(Boolean) : [c]))
+      .map((c) => c.type?.name ?? c.props?.["data-testid"]);
   };
-  // Whether Need you draws its panes is the page's arrangement's to know before anything draws (today/arrangement.ts).
+  // Who waits holds the card (Need you draws it), setting up a line under them; the day and the rest; the end.
   set(twoWaiting());
   const busy = order();
-  assert.deepEqual(busy, [
-    "TodayAlertBand",
-    "NeedYou",
-    "ColdEmailNote",
-    "TodayContentNote",
-    "DayZone",
-    "AskFound",
-    "PhoneSoFar",
-    "PhonePins",
-    "today-setting-up",
-    "TodayEnd",
-  ]);
-  // Nobody waits, but Ben's step is due: To do is Need you's pane, so Ask found stays under the day.
+  assert.equal(busy[0], "TodayAlertBand");
+  assert.equal(busy[1], "NeedYou", "who waits on you first, their card with them");
+  assert.ok(
+    busy.indexOf("DayZone") > busy.indexOf("NeedYou") && busy.indexOf("AskFound") > busy.indexOf("DayZone"),
+    `the day, then what AI found: ${busy.join(", ")}`,
+  );
+  assert.equal(busy.at(-1), "TodayEnd", "the page's end last");
+  // Nobody waits, but Ben's step is due: the step holds the card, drawn by Need you, in the same place.
   set(nobodyWaiting());
-  assert.deepEqual(order(), [
-    "TodayAlertBand",
-    "today-setting-up",
-    "NeedYou",
-    "ColdEmailNote",
-    "TodayContentNote",
-    "DayZone",
-    "AskFound",
-    "PhoneSoFar",
-    "PhonePins",
-    "TodayEnd",
-  ]);
-  // And with no step due either, Need you draws no pane and Ask found leads: People read with nobody's step due and a quiet
-  // week's headline, so what Ask found is drawn from is known (today/arrangement.ts `known`). Not read, it would not lead.
-  W.__PEOPLE = {
-    rows: peopleWithSteps([["b", "Ben", null]]),
-    lists: [],
-    aggregates: { total: 1 },
-    fetchedAt: NOW.getTime(),
-  };
-  setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 9, you: 0, none: 0 }));
-  assert.deepEqual(order(), [
-    "TodayAlertBand",
-    "today-setting-up",
-    "NeedYou",
-    "ColdEmailNote",
-    "TodayContentNote",
-    "AskFound",
-    "DayZone",
-    "PhoneSoFar",
-    "PhonePins",
-    "TodayEnd",
-  ]);
-  setSurfaceValue("reports_headline", undefined);
-});
-
-test("the period's days carry their key and the word for where they end; past a month a column is a week; a period with nothing in it draws neither", () => {
-  phone = true;
-  set(twoWaiting());
-  try {
-    setSurfaceValue("reports_headline", headline({ days: 30, in: 9, ai: 7, you: 1, none: 1 }));
-    const card = draw(PhoneSoFar);
-    const key = byTestId(card, "today-period-key");
-    assert.ok(key, "REGRESSION: the days were drawn in two colours with nothing to say what either meant");
-    assert.deepEqual(key.props.children.map(textOf), ["Answered by AI", "Other messages"], "the chart's key");
-    const end = find(card, (n) => classes(n).includes("tz-month-end"));
-    assert.equal(textOf(end), "Today", "the last column is today, said under it");
-    assert.notEqual(end.props["data-when"], undefined, "Today is a time the page says");
-    const columns = (tree) => all(tree, (n) => classes(n).includes("spark-col")).length;
-    assert.equal(columns(card), 30, "a column a day");
-    setSurfaceValue("reports_headline", headline({ days: 90, in: 9, ai: 7, you: 1, none: 1 }));
-    assert.equal(columns(draw(PhoneSoFar)), 13, "REGRESSION: 90 columns a few pixels wide each, read as dust");
-    setSurfaceValue("reports_headline", headline({ days: 30 }));
-    assert.equal(byTestId(draw(PhoneSoFar), "today-period-key"), null, "no days drawn, no key to them");
-  } finally {
-    setSurfaceValue("reports_headline", undefined);
-  }
-});
-
-test("booked carries its week as the other three do: six days from the headline and today as the figure says it, on a phone and a desk; none for a week of nothing or a day nobody counted", () => {
-  /**
-   * The headline's week with what was booked on each of its days, as the server counts them (null: not counted), and a
-   * call a day, so the figure beside it has a week of its own.
-   */
-  const weekWith = (booked) => {
-    const vm = headline({ days: 7 });
-    return { ...vm, perDay: vm.perDay.map((day, at) => ({ ...day, calls: 1, booked: booked ? booked[at] : null })) };
-  };
-  /** Today's page with `n` booked today. */
-  const bookedToday = (n) => {
-    const vm = twoWaiting();
-    return { ...vm, figures: vm.figures.map((f) => (f.id === "booked" ? { ...f, value: n } : f)) };
-  };
-  const weekOf = (tree, id) => all(byTestId(tree, `today-figure-${id}`), (n) => classes(n).includes("spark-col"));
-  const heights = (columns) => columns.map((n) => n.props.style?.height ?? null);
-  try {
-    for (const onPhone of [true, false]) {
-      phone = onPhone;
-      const where = onPhone ? "a phone" : "a desk";
-      const figures = onPhone ? PhoneSoFar : TodayHeadFigures;
-      // The server's own count of today (9) is never drawn: today's column is the figure, 4.
-      setSurfaceValue("reports_headline", weekWith([1, 0, 2, 0, 0, 4, 9]));
-      set(bookedToday(4));
-      const week = weekOf(draw(figures), "booked");
-      assert.equal(week.length, 7, `${where}: REGRESSION: booked alone stood with no week beside it`);
-      assert.deepEqual(
-        heights(week),
-        ["50%", null, "70.71%", null, null, "100%", "100%"],
-        `${where}: a column a day, a day of none left low, today as tall as the figure`,
-      );
-      assert.ok(classes(week.at(-1)).includes("spark-now"), `${where}: the last column is today`);
-      assert.equal(weekOf(draw(figures), "calls").length, 7, `${where}: beside the others' weeks`);
-      // A week of nothing draws nothing, as for the other three.
-      setSurfaceValue("reports_headline", weekWith([0, 0, 0, 0, 0, 0, 0]));
-      set(bookedToday(0));
-      assert.equal(weekOf(draw(figures), "booked").length, 0, `${where}: a week of none`);
-      // A server from before it, a database that keeps no arrival yet, a read that failed: no day counted, no week.
-      setSurfaceValue("reports_headline", weekWith(null));
-      set(bookedToday(4));
-      assert.equal(weekOf(draw(figures), "booked").length, 0, `${where}: a day nobody counted is never a column`);
-      assert.equal(weekOf(draw(figures), "calls").length, 7, `${where}: the others keep theirs`);
-    }
-  } finally {
-    phone = true;
-    setSurfaceValue("reports_headline", undefined);
-  }
-});
-
-/** A row of the queue as contracts makes it, by hand: a person waiting on a thread of their own. */
-const queueRow = (id, who, over = {}) => ({
-  id,
-  kind: "handoff",
-  conversationId: `cv-${id}`,
-  callId: null,
-  person_id: `p-${id}`,
-  who,
-  initials: who.slice(0, 2).toUpperCase(),
-  channel: "WhatsApp",
-  when: "waited 2h",
-  sentence: "Can I move my appointment?",
-  quoted: true,
-  status: [],
-  tone: "escalated",
-  warn: false,
-  cta: { label: "Open and reply", to: `inbox/th-cv-${id}` },
-  also: null,
-  writes: { for_message_id: `m-${id}`, wire: "WhatsApp", window_open: true, window_closes: null },
-  waitedMs: 2 * 3_600_000,
-  ...over,
-});
-/** Lea's reply, which AI sends on its own in ten minutes unless someone stops it: still worked on Today (its press is Stop). */
-const leaGoing = () =>
-  queueRow("lea", "Lea Park", {
-    kind: "held",
-    held: { message_id: "m-held", text: "Yes, 3 PM is free.", sends_at_ms: NOW.getTime() + 10 * 60_000 },
-    clock_ms: 10 * 60_000,
-  });
-/** A day whose queue is these rows, over Today's own read. */
-const dayOf = (rows) => {
-  const vm = nobodyWaiting();
-  return { ...vm, queue: { ...vm.queue, rows } };
-};
-const walkOf = (tree) => find(tree, (n) => typeof n.type === "function" && n.type.name === "WalkSheet");
-
-test("on a phone the walk holds what is worked on Today alone: a reply is no step of it (D8), To do's rows are, and its end says who still waits in the Inbox", () => {
-  phone = true;
-  set(dayOf([leaGoing(), ...twoWaiting().queue.rows]));
-  const walk = walkOf(draw(NeedYou));
-  assert.deepEqual(
-    walk.props.rows.map((r) => [r.kind, r.who]),
-    [
-      ["held", "Lea Park"],
-      ["step", "Ben"],
-    ],
-    "REGRESSION: a to-do's walk stepped on to a reply, its draft and Send in a sheet over Today; or it ended before Ben's step",
-  );
-  assert.deepEqual(walk.props.more, { count: 2, to: "inbox" }, "the two who are answered in their conversations");
-  assert.equal(typeof walk.props.stepDone, "function", "a step's Done in the sheet is To do's own");
-  assert.equal(walk.props.todos, 0, "nothing of To do's is left outside the walk");
-  // The walk's end, with the two replies still waiting: it says so, and where.
-  const end = again(() => W.React.createElement(walk.type, { ...walk.props, at: "end" }));
-  assert.ok(textOf(byTestId(end, "walk-clear")).includes("2 more waiting"), textOf(end));
-});
-
-test("Done on a step in the walk goes on to the next one still open on Today, never to a reply: with none left it is the walk's end", () => {
-  phone = true;
-  /** The walk at Ben's step, Done pressed: where the sheet went, and what was marked done. */
-  const doneOnBen = (rows) => {
-    set(dayOf(rows));
-    const walk = walkOf(draw(NeedYou));
-    const ben = walk.props.rows.find((r) => r.kind === "step");
-    const at = [];
-    const done = [];
-    const sheet = again(() =>
-      W.React.createElement(walk.type, {
-        ...walk.props,
-        at: ben.id,
-        onAt: (to) => at.push(to),
-        stepDone: (r) => done.push(r.id),
-      }),
-    );
-    press(find(sheet, (n) => n.type === "button" && n.props?.["aria-label"] === NOTE_WORDS.markDone(ben.sentence)));
-    assert.deepEqual(done, [ben.id], "the step is To do's to mark done");
-    return at;
-  };
-  assert.deepEqual(
-    doneOnBen([leaGoing(), ...twoWaiting().queue.rows]),
-    ["lea"],
-    "REGRESSION: Done hid the step, and the sheet said the walk's end over a row still open",
-  );
-  assert.deepEqual(
-    doneOnBen(twoWaiting().queue.rows),
-    ["end"],
-    "REGRESSION: after a to-do the sheet opened Sofia's reply, to be written and sent on Today (D8)",
-  );
-});
-
-test("the walk's end offers the older ones: one answered in its conversation opens there, never in the sheet (D8)", () => {
-  phone = true;
-  went.length = 0;
-  const old = (id, who) => queueRow(id, who, { waitedMs: 9 * 86_400_000 });
-  set(dayOf([leaGoing(), old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
-  const walk = walkOf(draw(NeedYou));
-  assert.equal(walk.props.older.count, 2, "the end says the two who waited past a week");
-  walk.props.older.go();
-  const after = walkOf(again(() => W.React.createElement(NeedYou, {})));
-  assert.equal(after.props.at, null, "REGRESSION: Dana's reply opened in the sheet, with its Send");
-  assert.deepEqual(went, ["inbox/th-cv-o1"], "her conversation, as her row's press opens it");
-  went.length = 0;
+  const quiet = order();
+  assert.equal(quiet[1], "NeedYou");
+  assert.equal(quiet.at(-1), "TodayEnd");
 });

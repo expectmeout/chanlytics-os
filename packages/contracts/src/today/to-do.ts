@@ -19,6 +19,7 @@ import { NOTE_WORDS } from "../notes/person-notes";
 import { TODAY_STEPS_MAX, todayStepsDue, type StepDue } from "../notes/steps";
 import { shortDate } from "../calendar/words/labels";
 import { plural } from "../shared/words";
+import { dayInZone } from "../shared/zone/math";
 import { DOW, keyParts, shiftKey } from "../shared/zone/day-keys";
 import type { DayFrameLike } from "./day/frame";
 import type { TodayQueueRowVM } from "./vm";
@@ -35,6 +36,8 @@ export interface TodayStepVM {
   /** "Due today", "Overdue since Mon". */
   when: string;
   due: StepDue;
+  /** The day it was due, as a day key ("2026-11-12"). */
+  dueOn: string;
   /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
   /** Whose it is, where it is someone else's ("For Maria"): a step of your own says nothing (his read, 9 Nov 2026). */
   forWho: string | null;
@@ -49,6 +52,13 @@ const forOther = (forWho: string): string => {
   const name = forWho.replace(/^For\s+/i, "").trim();
   return `For ${(name.split("@")[0] ?? name).split(/\s+/)[0] ?? name}`;
 };
+
+/**
+ * How long a step stays named on Today once its day has gone: a week, as a person who has waited past a week is Older
+ * and in no count (need-you/groups.ts). Past it the step is counted with the rest, never named (Today, calm, D23): the
+ * oldest three stood on the page every morning until someone cleared them.
+ */
+const STEP_NAMED_DAYS = 7;
 
 /** The steps due: the ones Today names (three at most), how many in all, and where the rest are. */
 export interface TodayStepsVM {
@@ -68,8 +78,9 @@ export function todayStepsSub(count: number): string {
 }
 
 /**
- * The steps due, in every workspace, calendar or not: whose next step's day has come or gone, the oldest first, three at
- * most, how many in all, and People's Steps due for the rest. Null with none due.
+ * The steps due, in every workspace, calendar or not: whose next step's day has come or gone, how many in all, and
+ * People's Steps due for the rest. Three at most are named: your own before the team's, each the oldest first, and none
+ * more than a week overdue (D23), so a page of old steps says how many there are and names none. Null with none due.
  * Each day is judged at `nowMs`: the page passes the moment People's rows were published, as every page judges a
  * step (steps.ts dueStepDay), so these rows and the list the rest's row opens say one thing.
  */
@@ -79,16 +90,20 @@ export function todaySteps(
   tz: string,
   max = TODAY_STEPS_MAX,
 ): TodayStepsVM | null {
-  const due = todayStepsDue(rows ?? [], nowMs, tz, max);
+  const due = todayStepsDue(rows ?? [], nowMs, tz, Number.POSITIVE_INFINITY);
   if (!due.count) return null;
+  const oldest = shiftKey(dayInZone(tz, nowMs).key, -STEP_NAMED_DAYS);
+  const fresh = due.rows.filter(({ step }) => step.day.day >= oldest);
+  const named = [...fresh.filter(({ step }) => step.forMe), ...fresh.filter(({ step }) => !step.forMe)];
   return {
-    items: due.rows.map(({ row, step }) => ({
+    items: named.slice(0, Math.max(0, max)).map(({ row, step }) => ({
       personId: row.id,
       name: row.name,
       noteId: step.id,
       words: step.words,
       when: step.day.words,
       due: step.due,
+      dueOn: step.day.day,
       forWho: step.forMe || !step.forWho ? null : forOther(step.forWho),
       forUserId: step.forUserId,
       dealId: step.dealId,
@@ -132,6 +147,7 @@ function stepRow(todayStep: TodayStepVM): TodayQueueRowVM {
       note_id: todayStep.noteId,
       deal_id: todayStep.dealId,
       for_user_id: todayStep.forUserId,
+      due_on: todayStep.dueOn,
     },
     waitedMs: Number.NEGATIVE_INFINITY,
   };

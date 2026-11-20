@@ -1,9 +1,9 @@
-/* Today in three zones (2 Nov 2026; the canvas of that day, docs/2026-11-02-today-canvas): one head, what cannot wait,
-   then Need you beside the day with Ask found under it, and the week and the pinned lists at the foot; on a phone the same
-   blocks in one column. The panes are the look's (dashboard-a-v2.css's Glass block draws .tq, .tpd and .tz-pane); the
-   rows are the kit's AttnRow as Need you draws them (need-you.css). Every value a token; layout lengths are the page's. */
+/* Today's own rules beside calm.css (Today, calm, 19 Nov 2026; docs/2026-11-19-today-calm-canvas): what cannot wait,
+   the setting-up card and its history, the day's bar and the rows that ask something under it, Listen, and the page on a
+   phone. The card and the lines are calm.css's; the panes are the look's (dashboard-a-v2.css's Glass block). Every value
+   a token; layout lengths are the page's. */
 
-/* ---- The page: what cannot wait, the bento, the foot, 14px apart; on a phone one column, 12px apart. ---- */
+/* ---- The page: what cannot wait, then the desk's two columns, 14px apart; on a phone one column, 12px apart. ---- */
 .main-scroll > .dash-a-v2-glass.tz {
   display: flex;
   flex-direction: column;
@@ -12,32 +12,10 @@
 .main-scroll > .dash-a-v2-glass.tz-phone {
   gap: var(--space-3);
 }
-.tz-bento {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 370px;
-  gap: 14px;
-  align-items: start;
-}
-.tz-col {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-/* Nothing waits and Ask found found nothing: the day alone, one column (page.tsx). */
-.tz-bento-one {
-  grid-template-columns: minmax(0, 1fr);
-}
-@media (max-width: 1280px) {
-  .tz-bento {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
 
-/* ---- One head for every section (section-door.tsx): its name, one quiet fact, and at its right edge one press. 58px tall on a
-   desk, 44 on a phone. ---- */
-.dash-a-v2 .tz-head,
-.dash-a-v2 .today-queue .tq-head {
+/* ---- The setting-up card's head (setup-card-body.tsx): its name, one quiet fact, and at its right edge one press. 58px tall
+   on a desk, 44 on a phone. ---- */
+.dash-a-v2 .tz-head {
   display: flex;
   align-items: center;
   gap: 0 var(--space-2);
@@ -78,71 +56,10 @@
 .dash-a-v2 .tz-fact[data-long]::before {
   content: none;
 }
-/* The day's note beside its name where they fit the line (day.tsx), a line of its own under them where they do not. */
-.tpd-head {
-  flex-wrap: wrap;
-  align-content: center;
-  gap: 0 10px;
-}
-/* With the note under them, the name and the door keep the line every head gives them (a 28px line 15px down a 58px head,
-   so the day's name stands level with Need you's beside it), and the note its own line, 12px over the day's first row.
-   Centred in the head, the two lines lifted the name 9px over its neighbour's (the spacing review of 17 Nov 2026). */
-.dash-a-v2 .tpd-head:has(> .tpd-note[data-long]) {
-  align-content: flex-start;
-  padding-block: 15px var(--space-3);
-}
-.tpd-note[data-long] {
-  order: 3;
-  flex: 0 0 100%;
-  line-height: 17px;
-  white-space: normal;
-}
-/* The door at a head's right: a word and ›, which goes to a page. Every head's right edge reads in this ink. */
-.tz-door {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: 28px;
-  margin-left: auto;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-  text-decoration: none;
-  white-space: nowrap;
-}
-@media (hover: hover) {
-  .tz-door:hover {
-    color: var(--ink);
-  }
-}
-/* A thumb's 44 round the door's 28px line, drawn nothing larger (the phone pass, 3 Nov 2026), as the queue's doors take
-   theirs (frame.css, the touch floor). */
-@media (pointer: coarse) {
-  .tz-door {
-    position: relative;
-  }
-  .tz-door::after {
-    content: "";
-    position: absolute;
-    inset: -8px -6px;
-  }
-}
 
 /* ---- Need you: its pane, its head with how many were done today by the door, its foot. ---- */
 .dash-a-v2 .tz-need {
   padding-bottom: var(--space-1);
-}
-.dash-a-v2 .tz-need .tq-foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
-.dash-a-v2 .tz-need .tq-foot > .tq-open {
-  margin-left: auto;
 }
 
 /* ---- What cannot wait: a band across the page, red for a line down, amber for the bell's warning. ---- */
@@ -250,80 +167,6 @@
   color: inherit;
   text-decoration: none;
 }
-
-/* ---- The day's four figures in the head: what a figure is out of, small after it; a receipt under its own figure. ---- */
-.tc-fig-of {
-  font-size: var(--text-aside);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0;
-  color: var(--ink-dim);
-}
-.today-head-figs .tc-receipt[data-i="1"] {
-  left: min(25%, 100% - 312px);
-}
-.today-head-figs .tc-receipt[data-i="2"] {
-  left: min(50%, 100% - 312px);
-}
-.today-head-figs .tc-receipt[data-i="3"] {
-  left: min(75%, 100% - 312px);
-}
-
-/* ---- The day: its head, now and next with one fact each, the bar, the rest at its times, and its foot. ---- */
-.dash-a-v2 .tpd {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 18px var(--space-2);
-}
-.tpd-cells {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-  padding-bottom: var(--space-3);
-}
-.tpd-cell {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  color: inherit;
-  text-decoration: none;
-}
-.tpd-cell + .tpd-cell {
-  padding-left: 14px;
-  border-left: 1px solid var(--line);
-}
-.tpd-eyebrow {
-  font-size: var(--text-xs);
-  line-height: 17px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-dim);
-}
-.tpd-eyebrow[data-now] {
-  color: var(--accent-ink);
-}
-.tpd-when {
-  font-size: var(--text-xl);
-  line-height: 25px;
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-.tpd-what,
-.tpd-fact {
-  overflow: hidden;
-  font-size: var(--text-sm);
-  line-height: 18px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.tpd-what {
-  color: var(--ink-muted);
-}
-.tpd-fact {
-  color: var(--ink-dim);
-}
 /* The bar and the hours at its ends under it, one piece, 12px over the day's rest. */
 .tpd-span {
   display: flex;
@@ -402,87 +245,6 @@
 .tpd-li > [data-testid="today-day-stop"] {
   grid-column: 1 / -1;
 }
-.tpd-more {
-  display: flex;
-  align-items: center;
-  min-height: 40px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-  text-decoration: none;
-}
-
-/* ---- Ask found: what it is and its one act, the sentence, and why on a press; what came of it under them. ---- */
-.dash-a-v2 .tz-found {
-  display: flex;
-  flex-direction: column;
-  padding: 0 18px var(--space-2);
-}
-/* "2 more": what is past the three, opened in place, at the head's right. Its chevron ends at the pane's gutter, where
-   every other head's door ends: the kit's 11px at its sides set it 12px in from them. */
-.tz-found-more {
-  gap: var(--space-1);
-  margin-left: auto;
-  font-size: var(--text-sm);
-  color: var(--ink-muted);
-}
-.dash-a-v2 .tz-found-more {
-  padding-inline: 0;
-}
-.tz-found-more[aria-expanded="true"] > svg,
-.tz-idea-s[aria-expanded="true"] svg {
-  rotate: 180deg;
-}
-/* The sentence opens: a chevron at its end says so, on its last line. */
-.tz-idea-s svg {
-  display: inline;
-  margin-left: var(--space-1);
-  vertical-align: -1px;
-  color: var(--ink-dim);
-}
-.tz-ideas {
-  display: flex;
-  flex-direction: column;
-}
-.tz-idea {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  column-gap: var(--space-2);
-  padding: 9px 0 10px;
-  border-top: 1px solid var(--line);
-}
-.tz-idea-kind {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: var(--text-sm);
-  line-height: 18px;
-  font-weight: var(--weight-medium);
-  color: var(--ink-dim);
-}
-.tz-idea-act {
-  gap: 3px;
-}
-.tz-idea-s {
-  grid-column: 1 / -1;
-  justify-content: flex-start;
-  margin-top: 1px;
-  font-size: var(--text-mail);
-  line-height: 20px;
-  font-weight: var(--weight-medium);
-  letter-spacing: -0.006em;
-  color: var(--ink);
-  text-align: left;
-  white-space: normal;
-}
-/* The sentence stands on its tag's edge, as the words of a row do, never the button's 11px in; and breaks so no word is
-   left alone on its last line (the phone pass, 3 Nov 2026: tags at 32, sentences at 44, "days." alone under them). */
-.tz-idea > .tz-idea-s {
-  padding-inline: 0;
-  text-wrap: pretty;
-}
 /* Opened: why beside Ask why and Not today, and under them who a rule names (found.tsx). */
 .tz-idea-why {
   grid-column: 1 / -1;
@@ -521,9 +283,6 @@
   font-size: var(--text-xs);
   color: var(--ink-dim);
 }
-.tz-idea > .ny-done {
-  grid-column: 1 / -1;
-}
 .tz-came {
   display: flex;
   flex-direction: column;
@@ -537,75 +296,6 @@
 .tz-came b {
   font-weight: var(--weight-semibold);
   color: var(--ink-muted);
-}
-/* On a quiet day Ask found leads the page: its rows side by side, three at most, and one row the pane's whole width. */
-.tz-found-wide .tz-ideas {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 0 var(--space-6);
-}
-
-/* ---- The foot: the week and the pinned lists, one strip on a desk. ---- */
-.dash-a-v2 .tz-strip {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  min-height: 52px;
-  padding: var(--space-3) 18px;
-  border-radius: var(--radius-3xl);
-}
-.tz-week {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-size: var(--text-aside);
-  line-height: 18px;
-  color: var(--ink-muted);
-  text-decoration: none;
-}
-.tz-week > svg {
-  flex: none;
-  color: var(--ink-dim);
-}
-@media (hover: hover) {
-  .tz-week:hover {
-    color: var(--ink);
-  }
-}
-.tz-pins {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.tz-pin > b {
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-}
-
-/* ---- Nothing but Older drawn: nobody counts it, so it stands after everything the page has to say, on a desk and a phone. ---- */
-.today-queue[data-only-older] {
-  order: 1;
-}
-
-/* ---- Today so far on a day nothing was counted: one line, the week under it, at the foot of the day's card. ---- */
-.tz-nothing {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0 var(--space-2);
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-}
-.tz-nothing > b {
-  font-weight: var(--weight-medium);
-  color: var(--ink-muted);
-}
-.tz-nothing .tz-week {
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
 }
 
 /* The setup card's chevron at the pane's edge: its 14px glyph sits 7px inside its 28px press. */
@@ -676,30 +366,19 @@
 @media (max-width: 720px) {
   /* Every pane the same corners on a phone, the setup card's among them: it kept a desk's (the spacing review of 17 Nov
      2026). */
-  .dash-a-v2 .tz-pane,
-  .dash-a-v2 .tpd,
   .dash-a-v2 .tps,
   .dash-a-v2 .today-queue,
   .dash-a-v2 [data-testid="today-card"] {
     border-radius: var(--radius-3xl);
   }
-  .dash-a-v2 .tpd,
-  .dash-a-v2 .tz-found {
-    padding: 0 var(--space-4) 6px;
-  }
   /* A head on a phone: its name's line, and no more, Need you's too (its own rule kept it a desk's 58px, its name 7px
      under every other pane's). The chevron's 44 for a thumb, and "3 more"'s, reach over the head's own padding, so their
      heads stand as tall as one with neither. */
-  .dash-a-v2 .tz-head,
-  .dash-a-v2 .today-queue .tq-head {
+  .dash-a-v2 .tz-head {
     min-height: 44px;
     padding-block: var(--space-2);
   }
-  .dash-a-v2 .tpd-head:has(> .tpd-note[data-long]) {
-    padding-block: var(--space-2);
-  }
-  .dash-a-v2 .today-setup > .tz-head [data-testid="today-setup-fold"],
-  .dash-a-v2 .tz-found-more {
+  .dash-a-v2 .today-setup > .tz-head [data-testid="today-setup-fold"] {
     margin-block: calc(var(--space-2) * -1);
   }
   .dash-a-v2 .tps > .today-setup,
@@ -710,64 +389,6 @@
   .today-history > * {
     gap: 10px;
   }
-  .tz-found-wide .tz-ideas {
-    display: flex;
-    flex-direction: column;
-  }
-}
-
-/* Today so far on a phone: the four figures in one row, each its number over its short name, and the week under them. */
-.dash-a-v2 .tz-sofar {
-  display: block;
-  padding: 0 var(--space-4) 6px;
-}
-.tz-sofar-figs .tc-figs {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0 -8px;
-  padding: 0;
-}
-.tz-sofar-figs .tc-fig,
-.tz-sofar-figs .tc-fig + .tc-fig {
-  min-width: 0;
-  padding: 2px var(--space-2);
-  border-left: 1px solid var(--line);
-}
-/* The first keeps its padding, so its number stands on the card's gutter with the name and the days: the phone's rule
-   for the 2 x 2 figures took it, and "6 booked" stood 8px out of line (his look, 17 Nov 2026). */
-.tz-sofar-figs .tc-fig:first-child {
-  padding-left: var(--space-2);
-  border-left: 0;
-}
-.tz-sofar-figs .tc-fig-n {
-  font-size: var(--text-2xl);
-}
-.tz-sofar-figs .tc-fig-w {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: var(--text-sm);
-  color: var(--ink-dim);
-}
-.tz-sofar-figs .tc-fig.open .tc-fig-w > svg {
-  rotate: 180deg;
-}
-.tz-sofar-figs .tc-fig-m {
-  display: none;
-}
-.tz-sofar .tz-week {
-  align-items: flex-start;
-  margin-top: 10px;
-  padding: 10px 0 var(--space-2);
-  border-top: 1px solid var(--line);
-}
-.tz-sofar .tz-week > svg {
-  margin-top: var(--space-1);
-}
-.tz-pinsbox {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 /* The end: the page says it is done, above the tab bar. */
 .tz-end {
@@ -782,249 +403,12 @@
   color: var(--ink-dim);
 }
 
-/* Cold email's one line on Today, in its amber: what it waits on, and the way there. A band, as the foot's strip is: its
-   line centred in it, the strip's corners and the panes' gutter (the spacing review of 17 Nov 2026: as a record card it
-   stood 18px over its line and 6 under, its ends a full round beside the strip's). */
-.dash-a-v2 .tz-cold-email {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 52px;
-  padding: var(--space-3) 18px;
-  border-radius: var(--radius-3xl);
-  background: var(--warn-soft);
-}
-@media (max-width: 720px) {
-  .dash-a-v2 .tz-cold-email {
-    padding-inline: var(--space-4);
-  }
-}
-.tz-cold-email-words {
-  margin: 0;
-  min-width: 0;
-  font-size: var(--text-sm);
-  color: var(--warn-ink);
-  text-wrap: pretty;
-}
-
 /* ---- Content's card (today/content-note.tsx; the content canvas, PhDoors "today") ---- */
-
-/* A pane as Need you's is: the gutter inside it (18px on a desk, 16 on a phone, as the canvas's), its head, its row and its
-   strip edge to edge within it. */
-.dash-a-v2 .tz-content {
-  display: flex;
-  flex-direction: column;
-  padding: 0 18px var(--space-1);
-}
-@media (max-width: 720px) {
-  .dash-a-v2 .tz-content {
-    padding-inline: var(--space-4);
-  }
-}
-
-/* The newest post that did not go out: its piece and Try again on one line, as Need you's rows say a name, why under it in
-   amber; a hairline between it and the strip. */
-.tz-content-stopped {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: 2px 0 12px;
-  color: var(--ink);
-  text-align: left;
-  text-decoration: none;
-}
-.tz-content-stopped-head {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  min-width: 0;
-}
-.tz-content-stopped-head > b {
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.tz-content-verb {
-  flex: none;
-  margin-left: auto;
-  font-size: var(--text-base);
-  font-weight: var(--weight-semibold);
-}
-.tz-content-why {
-  font-size: var(--text-base);
-  color: var(--warn-ink);
-  text-wrap: pretty;
-}
-.tz-content-stopped + .tz-content-strip {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-/* The week's pieces in a strip, each at its own shape and one height, what is being made at its end; a thumb moves it
-   sideways where there are more than fit. 3px round the pieces, so a key's ring on one is not cut by the strip's edge. */
-.tz-content-strip {
-  display: flex;
-  gap: 8px;
-  margin: -3px -3px 0;
-  padding: 3px 3px 14px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.tz-content-piece {
-  position: relative;
-  display: block;
-  flex: none;
-  height: 160px;
-  aspect-ratio: 9 / 16;
-  overflow: hidden;
-  border-radius: var(--radius-lg);
-  background: var(--media-stage);
-}
-.tz-content-piece[data-shape="portrait"] {
-  aspect-ratio: 4 / 5;
-}
-.tz-content-piece[data-shape="square"] {
-  aspect-ratio: 1;
-}
-.tz-content-piece[data-shape="wide"] {
-  aspect-ratio: 4 / 3;
-}
-.tz-content-piece img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-/* A picture that did not come: the tile's own ground, the press saying its name. */
-.tz-content-unseen {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-/* A video whose picture is not there yet says so on its ground, as Files' tile does (files.css .files-unseen), in the light
-   ink the stage takes whatever the page's light, quieter than the length under it. */
-.tz-content-waits {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-2);
-  overflow: hidden;
-  font-size: var(--text-xs);
-  line-height: var(--leading-snug);
-  color: var(--media-ink);
-  text-align: center;
-  overflow-wrap: anywhere;
-  opacity: 0.72;
-}
-/* A video being made: its first picture dim, and Ask's three over it in the colour they are while Ask works, still. */
-.tz-content-making img {
-  opacity: 0.42;
-  filter: saturate(0.55);
-}
-.tz-content-work {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-}
-/* A video's length in its corner, after a play glyph, as a camera roll writes it: light figures on a dark wash. */
-.tz-content-length {
-  position: absolute;
-  bottom: 7px;
-  left: 7px;
-  display: inline-flex;
-  gap: 3px;
-  align-items: center;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: var(--radius-sm);
-  background: var(--media-wash);
-  color: var(--media-ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-}
 
 /* What was done beside what still waits, in a head (Today with colour, D6, 17 Nov 2026): the kit's meter, a short span. */
 .dash-a-v2 .tz-done {
   flex: none;
   width: 84px;
-}
-
-/* The period's days beside its line (Today with colour, D7; redrawn on his look, 17 Nov 2026): the kit's spark, before the
-   chevron on a desk's strip, and over the line, the width of the pane, on a phone; its columns spread across the width,
-   the last at its right edge over the word "Today". Their key says the two colours: the ok tone's swatch for what AI
-   answered, the faint ink's for the rest; under the line on a desk, between the days and the line on a phone. */
-.tz-week-says {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.tz-month-key {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  font-size: var(--text-xs);
-  line-height: 16px;
-  color: var(--ink-dim);
-}
-.tz-month-key > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.tz-month-key > span::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-xs);
-  background: var(--ok);
-}
-.tz-month-key > .tz-key-rest::before {
-  background: var(--ink-faint);
-}
-.tz-week > .tz-month {
-  display: flex;
-  flex: 0 1 360px;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-  margin-left: auto;
-}
-.tz-month-days {
-  justify-content: space-between;
-  height: 44px;
-}
-.tz-month-end {
-  align-self: flex-end;
-  font-size: var(--text-xs);
-  line-height: 14px;
-  color: var(--ink-dim);
-}
-.tz-sofar .tz-week-says {
-  flex-direction: column-reverse;
-  gap: 6px;
-}
-.tz-sofar .tz-week {
-  flex-wrap: wrap;
-}
-.tz-sofar .tz-week > .tz-month {
-  flex: 1 0 100%;
-  order: -1;
-  margin: 0 0 8px;
-}
-.tz-sofar .tz-week > span:not(.tz-month) {
-  flex: 1 1 0;
-  min-width: 0;
 }
 
 /* The warn tone's dot before how many need you, in the head's sentence (Today with colour, D5, 17 Nov 2026). */
@@ -1036,10 +420,4 @@
   border-radius: var(--radius-full);
   background: var(--warn);
   vertical-align: 1px;
-}
-/* The visit now: the kit's live dot before its word (Today with colour, D4), the accent's one live moment on the day. */
-.tpd-eyebrow[data-now] {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
 }

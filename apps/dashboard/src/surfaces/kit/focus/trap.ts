@@ -58,8 +58,12 @@ export function hearFocusOutside(): void {
   });
 }
 
-/** Hold focus in `box` while it is open; what it returns gives focus back to where it came from. */
-export const trapFocus = (box: HTMLElement | null): (() => void) => {
+/**
+ * Hold focus in `box` while it is open; what it returns gives focus back to where it came from. `wrap: false` puts
+ * focus in and gives it back, and lets Tab go on: a dialog whose own controls stand outside it, on a page the frame
+ * has taken away (AI on a phone's bar, surfaces/ask/line/).
+ */
+export const trapFocus = (box: HTMLElement | null, { wrap = true }: { wrap?: boolean } = {}): (() => void) => {
   if (!box || !box.addEventListener) return () => {};
   const at = document.activeElement;
   const from = (at && box.contains(at) && focusedOutside ? focusedOutside : at) as HTMLElement | null;
@@ -68,7 +72,7 @@ export const trapFocus = (box: HTMLElement | null): (() => void) => {
     box.focus({ preventScroll: true });
   }
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Tab") trapTab(e, box);
+    if (wrap && e.key === "Tab") trapTab(e, box);
   };
   box.addEventListener("keydown", onKey);
   return () => {

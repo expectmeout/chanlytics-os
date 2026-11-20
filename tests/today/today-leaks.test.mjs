@@ -888,6 +888,11 @@ test("the sentences the queue and the card say about a playbook's run come from 
     status: ["Waiting for your approval"],
     // Its one fact where its row is a line tall (the Inbox's Needs you, decision 0142).
     short: "3 people · waiting for your approval",
+    // Today's card says it as a title of its own, with the sentence less what the title said under it (Today, calm, D15),
+    // and what a person would ask AI about it (D10).
+    why: "Waits for you to approve until the end of its day. Then it's skipped, and you're told.",
+    head: "3 people wait for your approval",
+    question: "Who are the 3 people waiting for my approval?",
   });
   // A reach-out's run writes to businesses, and says it is a reach-out (Reach out Part 5, PR 8).
   const reach = todayRunWords({ ...run, recipient_count: 44, audience: { kind: "reach_out", label: "Movers" } });
