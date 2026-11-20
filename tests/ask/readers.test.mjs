@@ -5439,12 +5439,14 @@ const SETTINGS_ASKED = [
   // What packages/db answers goes out as it is asked for (decision 0111): the workspace's channels ahead of its lines.
   "tenant_channels.select",
   "lines.select",
+  // Whether Ads is drawn here: with no edge to offer it, whether the workspace holds an ad account.
+  "ad_accounts.select",
   "policies.select",
 ];
 /** The preview's clock, apart: the rest of what the settings read answers does not move with the minute. */
 const withoutClock = (d) => (d.prompt ? { ...d, prompt: { ...d.prompt, now: "<clock>" } } : d);
 
-test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards, whether the listing keeps a review link -- asking in its order: the row once, the platform's facts and the review link at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
+test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards, whether the listing keeps a review link -- asking in its order: the row once, the platform's facts, the review link and whether Ads is drawn at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
   for (const [tenant, role, version] of [
     [A, "viewer", 3],
     [B, "owner", 1],
@@ -5466,8 +5468,10 @@ test("the settings read, for Ask and for the page: GET settings answers its read
       "updatedAt",
       "review_link",
       "previews",
+      "ads",
     ]);
     assert.equal(r.data.review_link, false, "no listing, no review link");
+    assert.equal(r.data.ads, false, "no edge offers Ads here, and no ad account is held");
     assert.deepEqual(
       [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
       [version, role, false, null, null, "2026-09-01T00:00:00Z"],
@@ -5497,14 +5501,18 @@ test("the settings read, for Ask and for the page: GET settings answers its read
   const brokenCtx = dayCtx(broken);
   const refused = await kernel.load(memberIn(brokenCtx, A, "viewer"), settingsReader, undefined);
   assert.deepEqual(refused.data, await settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(broken)));
-  assert.deepEqual(Object.keys(refused.data), ["config", "version", "role", "configBroken", "issues"]);
+  assert.deepEqual(Object.keys(refused.data), ["config", "version", "role", "configBroken", "issues", "ads"]);
   assert.deepEqual(
     [refused.data.config, refused.data.version, refused.data.configBroken],
     [null, 7, true],
     "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
   );
   assert.ok(Array.isArray(refused.data.issues) && refused.data.issues.length > 0);
-  assert.deepEqual(asked(brokenCtx), ["tenant_config.select"]);
+  assert.deepEqual(
+    asked(brokenCtx),
+    ["tenant_config.select", "ad_accounts.select"],
+    "nothing the config holds is read, and whether Ads is drawn here is no part of it",
+  );
   // No row at all: the route's 404, in its sentence, from the reader.
   const noRow = (e) => {
     assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Workspace has no configuration row."]);

@@ -14,8 +14,6 @@ export {
   ADS_ROUTE,
   ADS_SCOPE_ALL,
   ADS_WORDS,
-  adsPreviewOf,
-  adsResultsRoute,
   adsScopeKey,
   adsScopeOfKey,
   isAdsParam,

@@ -1,12 +1,13 @@
 /**
- * Whether Ads is on for a workspace on this deployment, as the edge says it (decision 0049, step P1): whether Connect
- * is offered, whether an owner's Pause and Resume do anything, and the public half of the Meta app the way out is
- * built from. It is the edge's word, kept a short while per workspace. The ad account's card and the Ads page read it
- * (server/readers), and so do the routes that connect an account or draft an ad (server/ads), so it stands here, below
- * both.
+ * Whether Ads is on for a workspace on this deployment, as the edge says it (decision 0049, step P1): whether its pages
+ * are drawn (readAdsShown, the one answer every page asks), whether Connect is offered, whether an owner's Pause and
+ * Resume do anything, and the public half of the Meta app the way out is built from. It is the edge's word, kept a
+ * short while per workspace. The settings read, the ad account's card and the Ads page read it (server/readers), and so
+ * do the routes that connect an account or draft an ad (server/ads), so it stands here, below both.
  */
 import "server-only";
 import type { TenantId } from "@chanlytics/contracts";
+import { findAdAccountForPage } from "@chanlytics/db/ads";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 
@@ -74,4 +75,23 @@ export async function readAdsOffered(tenantId: TenantId): Promise<boolean> {
 /** Whether an owner's Pause and Resume do anything in this workspace here: the page's reader asks it. */
 export async function readAdsPressesOn(tenantId: TenantId): Promise<boolean> {
   return (await readAdsReadiness(tenantId)).presses;
+}
+
+/** The client the workspace's ad account is read on. */
+type AdsDb = Parameters<typeof findAdAccountForPage>[0];
+
+/** An account the Ads page draws as the workspace's own: connected, signed out by Meta, or let go with its ads kept. */
+const HELD: readonly string[] = ["connected", "revoked", "disconnected"];
+
+/**
+ * Whether Campaigns › Ads is drawn in a workspace here: the one answer every page asks (the Ads plan's 6.2), carried
+ * to the browser on the settings read. The switch is the edge's list of workspaces (ADS_WORKSPACES), which took the
+ * place of the workspace feature that drew the mockup: Ads is drawn where the edge offers it. A workspace that holds an
+ * ad account is drawn it too, whatever the list says now, so its owner can always see what runs at Meta and let the
+ * account go (0050, call 8: Disconnect is never refused). The account is read only where the edge says no.
+ */
+export async function readAdsShown(supabase: AdsDb, tenantId: TenantId): Promise<boolean> {
+  if ((await readAdsReadiness(tenantId)).offered) return true;
+  const held = await findAdAccountForPage(supabase, tenantId, "meta");
+  return held !== null && HELD.includes(held.status);
 }

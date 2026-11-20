@@ -2,7 +2,6 @@
  * Settings › Connections, a workspace's own ad account: the same card Campaigns › Ads draws, with the same read, the
  * same checks and the same presses (the Ads plan's 4.10; decision 0049, call 1: an ad account's home is Connections).
  * Connect, the one question, the caret's sheet and Disconnect are the card's own (campaigns/ads/connect/use-card.tsx).
- * A demo session draws the sample's rows instead (ad-accounts.tsx).
  *
  * It stands among the page's groups by its account, as a row does: in Connected, under the Meta row, once an account is
  * connected or Meta signed Chanlytics out of it; in Available before, and while the owner has two to choose from. Its
@@ -44,7 +43,12 @@ export function RealAdAccount({
   onPlace: (place: AdsPlace | null) => void;
 }) {
   // Until the account says its own zone, a day is said in the zone of whoever is looking.
-  const connection = useAdsConnection(true, Intl.DateTimeFormat().resolvedOptions().timeZone, CARD.inConnections);
+  const connection = useAdsConnection(
+    true,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    CARD.inConnections,
+    "card",
+  );
   const place = adsPlaceOf(connection.account.dto?.meta?.status ?? null, connection.vm);
   const group = place?.group ?? null;
   const state = place?.state ?? null;

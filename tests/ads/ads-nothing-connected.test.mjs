@@ -1,38 +1,29 @@
 /**
- * What a workspace's preview of the Ads says first (6 Nov 2026): what is true of it today, nothing connected, with how new people
- * first reached it over the last 30 days in the numbers Reports › People says, and an example one press away. The real components and
- * models run on the stub React, over a fetch where the route would be. A made-up business throughout.
+ * Campaigns › Ads with nothing connected (the Ads plan's 4.1): what is true of the workspace today, how new people first
+ * reached it over the last 30 days in the numbers Reports › People says, beside the ad account's card. The real
+ * components and models run on the stub React, over a fetch where the route would be. A made-up business throughout.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, byTestId, redrawWanted, textOf, press } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 import { SERIES, dtoWith } from "../reports/people/_people-world.mjs";
-import { firstTouchOf, v0Of as pageV0Of } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-v0.ts";
+import { firstTouchOf, nothingConnectedOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page-v0.ts";
 import { V0, HEAD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-page.ts";
-import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
-import { EXAMPLE } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 
 installStubReact({ CHANLY: { nav() {} } });
 const S = "../../apps/dashboard/src";
 (await import(`${S}/surfaces/frame/frame-globals.ts`)).installFrameGlobals();
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 const { api } = await import(`${S}/bridge/api.ts`);
-const { CONFIG } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
-const { exampleAt } = await import(`${S}/surfaces/campaigns/ads/examples.ts`);
-const { adsOpening, useAdsStore } = await import(`${S}/surfaces/campaigns/ads/store.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
-const { AdAccounts } = await import(`${S}/surfaces/settings/connections/ad-accounts.tsx`);
 const { askOnScreenOf } = await import(`${S}/bridge/ask/on-screen.ts`);
-
-const NOW = Date.parse("2031-03-15T14:05:00Z");
-const KEPT = "ads-mock-scenario";
-const NOTE = "ads-preview-note";
 
 const seriesOf = (byVia, over = {}) => ({ first_came: { by_via: byVia }, today: "2031-03-15", days: 30, ...over });
 const rowsOf = (byVia) => firstTouchOf(seriesOf(byVia)).rows;
-const readOf = (firstTouch) => ({ ...exampleAt("v0", NOW, null), firstTouch });
-const v0Of = (byVia) => pageV0Of(readOf(firstTouchOf(seriesOf(byVia))));
+/** The page's nothing-connected half, from the counts as read (or null while unread). */
+const pageV0Of = (firstTouch) => nothingConnectedOf(firstTouch).v0;
+const v0Of = (byVia) => pageV0Of(firstTouchOf(seriesOf(byVia)));
 
 /** A business that has imported its book, found some leads and been written to: nobody by an ad. */
 const NO_AD = { import: 330, lead: 27, email: 2, call: 1 };
@@ -90,11 +81,7 @@ test("read, and nobody new at all: it says so in People's own terms, and its doo
   assert.equal(v0.door.words, V0.doorNobody);
   assert.equal(v0Of(NO_AD).nobodyNew, null);
   assert.equal(v0Of(NO_AD).door.words, V0.door);
-  assert.equal(
-    pageV0Of(readOf(null)).nobodyNew,
-    null,
-    "not while the counts are unread: that would be a claim about nobody",
-  );
+  assert.equal(pageV0Of(null).nobodyNew, null, "not while the counts are unread: that would be a claim about nobody");
 });
 
 test("the lead counts those with a way in kept, whichever row comes last", () => {
@@ -111,7 +98,7 @@ test("the lead counts those with a way in kept, whichever row comes last", () =>
 
 test("the people an ad brought are said by the ad: its name, or whose account it runs in where it has none (0049)", () => {
   const withAds = (byVia, byAd) =>
-    pageV0Of(readOf(firstTouchOf(seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }))));
+    pageV0Of(firstTouchOf(seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } })));
   const spring = { platform: "meta", name: "Spring colour offer", n: 5 };
   const unnamed = { platform: "meta", name: null, n: 2 };
   assert.equal(
@@ -146,9 +133,9 @@ test("the page names no ad it cannot account for: a database that does not say, 
     { ad: 7 },
     { first_came: { by_via: { ad: 7 }, by_ad: [{ platform: "meta", name: "Spring", n: 5 }] } },
   );
-  assert.equal(pageV0Of(readOf(firstTouchOf(short))).ads, null, "5 named of 7 counted: the page says the 7 alone");
+  assert.equal(pageV0Of(firstTouchOf(short)).ads, null, "5 named of 7 counted: the page says the 7 alone");
   const none = seriesOf(NO_AD, { first_came: { by_via: NO_AD, by_ad: [] } });
-  assert.equal(pageV0Of(readOf(firstTouchOf(none))).ads, null);
+  assert.equal(pageV0Of(firstTouchOf(none)).ads, null);
   // A row the page cannot read is dropped, and a platform it does not know is no platform.
   const odd = [
     { platform: "billboard", name: "  ", n: 2 },
@@ -165,30 +152,9 @@ test("the lead does not name one wire, since an ad on Instagram stamps the same 
 });
 
 test("the line above the page gives the counts' first day once read, and no time it cannot back", () => {
-  const counted = adsModel(readOf(firstTouchOf(seriesOf(NO_AD))), CONFIG);
-  assert.equal(counted.pane, HEAD.v0Read("14 Feb"));
-  assert.equal(adsModel(readOf(null), CONFIG).pane, "Last 30 days");
-});
-
-// ---------------------------------------------------------------------------------------------------------------------
-// No sample as its own
-
-test("a workspace's nothing connected holds no sample count; a demo's keeps its sample", () => {
-  const own = {
-    name: "Birch Lane Co",
-    address: null,
-    street: null,
-    hours: null,
-    site: null,
-    page: null,
-    line: null,
-    timezone: "America/Chicago",
-    appointmentWord: "visit",
-    neverQuotePrices: false,
-    services: [],
-  };
-  assert.equal(exampleAt("v0", NOW, own).firstTouch, null);
-  assert.ok(exampleAt("v0", NOW, null).firstTouch.rows.length > 0);
+  assert.equal(nothingConnectedOf(firstTouchOf(seriesOf(NO_AD))).pane, HEAD.v0Read("14 Feb"));
+  assert.equal(nothingConnectedOf(null).pane, "Last 30 days");
+  assert.deepEqual(nothingConnectedOf(null).head, { strong: HEAD.v0Strong, rest: HEAD.v0Rest });
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -214,34 +180,12 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-function underSession(kept, run) {
-  if (kept) globalThis.sessionStorage.setItem(KEPT, kept);
-  else globalThis.sessionStorage.removeItem(KEPT);
-  try {
-    return run();
-  } finally {
-    globalThis.sessionStorage.removeItem(KEPT);
-  }
-}
-
-test("a preview opens on what is true, or on the example this tab chose", () => {
-  assert.equal(
-    underSession(null, () => adsOpening()),
-    "v0",
-  );
-  assert.equal(
-    underSession("needs-you", () => adsOpening()),
-    "needs-you",
-  );
-});
-
-/** Draw the page in a preview, its read answered as asked, and hand back what redraws it. */
-function previewPage(answer, param = "ads") {
+/** Draw the page, its read answered as asked, and hand back what redraws it. */
+function drawPage(answer, param = "ads") {
   // An identical read shares an answer the client holds: each page here is its own visit.
   api().forget();
   route.asked.length = 0;
   route.answer = answer;
-  globalThis.sessionStorage.removeItem(KEPT);
   fresh();
   const draw = () => AdsPage({ param });
   return { tree: draw(), draw: () => again(draw) };
@@ -255,7 +199,7 @@ test("the page says which ads under its lead, once the counts land, and nothing 
     { platform: "meta", name: "Spring colour offer", n: 5 },
     { platform: "meta", name: null, n: 2 },
   ];
-  const p = previewPage(() => ({ series: seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }), now: null }));
+  const p = drawPage(() => ({ series: seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }), now: null }));
   assert.equal(byTestId(p.tree, "ads-v0-ads"), null, "not while it reads");
   await landed("the counts");
   const tree = p.draw();
@@ -267,13 +211,13 @@ test("the page says which ads under its lead, once the counts land, and nothing 
     textOf(byTestId(tree, "ads-v0-ads")),
     "5 people from Spring colour offer and 2 people from an ad you run in Meta.",
   );
-  const plain = previewPage(() => ({ series: seriesOf(byVia), now: null }));
+  const plain = drawPage(() => ({ series: seriesOf(byVia), now: null }));
   await landed("the counts again");
   assert.equal(byTestId(plain.draw(), "ads-v0-ads"), null);
 });
 
-test("the page reads its own counts once, says it is counting, then says them, in a note that calls them its own", async () => {
-  const p = previewPage(() => ({ series: seriesOf(NO_AD), now: null }));
+test("the page reads its own counts once, says it is counting, then says them, and draws nothing of an example", async () => {
+  const p = drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
   assert.equal(textOf(byTestId(p.tree, "ads-v0-reading")), V0.reading, "no flash of nobody while it reads");
   assert.equal(byTestId(p.tree, "ads-v0-lead"), null);
   await landed("the counts");
@@ -285,16 +229,14 @@ test("the page reads its own counts once, says it is counting, then says them, i
   assert.match(barLabels(tree), /Imported/);
   assert.match(barLabels(tree), /330/);
   assert.match(barLabels(tree), new RegExp(V0.emptyLead));
-  assert.equal(
-    textOf(byTestId(tree, NOTE)),
-    `${EXAMPLE.preview.word} ${EXAMPLE.preview.today}`,
-    "the sample's words are false over its own counts",
-  );
+  assert.equal(byTestId(tree, "ads-preview-note"), null, "no note says it is a preview: it is the page");
+  assert.equal(byTestId(tree, "ads-example"), null, "and no menu walks to an example");
+  assert.ok(byTestId(tree, "ads-conn"), "the ad account's card stands beside the counts");
   assert.equal(route.asked.length, 1, "and it is not asked again by drawing");
 });
 
 test("a workspace nobody new reached says that, as it has no rows to draw", async () => {
-  const p = previewPage(() => ({ series: seriesOf({}), now: null }));
+  const p = drawPage(() => ({ series: seriesOf({}), now: null }));
   await landed("the counts");
   const tree = p.draw();
   assert.equal(textOf(byTestId(tree, "ads-v0-nobody")), V0.nobodyNew);
@@ -302,7 +244,7 @@ test("a workspace nobody new reached says that, as it has no rows to draw", asyn
 });
 
 test("a read that fails says so and offers again, and never says nobody came", async () => {
-  const p = previewPage(() => null);
+  const p = drawPage(() => null);
   await landed("the refusal");
   const tree = p.draw();
   const failed = byTestId(tree, "ads-v0-failed");
@@ -313,77 +255,30 @@ test("a read that fails says so and offers again, and never says nobody came", a
   press(byTestId(tree, "ads-v0-again"));
   const reading = p.draw();
   assert.ok(byTestId(reading, "ads-v0-reading"), "reading again");
-  await landed("the counts");
+  // The ad account's card reads beside the counts and redraws the page as it lands: wait for the counts themselves.
+  await until(() => /An ad/.test(textOf(byTestId(p.draw(), "ads-v0"))), "the counts read again");
   assert.equal(route.asked.length, 2);
-  assert.match(textOf(byTestId(p.draw(), "ads-v0")), /An ad/);
 });
 
 test("a database with no series yet is said as a read that did not come, not as nobody", async () => {
-  const p = previewPage(() => ({ series: null, now: null }));
+  const p = drawPage(() => ({ series: null, now: null }));
   await landed("the empty answer");
   const tree = p.draw();
   assert.ok(byTestId(tree, "ads-v0-failed"), textOf(byTestId(tree, "ads-v0")));
 });
 
-test("an address that names an ad opens the example's ads and reads nothing of the workspace's", () => {
-  const p = previewPage(() => ({ series: seriesOf(NO_AD), now: null }), "ads:ad:spring");
-  assert.equal(byTestId(p.tree, "ads-v0"), null);
-  assert.equal(route.asked.length, 0);
+test("an address that names an ad, with nothing connected, is the page with nothing connected: no example's ad", () => {
+  const p = drawPage(() => ({ series: seriesOf(NO_AD), now: null }), "ads:ad:spring");
+  assert.ok(byTestId(p.tree, "ads-v0"));
+  assert.equal(byTestId(p.tree, "ads-detail"), null);
+  assert.equal(route.asked.length, 1, "the counts are read, as on the page");
 });
 
-test("the page tells Ask what it shows, in a word and no row: what is true, or an example", () => {
+test("the page tells Ask what it shows, in a word and no row: what is true", () => {
   const said = () => {
     const s = askOnScreenOf(globalThis.window);
     return s && [s.key, s.view, s.ids];
   };
-  previewPage(() => ({ series: seriesOf(NO_AD), now: null }));
+  drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
   assert.deepEqual(said(), ["ads", "ads", []]);
-  underSession("running", () => {
-    fresh();
-    AdsPage({ param: "ads" });
-  });
-  assert.deepEqual(said(), ["ads", "ads:example", []]);
-});
-
-// ---------------------------------------------------------------------------------------------------------------------
-// Connections
-
-test("Connections says no account is connected, which is true, and asks nothing of the report", () => {
-  route.asked.length = 0;
-  const tree = underSession(null, () => {
-    fresh();
-    return AdAccounts({ flash() {} });
-  });
-  for (const platform of ["meta", "google", "tiktok"]) {
-    assert.equal(byTestId(tree, `ad-account-${platform}`).props["data-state"], "none");
-    assert.ok(byTestId(tree, `ad-connect-${platform}`), "with its Connect press");
-  }
-  assert.equal(textOf(byTestId(tree, NOTE)), `${EXAMPLE.preview.word} ${EXAMPLE.preview.connectLater}`);
-  assert.equal(route.asked.length, 0);
-});
-
-test("the store a choice moves keeps it for the tab, and choosing today again keeps nothing", () => {
-  underSession(null, () => {
-    fresh();
-    const first = useAdsStore();
-    assert.equal(first.example, "v0");
-    first.setExample("needs-you");
-    assert.equal(globalThis.sessionStorage.getItem(KEPT), "needs-you");
-    const next = again(() => useAdsStore());
-    assert.equal(next.example, "needs-you");
-    next.setExample("v0");
-    assert.equal(globalThis.sessionStorage.getItem(KEPT), null);
-  });
-});
-
-test("the pill asks to see an example on what is true, and is the Example pill once on one", () => {
-  const pillIn = (tree) =>
-    textOf(find(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "ads-example").props.trigger);
-  const today = previewPage(() => ({ series: seriesOf(NO_AD), now: null })).tree;
-  assert.match(pillIn(today), new RegExp(EXAMPLE.preview.pill));
-  const running = underSession("running", () => {
-    fresh();
-    return AdsPage({ param: "ads" });
-  });
-  assert.match(pillIn(running), new RegExp(EXAMPLE.pill));
 });

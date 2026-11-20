@@ -2,7 +2,8 @@
  * An owner's two presses on an ad, for the dashboard (decision 0050, calls 1, 2 and 9): Pause, and turning one back
  * on. The edge keeps the press, holds Meta's token and tells Meta (apps/edge/lib/ads/press.ts); this hands it the ad,
  * the version the press was drawn from and who pressed, and says a refusal in words an owner can act on: what
- * happened, and the one thing to do. Never a code.
+ * happened, and the one thing to do. Never a code. While AI is stopped no ad is turned back on from here (the Ads
+ * plan's G17); a pause always goes.
  */
 import "server-only";
 import { AppError, SECOND_MS } from "@chanlytics/contracts";
@@ -11,6 +12,8 @@ import { AppError, SECOND_MS } from "@chanlytics/contracts";
 const PRESS_WAIT_MS = 45 * SECOND_MS;
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
+import { aiStoppedAt } from "../readers/ads-page";
+import { getStoredConfig } from "../workspace/config-row";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
 
@@ -58,6 +61,8 @@ export async function pressAd(
   // A preview never reaches Meta under a business's name, as no provider door does.
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
+  if (press.op === "resume" && aiStoppedAt(await getStoredConfig(ctx.supabase, member.tenantId)) !== null)
+    throw new AppError("conflict", "AI is stopped, so no ad is turned back on. Start AI again first.", 409);
   const answer: Answer = await callEdge(
     "/api/admin/ads/press",
     { op: press.op, tenant_id: member.tenantId, user_id: ctx.userId, ad_id: press.adId, version: press.version },

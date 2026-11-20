@@ -23,7 +23,6 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
 import type { NeedVM } from "../connect/card-model";
-import { PreviewNote } from "../preview-note";
 import { newAdView } from "./model";
 import type { LineAct, NewAdVM } from "./model";
 import { NewAdLine, NewEditor, NewSentence, NewWhy } from "./parts";
@@ -216,7 +215,6 @@ function newAdParts(
       telling: here.telling,
       told: here.told,
       need: props.need,
-      sample: props.source.sample,
     });
     const turnOn = () => {
       acts.forget();
@@ -278,8 +276,6 @@ export function NewAd(props: NewAdProps) {
       fit={parts.fit}
       testid="ads-new"
     >
-      {/* On the page's example it says what it is, as every part of the example does. */}
-      {props.source.sample ? <PreviewNote /> : null}
       {parts.body}
     </Sheet>
   );

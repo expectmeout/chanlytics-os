@@ -37,32 +37,5 @@ export function aboutMoneyOf(minor: number, currency: string): string {
   return Math.abs(units) >= 10 ? unitsSaid(Math.round(units), currency, 0) : moneyOf(minor, currency);
 }
 
-/** An amount with its unit: `$15 a day`. */
-export const perDayOf = (minor: number, currency: string): string => `${moneyOf(minor, currency)} a day`;
-
-/** What is left of a total: `$308 left of $720`. */
-export const leftOfMoney = (left: number, total: number, currency: string): string =>
-  `${moneyOf(left, currency)} left of ${moneyOf(total, currency)}`;
-
 /** A whole number of units, as the minor units an amount is held in, by the currency's own. */
 export const minorOfUnits = (units: number, currency: string): number => Math.round(units * minorPerUnit(currency));
-
-/** One amount in its currency. */
-export interface MoneyItem {
-  minor: number;
-  currency: string;
-}
-
-/** The sums of amounts, one for each currency in the order they first appear. Never converted. */
-export function sumsOf(items: readonly MoneyItem[]): MoneyItem[] {
-  const sums = new Map<string, number>();
-  for (const i of items) sums.set(i.currency, (sums.get(i.currency) ?? 0) + i.minor);
-  return [...sums].map(([currency, minor]) => ({ currency, minor }));
-}
-
-/** `$847`, or `$847 + £230` where the currencies differ: each currency's sum, side by side, never converted. */
-export function sumMoney(items: readonly MoneyItem[]): string {
-  const sums = sumsOf(items);
-  if (sums.length === 0) return moneyOf(0, ADS_DEFAULT_CURRENCY);
-  return sums.map((s) => moneyOf(s.minor, s.currency)).join(" + ");
-}

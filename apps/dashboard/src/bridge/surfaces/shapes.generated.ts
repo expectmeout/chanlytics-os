@@ -34,7 +34,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   reports_receptionist: "284caefa984a9070",
   reports_reviews: "08da2c694947ffc8",
   sequences: "096993fcb9b22d25",
-  settings: "d3661f22ca505351",
+  settings: "db78fffd31a17975",
   setup: "fb2470f3609076cc",
   today: "592547ba5cd469e3",
   today_pins: "d3fd87a670594687",

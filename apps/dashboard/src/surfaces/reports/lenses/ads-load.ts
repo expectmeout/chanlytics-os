@@ -1,129 +1,57 @@
 /**
- * Loads Reports' Ads lens on demand (MOCKUP): its body (lenses/ads.tsx) and its fold (ads-demo.ts) are one chunk of their own,
- * fetched only where the Ads are on (`adsAreOn`: a demo session, or a workspace's preview) and on a lens that draws them, so the Ads
- * models, words and fixtures are not part of the Reports page every workspace loads. Nothing draws until the chunk lands.
- * `useAdsLens` is what the page asks: the head's sentence, the Overview's one fact and what the lens draws, each none where the Ads
- * are not on.
+ * Loads Reports' Ads lens on demand: its body (lenses/ads-live.tsx) and the Ads page's own read (GET ads/page) are
+ * fetched together, only where Ads is drawn here (`adsAreOn`, campaigns/ads/shown.ts) and on the Ads lens, so its model
+ * and words are not part of the Reports page every workspace loads. Nothing draws until both land. `useAdsLens` is what
+ * the page asks: the head's sentence and what the lens draws, each none where Ads is not on.
  */
 import { useEffect, useState } from "react";
-import { ADS_SCOPE_ALL, adsReportRoute, isAdsScope } from "@chanlytics/contracts";
-import type { AdsLiveDto, AdsScope, LensId, ReportsParts } from "@chanlytics/contracts";
-import type { ReportFactVM } from "../model/facts";
-import type { AdsResultsVM } from "@/surfaces/campaigns/ads/results/view";
-import { adsInPreview } from "../../campaigns/ads/shown";
-import { navigate } from "../../frame-verbs";
+import type { AdsLiveDto, LensId } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { adsAreOn } from "../chrome";
-import type { ReportsSurface } from "../surface";
 
-/** The lens's body, the fold it draws, and the fact the Overview makes of the same days. */
-interface AdsParts {
-  Lens: (typeof import("./ads"))["AdsLens"];
-  fold: (typeof import("../ads-demo"))["adsDemoFold"];
-  fact: (typeof import("../ads-demo"))["adsDemoFact"];
-}
-
-/** What the Ads lens draws from the sample: its body, once fetched, the fold it draws, and the write of its scope. */
-interface AdsSampleDraw {
-  parts: AdsParts;
-  fold: AdsResultsVM;
-  onScope: (scope: AdsScope) => void;
-}
-
-/** What the Ads lens draws for a workspace whose ad account is or was connected: its real lens over the page's read. */
-interface AdsLiveDraw {
+/** The lens's body and its read: the workspace's own ads, none connected, or a read that failed. */
+export interface AdsDraw {
   Live: (typeof import("./ads-live"))["AdsLiveLens"];
-  live: AdsLiveDto;
+  live: AdsLiveDto | null;
+  failed: boolean;
 }
 
-export type AdsDraw = AdsSampleDraw | AdsLiveDraw;
+/** What Reports asks of the Ads. */
+interface AdsHere {
+  /** The Ads lens's head: the page's own sentence, none where the lens is not the one drawn or has nothing to say. */
+  head: { head: string | null } | null;
+  draw: AdsDraw | null;
+}
 
-/**
- * A workspace's own ads for the lens: the Ads page's read (GET ads/page) and the lens that draws it, fetched together
- * where `on`. `dto` is undefined until the read is in, and null where no account was ever connected or it failed.
- */
-function useAdsLiveLens(on: boolean) {
+const LENS_NOTHING: AdsHere = { head: null, draw: null };
+
+/** The lens of the workspace's own ads, where the Ads lens is on screen. */
+export function useAdsLens(lens: LensId): AdsHere {
+  const on = adsAreOn() && lens === "ads";
   const [held, setHeld] = useState<{
-    Live: AdsLiveDraw["Live"];
+    Live: AdsDraw["Live"];
     head: (typeof import("./ads-live"))["adsLiveHead"];
     dto: AdsLiveDto | null;
+    failed: boolean;
   } | null>(null);
   useEffect(() => {
     if (!on) return undefined;
     let live = true;
-    const page = read("GET ads/page").catch(() => null);
-    const lens = import("./ads-live").then((m) => m.AdsLiveLens);
-    const head = import("./ads-live").then((m) => m.adsLiveHead);
-    void Promise.all([lens, head, page]).then(([drawn, said, dto]) => {
-      if (live) setHeld({ Live: drawn, head: said, dto });
+    const page = read("GET ads/page").then(
+      (dto) => ({ dto, failed: false }),
+      () => ({ dto: null, failed: true }),
+    );
+    const parts = import("./ads-live");
+    void Promise.all([parts, page]).then(([{ AdsLiveLens, adsLiveHead }, answer]) => {
+      if (live) setHeld({ Live: AdsLiveLens, head: adsLiveHead, ...answer });
     });
     return () => {
       live = false;
     };
   }, [on]);
-  return on ? held : null;
-}
-
-/** The parts of the Ads lens, once they have been fetched; null before that, and always null where `on` is false. */
-function useAdsParts(on: boolean): AdsParts | null {
-  const [parts, setParts] = useState<AdsParts | null>(null);
-  useEffect(() => {
-    if (!on || parts !== null) return undefined;
-    let live = true;
-    const lens = import("./ads").then((m) => m.AdsLens);
-    const fold = import("../ads-demo").then((m) => m.adsDemoFold);
-    const fact = import("../ads-demo").then((m) => m.adsDemoFact);
-    void Promise.all([lens, fold, fact]).then(([Lens, f, g]) => {
-      if (live) setParts({ Lens, fold: f, fact: g });
-    });
-    return () => {
-      live = false;
-    };
-  }, [on, parts]);
-  return on ? parts : null;
-}
-
-/** What Reports asks of the Ads. */
-interface AdsHere {
-  /** The Ads lens's head: the fold's own sentence, none where the lens is not the one drawn or has nothing to say. */
-  head: { head: string | null } | null;
-  /** The Overview's one Worth-knowing fact: what the ads brought over the same days. */
-  fact: ReportFactVM | null;
-  draw: AdsDraw | null;
-}
-
-const LENS_NOTHING: AdsHere = { head: null, fact: null, draw: null };
-
-/** The sentence at the head, its two halves as one line; none where the fold has nothing to draw. */
-const lensSentenceOf = (fold: AdsResultsVM): string | null =>
-  fold.head ? `${fold.head.strong}${fold.head.rest}` : null;
-
-/**
- * Whether a lens draws any of the Ads: their own, and the Overview's one fact in a demo. In a workspace's preview that fact would be
- * a sample among the workspace's real numbers, so it is not made, and the Overview fetches nothing for it.
- */
-const drawsAds = (lens: LensId): boolean => lens === "ads" || (lens === "overview" && !adsInPreview());
-
-/**
- * The Ads of the lens on screen: its fold over the days the address says, else the range shown, narrowed to the scope the address
- * says (the Overview folds every ad, for its one fact). Narrowing replaces the entry: a scope is a setting of the page, not a place
- * Back returns to, and the days stay.
- */
-export function useAdsLens(lens: LensId, at: ReportsParts, R: ReportsSurface | null): AdsHere {
-  // A workspace's own ads, where it holds an account: the real lens. Until that read is in, nothing is drawn; where
-  // it holds none, the sample is, as before.
-  const mine = adsAreOn() && adsInPreview() && lens === "ads";
-  const real = useAdsLiveLens(mine);
-  const sample = adsAreOn() && drawsAds(lens) && (!mine || (real !== null && real.dto === null));
-  const parts = useAdsParts(sample);
-  // The moment the sample is read at, once for the page, as a read would be.
-  const [now] = useState(() => Date.now());
-  if (mine && real?.dto)
-    return { head: { head: real.head(real.dto) }, fact: null, draw: { Live: real.Live, live: real.dto } };
-  if (!parts || !R) return LENS_NOTHING;
-  const scope = at.scope && isAdsScope(at.scope) ? at.scope : ADS_SCOPE_ALL;
-  const fold = parts.fold(at.days ?? R.range, scope, R.vm.today, now);
-  if (lens === "overview") return { ...LENS_NOTHING, fact: parts.fact(fold) };
-  const onScope = (scope: AdsScope) => navigate(adsReportRoute(at.days, scope), { replace: true });
-  return { head: { head: lensSentenceOf(fold) }, fact: null, draw: { parts, fold, onScope } };
+  if (!on || held === null) return LENS_NOTHING;
+  return {
+    head: { head: held.dto ? held.head(held.dto) : null },
+    draw: { Live: held.Live, live: held.dto, failed: held.failed },
+  };
 }

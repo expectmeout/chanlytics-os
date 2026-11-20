@@ -20,6 +20,8 @@ export const LIVE = {
     rest: ads === 1 ? " is in your Meta account." : " are in your Meta account.",
   }),
   noAds: { strong: null, rest: "Meta shows no ads in this ad account yet." },
+  /** Under it, where the ads would be: what will be here, and New ad. */
+  empty: "Your ads show here, with who each one brings.",
   /** The head while an account just connected has not been read: nothing is known of its ads yet. */
   reading: { strong: null, rest: "Reading your ads from Meta…" },
   /** The head where its first read failed: what stood is nothing, and the clock asks again. */
@@ -198,6 +200,36 @@ export const SHEET = {
   resumeUnsure: (name: string) =>
     `Meta didn't answer, so ${name} may still be paused. Chanlytics is checking, and this page shows what Meta did in a few minutes.`,
   failed: "Couldn't reach Meta just now. Nothing was changed. Try again.",
+  /** A paused ad, while AI is stopped: nothing is turned on until AI runs again. */
+  stopped: "AI is stopped, so this ad stays paused until AI runs again.",
+} as const;
+
+const adsCount = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
+
+/**
+ * AI stopped with ads still on (the Ads plan's G17): the page and the card say how many, and the owner's one press
+ * pauses them all. What Meta still bills is said where it is pressed.
+ */
+export const STOP = {
+  title: "AI is stopped",
+  on: (n: number) =>
+    n === 1
+      ? "1 ad is still on, and Meta keeps charging for it while it runs."
+      : `${n} ads are still on, and Meta keeps charging for them while they run.`,
+  pausing: (n: number) => `Pausing ${adsCount(n)}…`,
+  press: (n: number) => `Pause ${adsCount(n)}`,
+  ownerOnly: "Only the owner can pause them.",
+  /** What the press came to. */
+  paused: (n: number) =>
+    n === 1
+      ? "1 ad is paused. Meta still bills what it already showed."
+      : `${n} ads are paused. Meta still bills what they already showed.`,
+  pausedSoon: (n: number) =>
+    `${adsCount(n)} will pause as soon as Meta takes the change. Meta still bills what they already showed.`,
+  /** Meta gave no answer to some: whether they paused is not known yet. */
+  unsure: (n: number) =>
+    `Meta didn't answer for ${adsCount(n)}, so they may still be on. This page shows what Meta did in a few minutes.`,
+  partly: (done: number, of: number) => `${done} of ${of} ads are paused, and the rest couldn't be. Press again.`,
 } as const;
 
 /** Meta Ads Manager, where an ad made in Meta is changed. */
@@ -216,4 +248,13 @@ export const LENS = {
   counted:
     "A person is counted once, for the ad they first wrote from. Booked means something on your calendar after that first message that wasn't cancelled.",
   open: "Open Ads",
+  /** No ad account was ever connected here. */
+  none: {
+    title: "No ad account is connected",
+    body: "Connect Facebook and Instagram, and what your ads bring is counted here.",
+  },
+  notRead: {
+    title: "Your ads couldn't be read just now",
+    body: "Nothing changed at Meta. Open Ads to read them again.",
+  },
 } as const;

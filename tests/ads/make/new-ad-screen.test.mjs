@@ -78,7 +78,6 @@ const view = (over = {}) => {
     telling: false,
     told: null,
     need: null,
-    sample: false,
     ...over,
   });
 };
@@ -143,14 +142,8 @@ test("Turn on, until the job that makes an ad exists: grey, and it says nothing 
   });
   // A member who is not the owner is told that first: only the owner turns an ad on.
   assert.equal(view({ answer: written({ owner: false }) }).press.under, "Only the owner can turn an ad on.");
-  // On the page's example the press can be pressed, and says it makes nothing.
-  const sample = view({ sample: true });
-  assert.equal(sample.kicker, "New ad · an example");
-  assert.deepEqual(sample.press, {
-    words: "Turn on · up to $70",
-    can: true,
-    under: "This is an example: nothing is made at Meta, and nothing is spent.",
-  });
+  // The page's example went with the mockup (20 Nov 2026): New ad is the workspace's own, drafted by AI.
+  assert.equal(vm.kicker, "New ad · drafted by AI");
 });
 
 test("the amount, the miles and the date follow what is typed at once, and the press follows the amount", () => {
@@ -359,7 +352,6 @@ test("Tell AI what to change: what the last one came to, in one quiet sentence",
     "That would speak about the person reading, and Meta turns that down. Nothing was changed.",
   );
   assert.equal(status({ told: { kind: "failed" } }), "AI didn't answer, so nothing was changed. Try again.");
-  assert.equal(status({ told: { kind: "none", fault: null }, sample: true }), NEW.tell.sample);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -382,7 +374,7 @@ function world({ same = false, stored = null } = {}) {
   const went = [];
   const props = {
     open: true,
-    source: { sample: false, draft: ask("draft"), words: ask("words") },
+    source: { draft: ask("draft"), words: ask("words") },
     need: null,
     onClose: () => went.push("closed"),
     onConnect() {},
