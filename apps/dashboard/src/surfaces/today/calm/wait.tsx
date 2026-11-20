@@ -10,7 +10,7 @@ import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
 import type { WaitPart } from "../../waits/wait-rows";
 import { useTodayOnPhone } from "../phone";
-import { Lead, LeadActs } from "./lead";
+import { Lead, CardActs } from "./lead";
 import type { CalmLine } from "./lines";
 
 /** A campaign's glyph, as its rows and its page wear it. */
@@ -48,7 +48,7 @@ export function WaitLead({ part }: { part: WaitPart }) {
       why={part.why}
       testid={part.testid}
     >
-      <LeadActs>
+      <CardActs>
         <Button
           variant="primary"
           size={size}
@@ -72,7 +72,7 @@ export function WaitLead({ part }: { part: WaitPart }) {
             {part.also.label}
           </Button>
         ) : null}
-      </LeadActs>
+      </CardActs>
     </Lead>
   );
 }

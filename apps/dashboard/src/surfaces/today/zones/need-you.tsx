@@ -27,19 +27,17 @@ import {
   DEFAULT_TIMEZONE,
   isPersonRow,
   NEED_YOU_WORDS as W,
-  TODAY_LINE_WORDS,
-  TODAY_NAMED_MAX,
-  type TodayAlsoCounts,
   type TodayQueueRowVM,
   type TodayVM,
 } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS, TODAY_NAMED_MAX, type TodayAlsoCounts } from "../model/lines";
 import { FailedRead } from "../../kit/empty/empty";
-import { askOf, useTodayAsks } from "../calm/asks";
+import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { needsYouActed } from "../../needs-you";
 import { surfaceValue } from "../../surface-values";
 import { usePartShown } from "../../use-surface";
 import { broadcastsRead, useRunsActing } from "../../waits/run-acts";
-import { waitParts, type Nav, type VerbKind } from "../../waits/wait-rows";
+import { waitParts, type VerbKind, type WaitPart } from "../../waits/wait-rows";
 import { useDraftsMoved, wantDrafts, type DraftWant } from "../need-you/drafts";
 import type { NeedYouRowsCtx } from "../need-you/people-rows";
 import { clearRowStates } from "../need-you/row-state";
@@ -48,7 +46,7 @@ import { keptWith, keptWithout, type Kept } from "./kept";
 import { useToDoRows } from "./to-do";
 import { appNavigate, canDo, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
-import { AlsoLine } from "../calm/also";
+import { AlsoLine, type AlsoDoors } from "../calm/also";
 import { LeadGone } from "../calm/lead";
 import { cardPressed, cardPressedLately } from "../calm/motion";
 import { CalmList, CalmRow, type CalmLine } from "../calm/lines";
@@ -125,36 +123,34 @@ const DONE_SHOWN_MS = 560;
 /** What is left past the named lines is one of these kinds (contracts TodayAlsoCounts). */
 type LeftAs = "waiting" | "toDo" | "toMark";
 
-const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; card: TodayCard }) => {
-  const [toastNode, ppFlash] = useToast();
-  // The rows acted on this visit (a reply sent, a thread snoozed), kept in their place, and the row the member pressed
-  // open: the model's, kept in the rows' store, so the page and the head read them as the list does.
-  const { rows, groups, drawn, order, kept, setKept, setOpened } = model;
-  useEffect(() => () => clearRowStates(), []);
-  // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
-  const acting = useRunsActing();
-  // What AI set aside lands as a draft does, and is counted again as one does.
-  useDraftsMoved();
-  const nav: Nav = (to) => appNavigate(to);
-  const may = canDo("approve");
+/** To do's rows as the list draws them (to-do.tsx). */
+type ToDo = ReturnType<typeof useToDoRows>;
+
+/** The runs an approval can still send, each in its parts (the rows the Inbox's Needs you draws). */
+type Waits = ReturnType<typeof waitParts>;
+
+/** One of who waits, as a line: its key, the kind it is counted as once past the named, and the line. */
+interface Entry {
+  key: string;
+  as: LeftAs;
+  line: CalmLine;
+}
+
+/**
+ * How a row is worked here, which its line and its card share. The rows acted on this visit (a reply sent, a thread
+ * snoozed) are kept in their place, and the row the member pressed open is the model's, in the rows' store, so the page
+ * and the head read them as the list does.
+ */
+function useRowsCtx(model: NeedYouModel, card: TodayCard, flash: NeedYouRowsCtx["flash"]): NeedYouRowsCtx {
+  const { rows, kept, setKept, setOpened } = model;
   const word = useTodayWord();
-  // The runs an approval can still send, each in its parts (the rows the Inbox's Needs you draws): the first holds the
-  // card where the page says so, the others are lines.
-  const waits = waitParts(
-    { nav, flash: ppFlash, verbKind: QUIET, acting, phone: true, late: false },
-    Number.POSITIVE_INFINITY,
-  );
-  // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's only as one is opened:
-  // nobody counts them, most are let go unread, and a draft is a model's turn.
-  const olderOpen = groups.old.filter((r) => r.id === model.opened);
-  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...olderOpen]));
-  const ctx: NeedYouRowsCtx = {
-    nav,
+  return {
+    nav: (to) => appNavigate(to),
     // The card is the page's one coral (Today, calm, D1): the row it holds is the only one whose act is drawn at all.
     coral: card?.holder === "queue" ? card.id : null,
-    may,
+    may: canDo("approve"),
     tz: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE,
-    flash: ppFlash,
+    flash,
     keep: (row) => setKept((was) => keptWith(was, row, rows)),
     unkeep: (row) => setKept((was) => keptWithout(was, row)),
     kept: new Set(Object.keys(kept)),
@@ -168,6 +164,161 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
     stepDone: () => undefined,
     phone: null,
   };
+}
+
+/** A row in the card: the row, which part's it is, and how it is worked there. */
+interface CardRow {
+  row: TodayQueueRowVM;
+  holder: "queue" | "todo";
+  ctx: NeedYouRowsCtx;
+}
+
+/** The row the page names for the card (`card`), where it is this part's. */
+function cardRowOf(
+  card: TodayCard,
+  order: readonly TodayQueueRowVM[],
+  ctx: NeedYouRowsCtx,
+  todo: ToDo,
+): CardRow | null {
+  if (card?.holder === "queue") {
+    const row = order.find((r) => r.id === card.id);
+    return row ? { row, holder: "queue", ctx } : null;
+  }
+  if (card?.holder === "todo") {
+    const row = todo.rows.find((r) => r.id === card.id);
+    return row ? { row, holder: "todo", ctx: todo.ctx } : null;
+  }
+  return null;
+}
+
+/**
+ * The row the card holds, as the page names it, and the one it held a moment ago, finished by a press in it (D6): that one
+ * stays in the card, saying what became of it, for a beat before the next thing takes the card. Only where the next is
+ * this part's too, or nothing is left: another part's card (setting up, what AI found) is the page's to draw at once, and
+ * two cards never stand together.
+ */
+function useCardRows(card: TodayCard, order: readonly TodayQueueRowVM[], ctx: NeedYouRowsCtx, todo: ToDo) {
+  const lead = cardRowOf(card, order, ctx, todo);
+  const cardRow = lead?.row.id ?? null;
+  const [shown, setShown] = useState<CardRow | null>(lead);
+  const [letGo, setLetGo] = useState<string | null>(null);
+  const ours = card === null || card.holder === "queue" || card.holder === "wait" || card.holder === "todo";
+  // Still waiting: among the rows drawn and not acted on. A row kept says what became of it; a to-do done leaves its list.
+  const waiting = (id: string) =>
+    order.some((r) => r.id === id && !ctx.kept.has(id)) || todo.rows.some((r) => r.id === id && !todo.ctx.kept.has(id));
+  const heldLead =
+    ours && shown && shown.row.id !== cardRow && letGo !== shown.row.id && !waiting(shown.row.id) && cardPressedLately()
+      ? { ...shown, ctx: shown.holder === "todo" ? todo.ctx : ctx }
+      : null;
+  const held = heldLead?.row.id ?? null;
+  // What the card held is kept as it is drawn (React's own way to keep what an earlier draw held).
+  if (!heldLead && (shown?.row.id ?? null) !== cardRow) setShown(lead);
+  useEffect(() => {
+    if (!held) return undefined;
+    const timer = setTimeout(() => setLetGo(held), DONE_SHOWN_MS);
+    return () => clearTimeout(timer);
+  }, [held]);
+  return { lead, heldLead, cardRow };
+}
+
+/** A row finished on this visit says what became of it, with its Undo, as a line of its own under the lines. */
+const actedLines = (order: readonly TodayQueueRowVM[], ctx: NeedYouRowsCtx, todo: ToDo, leadId: string | null) => [
+  ...order.filter((r) => ctx.kept.has(r.id) && r.id !== leadId).map((r) => <ActedLine key={r.id} row={r} ctx={ctx} />),
+  ...todo.rows
+    .filter((r) => todo.ctx.kept.has(r.id) && r.id !== leadId)
+    .map((r) => <ActedLine key={r.id} row={r} ctx={todo.ctx} />),
+];
+
+/**
+ * Who waits, in the page's order: the people, what waits for an OK, then the team's to-dos. Three are named (D16), and
+ * what is past them is counted by its kind in the one line under them.
+ */
+const entriesOf = (order: readonly TodayQueueRowVM[], waits: Waits, todo: ToDo, ctx: NeedYouRowsCtx): Entry[] => [
+  ...order
+    .filter((r) => !ctx.kept.has(r.id))
+    .map((r) => ({ key: r.id, as: "waiting" as const, line: queueLine(r, ctx) })),
+  ...waits.parts.map((x) => ({ key: x.key, as: "waiting" as const, line: waitLine(x) })),
+  ...todo.rows
+    .filter((r) => !todo.ctx.kept.has(r.id))
+    .map((r) => ({
+      key: r.id,
+      as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
+      line: queueLine(r, todo.ctx),
+    })),
+];
+
+/**
+ * What is left past the named lines, by kind (calm/also.tsx), as it will stand once the card has handed off, so the count
+ * never moves twice, and the door to each. What To do holds past the rows it handed the page is its own counts (the
+ * read's), less the rows it drew that the read still holds: one kept in its place after the read let it go (a visit
+ * marked, a step done) is in no count, and counting it hid the one past the three (a visit left out was said nowhere once
+ * another was marked).
+ */
+function alsoLeftOf(parts: { entries: Entry[]; next: string | null; model: NeedYouModel; waits: Waits; todo: ToDo }) {
+  const { groups, drawn } = parts.model;
+  const { steps, visits, answering, read } = parts.model.todo;
+  const past = (as: LeftAs) =>
+    parts.entries
+      .filter((x) => x.key !== parts.next)
+      .slice(TODAY_NAMED_MAX)
+      .filter((x) => x.as === as).length;
+  const fromRead = new Set(read.map((r) => r.id));
+  const drew = (kind: TodayQueueRowVM["kind"]) =>
+    parts.todo.rows.filter((r) => r.kind === kind && fromRead.has(r.id)).length;
+  const beyond = (count: number, kind: TodayQueueRowVM["kind"]) => Math.max(0, count - drew(kind));
+  const setAside = surfaceValue("reply_drafts")?.setAside ?? [];
+  const left: TodayAlsoCounts = {
+    waiting:
+      past("waiting") +
+      Math.max(0, groups.waiting.length - drawn.waiting.length) +
+      Math.max(0, groups.ok.length - drawn.ok.length) +
+      parts.waits.cut,
+    toDo: past("toDo") + beyond(steps?.count ?? 0, "step") + beyond(answering.length, "review"),
+    toMark: past("toMark") + beyond(visits?.count ?? 0, "visit"),
+    older: groups.old.length,
+    setAside: setAside.length,
+  };
+  const doors: AlsoDoors = {
+    waiting: "inbox",
+    // The Inbox's Needs you lists whoever has waited past a week under who waits, with Mark all done.
+    older: "inbox",
+    toDo: steps?.to ?? parts.todo.door,
+    // The first visit the rows do not name: its sheet's Next walks on through the rest.
+    toMark: visits ? (visits.items.at(drew("visit"))?.to ?? visits.to) : null,
+    setAside: setAside[0] ? `inbox/th-${setAside[0]}` : null,
+  };
+  return { left, doors };
+}
+
+/**
+ * The card, where this part holds it: a row finished a moment ago, the row it holds, or the run; where nothing holds it,
+ * the room it stood in folds shut.
+ */
+function cardIn(p: { heldLead: CardRow | null; lead: CardRow | null; waitLead: WaitPart | null; card: TodayCard }) {
+  if (p.heldLead) return <QueueLead row={p.heldLead.row} ctx={p.heldLead.ctx} holder={p.heldLead.holder} done />;
+  if (p.lead) return <QueueLead row={p.lead.row} ctx={p.lead.ctx} holder={p.lead.holder} />;
+  if (p.waitLead) return <WaitLead part={p.waitLead} />;
+  return p.card === null ? <LeadGone /> : null;
+}
+
+const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; card: TodayCard }) => {
+  const [toastNode, ppFlash] = useToast();
+  const { groups, drawn, order, kept } = model;
+  useEffect(() => () => clearRowStates(), []);
+  // The runs with an Approve or a Cancel on its way: their buttons wait for the server (S9-10).
+  const acting = useRunsActing();
+  // What AI set aside lands as a draft does, and is counted again as one does.
+  useDraftsMoved();
+  const ctx = useRowsCtx(model, card, ppFlash);
+  // The runs an approval can still send: the first holds the card where the page says so, the others are lines.
+  const waits = waitParts(
+    { nav: ctx.nav, flash: ppFlash, verbKind: QUIET, acting, phone: true, late: false },
+    Number.POSITIVE_INFINITY,
+  );
+  // Only the rows drawn are drafted (decision 0071): the five waiting, not those past them. Older's only as one is opened:
+  // nobody counts them, most are let go unread, and a draft is a model's turn.
+  const olderOpen = groups.old.filter((r) => r.id === model.opened);
+  useDraftsAhead(draftWantsOf([...groups.next, ...drawn.waiting, ...olderOpen]));
   const todo = useToDoRows({
     model: model.todo,
     open: ctx.open,
@@ -180,114 +331,32 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   const firstWaiting = order.find((r) => isPersonRow(r) && !ctx.kept.has(r.id)) ?? null;
   const firstRun = waits.parts.find((x) => x.question) ?? null;
   useTodayAsks("waits", [
-    firstWaiting ? askOf(TODAY_LINE_WORDS.asks.person(firstWaiting.who)) : null,
-    firstRun?.question ? askOf(firstRun.question) : null,
+    firstWaiting ? todayAskOf(TODAY_LINE_WORDS.asks.person(firstWaiting.who)) : null,
+    firstRun?.question ? todayAskOf(firstRun.question) : null,
   ]);
-  const lead =
-    card?.holder === "queue"
-      ? { row: order.find((r) => r.id === card.id) ?? null, ctx }
-      : card?.holder === "todo"
-        ? { row: todo.rows.find((r) => r.id === card.id) ?? null, ctx: todo.ctx }
-        : null;
+  const { lead, heldLead, cardRow } = useCardRows(card, order, ctx, todo);
   // The run in the card: the one the page named, else the first that waits (the runs moved since the page read them).
   const waitLead =
     card?.holder === "wait" ? (waits.parts.find((x) => x.key === card.id) ?? waits.parts[0] ?? null) : null;
-  // The row the card held, finished a moment ago (D6): it stays in the card, saying what became of it, for a beat before
-  // the next thing takes the card. Only where the next is this part's too, or nothing is left: another part's card
-  // (setting up, what AI found) is the page's to draw at once, and two cards never stand together.
-  const cardRow = lead?.row?.id ?? null;
-  const cardNow = lead?.row
-    ? { row: lead.row, holder: card?.holder === "todo" ? ("todo" as const) : ("queue" as const) }
-    : null;
-  const [shown, setShown] = useState(cardNow);
-  const [letGo, setLetGo] = useState<string | null>(null);
-  const ours = card === null || card.holder === "queue" || card.holder === "wait" || card.holder === "todo";
-  // Still waiting: among the rows drawn and not acted on. A row kept says what became of it; a to-do done leaves its list.
-  const waiting = (id: string) =>
-    order.some((r) => r.id === id && !ctx.kept.has(id)) || todo.rows.some((r) => r.id === id && !todo.ctx.kept.has(id));
-  const heldLead =
-    ours && shown && shown.row.id !== cardRow && letGo !== shown.row.id && !waiting(shown.row.id) && cardPressedLately()
-      ? { ...shown, ctx: shown.holder === "todo" ? todo.ctx : ctx }
-      : null;
-  const held = heldLead?.row.id ?? null;
-  // What the card held is kept as it is drawn (React's own way to keep what an earlier draw held).
-  if (!heldLead && (shown?.row.id ?? null) !== cardRow) setShown(cardNow);
-  useEffect(() => {
-    if (!held) return undefined;
-    const timer = setTimeout(() => setLetGo(held), DONE_SHOWN_MS);
-    return () => clearTimeout(timer);
-  }, [held]);
-  const leadId = held ?? cardRow;
-  // A row finished on this visit says what became of it, with its Undo, as a line of its own under the lines.
-  const acted = [
-    ...order
-      .filter((r) => ctx.kept.has(r.id) && r.id !== leadId)
-      .map((r) => <ActedLine key={r.id} row={r} ctx={ctx} />),
-    ...todo.rows
-      .filter((r) => todo.ctx.kept.has(r.id) && r.id !== leadId)
-      .map((r) => <ActedLine key={r.id} row={r} ctx={todo.ctx} />),
-  ];
-  // Who waits, in the page's order: the people, what waits for an OK, then the team's to-dos. Three are named (D16), and
-  // what is past them is counted by its kind in the one line under them.
-  const all: Array<{ key: string; as: LeftAs; line: CalmLine }> = [
-    ...order
-      .filter((r) => !ctx.kept.has(r.id))
-      .map((r) => ({ key: r.id, as: "waiting" as const, line: queueLine(r, ctx) })),
-    ...waits.parts.map((x) => ({ key: x.key, as: "waiting" as const, line: waitLine(x) })),
-    ...todo.rows
-      .filter((r) => !todo.ctx.kept.has(r.id))
-      .map((r) => ({
-        key: r.id,
-        as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
-        line: queueLine(r, todo.ctx),
-      })),
-  ];
+  const acted = actedLines(order, ctx, todo, heldLead?.row.id ?? cardRow);
+  const entries = entriesOf(order, waits, todo, ctx);
   // Every one of them keeps its line while the page is open. The card's own is folded shut, and so is one past the three
   // named: a line folds or opens where it stands as the card hands off, and nothing under it jumps (D6). While a finished
   // row still holds the card, the next one keeps its line.
   const next = cardRow ?? waitLead?.key ?? null;
   const inCard = heldLead ? null : next;
-  const free = all.filter((x) => x.key !== inCard);
+  const free = entries.filter((x) => x.key !== inCard);
   const named = new Set(free.slice(0, TODAY_NAMED_MAX).map((x) => x.key));
-  // What is past the named is counted as it will stand once the card has handed off, so the count never moves twice.
-  const past = (as: LeftAs) =>
-    all
-      .filter((x) => x.key !== next)
-      .slice(TODAY_NAMED_MAX)
-      .filter((x) => x.as === as).length;
-  // What To do holds past the rows it handed the page, by kind: its own counts, less the rows it drew.
-  const { steps, visits, answering } = model.todo;
-  const drew = (kind: TodayQueueRowVM["kind"]) => todo.rows.filter((r) => r.kind === kind).length;
-  const beyond = (count: number, kind: TodayQueueRowVM["kind"]) => Math.max(0, count - drew(kind));
-  const setAside = surfaceValue("reply_drafts")?.setAside ?? [];
-  const left: TodayAlsoCounts = {
-    waiting:
-      past("waiting") +
-      Math.max(0, groups.waiting.length - drawn.waiting.length) +
-      Math.max(0, groups.ok.length - drawn.ok.length) +
-      waits.cut,
-    toDo: past("toDo") + beyond(steps?.count ?? 0, "step") + beyond(answering.length, "review"),
-    toMark: past("toMark") + beyond(visits?.count ?? 0, "visit"),
-    older: groups.old.length,
-    setAside: setAside.length,
-  };
+  const { left, doors } = alsoLeftOf({ entries, next, model, waits, todo });
   const callsUnread = vm.callsRead === false;
   // A read that failed is said where its rows would stand.
   const rest = callsUnread || (!broadcastsRead() && surfaceFailed("broadcasts"));
   return (
     <>
-      {heldLead ? (
-        <QueueLead row={heldLead.row} ctx={heldLead.ctx} holder={heldLead.holder} done />
-      ) : lead?.row ? (
-        <QueueLead row={lead.row} ctx={lead.ctx} holder={card?.holder === "todo" ? "todo" : "queue"} />
-      ) : waitLead ? (
-        <WaitLead part={waitLead} />
-      ) : card === null ? (
-        <LeadGone />
-      ) : null}
-      {all.length ? (
+      {cardIn({ heldLead, lead, waitLead, card })}
+      {entries.length ? (
         <CalmList label={W.title} testid="today-queue">
-          {all.map((x) => (
+          {entries.map((x) => (
             <CalmRow key={x.key} {...x.line} folded={!named.has(x.key)} top={x.key === free[0]?.key} />
           ))}
         </CalmList>
@@ -302,20 +371,7 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
           <div className="tq-list ny-groups">{readsFailed(callsUnread)}</div>
         </section>
       ) : null}
-      <AlsoLine
-        left={left}
-        doors={{
-          waiting: "inbox",
-          // The Inbox's Needs you lists whoever has waited past a week under who waits, with Mark all done.
-          older: "inbox",
-          toDo: steps?.to ?? todo.door,
-          // The first visit the rows do not name: its sheet's Next walks on through the rest.
-          toMark: visits ? (visits.items.at(drew("visit"))?.to ?? visits.to) : null,
-          setAside: setAside[0] ? `inbox/th-${setAside[0]}` : null,
-        }}
-        word={word}
-        keptAll={todo.keptAll}
-      />
+      <AlsoLine left={left} doors={doors} word={ctx.word} keptAll={todo.keptAll} />
       {todo.toast}
       {toastNode}
     </>

@@ -7,14 +7,14 @@ import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { AskFace } from "../../kit/face/ask-face";
 import { Icon } from "../../kit/icon/icon";
-import { LineField, LinePress } from "../../kit/line/line";
-import { askCardHasWords } from "@chanlytics/contracts";
+import { LinePress } from "../../kit/line/line";
 import { AskActs, AskNowPills, AskReads, AskRows } from "../home";
-import { ahPanelKeys, ahPinNow, ahSlideFrom } from "../hooks";
+import { ahPanelKeys, ahPinNow } from "../hooks";
 import { leaving, touchSwipe } from "../shell";
 import { AskLatest, AskListen, AskNextRow, AskQuestion, AskThread, AskTurn } from "../turn";
-import { allArrived, AskAttachedRow, AskAttachPress, pastedPhotos } from "./attached";
-import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon, campaignsAskOf } from "./place";
+import { allArrived, AskAttachedRow, AskAttachPress } from "./attached";
+import { arField } from "./field";
+import { AR_LIFT_MS, arEscape, arPhone, arScopeIcon } from "./place";
 
 /** The field's end: the one button (the mic held to talk, Send, or Stop). */
 export const arLineEnd = (ln: Line) => {
@@ -213,6 +213,30 @@ export const arBody = ({
 // band's (AskListen).
 // In Earlier the three step aside (`away`, drawn but not laid out, so they are not drawn afresh on the way back) and the
 // conversations take the middle.
+/**
+ * What the hero says under the three: what is heard while it listens (on the bar the field says it instead), the question
+ * asked and its reads while the answer comes, else the question the hero holds. Called, not drawn.
+ */
+function heroSays(
+  ln: Pick<Line, "thread" | "t" | "talk" | "query" | "live" | "quick" | "heroQ" | "heroSmall" | "dock">,
+) {
+  const { thread, t, talk, query, live, quick, heroQ, heroSmall, dock } = ln;
+  if (talk.listening && !thread && !dock)
+    return (
+      <p className="ask-heard" aria-live="polite" data-testid="ask-heard">
+        {query || t.listening}
+      </p>
+    );
+  if ((live || (quick && quick.pending)) && !heroSmall)
+    return (
+      <>
+        {thread ? null : <p className="ask-turn-q">{live ? live.q : quick?.q}</p>}
+        <AskReads traces={live ? live.traces : []} since={live ? live.at : null} t={t} />
+      </>
+    );
+  return heroQ ? <p className="ask-turn-q">{heroQ}</p> : null;
+}
+
 export const arHero = ({
   heroSmall,
   heroMode,
@@ -244,18 +268,7 @@ export const arHero = ({
         {t.homeTitle}
       </h2>
     ) : null}
-    {talk.listening && !thread && !dock ? (
-      <p className="ask-heard" aria-live="polite" data-testid="ask-heard">
-        {query || t.listening}
-      </p>
-    ) : (live || (quick && quick.pending)) && !heroSmall ? (
-      <>
-        {thread ? null : <p className="ask-turn-q">{live ? live.q : quick?.q}</p>}
-        <AskReads traces={live ? live.traces : []} since={live ? live.at : null} t={t} />
-      </>
-    ) : heroQ ? (
-      <p className="ask-turn-q">{heroQ}</p>
-    ) : null}
+    {heroSays({ thread, t, talk, query, live, quick, heroQ, heroSmall, dock })}
   </div>
 );
 
@@ -348,80 +361,6 @@ const arStage = (ln: Line) => {
     </div>
   );
 };
-
-/** The field itself: what it says while empty, what it holds, and its keys. */
-const arField = (
-  {
-    talk,
-    t,
-    inputRef,
-    active,
-    surface,
-    query,
-    setQuery,
-    composing,
-    M,
-    onKey,
-    hold,
-    slideFrom,
-    stageRef,
-    heroRef,
-    setComposing,
-    rowsDrawn,
-    rows,
-    attach,
-    dock,
-  }: Line,
-  activeId: string | undefined,
-) => (
-  <LineField
-    ref={inputRef}
-    rows={1}
-    listening={talk.listening}
-    className="ask-line-input"
-    placeholder={
-      talk.listening
-        ? dock
-          ? t.letGo
-          : t.listening
-        : active
-          ? active.messages?.at(-1)?.proposals?.some((p) => !p.outcome && askCardHasWords(p.kind))
-            ? t.changeAnything
-            : t.follow
-          : surface === "leads"
-            ? t.describeLeads
-            : surface === "campaigns"
-              ? campaignsAskOf(t)
-              : t.placeholder
-    }
-    value={query}
-    onChange={(e) => {
-      setQuery(e.target.value);
-      if (composing) M.mood.hear(0.5);
-    }}
-    onKeyDown={onKey}
-    onKeyUp={(e) => hold.onKeyUp(e)}
-    onPaste={(e) => pastedPhotos(e, attach)}
-    onFocus={() => {
-      if (!arPhone()) return;
-      slideFrom.current = ahSlideFrom(stageRef.current, heroRef.current);
-      setComposing(true);
-    }}
-    onBlur={() => setComposing(false)}
-    role="combobox"
-    aria-expanded={rowsDrawn && rows.length > 0}
-    aria-controls={rowsDrawn ? "ask-rows" : undefined}
-    aria-activedescendant={activeId}
-    aria-autocomplete="list"
-    aria-label={t.dialogName}
-    data-testid="ask-input"
-    maxLength={1000}
-    enterKeyHint="send"
-    autoCapitalize="sentences"
-    autoComplete="off"
-    spellCheck={false}
-  />
-);
 
 // The middle is one scroller (spec 5.1, 5.5): on the home, the hero and the rows; in a conversation, the thread (the
 // spec 2026-09-27-ask-chat-on-a-phone, D1): every earlier turn in full, then the newest question, the three and its

@@ -28,6 +28,7 @@ import {
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { viewDeck } from "../motion/view-deck";
 import { cx } from "../variants";
@@ -103,29 +104,22 @@ const ownPress = (e: MouseEvent) =>
 /** A finger's or a pen's first press: a mouse presses on the click, as on any link. */
 const touchPress = (e: PointerEvent) => e.pointerType !== "mouse" && e.isPrimary && e.button === 0;
 
-/** The places a thumb goes, the one on screen lit. */
-export function TabBar({ label, picked, places, onPick, more, fold = null, testid, className }: TabBarProps) {
-  // The place pressed, lit until the address says it is the page's own.
+/** The place pressed, lit until the address says it is the page's own, or until it has waited too long for it. */
+function usePending(picked: string | null) {
   const [pending, setPending] = useState<string | null>(null);
-  const bar = useRef<HTMLElement>(null);
-  // The place a finger pressed, and when: the click its lift makes is that press again.
-  const touched = useRef<{ id: string; at: number } | null>(null);
   useEffect(() => {
     setPending(null);
   }, [picked]);
   useEffect(() => {
     if (pending === null) return undefined;
-    const t = setTimeout(() => setPending(null), PENDING_MS);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setPending(null), PENDING_MS);
+    return () => clearTimeout(timer);
   }, [pending]);
-  const lit = pending ?? picked;
-  // Folded, the way back is the place on screen; where no place holds the page (Reports, Settings), More.
-  const way = fold ? (lit ?? (more ? "more" : null)) : null;
-  const folded = !!fold;
-  // What a place is while the bar is folded: the way back, named as that, or out of a reader's and the keys' way.
-  const foldedAs = (id: string) =>
-    !fold ? null : id === way ? { "aria-label": fold.label } : { "aria-hidden": true, tabIndex: -1 };
-  // The bar is as tall as what its field holds (a question of several lines): said to its own rules as the field grows.
+  return [pending, setPending] as const;
+}
+
+/** Folded, the bar is as tall as what its field holds (a question of several lines): said to its rules as the field grows. */
+function useFieldHeight(bar: RefObject<HTMLElement | null>, folded: boolean) {
   useLayoutEffect(() => {
     const nav = bar.current;
     const room = nav ? nav.querySelector<HTMLElement>(":scope > .tab-bar-field") : null;
@@ -138,35 +132,96 @@ export function TabBar({ label, picked, places, onPick, more, fold = null, testi
       seen.disconnect();
       nav.style.removeProperty("--tab-bar-held");
     };
-  }, [folded]);
+  }, [bar, folded]);
+}
 
+/**
+ * A press on a place, which answers at the touch: a finger lights it and starts the lozenge as it lands, and the click its
+ * lift makes is that press again; a mouse, a key and a reader press on the click. Folded, the one place that takes a
+ * press is the way back.
+ */
+function usePlacePress(ports: {
+  bar: RefObject<HTMLElement | null>;
+  lit: string | null;
+  way: string | null;
+  fold: TabBarFold | null;
+  onPick: (id: string) => void;
+  setPending: (id: string) => void;
+}) {
+  // The place a finger pressed, and when: the click its lift makes is that press again.
+  const touched = useRef<{ id: string; at: number } | null>(null);
   const press = (tab: HTMLElement, place: TabBarPlace) => {
-    if (place.id !== lit) {
-      const was = bar.current ? bar.current.querySelector<HTMLElement>(".tab-bar-tab.active") : null;
-      if (bar.current && was) glideTo(bar.current, was, tab, viewDeck.alone(LOZENGE_GLIDE_MS));
-      setPending(place.id);
+    const nav = ports.bar.current;
+    if (place.id !== ports.lit) {
+      const was = nav ? nav.querySelector<HTMLElement>(".tab-bar-tab.active") : null;
+      if (nav && was) glideTo(nav, was, tab, viewDeck.alone(LOZENGE_GLIDE_MS));
+      ports.setPending(place.id);
     }
-    afterPaint(() => onPick(place.id));
+    afterPaint(() => ports.onPick(place.id));
   };
   const down = (e: PointerEvent<HTMLAnchorElement>, place: TabBarPlace) => {
-    if (fold || !touchPress(e)) return;
+    if (ports.fold || !touchPress(e)) return;
     touched.current = { id: place.id, at: e.timeStamp };
     press(e.currentTarget, place);
   };
-  const click = (e: MouseEvent<HTMLAnchorElement>, place: TabBarPlace) => {
-    if (!ownPress(e)) return;
-    e.preventDefault();
-    // Folded, the one place that takes a press is the way back.
-    if (fold) {
-      if (place.id === way) fold.onBack();
+  const click = (event: MouseEvent<HTMLAnchorElement>, place: TabBarPlace) => {
+    if (!ownPress(event)) return;
+    event.preventDefault();
+    if (ports.fold) {
+      if (place.id === ports.way) ports.fold.onBack();
       return;
     }
     const was = touched.current;
     touched.current = null;
-    if (was && was.id === place.id && e.timeStamp - was.at <= TOUCH_CLICK_MS) return;
-    press(e.currentTarget, place);
+    if (was && was.id === place.id && event.timeStamp - was.at <= TOUCH_CLICK_MS) return;
+    press(event.currentTarget, place);
   };
+  const cancel = () => {
+    touched.current = null;
+  };
+  return { down, click, cancel };
+}
 
+/** What a place is while the bar is folded: the way back, named as that, or out of a reader's and the keys' way. */
+const foldedAs = (fold: TabBarFold | null, way: string | null, id: string) =>
+  !fold ? null : id === way ? { "aria-label": fold.label } : { "aria-hidden": true, tabIndex: -1 };
+
+/** A place's glyph, with the figure over it where it has one to say. Called, not drawn. */
+const placeGlyph = (place: TabBarPlace) => (
+  <span className="tab-bar-glyph">
+    {place.glyph}
+    {place.count ? (
+      <span className={cx("tab-bar-count tally tally-icon", place.tone === "warn" && "tally-warn")}>{place.count}</span>
+    ) : null}
+  </span>
+);
+
+/** More, a button after the places; folded, the way back where no place holds the page. Called, not drawn. */
+function moreTab(more: TabBarMore, fold: TabBarFold | null, way: string | null) {
+  const back = way === "more";
+  return (
+    <button
+      type="button"
+      className={cx("tab-bar-tab", back && "tab-bar-way")}
+      aria-label={more.label}
+      {...foldedAs(fold, way, "more")}
+      onClick={fold ? (back ? fold.onBack : undefined) : more.onPress}
+    >
+      <span className="tab-bar-glyph">{more.glyph}</span>
+      <span className="tab-bar-word">{more.word}</span>
+    </button>
+  );
+}
+
+/** The places a thumb goes, the one on screen lit. */
+export function TabBar({ label, picked, places, onPick, more, fold = null, testid, className }: TabBarProps) {
+  const [pending, setPending] = usePending(picked);
+  const bar = useRef<HTMLElement>(null);
+  useFieldHeight(bar, !!fold);
+  const lit = pending ?? picked;
+  // Folded, the way back is the place on screen; where no place holds the page (Reports, Settings), More.
+  const way = fold ? (lit ?? (more ? "more" : null)) : null;
+  const { down, click, cancel } = usePlacePress({ bar, lit, way, fold, onPick, setPending });
   // The frame's chrome at the window's foot (`data-chrome="foot"`): a row's page carried back by a thumb shows it under
   // it, and one pushed in takes it away with the list (kit/motion/held-list.ts).
   return (
@@ -185,39 +240,21 @@ export function TabBar({ label, picked, places, onPick, more, fold = null, testi
           href={place.href}
           className={cx("tab-bar-tab", lit === place.id && "active", way === place.id && "tab-bar-way")}
           aria-current={!fold && picked === place.id ? "page" : undefined}
-          {...foldedAs(place.id)}
+          {...foldedAs(fold, way, place.id)}
           data-testid={place.testid}
           draggable={false}
           onPointerEnter={place.warm}
           onFocus={place.warm}
           onPointerDown={(e) => down(e, place)}
-          onPointerCancel={() => (touched.current = null)}
+          onPointerCancel={cancel}
           onClick={(e) => click(e, place)}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <span className="tab-bar-glyph">
-            {place.glyph}
-            {place.count ? (
-              <span className={cx("tab-bar-count tally tally-icon", place.tone === "warn" && "tally-warn")}>
-                {place.count}
-              </span>
-            ) : null}
-          </span>
+          {placeGlyph(place)}
           <span className="tab-bar-word">{place.label}</span>
         </a>
       ))}
-      {more ? (
-        <button
-          type="button"
-          className={cx("tab-bar-tab", way === "more" && "tab-bar-way")}
-          aria-label={more.label}
-          {...foldedAs("more")}
-          onClick={fold ? (way === "more" ? fold.onBack : undefined) : more.onPress}
-        >
-          <span className="tab-bar-glyph">{more.glyph}</span>
-          <span className="tab-bar-word">{more.word}</span>
-        </button>
-      ) : null}
+      {more ? moreTab(more, fold, way) : null}
       {/* The field's room, drawn into by whoever owns the field (`fold.field`). */}
       {fold ? <div className="tab-bar-field" ref={fold.field} /> : null}
     </nav>

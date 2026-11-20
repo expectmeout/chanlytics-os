@@ -101,7 +101,7 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
           ? {
               label: r.cta.label,
               kind,
-              onClick: () => c.stepDone(r),
+              onClick: () => void c.stepDone(r),
               // Several rows say Done: a reader hears whose, as the thread header's does.
               gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(r.sentence) },
             }

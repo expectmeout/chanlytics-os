@@ -3,8 +3,9 @@
  * React. Each case was a gap the review of that day found on a Sunday with nothing waiting but one old number:
  *
  * - "That's everyone" over no one, where one row nobody counts had taken "The receptionist is on" away;
- * - the old row a button that opened nothing, taking the coral from Finish setting up and keeping Ask found under an empty day;
- * - Mark all done for one person, and a call back's note that said to mark it done with nothing there to do it;
+ * - the old row a button that opened nothing, taking the coral from Finish setting up and keeping Ask found under an empty day
+ *   (since Today, calm, 19 Nov 2026, whoever waited past a week is counted in the line of what else is left, and the Inbox's
+ *   Needs you lists them with Mark done: tests/conversations/inbox/inbox-counts.test.mjs);
  * - "0 messages, 15 calls", and a figure on a phone that could say nothing unless it happened to have a receipt;
  * - "Not one of them is on the calendar" over a calendar nobody is on;
  * - Not today with no Undo, and two rules for one word.
@@ -23,10 +24,12 @@ import {
 } from "@chanlytics/contracts";
 import { again, all, atWidth, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { NOW, W, answerWith, dayWith, draw, flashes, json, metrics, row, went, wire } from "./_world.mjs";
+import { NOW, W, corals, dayWith, draw, metrics, row, wire } from "./_world.mjs";
 
-const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday: NeedYou } = await import("./_on-today.mjs");
+const { TODAY_LINE_WORDS } = await import("../../../apps/dashboard/src/surfaces/today/model/lines.ts");
+const { olderWords } = await import("../../../apps/dashboard/src/surfaces/today/need-you/sheet/row-words.tsx");
 const { useNeedYouModel } = await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
 const { todayPeriodLine } = await import("../../../apps/dashboard/src/surfaces/today/period.ts");
@@ -36,8 +39,13 @@ const { reviewsToAnswer } = await import("../../../apps/dashboard/src/surfaces/t
 
 const DAY = 86_400_000;
 const old = (id, who, over = {}) => row(id, who, { waitedMs: 9 * DAY, when: "waited 9d", ...over });
-const rowsDrawn = (tree) => all(tree, (n) => n.type === AttnRow);
-const testidOf = (n) => n.props.testid;
+const byTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id)[0] ?? null;
+/** The lines of who waits and what waits for an OK, in the page's order, by their row's test id and who. */
+const linesOf = (tree) =>
+  all(byTestId(tree, "today-queue"), (n) => String(n.props?.className ?? "").includes("calm-line")).map(
+    (n) =>
+      `${n.props["data-testid"]} ${textOf(all(n, (x) => String(x.props?.className ?? "").includes("calm-name"))[0] ?? null)}`,
+  );
 
 /* ------------------------------------------------- the head's sentence ------------------------------------------------ */
 
@@ -84,14 +92,16 @@ test("how today went says nothing of a day nothing happened", () => {
 
 /* ------------------------------------------------------ Older ------------------------------------------------------ */
 
-test("one person past a week is their own row: who, Mark done, and a press on it opens them; never the coral", () => {
+test("one person past a week is counted in the line of what else is left: never the card nor the coral, and AI found still leads", () => {
   setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz", { kind: "callback", prepared: null })]));
   const tree = draw(NeedYou);
-  const [r] = rowsDrawn(tree).filter((n) => testidOf(n) === "queue-older");
-  assert.equal(r.props.name, "Dana Ruiz", 'REGRESSION: "1 waiting over a week" named no one in the row\'s own name');
-  assert.equal(r.props.cta.label, "Mark done", "REGRESSION: Mark all done, for one person");
-  assert.equal(r.props.cta.kind, "ghost", 'REGRESSION: an old number held the page\'s coral under "Nothing needs you"');
-  assert.equal(typeof r.props.onOpen, "function", "REGRESSION: it looked pressable and opened nothing");
+  assert.equal(
+    byTestId(tree, "today-card"),
+    null,
+    'REGRESSION: an old number held the page\'s card under "Nothing needs you"',
+  );
+  assert.equal(corals(tree).length, 0, "nor its coral");
+  assert.match(textOf(byTestId(tree, "today-also")), /1 older/, 'REGRESSION: "1 waiting over a week" was said nowhere');
   const model = again(() => useNeedYouModel(surfaceValue("today") ?? null));
   assert.deepEqual(
     [model.coral, model.todo.coral],
@@ -103,29 +113,6 @@ test("one person past a week is their own row: who, Mark done, and a press on it
   unmount();
 });
 
-test("an old call back keeps Mark done on Today, and a press on the row opens its conversation, ready to call (D8)", () => {
-  const call = old("o1", "Dana Ruiz", { kind: "callback", phone: "+13055550142", prepared: null });
-  setSurfaceValue("today", dayWith([call]));
-  went.length = 0;
-  const [r] = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
-  assert.equal(r.props.cta.label, "Mark done", "letting it go stays one press on Today");
-  r.props.onOpen();
-  const vm = surfaceValue("today");
-  const dana = vm.queue.rows.find((x) => x.who === "Dana Ruiz") ?? vm.queue.old?.find?.((x) => x.who === "Dana Ruiz");
-  assert.equal(went.length, 1, "the press went somewhere");
-  assert.match(went[0], /^inbox\/th-/, "her conversation, where Call is");
-  if (dana?.conversationId) assert.equal(went[0], `inbox/th-${dana.conversationId}`);
-  const open = again(() => W.React.createElement(NeedYou, {}));
-  assert.equal(
-    all(open, (n) => n.props?.variant && textOf(n) === "Call anyway").length,
-    0,
-    "nothing of the call is worked on Today",
-  );
-  went.length = 0;
-  setSurfaceValue("today", undefined);
-  unmount();
-});
-
 test("a toll-free number says so; anyone else keeps the business they work at", () => {
   assert.equal(tollFreeNumber("+18666413860"), true);
   assert.equal(tollFreeNumber("+1 (800) 555-0100"), true);
@@ -133,46 +120,10 @@ test("a toll-free number says so; anyone else keeps the business they work at", 
   assert.equal(tollFreeNumber("+448005550100"), false, "North America's prefix alone: 800 elsewhere is no such thing");
   assert.equal(tollFreeNumber("Dana Ruiz"), false);
   assert.equal(tollFreeNumber(null), false);
-  setSurfaceValue("today", dayWith([old("o1", "+1 (866) 641-3860", { phone: "+18666413860", kind: "callback" })]));
-  const [r] = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
-  assert.equal(r.props.trail, "toll-free");
-  assert.equal(r.props.via, null, "a number's face is already the phone: REGRESSION: two phones on one row");
-  setSurfaceValue("today", undefined);
-  unmount();
-});
-
-test("several are one row, how many and who, with Mark all done, and a press opens each of them in place", () => {
-  setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
-  const first = rowsDrawn(draw(NeedYou)).filter((n) => testidOf(n) === "queue-older");
-  assert.equal(first.length, 1);
-  assert.equal(first[0].props.cta.label, "Mark all done");
-  assert.equal(first[0].props.cta.kind, "ghost");
-  first[0].props.onOpen();
-  const opened = rowsDrawn(again(() => W.React.createElement(NeedYou, {}))).filter(
-    (n) => testidOf(n) === "queue-older",
-  );
-  assert.deepEqual(
-    opened.map((n) => n.props.name),
-    ["2 older than a week", "Dana Ruiz", "Kai Moreno"],
-  );
-  opened[0].props.onOpen();
-  setSurfaceValue("today", undefined);
-  unmount();
-});
-
-test("Mark done refused says why and the row stays to be pressed again", async () => {
-  setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz")]));
-  answerWith(() => json(403, { ok: false, error: { code: "forbidden", message: "Not yours to give back." } }));
-  flashes.length = 0;
-  const olderOf = (tree) => rowsDrawn(tree).find((n) => testidOf(n) === "queue-older");
-  olderOf(draw(NeedYou)).props.cta.onClick();
-  await until(() => flashes.length > 0, "the refusal said");
-  assert.equal(flashes.at(-1)?.tone, "danger");
-  const still = olderOf(again(() => W.React.createElement(NeedYou, {})));
-  assert.ok(still.props.cta, "the press stays");
-  assert.equal(still.props.work, null, "and nothing says they were marked done");
-  setSurfaceValue("today", undefined);
-  unmount();
+  // The row the Inbox's Needs you draws for them (inbox/pages/list-folds.tsx).
+  const words = olderWords(old("o1", "+1 (866) 641-3860", { phone: "+18666413860", kind: "callback" }));
+  assert.equal(words.trail, "toll-free");
+  assert.equal(words.via, null, "a number's face is already the phone: REGRESSION: two phones on one row");
 });
 
 test("AI is asked for an old row's draft only as it is opened: most are let go unread, and a draft is a model's turn", async () => {
@@ -294,7 +245,7 @@ test("a review at rest is not offered, by the one rule AI found's rows rest by",
   );
 });
 
-test("grouped by what the owner does (docs/words.md): one Reply head over everyone waiting on a word, who waited past a week at its foot, then Approve", () => {
+test("one list in the owner's order (docs/words.md): who waits on a word, the first the card and the next lines, then what waits for an OK; who waited past a week counted under them", () => {
   setSurfaceValue(
     "today",
     dayWith([
@@ -306,23 +257,15 @@ test("grouped by what the owner does (docs/words.md): one Reply head over everyo
     ]),
   );
   const tree = draw(NeedYou);
-  const groups = all(tree, (n) => /^today-group-[a-z]+$/.test(String(n.props?.["data-testid"] ?? "")));
+  assert.match(textOf(byTestId(tree, "today-card")), /Ana Reyes/, "who waited longest on a word holds the card");
   assert.deepEqual(
-    groups.map((n) => n.props["data-testid"]),
-    ["today-group-next", "today-group-waiting", "today-group-old", "today-group-ok"],
-    "the week-old row folds under Reply, before Approve",
+    linesOf(tree).filter((l) => !/Ana Reyes/.test(l)),
+    ["queue-handoff Bea Lind", "queue-search Pilates studios"],
+    "then who else waits, then what waits for an OK: no head over any of them",
   );
-  const heads = all(tree, (n) => String(n.props?.className ?? "").includes("ny-group-head")).map(textOf);
-  assert.deepEqual(heads, ["Reply2", "Approve1"], "one Reply head counting both people; the rest under no head");
-  setSurfaceValue("today", undefined);
-  unmount();
-});
-
-test("the drawn row's words reach a reader", () => {
-  setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz")]));
-  const group = all(draw(NeedYou), (n) => n.props?.["data-testid"] === "today-group-old")[0];
-  assert.equal(group.props["aria-label"], "Older than a week", "no head drawn over it, its name for a reader alone");
-  assert.match(textOf(group), /Dana Ruiz/);
+  const also = byTestId(tree, "today-also");
+  assert.equal(also.props["aria-label"], TODAY_LINE_WORDS.also, "the line of what else is left, named for a reader");
+  assert.match(textOf(also), /2 older/, "whoever waited past a week, counted there");
   setSurfaceValue("today", undefined);
   unmount();
 });

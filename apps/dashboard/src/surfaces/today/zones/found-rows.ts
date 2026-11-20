@@ -150,29 +150,29 @@ function noticedRow(askMorningCard: AskMorningCard): AskFoundRowVM {
  * (ask.ts AskProposal.summary: "the exact change"), and the card's act: Approve, Open in Ask for a step of a plan, or a
  * fix card's door, never an Approve that has nothing to approve.
  */
-const ideaRow = (c: AskMorningCard): AskFoundRowVM => ({
-  key: c.id,
+const ideaRow = (idea: AskMorningCard): AskFoundRowVM => ({
+  key: idea.id,
   source: "idea",
   tag: ASK_FOUND_WORDS.idea,
-  sentence: c.line ?? c.title,
-  head: c.line ?? c.title,
-  sub: c.summary || null,
-  why: c.summary,
-  act: cardAct(c),
-  card: c,
+  sentence: idea.line ?? idea.title,
+  head: idea.line ?? idea.title,
+  sub: idea.summary || null,
+  why: idea.summary,
+  act: cardAct(idea),
+  card: idea,
   ...NAMES_NOBODY,
 });
 
 /** A call worth a listen, or a lead who tried their receptionist: the queue's row, with its one door. */
-const queueRow = (r: TodayQueueRowVM): AskFoundRowVM => ({
-  key: `${r.kind}:${r.id}`,
-  source: r.kind === "tried" ? "tried" : "call",
-  tag: r.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
-  sentence: [r.who, r.sentence].filter(Boolean).join(": "),
-  head: r.who || r.sentence,
-  sub: r.who ? r.sentence || null : null,
-  why: r.status.join(" · "),
-  act: { label: r.cta.label, to: r.cta.to },
+const queueRow = (row: TodayQueueRowVM): AskFoundRowVM => ({
+  key: `${row.kind}:${row.id}`,
+  source: row.kind === "tried" ? "tried" : "call",
+  tag: row.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
+  sentence: [row.who, row.sentence].filter(Boolean).join(": "),
+  head: row.who || row.sentence,
+  sub: row.who ? row.sentence || null : null,
+  why: row.status.join(" · "),
+  act: { label: row.cta.label, to: row.cta.to },
   card: null,
   ...NAMES_NOBODY,
 });

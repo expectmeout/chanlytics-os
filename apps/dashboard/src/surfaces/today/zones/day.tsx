@@ -13,7 +13,6 @@ import { useState, type ReactNode } from "react";
 import {
   CALENDAR_SETTING_ROUTE,
   GOING_TODAY_WORDS,
-  TODAY_LINE_WORDS as L,
   TODAY_PHONE_WORDS as P,
   clockInZone,
   goingTodayOf,
@@ -29,6 +28,7 @@ import {
   type TodayZoneDayVM,
   type TodayZoneLineVM,
 } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS as L } from "../model/lines";
 import { api } from "@/bridge/api";
 import { pageClock, type PageClock } from "@/bridge/zone";
 import { surfaceValue } from "../../surface-values";
@@ -42,7 +42,7 @@ import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from 
 import { TODAY_HELPERS } from "../helpers";
 import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
-import { askOf, useTodayAsks } from "../calm/asks";
+import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 
 /** The runs that go on their own today, soonest first: a batch held for a stop, a message set for later, a reach-out's run. */
@@ -419,6 +419,31 @@ const runsOfTheDay = (zone: TodayZoneDayVM | null) => ({
   wentOut: runsDoneToday(),
 });
 
+/**
+ * What the day itself asks or says at its times stands under its line: its bar, a freed hour to offer, a send with its Stop,
+ * who comes back, and, with no calendar linked, the row that links one. Nothing where it has none of them. Called, not
+ * drawn.
+ */
+function dayUnder(parts: {
+  zone: TodayZoneDayVM | null;
+  noCalendar: boolean;
+  clock: ReturnType<typeof workspaceClock>;
+  items: ReactNode[];
+}): ReactNode {
+  if (!parts.zone?.bar && !parts.items.length && !parts.noCalendar) return null;
+  return (
+    <div className="calm-under">
+      {parts.zone ? dayBar(parts.zone, parts.clock) : null}
+      {parts.items.length || parts.noCalendar ? (
+        <div className="tpd-rest" data-testid="today-day-rest">
+          {parts.items}
+          {parts.noCalendar ? linkRow() : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   // The runs it says: a run made, canceled or sending; the calendar's weeks; who comes back, which is Today's own read.
   useMoved(["broadcasts", "calendar", "today"]);
@@ -440,7 +465,7 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
     : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
   const runs = runsOfTheDay(zone);
   // AI is handed the day's question where the day has a visit to say (D10).
-  useTodayAsks("day", [zone && zone.cells.length ? askOf(zone.tomorrow ? L.asks.tomorrow : L.asks.day) : null]);
+  useTodayAsks("day", [zone && zone.cells.length ? todayAskOf(zone.tomorrow ? L.asks.tomorrow : L.asks.day) : null]);
   if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length)
     return (
       <>
@@ -456,20 +481,12 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   });
   const onOffered = (visitId: string) => setOfferedHere((was) => (was.includes(visitId) ? was : [...was, visitId]));
   const words = dayAsALine(zone, noCalendar);
-  // What the day itself asks or says at its times stands under its line: a freed hour to offer, a send with its Stop,
-  // who comes back, and what the Calendar holds past them.
-  const rest =
-    (zone && zone.bar) || kept.length || noCalendar ? (
-      <div className="calm-under">
-        {zone ? dayBar(zone, clock) : null}
-        {kept.length || noCalendar ? (
-          <div className="tpd-rest" data-testid="today-day-rest">
-            {kept.map((i) => drawItem(i, { clock, acting, flash, onOffered }))}
-            {noCalendar ? linkRow() : null}
-          </div>
-        ) : null}
-      </div>
-    ) : null;
+  const rest = dayUnder({
+    zone,
+    noCalendar,
+    clock,
+    items: kept.map((i) => drawItem(i, { clock, acting, flash, onOffered })),
+  });
   return (
     <>
       <CalmList label={zone?.title ?? P.day} testid="today-day">

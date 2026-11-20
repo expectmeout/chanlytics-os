@@ -7,13 +7,8 @@
  * are the rest.
  */
 import { useState, type ReactNode } from "react";
-import {
-  TODAY_LINE_WORDS as L,
-  alsoWords,
-  todayVisitsSub,
-  type AppointmentWord,
-  type TodayAlsoCounts,
-} from "@chanlytics/contracts";
+import { todayVisitsSub, type AppointmentWord } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS as L, alsoWords, type TodayAlsoCounts } from "../model/lines";
 import { routeDoor } from "../../frame-verbs";
 import { CalmList, CalmRow } from "./lines";
 

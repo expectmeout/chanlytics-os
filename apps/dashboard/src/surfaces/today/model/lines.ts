@@ -7,11 +7,14 @@
  *
  * Each fact is said as the read counts it: the messages are the ones AI answered, the calls are every call of the day
  * (one that reached voicemail is a call, and nobody answered it), so the calls are never said as answered.
+ *
+ * Today's own words (the surface's model, as CLAUDE.md has a page keep what no other tree says): the dashboard alone
+ * reads them. The questions AI opens on from them are the bridge's (bridge/ask/page-asks.ts), where AI reads them too.
  */
-import type { TodayFigureVM } from "./vm";
+import type { TodayFigureVM } from "@chanlytics/contracts";
 
 /** A line's two sentences: what it is, and the quieter line under it, null where it has none. */
-export interface TodayLineWords {
+interface TodayLineWords {
   title: string;
   sub: string | null;
 }
@@ -46,8 +49,8 @@ export const TODAY_LINE_WORDS = {
   foundMore: (n: number): string => `${n} more AI found`,
   /** The day's line once the day has turned (D19): when tomorrow starts, who is first under it. */
   tomorrowStarts: (when: string): string => `Tomorrow starts at ${when}`,
-  /** What was finished on this visit, for a reader: the name of the list its lines stand in. */
-  doneHere: "Done on this visit",
+  /** What was finished while the page has been open, for a reader: the name of the list its lines stand in. */
+  doneHere: "Done just now",
   /**
    * The questions AI opens on from Today (D10), each written from a line the page shows: who waits, the day, the
    * week's new pieces, what AI answered. What AI found asks its own, written beside its head (today/leaks.ts).
@@ -63,32 +66,6 @@ export const TODAY_LINE_WORDS = {
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
 } as const;
-
-/**
- * A question AI offers from a line of Today (D10): what its row says, and the words asked, which say more where the
- * line has numbers behind it (what AI found asks with its arithmetic).
- */
-export interface TodayAsk {
-  label: string;
-  q: string;
-}
-
-/** How many questions AI opens on from Today. */
-export const TODAY_ASKS_MAX = 3;
-
-/**
- * The questions AI opens on from Today: one for each line that has one, in the order the lines stand on the page, none
- * said twice, three at most. No line, no question: a quiet page hands AI none, and AI opens as it does anywhere.
- */
-export function todayAsksOf(lines: ReadonlyArray<TodayAsk | null>): TodayAsk[] {
-  const asks: TodayAsk[] = [];
-  for (const line of lines) {
-    if (!line || !line.label.trim() || asks.some((a) => a.label === line.label)) continue;
-    asks.push(line);
-    if (asks.length === TODAY_ASKS_MAX) break;
-  }
-  return asks;
-}
 
 /** How many lines of who waits Today names under its card (D16): past them, one line counts what is left. */
 export const TODAY_NAMED_MAX = 3;
@@ -123,7 +100,7 @@ export function alsoWords(left: TodayAlsoCounts): TodayLineWords | null {
 }
 
 /** A figure's count where it was read and is more than nothing; null for a zero and for a count that could not be read. */
-function countOf(figures: readonly TodayFigureVM[], id: TodayFigureVM["id"]): number | null {
+function figureCountOf(figures: readonly TodayFigureVM[], id: TodayFigureVM["id"]): number | null {
   const value = figures.find((f) => f.id === id)?.value ?? null;
   return value !== null && value > 0 ? value : null;
 }
@@ -136,17 +113,17 @@ function countOf(figures: readonly TodayFigureVM[], id: TodayFigureVM["id"]): nu
  */
 export function dayCameToWords(
   all: readonly TodayFigureVM[],
-  said: ReadonlyArray<TodayFigureVM["id"]>,
+  saidAbove: ReadonlyArray<TodayFigureVM["id"]>,
 ): TodayLineWords | null {
-  const figures = all.filter((figure) => !said.includes(figure.id));
-  const answered = countOf(figures, "answered");
+  const figures = all.filter((figure) => !saidAbove.includes(figure.id));
+  const answered = figureCountOf(figures, "answered");
   const facts: Array<(first: boolean) => string> = [];
   if (answered !== null) facts.push(() => TODAY_LINE_WORDS.answered(answered));
-  const calls = countOf(figures, "calls");
+  const calls = figureCountOf(figures, "calls");
   if (calls !== null) facts.push((first) => TODAY_LINE_WORDS.calls(calls, first));
-  const booked = countOf(figures, "booked");
+  const booked = figureCountOf(figures, "booked");
   if (booked !== null) facts.push((first) => TODAY_LINE_WORDS.booked(booked, first));
-  const fresh = countOf(figures, "new");
+  const fresh = figureCountOf(figures, "new");
   if (fresh !== null) facts.push((first) => TODAY_LINE_WORDS.fresh(fresh, first));
   const [lead, ...rest] = facts;
   if (!lead) return null;

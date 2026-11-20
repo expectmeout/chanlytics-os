@@ -75,6 +75,24 @@
   color: var(--ink);
   text-wrap: balance;
 }
+/* A to-do's title is the door to what it is about (calm/queue.tsx): it reads as the title, and says it is a press under a
+   pointer or the keys. */
+.calm-title-door {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+@media (hover: hover) {
+  .calm-title-door:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+}
+.calm-title-door:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
 .calm-why {
   margin: var(--space-1) 0 0;
   font-size: var(--text-read);
@@ -85,6 +103,13 @@
 /* Why stands alone under the title, so it starts as a sentence does, whatever row lent its words. */
 .calm-why::first-letter {
   text-transform: uppercase;
+}
+/* A new campaign's rules in the card (zones/found.tsx), read before its Approve: what holds it, then a row a fact. */
+.calm-lead-in > .ny-idea-spec {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
 }
 .calm-acts {
   display: flex;

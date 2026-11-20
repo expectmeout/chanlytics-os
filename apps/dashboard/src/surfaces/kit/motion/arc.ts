@@ -7,7 +7,7 @@
  * `outer` holds `inner`, and both stand where the thing lands; `from` is the box it leaves, `to` the box it lands in (the
  * outer's own, read by whoever calls). The inner scales about its centre, so the boxes are matched centre to centre.
  */
-export type ArcWay = "rise" | "fall";
+type ArcWay = "rise" | "fall";
 
 const OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 const IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
@@ -16,11 +16,9 @@ const IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 export type ArcBox = Pick<DOMRect, "left" | "top" | "width" | "height">;
 
 /** How large the thing is as it leaves, against how large it lands: the boxes' own widths, unless the caller says. */
-export function flyArc(
-  outer: HTMLElement,
-  inner: HTMLElement,
-  from: ArcBox,
-  to: ArcBox,
+export function moveAlongArc(
+  { outer, inner }: { outer: HTMLElement; inner: HTMLElement },
+  { from, to }: { from: ArcBox; to: ArcBox },
   how: { ms: number; way: ArcWay; scale?: number },
 ): Promise<void> {
   const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;

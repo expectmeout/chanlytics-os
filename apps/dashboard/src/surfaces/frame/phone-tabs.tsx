@@ -16,6 +16,12 @@ import { shellAddress } from "./shell-routes";
 /** What the place the bar folded into says, now that it is the way back from AI. */
 const PHONE_BACK = { to: (place: string): string => `Back to ${place}`, plain: "Back" } as const;
 
+/** AI open on a phone: the place on screen is the way back, named as that, and AI's field is drawn in the bar beside it. */
+const askFold = (onAskBack: (() => void) | null, here: { label: string } | null) =>
+  onAskBack
+    ? { label: here ? PHONE_BACK.to(here.label) : PHONE_BACK.plain, onBack: onAskBack, field: askDockRef.field }
+    : null;
+
 interface PhoneTabsProps {
   page: string;
   param: string | null;
@@ -80,11 +86,7 @@ export function PhoneTabs({ page, param, inboxNeeds, onNavigate, onMenu, onPlace
         warm: () => warm(t.route),
       }))}
       onPick={pick}
-      fold={
-        onAskBack
-          ? { label: here ? PHONE_BACK.to(here.label) : PHONE_BACK.plain, onBack: onAskBack, field: askDockRef.field }
-          : null
-      }
+      fold={askFold(onAskBack, here)}
       more={{
         label: PHONE_MORE.label,
         word: PHONE_MORE.word,

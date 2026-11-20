@@ -15,15 +15,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   MIN_MS,
   NEED_YOU_WORDS as W,
-  TODAY_LINE_WORDS as L,
   needYouGroupsOf,
   type AskMorningCard,
   type AskMorningDto,
 } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS as L } from "../model/lines";
 import { ASK_FOUND_SHOWN, ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
 import { routeDoor } from "../../frame-verbs";
-import { askOf, useTodayAsks } from "../calm/asks";
-import { Lead, LeadActs } from "../calm/lead";
+import { todayAskOf, useTodayAsks } from "../calm/asks";
+import { Lead, CardActs } from "../calm/lead";
 import { CalmList, CalmRow } from "../calm/lines";
 import type { PeopleListsLike } from "../leaks";
 import { refreshSurfaces } from "@/bridge/surface-runner";
@@ -214,9 +214,15 @@ const foundKind = (row: AskFoundRowVM) => (
   </>
 );
 
+/**
+ * A new campaign's card, where it has its rules to show: they are read before its Approve, in the card or under its line,
+ * and never its summary, which runs every rule into one paragraph (the 30 Oct 2026 review, item 6).
+ */
+const campaignOf = (row: AskFoundRowVM) => (row.card?.line && row.card.sheet?.rows.length ? row.card : null);
+
 /** Why, as a press opens it: a new campaign's rules where its card has them; else the arithmetic, or what Approve changes. */
 function foundWhy(row: AskFoundRowVM) {
-  const sheet = row.card?.line && row.card.sheet?.rows.length ? row.card : null;
+  const sheet = campaignOf(row);
   return sheet ? <CardSheet card={sheet} /> : row.why ? <small>{row.why}</small> : null;
 }
 
@@ -273,6 +279,7 @@ function FoundRow({
 }) {
   const { row } = p;
   const testid = `today-found-${row.source}`;
+  const campaign = campaignOf(row);
   if (p.lead)
     return (
       <Lead
@@ -281,14 +288,15 @@ function FoundRow({
         label={F.title}
         kind={foundKind(row)}
         title={row.head}
-        why={row.sub}
+        why={campaign ? null : row.sub}
         testid={testid}
       >
+        {campaign && !said ? <CardSheet card={campaign} /> : null}
         {said ?? (
-          <LeadActs>
+          <CardActs>
             {act}
             {quietActs(row, notToday, busy)}
-          </LeadActs>
+          </CardActs>
         )}
         {foundPeople(row)}
       </Lead>
@@ -310,7 +318,7 @@ function FoundRow({
     <CalmRow
       first={{ mark: foundMark(14) }}
       name={row.head}
-      said={row.sub}
+      said={campaign ? undefined : row.sub}
       door={to && !said ? routeDoor(to) : null}
       press={to || said ? null : p.onToggle}
       open={to || said ? undefined : p.open}
@@ -370,7 +378,7 @@ function CardRow(
     flash: p.flash,
     rest: p.rest,
   });
-  const said = acts.said ? (
+  const receipt = acts.said ? (
     <Done
       tone={acts.said.tone}
       words={acts.said.words}
@@ -390,77 +398,66 @@ function CardRow(
       {p.row.act.label}
     </Button>
   );
-  return <FoundRow p={p} act={act} notToday={() => void acts.notToday()} busy={acts.busy} said={said} />;
+  return <FoundRow p={p} act={act} notToday={() => void acts.notToday()} busy={acts.busy} said={receipt} />;
+}
+
+/** What AI found's model holds, as its parts read it. */
+type FoundModel = ReturnType<typeof useFoundModel>;
+
+/** The questions its lines hand AI (D10): the first findings' own. */
+const foundAsks = (all: readonly AskFoundRowVM[]) =>
+  all.slice(0, 2).map((r) => (r.question ? todayAskOf(r.question) : null));
+
+/**
+ * Which rows a part draws: the card its first, where what AI found holds it; the lines the rest, three once nobody
+ * waits, one while anyone does (D20: analysis never outranks a person), every one once their line is opened; and how
+ * many the lines leave out.
+ */
+function rowsOfPart(
+  all: readonly AskFoundRowVM[],
+  at: { lines: boolean; held: boolean; waiting: boolean; everyRow: boolean },
+): { rows: readonly AskFoundRowVM[]; cut: number } {
+  const [first, ...others] = all;
+  if (!at.lines) return { rows: at.held && first ? [first] : [], cut: 0 };
+  const listed = at.held ? others : all;
+  const room = at.waiting ? 1 : ASK_FOUND_SHOWN;
+  return { rows: at.everyRow ? listed : listed.slice(0, room), cut: Math.max(0, listed.length - room) };
 }
 
 /**
- * What AI found, as Today, calm draws it (19 Nov 2026, D1 and D4). `part` says which of it: `lead`, its first row as the
- * page's card, where the arrangement gave it the card (today/arrangement.ts), drawn at the page's start; and `lines`, the
- * rest of its rows as lines, each its short head with its numbers under it, then what came of an idea lately, and a
- * read that failed. The page draws both where what AI found holds the card: they share what was pressed (the rows'
- * store), so what one sets aside the other no longer draws.
+ * A row drawn: a card with no door is pressed through its own verb walk; what Ask noticed rides no turn, so it is kept on
+ * none. Called, not drawn.
  */
-export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean }) {
-  const { found, morning, rest, keep, broke, shown, line, draws } = useFoundModel();
-  const lines = part === "lines";
-  // The page's side of what AI found is asked for once, by the lines: the card beside them draws from the same read.
-  useMorningWait(lines && morning?.state === "writing");
-  usePartShown("today", "look", shown);
-  useHeldPlace(lines && line === F.reading);
-  const [toastNode, flash] = useToast();
-  const [open, setOpen] = useState<string | null>(null);
-  const [everyRow, setEveryRow] = useState(false);
-  // While anyone waits it is one line (D20): analysis never outranks a person, and the rest fold under it.
-  const waiting = useWaitsOnToday();
-  // The lines hand AI what they ask (D10): the first findings' own questions, asked once by the part that lists them.
-  useTodayAsks(
-    "found",
-    lines && draws
-      ? [...found.rows, ...found.rest].slice(0, 2).map((r) => (r.question ? askOf(r.question) : null))
-      : [],
-  );
-  if (!draws) return toastNode;
-  const [first, ...others] = [...found.rows, ...found.rest];
-  const listed = held ? others : [...found.rows, ...found.rest];
-  // Three lines once nobody waits, as it always drew three rows, and a line that opens the rest where they stand.
-  const room = waiting ? 1 : ASK_FOUND_SHOWN;
-  const cut = Math.max(0, listed.length - room);
-  const rows = lines ? (everyRow ? listed : listed.slice(0, room)) : held && first ? [first] : [];
-  const drawn = rows.map((row) => {
-    const ports: RowPorts = {
-      row,
-      lead: !lines,
-      open: open === row.key,
-      onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
-      rest: (onUndone) => rest(row.key, flash, onUndone),
-      flash,
-    };
-    const card = row.card;
-    // A card with no door is pressed through its own verb walk; what Ask noticed rides no turn, so it is kept on none.
-    return card && !row.act.to ? (
+function foundRowOf(ports: RowPorts, model: Pick<FoundModel, "morning" | "keep">) {
+  const { row } = ports;
+  const card = row.card;
+  const messageId = model.morning?.message_id ?? null;
+  if (card && !row.act.to)
+    return (
       <CardRow
         key={row.key}
         {...ports}
         card={card}
-        messageId={row.source === "idea" ? (morning?.message_id ?? null) : null}
-        threadId={morning?.thread_id ?? null}
-        keep={() => keep(card)}
-      />
-    ) : (
-      <DoorRow
-        key={row.key}
-        {...ports}
-        turn={card && row.source === "idea" ? { card, messageId: morning?.message_id ?? null } : null}
+        messageId={row.source === "idea" ? messageId : null}
+        threadId={model.morning?.thread_id ?? null}
+        keep={() => model.keep(card)}
       />
     );
-  });
-  if (!lines)
-    return (
-      <>
-        {drawn}
-        {toastNode}
-      </>
-    );
+  return <DoorRow key={row.key} {...ports} turn={card && row.source === "idea" ? { card, messageId } : null} />;
+}
+
+/**
+ * The lines' own part: a read that failed, the rows as lines with the line that opens the rest, the place held for AI's
+ * morning, and what came of an idea lately. Called, not drawn.
+ */
+function foundLines(p: {
+  drawn: ReactNode[];
+  cut: number;
+  everyRow: boolean;
+  setEveryRow: (every: boolean) => void;
+  model: Pick<FoundModel, "broke" | "line" | "found">;
+}) {
+  const { broke, line, found } = p.model;
   return (
     <>
       {broke ? (
@@ -472,15 +469,15 @@ export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean
           testid="today-found-failed"
         />
       ) : null}
-      {drawn.length ? (
+      {p.drawn.length ? (
         <CalmList label={F.title} testid="today-ask-found">
-          {drawn}
-          {cut ? (
+          {p.drawn}
+          {p.cut ? (
             <CalmRow
               quiet
-              name={everyRow ? F.fewer : L.foundMore(cut)}
-              press={() => setEveryRow(!everyRow)}
-              open={everyRow}
+              name={p.everyRow ? F.fewer : L.foundMore(p.cut)}
+              press={() => p.setEveryRow(!p.everyRow)}
+              open={p.everyRow}
               testid="today-found-more"
             />
           ) : null}
@@ -494,6 +491,50 @@ export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean
           </span>
         </div>
       ) : null}
+    </>
+  );
+}
+
+/**
+ * What AI found, as Today, calm draws it (19 Nov 2026, D1 and D4). `part` says which of it: `lead`, its first row as the
+ * page's card, where the arrangement gave it the card (today/arrangement.ts), drawn at the page's start; and `lines`, the
+ * rest of its rows as lines, each its short head with its numbers under it, then what came of an idea lately, and a
+ * read that failed. The page draws both where what AI found holds the card: they share what was pressed (the rows'
+ * store), so what one sets aside the other no longer draws.
+ */
+export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean }) {
+  const model = useFoundModel();
+  const { found, morning, rest, shown, line, draws } = model;
+  const lines = part === "lines";
+  // The page's side of what AI found is asked for once, by the lines: the card beside them draws from the same read.
+  useMorningWait(lines && morning?.state === "writing");
+  usePartShown("today", "look", shown);
+  useHeldPlace(lines && line === F.reading);
+  const [toastNode, flash] = useToast();
+  const [open, setOpen] = useState<string | null>(null);
+  const [everyRow, setEveryRow] = useState(false);
+  const waiting = useWaitsOnToday();
+  const all = [...found.rows, ...found.rest];
+  // The lines hand AI what they ask, asked once by the part that lists them.
+  useTodayAsks("found", lines && draws ? foundAsks(all) : []);
+  if (!draws) return toastNode;
+  const { rows, cut } = rowsOfPart(all, { lines, held, waiting, everyRow });
+  const drawn = rows.map((row) =>
+    foundRowOf(
+      {
+        row,
+        lead: !lines,
+        open: open === row.key,
+        onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
+        rest: (onUndone) => rest(row.key, flash, onUndone),
+        flash,
+      },
+      model,
+    ),
+  );
+  return (
+    <>
+      {lines ? foundLines({ drawn, cut, everyRow, setEveryRow, model }) : drawn}
       {toastNode}
     </>
   );

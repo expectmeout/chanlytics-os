@@ -113,7 +113,7 @@ function useStepWords(p: WorkProps & { onDone: StepIsDone }, threadId: string | 
   useEffect(() => {
     if (send?.state === "gone" && !finished.current) {
       finished.current = true;
-      p.onDone();
+      void p.onDone();
     }
   }, [send?.state, p]);
   return { mine, setMine, why, writing, write, sendIt, send, seconds };

@@ -5,7 +5,8 @@
  * under its name and the page it opens; and the page saying it is done. The pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS, TODAY_LINE_WORDS, dayCameToWords } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS, dayCameToWords } from "../model/lines";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -14,7 +15,7 @@ import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
-import { askOf, useTodayAsks } from "../calm/asks";
+import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 import { borrowed, useMoved } from "../shell";
 import { useDayTurned } from "./head";
@@ -53,7 +54,7 @@ export function DayCameTo() {
   const words = vm ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
   // AI is handed the line's question where AI answered anything (D10).
   const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
-  useTodayAsks("did", [words && answered ? askOf(TODAY_LINE_WORDS.asks.did) : null]);
+  useTodayAsks("did", [words && answered ? todayAskOf(TODAY_LINE_WORDS.asks.did) : null]);
   if (!words) return null;
   return (
     <CalmList label={words.title} testid="today-came-to">

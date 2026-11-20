@@ -5,9 +5,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { TODAY_ASKS_MAX, TODAY_LINE_WORDS, buildAskSuggestions, todayAsksOf } from "@chanlytics/contracts";
+import { buildAskSuggestions } from "@chanlytics/contracts";
 
-const { setTodayAsks, todayAsks } = await import("../../../apps/dashboard/src/bridge/ask/page-asks.ts");
+const { TODAY_ASKS_MAX, setTodayAsks, todayAsks, todayAsksOf } =
+  await import("../../../apps/dashboard/src/bridge/ask/page-asks.ts");
+const { TODAY_LINE_WORDS } = await import("../../../apps/dashboard/src/surfaces/today/model/lines.ts");
 
 const ask = (words) => ({ label: words, q: words });
 const A = TODAY_LINE_WORDS.asks;

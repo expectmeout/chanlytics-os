@@ -10,7 +10,7 @@ import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
 import { askDockRef } from "@/bridge/ask/dock";
 import { AskLine } from "@/bridge/ask/line";
-import { AskDisc, AskFace } from "../kit/face/ask-face";
+import { AskDisc } from "../kit/face/ask-face";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";

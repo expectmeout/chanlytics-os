@@ -17,7 +17,7 @@
  *   cold email's note, and what is left to set up where it does not hold the card
  *   the page says it is done
  *
- * Which part holds the card is the page's one arrangement (today/arrangement.ts `cardOf`), read here before any of it
+ * Which part holds the card is the page's one arrangement (today/arrangement.ts `todayCardOf`), read here before any of it
  * draws: the walk the coral always took. On a desk the same parts stand in two columns: the card and who waits on you on
  * the left, the day and the rest on the right (D7); the head's four figures are the day's one line now. The head over it
  * is the frame's (head.tsx): the greeting, one sentence, Listen. The layout is calm/calm.css's.

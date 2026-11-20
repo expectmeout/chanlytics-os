@@ -23,7 +23,7 @@ const APART_MS = 40;
  * under the press); the canvas drew these rising, and this is the one number to set to 0 if a phone says they shift.
  */
 const RISE_PX = 8;
-const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
+const HAND_OFF_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 
 const still = (): boolean => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -33,22 +33,22 @@ let lastCard: { key: string; height: number } | null = null;
 /** The count the head last drew. */
 let lastCount: number | null = null;
 /** When the card was last pressed, and for how long after it a thing that leaves the card is one the press finished. */
-let pressedAt = 0;
+let cardPressedAt = 0;
 const PRESS_HOLDS_MS = 10_000;
 
 /** The card was pressed (its own capture of a pointer or a key going down), or a line that rises into it was. */
 export function cardPressed(): void {
-  pressedAt = Date.now();
+  cardPressedAt = Date.now();
 }
 
 /** Whether the card was pressed a moment ago: what has left it since was finished by that press, not by a read. */
-export const cardPressedLately = (): boolean => Date.now() - pressedAt < PRESS_HOLDS_MS;
+export const cardPressedLately = (): boolean => Date.now() - cardPressedAt < PRESS_HOLDS_MS;
 
 /** Today is left: the next visit's first draw moves nothing. */
 export function forgetTodayMotion(): void {
   lastCard = null;
   lastCount = null;
-  pressedAt = 0;
+  cardPressedAt = 0;
 }
 
 /** The card's words arrive, a part at a time, and its room glides from the height the last card stood at. */
@@ -60,7 +60,7 @@ function handOff(words: HTMLElement, from: number): void {
         { opacity: 0, transform: `translateY(${RISE_PX}px)` },
         { opacity: 1, transform: "none" },
       ],
-      { duration: SLOW_MS, delay: at * APART_MS, easing: EASE_OUT, fill: "backwards" },
+      { duration: SLOW_MS, delay: at * APART_MS, easing: HAND_OFF_EASE, fill: "backwards" },
     );
   });
   const box = words.parentElement;
@@ -71,7 +71,7 @@ function handOff(words: HTMLElement, from: number): void {
       { height: `${from}px`, overflow: "hidden" },
       { height: `${to}px`, overflow: "hidden" },
     ],
-    { duration: SLOW_MS, easing: EASE_OUT },
+    { duration: SLOW_MS, easing: HAND_OFF_EASE },
   );
 }
 
@@ -87,9 +87,9 @@ function keepPlace(words: HTMLElement): void {
   if (!lost) return;
   // The card's main press: its own where the card draws it, the last of a work's presses (the work puts its main one
   // at its end), else the first thing that can be pressed.
-  const own = words.querySelector<HTMLElement>('[data-testid="today-card-act"]:not([disabled])');
-  const ofWork = Array.from(words.querySelectorAll<HTMLElement>(".ny-acts button:not([disabled])")).at(-1);
-  const first = words.querySelector<HTMLElement>("button:not([disabled]), a[href]");
+  const own = words.querySelector<HTMLElement>('[data-testid="today-card-act"]:enabled');
+  const ofWork = Array.from(words.querySelectorAll<HTMLElement>(".ny-acts button:enabled")).at(-1);
+  const first = words.querySelector<HTMLElement>("button:enabled, a[href]");
   (own ?? ofWork ?? first)?.focus({ preventScroll: true });
 }
 
@@ -162,6 +162,6 @@ export const countRolls =
         { opacity: 0.15, transform: "translateY(0.4em)" },
         { opacity: 1, transform: "none" },
       ],
-      { duration: SLOW_MS, easing: EASE_OUT },
+      { duration: SLOW_MS, easing: HAND_OFF_EASE },
     );
   };

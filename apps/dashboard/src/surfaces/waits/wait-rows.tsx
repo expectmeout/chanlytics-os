@@ -217,7 +217,7 @@ function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
   const lateWords = held ? null : late ? bcLateWords(run) : null;
   const said = held ?? (lateWords ? { ...words.late, sentence: lateWords } : words.waiting);
   // Under its one fact, where that fact is a title: the sentence less what the fact has said.
-  const why = held ? held.why : (lateWords ?? words.waiting.why);
+  const under = held ? held.why : (lateWords ?? words.waiting.why);
   // A held email and a run too late say their own words whatever is paused; a wait for an OK says campaigns are paused.
   const own = !!held || !!lateWords || !campaignsPaused();
   return {
@@ -232,7 +232,7 @@ function runSaidOf(run: BroadcastVM, late: boolean, ports: WaitRowsPorts) {
     short: own ? said.short : CAMPAIGNS_PAUSED_WORDS,
     head: own ? ("head" in said ? said.head : said.short) : CAMPAIGNS_PAUSED_WORDS,
     question: own && "question" in said ? said.question : null,
-    why: own ? why : CAMPAIGNS_PAUSED_WORDS,
+    why: own ? under : CAMPAIGNS_PAUSED_WORDS,
   };
 }
 
@@ -296,36 +296,36 @@ interface WaitParts {
  * approve, each in its parts. What the page had no room for is counted in rows, as the group that draws them counts
  * its rows (Today in three zones: a folded row is one), for the door to the rest.
  */
-export function waitParts(p: WaitRowsPorts, room: number): WaitParts {
+export function waitParts(ports: WaitRowsPorts, room: number): WaitParts {
   const { waiting, late } = runsPending();
   // To send opens as a sheet over the page (see-sheet.tsx), never under its row, so the rows never hold it open.
-  const rows = waitRowsOf(waiting, p.late === false ? [] : late);
-  const acts = runActsOf(p.flash, p.acting);
+  const rows = waitRowsOf(waiting, ports.late === false ? [] : late);
+  const acts = runActsOf(ports.flash, ports.acting);
   const shown = rows.slice(0, Math.max(0, room));
   const parts = shown.flatMap((row): WaitPart[] => {
     const key = waitRowKey(row);
-    if (row.kind === "to_send") return [{ key, ...toSendPart(row, p) }];
-    if (row.kind === "cold_email") return [{ key, ...coldEmailPart(row, p) }];
-    if (row.kind === "run") return [{ key, ...runPart(row.run, row.late, p, acts) }];
+    if (row.kind === "to_send") return [{ key, ...toSendPart(row, ports) }];
+    if (row.kind === "cold_email") return [{ key, ...coldEmailPart(row, ports) }];
+    if (row.kind === "run") return [{ key, ...runPart(row.run, row.late, ports, acts) }];
     const [first] = row.runs;
-    return first ? [{ key, ...approvalsPart(first, row.runs, p) }] : [];
+    return first ? [{ key, ...approvalsPart(first, row.runs, ports) }] : [];
   });
   return { parts, count: rows.length, cut: rows.length - shown.length };
 }
 
 /** A row drawn as the kit's attention row: its name, what it says (all of it, or, slim, its one fact) and its verbs. */
-const attnRowOf = (x: WaitPart, p: WaitRowsPorts): ReactElement => (
+const attnRowOf = (part: WaitPart, ports: WaitRowsPorts): ReactElement => (
   <AttnRow
-    key={x.key}
+    key={part.key}
     initials="▶"
     glyph="bolt"
-    name={x.name}
-    {...rowSaidOf(p, x.whole, x.short)}
+    name={part.name}
+    {...rowSaidOf(ports, part.whole, part.short)}
     tone="escalated"
-    cta={x.cta}
-    also={x.also}
-    onOpen={x.open}
-    testid={x.testid}
+    cta={part.cta}
+    also={part.also}
+    onOpen={part.open}
+    testid={part.testid}
   />
 );
 

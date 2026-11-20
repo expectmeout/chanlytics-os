@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { flyArc } = await import("../../../apps/dashboard/src/surfaces/kit/motion/arc.ts");
+const { moveAlongArc } = await import("../../../apps/dashboard/src/surfaces/kit/motion/arc.ts");
 
 /** An element that keeps what it was asked to play. */
 const part = () => {
@@ -29,7 +29,7 @@ test("rising, it goes up at once and across late: two movements, one for each wa
   motion(false);
   const outer = part();
   const inner = part();
-  await flyArc(outer, inner, FROM, TO, { ms: 440, way: "rise" });
+  await moveAlongArc({ outer, inner }, { from: FROM, to: TO }, { ms: 440, way: "rise" });
   assert.equal(outer.played.length, 1);
   assert.equal(inner.played.length, 1);
   // Centre to centre: 340 against 60 across, 800 against 470 down.
@@ -47,8 +47,8 @@ test("falling is the same path back: the curves change hands", async () => {
   motion(false);
   const up = [part(), part()];
   const down = [part(), part()];
-  await flyArc(up[0], up[1], FROM, TO, { ms: 440, way: "rise" });
-  await flyArc(down[0], down[1], TO, FROM, { ms: 360, way: "fall", scale: 2 });
+  await moveAlongArc({ outer: up[0], inner: up[1] }, { from: FROM, to: TO }, { ms: 440, way: "rise" });
+  await moveAlongArc({ outer: down[0], inner: down[1] }, { from: TO, to: FROM }, { ms: 360, way: "fall", scale: 2 });
   assert.equal(down[0].played[0].options.easing, up[1].played[0].options.easing);
   assert.equal(down[1].played[0].options.easing, up[0].played[0].options.easing);
   assert.match(
@@ -62,7 +62,7 @@ test("under reduced motion nothing plays, and it has landed at once", async () =
   motion(true);
   const outer = part();
   const inner = part();
-  await flyArc(outer, inner, FROM, TO, { ms: 440, way: "rise" });
+  await moveAlongArc({ outer, inner }, { from: FROM, to: TO }, { ms: 440, way: "rise" });
   assert.deepEqual([outer.played.length, inner.played.length], [0, 0]);
   motion(false);
 });

@@ -326,6 +326,110 @@ export const TodaySetupLine = ({ S, note }: { S: SetupSurface; note: ColdEmailNo
   );
 };
 
+/** Put off, said in the card's toast with its Undo, which puts every row back as it stood. */
+const putAwayWith = (flash: (f: Flash) => void) => async (ids: string[], why: SetupPutOffWhy, words: string) => {
+  const put = await setupVerbs.later(ids, { on: true, why });
+  if (!put.ok) return flash(refusalFlash(put, "Not saved"));
+  flash({
+    msg: <>{words}</>,
+    undo: () =>
+      put.undo().then((u) => {
+        if (!u.ok) flash(refusalFlash(u, "Not saved"));
+      }),
+  });
+};
+
+/**
+ * A row's Skip, by its id: a menu of a week or for good, its words the row's own (SetupCardRowVM.put); the coral row's
+ * wears the coral with it on a phone (`leadId`). Called, not drawn.
+ */
+function skipsOf(
+  card: SetupCardVM,
+  parts: { day: string; leadId: string | null; putAway: ReturnType<typeof putAwayWith> },
+) {
+  const skipMenu = (id: string, name: string, put: SetupCardPutOff | null) =>
+    put && card.skip ? (
+      <SkipMenu
+        name={name}
+        put={put}
+        word={card.skip.put}
+        day={parts.day}
+        lead={id === parts.leadId}
+        testid={`setup-later-${id}`}
+        onPut={(why, words) => void parts.putAway([id], why, words)}
+      />
+    ) : null;
+  const skipRow = (id: string) => {
+    const row = card.rows.find((r) => r.id === id);
+    return row ? skipMenu(id, row.title, row.put) : null;
+  };
+  return { skipMenu, skipRow };
+}
+
+/**
+ * The card's head: its title and how many are left, the steps' meter, Hide for a week on a desk, and the chevron. Its
+ * whole line folds it; the chevron is the press a key and a reader reach. Called, not drawn.
+ */
+function setupHead(
+  card: SetupCardVM,
+  parts: { foldable: boolean; short: boolean; phone: boolean; toggle: () => void; hideButton: ReactNode },
+) {
+  return (
+    <div
+      className="setup-card-head tz-head"
+      role="presentation"
+      onClick={parts.foldable ? foldFromHead(parts.toggle) : undefined}
+      data-foldable={parts.foldable || undefined}
+    >
+      <span className="setup-card-title tz-name">
+        {card.title}
+        <span className="setup-card-left tz-fact" data-testid="today-setup-left">
+          {card.left}
+        </span>
+      </span>
+      {stepsMeter(card)}
+      {!parts.short && !parts.phone ? parts.hideButton : null}
+      {parts.foldable ? foldChevron(parts.short, parts.toggle) : null}
+    </div>
+  );
+}
+
+/**
+ * What stands under the head: while a step is open, the row that opens the first run and what was kept; after, Setup's
+ * own rows with the reminder's last; what was done; and Hide for a week as the last row on a phone or under the line.
+ * Folded, the first row alone. Called, not drawn.
+ */
+function setupBody(
+  setup: SetupSurface,
+  card: SetupCardVM,
+  parts: {
+    short: boolean;
+    waiting: boolean;
+    nav: (to: string) => void;
+    flash: (f: Flash) => void;
+    remindDrawn: ReactNode;
+    skipRow: (id: string) => ReactNode;
+    hideLast: ReactNode;
+  },
+) {
+  const shownCard = parts.short ? { ...card, rows: card.rows.slice(0, 1) } : card;
+  const kept = parts.short ? null : ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept");
+  return (
+    <>
+      {card.start ? startRow(card.start, card.left, parts.nav, parts.waiting) : null}
+      {card.start
+        ? kept
+        : optionalRows(setup, shownCard, parts.flash, {
+            tail: parts.remindDrawn,
+            quiet: parts.waiting,
+            skip: parts.skipRow,
+          })}
+      {parts.short ? null : ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
+      {parts.hideLast}
+    </>
+  );
+}
+
 // What is left to set up, as one card above the queue in its column (the first run's Today card, canvas R10 and P9):
 // while a step is open, the one row that opens the first run; after, Setup's own optional rows in the order they help
 // most, each with its act and its Skip, and the reminder's row last. Two presses that do two things (the refined canvas,
@@ -363,42 +467,14 @@ export const TodaySetupCard = ({
   const nav = (to: string) => appNavigate(to);
   // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.
   const day = restEndsDay(pageClock().zone(), Date.now());
-  // Put off, said in the card's toast with its Undo, which puts every row back as it stood.
-  const putAway = async (ids: string[], why: SetupPutOffWhy, said: string) => {
-    const r = await setupVerbs.later(ids, { on: true, why });
-    if (!r.ok) return flash(refusalFlash(r, "Not saved"));
-    flash({
-      msg: <>{said}</>,
-      undo: () =>
-        r.undo().then((u) => {
-          if (!u.ok) flash(refusalFlash(u, "Not saved"));
-        }),
-    });
-  };
-  const remind = card.remind;
-  const hide = card.hide;
+  const putAway = putAwayWith(flash);
+  const { remind, hide } = card;
   const hideAll = () =>
     hide &&
     putAway([...card.rows.map((r) => r.id), ...(remind ? [remind.id] : [])], "week", hiddenSaid(day, hide.cost));
   // The row whose act is the page's coral (optionalRows' `primary`): its Skip's caret wears the coral with it on a phone.
   const leadId = waiting ? null : (card.rows[0]?.id ?? null);
-  // A row's Skip, by its id: a menu of a week or for good, its words the row's own (SetupCardRowVM.put).
-  const skipMenu = (id: string, name: string, put: SetupCardPutOff | null) =>
-    put && card.skip ? (
-      <SkipMenu
-        name={name}
-        put={put}
-        word={card.skip.put}
-        day={day}
-        lead={id === leadId}
-        testid={`setup-later-${id}`}
-        onPut={(why, said) => void putAway([id], why, said)}
-      />
-    ) : null;
-  const skipRow = (id: string) => {
-    const row = card.rows.find((r) => r.id === id);
-    return row ? skipMenu(id, row.title, row.put) : null;
-  };
+  const { skipMenu, skipRow } = skipsOf(card, { day, leadId, putAway });
   const hideButton = hide ? (
     <Button variant="quiet" size="sm" onClick={() => void hideAll()} data-testid="today-setup-hide">
       {hide.put}
@@ -406,44 +482,22 @@ export const TodaySetupCard = ({
   ) : null;
   const foldable = foldsAnything(card);
   const short = folded && foldable && !under;
-  const shownCard = short ? { ...card, rows: card.rows.slice(0, 1) } : card;
   const remindDrawn =
     remind && card.skip && (!short || card.rows.length === 0)
       ? remindRow(remind, card.skip, nav, skipMenu(remind.id, remind.name, remind.put))
       : null;
   return (
     <section className="tq today-setup" data-testid="today-setup">
-      {/* The head's whole line folds it; the chevron is the press a key and a reader reach. */}
-      {under ? null : (
-        <div
-          className="setup-card-head tz-head"
-          role="presentation"
-          onClick={foldable ? foldFromHead(toggle) : undefined}
-          data-foldable={foldable || undefined}
-        >
-          <span className="setup-card-title tz-name">
-            {card.title}
-            <span className="setup-card-left tz-fact" data-testid="today-setup-left">
-              {card.left}
-            </span>
-          </span>
-          {stepsMeter(card)}
-          {!short && !phone ? hideButton : null}
-          {foldable ? foldChevron(short, toggle) : null}
-        </div>
-      )}
-      {card.start ? startRow(card.start, card.left, nav, waiting) : null}
-      {card.start
-        ? short
-          ? null
-          : ticks(SETUP_CARD_WORDS.keptTitle, card.kept, "today-setup-kept")
-        : optionalRows(S, shownCard, flash, {
-            tail: remindDrawn,
-            quiet: waiting,
-            skip: skipRow,
-          })}
-      {short ? null : ticks(SETUP_CARD_WORDS.doneTitle, card.done, "today-setup-done")}
-      {!short && (phone || under) ? hideButton : null}
+      {under ? null : setupHead(card, { foldable, short, phone, toggle, hideButton })}
+      {setupBody(S, card, {
+        short,
+        waiting,
+        nav,
+        flash,
+        remindDrawn,
+        skipRow,
+        hideLast: !short && (phone || under) ? hideButton : null,
+      })}
       {toastNode}
     </section>
   );

@@ -12,7 +12,7 @@ import { commitVerb, undoVerb } from "@/bridge/verbs/commit";
  * counted with the rest all the same. It was left out of `done`, so thirty-seven marked done said "23 marked done", and
  * one such person alone said, in red, that they couldn't be marked done, having just been (19 Nov 2026).
  */
-export interface HandedBack {
+interface HandedBack {
   done: number;
   refused: number;
   undo: (() => Promise<void>) | null;

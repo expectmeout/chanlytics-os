@@ -78,7 +78,7 @@ interface ArrangementReads {
  * coral (a reply going on its own, whose press is Stop); else To do's first; else setting up, never over someone waiting;
  * else what Ask found, once what it is drawn from is known: not read yet is never nothing found.
  */
-export function cardOf(
+function todayCardOf(
   reads: Pick<
     ArrangementReads,
     "read" | "known" | "focus" | "waitFirst" | "todoFirst" | "todoPressed" | "waiting" | "setupActs" | "foundFirst"
@@ -107,7 +107,7 @@ export function arrangementOf(reads: ArrangementReads): TodayArrangement {
         : lead && reads.found.acts && reads.mayAct
           ? "found"
           : null;
-  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral, card: cardOf(reads) };
+  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral, card: todayCardOf(reads) };
 }
 
 /** Today's arrangement, read in the page's render from the same reads its parts draw from. */

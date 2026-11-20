@@ -1217,7 +1217,10 @@ body.ask-open .tb-ask .tb-ask-face {
 /* ---- The Line's layout, a phone's screen and a desk's panel alike (the Stage's spec, section 5; Ruben, 16 Oct 2026:
    the desk's Line is the phone's, docked at the right). The phone's own (its screen, the keys, its ✦, its touch sizes)
    is the block after this one. ---- */
-.phone-ask,
+.phone-ask {
+  display: none;
+}
+/* The ground AI's screen stands on, on a phone's bar (the block at the end): a phone's alone. */
 .ask-ground {
   display: none;
 }
@@ -2624,7 +2627,7 @@ body.ask-open .tb-ask .tb-ask-face {
   }
   /* What the field says while empty, where it runs past the field's end on a small phone with the + in: it fades at
      the edge, as a row of chips does, never cut through a letter. */
-  .ask-stage-row.docked > .ask-line-input:placeholder-shown {
+  .ask-stage-row.docked > [data-testid="ask-input"]:placeholder-shown {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
   }

@@ -1,25 +1,26 @@
 /**
- * Need you as the canvas works it (Today in three zones, 2 Nov 2026), drawn on the stub React over Today's read: one open
- * card, the coral where the canvas puts it, the head's line about the rows drawn, and nothing drafted for a row the page
- * does not draw. Each case was a gap the 3 Nov audit found:
+ * Need you as the page draws it (Today, calm, 19 Nov 2026), on the stub React over Today's read: one card, the page's one
+ * coral in it, the head's line about the rows drawn, and nothing drafted for a row the page does not draw. Each case was a
+ * gap the 3 Nov audit found:
  *
- * - a reply the receptionist sends on its own leads as the open card, and the first row waiting is short with the coral
- *   (the canvas's shift moment), where two cards stood open and the coral sat in the second;
+ * - a reply the receptionist sends on its own holds the card with its Stop, and who waits after it are lines, where two
+ *   cards stood open and the coral sat in the second;
  * - the head named the held reply's own window, a day away, as the one thing that cannot wait;
- * - Older's Mark all done took the coral (8 Nov 2026: and now never does, nobody counts it);
+ * - Older's Mark all done took the coral (8 Nov 2026: and now never does, nobody counts it; since Today, calm they are
+ *   counted in the line of what else is left, and Mark all done is the Inbox's);
  * - Ask wrote drafts for every row past the five waiting, and the head counted them.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { NEED_YOU_WORDS } from "@chanlytics/contracts";
-import { again, all, press, quiet, redrawWanted, unmount } from "../../_stub-react.mjs";
+import { again, all, press, quiet, redrawWanted, textOf, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { NOW, W, answerWith, buttons, flashes, json, wire, went, dayWith, draw, row } from "./_world.mjs";
+import { NOW, W, answerWith, buttons, corals, json, wire, went, dayWith, draw, row } from "./_world.mjs";
 
-const { NeedYou } = await import("../../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday: NeedYou } = await import("./_on-today.mjs");
 const { offerOtherTimes } = await import("../../../apps/dashboard/src/surfaces/booking-request.ts");
 const { takeCarriedReply, cameFromToday } = await import("../../../apps/dashboard/src/surfaces/inbox/carried-reply.ts");
-const { AttnRow } = await import("../../../apps/dashboard/src/surfaces/kit/attention/attn-row.tsx");
 const { useNeedYouLine, useNeedYouModel } =
   await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -39,18 +40,40 @@ const lea = () =>
     clock_ms: 10 * MIN,
     writes: { for_message_id: "m-lea", wire: "WhatsApp", window_open: true, window_closes: "tomorrow 11:17 AM" },
   });
-const rowsDrawn = (tree) => all(tree, (n) => n.type === AttnRow);
-const testidOf = (n) => n.props.testid;
+const byTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id)[0] ?? null;
+/** The page's one card (calm/lead.tsx), and the lines under it, by their row's test id. */
+const cardOf = (tree) => byTestId(tree, "today-card");
+const linesOf = (tree, testid) =>
+  all(
+    byTestId(tree, "today-queue"),
+    (n) => n.props?.["data-testid"] === testid && String(n.props?.className ?? "").includes("calm-line"),
+  );
+const inCard = (tree, node) => all(cardOf(tree), (n) => n === node).length > 0;
 
-test("a reply going on its own leads as the one open card; the first row waiting is drawn short, holding the coral", () => {
-  setSurfaceValue("today", dayWith([lea(), row("mateo", "Mateo Cruz"), row("sofia", "Sofia Reyes")]));
+test("a reply going on its own holds the card with its Stop; who waits after it are lines, and the page's one coral is the card's", () => {
+  // Its countdown runs on the clock the page reads, so it goes ten minutes from now, not from the day the world is set on.
+  const going = { ...lea().held, sends_at_ms: Date.now() + 10 * MIN };
+  setSurfaceValue(
+    "today",
+    dayWith([{ ...lea(), held: going }, row("mateo", "Mateo Cruz"), row("sofia", "Sofia Reyes")]),
+  );
   const tree = draw(NeedYou);
-  const rows = rowsDrawn(tree);
-  const open = rows.filter((r) => r.props.work);
-  assert.deepEqual(open.map(testidOf), ["queue-held"], "REGRESSION: Lea's card and Mateo's whole card both stood open");
-  const [mateo, sofia] = rows.filter((r) => testidOf(r) === "queue-handoff");
-  assert.equal(mateo.props.cta?.kind, "primary", "Mateo's short verb holds the page's coral: Lea's press is Stop");
-  assert.equal(sofia.props.cta?.kind, "ghost", "and only his");
+  const card = cardOf(tree);
+  assert.equal(card?.props["data-holder"], "queue", "who waits holds the card");
+  assert.ok(byTestId(card, "queue-held"), "Lea's reply, going on its own, is the card");
+  assert.equal(buttons(card, NEED_YOU_WORDS.held.stopIt).length, 1, "with its Stop: a brake against a running clock");
+  const lines = linesOf(tree, "queue-handoff");
+  assert.deepEqual(
+    lines.map((l) => /Mateo/.test(textOf(l)) || /Sofia/.test(textOf(l))),
+    [true, true],
+    "REGRESSION: Lea's card and Mateo's whole card both stood open",
+  );
+  const coral = corals(tree);
+  assert.ok(coral.length <= 1, `one coral at most: ${coral.map(textOf).join(" | ")}`);
+  assert.ok(
+    coral.every((c) => inCard(tree, c)),
+    "and none is a line's: the coral is the card's",
+  );
   setSurfaceValue("today", undefined);
 });
 
@@ -73,12 +96,22 @@ test("the head's line names no window of a reply going on its own; another perso
   setSurfaceValue("today", undefined);
 });
 
-test("Older's Mark all done never takes the coral, with nothing above it either: the setup card's act keeps it", () => {
+test("whoever waited past a week is counted in the line of what else is left, with the Inbox its door, and never takes the coral: nothing is the card", () => {
   const old = (id, who) => row(id, who, { waitedMs: 9 * DAY });
   setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
   const tree = draw(NeedYou);
-  const older = rowsDrawn(tree).find((r) => testidOf(r) === "queue-older");
-  assert.equal(older.props.cta?.kind, "ghost", "nobody counts it, and the head says nothing needs you");
+  assert.equal(cardOf(tree), null, "nobody counts them, and the head says nothing needs you");
+  assert.equal(linesOf(tree, "queue-handoff").length, 0, "nor are they lines of who waits");
+  const also = byTestId(tree, "today-also");
+  assert.match(textOf(also), /2 older/, "they are counted, never dropped");
+  const line = byTestId(also, "today-also-line");
+  all(line, (n) => typeof n.props?.onClick === "function")[0].props.onClick({ button: 0 });
+  const opened = byTestId(
+    again(() => W.React.createElement(NeedYou, {})),
+    "today-also-older",
+  );
+  const door = all(opened, (n) => typeof n.props?.href === "string")[0]?.props.href;
+  assert.match(String(door), /inbox$/, "the Inbox's Needs you lists them, with Mark all done");
   assert.deepEqual(
     [model().coral, model().todo.coral],
     [null, null],
@@ -106,44 +139,6 @@ test("Ask is asked for the drafts of the rows drawn: Up next and the five waitin
   assert.ok(!asked.some((id) => id.startsWith("cv-o")), "never Older's on a desk");
   setSurfaceValue("today", undefined);
   delete W.__REPLIES;
-});
-
-test("Older's Mark all done refused whole says why and stays to be pressed again", async () => {
-  const old = (id, who) => row(id, who, { waitedMs: 9 * DAY });
-  setSurfaceValue("today", dayWith([old("o1", "Dana Ruiz"), old("o2", "Kai Moreno")]));
-  answerWith(() => json(403, { ok: false, error: { code: "forbidden", message: "Not yours to give back." } }));
-  flashes.length = 0;
-  const olderOf = (tree) => rowsDrawn(tree).find((r) => testidOf(r) === "queue-older");
-  // It asks first, in the row's own place (decision 0142): the press is the question's while it stands, Not now changes
-  // nothing, and Yes is the press that goes.
-  olderOf(draw(NeedYou)).props.cta.onClick();
-  const redraw = () => olderOf(again(() => W.React.createElement(NeedYou, {})));
-  const asked = redraw();
-  assert.equal(asked.props.cta, null, "the press is the question's now");
-  assert.deepEqual(
-    [asked.props.work.props.question, asked.props.work.props.yes, asked.props.work.props.no],
-    ["Mark all 2 done?", "Yes, mark 2 done", "Not now"],
-  );
-  wire.length = 0;
-  asked.props.work.props.onNo();
-  const kept = redraw();
-  assert.deepEqual(
-    [kept.props.work, wire.length],
-    [null, 0],
-    "Not now: nothing asked of the server, the row as it was",
-  );
-  kept.props.cta.onClick();
-  redraw().props.work.props.onYes();
-  await until(
-    () => flashes.length > 0,
-    `the refusal said (the wire: ${wire.map((w) => w.method + " " + w.path).join(", ")})`,
-  );
-  assert.equal(flashes.at(-1)?.tone, "danger", "REGRESSION: a refusal was said as a receipt, in the quiet ink");
-  const again_ = olderOf(again(() => W.React.createElement(NeedYou, {})));
-  assert.ok(again_.props.cta, "REGRESSION: the press went, and nothing was left to try again with");
-  assert.equal(again_.props.work, null, "and nothing says they were marked done");
-  setSurfaceValue("today", undefined);
-  unmount();
 });
 
 test("Mark done says everyone it marked: a conversation nobody answered is archived, which has no undo, and is counted all the same", async () => {
@@ -220,15 +215,21 @@ test("Stop on AI's reply stops it on Today, and what follows is written in their
   );
   wire.length = 0;
   went.length = 0;
-  /** Lea's row's work, as the page draws it under her words. */
-  const workOf = (tree) => rowsDrawn(tree).find((r) => testidOf(r) === "queue-held")?.props.work;
-  const drawnAgain = () => workOf(again(() => W.React.createElement(NeedYou, {})));
-  const [stop] = buttons(workOf(draw(NeedYou)), NEED_YOU_WORDS.held.stopIt);
+  // Lea's reply's work stands in the card, under her words; stopped, it is a line of what was done on this visit, which
+  // says so with its Reply (Today, calm, D24), once the card's beat has said it.
+  const work = byTestId(cardOf(draw(NeedYou)), "today-card-work");
+  const actedNow = () =>
+    byTestId(
+      again(() => W.React.createElement(NeedYou, {})),
+      "today-acted",
+    );
+  const [stop] = buttons(work, NEED_YOU_WORDS.held.stopIt);
   assert.ok(stop, "the countdown keeps its Stop on Today: a brake against a running clock");
   press(stop);
   await until(() => wire.some((w) => w.path === "/api/v1/messages/m-held/cancel-send"), "the hold asked for");
-  await until(() => buttons(drawnAgain(), NEED_YOU_WORDS.held.reply).length > 0, "the stopped row's Reply");
-  const stopped = drawnAgain();
+  await until(() => buttons(actedNow(), NEED_YOU_WORDS.held.reply).length > 0, "the stopped row's Reply");
+  const stopped = actedNow();
+  assert.match(textOf(stopped), /nothing was sent/, "the row says nothing was sent");
   assert.equal(
     buttons(stopped, NEED_YOU_WORDS.send).length,
     0,

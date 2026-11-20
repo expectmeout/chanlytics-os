@@ -53,7 +53,7 @@ test("REGRESSION (16 Nov 2026): off Today, a morning due is read and kept as Tod
     assert.equal(surfaceValue("ask_morning").asking, true, "kept as Today draws it while one is being written");
     clearRowStates();
     fresh();
-    const found = again(() => AskFound({ wide: false }));
+    const found = again(() => AskFound({ part: "lines", held: false }));
     assert.ok(byTestId(found, "today-found-reading"), "Ask found holds its place");
     assert.equal(askMorningOverride.isStale(), true, "and read again as Today is reached");
     // Today reached: its read again asks, once.

@@ -20,8 +20,6 @@ import {
   CONTENT_TODAY_WORDS as W,
   MIN_MS,
   contentRouteOf,
-  contentWords,
-  TODAY_LINE_WORDS,
   fileSaidOf,
   fileViewOf,
   postStoppedWhyOf,
@@ -29,9 +27,10 @@ import {
   type ContentTodayDto,
 } from "@chanlytics/contracts";
 import { routeDoor } from "../frame-verbs";
+import { TODAY_LINE_WORDS, contentWords } from "./model/lines";
 import { Icon } from "../kit/icon/icon";
 import { useSurface } from "../use-surface";
-import { askOf, useTodayAsks } from "./calm/asks";
+import { todayAskOf, useTodayAsks } from "./calm/asks";
 import { CalmList, CalmRow } from "./calm/lines";
 import { keptContentToday, readContentToday } from "./content-note-read";
 
@@ -53,22 +52,36 @@ function StoppedLine({ line }: { line: ContentLineDto }) {
 }
 
 /** The week's pieces as one line: how many, the newest by name, its picture; nothing where the week made none. */
+/**
+ * The newest piece's face: its picture where there is one to ask for, over the mark of what it is, which stands where the
+ * picture does not come. A video is asked for its picture only once the platform has made it ready, never one it could
+ * not read (17 Nov 2026: four videos Ask made stood black tiles on Today while Content showed them).
+ */
+function newestFace(newest: ContentTodayDto["week"][number] | undefined) {
+  if (!newest) return { mark: <Icon name="video" size={14} /> };
+  const video = newest.file.kind === "video";
+  const ready = !video || newest.file.media_status === "ready";
+  return {
+    face: {
+      glyph: <Icon name={video ? "video" : "image"} size={14} />,
+      ...(ready ? { photo: `${fileViewOf(newest.file.id)}?w=320` } : {}),
+      tile: true,
+    },
+  };
+}
+
 function WeekLine({ today }: { today: ContentTodayDto }) {
   const [newest] = today.week;
   const words = contentWords({
     count: today.week.length,
-    allVideos: today.week.every((made) => made.file.kind === "video"),
+    allVideos: today.week.every((piece) => piece.file.kind === "video"),
     newest: newest ? fileSaidOf(newest.file.name) : null,
     making: today.making.length,
   });
   if (!words) return null;
   return (
     <CalmRow
-      first={
-        newest
-          ? { face: { initials: "", photo: `${fileViewOf(newest.file.id)}?w=320`, tile: true } }
-          : { mark: <Icon name="video" size={14} /> }
-      }
+      first={newestFace(newest)}
       name={words.title}
       said={words.sub ?? undefined}
       door={routeDoor(CONTENT_ROUTE)}
@@ -92,8 +105,8 @@ export function TodayContentLine() {
   const week = today?.week ?? [];
   useTodayAsks("content", [
     week.length
-      ? askOf(
-          week.every((made) => made.file.kind === "video")
+      ? todayAskOf(
+          week.every((piece) => piece.file.kind === "video")
             ? TODAY_LINE_WORDS.asks.videos
             : TODAY_LINE_WORDS.asks.pieces,
         )
@@ -103,7 +116,12 @@ export function TodayContentLine() {
   return (
     <CalmList label={W.title} testid="today-content">
       {today.stopped ? <StoppedLine line={today.stopped} /> : null}
-      <WeekLine today={today} />
+      {/* Drawn afresh as the newest piece moves: a poster the look cut since is asked for again (a picture that did not
+          come stands aside for good where it was drawn). */}
+      <WeekLine
+        key={`${today.week[0]?.file.id}:${today.week[0]?.file.media_status}:${today.week[0]?.file.look_status}`}
+        today={today}
+      />
     </CalmList>
   );
 }

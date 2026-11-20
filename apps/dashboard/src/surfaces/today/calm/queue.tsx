@@ -15,38 +15,38 @@ import { openInThread, VerbWords, type NeedYouRowsCtx } from "../need-you/people
 import { answersInThread, shortLabel, workOf, worksInPlace } from "../need-you/rows";
 import { rowWords } from "../need-you/sheet/row-words";
 import { useTodayOnPhone } from "../phone";
-import { Lead, LeadActs } from "./lead";
+import { Lead, CardActs } from "./lead";
 import { CalmRow, type CalmLine } from "./lines";
 
 /** Who a row is about, as the kit's face draws them: a person by what contracts says they are, else its initials. */
-const faceOf = (row: TodayQueueRowVM): FaceProps =>
+const queueFaceOf = (row: TodayQueueRowVM): FaceProps =>
   namesAPerson(row) ? { person: { name: row.who, initials: row.initials } } : { initials: row.initials };
 
 /** A row's one sentence as a line or a title says it: their own words in quotes, after what they are about. */
-function saidOf(row: TodayQueueRowVM): string {
+function queueSaidOf(row: TodayQueueRowVM): string {
   const words = rowWords(row);
-  const said = words.quoted ? `“${words.sentence}”` : words.sentence;
-  return words.lead ? `${words.lead}: ${said}` : said;
+  const line = words.quoted ? `“${words.sentence}”` : words.sentence;
+  return words.lead ? `${words.lead}: ${line}` : line;
 }
 
 /** The dot between two facts of a row's sentence, as the rows' words join them. */
 const FACT_DOT = " · ";
 
 /** A sentence with the words that are its warning in the warning's tone (a to-do's "overdue since Thu"), the rest plain. */
-function toned(said: string, on: string | null, tone: "warn" | "danger" | null) {
-  const at = on && tone ? said.indexOf(on) : -1;
-  if (at < 0 || !on) return said;
+function toned(text: string, on: string | null, tone: "warn" | "danger" | null) {
+  const at = on && tone ? text.indexOf(on) : -1;
+  if (at < 0 || !on) return text;
   return (
     <>
-      {said.slice(0, at)}
+      {text.slice(0, at)}
       <span data-tone={tone ?? undefined}>{on}</span>
-      {said.slice(at + on.length)}
+      {text.slice(at + on.length)}
     </>
   );
 }
 
 /** Their conversation's address, where a row's answer is written there (need-you/rows.ts answersInThread). */
-const threadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null =>
+const queueThreadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null =>
   answersInThread(row) && row.conversationId && !ctx.kept.has(row.id) ? row.conversationId : null;
 
 /**
@@ -55,17 +55,17 @@ const threadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null =>
  */
 export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
   const words = rowWords(row);
-  const conversationId = threadOf(row, ctx);
+  const conversationId = queueThreadOf(row, ctx);
   // A visit to mark says when it was ("Wed, Nov 18, 10:30 – 11 AM"), not how long anyone has waited: that is its first
   // fact under the name, so the name keeps its room, and the slot at the line's end stays for a wait.
   const was = row.kind === "visit" && words.wait ? words.wait.words : null;
   const base = {
-    first: { face: faceOf(row) },
+    first: { face: queueFaceOf(row) },
     name: words.trail ? `${words.name} · ${words.trail}` : words.name,
     // What was said, fact by fact (who, since when, whose): each whole or not there, the warning in its tone.
     facts: [
       ...(was ? [was] : []),
-      ...saidOf(row)
+      ...queueSaidOf(row)
         .split(FACT_DOT)
         .map((fact) => toned(fact, words.saidToneOn, words.saidTone)),
     ],
@@ -103,7 +103,7 @@ export function ActedLine({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRows
   const words = rowWords(row);
   return (
     <CalmRow
-      first={{ face: faceOf(row) }}
+      first={{ face: queueFaceOf(row) }}
       name={words.name}
       tight
       under={<div className="calm-under calm-receipt">{workIn(row, ctx, "secondary")}</div>}
@@ -134,12 +134,12 @@ export function QueueLead({
   const phone = useTodayOnPhone();
   const words = rowWords(row);
   const coral = row.id === ctx.coral;
-  const conversationId = threadOf(row, ctx);
+  const conversationId = queueThreadOf(row, ctx);
   // A person waiting is who, then what they said; a to-do is what to do, then whose it is and since when.
   const todo = holder === "todo";
   const kind = (
     <>
-      <Face {...faceOf(row)} size="sm" />
+      <Face {...queueFaceOf(row)} size="sm" />
       {todo ? <span>{W.todo.title}</span> : <b className="calm-who">{words.name}</b>}
       {words.wait ? (
         <span className="calm-wait tabular" data-long={words.wait.long || undefined} {...SAYS_WHEN}>
@@ -148,15 +148,26 @@ export function QueueLead({
       ) : null}
     </>
   );
-  const why = todo ? toned(saidOf(row), words.saidToneOn, words.saidTone) : (row.why ?? null);
+  const reason = todo ? toned(queueSaidOf(row), words.saidToneOn, words.saidTone) : (row.why ?? null);
   return (
     <Lead
       holder={holder}
       id={row.id}
       label={words.name}
       kind={kind}
-      title={todo ? words.name : saidOf(row)}
-      why={why}
+      title={
+        // A to-do's words open what it is about, as its row's did ("Call Di" opens Di: their number is there).
+        todo && row.cta.to ? (
+          <a className="calm-title-door" {...routeDoor(row.cta.to, ctx.nav)} data-testid="today-card-door">
+            {words.name}
+          </a>
+        ) : todo ? (
+          words.name
+        ) : (
+          queueSaidOf(row)
+        )
+      }
+      why={reason}
       testid={words.testid}
     >
       {done ? (
@@ -164,7 +175,7 @@ export function QueueLead({
           {ctx.kept.has(row.id) ? workIn(row, ctx, "secondary") : <Done words={NOTE_WORDS.done} />}
         </div>
       ) : conversationId ? (
-        <LeadActs>
+        <CardActs>
           <Button
             variant={coral ? "primary" : "secondary"}
             size={phone ? "touch" : "lg"}
@@ -173,7 +184,7 @@ export function QueueLead({
           >
             <VerbWords row={row} words={shortLabel(row)} />
           </Button>
-        </LeadActs>
+        </CardActs>
       ) : (
         <div className="calm-work" data-testid="today-card-work">
           {workIn(row, ctx, coral ? "primary" : "secondary")}

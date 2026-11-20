@@ -72,12 +72,22 @@ export function batchFactsOf(run: BatchRun, runs: readonly BatchRun[], nowMs: nu
   };
 }
 
+/** What a run waiting for an OK says first, where nothing over it has said so. */
+const WAITS_FOR_OK = "Waits for you to approve.";
+
+/**
+ * What stands under a title that says the run waits for your approval (Today's card, D15: the sentence less what the
+ * title has said): the sentence without its first "Waits for you to approve.", whatever it goes on to say.
+ */
+const underTitle = (sentence: string): string =>
+  sentence.startsWith(`${WAITS_FOR_OK} `) ? sentence.slice(WAITS_FOR_OK.length + 1) : sentence;
+
 /**
  * A batch's facts as its row says them: "Waits for your OK; the first goes today 10:40 AM. Last batch: 20 sent, 3 replied."
  * It says your OK either way, since a phone draws no state line under it: with no time to name, how its wait ends says it.
  */
 function batchSaid(f: BatchFacts, ends: string): string {
-  const waits = f.firstGoes ? `Waits for you to approve. The first goes ${f.firstGoes}.` : `${ends}.`;
+  const waits = f.firstGoes ? `${WAITS_FOR_OK} The first goes ${f.firstGoes}.` : `${ends}.`;
   return f.last ? `${waits} Last send: ${f.last.sent} sent, ${f.last.replied} replied.` : waits;
 }
 
@@ -138,6 +148,82 @@ export interface TodayRunWordsVM {
   done: { counts: string; still: boolean };
 }
 
+/** Who a run reaches, counted: businesses a search found (a reach-out's), or people the workspace knows. */
+const reachedOf = (count: number, reach: boolean): string =>
+  `${count} ${reach ? (count === 1 ? "business" : "businesses") : count === 1 ? "person" : "people"}`;
+
+/**
+ * A run waiting for a word, in each of its forms: its sentence, its one fact, the title Today's card and line say and what
+ * stands under that title, and what a person would ask AI of it.
+ */
+function waitingWords(
+  run: RunLike,
+  facts: BatchFacts | undefined,
+  at: { reach: boolean; people: string; kind: string },
+): TodayRunWordsVM["waiting"] {
+  // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
+  // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
+  const ends =
+    !at.reach && run.playbook_id
+      ? batchWaitWords(audienceTrigger(run.audience), run.offered)
+      : waitEndsWords("leads_batch");
+  // A freed time's run says the time first, and why these people (0082): they asked and never booked.
+  const waitingWhy = run.offered
+    ? `${at.people} asked this month and never booked. ${ends}.`
+    : facts
+      ? batchSaid(facts, ends)
+      : `${ends}.`;
+  // What an OK sends and what the check holds apart, where it holds any: each held one is decided on its own.
+  const undecided = batchHeldEmails(run);
+  const asks = Math.max(0, run.recipient_count - undecided);
+  return {
+    meta: `${at.kind} · ready`,
+    sentence: run.offered ? `${capitalize(run.offered)} opened. ${waitingWhy}` : `${at.people}. ${waitingWhy}`,
+    // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
+    status: [RUN_WAITING_WORDS],
+    short:
+      undecided > 0
+        ? `${plural(asks, "waits", "wait")} for your approval · ${undecided} held`
+        : `${at.people} · ${RUN_WAITING_WORDS.toLowerCase()}`,
+    // What the check holds is said under the title, since an OK sends none of it.
+    why: undecided > 0 ? `${undecided} held for a look. ${underTitle(waitingWhy)}` : underTitle(waitingWhy),
+    head: `${reachedOf(asks, at.reach)} ${asks === 1 ? "waits" : "wait"} for your approval`,
+    question:
+      asks === 1
+        ? "Who is waiting for my approval?"
+        : `Who are the ${asks} ${at.reach ? "businesses" : "people"} waiting for my approval?`,
+  };
+}
+
+/** A going run whose emails the check holds: they wait on the run for you, and the rest goes as planned. */
+function heldWords(run: RunLike, kind: string): TodayRunWordsVM["held"] {
+  const held = run.held ?? 0;
+  return {
+    meta: `${kind} · going`,
+    sentence: `${heldEmailsWords(held)}. The rest goes as planned.`,
+    status: ["Waits for you"],
+    short: heldEmailsWords(held),
+    why: "The rest goes as planned.",
+    head: heldEmailsWords(held),
+    question: held === 1 ? "Why was an email held?" : `Why were ${held} emails held?`,
+  };
+}
+
+/** A going run whose emails are handed to you: they wait on the run for you to send them from your inbox (00429). */
+function draftedWords(run: RunLike, kind: string): TodayRunWordsVM["drafted"] {
+  const drafted = run.drafted ?? 0;
+  const emails = plural(drafted, "email", "emails");
+  return {
+    meta: `${kind} · to send`,
+    sentence: `${emails} to send from your inbox, each written and checked.`,
+    status: ["Handed to you"],
+    short: `${emails} for you to send`,
+    why: "From your inbox, each written and checked.",
+    head: `${emails} for you to send`,
+    question: drafted === 1 ? "What does the email say?" : `What do the ${drafted} emails say?`,
+  };
+}
+
 /**
  * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
  * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
@@ -148,52 +234,18 @@ export interface TodayRunWordsVM {
 export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM {
   // A reach-out's run writes to businesses a search found, not to people the workspace knows (Reach out Part 5, PR 8).
   const reach = isReachOutRun(run.audience);
-  const one = run.recipient_count === 1;
-  const people = reach
-    ? `${run.recipient_count} ${one ? "business" : "businesses"}`
-    : `${run.recipient_count} ${one ? "person" : "people"}`;
+  const people = reachedOf(run.recipient_count, reach);
   // A person reads "campaign", never "playbook" (decision 19 of 9 Oct 2026); a sequence to leads sends cold emails, never
   // "a reach-out" (the Campaigns wiring review's lane 7).
   const kind = reach ? "Cold email" : "Campaign";
   const sent = `${run.counts.sent} sent`;
-  const held = `${heldEmailsWords(run.held ?? 0)}. The rest goes as planned.`;
-  const drafted = `${plural(run.drafted ?? 0, "email", "emails")} to send from your inbox, each written and checked.`;
-  // How its wait ends, by the wait rule (decision 0064): a customer batch's until its day ends, then skipped and told, a
-  // visit's until 21:00, as its notice says (batchWaitWords); a reach-out's or a one-off's until it is answered.
-  const ends =
-    !reach && run.playbook_id
-      ? batchWaitWords(audienceTrigger(run.audience), run.offered)
-      : waitEndsWords("leads_batch");
-  // A freed time's run says the time first, and why these people (0082): they asked and never booked.
-  const waitingWhy = run.offered
-    ? `${people} asked this month and never booked. ${ends}.`
-    : facts
-      ? batchSaid(facts, ends)
-      : `${ends}.`;
-  const waiting = run.offered ? `${capitalize(run.offered)} opened. ${waitingWhy}` : `${people}. ${waitingWhy}`;
   const took = typeof run.counts.took === "number" ? `, ${run.counts.took} took it` : "";
-  // What an OK sends and what the check holds apart, where it holds any: each held one is decided on its own.
-  const undecided = batchHeldEmails(run);
-  const asks = Math.max(0, run.recipient_count - undecided);
+  const waiting = waitingWords(run, facts, { reach, people, kind });
+  const held = heldWords(run, kind);
+  const drafted = draftedWords(run, kind);
   return {
     people,
-    waiting: {
-      meta: `${kind} · ready`,
-      sentence: waiting,
-      // The run's one phrase for it (broadcasts.ts BROADCAST_STATE_LABELS), which Sent, Campaigns and the drawer say too.
-      status: [RUN_WAITING_WORDS],
-      short:
-        undecided > 0
-          ? `${plural(asks, "waits", "wait")} for your approval · ${undecided} held`
-          : `${people} · ${RUN_WAITING_WORDS.toLowerCase()}`,
-      // What the check holds is said under the title, since an OK sends none of it.
-      why: undecided > 0 ? `${undecided} held for a look. ${waitingWhy}` : waitingWhy,
-      head: `${asks} ${reach ? (asks === 1 ? "business" : "businesses") : asks === 1 ? "person" : "people"} ${asks === 1 ? "waits" : "wait"} for your approval`,
-      question:
-        asks === 1
-          ? "Who is waiting for my approval?"
-          : `Who are the ${asks} ${reach ? "businesses" : "people"} waiting for my approval?`,
-    },
+    waiting,
     late: { meta: `${kind} · too late to approve`, status: [RUN_LATE_WORDS], short: RUN_LATE_WORDS },
     soon: {
       meta: `${kind} · sends ${run.when}`,
@@ -205,30 +257,14 @@ export function todayRunWords(run: RunLike, facts?: BatchFacts): TodayRunWordsVM
       counts: `${run.counts.replied ? `${sent}, ${run.counts.replied} replied` : sent}${took}`,
       still: run.state === "sending",
     },
-    held: {
-      meta: `${kind} · going`,
-      sentence: held,
-      status: ["Waits for you"],
-      short: heldEmailsWords(run.held ?? 0),
-      why: "The rest goes as planned.",
-      head: heldEmailsWords(run.held ?? 0),
-      question: (run.held ?? 0) === 1 ? "Why was an email held?" : `Why were ${run.held ?? 0} emails held?`,
-    },
-    drafted: {
-      meta: `${kind} · to send`,
-      sentence: drafted,
-      status: ["Handed to you"],
-      short: `${plural(run.drafted ?? 0, "email", "emails")} for you to send`,
-      why: "From your inbox, each written and checked.",
-      head: `${plural(run.drafted ?? 0, "email", "emails")} for you to send`,
-      question: (run.drafted ?? 0) === 1 ? "What does the email say?" : `What do the ${run.drafted ?? 0} emails say?`,
-    },
+    held,
+    drafted,
     brief:
       runHeldEmails(run) > 0
-        ? { waits: "waiting for you", sentence: held }
+        ? { waits: "waiting for you", sentence: held.sentence }
         : runDraftedEmails(run) > 0
-          ? { waits: "waiting for you", sentence: drafted }
-          : { waits: RUN_WAITING_WORDS.toLowerCase(), sentence: waiting },
+          ? { waits: "waiting for you", sentence: drafted.sentence }
+          : { waits: RUN_WAITING_WORDS.toLowerCase(), sentence: waiting.sentence },
   };
 }
 

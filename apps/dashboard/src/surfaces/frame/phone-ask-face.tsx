@@ -8,7 +8,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { MASCOT } from "@/bridge/mascot";
 import { AskFace } from "../kit/face/ask-face";
-import { flyArc, type ArcBox } from "../kit/motion/arc";
+import { moveAlongArc, type ArcBox } from "../kit/motion/arc";
 
 /** How long the three take home: the canvas's 360 ms, shorter than their way out. */
 const HOME_MS = 360;
@@ -40,11 +40,15 @@ export function PhoneAskFace({ away }: { away: boolean }) {
     if (!from || !outer.current || !inner.current) return;
     const to = outer.current.getBoundingClientRect();
     // By the three's own size in each place: a tile there (fitted to its canvas, MASCOT.fitSide) against a tile here.
-    void flyArc(outer.current, inner.current, from, to, {
-      ms: HOME_MS,
-      way: "fall",
-      scale: MASCOT.fitSide(from.width, from.height) / SIDE,
-    });
+    void moveAlongArc(
+      { outer: outer.current, inner: inner.current },
+      { from, to },
+      {
+        ms: HOME_MS,
+        way: "fall",
+        scale: MASCOT.fitSide(from.width, from.height) / SIDE,
+      },
+    );
   }, [away]);
   return (
     <span className="phone-ask-arc" ref={outer}>

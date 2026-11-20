@@ -21,7 +21,7 @@ import { stepDone } from "./queue-steps";
 import { KeptAll } from "../need-you/visit-work";
 
 /** To do's rows as Need you draws them: the rows drawn, how many there are in all, and the toast their presses say in. */
-export interface ToDoRows {
+interface ToDoRows {
   drawn: ReactElement[];
   /** The rows themselves, in their order, and what their presses are handed: the page's card and its lines draw from them. */
   rows: readonly TodayQueueRowVM[];
@@ -85,16 +85,16 @@ export function useToDoRows({
     focus,
     open: open ?? (() => undefined),
     word,
-    stepDone: (r) =>
-      stepDone(r, flash, {
+    stepDone: (row) =>
+      stepDone(row, flash, {
         // Finished, it is kept where it stood with its Undo, which the row says (need-you/row-state.ts STEP_FINISHED).
         finished: (undo) => {
-          setRowState(r.id, STEP_FINISHED, undo);
-          setKept((was) => keptWith(was, r, rows));
+          setRowState(row.id, STEP_FINISHED, undo);
+          setKept((was) => keptWith(was, row, rows));
         },
         undone: () => {
-          setRowState(r.id, STEP_FINISHED, null);
-          setKept((was) => keptWithout(was, r));
+          setRowState(row.id, STEP_FINISHED, null);
+          setKept((was) => keptWithout(was, row));
         },
       }),
   };

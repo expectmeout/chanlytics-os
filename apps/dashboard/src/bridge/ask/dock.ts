@@ -18,23 +18,23 @@ export interface AskDock {
   press: HTMLElement | null;
 }
 
-const NONE: AskDock = { field: null, press: null };
-let held: AskDock = NONE;
+const NO_DOCK: AskDock = { field: null, press: null };
+let dockHeld: AskDock = NO_DOCK;
 /** AI's Line is drawn on a phone where the frame's bar stands. */
 let stands = false;
-const heard = new Set<() => void>();
+const dockHearers = new Set<() => void>();
 
-const hear = (say: () => void) => {
-  heard.add(say);
+const hearDock = (say: () => void) => {
+  dockHearers.add(say);
   return () => {
-    heard.delete(say);
+    dockHearers.delete(say);
   };
 };
 
 const take = (part: keyof AskDock) => (el: HTMLElement | null) => {
-  if (held[part] === el) return;
-  held = { ...held, [part]: el };
-  for (const say of heard) say();
+  if (dockHeld[part] === el) return;
+  dockHeld = { ...dockHeld, [part]: el };
+  for (const say of dockHearers) say();
 };
 
 /** The frame's refs, one a room and the same on every draw: the room as it is drawn, null as it goes. */
@@ -44,13 +44,13 @@ export const askDockRef = { field: take("field"), press: take("press") } as cons
 export function sayAskDocked(on: boolean): void {
   if (stands === on) return;
   stands = on;
-  for (const say of heard) say();
+  for (const say of dockHearers) say();
 }
 
 /** Whether AI's Line stands on the frame's bar: the frame folds its bar and gives its circle over while it does. */
 export function useAskDocked(): boolean {
   return useSyncExternalStore(
-    hear,
+    hearDock,
     () => stands,
     () => false,
   );
@@ -59,8 +59,8 @@ export function useAskDocked(): boolean {
 /** The rooms the frame holds now, each null until it is drawn. */
 export function useAskDock(): AskDock {
   return useSyncExternalStore(
-    hear,
-    () => held,
-    () => NONE,
+    hearDock,
+    () => dockHeld,
+    () => NO_DOCK,
   );
 }
