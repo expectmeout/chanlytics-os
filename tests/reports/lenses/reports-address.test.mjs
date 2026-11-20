@@ -113,12 +113,12 @@ test("on days a member picked every tab keeps them, so another lens is the same 
   );
 });
 
-test("Ads is a tab where the workspace's Ads preview is on and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
+test("Ads is a tab where Ads is drawn here and nowhere else, between Campaigns and Reviews; its scope is its own and the days ride every tab", () => {
   hold();
   try {
     setSurfaceValue("settings", undefined);
     assert.ok(!chromeAt(null).views.tabs.some((t) => t.id === "ads"), "a workspace without ads has no tab");
-    setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
+    setSurfaceValue("settings", { settings: { ads: true } });
     assert.deepEqual(
       chromeAt(null).views.tabs.map((t) => t.id),
       ["overview", "receptionist", "people", "pipeline", "campaigns", "ads", "reviews"],

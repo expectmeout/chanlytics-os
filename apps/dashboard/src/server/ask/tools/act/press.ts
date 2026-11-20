@@ -52,7 +52,7 @@ async function saidYes(t: ToolContext, title: string): Promise<boolean> {
     {
       tenantId: t.tenantId,
       userId: t.ctx.userId,
-      // Its own line of the ledger, apart from the drafts (00658): what reading a yes costs is read on its own.
+      // Its own line of the ledger, apart from the drafts (00660): what reading a yes costs is read on its own.
       purpose: "yes_check",
       signal: AbortSignal.timeout(YES_CHECK_MS),
       request: {

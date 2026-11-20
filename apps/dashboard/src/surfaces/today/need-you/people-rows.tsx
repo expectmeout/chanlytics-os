@@ -51,7 +51,7 @@ export interface NeedYouRowsCtx {
   /** Open a row drawn short: on a desk in place, closing the one open; on a phone in the sheet that walks the list. */
   open: (rowId: string) => void;
   word: AppointmentWord;
-  stepDone: (row: TodayQueueRowVM) => void;
+  stepDone: (row: TodayQueueRowVM) => void | Promise<void>;
   /**
    * On a phone (the phone canvas, 28 Oct 2026): the card's words cut to two lines with Read, which opens the sheet that
    * walks the list on it (walk-sheet.tsx), as a row drawn short does.
@@ -70,7 +70,7 @@ const actKindOf = (r: { id: string }, c: NeedYouRowsCtx): "primary" | "ghost" =>
  * A row's verb as a short row draws it: Ask's mark first where its words for the row are ready (a reply drafted, a call's
  * notes), then the verb. Drawn, since it hears the row's draft as it lands.
  */
-function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
+export function VerbWords({ row, words }: { row: TodayQueueRowVM; words: string }) {
   const draft = useDraft(draftWantOf(row));
   // A call's read says nothing of words ready: only a reply's mark says Ask has them.
   const ready = draft?.state === "ready" && row.kind !== "callback" && !row.failed;
@@ -101,7 +101,7 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
           ? {
               label: r.cta.label,
               kind,
-              onClick: () => c.stepDone(r),
+              onClick: () => void c.stepDone(r),
               // Several rows say Done: a reader hears whose, as the thread header's does.
               gate: { ...gate("approve", "mark a step done"), "aria-label": NOTE_WORDS.markDone(r.sentence) },
             }

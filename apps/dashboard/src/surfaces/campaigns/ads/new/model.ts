@@ -61,8 +61,6 @@ interface NewAdHere {
   told: AdTellResult | null;
   /** The card's own need for the ad account, as the page read it: the same line the card says, with the same act. */
   need: NeedVM | null;
-  /** An example, on the page's sample: nothing is made anywhere, and its press says so. */
-  sample: boolean;
 }
 
 /** What a line's one act does. */
@@ -217,17 +215,15 @@ function waitsFor(here: NewAdHere): string | null {
   if (question) return NEW.press.answer;
   if (declared) return NEW.press.kind(KIND[declared].ad);
   if (answer.checks.length > 0) return NEW.press.check;
-  if (here.sample) return null;
   if (!answer.owner) return NEW.press.owner;
   return answer.turn_on === "not_yet" ? NEW.press.notYet : null;
 }
 
-/** What "Tell AI" last came to, as one quiet sentence. On the example it changes nothing, and says so. */
-function tellStatusOf(outcome: AdTellResult | null, sample: boolean): string | null {
+/** What "Tell AI" last came to, as one quiet sentence. */
+function tellStatusOf(outcome: AdTellResult | null): string | null {
   if (outcome === null) return null;
   if (outcome.kind === "changed") return NEW.tell.changed[outcome.what];
   if (outcome.kind === "failed") return NEW.tell.failed;
-  if (sample) return NEW.tell.sample;
   return outcome.fault ? NEW.tell.fault(WORDS_FAULT[outcome.fault].told) : NEW.tell.none;
 }
 
@@ -237,19 +233,43 @@ function pictureSrc(picture: AdDraftHere["draft"]["picture"]): string | null {
   return picture.made ? `${fileViewOf(picture.id)}?shape=portrait` : `${fileViewOf(picture.id)}?w=720`;
 }
 
+/**
+ * Why the amount the draft's own rule proposed (the plan's 4.6 and G6): a starting amount and why it is one, or the
+ * open times and what a booking from an ad has cost, with where that was held. Said while the amount is the rule's,
+ * over the rule's own days; once the owner sets another, what it comes to a day.
+ */
+function amountWhy(answer: AdDraftHere, local: AdLocal, days: number): string[] {
+  const { currency } = answer.account;
+  const { proposed } = answer.amount;
+  if (local.total_minor !== proposed.total_minor || days !== proposed.days)
+    return [NEW.why.aDay(moneyOf(aDayOf(local.total_minor, days, currency), currency), days)];
+  const { basis } = proposed;
+  if (basis.kind === "starting")
+    return [
+      basis.why === "no_calendar"
+        ? NEW.why.startingNoCalendar
+        : basis.why === "full"
+          ? NEW.why.startingFull(days)
+          : NEW.why.starting,
+    ];
+  const money = moneyOf(local.total_minor, currency);
+  const held = {
+    owner_most: NEW.why.heldToMost(money),
+    largest_turned_on: NEW.why.heldToLargest(money),
+    nothing_turned_on: NEW.why.heldToLeast,
+    meta_least: NEW.why.raisedToLeast(days),
+  } as const;
+  const booked = NEW.why.booked(basis.open_times, days, moneyOf(basis.cost_minor, currency));
+  return basis.held_to ? [booked, held[basis.held_to]] : [booked];
+}
+
 /** Why this amount, and why this service where the draft's own rule picked it. */
 function whyLines(here: NewAdHere, days: number): string[] {
   const { answer, local } = here;
-  const { currency } = answer.account;
-  const starting = local.total_minor === answer.amount.least_minor && local.end_day === answer.draft.end_day;
-  const amount = starting
-    ? answer.amount.history
-      ? NEW.why.startingKnown(days)
-      : NEW.why.starting
-    : NEW.why.aDay(moneyOf(aDayOf(local.total_minor, days, currency), currency), days);
   const picked =
     answer.picked === "most_booked" ? NEW.why.mostBooked : answer.picked === "first" ? NEW.why.first : null;
-  return picked ? [amount, picked] : [amount];
+  const amount = amountWhy(answer, local, days);
+  return picked ? [...amount, picked] : amount;
 }
 
 /** About what a total is a day, as a whole amount of the currency. */
@@ -257,6 +277,13 @@ function aDayOf(totalMinor: number, days: number, currency: string): number {
   const unit = minorPerUnit(currency);
   return Math.round(totalMinor / Math.max(1, days) / unit) * unit;
 }
+
+/**
+ * The service as New ad's title and sentence say it: the few words the ad writer named it in with the words, where it
+ * has (a service's own name is the owner's free text, and can run to a sentence); else its name as Services keeps it,
+ * whole. Never cut by a rule of ours: "…" says something is under way (docs/words.md).
+ */
+const serviceSaid = (draft: AdDraftHere["draft"]): string => draft.label ?? draft.service.trim();
 
 /** The screen, from what it holds. */
 export function newAdView(here: NewAdHere): NewAdVM {
@@ -268,11 +295,12 @@ export function newAdView(here: NewAdHere): NewAdVM {
   const version = words.at === "written" ? (versions[shownAt] ?? null) : null;
   const waits = waitsFor(here);
   const kinds = kindsOf(here);
+  const service = serviceSaid(answer.draft);
   return {
-    title: answer.draft.service,
-    kicker: here.sample ? NEW.kickerSample : NEW.kicker,
+    title: service.charAt(0).toUpperCase() + service.slice(1),
+    kicker: answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker,
     sentence: {
-      service: answer.draft.service,
+      service,
       miles: NEW.sentence.miles(local.miles),
       amount: moneyOf(local.total_minor, currency),
       end: dayWord(local.end_day),
@@ -306,7 +334,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
         video: picture.kind === "video",
       },
     },
-    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told, here.sample) },
+    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told) },
     facts: [
       { label: NEW.facts.charges, value: NEW.facts.account(answer.account.name, currencyWords(currency)) },
       {
@@ -317,7 +345,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
     press: {
       words: NEW.press.turnOn(moneyOf(local.total_minor, currency)),
       can: waits === null,
-      under: waits ?? (here.sample ? NEW.press.sample : NEW.press.ready),
+      under: waits ?? NEW.press.ready,
     },
   };
 }

@@ -95,7 +95,7 @@ export async function askTurn(auth: Admitted, tIn: number, request: Request): Pr
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const modelPurpose = modelPurposeOf(purpose);
-  // The ledger says what the call was for: a small JSON call its own line, every other its route (00658).
+  // The ledger says what the call was for: a small JSON call its own line, every other its route (00660).
   const ledgerPurpose = ledgerPurposeOf(purpose);
   if (!(await mayUseModelFor(modelPurpose, tenantId))) {
     log.warn("ask_gateway_may_not_spend", { tenant_id: tenantId, purpose });

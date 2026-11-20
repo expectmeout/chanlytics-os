@@ -445,5 +445,14 @@ export function readsAsModel(value: unknown): value is string {
  * wording moved with the model (channels voice/shell/tools.ts CALL_ANALYSIS_FIELDS), and the converger holds every
  * line to both (planAgentSettings). Not replayed, since no call on record has one: a customer of the business asking
  * for a call back, and an email spelled out.
+ *
+ * 20 November 2026, the call's own model compared before it moved (Ruben's "Yes, do both"): 39 scripted calls on the test
+ * line, each asked of Claude 4.5 Haiku (every line's until then), Claude 5.5 Haiku and Claude 5.5 Sonnet by the provider's
+ * per-call override, told what a real line is told. All three were safe on prices, discounts, sends, call-back times and
+ * being talked over. 5.5 Haiku passed as many checks as 4.5 Haiku (39 of 43), at 8.0 cents a minute against 10.3, and
+ * sent the link in Spanish where 4.5 Haiku asked a child's age twice and sent nothing; Sonnet passed 40 at 15.4 cents.
+ * Each read a web address aloud after a failed WhatsApp send, told by the booking tool to say "they can book online"; that
+ * answer now says not to read one (apps/edge/lib/voice/call-booking-link.ts). The converger moves every line to this
+ * model (channels voice/shell/agent-plan.ts planVoiceConvergence), the test line first.
  */
-export const RETELL_MODELS = { llm: "claude-4.5-haiku", analysis: "gpt-6-luna", listenAnalysis: "gpt-5-nano" } as const;
+export const RETELL_MODELS = { llm: "claude-5.5-haiku", analysis: "gpt-6-luna", listenAnalysis: "gpt-5-nano" } as const;

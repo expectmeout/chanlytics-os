@@ -113,8 +113,6 @@ const BookingsConfigSchema = z.object({ tool: z.string().max(40).optional(), by_
 export const FeaturesConfigSchema = z
   .object({
     vision: z.boolean().optional(),
-    /** Campaigns › Ads, its sample drawn in this workspace as a demo session draws it (contracts ads/address.ts). */
-    ads_preview: z.boolean().optional(),
     /** A business's videos taken in this workspace (decision 0099, stage B; contracts files/video.ts videoPreviewOf). */
     video_preview: z.boolean().optional(),
     /** Connect Meta offered in this workspace (decision 0117), and so posting to Instagram; contracts content/address.ts contentPreviewOf. */

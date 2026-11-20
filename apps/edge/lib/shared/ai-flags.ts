@@ -294,11 +294,20 @@ export const FLAGS: readonly Flag[] = [
     sunset: "2027-01-31",
   },
   {
-    name: "ads_preview",
-    mechanism: "workspace_feature",
-    does: "Campaigns › Ads (its page, its Reports lens, Ad accounts in Connections) drawn in this workspace before the Ads read is wired (0049): it opens on what is true, nothing connected and its own counts, and its sample is a press away.",
+    name: "ADS_WORKSPACES",
+    mechanism: "edge_env",
+    does: "The workspaces Campaigns › Ads is offered in (the Ads plan's 6.2 and D7), by id, or `*` for every one: there its page, its Reports lens and the ad account's card in Connections are drawn and Connect works. A workspace off the list still sees an ad account it holds, so it can pause and disconnect. It took the place of the workspace feature `ads_preview`.",
     owner: "Ruben",
+    // The day the workspace feature it replaced was to be looked at again: by then Meta's review says whether it is `*`.
     sunset: "2026-12-31",
+  },
+  {
+    name: "ADS_WRITES",
+    mechanism: "edge_env",
+    does: "Whether an owner's presses on an ad reach Meta from this deployment (the Ads plan's 6.2): `live` sends, `sandbox` does everything but the call, anything else refuses a press before it is kept.",
+    owner: "Ruben",
+    sunset: null,
+    kept: "The one lever that stops every change to a business's ads at Meta from a deployment at once, whatever its code does.",
   },
   {
     name: "ANTHROPIC_EVAL_KEY",

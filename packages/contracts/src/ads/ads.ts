@@ -14,7 +14,6 @@
  */
 import type { AppointmentWord } from "../journey/appointment-word";
 import { DAY_MS } from "../shared/time";
-import { minorPerUnit } from "./money";
 
 /** The three platforms an owner's own ad accounts live on. */
 export type AdPlatform = "meta" | "google" | "tiktok";
@@ -347,61 +346,3 @@ export function addDays(iso: string, count: number): string {
 /** Whole days from `a` to `b` (positive where b is later). */
 export const daysBetween = (first: string, second: string): number =>
   Math.round((atNoon(second) - atNoon(first)) / DAY_MS);
-
-/**
- * About how much a day an ad spends once its amount or end moves: the amount itself for a daily budget; for a total, what is
- * left of it over the days left to its end (today included), in whole units of the ad's own currency, so "about $15 a day"
- * follows a raise or a later end.
- */
-export function aboutADayAfter(options: { ad: AdRead; amountMinor: number; endDay: string; today: string }): number {
-  const { ad, amountMinor, endDay, today } = options;
-  if (ad.budget.mode === "daily") return amountMinor;
-  const spent = ad.days.reduce((all, d) => all + d.spendMinor, 0);
-  const daysLeft = Math.max(1, daysBetween(today, endDay) + 1);
-  const perUnit = minorPerUnit(ad.currency);
-  const units = Math.max(0, Math.round((amountMinor - spent) / daysLeft / perUnit));
-  return units * perUnit;
-}
-
-/** What Edit changes in one press of Save: only the fields it moved. */
-export interface AdPatch {
-  serviceId?: string;
-  area?: AdArea;
-  endDay?: string;
-  amountMinor?: number;
-  copy?: AdCopy;
-  /** A new photo was chosen (the sample has none to pick). */
-  photo?: boolean;
-}
-
-/** Whether two areas are the same: the same circle, or the same ZIP codes. */
-export function sameArea(adArea: AdArea, otherAdArea: AdArea): boolean {
-  if (adArea.kind === "radius" && otherAdArea.kind === "radius") return adArea.miles === otherAdArea.miles;
-  return adArea.kind === "zips" && otherAdArea.kind === "zips" && adArea.zips.join(",") === otherAdArea.zips.join(",");
-}
-
-const saidWords = (c: AdCopy): string => JSON.stringify([c.headline, c.text, c.headlines, c.lines]);
-
-/**
- * Whether a change sends the ad back to its platform for checking: the offer, the photo, the words or the area do, an amount
- * or an end date does not, and an ad the platform turned down is checked again whatever else moved.
- */
-export function patchRestarts(ad: AdRead, patch: AdPatch): boolean {
-  const offer = patch.serviceId !== undefined && patch.serviceId !== ad.serviceId;
-  const area = patch.area !== undefined && !sameArea(patch.area, ad.area);
-  const words = patch.copy !== undefined && saidWords(patch.copy) !== saidWords(ad.copy);
-  return offer || area || words || patch.photo === true || ad.needs?.code === "rejected";
-}
-
-/** The ad with a patch in it: the offer follows its Service, and the amount a day follows an amount or an end that moved. */
-export function adWith(ad: AdRead, read: AdsRead, patch: AdPatch): AdRead {
-  const service = patch.serviceId === undefined ? undefined : read.services.find((s) => s.id === patch.serviceId);
-  let next: AdRead = service ? { ...ad, offer: service.name, serviceId: service.id } : ad;
-  if (patch.area) next = { ...next, area: patch.area };
-  if (patch.copy) next = { ...next, copy: patch.copy };
-  if (patch.amountMinor === undefined && patch.endDay === undefined) return next;
-  const amountMinor = patch.amountMinor ?? ad.budget.amountMinor;
-  const endDay = patch.endDay ?? ad.endDay;
-  const aboutADayMinor = aboutADayAfter({ ad, amountMinor, endDay, today: read.today });
-  return { ...next, endDay, budget: { ...ad.budget, amountMinor }, aboutADayMinor };
-}

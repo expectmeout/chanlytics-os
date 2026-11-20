@@ -112,24 +112,22 @@ function firstFrame() {
 const corals = (tree) =>
   all(tree, (n) => n.type === "button" && /(^| )(btn-primary|primary)( |$)/.test(String(n.props?.className ?? "")));
 const byTestId = (tree, id) => all(tree, (n) => n.props?.["data-testid"] === id)[0];
-/** Where each coral stands: the zone holding it, by its test id, nearest first. */
-const ZONES = ["today-group-next", "today-group-waiting", "today-group-todo", "today-setup", "today-ask-found"];
-const zoneOf = (tree, coral) => ZONES.find((z) => all(byTestId(tree, z) ?? null, (n) => n === coral).length > 0);
-/** The work's column: the blocks it holds, in its order. */
-const workColumn = (tree) => {
-  const col = all(tree, (n) =>
-    String(n.props?.className ?? "")
-      .split(" ")
-      .includes("tz-col"),
-  )[0];
-  return [col.props.children]
-    .flat(Infinity)
-    .filter(Boolean)
-    .map((c) => c.type?.name ?? c.props?.["data-testid"]);
+/**
+ * Since Today, calm (19 Nov 2026) the page's one coral is its card's: the first thing worth doing, drawn first and whole,
+ * by whichever part holds it (data-holder: who waits, To do, setting up, what AI found); every other thing is a line.
+ */
+const cardOf = (tree) =>
+  byTestId(tree, "today-card") ??
+  // Setting up is its own card, the setup card itself, drawn first where it holds the page's (zones/page.tsx).
+  all(tree, (n) => String(n.props?.className ?? "").includes("tz-setup-lead"))[0];
+const holderOf = (tree) => {
+  const card = cardOf(tree);
+  if (!card) return null;
+  return card.props["data-holder"] ?? (String(card.props.className ?? "").includes("tz-setup-lead") ? "setup" : null);
 };
-const wideFound = (tree) => String(byTestId(tree, "today-ask-found")?.props.className ?? "").includes("tz-found-wide");
+const inCard = (tree, coral) => all(cardOf(tree) ?? null, (n) => n === coral).length > 0;
 
-test("someone waiting, setup left and an idea found: the first frame's one coral is the person's, Need you leads, Ask found stands under the day", () => {
+test("someone waiting, setup left and an idea found: the first frame's one coral is the person's, in the card; setting up and what AI found are lines", () => {
   moment({ waiting: [row("rosa", "Rosa Díaz")], setup: true, found: true });
   try {
     const page = firstFrame();
@@ -139,19 +137,16 @@ test("someone waiting, setup left and an idea found: the first frame's one coral
       1,
       `one coral on the first frame, not ${coral.length}: ${coral.map(textOf).join(" | ")}`,
     );
-    assert.equal(zoneOf(page, coral[0]), "today-group-next", "the person waiting holds it");
-    assert.deepEqual(
-      workColumn(page),
-      ["NeedYou", "ColdEmailNote", "TodayContentNote", "today-setting-up"],
-      "REGRESSION: Ask found led the page's first frame while Rosa waited, then moved",
-    );
-    assert.equal(wideFound(page), false, "Ask found under the day, its rows not three across");
+    assert.equal(holderOf(page), "queue", "REGRESSION: the person waiting holds the card on the first frame");
+    assert.ok(inCard(page, coral[0]), "and the coral is the card's");
+    assert.ok(byTestId(page, "today-setup-line"), "setting up is one line, never the card over someone waiting");
+    assert.match(textOf(cardOf(page)), /Rosa/);
   } finally {
     cleared();
   }
 });
 
-test("only a to-do, with setup left: To do's first act is the one coral, never the setup card's beside it", () => {
+test("only a to-do, with setup left: To do's first holds the card and its act is the one coral, never the setup's beside it", () => {
   moment({ steps: true, setup: true });
   try {
     const page = firstFrame();
@@ -161,13 +156,14 @@ test("only a to-do, with setup left: To do's first act is the one coral, never t
       1,
       `REGRESSION: Continue setting up drew coral before To do said it held it: ${coral.map(textOf).join(" | ")}`,
     );
-    assert.equal(zoneOf(page, coral[0]), "today-group-todo");
+    assert.equal(holderOf(page), "todo");
+    assert.ok(inCard(page, coral[0]));
   } finally {
     cleared();
   }
 });
 
-test("only setup left, with an idea found: the card's act is the coral and Ask found leads, wide and quiet", () => {
+test("only setup left, with an idea found: setting up holds the card and its act is the coral; what AI found is a line", () => {
   moment({ setup: true, found: true });
   try {
     const page = firstFrame();
@@ -177,40 +173,32 @@ test("only setup left, with an idea found: the card's act is the coral and Ask f
       1,
       `REGRESSION: Check it stood coral beside Continue on the first frame: ${coral.map(textOf).join(" | ")}`,
     );
-    assert.equal(zoneOf(page, coral[0]), "today-setup");
-    assert.deepEqual(workColumn(page), [
-      "today-setting-up",
-      "NeedYou",
-      "ColdEmailNote",
-      "TodayContentNote",
-      "AskFound",
-    ]);
-    assert.equal(wideFound(page), true, "nobody waits: Ask found leads the work's column");
+    assert.equal(holderOf(page), "setup");
+    assert.ok(inCard(page, coral[0]));
   } finally {
     cleared();
   }
 });
 
-test("only an idea found: Ask found leads, its first act the coral", () => {
+test("only an idea found: what AI found holds the card, its first act the coral", () => {
   moment({ found: true });
   try {
     const page = firstFrame();
     const coral = corals(page);
     assert.equal(coral.length, 1);
-    assert.equal(zoneOf(page, coral[0]), "today-ask-found");
-    assert.equal(wideFound(page), true);
+    assert.equal(holderOf(page), "found");
+    assert.ok(inCard(page, coral[0]));
   } finally {
     cleared();
   }
 });
 
-test("nothing waits and nothing was found: the day alone in one column, and no coral", () => {
+test("nothing waits and nothing was found: no card, and no coral", () => {
   moment({});
   try {
     const page = firstFrame();
     assert.equal(corals(page).length, 0);
-    assert.ok(all(page, (n) => String(n.props?.className ?? "").includes("tz-bento-one")).length === 1, "one column");
-    assert.equal(byTestId(page, "today-ask-found"), undefined);
+    assert.equal(cardOf(page), undefined, "nothing is the card");
   } finally {
     cleared();
   }

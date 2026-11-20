@@ -12,7 +12,7 @@ import { RUN_OPEN_WORDS } from "../../shell/campaign-rooms";
 import { invitationExpired } from "../../shell/identity";
 import { noticeTone, type NoticeTone } from "../../waits/notice-tones";
 import { SEQUENCES_ROUTE } from "../../campaigns/sequences/address";
-import { ADS_ROUTE } from "../../ads/address";
+import { ADS_ROUTE, newAdRoute } from "../../ads/address";
 import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, contentRouteOf } from "../../content/address";
 
 /** Made's Needs you, where a post that stopped stands with why (Campaigns › Content). */
@@ -350,11 +350,20 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
   // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
   ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
+  // An owner's ads (00658): each row names one ad and opens its drawer, so its door says so. Meta not running one until
+  // the owner acts is a warning; an ad that ended, spent its total or brought no one in a week is news.
+  ad_refused: { icon: "alert", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_unpaid: { icon: "money", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_ended: { icon: "flag", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_spent: { icon: "money", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_quiet: { icon: "chat", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
   // A watched folder or its account that needs someone (00657): its row opens Settings › Connections, where the folder's
   // row says the one thing to do. Its mark is the folder's, as the screens canvas's bell draws it.
   footage: { icon: "folder", tone: "warn", action: "Open Connections", to: "admin/integrations", own: true },
   // The day's new photos and videos from the watched folder (00657): news, in the Library.
   footage_in: { icon: "folder", tone: "", action: "Open Library", to: CONTENT_LIBRARY_ROUTE },
+  // A draft ad left for the owner (00659): its row opens New ad on it.
+  ad_draft: { icon: "sparkle", tone: "", action: "Open the draft", to: newAdRoute(), own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

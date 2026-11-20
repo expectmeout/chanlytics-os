@@ -246,6 +246,8 @@ const SEARCH = "tool_search_tool_bm25";
 const OPERATOR_ACTS = [
   // A yes said to a card already waiting (the answers canvas, D15): the press, by another way.
   "press_card",
+  // A new ad drafted in New ad (the Ads plan's 6.3): an operator may draft; Turn on is the owner's, on the page.
+  "propose_ad",
   "propose_call",
   "propose_deal",
   "propose_follow_up",
@@ -307,8 +309,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 29, 34, 34],
-    "a viewer thirteen reads and the search, an operator fifteen acts more, a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
+    [14, 30, 35, 35],
+    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

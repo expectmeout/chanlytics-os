@@ -44,6 +44,7 @@ export type Database = {
           disconnected_at: string | null
           external_id: string | null
           id: string
+          most_minor: number | null
           name: string | null
           next_read_at: string | null
           notices_at: string | null
@@ -52,6 +53,7 @@ export type Database = {
           read_at: string | null
           read_error: string | null
           revoked_at: string | null
+          rung_at: string | null
           settle_at: string | null
           standing: Json
           status: string
@@ -72,6 +74,7 @@ export type Database = {
           disconnected_at?: string | null
           external_id?: string | null
           id?: string
+          most_minor?: number | null
           name?: string | null
           next_read_at?: string | null
           notices_at?: string | null
@@ -80,6 +83,7 @@ export type Database = {
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          rung_at?: string | null
           settle_at?: string | null
           standing?: Json
           status: string
@@ -100,6 +104,7 @@ export type Database = {
           disconnected_at?: string | null
           external_id?: string | null
           id?: string
+          most_minor?: number | null
           name?: string | null
           next_read_at?: string | null
           notices_at?: string | null
@@ -108,6 +113,7 @@ export type Database = {
           read_at?: string | null
           read_error?: string | null
           revoked_at?: string | null
+          rung_at?: string | null
           settle_at?: string | null
           standing?: Json
           status?: string
@@ -175,6 +181,51 @@ export type Database = {
             foreignKeyName: "ad_days_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_drafts: {
+        Row: {
+          account_id: string
+          created_at: string
+          draft: Json
+          id: string
+          kept_by: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          draft: Json
+          id?: string
+          kept_by?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          draft?: Json
+          id?: string
+          kept_by?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_drafts_account_id_same_workspace"
+            columns: ["tenant_id", "account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -8925,6 +8976,10 @@ export type Database = {
         Args: { p_account_id: string; p_actor: string; p_tenant_id: string }
         Returns: Json
       }
+      ad_account_most: {
+        Args: { p_most_minor: number; p_tenant_id: string }
+        Returns: boolean
+      }
       ad_account_read_keep: {
         Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
         Returns: string
@@ -8933,11 +8988,50 @@ export type Database = {
         Args: { p_account_id: string; p_how: string; p_tenant_id: string }
         Returns: boolean
       }
+      ad_bell_cause: {
+        Args: {
+          p_account_id: string
+          p_ad_id: string
+          p_budget_at: string
+          p_campaign_id: string
+          p_kind: string
+          p_set_id: string
+        }
+        Returns: string
+      }
+      ad_bell_causes: {
+        Args: { p_account_id: string; p_at: string; p_tenant_id: string }
+        Returns: {
+          ad_id: string
+          cause: string
+          kind: string
+        }[]
+      }
+      ad_bell_hearers: { Args: { p_tenant_id: string }; Returns: string[] }
+      ad_bell_ring: {
+        Args: { p_account_id: string; p_before: string[]; p_tenant_id: string }
+        Returns: Json
+      }
+      ad_bell_words: {
+        Args: {
+          p_ends_at: string
+          p_kind: string
+          p_many: number
+          p_name: string
+          p_said: string
+          p_zone: string
+        }
+        Returns: Json
+      }
       ad_credentials_drop: { Args: { p_account_id: string }; Returns: boolean }
       ad_credentials_get: { Args: { p_account_id: string }; Returns: Json }
       ad_credentials_put: {
         Args: { p_account_id: string; p_secret: Json }
         Returns: string
+      }
+      ad_draft_keep: {
+        Args: { p_account_id: string; p_draft: Json; p_tenant_id: string }
+        Returns: Json
       }
       ad_entry_keep: {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }

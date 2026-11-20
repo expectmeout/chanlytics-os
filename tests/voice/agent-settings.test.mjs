@@ -48,6 +48,7 @@ test("a fresh agent (provider defaults) is planned onto the pipeline's settings"
     "begin_message_delay_ms",
     "data_storage_retention_days",
     "enable_backchannel",
+    "enable_colloquial_model",
     "end_call_after_silence_ms",
     "handbook_config",
     "interruption_sensitivity",
@@ -304,18 +305,29 @@ test("a call's write-up runs on the product's model on every line: another model
   assert.equal(planAgentSettings(CONVERGED).agentPatch, null);
 });
 
-test("the LLM's model and temperature are reported when they differ, and never planned", () => {
+test("a line on another model is planned onto the product's, at its own temperature; a temperature is reported, and a model that could not be read is left alone", () => {
+  // The scripted calls of 20 November 2026 were the gate the model went through (contracts RETELL_MODELS): a line left on
+  // the old model answers otherwise than the calls proved, so the converger moves it, as it moves a call's write-up model.
   const desired = desiredVoiceShell(FN_URL, { "x-fn-secret": "sealed" });
-  const his = planVoiceConvergence({ ...desired, model: "claude-5.5-sonnet", model_temperature: 0.4 }, desired);
-  assert.equal(his.llmPatch, null, "a model change goes through the gate, never the converger");
-  assert.deepEqual(his.drift, []);
-  assert.equal(his.notes.length, 2);
-  assert.ok(his.notes[0].includes("claude-5.5-sonnet") && his.notes[0].includes(RETELL_MODELS.llm));
-  assert.ok(his.notes[1].includes("0.4"));
-  assert.deepEqual(
-    planVoiceConvergence({ ...desired, model: RETELL_MODELS.llm, model_temperature: 0 }, desired).notes,
-    [],
+  const his = planVoiceConvergence({ ...desired, model: "claude-4.5-haiku", model_temperature: 0.4 }, desired);
+  assert.deepEqual(his.llmPatch, {
+    model_config: { type: "cascading", primary: { model: RETELL_MODELS.llm }, temperature: 0.4 },
+  });
+  assert.equal(his.drift.length, 1);
+  assert.ok(
+    his.drift[0].includes("claude-4.5-haiku") && his.drift[0].includes(RETELL_MODELS.llm),
+    "the drift names the model the line is on and the product's",
   );
+  assert.equal(his.notes.length, 1, "what is planned is not also a note of something kept");
+  assert.ok(his.notes[0].includes("0.4"), "the temperature is the line's own, reported and carried over");
+
+  const onIt = planVoiceConvergence({ ...desired, model: RETELL_MODELS.llm, model_temperature: 0 }, desired);
+  assert.equal(onIt.llmPatch, null);
+  assert.deepEqual(onIt.notes, []);
+
+  const unread = planVoiceConvergence({ ...desired, model: null }, desired);
+  assert.equal(unread.llmPatch, null, "nothing is planned on a guess");
+  assert.deepEqual(unread.drift, []);
 });
 
 test("a line's model and temperature are read under the provider's model_config, and under the names it retires while it still answers them", async () => {
@@ -335,9 +347,13 @@ test("a line's model and temperature are read under the provider's model_config,
   // As the provider answers from 31 January 2027: model_config alone. A line off the product's model is still named.
   const after = await read({ model_config: config("claude-5.5-sonnet", 0.4) });
   assert.deepEqual([after.model, after.model_temperature], ["claude-5.5-sonnet", 0.4]);
-  const notes = planVoiceConvergence(after, desired).notes;
-  assert.equal(notes.length, 2);
-  assert.ok(notes[0].includes("claude-5.5-sonnet") && notes[1].includes("0.4"), JSON.stringify(notes));
+  const plan = planVoiceConvergence(after, desired);
+  assert.ok(
+    plan.drift.some((d) => d.includes("claude-5.5-sonnet")),
+    JSON.stringify(plan.drift),
+  );
+  assert.equal(plan.notes.length, 1);
+  assert.ok(plan.notes[0].includes("0.4"), JSON.stringify(plan.notes));
 
   // As it answers until then: both. The new name is the one read, and a temperature of 0 is a temperature.
   const both = await read({ model: "gpt-4.1", model_temperature: 1, model_config: config(RETELL_MODELS.llm, 0) });
@@ -366,37 +382,34 @@ test("how a call sounds is the product's on every line: a conversational persona
     interruption_sensitivity: null,
     begin_message_delay_ms: null,
     enable_backchannel: null,
+    enable_colloquial_model: null,
     handbook_config: null,
   });
   assert.deepEqual(salon.agentPatch, {
     interruption_sensitivity: 0.8,
     begin_message_delay_ms: 400,
     enable_backchannel: true,
+    enable_colloquial_model: true,
     handbook_config: {
-      default_personality: false,
-      conversational_personality: true,
-      natural_filler_words: true,
-      echo_verification: true,
-      speech_normalization: true,
+      conversational: { custom_prompt: null },
+      natural_filler_words: { custom_prompt: null },
+      echo_verification: { custom_prompt: null },
+      speech_normalization: { custom_prompt: null },
     },
   });
-  assert.equal(salon.drift.length, 4, "a line for each setting, and one for the handbook");
+  assert.equal(salon.drift.length, 5, "a line for each setting, and one for the handbook");
   assert.ok(salon.drift.some((d) => d.startsWith("interruption_sensitivity is unset; the product's is 0.8")));
-  // A line set by hand (Ruben's, 28 Oct 2026): its values become the product's, and the presets the product does not
-  // hold are kept as they are.
+  // A line set by hand, as the provider answers it: its values become the product's, the call-center script goes off,
+  // and a preset the product does not hold is kept as it was read.
   const his = planAgentSettings({
     ...CONVERGED,
     interruption_sensitivity: 0.95,
     begin_message_delay_ms: 200,
     enable_backchannel: null,
     handbook_config: {
-      ai_disclosure: false,
-      conversational_personality: true,
-      default_personality: false,
-      echo_verification: false,
-      high_empathy: false,
-      natural_filler_words: true,
-      speech_normalization: false,
+      customer_support: { custom_prompt: "# Customer Support\nAct as a professional call-center representative." },
+      natural_filler_words: { custom_prompt: "## Natural Filler Words\n- Add filler words like um." },
+      high_empathy: { custom_prompt: "## High Empathy\n- Acknowledge the caller's concern." },
     },
   });
   assert.deepEqual(his.agentPatch, {
@@ -404,17 +417,19 @@ test("how a call sounds is the product's on every line: a conversational persona
     begin_message_delay_ms: 400,
     enable_backchannel: true,
     handbook_config: {
-      ai_disclosure: false,
-      conversational_personality: true,
-      default_personality: false,
-      echo_verification: true,
-      high_empathy: false,
-      natural_filler_words: true,
-      speech_normalization: true,
+      high_empathy: { custom_prompt: "## High Empathy\n- Acknowledge the caller's concern." },
+      conversational: { custom_prompt: null },
+      natural_filler_words: { custom_prompt: null },
+      echo_verification: { custom_prompt: null },
+      speech_normalization: { custom_prompt: null },
     },
   });
   assert.ok(
-    his.drift.some((d) => d.includes("echo_verification, speech_normalization")),
+    his.drift.some((d) =>
+      d.includes(
+        "(conversational is off, echo_verification is off, speech_normalization is off, customer_support is on)",
+      ),
+    ),
     "the handbook's line names only what differs",
   );
   // A preset the product does not hold is the line's own: kept, and not drift.
@@ -426,4 +441,27 @@ test("how a call sounds is the product's on every line: a conversational persona
   const created = voiceAgentCreateBody({ llmId: "llm_feel", llmVersion: 0, agentName: "x" }, { fnSecret: "s" }, FN_URL);
   for (const [key, value] of Object.entries(CALL_FEEL)) assert.equal(created[key], value, key);
   assert.deepEqual(created.handbook_config, CALL_HANDBOOK);
+});
+
+test("a line's handbook as the provider answers it since its object form is in step, and no plan sends an old name beside a new one", () => {
+  // The test line as get-agent answered on 20 Nov 2026: each preset's prompt written out, no old names. The planner
+  // compared the old booleans and called it drift, and the update it planned was refused (400: the old
+  // conversational_personality beside the new conversational).
+  const asRead = {
+    conversational: { custom_prompt: "# Conversational Agent Response Guidelines\n## Who you are" },
+    natural_filler_words: { custom_prompt: "## Natural Filler Words\n- Add filler words like um." },
+    echo_verification: { custom_prompt: "## Name Confirmation Guide\n- Repeat back the name." },
+    speech_normalization: { custom_prompt: "# Speech Normalization\nSpeak numbers in natural words." },
+  };
+  const inStep = planAgentSettings({ ...CONVERGED, handbook_config: asRead });
+  assert.deepEqual([inStep.agentPatch, inStep.drift], [null, []]);
+  // A line still holding an old name beside a preset the product wants on: the plan sends the new form alone.
+  const old = planAgentSettings({
+    ...CONVERGED,
+    handbook_config: { conversational_personality: true, default_personality: false, natural_filler_words: true },
+  });
+  const sent = old.agentPatch.handbook_config;
+  for (const name of ["conversational_personality", "default_personality", "customer_support"])
+    assert.equal(name in sent, false, name);
+  assert.deepEqual(sent, CALL_HANDBOOK);
 });

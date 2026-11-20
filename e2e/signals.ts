@@ -48,84 +48,94 @@ export async function expectQrInView(page: Page): Promise<void> {
   await expect(page.locator(".pg-head")).toContainText("People");
 }
 
-/** One row of Today's Ask found, as it reads (Today in three zones, 2 Nov 2026; surfaces/today/zones/found.tsx). */
+/**
+ * One finding of Today's AI found, as it reads (Today, calm, 19 Nov 2026; surfaces/today/zones/found.tsx): the first is
+ * the page's card where AI found holds it, whole, with its act; each other is a line, short, that is its own door.
+ */
 export interface FoundRow {
-  /** What it stands for: a rule's `rule:<id>` (unreachable, never-booked ...), a card's id, a call's or a lead's row. */
-  key: string;
   /** rule, noticed, call, tried or idea. */
   source: string;
-  tag: string;
-  text: string;
-  /** Its why, which waits behind the sentence until it is pressed: the arithmetic, for a rule. */
-  why: string;
-  /** Its one act's words; none where a row has nowhere to go. */
+  /** What it is, in a few words: the card's title, or the line's name. */
+  head: string;
+  /** Its numbers, under it: the card's why, or the line's second line. */
+  sub: string;
+  /** The card's one act's words; a line is its own door, and says none. */
   act: string;
+  /** Whether it is the page's card. */
+  card: boolean;
+  /** What a press on it opens: the card's act, or the line. */
+  door: Locator;
 }
 
-/**
- * Today's Ask found, as it reads; empty when the zone is absent (nothing to rank). Each row's why is read by pressing its
- * sentence, as a person does, and put away again: pressing it does nothing else (Not today waits beside it, unpressed).
- */
+/** Today's AI found, as it reads: its card where it holds the page's, then its lines; empty where it draws nothing. */
 export async function readFound(page: Page): Promise<FoundRow[]> {
-  const zone = page.getByTestId("today-ask-found");
-  if ((await zone.count()) === 0) return [];
   const out: FoundRow[] = [];
-  for (const row of await zone.locator('.tz-idea[data-testid^="today-found-"]').all()) {
-    const sentence = row.getByTestId("today-found-sentence");
-    const act = row.getByTestId("today-found-act");
-    let why = "";
-    if (await sentence.count()) {
-      await sentence.click();
-      await expect(row.getByTestId("today-found-rest")).toBeVisible();
-      why = ((await row.locator(".tz-idea-why small").first().textContent()) ?? "").trim();
-      await sentence.click();
-    }
+  const said = async (where: Locator): Promise<string> =>
+    (await where.count()) ? (await where.first().innerText()).trim() : "";
+  const card = page.locator('[data-testid="today-card"][data-holder="found"]');
+  if (await card.count()) {
+    const act = card.getByTestId("today-found-act");
     out.push({
-      key: (await row.getAttribute("data-key")) ?? "",
-      source: ((await row.getAttribute("data-testid")) ?? "").replace(/^today-found-/, ""),
-      tag: (await row.locator(".tz-idea-kind").innerText()).trim(),
-      text: (await sentence.count()) ? (await sentence.innerText()).trim() : "",
-      why,
-      act: (await act.count()) ? (await act.innerText()).trim() : "",
+      source: ((await card.locator(".calm-lead-in").getAttribute("data-testid")) ?? "").replace(/^today-found-/, ""),
+      head: await said(card.locator(".calm-title")),
+      sub: await said(card.locator(".calm-why")),
+      act: await said(act),
+      card: true,
+      door: act,
     });
   }
+  const zone = page.getByTestId("today-ask-found");
+  if (await zone.count())
+    for (const line of await zone
+      .locator('.calm-line[data-testid^="today-found-"]:not([data-testid="today-found-more"])')
+      .all()) {
+      out.push({
+        source: ((await line.getAttribute("data-testid")) ?? "").replace(/^today-found-/, ""),
+        head: await said(line.locator(".calm-name")),
+        sub: await said(line.locator(".calm-said")),
+        act: "",
+        card: false,
+        door: line.locator('a[href], [role="button"]').first(),
+      });
+    }
   return out;
 }
 
 /**
- * Every row Ask found draws is a claim with a way out: what it is, its sentence, its why behind it, its one act; and three
- * rows at most, the rest said. A rule's sentence, and what Ask noticed, carries its number, with why under it.
+ * Every finding AI found draws is a claim with a way out: what it is, its numbers under it, and a press that goes; the
+ * card and three lines at most, the rest said. A rule's, and what AI noticed, carries its number.
  */
 export async function expectFoundWellFormed(page: Page): Promise<FoundRow[]> {
   const rows = await readFound(page);
-  expect(rows.length, "AI found draws three at most").toBeLessThanOrEqual(3);
+  expect(rows.filter((r) => !r.card).length, "AI found names three lines at most").toBeLessThanOrEqual(3);
   for (const r of rows) {
-    expect(r.tag.length, `${r.key}: what it is`).toBeGreaterThan(0);
-    expect(r.text.length, `${r.key}: a sentence`).toBeGreaterThan(0);
-    // Every row its one act: a door, or a card's own Approve (the 3 Nov audit: a steady finding stood with none).
-    expect(r.act.length, `${r.key}: its one act`).toBeGreaterThan(0);
+    expect(r.head.length, `${r.source}: what it is`).toBeGreaterThan(0);
+    // Every finding its way out: the card's act (the 3 Nov audit: a steady finding stood with none), or the line itself.
+    if (r.card) expect(r.act.length, `${r.head}: its one act`).toBeGreaterThan(0);
+    else await expect(r.door, `${r.head}: its door`).toHaveCount(1);
     if (r.source !== "rule" && r.source !== "noticed") continue;
-    expect(r.text, `${r.key}: the sentence has its number in it`).toMatch(/\d/);
-    expect(r.why.length, `${r.key}: why, under it`).toBeGreaterThan(0);
+    expect(`${r.head} ${r.sub}`, `${r.head}: its number`).toMatch(/\d/);
   }
   return rows;
 }
 
 /**
- * Nobody waiting in Need you is said again in Ask found: a person is a row of one or the other. The bell held both kinds
- * of a row once, and the page printed the same three people twice (#653), under While you were away, which went.
+ * Nobody waiting on you is said again in AI found: a person is who waits, or a finding, never both. The bell held both
+ * kinds of a row once, and the page printed the same three people twice (#653), under While you were away, which went.
  */
 export async function expectNoQueueRepeat(page: Page): Promise<void> {
-  const queued = (await page.getByTestId("today-queue").locator(".cl-attn-who").allInnerTexts())
+  const queued = [
+    ...(await page.locator('[data-testid="today-card"][data-holder="queue"] .calm-who').allInnerTexts()),
+    ...(await page.getByTestId("today-queue").locator(".calm-line:not([data-folded]) .calm-name").allInnerTexts()),
+  ]
     .map((n) => n.trim())
     .filter(Boolean);
-  const found = (await readFound(page)).map((r) => r.text);
-  for (const who of queued) {
+  const found = (await readFound(page)).map((r) => r.head);
+  for (const who of queued)
     expect(
-      found.filter((t) => t.startsWith(`${who}:`)),
-      `${who} is in Need you and again in AI found`,
+      found.filter((head) => head === who || head.startsWith(`${who}:`)),
+      `${who} waits on you and again in AI found`,
     ).toEqual([]);
-  }
 }
 
 /* ------------------------------------------------------- Leads (release B) */

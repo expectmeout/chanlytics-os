@@ -13,6 +13,7 @@ import {
   subsetEqual,
   type LiveVoiceLlm,
   type VoiceConvergencePlan,
+  type VoiceModelConfig,
   type VoiceShellTarget,
 } from "./tools";
 
@@ -87,7 +88,21 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
     drift.push(`live tools the shell does not define (an apply would drop them): ${unknownTools.join(", ")}`);
   if (toolsDiffer) patch.general_tools = desired.general_tools;
 
-  return { drift, llmPatch: Object.keys(patch).length ? patch : null, unknownTools, notes: llmNotes(live) };
+  const modelPatch = planModel(live, drift);
+  const llmPatch = modelPatch ? { ...patch, model_config: modelPatch } : patch;
+  return { drift, llmPatch: Object.keys(llmPatch).length ? llmPatch : null, unknownTools, notes: llmNotes(live) };
+}
+
+/**
+ * A line on a model other than the product's (contracts RETELL_MODELS) is moved to it, as a call's write-up model is
+ * (planAgentSettings): the scripted calls of 20 November 2026 were the gate the change went through, so a line left
+ * behind answers otherwise than the one the calls proved. Its temperature is its own and goes with it unchanged; a line
+ * whose model could not be read is left as it is, since nothing is planned on a guess.
+ */
+function planModel(live: LiveVoiceLlm, drift: string[]): VoiceModelConfig | null {
+  if (typeof live.model !== "string" || live.model === RETELL_MODELS.llm) return null;
+  drift.push(`model is ${live.model}; the product's is ${RETELL_MODELS.llm}`);
+  return { type: "cascading", primary: { model: RETELL_MODELS.llm }, temperature: live.model_temperature ?? 0 };
 }
 
 /**
@@ -140,6 +155,7 @@ export interface LiveAgentSettings {
   interruption_sensitivity?: number | null;
   begin_message_delay_ms?: number | null;
   enable_backchannel?: boolean | null;
+  enable_colloquial_model?: boolean | null;
   handbook_config?: Record<string, unknown> | null;
   voice_id?: string | null;
   post_call_analysis_model?: string | null;
@@ -252,6 +268,9 @@ export function planAgentSettings(
  *     provider's default, 1, is the easiest to interrupt; its own advice for noisy lines is 0.8).
  *   - begin_message_delay_ms 400: a forwarded call's audio settles before the first word, which was clipped.
  *   - enable_backchannel: short listening sounds while the caller talks, so a long answer is not met with silence.
+ *   - enable_colloquial_model: each answer said again the way people talk on the phone, billed apart by the provider.
+ *     The handbook's conversational preset turned it on by itself under its old name, so every line converged before
+ *     20 Nov 2026 has it; since the provider's new form it is said here.
  * The voice and its pace are the owner's (sent with each call), the model goes through the gate, and the reminders are
  * SILENCE_REMINDER_MS.
  */
@@ -259,20 +278,31 @@ export const CALL_FEEL = {
   interruption_sensitivity: 0.8,
   begin_message_delay_ms: 400,
   enable_backchannel: true,
+  enable_colloquial_model: true,
 } as const;
 
 /**
- * The provider's prompt presets a line runs with (its "handbook"): conversational rather than a call-center script,
- * with natural filler words; key details (a name, a number, a day and time) read back to the caller; numbers, dates and
- * prices said the way people say them. Any other preset on the line is kept as it is.
+ * The provider's prompt presets a line runs with (its "handbook"), each on the provider's own prompt: conversational
+ * rather than its call-center script (customer_support, kept off), with natural filler words; key details (a name, a
+ * number, a day and time) read back to the caller; numbers, dates and prices said the way people say them. Any other
+ * preset on the line is kept as it is.
+ *
+ * In the provider's object form (read 20 Nov 2026): an entry that is there is on, and a null custom_prompt is the
+ * provider's own prompt. A read answers only this form, each prompt's text written out. The old names
+ * (default_personality, conversational_personality) are refused beside the new ones, so no request carries them.
  */
 export const CALL_HANDBOOK = {
-  default_personality: false,
-  conversational_personality: true,
-  natural_filler_words: true,
-  echo_verification: true,
-  speech_normalization: true,
+  conversational: { custom_prompt: null },
+  natural_filler_words: { custom_prompt: null },
+  echo_verification: { custom_prompt: null },
+  speech_normalization: { custom_prompt: null },
 } as const;
+
+/** The preset the product keeps off: the provider's call-center script. */
+const HANDBOOK_OFF: readonly string[] = ["customer_support"];
+
+/** The presets' old names, which the provider refuses beside the new ones: never sent back. */
+const HANDBOOK_OLD_NAMES: readonly string[] = ["default_personality", "conversational_personality"];
 
 /** The longest a call may run and a silent line's end (CALL_LIMITS): what the platform pays the provider for. */
 function planCallLimits(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
@@ -283,7 +313,7 @@ function planCallLimits(live: LiveAgentSettings, drift: string[], patch: Record<
   }
 }
 
-/** The call's feel: each setting the product holds, and the handbook's presets merged into what the line has. */
+/** The call's feel: each setting the product holds, and which of the handbook's presets are on. */
 function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<string, unknown>): void {
   for (const key of keysOf(CALL_FEEL)) {
     if (live[key] === CALL_FEEL[key]) continue;
@@ -291,12 +321,34 @@ function planCallFeel(live: LiveAgentSettings, drift: string[], patch: Record<st
     patch[key] = CALL_FEEL[key];
   }
   const book = live.handbook_config ?? {};
-  const differ = keysOf(CALL_HANDBOOK).filter((k) => book[k] !== CALL_HANDBOOK[k]);
+  const differ = [
+    ...keysOf(CALL_HANDBOOK)
+      .filter((k) => !isPresetOn(book[k]))
+      .map((k) => `${k} is off`),
+    ...HANDBOOK_OFF.filter((k) => isPresetOn(book[k])).map((k) => `${k} is on`),
+  ];
   if (!differ.length) return;
   drift.push(
-    `the handbook's ${differ.join(", ")} differ from the product's: a conversational receptionist that reads key details back`,
+    `the handbook differs from the product's (${differ.join(", ")}): a conversational receptionist that reads key details back`,
   );
-  patch.handbook_config = { ...book, ...CALL_HANDBOOK };
+  patch.handbook_config = handbookFor(book);
+}
+
+/** A preset is on when the line has it: the object form, or the old form's true. */
+function isPresetOn(entry: unknown): boolean {
+  return entry === true || (typeof entry === "object" && entry !== null);
+}
+
+/**
+ * The whole handbook a line is sent, since the provider replaces it whole: the product's presets on the provider's own
+ * prompts, every other preset the line has on kept as it was read (its prompt's text with it), and neither the
+ * call-center script nor an old name.
+ */
+function handbookFor(book: Record<string, unknown>): Record<string, unknown> {
+  const kept = Object.entries(book).filter(
+    ([k, v]) => isPresetOn(v) && !HANDBOOK_OFF.includes(k) && !HANDBOOK_OLD_NAMES.includes(k),
+  );
+  return { ...Object.fromEntries(kept), ...CALL_HANDBOOK };
 }
 
 /**
@@ -426,13 +478,9 @@ function agentNotes(live: LiveAgentSettings): string[] {
   return notes;
 }
 
-/** The LLM's settings that differ from the product's defaults and stay as they are: the model, the temperature. */
+/** The LLM's setting that differs from the product's default and stays as it is: the temperature. */
 function llmNotes(live: LiveVoiceLlm): string[] {
   const notes: string[] = [];
-  if (live.model && live.model !== RETELL_MODELS.llm)
-    notes.push(
-      `model is ${live.model}; the product's is ${RETELL_MODELS.llm} (kept: a model change goes through the gate)`,
-    );
   if (typeof live.model_temperature === "number" && live.model_temperature !== 0)
     notes.push(
       `temperature is ${live.model_temperature}; the product's is 0, so the facts are read, not improvised (kept)`,

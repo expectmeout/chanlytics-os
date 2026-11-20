@@ -7,8 +7,8 @@
  * (docs/plans/2026-11-18-ads-meta-checks.md):
  *
  *  - Meta's least is set for a day and holds for a total too, so a total is never under the account's least for a day
- *    times the days it runs. No page names a shortest run for a total: here it is one whole day, until the paused-ad
- *    check shows Meta's own.
+ *    times every calendar day the run touches (seen on the paused-ad check, 20 November 2026). No page names a
+ *    shortest run for a total: here it is one whole day.
  *  - One picture is shown in every place, so it is the feed's shape (4:5 through square to 1.91:1, at least 600 pixels
  *    wide), which stories and Reels show whole. A video runs 3 to 60 seconds, inside every place's own limits.
  *  - A video with music runs as an ad only with a licence of the advertiser's own, and a person shown must have said
@@ -115,9 +115,15 @@ const wholeUnitsUp = (minor: number, currency: string): number => {
   return Math.ceil(minor / unit) * unit;
 };
 
-/** Meta's least for a total: the account's least for a day times the days it runs, as a whole amount of the currency. */
+/**
+ * Meta's least for a total: the account's least for a day times every calendar day the run touches, today and its last
+ * day both counted, as a whole amount of the currency. Meta counts a run to the hour, from the moment it starts to the
+ * end of its last day, and wants more than its least a day for each part of a day: on the paused-ad check (20 November
+ * 2026) a run from midday to the end of a day fourteen days on was refused at $14.00 and asked for more than $14.48.
+ * `days` is whole days from today to the last day: 0 for a run that ends today.
+ */
 export function adLeastTotal(account: { currency: string; minDailyMinor: number }, days: number): number {
-  return wholeUnitsUp(account.minDailyMinor * Math.max(AD_RUN_DAYS.least, days), account.currency);
+  return wholeUnitsUp(account.minDailyMinor * (Math.max(0, days) + 1), account.currency);
 }
 
 /** What is wrong with an amount, and the nearest amount that is right. */
@@ -188,14 +194,32 @@ export interface AdDraftInputs {
 /** The one thing a draft waits for, where it cannot be written yet (the plan's G13). */
 export type AdDraftMissing = "service" | "address" | "whatsapp" | "picture";
 
+/**
+ * Why a draft proposes its amount (the plan's 4.6 and G6), which the draft says in a line. Never a number of bookings.
+ *
+ *  - starting: Meta's least, "A starting amount.": fewer than five booked from ads or no cost known yet (few_booked),
+ *    no calendar link (no_calendar), or no open time over the run (full).
+ *  - booked: the open times over the run, times what a booking from an ad has cost, and where that was moved: down to
+ *    the owner's most (owner_most), down to the largest total turned on (largest_turned_on), down to Meta's least with
+ *    neither yet (nothing_turned_on), or up to Meta's least (meta_least).
+ */
+type AdAmountBasis =
+  | { kind: "starting"; why: "few_booked" | "no_calendar" | "full" }
+  | {
+      kind: "booked";
+      openTimes: number;
+      costPerBookedMinor: number;
+      heldTo: "owner_most" | "largest_turned_on" | "nothing_turned_on" | "meta_least" | null;
+    };
+
 /** The parts of a draft code picks. The words are the ad writer's. */
 export interface AdDraftParts {
   serviceId: string;
   pictureId: string;
   miles: number;
   totalMinor: number;
-  /** Whether the amount is Meta's least, said as "A starting amount.", with no number of bookings promised. */
-  starting: boolean;
+  /** Why that amount: a starting amount, with no number of bookings promised, or the bookings it was worked out from. */
+  basis: AdAmountBasis;
   days: number;
   endDay: string;
 }
@@ -212,24 +236,47 @@ function pictureFor(serviceId: string, pictures: readonly AdPicture[]): AdPictur
   return [...fine].sort((first, second) => rank(first) - rank(second))[0] ?? null;
 }
 
+/** Where an amount worked out from bookings was moved to stay inside its ceiling and Meta's least; null where it was not. */
+function heldTo(
+  wanted: number,
+  least: number,
+  ceiling: { ownerMostMinor: number | null; largestTotalMinor: number | null; most: number },
+): Extract<AdAmountBasis, { kind: "booked" }>["heldTo"] {
+  if (wanted < least) return "meta_least";
+  if (wanted <= ceiling.most) return null;
+  if (ceiling.ownerMostMinor !== null) return "owner_most";
+  return ceiling.largestTotalMinor !== null ? "largest_turned_on" : "nothing_turned_on";
+}
+
 /**
- * The amount a draft proposes. With five people booked from ads, a cost for each and a calendar: the open times, times
- * what a booking from an ad has cost. Otherwise Meta's least, a starting amount. Never under Meta's least, and never
- * above the owner's most, or before they said one the largest total they have turned on, or before any, Meta's least.
+ * The amount a draft proposes, and why (the plan's 4.6 and G6). With five people booked from ads, a cost for each, and
+ * a calendar with an open time over the run: the open times, times what a booking from an ad has cost. Otherwise Meta's
+ * least, a starting amount. Never under Meta's least; never above the owner's most, or before they said one the
+ * largest total they have turned on, or before any, Meta's least. The one place a draft's amount is worked out.
  */
-function amountFor(inputs: AdDraftInputs, days: number): { totalMinor: number; starting: boolean } {
-  const { account, history } = inputs;
+function amountFor(inputs: AdDraftInputs, days: number): { totalMinor: number; basis: AdAmountBasis } {
+  const { account, history, openTimes, ownerMostMinor } = inputs;
   const least = adLeastTotal(account, days);
-  const forecast =
-    history.booked >= AD_BOOKED_TO_FORECAST &&
-    history.costPerBookedMinor !== null &&
-    inputs.openTimes !== null &&
-    inputs.openTimes > 0;
-  if (!forecast || history.costPerBookedMinor === null || inputs.openTimes === null)
-    return { totalMinor: least, starting: true };
-  const most = Math.max(least, inputs.ownerMostMinor ?? history.largestTotalMinor ?? least);
-  const wanted = wholeUnitsUp(inputs.openTimes * history.costPerBookedMinor, account.currency);
-  return { totalMinor: Math.min(most, Math.max(least, wanted)), starting: false };
+  const cost = history.costPerBookedMinor;
+  const starting = (reason: Extract<AdAmountBasis, { kind: "starting" }>["why"]) => ({
+    totalMinor: least,
+    basis: { kind: "starting" as const, why: reason },
+  });
+  if (history.booked < AD_BOOKED_TO_FORECAST || cost === null || !(cost > 0)) return starting("few_booked");
+  if (openTimes === null) return starting("no_calendar");
+  if (!(openTimes > 0)) return starting("full");
+  const { largestTotalMinor } = history;
+  const most = Math.max(least, ownerMostMinor ?? largestTotalMinor ?? least);
+  const wanted = wholeUnitsUp(openTimes * cost, account.currency);
+  return {
+    totalMinor: Math.min(most, Math.max(least, wanted)),
+    basis: {
+      kind: "booked",
+      openTimes,
+      costPerBookedMinor: cost,
+      heldTo: heldTo(wanted, least, { ownerMostMinor, largestTotalMinor, most }),
+    },
+  };
 }
 
 /**

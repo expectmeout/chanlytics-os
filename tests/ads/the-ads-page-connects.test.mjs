@@ -216,6 +216,8 @@ test("Settings › Connections: the ad account stands in its group as a row does
   assert.deepEqual(adsPlaceOf("connected", vm("connected")), { group: "connected", state: "connected" });
   assert.deepEqual(adsPlaceOf("connected", vm("connected", "warn")), { group: "connected", state: "attention" });
   assert.deepEqual(adsPlaceOf("connected", vm("connected", "calm")), { group: "connected", state: "connected" });
+  // AI stopped with ads still on: the card says so with its press, and the row needs attention until they are paused.
+  assert.deepEqual(adsPlaceOf("connected", vm("connected"), true), { group: "connected", state: "attention" });
   assert.deepEqual(adsPlaceOf("revoked", vm("signed-out")), { group: "connected", state: "attention" });
   // Before one is connected: Available, waiting on the owner while two are to be chosen from.
   assert.deepEqual(adsPlaceOf(null, vm("none")), { group: "available", state: "none" });
@@ -255,4 +257,58 @@ test("a check Meta does not answer says so, its dot still: never turning as if i
   assert.equal(textOf(unsaid), `WhatsApp number linked to the Page${CHECK_UNSAID}`);
   assert.equal(find(unsaid, (n) => n.props?.className === "ads-dot").props["data-turning"], undefined);
   assert.equal(find(checking, (n) => n.props?.className === "ads-dot").props["data-turning"], "true");
+});
+
+test("Chanlytics looks again at Meta when the owner comes back to the tab, never at the focus a page is given as it opens", async () => {
+  const checks = ["account-active", "payment", "page-linked", "whatsapp-linked", "chanlytics-whatsapp"];
+  const page = await pageWith({
+    offered: true,
+    can_connect: true,
+    meta: {
+      id: "acc-2",
+      external_id: "1200000000000043",
+      status: "connected",
+      standing: "active",
+      name: "Harbor",
+      currency: "USD",
+      page_name: "Harbor Nails",
+      connected_at: "2031-03-15T15:00:00Z",
+      revoked_at: null,
+      disconnected_at: null,
+      read_at: "2031-03-15T15:00:00Z",
+      read_failed: false,
+      spend_limit_minor: null,
+      instagram_handle: null,
+      ai_number: "+15550100142",
+      // Meta has no payment method: the one thing an owner goes to Meta to mend, and comes back from.
+      checks: checks.map((id) => ({ id, ok: id !== "payment" })),
+      can_pause: true,
+      reads_instagram: true,
+      choices: [],
+    },
+  });
+  page.draw();
+  const looked = [];
+  const network = globalThis.fetch;
+  globalThis.fetch = (input, init) => {
+    const url = String(input instanceof Request ? input.url : input);
+    if (url.includes("/api/v1/ads/account/check")) looked.push(url);
+    return network(input, init);
+  };
+  try {
+    globalThis.document.visibilityState = "visible";
+    // The focus a page is given as it opens: the owner has not been anywhere, and Meta is not asked.
+    globalThis.window.dispatchEvent({ type: "focus" });
+    assert.deepEqual(looked, [], "no look at Meta on the page's own first focus");
+    // Away to Meta and back: one look.
+    globalThis.window.dispatchEvent({ type: "blur" });
+    globalThis.window.dispatchEvent({ type: "focus" });
+    await until(() => looked.length === 1, "one look at Meta on coming back");
+    // A second focus with no leaving between is no coming back.
+    globalThis.window.dispatchEvent({ type: "focus" });
+    assert.equal(looked.length, 1);
+  } finally {
+    globalThis.fetch = network;
+    delete globalThis.document.visibilityState;
+  }
 });

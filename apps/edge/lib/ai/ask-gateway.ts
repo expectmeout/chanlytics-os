@@ -273,7 +273,7 @@ export const GATEWAY_PURPOSES = [
   // A new sequence drafted from the owner's line (decision 0060, S4): the small JSON route, as the other drafts.
   "sequence_draft",
   // Whether a person's words are a yes to a card waiting on their thread (the dashboard's ask/tools/act/press.ts): the small
-  // JSON route, counted apart from the drafts (00658).
+  // JSON route, counted apart from the drafts (00660).
   "yes_check",
   // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
   "message_draft",
@@ -300,7 +300,7 @@ export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
 
 /**
  * The ledger's purpose for a gateway purpose (ai_usage.purpose): what the call was for. The small JSON calls share one route
- * (modelPurposeOf) and are each a line of their own (contracts SMALL_JSON_PURPOSES, 00658), so what each costs is read apart;
+ * (modelPurposeOf) and are each a line of their own (contracts SMALL_JSON_PURPOSES, 00660), so what each costs is read apart;
  * every other purpose is its route's.
  */
 export function ledgerPurposeOf(purpose: GatewayPurpose): ModelPurpose | SmallJsonPurpose {

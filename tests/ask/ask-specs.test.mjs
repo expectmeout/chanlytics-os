@@ -125,6 +125,8 @@ const KINDS = [
   "piece",
   // A business's photos and videos brought in from a link it gave (Content's empty state, 14 Nov 2026).
   "bring_in",
+  // A new ad drafted on New ad's own route, and New ad opened on it (the Ads plan's 6.3, 20 Nov 2026).
+  "ad_draft",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -218,6 +220,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     piece: "settings",
     // Bringing in a website's or an Instagram's photos and videos is the settings permission's, as the Library's Keep is.
     bring_in: "settings",
+    // Drafting an ad is an operator's, as New ad's own route is: the approve permission's. Turn on is the owner's.
+    ad_draft: "approve",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -698,6 +702,7 @@ const SHAPES = {
     }),
   ],
   bring_in: [card("bring_in", { link: "instagram.com/harborsalon" })],
+  ad_draft: [card("ad_draft", { service: "Balayage", most: 300 }), card("ad_draft", { service: null, most: null })],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -995,6 +1000,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     publish: ["PATCH files/[id]", "PATCH files/[id]/posts", "POST files/[id]/google", "POST files/[id]/instagram"],
     piece: ["POST files/video"],
     bring_in: ["POST content/bring-in"],
+    ad_draft: ["POST ads/draft"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],

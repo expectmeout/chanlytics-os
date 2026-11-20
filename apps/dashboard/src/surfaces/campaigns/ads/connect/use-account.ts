@@ -128,6 +128,50 @@ export interface AdAccountHere {
   again: () => void;
 }
 
+/** What a look at Meta reads and moves: the account as last read, when Meta was last looked at, and a read again. */
+interface LookIo {
+  held: { current: AdAccountDto | null };
+  lookedAt: { current: number };
+  again: () => void;
+}
+
+/**
+ * The owner back: where something is missing on a connected account, Chanlytics looks again at Meta, at most once in
+ * LOOK_AGAIN_MS. With nothing connected the account is only read again: a window that finished elsewhere shows here too.
+ */
+function lookAgain(io: LookIo): void {
+  const account = io.held.current;
+  const card = account?.meta;
+  const missing = card?.status === "connected" && card.checks.some((check) => check.ok !== true);
+  if (card?.status !== "connected") io.again();
+  if (!account?.can_connect || !missing || Date.now() - io.lookedAt.current < LOOK_AGAIN_MS) return;
+  io.lookedAt.current = Date.now();
+  void api()("POST ads/account/check").then(io.again, io.again);
+}
+
+/**
+ * The tab left and come back to, for the look again: only once the owner has left it. The focus a page is given as it
+ * opens is no coming back, and the account's first read has just said how it stands (a look at Meta then sent a check
+ * and two reads more with every open).
+ */
+function returnsOf(io: LookIo): { leave: () => void; back: () => void } {
+  let away = false;
+  return {
+    leave: () => {
+      away = true;
+    },
+    back: () => {
+      if (document.visibilityState !== "visible") {
+        away = true;
+        return;
+      }
+      if (!away) return;
+      away = false;
+      lookAgain(io);
+    },
+  };
+}
+
 /** The workspace's ad account, where `on` says the page draws its card. */
 export function useAdAccount(on: boolean): AdAccountHere {
   const [dto, setDto] = useState<AdAccountDto | null>(null);
@@ -167,25 +211,17 @@ export function useAdAccount(on: boolean): AdAccountHere {
 
   const again = useCallback(() => setAsked((count) => count + 1), []);
 
-  // The owner is back on the tab: where something is missing on a connected account, Chanlytics looks again at Meta.
+  // The owner is back on the tab, having left it: Chanlytics looks again at Meta (lookAgain, returnsOf).
   useEffect(() => {
     if (!on || typeof document === "undefined") return undefined;
-    const back = () => {
-      if (document.visibilityState !== "visible") return;
-      const account = held.current;
-      const card = account?.meta;
-      const missing = card?.status === "connected" && card.checks.some((check) => check.ok !== true);
-      // With nothing connected the account is only read again: a window that finished elsewhere shows here too.
-      if (card?.status !== "connected") again();
-      if (!account?.can_connect || !missing || Date.now() - lookedAt.current < LOOK_AGAIN_MS) return;
-      lookedAt.current = Date.now();
-      void api()("POST ads/account/check").then(again, again);
-    };
+    const { leave, back } = returnsOf({ held, lookedAt, again });
     document.addEventListener("visibilitychange", back);
     window.addEventListener("focus", back);
+    window.addEventListener("blur", leave);
     return () => {
       document.removeEventListener("visibilitychange", back);
       window.removeEventListener("focus", back);
+      window.removeEventListener("blur", leave);
     };
   }, [on, again]);
 

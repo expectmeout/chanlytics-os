@@ -256,6 +256,22 @@ export const SERVER_NOTIFICATION_KINDS = [
   "footage",
   /** The day's new photos and videos from the watched folder (00657): one row a day, counted up in place. */
   "footage_in",
+  /**
+   * An owner's ads (00658, decision 0050 call 15): Meta didn't approve one, couldn't charge the card for one, one ended,
+   * one spent its total, or no one wrote from one in seven days while it ran. Worked out by the database from each read
+   * of the ad account, rung once when the cause turns and closed for everyone once it clears, to the owner alone. Each
+   * row names the ad and opens its drawer.
+   */
+  "ad_refused",
+  "ad_unpaid",
+  "ad_ended",
+  "ad_spent",
+  "ad_quiet",
+  /**
+   * A draft ad an operator or a partner left for the owner (00659; decision 0050, call 2): written by the database as it
+   * is kept with its words, once to each owner while their row is open, and closed when the owner keeps it.
+   */
+  "ad_draft",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

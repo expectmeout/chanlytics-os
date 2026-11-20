@@ -115,6 +115,7 @@ function jobLines(adBrief: AdBrief): string[] {
     ];
   return [
     `Write ${AD_VERSIONS} versions: three angles on the same facts, each a text and a headline. Answer change kind none.`,
+    "Answer label: the service in a few words, at most 40 characters, as the business would name it to a customer, in the ad's language. It names the ad to its owner and is never shown in it.",
   ];
 }
 
@@ -161,7 +162,7 @@ export const AD_CHANGE_KINDS = ["none", "words", "service", "picture", "area", "
 export const AD_CRAFT_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["versions", "change", "could_not"],
+  required: ["versions", "change", "could_not", "label"],
   properties: {
     versions: {
       type: "array",
@@ -185,6 +186,7 @@ export const AD_CRAFT_JSON_SCHEMA = {
       },
     },
     could_not: { type: "string" },
+    label: { type: "string" },
   },
 } as const;
 
@@ -198,6 +200,8 @@ export const AdCraftAnswerSchema = z.object({
     end: z.string(),
   }),
   could_not: z.string(),
+  /** The service in a few words, for the owner's own screen: written with a draft's words; empty for the other jobs. */
+  label: z.string().default(""),
 });
 export type AdCraftAnswer = z.infer<typeof AdCraftAnswerSchema>;
 

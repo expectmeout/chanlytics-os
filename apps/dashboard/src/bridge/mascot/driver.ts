@@ -54,6 +54,11 @@ export interface MountOptions {
   tone?: Tone;
   /** an icon (inside a button) or an open face; by default read from where the canvas sits */
   role?: Role;
+  /**
+   * whether the three come in as they are first drawn (the default, never under reduced motion); false where they come
+   * from somewhere already, carried in whole (the phone's circle to AI's home: Today, calm, D9)
+   */
+  enter?: boolean;
   env?: Partial<DriverEnv>;
 }
 export interface Mounted {
@@ -262,7 +267,7 @@ function liveFaceOf(canvas: CanvasLike, opts: MountOptions): LiveFace | null {
   const character: Character = createCharacter({
     seed: opts.seed ?? 7,
     calm: env.reduced,
-    enter: !env.reduced,
+    enter: (opts.enter ?? true) && !env.reduced,
     light: true,
     quietAfter: role === "icon" ? ICON_QUIET_AFTER : Infinity,
   });

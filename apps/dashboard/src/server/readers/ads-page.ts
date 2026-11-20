@@ -4,6 +4,7 @@ import {
   ROLE_PERMS,
   UUID,
   adResumeRule,
+  parseTenantConfigResult,
   adStateOfRow,
   metaAdConfigOf,
   personName,
@@ -24,10 +25,11 @@ import {
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
 import { readAdsPressesOn } from "../connections/ads-ready";
+import { getStoredConfig } from "../workspace/config-row";
 import { readerStamp, type Reader } from "../shared/reader";
 
-/** The days the page counts: the same thirty Reports' people lens opens on. */
-const ADS_PAGE_DAYS = 30;
+/** The days the page counts: the same thirty Reports' people lens opens on, and a draft reads its bookings over. */
+export const ADS_PAGE_DAYS = 30;
 /** How many of an ad's people one page of the drawer's list holds. */
 const PEOPLE_PAGE = 50;
 
@@ -120,6 +122,16 @@ async function unlistedOf(
   return { more, elsewhere };
 }
 
+/**
+ * When AI was stopped (Stop everything, decision 0050 call 11), as the workspace's settings keep it: null while AI
+ * runs, or where the settings cannot be read. The one reading of the stop for Ads: the page's read, a press that
+ * would turn an ad back on, and New ad's draft all ask it (the Ads plan's G17).
+ */
+export function aiStoppedAt(config: unknown): string | null {
+  const parsed = parseTenantConfigResult(config ?? null);
+  return parsed.ok ? (parsed.config.ask?.stopped?.at ?? null) : null;
+}
+
 const statusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
   row.status === "connected" || row.status === "revoked" || row.status === "disconnected" ? row.status : null;
 
@@ -138,10 +150,11 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     const account = await findAdAccountForPage(supabase, rc.tenantId, "meta");
     const status = account ? statusOf(account) : null;
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
-    const [listed, counts, presses] = await Promise.all([
+    const [listed, counts, presses, settings] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
       status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
+      getStoredConfig(supabase, rc.tenantId),
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
@@ -165,6 +178,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
+      stopped_at: aiStoppedAt(settings),
     };
     return { data, rows: [], stamp: readerStamp() };
   },

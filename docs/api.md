@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-428 handlers in 60 domains.
+429 handlers in 60 domains.
 
 ## activity
 
@@ -79,6 +79,15 @@ Writes; for a member of the workspace the request names, owner or above; counts 
 | --- | --- | --- | --- |
 | `pause` | boolean | yes |  |
 
+### `POST /api/v1/ads/check`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `draft` | object | no |  |
+| `remove` | string | no | matches `^\d{5,32}$` |
+
 ### `GET /api/v1/ads/connect`
 
 Reads; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
@@ -99,6 +108,8 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | --- | --- | --- | --- |
 | `draft` | object | no |  |
 | `act` | one of `"next_picture"` | no |  |
+| `service` | string | no | at least 1 characters; at most 200 characters |
+| `most` | integer | no | ≤ 100000000 |
 
 ### `GET /api/v1/ads/page`
 
@@ -3801,7 +3812,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-61 doors.
+62 doors.
 
 ### `POST /api/admin/ads/account`
 
@@ -3813,6 +3824,15 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `code` | string | no |  |
 | `external_id` | string | no |  |
 | `pause` | boolean | no |  |
+
+### `POST /api/admin/ads/check`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `draft` | object | no |  |
+| `remove` | string | no | at least 5 characters; at most 32 characters |
 
 ### `POST /api/admin/ads/press`
 

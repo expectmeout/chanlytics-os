@@ -33,7 +33,8 @@ installStubReact({
   setInterval: () => 1,
   clearInterval() {},
 });
-const { NeedYou } = await import("../../apps/dashboard/src/surfaces/today/zones/need-you.tsx");
+// Need you as the page draws it, with the card its arrangement names (Today, calm).
+const { NeedYouOnToday: NeedYou } = await import("./zones/_on-today.mjs");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 const { todayOverride } = await import("../../apps/dashboard/src/surfaces/today/override.ts");

@@ -5,27 +5,26 @@ import {
   adLeastTotal,
   adPictureIssue,
   daysBetween,
+  minorPerUnit,
   type AdDraftInputs,
+  type AdDraftParts,
   type AdPicture,
 } from "@chanlytics/contracts";
+import { keepAdDraft, keepAdMost } from "@chanlytics/db/ads";
+import { logAndGoOn } from "@chanlytics/log";
 import { adBriefOf, adServiceFacts, type AdAsk, type AdOfferFacts } from "../ask/skills/ad/brief";
-import type { ReaderContext } from "../shared/reader";
+import { stableJson, type ReaderContext } from "../shared/reader";
 import { readAdsOffered } from "../connections/ads-ready";
 import { adDeclared, adDraftChecks, adKindsOf } from "./draft-checks";
-import {
-  adsHaveHistory,
-  readAdDraftFacts,
-  type AdDraftAccount,
-  type AdDraftFacts,
-  type AdDraftService,
-} from "./draft-facts";
-import type { AdDraftAnswer, AdDraftState, AdTurnOn } from "./draft-shape";
+import { readAdDraftFacts, type AdDraftAccount, type AdDraftFacts, type AdDraftService } from "./draft-facts";
+import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn } from "./draft-shape";
 
 /**
- * A new ad's draft, picked and judged (the Ads plan's 4.6, 5.1 and 6.3): code picks the service, the picture, the
- * area, the amount and the end (contracts ads/draft.ts), and says what would stop the ad before Turn on
- * (draft-checks.ts). The words are the ad writer's, asked by its own route (words.ts). Nothing here calls Meta, and
- * nothing is kept: the draft is the screen's to hold, and every answer is the whole draft as the business stands now.
+ * A new ad's draft, picked, judged and kept (the Ads plan's 4.6, 5.1, 6.2 and 6.3): code picks the service, the
+ * picture, the area, the amount and the end (contracts ads/draft.ts), and says what would stop the ad before Turn on
+ * (draft-checks.ts). The words are the ad writer's, asked by its own route (words.ts) or by AI's own turn. Nothing here
+ * calls Meta. The workspace keeps its one draft (ad_drafts), and every answer is that draft judged afresh as the
+ * business stands now: what was kept is what was chosen, never what was true of the business when it was kept.
  */
 
 /**
@@ -50,10 +49,8 @@ const inputsOf = (facts: AdDraftFacts, account: AdDraftAccount): AdDraftInputs =
   whatsapp: facts.whatsapp,
   account,
   history: facts.history,
-  // The owner's own most is said to AI in a sentence (the plan's G6), which is not kept anywhere yet.
-  ownerMostMinor: null,
-  // The Calendar's open times over a run are not read into a draft yet (draft-facts.ts).
-  openTimes: null,
+  ownerMostMinor: facts.ownerMostMinor,
+  openTimes: facts.openTimes,
 });
 
 const serviceOf = (facts: AdDraftFacts, name: string): AdDraftService | undefined =>
@@ -96,10 +93,15 @@ export const adDraftBrief = (
   job: { ask?: AdAsk; noPrice?: boolean } = {},
 ) => adBriefOf(facts.business, adOfferOf(facts, account, draft, job.noPrice === true), job.ask ?? { job: "write" });
 
-/** A draft the screen sent, held to what Services now lists; a service that is gone is the rule's own pick again. */
+/**
+ * A draft sent or kept, held to what Services now lists; a service that is gone is the rule's own pick again, with no
+ * words and no name of the one that went.
+ */
 function heldDraft(sent: AdDraftState, facts: AdDraftFacts, picked: string): AdDraftState {
   const service = serviceOf(facts, sent.service);
-  return { ...sent, service: service?.name ?? picked, versions: service ? sent.versions : [] };
+  if (service) return { ...sent, service: service.name };
+  const { label: _gone, ...rest } = sent;
+  return { ...rest, service: picked, versions: [] };
 }
 
 /** Why a draft cannot be written yet, or the ad account it is written for. */
@@ -112,6 +114,42 @@ function standsOf(
 }
 
 /**
+ * Which picture is missing, where the rule found none fine in ads: none at all; else the cause an owner can mend first,
+ * someone shown (or nobody said who), then music (or not heard yet); else none of a size or shape an ad takes.
+ */
+function pictureMissing(pictures: readonly AdPicture[]): Extract<AdDraftAnswer, { can: false }>["missing"] {
+  if (pictures.length === 0) return "picture_none";
+  const issues = new Set(pictures.map(adPictureIssue));
+  if (issues.has("person")) return "picture_person";
+  return issues.has("music") ? "picture_music" : "picture";
+}
+
+/** Why the rule proposes its amount, as the wire says it. */
+function basisDto(basis: AdDraftParts["basis"]): AdAmountBasisDto {
+  if (basis.kind === "starting") return basis;
+  return {
+    kind: "booked",
+    open_times: basis.openTimes,
+    cost_minor: basis.costPerBookedMinor,
+    held_to: basis.heldTo,
+  };
+}
+
+/** Whether two drafts hold the same choices, whatever order their fields came in. */
+const sameDraft = (first: AdDraftState, second: AdDraftState): boolean => stableJson(first) === stableJson(second);
+
+/** A draft as the rule picks it fresh, before anything was chosen. */
+const freshDraft = (parts: AdDraftParts): AdDraftState => ({
+  service: parts.serviceId,
+  picture: parts.pictureId,
+  miles: parts.miles,
+  total_minor: parts.totalMinor,
+  end_day: parts.endDay,
+  versions: [],
+  answers: {},
+});
+
+/**
  * The draft as it stands, judged: a fresh one where none is sent, else the one sent, with the checks run again. Where
  * no draft can be written yet, the one thing missing (the plan's G13).
  */
@@ -119,23 +157,20 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
   const account = standsOf(facts);
   if ("missing" in account) return { can: false, missing: account.missing };
   const fresh = adDraftOf(inputsOf(facts, account));
-  if (!fresh.ok) return { can: false, missing: fresh.missing };
+  if (!fresh.ok)
+    return {
+      can: false,
+      // What was offered and the shelves' newest, which hold what was never offered: someone shown, or not looked at.
+      missing:
+        fresh.missing === "picture"
+          ? pictureMissing([...facts.pictures.pictures, ...facts.pictures.newest])
+          : fresh.missing,
+    };
   const { parts } = fresh;
-  const draft: AdDraftState = sent
-    ? heldDraft(sent, facts, parts.serviceId)
-    : {
-        service: parts.serviceId,
-        picture: parts.pictureId,
-        miles: parts.miles,
-        total_minor: parts.totalMinor,
-        end_day: parts.endDay,
-        versions: [],
-        answers: {},
-      };
+  const draft = sent ? heldDraft(sent, facts, parts.serviceId) : freshDraft(parts);
   const days = daysBetween(facts.today, draft.end_day);
   const brief = adDraftBrief(facts, account, draft);
   const file = facts.pictures.files.get(draft.picture);
-  const least = adLeastTotal(account, days);
   const pickedHere = draft.service === parts.serviceId;
   return {
     can: true,
@@ -156,29 +191,97 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       page: account.page,
       min_daily_minor: account.minDailyMinor,
     },
-    amount: { starting: draft.total_minor === least, least_minor: least, history: adsHaveHistory(facts.history) },
+    amount: {
+      least_minor: adLeastTotal(account, days),
+      proposed: { total_minor: parts.totalMinor, days: parts.days, basis: basisDto(parts.basis) },
+      most_minor: facts.ownerMostMinor,
+    },
     picked: pickedHere ? ((serviceOf(facts, draft.service)?.booked ?? 0) > 0 ? "most_booked" : "first") : null,
     checks: adDraftChecks(draft, {
       today: facts.today,
       account,
-      ownerMostMinor: null,
+      ownerMostMinor: facts.ownerMostMinor,
       picture: facts.pictures.pictures.find((picture) => picture.id === draft.picture) ?? null,
       brief,
     }),
     ...adDeclared(adKindsOf(brief, draft.versions), draft.answers),
     turn_on: adTurnOnStands(),
     owner: facts.owner,
+    // Who left it, while it is as they left it: an answer that changes it is this member's from then on.
+    left_by: facts.kept !== null && sameDraft(draft, facts.kept.draft) ? facts.kept.leftBy : null,
   };
 }
 
-/** POST ads/draft: a fresh draft, or the one sent judged again, after the one act a check offers that is done here. */
-export async function draftAd(
+/** The draft an answer holds, as it is kept. */
+const keptStateOf = (answer: Extract<AdDraftAnswer, { can: true }>): AdDraftState => ({
+  ...answer.draft,
+  picture: answer.draft.picture.id,
+});
+
+/**
+ * The draft an answer holds, kept as the workspace's one (ad_draft_keep), where it is not already kept as it stands:
+ * opening a draft someone left changes nothing until something in it is changed, so it stays theirs, and the owner's
+ * bell row with it. A draft kept by someone who may not turn it on rings the owner's bell (the plan's 6.2); one kept
+ * by the owner closes it. A keep that fails costs the answer nothing: the draft is drawn, and the next change keeps it.
+ */
+export async function keepDraftAnswer<A extends AdDraftAnswer>(
   rc: ReaderContext,
-  body: { draft?: AdDraftState | undefined; act?: "next_picture" | undefined },
-): Promise<AdDraftAnswer> {
+  facts: AdDraftFacts,
+  answer: A,
+): Promise<A> {
+  if (!answer.can || facts.account === null) return answer;
+  const draft = keptStateOf(answer);
+  if (facts.kept !== null && sameDraft(draft, facts.kept.draft)) return answer;
+  await keepAdDraft(rc.ctx.supabase, rc.tenantId, { accountId: facts.account.id, draft }).catch(
+    logAndGoOn("an ad's draft kept", null),
+  );
+  return answer;
+}
+
+/**
+ * The most any ad may cost, as the owner said it to AI (the plan's G6), kept on the account before a draft is judged,
+ * and judged with at once. The owner's alone: said by anyone else, nothing is kept and the press is refused in words.
+ */
+async function keepOwnersMost(rc: ReaderContext, facts: AdDraftFacts, mostUnits: number): Promise<AdDraftFacts> {
+  if (!facts.owner) throw new AppError("forbidden", "Only the owner can say the most an ad may cost.", 403);
+  if (facts.account === null) return facts;
+  const mostMinor = mostUnits * minorPerUnit(facts.account.currency);
+  const kept = await keepAdMost(rc.ctx.supabase, rc.tenantId, mostMinor);
+  return kept ? { ...facts, ownerMostMinor: mostMinor } : facts;
+}
+
+/**
+ * A fresh draft for the service AI's card named (the plan's 6.3), picked by the same rule with Services narrowed to it,
+ * so its picture is that service's own; one Services does not list is the rule's own pick. Said with no "why this
+ * service": the person named it.
+ */
+function namedDraftAnswer(facts: AdDraftFacts, service: string): AdDraftAnswer {
+  const named = facts.services.filter((one) => one.name.trim().toLowerCase() === service.trim().toLowerCase());
+  if (named.length === 0) return adDraftAnswer(facts, null);
+  const answer = adDraftAnswer({ ...facts, services: named }, null);
+  return answer.can ? { ...answer, picked: null } : answer;
+}
+
+/** What POST ads/draft takes (draft-shape.ts AdDraftBodySchema). */
+interface AdDraftBody {
+  draft?: AdDraftState | undefined;
+  act?: "next_picture" | undefined;
+  service?: string | undefined;
+  most?: number | undefined;
+}
+
+/**
+ * POST ads/draft: the kept draft, or a fresh one where none is kept, or the one sent; judged again after the one act
+ * a check offers that is done here, and kept. AI's card asks for a fresh one for the service it names, in place of the
+ * kept one. With the owner's most, that is kept first.
+ */
+export async function draftAd(rc: ReaderContext, body: AdDraftBody): Promise<AdDraftAnswer> {
   await requireAdsOffered(rc);
-  const facts = await readAdDraftFacts(rc);
-  const sent = body.draft ?? null;
+  const read = await readAdDraftFacts(rc);
+  const facts = body.most === undefined ? read : await keepOwnersMost(rc, read, body.most);
+  if (body.service !== undefined && body.draft === undefined)
+    return keepDraftAnswer(rc, facts, namedDraftAnswer(facts, body.service));
+  const sent = body.draft ?? facts.kept?.draft ?? null;
   const moved = sent && body.act === "next_picture" ? { ...sent, picture: nextAdPicture(facts, sent.picture) } : sent;
-  return adDraftAnswer(facts, moved);
+  return keepDraftAnswer(rc, facts, adDraftAnswer(facts, moved));
 }

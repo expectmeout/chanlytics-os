@@ -37,7 +37,7 @@ import type { PeopleSurface } from "./people-surface";
 import type { ReceptionistSurface } from "./receptionist-surface";
 import type { ReviewsSurface } from "./reviews-surface";
 import type { ReportsSurface } from "./surface";
-import { DEMO_ZONE } from "../demo-zone";
+import { DEMO_ZONE } from "../demo-ads";
 
 const SPAN = 180;
 /** The reply hold the sample's business has set, in seconds: each reply it sends waits it out. */

@@ -132,6 +132,13 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   ad_account: ["thing your ad account needs", "things your ad account needs"],
   footage: ["thing your Google Drive folder needs", "things your Google Drive folder needs"],
   footage_in: ["day of new photos and videos", "days of new photos and videos"],
+  // An owner's ads (00658): a morning can hold several, one pattern each, every ad opened from its own row.
+  ad_refused: ["ad Meta didn't approve", "ads Meta didn't approve"],
+  ad_unpaid: ["ad Meta couldn't charge your card for", "ads Meta couldn't charge your card for"],
+  ad_ended: ["ad that ended", "ads that ended"],
+  ad_spent: ["ad that spent its total", "ads that spent their total"],
+  ad_quiet: ["ad no one wrote from in a week", "ads no one wrote from in a week"],
+  ad_draft: ["draft ad left for you", "draft ads left for you"],
 };
 
 /**

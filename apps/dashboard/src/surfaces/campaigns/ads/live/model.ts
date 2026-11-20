@@ -67,6 +67,11 @@ export interface LiveVM {
   notes: string[];
   /** After a disconnect: what Connect would bring back. */
   again: string | null;
+  /**
+   * Connected and read, with no ad in the account: that Meta shows none, beside New ad, where the ads would be (a
+   * desk draws no head sentence, so the page says it here; a phone says it once, here and not under the head).
+   */
+  empty: string | null;
 }
 
 /** The ads a page lists: every one still running or waiting, and a finished one only while it has numbers to show. */
@@ -252,6 +257,7 @@ export function liveModel(dto: AdsLiveDto, said: Said): LiveVM {
     rows: ads.map((ad) => rowOf(ad, dto, said, currency)),
     notes: notesOf(dto, ads),
     again: dto.account.status === "disconnected" ? LIVE.disconnected.again : null,
+    empty: connected && firstReadOf(dto.account) === null && dto.ads.length === 0 ? LIVE.noAds.rest : null,
   };
 }
 
@@ -319,6 +325,8 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
     if (ad.resume.why === "made_here") return { kind: "none", line: null };
     return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
   }
+  // While AI is stopped no ad is turned on from here (the Ads plan's G17).
+  if (dto.stopped_at) return { kind: "none", line: SHEET.stopped };
   const left = moneyOf(ad.resume.left_minor, currency);
   const day = dayOf(ad.resume.ends_at, said) ?? "";
   return {

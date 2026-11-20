@@ -215,7 +215,8 @@ export const SCHEMA_SETS = {
     "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
     "reach_out_day", "booking_notice", "opted_out", "booking", "member_joined", "member_left",
     "note_to_keep", "reply_held", "ask_cards", "website_form", "files_waiting", "video_ready", "post_up",
-    "post_stopped", "preview_tried", "ad_account", "footage", "footage_in",
+    "post_stopped", "preview_tried", "ad_account", "footage", "footage_in", "ad_refused", "ad_unpaid",
+    "ad_ended", "ad_spent", "ad_quiet", "ad_draft",
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": [

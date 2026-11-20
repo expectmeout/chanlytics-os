@@ -1,8 +1,7 @@
 /**
- * The Ads page with nothing connected, v0 (page-only): how new people first reached the business, from People's own read of
- * the window, and which ads the ones an ad brought came through. The same counts, in the same words, as Reports › People
- * says them, so the page and the report cannot differ. Apart from page-parts.ts only for the file limit. Pure, like the
- * rest of the models.
+ * The Ads page with nothing connected (the Ads plan's 4.1): how new people first reached the business, from People's own
+ * read of the window, and which ads the ones an ad brought came through. The same counts, in the same words, as Reports ›
+ * People says them, so the page and the report cannot differ. Pure: the counts are handed in.
  */
 import { addDays, joinWords } from "@chanlytics/contracts";
 // How new people first came is the people report's, read through its page entry as the Reports pages read it.
@@ -11,8 +10,11 @@ import type { AdsRead, PeopleSeriesDto } from "@chanlytics/contracts";
 
 import { PLATFORMS, sum } from "./vm-base";
 import type { DoorVM } from "./vm-base";
-import { ADS_DOORS, PLATFORM_OWNER } from "./words";
-import { V0 } from "./words-page";
+import { ADS_DOORS, PLATFORM_OWNER, dayShort } from "./words";
+import { HEAD, V0 } from "./words-page";
+
+/** How new people first reached the business over the window, as People's report counts them; null until read. */
+type FirstTouch = AdsRead["firstTouch"];
 
 export interface V0VM {
   /** The lead line (bold part, rest); null where there is nothing to say yet. */
@@ -80,21 +82,37 @@ function adsSaid(ads: NonNullable<AdsRead["firstTouch"]>["ads"], own: number): s
   return V0.byAd(joinWords(parts));
 }
 
-export function v0Of(read: AdsRead): V0VM {
-  const rows = read.firstTouch ? read.firstTouch.rows : [];
+function v0Of(firstTouch: FirstTouch): V0VM {
+  const rows = firstTouch ? firstTouch.rows : [];
   const unrecorded = sum(rows.filter((r) => !r.recorded).map((r) => r.n));
   const recorded = sum(rows.filter((r) => r.recorded).map((r) => r.n));
   const own = sum(rows.filter((r) => r.own).map((r) => r.n));
   const nobody = own === 0;
   return {
     lead: nobody ? null : V0.lead(own, recorded),
-    ads: nobody || !read.firstTouch ? null : adsSaid(read.firstTouch.ads, own),
+    ads: nobody || !firstTouch ? null : adsSaid(firstTouch.ads, own),
     muted: unrecorded > 0 && !nobody ? V0.more(unrecorded) : null,
     empty: nobody ? { lead: V0.emptyLead, line: V0.emptyLine } : null,
     // How they came is worth saying whether or not an ad brought any of them.
     rows,
-    nobodyNew: read.firstTouch !== null && rows.length === 0 ? V0.nobodyNew : null,
+    nobodyNew: firstTouch !== null && rows.length === 0 ? V0.nobodyNew : null,
     notes: nobody ? V0.emptyNotes : V0.notes,
     door: { words: rows.length > 0 ? V0.door : V0.doorNobody, to: ADS_DOORS.people },
+  };
+}
+
+/** The page with nothing connected: the head's sentence, the window it counts, and what it counts. */
+interface NothingConnectedVM {
+  head: { strong: string; rest: string };
+  /** `Last 30 days · counted from 21 Oct`, the first day once the counts are read. */
+  pane: string;
+  v0: V0VM;
+}
+
+export function nothingConnectedOf(firstTouch: FirstTouch): NothingConnectedVM {
+  return {
+    head: { strong: HEAD.v0Strong, rest: HEAD.v0Rest },
+    pane: HEAD.v0Read(firstTouch ? dayShort(firstTouch.since) : null),
+    v0: v0Of(firstTouch),
   };
 }

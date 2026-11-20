@@ -1,6 +1,6 @@
 import "server-only";
 import { AD_BEFORE_AFTER, adPictureIssue, fileSoundOf, type AdPicture, type FileDto } from "@chanlytics/contracts";
-import { listFilesOnShelf, readFileSound } from "@chanlytics/db/files";
+import { listFilesForAds, listFilesOnShelf, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
 import { fileDtoOf } from "../readers/files";
 import type { ReaderContext } from "../shared/reader";
 
@@ -22,7 +22,12 @@ import type { ReaderContext } from "../shared/reader";
  * It stands in Content's own folder, where its answer will: New ad's draft asks it (server/ads/draft-facts.ts).
  */
 
-/** How many of each shelf a draft looks through, newest first: what AI made, then what the business keeps. */
+/**
+ * How many a draft looks through of each shelf and kind, newest first, of what Files knows may be offered (nobody shown, a
+ * video ready here): what AI made, then what the business keeps, photos and videos apart. Never the newest of a whole
+ * shelf: on 20 November 2026 a Drive folder's 29 new clips, none looked at yet, pushed the one photo fine in ads out of
+ * the 24 read, and every draft said a picture was missing.
+ */
 const AD_SHELF_READ = 24;
 /** The most videos whose sound is read whole for one draft. */
 const AD_SOUNDS_READ = 6;
@@ -68,7 +73,26 @@ const playable = (file: FileDto): boolean =>
 /** What a draft picks its picture from: each as the rule reads it, and the file itself for what a page draws. */
 export interface AdPictures {
   pictures: AdPicture[];
+  /**
+   * Where none of `pictures` fits an ad: the newest of each shelf as Files keeps them, whatever is in them, read only so
+   * a draft can say why (someone shown, nobody said who, music, a shape). Empty where one fits.
+   */
+  newest: AdPicture[];
   files: ReadonlyMap<string, FileDto>;
+}
+
+/** The newest of each shelf as Files keeps them, each as the rule reads it, its sound not read: only to say why none fits. */
+async function listNewestOnShelves(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<AdPicture[]> {
+  const page = { limit: AD_SHELF_READ };
+  const shelves = await Promise.all([
+    listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: true }, page),
+    listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: false }, page),
+  ]);
+  return shelves
+    .flat()
+    .map(fileDtoOf)
+    .filter(playable)
+    .map((file) => adPictureOfFile(file, null));
 }
 
 /**
@@ -77,11 +101,17 @@ export interface AdPictures {
  */
 export async function listAdPictures(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<AdPictures> {
   const { supabase } = rc.ctx;
-  const page = { limit: AD_SHELF_READ };
-  const [byAi, byBusiness] = await Promise.all([
-    listFilesOnShelf(supabase, rc.tenantId, { status: "filed", made: true }, page),
-    listFilesOnShelf(supabase, rc.tenantId, { status: "filed", made: false }, page),
-  ]);
+  const shelf = async (madeByAi: boolean): Promise<FileMemberRow[]> => {
+    const [images, videos] = await Promise.all([
+      listFilesForAds(supabase, rc.tenantId, { made: madeByAi, kind: "image" }, AD_SHELF_READ),
+      listFilesForAds(supabase, rc.tenantId, { made: madeByAi, kind: "video" }, AD_SHELF_READ),
+    ]);
+    // One shelf newest first again, the two kinds among each other, as Files offers them.
+    return [...images, ...videos].sort(
+      (first, second) => second.created_at.localeCompare(first.created_at) || second.id.localeCompare(first.id),
+    );
+  };
+  const [byAi, byBusiness] = await Promise.all([shelf(true), shelf(false)]);
   const files = [...byAi, ...byBusiness].map(fileDtoOf).filter(playable);
   const unheard = files
     .filter(
@@ -96,8 +126,10 @@ export async function listAdPictures(rc: Pick<ReaderContext, "ctx" | "tenantId">
       ]),
     ),
   );
+  const pictures = files.map((file) => adPictureOfFile(file, sounds.get(file.id) ?? null));
   return {
-    pictures: files.map((file) => adPictureOfFile(file, sounds.get(file.id) ?? null)),
+    pictures,
+    newest: pictures.some((picture) => adPictureIssue(picture) === null) ? [] : await listNewestOnShelves(rc),
     files: new Map(files.map((file) => [file.id, file])),
   };
 }

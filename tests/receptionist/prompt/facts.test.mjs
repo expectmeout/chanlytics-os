@@ -378,7 +378,7 @@ test("every voice line a caller hears comes through the resolver too", async () 
   for (const none of [null, undefined]) {
     const said = refusalScript("policy_hold", none);
     assert.doesNotMatch(said, /undefined|null|reach the team on/, `the script takes an absent number (${none})`);
-    assert.match(said, /book online, and take their name\.$/, "and says something true instead");
+    assert.match(said, /without reading out its address, and take their name\.$/, "and says something true instead");
   }
 });
 

@@ -15,7 +15,7 @@ import "./new.css";
 import "../connect/connect.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { CONTENT_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
 import type { AdCantDraft } from "@/server/ads/draft-shape";
 import { MASCOT } from "@/bridge/mascot";
 import { Button } from "../../../kit/button/button";
@@ -23,7 +23,6 @@ import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
 import type { NeedVM } from "../connect/card-model";
-import { PreviewNote } from "../preview-note";
 import { newAdView } from "./model";
 import type { LineAct, NewAdVM } from "./model";
 import { NewAdLine, NewEditor, NewSentence, NewWhy } from "./parts";
@@ -41,7 +40,10 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   service: "admin/business",
   address: "admin/business",
   whatsapp: "admin/integrations",
-  picture: CONTENT_ROUTE,
+  picture: CONTENT_LIBRARY_ROUTE,
+  picture_none: CONTENT_LIBRARY_ROUTE,
+  picture_person: CONTENT_LIBRARY_ROUTE,
+  picture_music: CONTENT_LIBRARY_ROUTE,
   account: null,
   account_reading: null,
   stopped: null,
@@ -216,17 +218,12 @@ function newAdParts(
       telling: here.telling,
       told: here.told,
       need: props.need,
-      sample: props.source.sample,
     });
-    const turnOn = () => {
-      acts.forget();
-      props.onTurnOn();
-    };
     return {
       title: vm.title,
       sub: vm.kicker,
       body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
-      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={turnOn} />,
+      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={props.onTurnOn} />,
       fit: false,
     };
   }
@@ -278,8 +275,6 @@ export function NewAd(props: NewAdProps) {
       fit={parts.fit}
       testid="ads-new"
     >
-      {/* On the page's example it says what it is, as every part of the example does. */}
-      {props.source.sample ? <PreviewNote /> : null}
       {parts.body}
     </Sheet>
   );

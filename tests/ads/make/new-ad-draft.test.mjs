@@ -32,6 +32,8 @@ const { setModelStream } = await import(at("apps/dashboard/src/server/shared/mod
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/shared/model/gateway.ts"));
 const { readerContext, readerCache } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { AD_SKILL } = await import(at("apps/dashboard/src/server/ask/skills/ad/skill.ts"));
+const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
+const { adDraftAct } = await import(at("apps/dashboard/src/server/ask/tools/act/ads/draft.ts"));
 const C = await import("@chanlytics/contracts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -145,7 +147,11 @@ beforeEach(() => {
   offered = true;
   calls = [];
   readerCache.clear();
+  forgetFeeds();
   globalThis.fetch = async (url) => {
+    // The calendar a business links (calendar.ical_url): nothing on it is taken, so every hour it offers is open.
+    if (String(url).startsWith("https://cal.example/"))
+      return new Response(OPEN_CALENDAR, { status: 200, headers: { "content-type": "text/calendar" } });
     if (!String(url).endsWith("/api/admin/ads/account")) throw new Error(`nothing else is reachable: ${url}`);
     return new Response(
       JSON.stringify({
@@ -173,15 +179,51 @@ const modelSays = (answer, refused = null) =>
     yield { type: "stop", stopReason: "end_turn" };
   });
 
+/** An empty calendar: what the business's hours offer is all open. */
+const OPEN_CALENDAR = ["BEGIN:VCALENDAR", "END:VCALENDAR"].join("\r\n");
+
+/**
+ * The two doors of 00659 as the database answers them, over the tables in memory: a draft kept as the workspace's one
+ * (by whoever is signed in, each keep written down), and the owner's most kept on the connected account. Who may, and
+ * the owner's bell, are the database's own (a-draft-is-kept-and-left-for-the-owner.db.test.mjs).
+ */
+function draftDoors(tables, userId, keeps) {
+  return {
+    ad_draft_keep: ({ p_tenant_id, p_account_id, p_draft }) => {
+      tables.ad_drafts ??= [];
+      const had = tables.ad_drafts.find((row) => row.tenant_id === p_tenant_id);
+      const row = { id: had?.id ?? `dddddddd-dddd-4ddd-8ddd-${String(keeps.length + 1).padStart(12, "0")}` };
+      Object.assign(row, { tenant_id: p_tenant_id, account_id: p_account_id, draft: p_draft, kept_by: userId });
+      tables.ad_drafts = [...tables.ad_drafts.filter((one) => one !== had), { ...row, updated_at: NOW.toISOString() }];
+      keeps.push({ by: userId, draft: p_draft });
+      return { kept: true, draft_id: row.id, rung: 0 };
+    },
+    ad_account_most: ({ p_tenant_id, p_most_minor }) => {
+      const account = tables.ad_accounts.find((one) => one.tenant_id === p_tenant_id && one.status === "connected");
+      if (account) account.most_minor = p_most_minor;
+      return Boolean(account);
+    },
+  };
+}
+
 /** A workspace no two tests share: the edge's word is kept by workspace for a minute. */
 let seat = 0;
-function seated(tables, role = "owner") {
+function seated(tables, role = "owner", { counts = NO_COUNTS, userId = USER } = {}) {
   seat += 1;
   const tenantId = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seat).padStart(12, "0")}`;
   const mine = JSON.parse(JSON.stringify(tables).replaceAll(A, tenantId));
-  const db = fakeDb(mine, {}, { ads_page_counts: () => NO_COUNTS });
-  const ctx = { supabase: db, userId: USER, email: "ada@example.com", params: {} };
-  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId: USER };
+  const keeps = [];
+  const db = fakeDb(mine, {}, { ads_page_counts: () => counts, ...draftDoors(mine, userId, keeps) });
+  const ctx = { supabase: db, userId, email: "ada@example.com", params: {} };
+  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId, tables: mine, keeps, tenantId };
+}
+/** The same workspace, another member signed in to it. */
+function alsoSeated(who, role, userId) {
+  const keeps = who.keeps;
+  const db = fakeDb(who.tables, {}, { ads_page_counts: () => NO_COUNTS, ...draftDoors(who.tables, userId, keeps) });
+  const ctx = { supabase: db, userId, email: "sam@example.com", params: {} };
+  readerCache.clear();
+  return { rc: readerContext(ctx, { tenantId: who.tenantId, role }, NOW), userId, tables: who.tables, keeps };
 }
 const fresh = (tables = world(), role = "owner") => {
   const who = seated(tables, role);
@@ -201,7 +243,7 @@ const wrote = (versions = VERSIONS, change = NO_CHANGE) => ({ versions, change, 
 /** A draft as the screen sends it back. */
 const sent = (answer, over = {}) => ({ ...answer.draft, picture: answer.draft.picture.id, ...over });
 
-test("a fresh draft: the service, the picture, five miles, Meta's least for fourteen days and its end, with no model asked", async () => {
+test("a fresh draft: the service, the picture, five miles, Meta's least for the days it touches and its end, with no model asked", async () => {
   modelSays(wrote());
   const { answer } = await fresh();
   assert.equal(answer.can, true);
@@ -210,8 +252,8 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     service: "Consultation",
     picture: { id: FILE(1), kind: "photo", name: "front-desk-1", made: false },
     miles: 5,
-    // $5 a day for fourteen days: a starting amount.
-    total_minor: 7000,
+    // $5 a day for the fifteen days a two-week run touches, today included: a starting amount.
+    total_minor: 7500,
     end_day: "2026-12-03",
     versions: [],
     answers: {},
@@ -226,7 +268,12 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for four
     page: "Harbor Studio",
     min_daily_minor: 500,
   });
-  assert.deepEqual(answer.amount, { starting: true, least_minor: 7000, history: false });
+  assert.deepEqual(answer.amount, {
+    least_minor: 7500,
+    proposed: { total_minor: 7500, days: 14, basis: { kind: "starting", why: "few_booked" } },
+    most_minor: null,
+  });
+  assert.equal(answer.left_by, null);
   assert.deepEqual(answer.checks, []);
   // The job that makes an ad at Meta is the next part: the press is drawn, and cannot be pressed yet.
   assert.equal(answer.turn_on, "not_yet");
@@ -295,7 +342,7 @@ test("where a draft cannot be written, the one thing missing is said: a service,
   assert.equal(await missing(world({ profile: { services: [] } })), "service");
   assert.equal(await missing(world({ profile: { address: "  " } })), "address");
   assert.equal(await missing(world({ tables: { tenant_channels: [] } })), "whatsapp");
-  assert.equal(await missing(world({ tables: { files: [] } })), "picture");
+  assert.equal(await missing(world({ tables: { files: [] } })), "picture_none");
   // An ad account that is not connected, or whose least Meta has not said yet, and AI stopped.
   assert.equal(await missing(world({ tables: { ad_accounts: [] } })), "account");
   assert.equal(await missing(world({ account: { status: "revoked" } })), "account");
@@ -307,6 +354,40 @@ test("where a draft cannot be written, the one thing missing is said: a service,
     await missing(world({ config: { ask: { stopped: { at: "2026-11-19T12:00:00Z", playbooks: [], reply: null } } } })),
     "stopped",
   );
+});
+
+test("a folder of clips nobody has looked at, or a run of photos of people, never buries the one picture fine in ads", async () => {
+  // 20 Nov 2026: a Drive folder's clips, none looked at yet, pushed the one photo fine in ads out of the newest 24 read,
+  // and every draft said a picture was missing. Many more than that now, and newer than the photo.
+  const id = (n) => `f${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
+  const newer = (n) => `2026-11-19T${String(10 + (n % 10)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}:00Z`;
+  const fine = file(1, { created_at: "2026-11-01T10:00:00Z", updated_at: "2026-11-01T10:00:00Z" });
+  const clips = Array.from({ length: 60 }, (_, n) =>
+    file(1, {
+      id: id(100 + n),
+      name: `drive-clip-${n}`,
+      kind: "video",
+      mime: "video/mp4",
+      seconds: 20,
+      media_status: "ready",
+      look: null,
+      look_status: "waiting",
+      created_at: newer(n),
+      updated_at: newer(n),
+    }),
+  );
+  const people = Array.from({ length: 40 }, (_, n) =>
+    file(1, {
+      id: id(200 + n),
+      name: `team-${n}`,
+      look: { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] },
+      created_at: newer(n),
+      updated_at: newer(n),
+    }),
+  );
+  const { answer } = await fresh(world({ tables: { files: [fine, ...clips, ...people] } }));
+  assert.equal(answer.can, true, "a draft can be written");
+  assert.equal(answer.draft.picture.id, FILE(1), "the one picture fine in ads, however many newer files there are");
 });
 
 test("only a picture that shows nobody and has no music is offered, in a shape the feed takes: never one to crop (G15)", async () => {
@@ -326,6 +407,13 @@ test("only a picture that shows nobody and has no music is offered, in a shape t
         look: { line: "A before and after of the salon.", people: { count: 0, recognizable: 0 }, issues: [] },
       }),
     ]),
+    "picture_person",
+    "someone shown, or nobody said who, is what to mend first",
+  );
+  // Each picture missing says which: none at all, someone in each, music in each, none that fits an ad.
+  assert.equal(await offeredOf([]), "picture_none");
+  assert.equal(
+    await offeredOf([file(4, { width: 1080, height: 1920 }), file(5, { width: 400, height: 500 })]),
     "picture",
   );
   // A member's own word that nobody is in it is enough.
@@ -348,7 +436,7 @@ test("only a picture that shows nobody and has no music is offered, in a shape t
   };
   assert.equal(await offeredOf([file(1), video(2, quiet)]), FILE(2));
   assert.equal(await offeredOf([file(1), video(2, loud)]), FILE(1));
-  assert.equal(await offeredOf([video(2, loud), video(3, null)]), "picture");
+  assert.equal(await offeredOf([video(2, loud), video(3, null)]), "picture_music", "music, or not heard yet");
   assert.equal(await offeredOf([video(2, { none: true })]), FILE(2));
 });
 
@@ -400,7 +488,10 @@ test("the words: the ad writer is asked once, under its own purpose, from the sh
   // Written once: the draft judged again, after the amount changes, asks no model and keeps the same words.
   const judged = await draftAd(who.rc, { draft: sent(written, { total_minor: 12000 }) });
   assert.deepEqual(judged.draft.versions, VERSIONS);
-  assert.deepEqual([judged.draft.total_minor, judged.amount.starting, judged.checks.length], [12000, false, 0]);
+  assert.deepEqual(
+    [judged.draft.total_minor, judged.amount.proposed.total_minor, judged.checks.length],
+    [12000, 7500, 0],
+  );
   assert.equal(calls.length, 1);
 });
 
@@ -481,7 +572,7 @@ test("Tell AI what to change: one change from the closed list, judged again like
   assert.deepEqual([end.changed, end.draft.end_day, end.days], [{ kind: "end" }, "2026-12-20", 31]);
   // A change that breaks a rule is made, and the check says so with its one act: $40 is under Meta's least.
   const low = await tell("only 40 dollars", { kind: "amount", amount: 40 });
-  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7000 }]);
+  assert.deepEqual(low.checks, [{ code: "amount", fault: "under_least", nearest_minor: 7500 }]);
   // Another picture: the next that is fine in ads.
   const pictured = await tell("use another photo", { kind: "picture" });
   assert.deepEqual([pictured.changed, pictured.draft.picture.id !== held.picture], [{ kind: "picture" }, true]);
@@ -546,6 +637,10 @@ test("what the routes take: a draft's own shape, and nothing else", () => {
   assert.equal(AdDraftBodySchema.safeParse({ draft }).success, true);
   assert.equal(AdDraftBodySchema.safeParse({ draft, act: "next_picture" }).success, true);
   assert.equal(AdDraftBodySchema.safeParse({ draft, act: "turn_on" }).success, false);
+  // AI's card: a service by its name, and the owner's most in whole units.
+  assert.equal(AdDraftBodySchema.safeParse({ service: "Consultation", most: 300 }).success, true);
+  assert.equal(AdDraftBodySchema.safeParse({ most: 0 }).success, false);
+  assert.equal(AdDraftBodySchema.safeParse({ most: 2.5 }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ draft: { ...draft, picture: "not-an-id" } }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ draft: { ...draft, total_minor: 70.5 } }).success, false);
   assert.equal(
@@ -558,4 +653,295 @@ test("what the routes take: a draft's own shape, and nothing else", () => {
   assert.equal(AdWordsBodySchema.safeParse({ job: "change", draft, asked: "ten miles" }).success, true);
   assert.equal(AdWordsBodySchema.safeParse({ job: "change", draft, asked: "  " }).success, false);
   assert.equal(AdWordsBodySchema.safeParse({ job: "turn_on", draft }).success, false);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The amount from the business's own numbers (4.6, G6)
+
+const AD_ID = "d0000000-0000-4000-8000-000000000009";
+/** An ad the owner ran in Meta, adopted on the first read: a total of $300 over its run. */
+const metaAd = (over = {}) => ({
+  id: AD_ID,
+  tenant_id: A,
+  account_id: ACCOUNT,
+  platform: "meta",
+  origin: "platform",
+  name: "Autumn offer",
+  door: "whatsapp",
+  status: "made",
+  intent: "on",
+  platform_state: "ACTIVE",
+  platform_ad_id: "23850000000000009",
+  budget_kind: "total",
+  budget_minor: 30_000,
+  budget_left_minor: 1_000,
+  ends_at: "2026-11-30T22:00:00Z",
+  version: 1,
+  created_at: "2026-10-25T10:00:00Z",
+  ...over,
+});
+/** The page's counts: who that ad brought and booked, and what Meta says it spent, in the account's minor units. */
+const countsOf = (booked, spendMinor) => ({
+  ...NO_COUNTS,
+  ads: [{ ad_id: AD_ID, people: booked + 2, booked }],
+  spend: [{ ad_id: AD_ID, spend_minor: spendMinor, impressions: 9000, clicks: 300, settling: false }],
+});
+/** Open every day from ten to eleven, with a calendar linked that has nothing taken on it. */
+const DAILY = Object.fromEntries(
+  ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, { open: "10:00", close: "11:00" }]),
+);
+const CLOSED = Object.fromEntries(["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => [day, {}]));
+const linked = (hours = DAILY) =>
+  world({
+    profile: { hours, closures: [], booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 } },
+    config: { calendar: { ical_url: "https://cal.example/harbor.ics" } },
+    tables: { ads: [metaAd()] },
+  });
+/** The draft a workspace's numbers propose, and whether its calendar was asked. */
+async function proposedOf(tables, counts, role = "owner") {
+  const asked = [];
+  const network = globalThis.fetch;
+  globalThis.fetch = (url, init) => {
+    if (String(url).startsWith("https://cal.example/")) asked.push(String(url));
+    return network(url, init);
+  };
+  try {
+    const answer = await draftAd(seated(tables, role, { counts }).rc, {});
+    return { answer, calendarRead: asked.length > 0 };
+  } finally {
+    globalThis.fetch = network;
+  }
+}
+
+test("the amount: the calendar's open times, times what a booking from an ad has cost, from five booked (4.6)", async () => {
+  // Six booked from the account's ads, which spent $54 in the window: $9 a booking.
+  const { answer, calendarRead } = await proposedOf(linked(), countsOf(6, 5400));
+  assert.equal(calendarRead, true);
+  const { basis } = answer.amount.proposed;
+  assert.equal(basis.kind, "booked");
+  assert.equal(basis.cost_minor, 900);
+  assert.ok(basis.open_times > 0, "an open day offers its half hours");
+  // Never above the largest total turned on (the ad's $300, made in Meta), never under Meta's least: whole dollars.
+  const wanted = Math.ceil((basis.open_times * 900) / 100) * 100;
+  const expected = Math.min(30_000, Math.max(7500, wanted));
+  assert.deepEqual([answer.draft.total_minor, answer.amount.proposed.total_minor], [expected, expected]);
+  assert.equal(basis.held_to, wanted > 30_000 ? "largest_turned_on" : wanted < 7500 ? "meta_least" : null);
+  assert.deepEqual(answer.checks, [], "the amount it proposes passes its own check");
+});
+
+test("the amount at its edges: zero and four booked, no calendar link, a full calendar, a currency of whole units", async () => {
+  // Zero and four booked: a starting amount, and the calendar is not even read.
+  for (const booked of [0, 4]) {
+    const { answer, calendarRead } = await proposedOf(linked(), countsOf(booked, 3600));
+    assert.deepEqual(answer.amount.proposed.basis, { kind: "starting", why: "few_booked" }, `${booked} booked`);
+    assert.equal(answer.draft.total_minor, 7500);
+    assert.equal(calendarRead, false, `${booked} booked: nothing to lean on, so nothing is read`);
+  }
+  // Booked, but nothing spent yet: no cost to work from.
+  const unspent = await proposedOf(linked(), countsOf(6, 0));
+  assert.deepEqual(unspent.answer.amount.proposed.basis, { kind: "starting", why: "few_booked" });
+  // Five booked with no calendar link: a starting amount, said so.
+  const unlinked = await proposedOf(world({ tables: { ads: [metaAd()] } }), countsOf(5, 4500));
+  assert.deepEqual(unlinked.answer.amount.proposed.basis, { kind: "starting", why: "no_calendar" });
+  assert.equal(unlinked.answer.draft.total_minor, 7500);
+  // Five booked and a calendar with no open time over the run: a starting amount.
+  const full = await proposedOf(linked(CLOSED), countsOf(5, 4500));
+  assert.deepEqual(full.answer.amount.proposed.basis, { kind: "starting", why: "full" });
+  assert.equal(full.answer.draft.total_minor, 7500);
+  // A yen account: its least is whole yen (150 a day for the fifteen days a two-week run touches), and so is what its open times come to.
+  const yen = (tables) => ({
+    ...tables,
+    ad_accounts: tables.ad_accounts.map((row) => ({
+      ...row,
+      currency: "JPY",
+      config: { ...row.config, min_daily_minor: 150 },
+    })),
+  });
+  const starting = await proposedOf(yen(linked()), NO_COUNTS);
+  assert.deepEqual([starting.answer.draft.total_minor, starting.answer.amount.least_minor], [2250, 2250]);
+  const bookedYen = await proposedOf(yen(linked()), countsOf(7, 8638));
+  const { basis } = bookedYen.answer.amount.proposed;
+  assert.equal(basis.cost_minor, 1234, "8,638 yen over seven booked");
+  assert.equal(
+    bookedYen.answer.draft.total_minor,
+    Math.min(30_000, Math.max(2250, basis.open_times * 1234)),
+    "whole yen: nothing to round",
+  );
+});
+
+test("the owner's most, said once to AI: kept on the account, and every draft held to it; nobody else's (G6)", async () => {
+  const who = seated(linked(), "owner", { counts: countsOf(6, 5400) });
+  const answer = await draftAd(who.rc, { most: 80 });
+  assert.equal(who.tables.ad_accounts[0].most_minor, 8000, "kept in the account's minor units");
+  assert.equal(answer.amount.most_minor, 8000);
+  assert.equal(answer.draft.total_minor, 8000, "the open times come to more: held to the most they said");
+  assert.equal(answer.amount.proposed.basis.held_to, "owner_most");
+  // An amount over it is said with the most as its one act.
+  const over = await draftAd(who.rc, { draft: sent(answer, { total_minor: 12_000 }) });
+  assert.deepEqual(over.checks, [{ code: "amount", fault: "over_most", nearest_minor: 8000 }]);
+  // An operator's word is not the owner's.
+  const operator = seated(linked(), "operator");
+  await assert.rejects(draftAd(operator.rc, { most: 500 }), /Only the owner can say the most an ad may cost/);
+  assert.equal(operator.tables.ad_accounts[0].most_minor, undefined);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The draft the workspace keeps (6.2, G18)
+
+const OPERATOR = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+/** One service, the one the words are written for. */
+const ONE_SERVICE = { services: [{ name: "First appointment", duration_min: 45, price_note: "$45" }] };
+
+test("the draft is kept: read back with its words on any device, the writer not asked twice, never kept again as it opens", async () => {
+  modelSays(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  assert.equal(who.keeps.length, 1, "a fresh draft is kept the moment it is picked");
+  assert.deepEqual(who.keeps[0].draft.versions, []);
+  await writeAdWords(who, { job: "write", draft: sent(answer) });
+  assert.deepEqual(who.keeps.at(-1).draft.versions, VERSIONS, "kept with its words");
+  // Opened again, here or on another device: the kept draft, words and all, with no model asked.
+  const again = await draftAd(who.rc, {});
+  assert.deepEqual(again.draft.versions, VERSIONS);
+  assert.equal(calls.length, 1, "the writer was asked once");
+  assert.equal(who.keeps.length, 2, "opening it changed nothing, so nothing was kept");
+  // Changed, it is kept again.
+  await draftAd(who.rc, { draft: sent(again, { miles: 10 }) });
+  assert.equal(who.keeps.at(-1).draft.miles, 10);
+  // A draft kept for an account no longer connected is not offered: a fresh one is picked.
+  who.tables.ad_drafts[0].account_id = "cccccccc-cccc-4ccc-8ccc-000000000000";
+  assert.deepEqual((await draftAd(who.rc, {})).draft.versions, []);
+});
+
+test("a draft an operator leaves: the owner opens it as left, by name, and it is theirs once they change it (6.2)", async () => {
+  modelSays(wrote());
+  const operator = seated(
+    world({
+      profile: ONE_SERVICE,
+      tables: { profiles: [{ user_id: OPERATOR, display_name: "Maria", updated_at: NOW.toISOString() }] },
+    }),
+    "operator",
+    { userId: OPERATOR },
+  );
+  const left = await draftAd(operator.rc, {});
+  await writeAdWords(operator, { job: "write", draft: sent(left) });
+  assert.deepEqual(
+    operator.keeps.map((one) => [one.by, one.draft.versions.length]),
+    [
+      [OPERATOR, 0],
+      [OPERATOR, 3],
+    ],
+  );
+  const owner = alsoSeated(operator, "owner", USER);
+  const opened = await draftAd(owner.rc, {});
+  assert.deepEqual([opened.left_by, opened.draft.versions], ["Maria", VERSIONS]);
+  assert.equal(operator.keeps.length, 2, "opening it keeps nothing: the bell's row waits for the owner's change");
+  const changed = await draftAd(owner.rc, { draft: sent(opened, { total_minor: 9000 }) });
+  assert.equal(changed.left_by, null, "changed, it is the owner's");
+  assert.deepEqual(operator.keeps.at(-1).by, USER);
+  assert.equal(calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// AI's own turn drafts an ad (6.3, 6.7)
+
+test("AI's card drafts on New ad's own route: the service it named, with that service's own picture, kept", async () => {
+  const who = seated(world());
+  const named = await draftAd(who.rc, { service: "first appointment" });
+  assert.deepEqual([named.draft.service, named.picked, named.draft.versions], ["First appointment", null, []]);
+  assert.equal(who.keeps.at(-1).draft.service, "First appointment", "kept in place of what was there");
+  // A service Services does not list is the rule's own pick.
+  assert.equal((await draftAd(who.rc, { service: "Massage" })).draft.service, "Consultation");
+  // The card's own press: New ad's route with what the card carries, and New ad opened.
+  const spec = C.PROPOSAL_SPECS.ad_draft;
+  assert.deepEqual(spec.commit({ payload: { service: "First appointment", most: 300 } }, { settings: null }), {
+    route: "POST ads/draft",
+    body: { service: "First appointment", most: 300 },
+  });
+  assert.deepEqual(spec.commit({ payload: { service: null, most: null } }, { settings: null }), {
+    route: "POST ads/draft",
+    body: {},
+  });
+  assert.deepEqual([spec.needs, spec.open({ payload: {} }, null)], ["operator", "campaigns/ads:new"]);
+});
+
+/** AI's tool, built as a turn builds it: the member, their question, and the workspace. */
+function toolOf(tables, role = "owner", question = "Make me an ad") {
+  const who = seated(tables, role);
+  const { build } = adDraftAct.actions[""];
+  const toolContext = {
+    ctx: who.rc.ctx,
+    tenantId: who.rc.tenantId,
+    role,
+    rc: who.rc,
+    question,
+    now: NOW,
+    timezone: TZ,
+  };
+  return (input) => build(toolContext, input);
+}
+
+test("AI's tool proposes the card and decides none of the draft; the most is only the owner's, as they said it", async () => {
+  const owner = toolOf(world(), "owner", "Make an ad for first appointments, and never spend more than $1,200 on one");
+  const card = await owner({ service: "First Appointment", most: 1200 });
+  assert.equal(card.isError, false);
+  assert.equal(card.proposal.kind, "ad_draft");
+  assert.deepEqual(card.proposal.payload, { service: "First appointment", most: 1200 });
+  assert.equal(card.proposal.title, "New ad for First appointment");
+  assert.match(card.proposal.summary, /From now on, no ad costs more than 1200 USD\.$/);
+  assert.equal(card.proposal.needs, "operator");
+  // A most the owner did not say in this question is left out, and AI is told so.
+  const unsaid = await toolOf(world(), "owner", "Make me an ad")({ most: 500 });
+  assert.deepEqual([unsaid.proposal.payload.most, typeof unsaid.noted], [null, "string"]);
+  // An operator's most is not kept: the card leaves it out, says it is the owner's alone, and is left for the owner.
+  const operator = await toolOf(world(), "operator", "Make an ad, at most 500 dollars")({ most: 500 });
+  assert.equal(operator.proposal.payload.most, null);
+  assert.match(operator.noted, /Only the owner can say the most an ad may cost/);
+  assert.match(operator.proposal.summary, /left for the owner/);
+  // A service Services does not list is refused with what it does list; no account, or Ads not on here, too.
+  const unknown = await toolOf(world())({ service: "Massage" });
+  assert.match(unknown.refusal, /Services lists no "Massage"\. Its services are: Consultation, First appointment\./);
+  assert.match((await toolOf(world({ tables: { ad_accounts: [] } }))({})).refusal, /No Meta ad account is connected/);
+  offered = false;
+  assert.match((await toolOf(world())({})).refusal, /Ads are not switched on in this workspace/);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// A service's own name is free text: the writer names it in a few words (4.6)
+
+/** A service named the way an owner might, in a sentence. */
+const LONG = "discovery call on Chanlytics and how it helps streamline parts of your business";
+const CALL_VERSIONS = [
+  {
+    headline: "A call with Chanlytics",
+    text: "A call about how Chanlytics helps a business run. Message us on WhatsApp to set a time.",
+  },
+  {
+    headline: "Talk to Chanlytics",
+    text: "Chanlytics helps a business with its daily work. Message us on WhatsApp to talk it through.",
+  },
+  { headline: "Discovery call", text: "A discovery call with Chanlytics. Message us on WhatsApp to pick a time." },
+];
+
+test("a service named in a sentence: the writer names it in a few words, kept with its words, gone with the service", async () => {
+  const who = seated(world({ profile: { services: [{ name: LONG }] } }));
+  const answer = await draftAd(who.rc, {});
+  assert.equal(answer.draft.label, undefined, "no name of its own before the words");
+  modelSays({ ...wrote(CALL_VERSIONS), label: "  Discovery call " });
+  const written = await writeAdWords(who, { job: "write", draft: sent(answer) });
+  assert.deepEqual([written.wrote, written.draft.label], [{ ok: true }, "Discovery call"]);
+  assert.equal(who.keeps.at(-1).draft.label, "Discovery call", "kept with the words");
+  assert.match(calls.at(-1).request.messages[0].content, /Answer label: the service in a few words/);
+  // Judged again, sent back as the screen sends it: it stays.
+  assert.equal((await draftAd(who.rc, { draft: sent(written) })).draft.label, "Discovery call");
+  // A service Services no longer lists: the rule's own pick, with no words and no name of the one that went.
+  const gone = await draftAd(who.rc, { draft: sent(written, { service: "Massage" }) });
+  assert.deepEqual([gone.draft.service, gone.draft.label, gone.draft.versions], [LONG, undefined, []]);
+  // A name no shorter than the service's own, or past forty characters, is no name: none is kept.
+  for (const label of [LONG, "A call about Chanlytics and the business it runs"]) {
+    modelSays({ ...wrote(CALL_VERSIONS), label });
+    const none = await writeAdWords(who, { job: "write", draft: sent(answer) });
+    assert.equal(none.draft.label, undefined, label);
+  }
+  // The writer is told to answer it, as its schema requires.
+  assert.ok(C.AD_CRAFT_JSON_SCHEMA.required.includes("label"));
 });

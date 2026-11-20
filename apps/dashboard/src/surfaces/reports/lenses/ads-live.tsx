@@ -1,7 +1,7 @@
 /**
- * Reports › Ads in its first form, for a workspace whose ad account is or was connected (decision 0049, call 13 and
- * step P1; the Ads plan's 4.10): the Ads page's own numbers as figures and a table, over the same thirty days and the
- * same people. It draws what Chanlytics counts (who wrote to AI from each ad, who of them booked) and, in a column of
+ * Reports › Ads (decision 0049, call 13 and step P1; the Ads plan's 4.10): for a workspace whose ad account is or was
+ * connected, the Ads page's own numbers as figures and a table, over the same thirty days and the same people; with
+ * none connected, or a read that failed, one card that says so, with the door to the page. It draws what Chanlytics counts (who wrote to AI from each ad, who of them booked) and, in a column of
  * its own and named as Meta's, what Meta says each ad spent. Nothing is added across the two. Fetched on demand
  * (ads-load.ts): no other lens pays for it. Every sentence is the page's model's (campaigns/ads/live/model.ts).
  */
@@ -9,6 +9,7 @@ import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsLiveDto } from "@chanlytics/contracts";
 import { lensModel } from "../../campaigns/ads/live/model";
 import { LENS } from "../../campaigns/ads/live/words";
+import { EmptyState } from "../../kit/empty/empty";
 import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
@@ -20,7 +21,25 @@ const saidOf = (dto: AdsLiveDto) => ({ timezone: dto.account.timezone ?? "UTC" }
 /** The lens's head: the page's own sentence. */
 export const adsLiveHead = (dto: AdsLiveDto): string => lensModel(dto, saidOf(dto)).head;
 
-export function AdsLiveLens({ dto }: { dto: AdsLiveDto }) {
+/** No account to report on, or a read that failed: one card, and the page it is mended on. */
+function AdsLensNone({ failed }: { failed: boolean }) {
+  const words = failed ? LENS.notRead : LENS.none;
+  return (
+    <RptSection title={ADS_WORDS.adsTab} bare testid="ads-lens-live">
+      <EmptyState
+        kind="card"
+        glyph="wave"
+        title={words.title}
+        body={words.body}
+        testid="ads-lens-none"
+        action={{ label: LENS.open, to: ADS_ROUTE }}
+      />
+    </RptSection>
+  );
+}
+
+export function AdsLiveLens({ dto, failed }: { dto: AdsLiveDto | null; failed: boolean }) {
+  if (dto === null) return <AdsLensNone failed={failed} />;
   const vm = lensModel(dto, saidOf(dto));
   const H = LENS.heads;
   return (

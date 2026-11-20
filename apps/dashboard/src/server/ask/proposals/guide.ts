@@ -6,7 +6,7 @@
  * Pure words and kinds: nothing here reads a workspace.
  */
 import type { AskProposal } from "@chanlytics/contracts";
-import { CONTENT_ROUTE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
+import { ADS_ROUTE, CONTENT_ROUTE, SEQUENCES_ROUTE } from "@chanlytics/contracts";
 
 type Kind = AskProposal["kind"];
 
@@ -27,6 +27,7 @@ export interface GuidePage {
 const WHY = {
   signIn: "it signs in to another service (Google, Microsoft, Meta), which happens on that service's own screen",
   money: "it spends or changes money on the account, which is the owner's on the billing page",
+  ads: "it spends the owner's money at Meta, which only the owner's own press on the Ads page does",
   legal: "it is a statement to the phone networks in the business's legal name",
   file: "it reads or writes a file on the member's own device",
   live: "it acts on a phone call that is happening, where the Live page's button is quicker than a sentence",
@@ -178,6 +179,16 @@ export const ASK_GUIDE_PAGES: readonly GuidePage[] = [
     for: "The posts and videos made for the business, and the Library of its own photos and videos: a post or a video made, one put up on Instagram or Google, and photos and videos brought in from their website or Instagram by a link, or from a Google Drive folder that is watched from then on.",
     verbs: ["post", "piece", "publish", "bring_in"],
     pageOnly: [],
+  },
+  {
+    page: "Ads",
+    route: ADS_ROUTE,
+    for: "The business's own ads at Meta, what each cost and who it brought, and New ad: one screen AI drafts from the business's own numbers, which the owner turns on.",
+    verbs: ["ad_draft"],
+    pageOnly: [
+      { what: "Connect an ad account, or disconnect it", why: WHY.signIn },
+      { what: "Turn an ad on, pause it, or turn it back on", why: WHY.ads },
+    ],
   },
   {
     page: "Reports",
