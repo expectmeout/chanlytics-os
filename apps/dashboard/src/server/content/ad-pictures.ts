@@ -1,6 +1,6 @@
 import "server-only";
 import { AD_BEFORE_AFTER, adPictureIssue, fileSoundOf, type AdPicture, type FileDto } from "@chanlytics/contracts";
-import { listFilesForAds, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
+import { listFilesForAds, listFilesOnShelf, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
 import { fileDtoOf } from "../readers/files";
 import type { ReaderContext } from "../shared/reader";
 
@@ -73,7 +73,26 @@ const playable = (file: FileDto): boolean =>
 /** What a draft picks its picture from: each as the rule reads it, and the file itself for what a page draws. */
 export interface AdPictures {
   pictures: AdPicture[];
+  /**
+   * Where none of `pictures` fits an ad: the newest of each shelf as Files keeps them, whatever is in them, read only so
+   * a draft can say why (someone shown, nobody said who, music, a shape). Empty where one fits.
+   */
+  newest: AdPicture[];
   files: ReadonlyMap<string, FileDto>;
+}
+
+/** The newest of each shelf as Files keeps them, each as the rule reads it, its sound not read: only to say why none fits. */
+async function listNewestOnShelves(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<AdPicture[]> {
+  const page = { limit: AD_SHELF_READ };
+  const shelves = await Promise.all([
+    listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: true }, page),
+    listFilesOnShelf(rc.ctx.supabase, rc.tenantId, { status: "filed", made: false }, page),
+  ]);
+  return shelves
+    .flat()
+    .map(fileDtoOf)
+    .filter(playable)
+    .map((file) => adPictureOfFile(file, null));
 }
 
 /**
@@ -107,8 +126,10 @@ export async function listAdPictures(rc: Pick<ReaderContext, "ctx" | "tenantId">
       ]),
     ),
   );
+  const pictures = files.map((file) => adPictureOfFile(file, sounds.get(file.id) ?? null));
   return {
-    pictures: files.map((file) => adPictureOfFile(file, sounds.get(file.id) ?? null)),
+    pictures,
+    newest: pictures.some((picture) => adPictureIssue(picture) === null) ? [] : await listNewestOnShelves(rc),
     files: new Map(files.map((file) => [file.id, file])),
   };
 }

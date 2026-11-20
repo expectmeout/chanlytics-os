@@ -1,8 +1,8 @@
 /**
  * A new ad's draft as it crosses between New ad's screen and its two routes (POST ads/draft, POST ads/words; the Ads
- * plan's 4.6): what the screen sends, and what every answer says. The draft is the screen's to hold until Turn on: the
- * server keeps none, and judges whatever it is sent afresh from the business as it stands now, so nothing a browser
- * sends is trusted for more than what the owner chose.
+ * plan's 4.6): what the screen sends, and what every answer says. The workspace keeps its one draft (ad_drafts, 00659),
+ * and each answer is that draft judged afresh from the business as it stands now, so nothing a browser sent, or a
+ * member kept, is trusted for more than what was chosen.
  *
  * Pure: the shapes and the input's schema, read by the routes, their handlers and the tests.
  */
@@ -22,7 +22,7 @@ const SPECIAL_KINDS = [
 const VERSION_MAX = { text: 600, headline: 200 } as const;
 
 /** The draft as the screen holds it. Money is whole minor units of the ad account's currency. */
-const AdDraftStateSchema = z.object({
+export const AdDraftStateSchema = z.object({
   /** The service the ad offers, by its name in Services. */
   service: z.string().trim().min(1).max(200),
   /** The picture it shows: a file's id. */
@@ -36,14 +36,32 @@ const AdDraftStateSchema = z.object({
     .max(3),
   /** What the owner answered where the draft asked whether this is one of Meta's special kinds of ad. */
   answers: z.partialRecord(z.enum(SPECIAL_KINDS), z.enum(["no", "yes"])).default({}),
+  /**
+   * The service in a few words, as the ad writer named it with the words (words.ts): what New ad's title and sentence
+   * say. None until the words are written, and none once the service changes.
+   */
+  label: z.string().trim().min(1).max(60).optional(),
 });
 export type AdDraftState = z.infer<typeof AdDraftStateSchema>;
 
-/** POST ads/draft: no draft asks for a fresh one; a draft is judged as it stands, after an act where one is named. */
+/**
+ * POST ads/draft: no draft asks for the kept one, or a fresh one where none is kept; a draft is judged as it stands,
+ * after an act where one is named, and kept.
+ */
 export const AdDraftBodySchema = z.object({
   draft: AdDraftStateSchema.optional(),
   /** The one act a check offers that the server does: the next picture that is fine in ads. */
   act: z.enum(["next_picture"]).optional(),
+  /**
+   * A fresh draft for this service, by its name in Services, in place of the kept one: what AI's card asks for (the
+   * plan's 6.3). One Services does not list is the draft's own pick.
+   */
+  service: z.string().trim().min(1).max(200).optional(),
+  /**
+   * The most any ad may cost, as the owner said it to AI in a sentence (the plan's G6), in whole units of the ad
+   * account's currency: kept on the account before the draft is judged. The owner's alone.
+   */
+  most: z.number().int().positive().max(100_000_000).optional(),
 });
 
 /**
@@ -77,8 +95,14 @@ export const AdWordsBodySchema = z.discriminatedUnion("job", [
   }),
 ]);
 
-/** Why a draft cannot be written yet: the plan's four (G13), an ad account not ready to draft for, or AI stopped. */
-export type AdCantDraft = AdDraftMissing | "account" | "account_reading" | "stopped";
+/**
+ * Why a draft cannot be written yet: the plan's four (G13), an ad account not ready to draft for, or AI stopped. A
+ * picture missing says which, so its line says what to do: there is none at all (picture_none); each shows someone,
+ * or nobody has said who is in it (picture_person); each video has music, or was not heard yet (picture_music); or
+ * none is a size or shape an ad takes (picture).
+ */
+export type AdCantDraft =
+  AdDraftMissing | "picture_none" | "picture_person" | "picture_music" | "account" | "account_reading" | "stopped";
 
 /** What is wrong with an ad's words, as a draft's line says it: Meta's rules by name, and everything else as one. */
 export type AdWordsFault = "about_reader" | "feel_bad" | "sure_result" | "before_after" | "pressure" | "other";
@@ -102,10 +126,25 @@ interface AdDraftDto {
   end_day: string;
   versions: AdVersion[];
   answers: Partial<Record<AdSpecialKind, "no" | "yes">>;
+  label?: string | undefined;
 }
 
 /** How Turn on stands on this deployment: the job that makes an ad at Meta is not built yet. */
 export type AdTurnOn = "not_yet";
+
+/**
+ * Why the draft's own rule proposes its amount (contracts ads/draft.ts): a starting amount, and why it is one; or the
+ * open times over the run, times what a booking from an ad has cost, and where that was held. Never a number of
+ * bookings.
+ */
+export type AdAmountBasisDto =
+  | { kind: "starting"; why: "few_booked" | "no_calendar" | "full" }
+  | {
+      kind: "booked";
+      open_times: number;
+      cost_minor: number;
+      held_to: "owner_most" | "largest_turned_on" | "nothing_turned_on" | "meta_least" | null;
+    };
 
 export type AdDraftAnswer =
   | { can: false; missing: AdCantDraft }
@@ -117,8 +156,15 @@ export type AdDraftAnswer =
       days: number;
       /** Who Meta charges, and who the ad runs as. */
       account: { name: string; currency: string; page: string | null; min_daily_minor: number };
-      /** Why this amount: Meta's least for the run, and whether ads have a history here to say more. */
-      amount: { starting: boolean; least_minor: number; history: boolean };
+      /**
+       * Meta's least for the draft's run; what the draft's own rule proposes for a run of its own days, and why; and
+       * the most the owner said any ad may cost, null until they say one.
+       */
+      amount: {
+        least_minor: number;
+        proposed: { total_minor: number; days: number; basis: AdAmountBasisDto };
+        most_minor: number | null;
+      };
       /** Why this service, where the draft's own rule picked it. */
       picked: "most_booked" | "first" | null;
       checks: AdCheckDto[];
@@ -129,6 +175,8 @@ export type AdDraftAnswer =
       turn_on: AdTurnOn;
       /** Whether this member is the owner: only the owner turns an ad on. */
       owner: boolean;
+      /** Who left this draft, where it was someone else and it is as they left it; null where it is this member's. */
+      left_by: string | null;
     };
 
 /** Why the writer has no words to show, as the screen says it: with when AI can write again where a day's limit is why. */

@@ -255,6 +255,8 @@ const ANNOUNCES = {
     "The ad's drawer on Campaigns › Ads, which the row opens, reads who each ad brought as the page comes on screen and when the owner comes back to the tab; the row closes itself at the read after someone writes from it (00658).",
   footage:
     "Settings › Connections, which the row opens, reads the watched folder's standing (GET sources) as its row comes on screen and when the owner comes back to the tab; the feed does not tell of media_sources or source_connections, and the row closes by itself once the database sees it mended (00657).",
+  ad_draft:
+    "New ad, which the row opens, reads the workspace's kept draft as it opens (POST ads/draft) and judges it afresh from the business as it stands; the feed does not tell of ad_drafts, so New ad already open reads it again when it is next opened (00659).",
   footage_in:
     "The Library, which the row opens, reads the folder's line as it comes on screen and every few seconds while files are on their way, and hears file as each one lands (00657).",
   preview_tried:

@@ -92,6 +92,9 @@ const NOTIFICATION_DELIVERY = {
   ad_ended: "bell",
   ad_spent: "bell",
   ad_quiet: "bell",
+  // A draft ad someone left for the owner (00659): a line on the owner's bell, written by the database as it is kept, and
+  // closed when the owner keeps it.
+  ad_draft: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -373,6 +376,8 @@ export const BELL_LINE_KINDS = [
   "ad_ended",
   "ad_spent",
   "ad_quiet",
+  // A draft ad left for the owner (00659).
+  "ad_draft",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

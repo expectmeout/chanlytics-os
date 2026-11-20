@@ -267,6 +267,11 @@ export const SERVER_NOTIFICATION_KINDS = [
   "ad_ended",
   "ad_spent",
   "ad_quiet",
+  /**
+   * A draft ad an operator or a partner left for the owner (00659; decision 0050, call 2): written by the database as it
+   * is kept with its words, once to each owner while their row is open, and closed when the owner keeps it.
+   */
+  "ad_draft",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

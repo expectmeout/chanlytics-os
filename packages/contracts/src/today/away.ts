@@ -138,6 +138,7 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   ad_ended: ["ad that ended", "ads that ended"],
   ad_spent: ["ad that spent its total", "ads that spent their total"],
   ad_quiet: ["ad no one wrote from in a week", "ads no one wrote from in a week"],
+  ad_draft: ["draft ad left for you", "draft ads left for you"],
 };
 
 /**

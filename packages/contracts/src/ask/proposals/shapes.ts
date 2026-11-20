@@ -193,6 +193,8 @@ export const ASK_KIND_TRAITS = {
   // Make: something to look at.
   post: t("make", "keeps", null, "press", "save"),
   piece: t("make", "keeps", null, "press", "make"),
+  // A new ad drafted and kept, and New ad opened on it: nothing runs or is spent until the owner's Turn on there.
+  ad_draft: t("make", "keeps", null, "press", "open"),
   // A website's or an Instagram's photos and videos brought in: nothing is kept until its Keep, but it reads, so it waits.
   bring_in: t("find", "keeps", null, "press", "add"),
   // A post put up in public: always pressed, as the page's Post it is.

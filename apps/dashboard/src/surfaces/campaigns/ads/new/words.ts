@@ -18,6 +18,8 @@ const days = (n: number): string => (n === 1 ? "1 day" : `${n} days`);
 export const NEW = {
   /** The sheet's line over the service's name. */
   kicker: "New ad · drafted by AI",
+  /** A draft someone else left, as they left it. */
+  kickerLeft: (name: string) => `New ad · left by ${name}`,
   opening: "New ad",
   close: "Close",
 
@@ -34,10 +36,17 @@ export const NEW = {
     said: (word: string, value: string) => `${word}: ${value}`,
   },
 
-  /** Why that amount. */
+  /** Why that amount: never a number of bookings. */
   why: {
     starting: "A starting amount. There is no history yet to say what a booking costs.",
-    startingKnown: (n: number) => `A starting amount: the least Meta takes for ${days(n)}.`,
+    startingNoCalendar: "A starting amount. Without a calendar link, AI can't see your open times.",
+    startingFull: (n: number) => `A starting amount. The calendar has no open time in the next ${days(n)}.`,
+    booked: (open: number, n: number, cost: string) =>
+      `${open === 1 ? "1 open time" : `${open} open times`} in the next ${days(n)}, and a booking from an ad has cost about ${cost}.`,
+    heldToMost: (money: string) => `Kept to ${money}, the most you said an ad may cost.`,
+    heldToLargest: (money: string) => `Kept to ${money}, the largest total of any ad you have run.`,
+    heldToLeast: "Kept to the least Meta takes until you tell AI the most an ad may cost.",
+    raisedToLeast: (n: number) => `Raised to the least Meta takes for ${days(n)}.`,
     aDay: (money: string, n: number) => `About ${money} a day for ${days(n)}.`,
     mostBooked: "It offers what people booked most in the last 90 days.",
     first: "It offers the first of your Services.",
@@ -293,12 +302,29 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     small: "AI drafts the ad as soon as one is.",
     act: "Open Connections",
   },
+  picture_none: {
+    title: "First, a photo or a video",
+    body: "An ad shows one of your own photos or videos, and the Library holds none yet.",
+    small: "AI drafts the ad as soon as there is one.",
+    act: "Open Library",
+  },
+  picture_person: {
+    title: "First, a picture with nobody in it",
+    body: "Each of your photos shows someone, or nobody has said who is in it. A yes for posts doesn't cover an ad.",
+    small: "In the Library, say nobody is in a photo, or add one with nobody in it.",
+    act: "Open Library",
+  },
+  picture_music: {
+    title: "First, a video with no music",
+    body: "Music in an ad needs a licence of your own, and a video is heard before it can run.",
+    small: "Add a photo, or a video with no music. AI drafts the ad as soon as one is in.",
+    act: "Open Library",
+  },
   picture: {
-    title: "First, a picture that can run as an ad",
-    body: "An ad shows a photo or a video, and none of yours can run as an ad yet.",
-    small:
-      "For now an ad shows a picture with nobody in it, or a video with no music. AI drafts the ad as soon as there is one.",
-    act: "Open Content",
+    title: "First, a picture that fits an ad",
+    body: "An ad shows a photo or a video at least 600 pixels wide, from square to wide. None of yours fits yet.",
+    small: "Chanlytics never crops your picture. AI drafts the ad as soon as one fits.",
+    act: "Open Library",
   },
   account: {
     title: "First, your ad account",

@@ -8,8 +8,8 @@
  *   4. Whoever connected it leaves: its folder is read at the next turn of the clock, and once the sync pauses it the
  *      bell says so to those left.
  *   5. A folder's long name still fits a title.
- *   6. (00660) A folder switched the same day keeps the day's one row, and a second already open is closed.
- *   7. (00660) A member reads what fills the videos: 00657's read was refused on production for a column a member
+ *   6. (00661) A folder switched the same day keeps the day's one row, and a second already open is closed.
+ *   7. (00661) A member reads what fills the videos: 00657's read was refused on production for a column a member
  *      may not read, so the folder's whole read failed while a clip waited for room (the first real run, 20 Nov 2026).
  *
  * Local stack only: it makes workspaces, users and rows with the service key, and removes them.

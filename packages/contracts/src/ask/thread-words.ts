@@ -158,6 +158,8 @@ export interface AskProposal {
     | "publish"
     // A business's photos and videos brought in from a link it pasted: its website, or its Instagram (content/bring-in.ts).
     | "bring_in"
+    // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts): nothing is made at Meta.
+    | "ad_draft"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It
     // commits nothing; its act is its door (the 30 Oct 2026 review, item 6).
     | "fix";

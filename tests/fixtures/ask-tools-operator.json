@@ -1458,6 +1458,27 @@
       ]
     },
     {
+      "name": "propose_ad",
+      "description": "Draft a new ad for Facebook and Instagram. Its press drafts it in New ad, which picks the amount, the area and the dates and writes the words: never say them yourself. Nothing runs or is spent until Turn on is pressed there.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "A service by its name in Services, where they named one."
+          },
+          "most": {
+            "type": "integer",
+            "description": "Only where the owner said in this question the most any ad may cost: whole units of their currency.",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "defer_loading": true
+    },
+    {
       "name": "propose_call",
       "description": "Propose an act on a phone call in progress, as a card the person approves: a whisper to the phone receptionist, or the call handed to the business's own line. Action whisper takes call_id and text, a sentence only the phone receptionist hears, worked into its next answer to the caller; it never reaches the caller as written. Action hand_over takes call_id and passes the call to the business's own phone: the receptionist tells the caller someone is picking up and transfers them. Call it when they want to take the call themselves. A call that has ended is notLive in words, since there is nobody on the line. Ending a call is the Live page's own button.",
       "input_schema": {
@@ -3915,6 +3936,27 @@
           "action": "stop"
         }
       ]
+    },
+    {
+      "name": "propose_ad",
+      "description": "Draft a new ad for Facebook and Instagram. Its press drafts it in New ad, which picks the amount, the area and the dates and writes the words: never say them yourself. Nothing runs or is spent until Turn on is pressed there.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "A service by its name in Services, where they named one."
+          },
+          "most": {
+            "type": "integer",
+            "description": "Only where the owner said in this question the most any ad may cost: whole units of their currency.",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "defer_loading": true
     },
     {
       "name": "propose_bring_in",
@@ -7003,6 +7045,27 @@
           "action": "stop"
         }
       ]
+    },
+    {
+      "name": "propose_ad",
+      "description": "Draft a new ad for Facebook and Instagram. Its press drafts it in New ad, which picks the amount, the area and the dates and writes the words: never say them yourself. Nothing runs or is spent until Turn on is pressed there.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string",
+            "description": "A service by its name in Services, where they named one."
+          },
+          "most": {
+            "type": "integer",
+            "description": "Only where the owner said in this question the most any ad may cost: whole units of their currency.",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "defer_loading": true
     },
     {
       "name": "propose_bring_in",
