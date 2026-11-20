@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { validateGatewayRequest, GATEWAY_PURPOSES, modelPurposeOf } = await import(
+const { validateGatewayRequest, GATEWAY_PURPOSES, ledgerPurposeOf, modelPurposeOf } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/ai/ask-gateway.ts")).href
 );
 const base = { model: "claude-sonnet-5", max_tokens: 600, system: "s", messages: [{ role: "user", content: "hi" }] };
@@ -48,6 +48,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
       "list_draft",
       "person_draft",
       "sequence_draft",
+      "yes_check",
       "message_draft",
       "ad_draft",
     ],
@@ -129,4 +130,27 @@ test("the ad writer's craft call (ad_draft): the same model and ceiling, and a l
   assert.ok(C.AI_USAGE_PURPOSES.includes("ad_draft"), "the ledger's own set holds it (00656)");
   assert.equal(C.MODEL_ROUTES.ad_draft.model, C.MODEL_ROUTES.ask.model, "its route's model is the one it is asked on");
   assert.equal(validateGatewayRequest({ ...base, model: "claude-unknown-9" }, "ad_draft").ok, false);
+});
+
+test("each small JSON call rides one route and is a line of the ledger of its own (00658): a lead's email, a list, a message to a person, a campaign's draft and the yes check, so what each costs is read apart", async () => {
+  const C = await import("@chanlytics/contracts");
+  assert.deepEqual(
+    [...C.SMALL_JSON_PURPOSES],
+    ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check"],
+  );
+  for (const p of C.SMALL_JSON_PURPOSES) {
+    assert.ok(GATEWAY_PURPOSES.includes(p), `the edge lets ${p} through`);
+    assert.equal(
+      modelPurposeOf(p),
+      "lead_json",
+      `${p} is asked on the small JSON route: one model, one fallback, one bound`,
+    );
+    assert.equal(ledgerPurposeOf(p), p, `${p} is counted on its own line`);
+    assert.ok(C.AI_USAGE_PURPOSES.includes(p), `the ledger's own set holds ${p} (00658)`);
+    assert.equal(validateGatewayRequest({ ...base, model: C.MODEL_ROUTES.lead_json.model }, p).ok, true);
+  }
+  // Every other purpose is counted on its route, as before.
+  for (const p of GATEWAY_PURPOSES.filter((g) => !C.SMALL_JSON_PURPOSES.includes(g)))
+    assert.equal(ledgerPurposeOf(p), modelPurposeOf(p), p);
+  assert.ok(C.MODEL_PURPOSES.includes("lead_json"), "the route stays, and the rows written before keep its name");
 });

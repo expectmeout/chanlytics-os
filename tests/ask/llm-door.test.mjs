@@ -35,6 +35,7 @@ import {
   ASK_WARM_MAX_TOKENS,
   FAST_MODE_BETA,
   MODEL_ROUTES,
+  SMALL_JSON_PURPOSES,
 } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { fieldsOf, logLineOf } from "../_log-lines.mjs";
@@ -537,6 +538,33 @@ test("a warm is Ask's own request under a purpose of its own (ask_warm): asked o
     validateGatewayRequest({ ...REQUEST, model: "gpt-9" }, "ask_warm"),
     { ok: false, error: "bad_request", detail: "unknown model" },
     "and held to what a turn is held to",
+  );
+});
+
+test("a small JSON call is asked on the drafts' route and kept on a line of the ledger of its own (00658): a lead's email, a list, a message to a person, a campaign's draft and the yes check are each read apart, and each counts in Ask's day under its own name", async () => {
+  const ws = T(30);
+  const tables = { events: [] };
+  use(tables);
+  const net = model();
+  const draftModel = MODEL_ROUTES.lead_json.model;
+  for (const purpose of SMALL_JSON_PURPOSES) {
+    const res = await knock(ws, turn({ purpose, request: { ...REQUEST, model: draftModel } }));
+    assert.equal(res.status, 200, purpose);
+    await res.text();
+  }
+  assert.deepEqual(
+    net.calls.map((c) => c.body.model),
+    SMALL_JSON_PURPOSES.map(() => draftModel),
+    "every one asked of the one route's model",
+  );
+  assert.deepEqual(
+    tables.ai_usage.map((r) => [r.purpose, r.outcome, r.model_asked]),
+    SMALL_JSON_PURPOSES.map((p) => [p, "answered", draftModel]),
+    "one row each, under what it was for, never lead_json",
+  );
+  assert.deepEqual(
+    tables.events.filter((e) => e.tenant_id === ws && e.kind === ASK_USAGE_KIND).map((e) => e.data.purpose),
+    [...SMALL_JSON_PURPOSES],
   );
 });
 

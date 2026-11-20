@@ -498,9 +498,10 @@ test("kinds by type: a video's three, a photo's five, nothing else", () => {
 /* ----------------------------------------------------------------------------------------------- what it costs -- */
 
 test("hearing's prices: Gemini by its tokens, Scribe by the hour, an unknown model none; each call a ledger row with its port", () => {
-  assert.equal(hearing.hearingDollars("gemini-3.5-flash-lite", { input: 1_000_000, output: 100_000 }), 0.55);
-  assert.equal(hearing.hearingDollars("scribe_v2", { input: 0, output: 0, seconds: 3600 }), 0.22);
-  assert.equal(hearing.hearingDollars("gemini-9", { input: 1, output: 1 }), null);
+  const today = Date.UTC(2026, 10, 20, 12);
+  assert.equal(hearing.hearingDollars("gemini-3.5-flash-lite", { input: 1_000_000, output: 100_000 }, today), 0.55);
+  assert.equal(hearing.hearingDollars("scribe_v2", { input: 0, output: 0, seconds: 3600 }, today), 0.22);
+  assert.equal(hearing.hearingDollars("gemini-9", { input: 1, output: 1 }, today), null);
   const row = usage.hearingUsageBodyOf({
     tenantId: "t",
     purpose: "file_words",
@@ -509,12 +510,37 @@ test("hearing's prices: Gemini by its tokens, Scribe by the hour, an unknown mod
     outcome: "answered",
     input: 768,
     output: 200,
+    atMs: today,
     subjectId: "f",
   });
   assert.equal(row.port, "google");
   assert.equal(row.purpose, "file_words");
   assert.equal(row.subject_id, "f");
   assert.ok(hearing.AI_USAGE_PURPOSES.includes("file_hear") && hearing.AI_USAGE_PORTS.includes("elevenlabs"));
+});
+
+test("a price is the one in force on the call's day: 3.8 Flash's introductory prices to the last second of 2026, then double, and a row keeps its own day's dollars", () => {
+  const used = { input: 1_000_000, output: 100_000 };
+  const lastOf2026 = Date.UTC(2026, 11, 31, 23, 59, 59, 999);
+  const firstOf2027 = Date.UTC(2027, 0, 1);
+  assert.equal(hearing.hearingDollars("gemini-3.8-flash", used, lastOf2026), 1.125, "$0.75 in and $3.75 out a million");
+  assert.equal(hearing.hearingDollars("gemini-3.8-flash", used, firstOf2027), 2.25, "$1.50 in and $7.50 out a million");
+  assert.equal(
+    hearing.hearingDollars("gemini-3.5-flash-lite", used, firstOf2027),
+    0.55,
+    "a model with one price keeps it",
+  );
+  const rowOn = (atMs) =>
+    usage.hearingUsageBodyOf({
+      tenantId: "t",
+      purpose: "file_hear",
+      port: "google",
+      model: "gemini-3.8-flash",
+      outcome: "answered",
+      ...used,
+      atMs,
+    }).usd;
+  assert.deepEqual([rowOn(lastOf2026), rowOn(firstOf2027)], [1.125, 2.25]);
 });
 
 test("the switches: the words' shape, gemini unless it says scribe; the ear's model, Flash-Lite unless it names a Gemini", () => {
