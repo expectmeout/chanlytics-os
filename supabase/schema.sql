@@ -52539,7 +52539,7 @@ CREATE TRIGGER source_items_copies_follow_gone AFTER DELETE ON public.source_ite
 -- Name: source_items source_items_ring_full; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER source_items_ring_full AFTER UPDATE OF state, why ON public.source_items FOR EACH ROW WHEN (((((new.why = 'room'::text) AND (new.state = 'waiting'::text))) IS DISTINCT FROM (((old.why = 'room'::text) AND (old.state = 'waiting'::text))))) EXECUTE FUNCTION public.source_items_ring_full();
+CREATE TRIGGER source_items_ring_full AFTER UPDATE OF state, why ON public.source_items FOR EACH ROW WHEN ((((new.why = 'room'::text) AND (new.state = 'waiting'::text)) IS DISTINCT FROM ((old.why = 'room'::text) AND (old.state = 'waiting'::text)))) EXECUTE FUNCTION public.source_items_ring_full();
 
 
 --
