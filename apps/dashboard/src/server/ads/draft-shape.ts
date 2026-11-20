@@ -22,7 +22,7 @@ const SPECIAL_KINDS = [
 const VERSION_MAX = { text: 600, headline: 200 } as const;
 
 /** The draft as the screen holds it. Money is whole minor units of the ad account's currency. */
-export const AdDraftStateSchema = z.object({
+const AdDraftStateSchema = z.object({
   /** The service the ad offers, by its name in Services. */
   service: z.string().trim().min(1).max(200),
   /** The picture it shows: a file's id. */
@@ -79,7 +79,7 @@ export type AdCheckDto =
   | { code: "account"; check: AdCardCheckId };
 
 /** A draft, with everything its screen says of it. */
-export interface AdDraftDto {
+interface AdDraftDto {
   service: string;
   picture: { id: string; kind: "photo" | "video"; name: string; made: boolean };
   miles: number;

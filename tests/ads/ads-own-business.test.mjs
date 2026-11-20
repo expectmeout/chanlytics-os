@@ -1,22 +1,15 @@
 /**
  * A workspace's preview of the Ads as its own (6 Nov 2026): the example ads and people, around the business the workspace says it is,
- * and a New ad that shows the pictures it has kept in Files, a post Ask made among them. The real components and models run on the stub
- * React, over the settings surface a page reads and a fetch where the route would be. A made-up business throughout.
+ * and an ad's preview that draws the picture it keeps from Files, a post Ask made among them. The real components and models run on
+ * the stub React, over the settings surface a page reads. A made-up business throughout.
  */
-import { after, test } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, all, byTestId, find, redrawWanted, textOf, press } from "../_stub-react.mjs";
-import { until } from "../shared/_until.mjs";
+import { installStubReact, fresh, again, byTestId, find } from "../_stub-react.mjs";
 import { ADS_EXAMPLES } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
 import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
-import {
-  newAdDefaults,
-  newAdModel,
-  draftAd,
-  newAdFrom,
-} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/new-ad.ts";
-import { NEW_AD } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words-new.ts";
+import { starterCopy } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/starter-copy.ts";
 
 installStubReact({
   CHANLY: { nav() {} },
@@ -38,9 +31,6 @@ const { adsOwnHere } = await import(`${S}/surfaces/campaigns/ads/own.ts`);
 const { CONFIG, SPRING } = await import(`${S}/surfaces/campaigns/ads/sample.ts`);
 const { useAdsStore } = await import(`${S}/surfaces/campaigns/ads/store.ts`);
 const { AdPreview } = await import(`${S}/surfaces/campaigns/ads/drawer/preview.tsx`);
-const { FilesSec } = await import(`${S}/surfaces/campaigns/ads/new/step-ad-files.tsx`);
-const { PostsSec } = await import(`${S}/surfaces/campaigns/ads/new/step-ad-parts.tsx`);
-const { useNewAd } = await import(`${S}/surfaces/campaigns/ads/new/new-state.ts`);
 const { adsDemoFold } = await import(`${S}/surfaces/reports/ads-demo.ts`);
 const { withChoices } = await import(`${S}/surfaces/settings/connections/ad-accounts-mock.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
@@ -208,7 +198,6 @@ test("an ad reads as the business's: the frame's name, the sentence's street, th
     "where its area is said around",
   );
   assert.equal(near.opensUrl, "app.example.org/b/birch-lane");
-  assert.equal(newAdDefaults(read, CONFIG).serviceId, read.services[0].id, "a new ad starts from its top Service");
 });
 
 test("what it has not said reads as missing, never as the studio's; with no name the sample stands whole", () => {
@@ -281,259 +270,37 @@ test("the store a page draws is the workspace's own, and so is Reports' fold, in
 
 test("a Service with no price says its name alone, with no comma left hanging", () => {
   const read = exampleAt("running", NOW, theirs());
-  const draft = { ...newAdDefaults(read, CONFIG), serviceId: read.services[1].id, postId: null };
-  assert.equal(newAdModel(draft, read, CONFIG).ad.copy.headline, "Follow-up");
+  const words = (price) =>
+    starterCopy({ service: "Follow-up", price, business: read.business, door: "whatsapp", word: read.appointmentWord });
+  assert.equal(words("").headline, "Follow-up");
+  assert.equal(words("from $30").headline, "Follow-up, from $30");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // A picture from Files
 
-const fileOf = (id, over = {}) => ({
-  id,
-  status: "filed",
-  source: "upload",
-  name: `photo-${id}`,
-  bytes: 1000,
-  width: 1200,
-  height: 1500,
-  shows: "work",
-  who_in_it: "no_one",
-  people: null,
-  look_status: "done",
-  line: null,
-  issues: [],
-  looks_like_stock: false,
-  created_at: "2031-03-01T10:00:00Z",
-  ...over,
-});
-const pageOf = (files, over = {}) => ({
-  files,
-  shelf: "all",
-  next: null,
-  tally: { total: files.length, kept: files.length, waiting: 0, looking: 0, shelves: {} },
-  ...over,
-});
-
-/** What the route is asked, and how it answers. */
-const route = { asked: [], answer: () => pageOf([]) };
-const realFetch = globalThis.fetch;
-globalThis.fetch = async (input) => {
-  const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
-  assert.equal(url.pathname, "/api/v1/files", "no other read is asked of");
-  route.asked.push(url);
-  const data = route.answer(url);
-  if (data === null) return new Response(JSON.stringify({ ok: false, error: { message: "no" } }), { status: 500 });
-  return new Response(JSON.stringify({ ok: true, data }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-};
-after(() => {
-  globalThis.fetch = realFetch;
-});
-
-const readOwn = () => exampleAt("running", NOW, theirs());
-/** New ad's photo section, as the step draws it, over a draft a press can change. */
-function section(answer, draftOver = {}) {
-  route.asked.length = 0;
-  route.answer = answer;
-  const read = readOwn();
-  const held = { draft: { ...newAdDefaults(read, CONFIG), ...draftOver } };
-  const props = () => ({
-    state: { draft: held.draft },
-    read,
-    config: CONFIG,
-    patch: (p) => {
-      held.draft = { ...held.draft, ...p };
-    },
-  });
-  fresh();
-  const draw = () => FilesSec(props());
-  return { held, tree: draw(), draw: () => again(draw) };
-}
-const landed = (what) => until(redrawWanted, what);
-
-test("New ad offers what Ask made, then the kept pictures, each newest first as its read answers, each its own picture and name", async () => {
-  const s = section((url) =>
-    url.searchParams.get("shelf") === "made"
-      ? pageOf([fileOf("b", { source: "made", name: "spring-opening" })], { shelf: "made" })
-      : pageOf([fileOf("a")]),
-  );
-  assert.ok(textOf(s.tree).includes(ads.FILE_WORDS.reading), "while it reads");
-  await landed("the files");
-  assert.equal(
-    route.asked.length,
-    2,
-    "two shelves: Kept is what the business brought, and what Ask made stands on its own",
-  );
-  assert.equal(route.asked[0].searchParams.get("shelf"), "all", "what is kept: the Inbox's are not yet the business's");
-  assert.equal(route.asked[1].searchParams.get("shelf"), "made");
-  for (const asked of route.asked) assert.equal(asked.searchParams.get("limit"), "12", "a few at a time");
-  const tree = s.draw();
-  const tiles = all(tree, (n) => n.type === "a" || n.type === "button").filter((n) =>
-    n.props?.["data-testid"]?.startsWith("ads-new-file-"),
-  );
-  assert.equal(tiles.length, 2);
-  const pics = all(tree, (n) => n.type === "img").map((n) => n.props.src);
-  assert.deepEqual(pics, ["/api/v1/files/b/view?w=240", "/api/v1/files/a/view?w=240"], "what Ask made first");
-  assert.match(textOf(byTestId(tree, "ads-new-file-b")), /Spring opening/);
-  assert.ok(byTestId(byTestId(tree, "ads-new-files-made"), "ads-new-file-b"), "under Made by Ask");
-  assert.ok(
-    byTestId(byTestId(tree, "ads-new-files-library"), "ads-new-file-a"),
-    "and the business's own under the Library",
-  );
-  assert.equal(
-    byTestId(tree, "ads-new-files-door").props.href,
-    "#/campaigns/content:library",
-    "and the door to where one is added: Content's Library, once Settings › Files",
-  );
-});
-
-test("a press picks the picture for the draft and nothing else, and says what to know of it where there is something", async () => {
-  const seen = fileOf("c", {
-    who_in_it: "not_asked",
-    people: { count: 2, recognizable: 1 },
-    looks_like_stock: true,
-    issues: ["Dark on one side"],
-  });
-  const s = section(() => pageOf([fileOf("a"), seen]));
-  await landed("the files");
-  let tree = s.draw();
-  assert.equal(byTestId(tree, "ads-new-file-a").props["aria-pressed"], false);
-  assert.equal(byTestId(tree, "ads-new-file-note"), null, "nothing picked, nothing to know");
-  press(byTestId(tree, "ads-new-file-a"));
-  assert.deepEqual(s.held.draft.file, { fileId: "a", name: "photo-a", made: false });
-  tree = s.draw();
-  assert.equal(byTestId(tree, "ads-new-file-a").props["aria-pressed"], true);
-  assert.equal(byTestId(tree, "ads-new-file-note"), null, "one the look had nothing to say of");
-  press(byTestId(tree, "ads-new-file-c"));
-  tree = s.draw();
-  assert.deepEqual(
-    all(tree, (n) => n.props?.["data-testid"] === "ads-new-file-note").map((n) => textOf(n).trim()),
-    [ads.FILE_WORDS.whoAsk(2), ads.FILE_WORDS.stock, "Dark on one side"],
-    "whether they agreed to be shown, first: an ad reaches strangers",
-  );
-  assert.equal(route.asked.length, 2, "a press reads nothing");
-});
-
-test("more comes a few at a time, from where the read stopped; with nothing kept it says so and shows the door, and one that failed offers again", async () => {
-  const more = section((url) =>
-    url.searchParams.get("before")
-      ? pageOf([fileOf("b")], { next: null })
-      : pageOf([fileOf("a")], { next: "2031-03-01T10:00:00Z|a" }),
-  );
-  await landed("the first few");
-  let tree = more.draw();
-  press(byTestId(tree, "ads-new-files-more"));
-  await until(() => route.asked.length === 3, "the next read, of Kept alone: Made by Ask had no more");
-  assert.equal(route.asked[2].searchParams.get("shelf"), "all");
-  assert.equal(route.asked[2].searchParams.get("before"), "2031-03-01T10:00:00Z|a");
-  await until(() => byTestId(more.draw(), "ads-new-file-b"), "the next few");
-  tree = more.draw();
-  assert.ok(byTestId(tree, "ads-new-file-a"), "and the first stay");
-  assert.equal(byTestId(tree, "ads-new-files-more"), null, "and at the last there is no more");
-
-  const none = section(() => pageOf([]));
-  await landed("an empty shelf");
-  assert.equal(textOf(byTestId(none.draw(), "ads-new-files-none")), NEW_AD.step2.files.none);
-  assert.ok(byTestId(none.draw(), "ads-new-files-door"));
-
-  const waiting = section(() =>
-    pageOf([], { tally: { total: 3, kept: 0, waiting: 3, looking: 0, shelves: {} }, shelf: "all" }),
-  );
-  await landed("an empty shelf, and a full Inbox");
-  assert.equal(textOf(byTestId(waiting.draw(), "ads-new-files-none")), ads.FILE_WORDS.noneFiled);
-
-  let up = false;
-  const failed = section(() => (up ? pageOf([fileOf("a")]) : null));
-  await landed("a read that failed");
-  tree = failed.draw();
-  assert.ok(textOf(byTestId(tree, "ads-new-files-failed")).includes(ads.FILE_WORDS.failedRead));
-  up = true;
-  press(byTestId(tree, "ads-new-files-again"));
-  failed.draw();
-  await until(() => byTestId(failed.draw(), "ads-new-file-a"), "the read again");
-});
-
-test("the section stands alone on a preview's Meta photo; a video has no Files to pick from, and a demo keeps what it drew and reads nothing", async () => {
-  const read = readOwn();
-  const draft = {
-    ...newAdDefaults(read, CONFIG),
-    door: "whatsapp",
-    platform: "meta",
-    format: "photo",
-    postId: null,
-  };
-  const postsProps = (d) => ({ state: { draft: d }, read, config: CONFIG, patch() {} });
-  route.asked.length = 0;
-  route.answer = () => pageOf([fileOf("a")]);
-  fresh();
-  const tree = PostsSec(postsProps(draft));
-  assert.ok(byTestId(tree, "ads-new-files-door"), "the Files section");
-  assert.equal(byTestId(tree, "ads-new-post-add"), null, "with no lone Add a photo over it");
-  await landed("the files");
-
-  route.asked.length = 0;
-  fresh();
-  const video = PostsSec(postsProps({ ...draft, format: "video" }));
-  assert.equal(byTestId(video, "ads-new-files-door"), null);
-  assert.ok(byTestId(video, "ads-new-post-add"), "a video keeps its own tile");
-});
-
-test("the picture picked is what the preview draws and what the ad keeps: a photo sized for the frame, a post in the frame's own shape", () => {
-  const read = readOwn();
-  const base = {
-    ...newAdDefaults(read, CONFIG),
-    door: "whatsapp",
-    platform: "meta",
-    format: "photo",
-    postId: null,
-  };
+test("an ad's picture from Files is what its preview draws: a photo sized for the frame, a post in the frame's own shape", () => {
+  const read = exampleAt("running", NOW, theirs());
+  const spring = read.ads.find((a) => a.id === SPRING);
   const pick = { fileId: "a", name: "storefront-dusk", made: false };
-  const vm = newAdModel({ ...base, file: pick }, read, CONFIG);
-  assert.deepEqual(vm.drawer.preview.picture, pick);
-  assert.deepEqual(draftAd({ ...base, file: pick }, read, CONFIG, "new").media, { kind: "file", ...pick });
+  const { preview } = adModel({ ...spring, media: { kind: "file", ...pick } }, read, CONFIG);
+  assert.deepEqual(preview.picture, pick);
 
-  const framed = (preview, frame) => {
+  const framed = (shown, frame) => {
     fresh();
-    return AdPreview({ preview, frame });
+    return AdPreview({ preview: shown, frame });
   };
   const picture = (tree) => byTestId(tree, "ads-frame-picture");
-  assert.equal(picture(framed(vm.drawer.preview, "feed")).props.src, "/api/v1/files/a/view?w=720");
-  assert.equal(picture(framed(vm.drawer.preview, "feed")).props.alt, "Storefront dusk");
-  const post = { ...vm.drawer.preview, picture: { fileId: "p", name: "spring", made: true } };
+  assert.equal(picture(framed(preview, "feed")).props.src, "/api/v1/files/a/view?w=720");
+  assert.equal(picture(framed(preview, "feed")).props.alt, "Storefront dusk");
+  const post = { ...preview, picture: { fileId: "p", name: "spring", made: true } };
   assert.equal(picture(framed(post, "feed")).props.src, "/api/v1/files/p/view?shape=portrait");
   assert.equal(picture(framed(post, "story")).props.src, "/api/v1/files/p/view?shape=story");
 
   // One that cannot be drawn leaves the flat tile, never a broken glyph.
   fresh();
-  const draw = () => AdPreview({ preview: vm.drawer.preview, frame: "feed" });
+  const draw = () => AdPreview({ preview, frame: "feed" });
   find(draw(), (n) => n.props?.["data-testid"] === "ads-frame-picture").props.onError();
   assert.equal(picture(again(draw)), null);
   assert.ok(find(again(draw), (n) => n.props?.className === "ads-photo"));
-
-  // No picture on what shows none: a video, or Google.
-  assert.equal(newAdModel({ ...base, file: pick, format: "video" }, read, CONFIG).drawer.preview.picture, null);
-  const google = { ...base, door: "call", platform: "google", file: pick };
-  assert.equal(newAdModel(google, read, CONFIG).drawer.preview.picture, null);
-  assert.equal(draftAd(google, read, CONFIG, "new").media.kind, "none");
-});
-
-test("an ad shows a post or a picture, not both, and a copy of one with a picture keeps it", () => {
-  const read = { ...readOwn(), posts: exampleAt("running", NOW, null).posts };
-  fresh();
-  const opening = { door: "whatsapp", from: null };
-  const draw = () => useNewAd({ read, config: CONFIG, opening });
-  let held = draw();
-  const pick = { fileId: "a", name: "storefront", made: false };
-  held.patch({ postId: null, file: pick });
-  held = again(draw);
-  assert.deepEqual(held.state.draft.file, pick);
-  held.patch({ postId: read.posts[0].id });
-  held = again(draw);
-  assert.equal(held.state.draft.file, null);
-
-  const ad = { ...read.ads[0], media: { kind: "file", ...pick } };
-  assert.deepEqual(newAdFrom(ad, "copy", read).file, pick);
-  assert.equal(newAdFrom(ad, "google", read).file, null, "Google shows no picture");
 });

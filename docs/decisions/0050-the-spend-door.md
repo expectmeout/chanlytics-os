@@ -356,3 +356,25 @@ Meta's own pages were read first; what they showed and what it changed is in
 - **The draft's rules and call 7's checks on words** (`packages/contracts/src/ads/draft.ts`,
   `packages/contracts/src/ask/skills/ad/checks.ts`): what code picks of a draft, and each thing that stops an ad's
   words, its amount, its end or its picture before Turn on. The model writes words and never decides a check.
+
+## As built, 20 November 2026 · New ad's one screen (the Ads plan's step 4, its second part)
+
+Built with nothing sent to Meta. One migration is written and not applied: `00656`, which lets the ledger count the ad
+writer's words under a purpose of their own (`ad_draft`).
+
+- **Call 7, the checks, run on the server after every change** (`apps/dashboard/src/server/ads/draft-checks.ts`,
+  over the rules in `packages/contracts/src/ads/draft.ts` and `ask/skills/ad/checks.ts`). `POST ads/draft` judges
+  whatever draft the screen sends against the business as it stands now, and answers each thing that stops Turn on
+  as one line with its one act. The model writes words and is never asked whether a check passed.
+- **The server keeps no draft.** Until Turn on there is no row: the screen holds the draft for the tab, and the server
+  trusts nothing in it beyond what the owner chose (the service by its name, the picture by its id, the amount, the
+  miles, the end, the words). A row arrives with Turn on's own door, which is the next part.
+- **The ad writer has one caller** (`server/ads/words.ts`, `POST ads/words`, `spend: true`, thirty an hour): three
+  versions for a draft, or the one change the owner told AI to make, from the closed list. Words that fail a check
+  are never shown; a change whose words would fail is not made, and says which rule.
+- **Turn on is not built.** The press is drawn and cannot be pressed: `turn_on: "not_yet"` from one function, and under
+  the press "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent." Calls 2 to 6 (the
+  press carrying what it expects, the job that makes everything paused, reads it back and compares it) are untouched.
+- **A special kind is asked, never guessed** (the plan's G7). Where a draft reads as a job, housing, finance, politics
+  or gambling ad, the screen asks; a no is what the press would tell Meta, and a yes is not run here, with a door to
+  Meta.

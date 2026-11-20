@@ -6,7 +6,7 @@
  *
  * Two shapes: `AdsRead`, what is true of this workspace now (its ads, accounts and people, read at one moment), and
  * `AdsConfig`, what the platforms return as choices and estimates (fixed per account, not per ad). A page draws a model of
- * both (page.ts, drawer.ts, new-ad.ts); nothing a page says is typed here as a total. The sample the mockup draws is a
+ * both (page.ts, drawer.ts); nothing a page says is typed here as a total. The sample the mockup draws is a
  * fixture of these shapes in the dashboard (surfaces/campaigns/ads/sample.ts), and a reader will return the same.
  *
  * A root module of the package, for the server and Reports to read: types, the day arithmetic every Ads module shares, and

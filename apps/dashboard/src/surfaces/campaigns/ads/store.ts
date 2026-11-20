@@ -1,6 +1,6 @@
 /**
  * The Ads view's demo store (MOCKUP): ONE state of `AdsRead` for the example chosen, behind a fake port of the verbs the wiring
- * lane will make real (pause, resume, end, setBudget, setEnd, setArea, setOffer, rename, save, turnOn, answerAsk, chooseAccount).
+ * lane will make real (pause, resume, end, setBudget, setEnd, setArea, setOffer, rename, save, answerAsk, chooseAccount).
  * The page holds it once and hands `read` and `verbs` down (and `readAgain`, a mock of reading an account again): the drawer and
  * New ad keep no copy of an ad. Wiring swaps the port for calls
  * (`useAdsStore` reads the surface, a verb posts and waits for the refusal or the new version); the page does not change.
@@ -13,13 +13,12 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { adWith, daysBetween, patchRestarts } from "@chanlytics/contracts";
-import type { AdAccountRead, AdArea, AdPatch, AdPlatform, AdRead, AdsConfig, AdsRead } from "@chanlytics/contracts";
+import type { AdAccountRead, AdArea, AdPatch, AdPlatform, AdRead, AdsRead } from "@chanlytics/contracts";
 import { ADS_EXAMPLES, REFUSED } from "./model/words";
 import { ADS_SOFT_NEEDS } from "./model/rules";
 import { CHOOSE } from "./model/words-page";
 import { adServiceOf } from "./model/vm-base";
-import { draftAd, newAdModel, starterCopy } from "./model/new-ad";
-import type { AdDraft } from "./model/new-ad";
+import { starterCopy } from "./model/starter-copy";
 import type { AdsExample } from "./model/words";
 import type { AskApply, AskVM } from "./model/page";
 import type { FrameFlash } from "../../frame-verbs";
@@ -48,8 +47,6 @@ export interface AdsVerbs {
   rename(id: string, version: number, name: string): AdsOutcome;
   /** Edit's several changes at once. */
   save(id: string, version: number, patch: AdPatch): AdsOutcome;
-  /** Turn on: the draft lands in review. `maxMinor` is the most it can spend, as the owner read it. */
-  turnOn(draft: AdDraft, maxMinor: number | null): AdsOutcome & { id?: string };
   /** The Ask line's press: a longer run and a bigger total, or an amount a day moved from one ad to another. */
   answerAsk(ask: AskVM): AdsOutcome;
   /** An account that was to be chosen is: the platform's account the owner picked becomes the connected one. */
@@ -98,7 +95,7 @@ function shifted(ad: AdRead, perDayMinor: number, moved: number, today: string):
 }
 
 /** The verbs, over a world. Each finds the ad, refuses a stale press or an ad that is not ours to change, and changes it. */
-export function makeVerbs(world: World, config: AdsConfig): AdsVerbs {
+export function makeVerbs(world: World): AdsVerbs {
   const replace = (ad: AdRead) => {
     const read = world.get();
     world.put({ ...read, ads: read.ads.map((a) => (a.id === ad.id ? ad : a)) });
@@ -162,19 +159,7 @@ export function makeVerbs(world: World, config: AdsConfig): AdsVerbs {
         const next = amountMoved(ad, adWith(ad, read, patch), read.today);
         return patchRestarts(ad, patch) ? sentBack(next, read) : next;
       }),
-    turnOn: (draft, maxMinor) => {
-      const read = world.get();
-      const vm = newAdModel(draft, read, config);
-      if (vm.blocked) return declined(vm.blocked.text);
-      if (maxMinor !== vm.totalMinor) return declined(REFUSED.maximum);
-      const id = crypto.randomUUID();
-      world.put({ ...read, ads: [...read.ads, draftAd(draft, read, config, id)] });
-      const pause = () => {
-        const now = world.get().ads.find((a) => a.id === id);
-        if (now) replace({ ...now, state: "paused", version: now.version + 1 });
-      };
-      return { ok: true, id, undo: pause };
-    },
+
     answerAsk: (ask) => {
       const apply = ask.apply;
       if (!apply) return { ok: true, undo: () => undefined };
@@ -274,7 +259,7 @@ export function useAdsStore(opening: AdsExample = adsOpening()) {
       setState((s) => ({ ...s, read }));
     },
   }));
-  const [verbs] = useState(() => makeVerbs(world, CONFIG));
+  const [verbs] = useState(() => makeVerbs(world));
   const stopReading = () => {
     if (reading.current !== null) clearTimeout(reading.current);
     reading.current = null;

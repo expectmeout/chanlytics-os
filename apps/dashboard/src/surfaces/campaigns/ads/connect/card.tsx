@@ -59,7 +59,7 @@ function NeedPress({ act, onConnect }: { act: NeedAct; onConnect: () => void }) 
 }
 
 /** The one thing missing, or the one stop: what happened, what it stops, and its one act. */
-function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
+export function CardNeed({ need, onConnect }: { need: NeedVM; onConnect: () => void }) {
   return (
     <div
       className="ads-conn-need"

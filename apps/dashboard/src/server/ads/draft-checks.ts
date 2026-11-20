@@ -36,10 +36,10 @@ import { adWordIssues } from "../ask/skills/ad/brief";
 import type { AdCheckDto, AdDraftState, AdWordsFault } from "./draft-shape";
 
 /** The fewest and the most miles a draft runs over: whole miles inside the circle Meta takes (0.63 to 50). */
-export const AD_MILES = { least: 1, most: 50 } as const;
+const AD_MILES = { least: 1, most: 50 } as const;
 
 /** What a draft is judged against: the business as it stands now. */
-export interface AdCheckFacts {
+interface AdCheckFacts {
   /** Today in the ad account's zone. */
   today: string;
   account: {

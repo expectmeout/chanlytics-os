@@ -360,5 +360,5 @@ export async function listServicesBookedSince(
     .order("starts_at", { ascending: false })
     .limit(limit);
   if (error) throw new DbFailure(error, "services_booked_since");
-  return (data ?? []).flatMap((row) => (typeof row.service === "string" && row.service.trim() ? [row.service] : []));
+  return data.flatMap((row) => (typeof row.service === "string" && row.service.trim() ? [row.service] : []));
 }

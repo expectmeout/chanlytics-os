@@ -6,7 +6,6 @@
  */
 import type { AdCopy, AdRead } from "@chanlytics/contracts";
 import { CHIPS, DRAWER, EDIT } from "../model/drawer/words";
-import { NEW_AD } from "../model/words-new";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
@@ -49,14 +48,14 @@ function boxesOf(ad: AdRead): Box[] {
   }
   const text: Box = {
     id: "text",
-    label: NEW_AD.step2.text,
+    label: EDIT.text,
     value: c.text,
     rows: 2,
     set: (v: string): AdCopy => ({ ...c, text: v }),
   };
   if (ad.platform === "tiktok") return [text];
   return [
-    { id: "headline", label: NEW_AD.step2.headline, value: c.headline, rows: 0, set: (v) => ({ ...c, headline: v }) },
+    { id: "headline", label: EDIT.headline, value: c.headline, rows: 0, set: (v) => ({ ...c, headline: v }) },
     text,
   ];
 }
@@ -72,16 +71,16 @@ function WordsBox({ box, onWords }: { box: Box; onWords: (copy: AdCopy) => void 
 
 /** How the chat starts: fixed on a running ad (a welcome message in use cannot be changed), so it says why and offers a copy. */
 function LockedChat({ copy, onCopy }: { copy: AdCopy; onCopy: () => void }) {
-  const now = copy.startWith === "ready" ? NEW_AD.step2.chatReady : NEW_AD.step2.chatQuestions;
+  const now = copy.startWith === "ready" ? EDIT.chatReady : EDIT.chatQuestions;
   return (
     <Popover
-      label={NEW_AD.step2.chat}
+      label={EDIT.chat}
       align="start"
       className="ads-theirs"
       trigger={
         <LinkButton className="ads-lock" data-testid="ads-lock">
           <Icon name="lock" size={12} />
-          <span>{EDIT.chatNow(NEW_AD.step2.chat, now)}</span>
+          <span>{EDIT.chatNow(EDIT.chat, now)}</span>
         </LinkButton>
       }
     >

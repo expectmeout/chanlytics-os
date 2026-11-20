@@ -42,7 +42,7 @@ const musicIn = (sound: HeardSound | null): boolean | null => {
 };
 
 /** A file as the picture rule reads it. `sound` is a video's, read whole; null where it was not read. */
-export function adPictureOfFile(file: FileDto, sound: HeardSound | null): AdPicture {
+function adPictureOfFile(file: FileDto, sound: HeardSound | null): AdPicture {
   const video = file.kind === "video";
   return {
     id: file.id,
@@ -76,11 +76,11 @@ export interface AdPictures {
 export async function listAdPictures(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<AdPictures> {
   const { supabase } = rc.ctx;
   const page = { limit: AD_SHELF_READ };
-  const [made, kept] = await Promise.all([
+  const [byAi, byBusiness] = await Promise.all([
     listFilesOnShelf(supabase, rc.tenantId, { status: "filed", made: true }, page),
     listFilesOnShelf(supabase, rc.tenantId, { status: "filed", made: false }, page),
   ]);
-  const files = [...made, ...kept].map(fileDtoOf).filter(playable);
+  const files = [...byAi, ...byBusiness].map(fileDtoOf).filter(playable);
   const unheard = files
     .filter(
       (file) => file.kind === "video" && adPictureIssue({ ...adPictureOfFile(file, null), music: false }) === null,

@@ -33,7 +33,7 @@ import type { AdDraftAnswer, AdDraftState, AdTurnOn } from "./draft-shape";
  * drawn and cannot be pressed, with the reason under it. The one place that says so: when the job exists, this
  * answers whether it may run in this workspace, and the screen changes nothing.
  */
-export const adTurnOnStands = (): AdTurnOn => "not_yet";
+const adTurnOnStands = (): AdTurnOn => "not_yet";
 
 /** Refused where Ads is not switched on for the workspace on this deployment (the plan's D7). */
 export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Promise<void> {
@@ -71,7 +71,7 @@ export function nextAdPicture(facts: AdDraftFacts, current: string): string {
 }
 
 /** What the ad writer is told of a draft as it stands: the offer its words answer to. */
-export function adOfferOf(
+function adOfferOf(
   facts: AdDraftFacts,
   account: AdDraftAccount,
   draft: Pick<AdDraftState, "service" | "picture" | "miles">,
@@ -88,14 +88,13 @@ export function adOfferOf(
   };
 }
 
-/** The brief a draft's words are written from, or judged against. */
+/** The brief a draft's words are written from, or judged against: for the job asked, a draft's own where none is. */
 export const adDraftBrief = (
   facts: AdDraftFacts,
   account: AdDraftAccount,
   draft: Pick<AdDraftState, "service" | "picture" | "miles">,
-  ask: AdAsk = { job: "write" },
-  noPrice = false,
-) => adBriefOf(facts.business, adOfferOf(facts, account, draft, noPrice), ask);
+  job: { ask?: AdAsk; noPrice?: boolean } = {},
+) => adBriefOf(facts.business, adOfferOf(facts, account, draft, job.noPrice === true), job.ask ?? { job: "write" });
 
 /** A draft the screen sent, held to what Services now lists; a service that is gone is the rule's own pick again. */
 function heldDraft(sent: AdDraftState, facts: AdDraftFacts, picked: string): AdDraftState {

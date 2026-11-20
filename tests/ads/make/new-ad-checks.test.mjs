@@ -16,13 +16,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { AD_MILES, adDeclared, adDraftChecks, adKindsOf } = await import(
-  at("apps/dashboard/src/server/ads/draft-checks.ts")
-);
+const { adDeclared, adDraftChecks, adKindsOf } = await import(at("apps/dashboard/src/server/ads/draft-checks.ts"));
 const { adBriefOf, adServiceFacts, adWordIssues } = await import(
   at("apps/dashboard/src/server/ask/skills/ad/brief.ts")
 );
-const { adPictureOfFile } = await import(at("apps/dashboard/src/server/ads/pictures.ts"));
 const C = await import("@chanlytics/contracts");
 
 const TODAY = "2026-11-19";
@@ -164,30 +161,14 @@ test("5.1 row 3, a before-and-after picture: not offered, and a draft that shows
   assert.deepEqual(checks({}, { picture: picture({ beforeAfter: true }) }), [
     { code: "picture", fault: "before_after" },
   ]);
-  // Files notes it in the look's own sentence, read by the rule the words are read by.
-  const looked = (line) =>
-    adPictureOfFile(
-      {
-        id: "f1",
-        kind: "image",
-        source: "upload",
-        width: 1440,
-        height: 1800,
-        seconds: null,
-        who_in_it: "no_one",
-        look_status: "done",
-        people: { count: 0, recognizable: 0 },
-        line,
-        issues: [],
-      },
-      null,
-    );
-  assert.equal(looked("A kitchen before and after its refit, side by side.").beforeAfter, true);
-  assert.equal(looked("Una cocina, antes y después.").beforeAfter, true);
-  assert.equal(looked("The front desk with flowers on it.").beforeAfter, false);
-  assert.equal(C.adPictureIssue(looked("The front desk with flowers on it.")), null);
+  // Files notes it in the look's own sentence, read by the rule the words are read by. (A file read into a picture
+  // is new-ad-draft.test.mjs, over the database.)
+  const looked = (line) => C.AD_BEFORE_AFTER.test(line);
+  assert.equal(looked("A kitchen before and after its refit, side by side."), true);
+  assert.equal(looked("Una cocina, antes y después."), true);
+  assert.equal(looked("The front desk with flowers on it."), false);
+  assert.equal(C.adPictureIssue(picture()), null);
 });
-
 test("5.1 row 4, a picture or video in the wrong shape or length: the feed's shape, wide enough, a video of 3 to 60 seconds", () => {
   // A tall 9:16 is stories' shape, not the feed's: Ads never crops, so it is not offered.
   assert.deepEqual(checks({}, { picture: picture({ width: 1080, height: 1920 }) }), [
@@ -210,45 +191,20 @@ test("5.1 row 4, a picture or video in the wrong shape or length: the feed's sha
   assert.deepEqual(checks({}, { picture: null }), [{ code: "picture", fault: "gone" }]);
 });
 
-test("5.1 row 5, music and a person who has not said yes to ads: read from Files so that neither is ever offered (G15)", () => {
-  const file = (over = {}) => ({
-    id: "f1",
-    kind: "image",
-    source: "upload",
-    width: 1440,
-    height: 1800,
-    seconds: null,
-    who_in_it: "not_asked",
-    look_status: "done",
-    people: { count: 0, recognizable: 0 },
-    line: "The front desk.",
-    issues: [],
-    ...over,
-  });
-  const issue = (over, sound = null) => C.adPictureIssue(adPictureOfFile(file(over), sound));
-  // Nobody: the look counted no one, or a member said so.
-  assert.equal(issue({}), null);
-  assert.equal(issue({ who_in_it: "no_one", people: null, look_status: "waiting" }), null);
-  // Someone, or not known: never offered. A yes for posts does not cover an ad.
-  assert.equal(issue({ people: { count: 2, recognizable: 0 } }), "person");
-  assert.equal(issue({ who_in_it: "agreed" }), "person");
-  assert.equal(
-    issue({ look_status: "waiting", people: null }),
-    "person",
-    "not looked at yet is not known to show nobody",
-  );
-  // A video: no sound at all, or heard with no music. Not heard yet is not known to have none.
+test("5.1 row 5, music and a person who has not said yes to ads: neither is ever offered, and not known is not offered either (G15)", () => {
+  // What Files says of a picture is read into these three answers by server/ads/pictures.ts; new-ad-draft.test.mjs
+  // runs that reading over the database, a file at a time. Here: what each answer does to a draft.
+  const fault = (over) => checks({}, { picture: picture(over) });
+  // Nobody: fine. Someone, or not known: never offered. A yes for posts does not cover an ad.
+  assert.deepEqual(fault({ people: false }), []);
+  assert.deepEqual(fault({ people: true }), [{ code: "picture", fault: "person" }]);
+  assert.deepEqual(fault({ people: null }), [{ code: "picture", fault: "person" }], "not looked at yet");
+  // A video: no music is fine. Music, or a sound nobody has heard yet, is not.
   const video = { kind: "video", seconds: 20, width: 1080, height: 1080 };
-  const heard = (present) => ({
-    note: { speech: false, music: { present, kind: null, mood: null, tempo: null }, voices: [], sounds: [], feel: "" },
-  });
-  assert.equal(issue(video, { none: true }), null);
-  assert.equal(issue(video, heard(false)), null);
-  assert.equal(issue(video, heard(true)), "music");
-  assert.equal(issue(video, null), "music");
-  assert.equal(issue(video, {}), "music");
+  assert.deepEqual(fault({ ...video, music: false }), []);
+  assert.deepEqual(fault({ ...video, music: true }), [{ code: "picture", fault: "music" }]);
+  assert.deepEqual(fault({ ...video, music: null }), [{ code: "picture", fault: "music" }], "not heard yet");
 });
-
 test("5.1 row 6, a price: any price while AI never quotes one, and a price Services does not say; each is offered Take the price out", () => {
   // AI is set to never quote prices: the brief hands the writer no price, and a price in the words stops the ad.
   const never = facts({ brief: briefOf({ neverPrices: true }) });
@@ -374,7 +330,6 @@ test("5.1 row 11, the Page, the WhatsApp number, the payment method and the acco
 });
 
 test("the area is whole miles inside what Meta takes, and a draft says the nearest", () => {
-  assert.deepEqual([AD_MILES.least, AD_MILES.most], [1, 50]);
   assert.deepEqual(checks({ miles: 0 }), [{ code: "area", nearest_miles: 1 }]);
   assert.deepEqual(checks({ miles: 80 }), [{ code: "area", nearest_miles: 50 }]);
   for (const miles of [1, 5, 50]) assert.deepEqual(checks({ miles }), [], String(miles));

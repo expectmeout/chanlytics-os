@@ -27,7 +27,7 @@ import { AD_SKILL } from "./skill";
  */
 
 /** Whose ad it is, who asked, and when the words must be in. */
-export interface AdWriterCaller {
+interface AdWriterCaller {
   tenantId: TenantId;
   userId: string;
   /** The moment the call must have answered by (the craft call is started only with its least time left). */
@@ -35,7 +35,7 @@ export interface AdWriterCaller {
 }
 
 /** What the writer came to. `answer` is its own, for the job whose answer is a change. */
-export type AdWritten =
+type AdWritten =
   { wrote: true; versions: AdVersion[]; answer: AdCraftAnswer } | { wrote: false; kept: CraftKept; issues: AdIssue[] };
 
 /** Whether a job's answer carries words to check: a draft's and a rewrite's always, a change's where it changed them. */

@@ -16,8 +16,17 @@ import {
   type AdDraftInputs,
   type AdPlace,
   type AdServiceFacts,
+  type AppointmentWord,
+  type TenantConfig,
 } from "@chanlytics/contracts";
-import { findAdAccountForPage, listAdsOfAccount, readAdsPageCounts, type AdRow } from "@chanlytics/db/ads";
+import {
+  findAdAccountForPage,
+  listAdsOfAccount,
+  readAdsPageCounts,
+  type AdAccountRow,
+  type AdRow,
+  type AdsPageCounts,
+} from "@chanlytics/db/ads";
 import { listServicesBookedSince } from "@chanlytics/db/calendar";
 import { findChannelNumber } from "@chanlytics/db/channels";
 import type { AdBusinessFacts } from "../ask/skills/ad/brief";
@@ -83,16 +92,63 @@ const languageOf = (languages: readonly string[] | undefined): AdBusinessFacts["
 
 /** The ads made here that still run, and the largest total one of them was turned on with. */
 function madeHereOf(rows: readonly AdRow[], at: { today: string; timezone: string; nowMs: number }) {
-  const made = rows.filter((row) => row.origin === "chanlytics" && row.status === "made");
-  const running = made.filter((row) => {
+  const ours = rows.filter((row) => row.origin === "chanlytics" && row.status === "made");
+  const running = ours.filter((row) => {
     const state = adStateOfRow(row, at);
     return state !== "ended" && state !== "finished";
   });
-  const totals = made.flatMap((row) =>
+  const totals = ours.flatMap((row) =>
     row.budget_kind === "total" && row.budget_minor !== null ? [row.budget_minor] : [],
   );
   return { names: running.map((row) => row.name), largestTotalMinor: totals.length ? Math.max(...totals) : null };
 }
+
+/** The business an ad is written for, as its settings say it. */
+function businessOf(settings: TenantConfig, named: { name: string }, word: AppointmentWord): AdBusinessFacts {
+  const profile = settings.brain?.profile;
+  return {
+    name: settings.brain?.business_name || named.name,
+    tone: profile?.tone?.trim() || null,
+    word,
+    neverPrices: guardrailsInForce(profile?.guardrails).never_quote_prices,
+    language: languageOf(profile?.languages),
+  };
+}
+
+/** Services, each with how often it was booked and whether an ad made here already runs for it. */
+function servicesOf(
+  settings: TenantConfig,
+  running: readonly string[],
+  bookedNames: readonly string[],
+): AdDraftService[] {
+  return (settings.brain?.profile?.services ?? []).map((service) => ({
+    id: service.name,
+    name: service.name,
+    price: service.price_note?.trim() || null,
+    minutes: service.duration_min ?? null,
+    advertised: running.some((name) => sameName(name, service.name)),
+    booked: bookedNames.filter((name) => sameName(name, service.name)).length,
+  }));
+}
+
+/** The ad account a draft is for: a connected one whose currency and least a day Meta has said. Null until then. */
+function accountOf(live: AdAccountRow | null, aiNumber: string | null): AdDraftAccount | null {
+  if (live === null) return null;
+  const meta = metaAdConfigOf(live.config);
+  if (live.currency === null || meta.min_daily_minor === null) return null;
+  return {
+    name: live.name ?? "",
+    currency: live.currency,
+    minDailyMinor: meta.min_daily_minor,
+    page: meta.page_name,
+    places: meta.instagram_handle === null ? ["facebook"] : ["facebook", "instagram"],
+    checks: adCardChecksOf({ standing: adStandingOf(live.standing), config: meta, aiNumber }),
+  };
+}
+
+/** How many people ads have brought who booked, over the Ads page's window. */
+const bookedFromAds = (counts: AdsPageCounts | null): number =>
+  [...(counts?.people.values() ?? [])].reduce((sum, one) => sum + one.booked, counts?.unnamed.booked ?? 0);
 
 /** What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed. */
 export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
@@ -121,53 +177,24 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
       "Chanlytics couldn't read this workspace's settings, so no ad was drafted. Try again in a moment.",
       409,
     );
-  const profile = parsed.config.brain?.profile;
   const live = row?.status === "connected" ? row : null;
   const timezone = live?.timezone ?? named.timezone;
   const today = zoneDayKey(nowMs, timezone);
-  const meta = live ? metaAdConfigOf(live.config) : null;
   const ads = live ? await listAdsOfAccount(supabase, rc.tenantId, live.id) : [];
   const madeHere = madeHereOf(ads, { today, timezone, nowMs });
   const aiNumber = number.data?.number_e164 ?? null;
-  const booked = [...(counts?.people.values() ?? [])].reduce(
-    (sum, one) => sum + one.booked,
-    counts?.unnamed.booked ?? 0,
-  );
-  const account: AdDraftAccount | null =
-    live && meta && live.currency !== null && meta.min_daily_minor !== null
-      ? {
-          name: live.name ?? "",
-          currency: live.currency,
-          minDailyMinor: meta.min_daily_minor,
-          page: meta.page_name,
-          places: meta.instagram_handle === null ? ["facebook"] : ["facebook", "instagram"],
-          checks: adCardChecksOf({ standing: adStandingOf(live.standing), config: meta, aiNumber }),
-        }
-      : null;
+  const account = accountOf(live, aiNumber);
   return {
     today,
-    business: {
-      name: parsed.config.brain?.business_name || named.name,
-      tone: profile?.tone?.trim() || null,
-      word,
-      neverPrices: guardrailsInForce(profile?.guardrails).never_quote_prices,
-      language: languageOf(profile?.languages),
-    },
-    services: (profile?.services ?? []).map((service) => ({
-      id: service.name,
-      name: service.name,
-      price: service.price_note?.trim() || null,
-      minutes: service.duration_min ?? null,
-      advertised: madeHere.names.some((name) => sameName(name, service.name)),
-      booked: bookedNames.filter((name) => sameName(name, service.name)).length,
-    })),
-    address: profile?.address?.trim() || null,
+    business: businessOf(parsed.config, named, word),
+    services: servicesOf(parsed.config, madeHere.names, bookedNames),
+    address: parsed.config.brain?.profile?.address?.trim() || null,
     whatsapp: aiNumber !== null,
     account,
     accountReading: live !== null && account === null,
     pictures,
     history: {
-      booked,
+      booked: bookedFromAds(counts),
       // What a booking from an ad has cost is not read into a draft yet (the head of this file).
       costPerBookedMinor: null,
       largestTotalMinor: madeHere.largestTotalMinor,
