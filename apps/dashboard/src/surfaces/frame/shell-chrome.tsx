@@ -8,8 +8,9 @@
  */
 import { Component } from "react";
 import type { ComponentType, ErrorInfo, PointerEvent, ReactNode } from "react";
+import { askDockRef } from "@/bridge/ask/dock";
 import { AskLine } from "@/bridge/ask/line";
-import { AskDisc, AskFace } from "../kit/face/ask-face";
+import { AskDisc } from "../kit/face/ask-face";
 import { REPORT_WORDS } from "@chanlytics/contracts";
 import { Button } from "../kit/button/button";
 import { FailedRead } from "../kit/empty/empty";
@@ -21,6 +22,7 @@ import { LeaveHost } from "../kit/record/leave-ask";
 import type { SurfaceViews } from "../routes";
 import { frameGlyph, fromGlobal, fromWindow } from "./frame-window";
 import { BriefPlaying, LiveCallBar, NextVisitBar, ShellStatusBar, UnmarkedVisitsBar } from "./topbar/status-bars";
+import { markLeftFrom, PhoneAskFace } from "./phone-ask-face";
 import { PhoneTabs } from "./phone-tabs";
 import { ReportHost } from "./report-problem";
 import { ShortcutsSheet } from "./shortcuts";
@@ -223,6 +225,8 @@ interface ChromeAt {
   navOpen: boolean;
   setNavOpen: (open: boolean) => void;
   askOpen: boolean;
+  /** AI's Line says it is drawn on the phone's bar (bridge/ask/dock.ts). */
+  askDocked: boolean;
   setAskOpen: (open: boolean) => void;
   openAsk: () => void;
   inboxNeeds: number;
@@ -291,7 +295,7 @@ const frameTop = (s: ChromeAt, glass: boolean) => {
   const Live = fromGlobal("LiveCallBar", LiveCallBar);
   const Status = fromGlobal("ShellStatusBar", ShellStatusBar);
   return (
-    <div className="frame-top" data-chrome="">
+    <div className="frame-top" data-chrome="" inert={askDocked(s) || undefined}>
       {glass && <span className="pg-dateline-slot" id="pg-dateline" />}
       <Bar
         crumbs={(glass ? [] : s.crumbs) as Parameters<typeof Topbar>[0]["crumbs"]}
@@ -342,6 +346,8 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
       data-slide={s.routeSlide || undefined}
       data-landed={s.routeLanded || undefined}
       aria-busy={s.routeLoading ? "true" : undefined}
+      // Under AI on a phone the page takes no press, key or reader: AI's screen, the bar and the circle are all there is.
+      inert={askDocked(s) || undefined}
       {...swipe()}
     >
       {glassHead({
@@ -371,6 +377,23 @@ const routeMain = (s: ChromeAt, glass: boolean) => {
   );
 };
 
+/**
+ * AI open on a phone, where the frame's own bar stands: the bar folds into the place on screen and holds AI's field,
+ * and the circle beside it holds AI's one press (Today, calm, 19 Nov 2026, D8; bridge/ask/dock.ts). Only once AI's
+ * Line says it is drawn there, so the bar never folds round a field still on its way; inside the native app, whose own
+ * tab bar stands here, the Line never says so and keeps a field of its own.
+ */
+const askDocked = (s: ChromeAt) => s.askOpen && s.askDocked;
+
+/**
+ * AI is closed. On a phone the three go back to their circle (D9): where they stood in AI is kept as it closes, and the
+ * circle's own face comes in from there (phoneAskFace).
+ */
+const closeAsk = (s: ChromeAt) => {
+  markLeftFrom(askDocked(s) ? document.querySelector('[data-testid="ask-hero-stage"] canvas') : null);
+  s.setAskOpen(false);
+};
+
 /** The phone's tab bar, unless the native app's own stands here (`__IN_APP`, stamped before paint). */
 const phoneTabs = (s: ChromeAt) =>
   !window.__IN_APP && (
@@ -381,6 +404,7 @@ const phoneTabs = (s: ChromeAt) =>
       onNavigate={s.navigate}
       onMenu={() => s.setNavOpen(true)}
       onPlace={s.onPlace}
+      onAskBack={askDocked(s) ? () => closeAsk(s) : null}
     />
   );
 
@@ -391,27 +415,50 @@ const phoneTabs = (s: ChromeAt) =>
  * row as More opened and back as it shut (Ruben, 11 Nov 2026).
  */
 const phoneAsk = (s: ChromeAt) => {
-  if (s.askOpen) return false;
+  // Inside the native app AI keeps a screen of its own over the circle, which goes while it is open, as ever.
+  if (s.askOpen && window.__IN_APP) return false;
+  const docked = askDocked(s);
+  const Glyph = frameGlyph();
+  // The circle is one element, open or closed: closed, the three on it are the press that opens AI; open on a phone,
+  // the three have left for AI's home and the circle holds AI's one press, drawn into it by the Line (D8, D9).
   return (
-    <button
-      type="button"
-      className="phone-ask"
-      data-chrome="foot"
-      onClick={s.openAsk}
-      aria-label="Ask Chanlytics"
-      title="Ask Chanlytics"
-      data-testid="phone-ask"
-    >
+    <div className="phone-ask" data-chrome="foot" data-folded={docked ? "" : undefined}>
       <AskDisc testId="phone-ask-disc" />
-      <AskFace className="phone-ask-face" ground="raised" side={14} testId="phone-ask-face" />
-    </button>
+      {/* The mic, as AI closes: it stays a moment and fades as the three come home, so the circle is never empty (D9). */}
+      <span className="phone-ask-mic" aria-hidden="true">
+        <Glyph name="mic" size={15} />
+      </span>
+      {/* Kept drawn while AI holds the circle (ask.css hides it), so the three are whole the moment they come home. */}
+      <button
+        type="button"
+        className="phone-ask-press"
+        onClick={s.openAsk}
+        aria-label="Ask Chanlytics"
+        title="Ask Chanlytics"
+        data-testid="phone-ask"
+        aria-hidden={docked ? "true" : undefined}
+        tabIndex={docked ? -1 : undefined}
+      >
+        <PhoneAskFace away={docked} />
+      </button>
+      {docked ? <span className="phone-ask-held" ref={askDockRef.press} /> : null}
+    </div>
   );
 };
+
+/**
+ * The ground AI's screen stands on, on a phone (Today, calm, D8, D9): the page's own paper and light, come over the page
+ * as AI opens and gone as it closes. It is the frame's, under the bar and the circle, so they keep their glass over it;
+ * AI's screen itself is over all three, so the three are seen lifting off the circle. Kept drawn, unseen, so it comes
+ * and goes by its own transition (ask.css `.ask-ground`); not inside the native app, where AI keeps its own screen.
+ */
+const phoneGround = (s: ChromeAt) =>
+  !window.__IN_APP && <div className="ask-ground" aria-hidden="true" {...(askDocked(s) ? { "data-on": "" } : null)} />;
 
 /** Ask's Line over the page. */
 const askLine = (s: ChromeAt) => {
   const Bar = askBar();
-  return <Bar open={s.askOpen} onClose={() => s.setAskOpen(false)} />;
+  return <Bar open={s.askOpen} onClose={() => closeAsk(s)} />;
 };
 
 /** The one deal sheet (0008), opened from anywhere by window.openDealSheet, and the one step sheet (0007, amended). */
@@ -427,7 +474,8 @@ export const appChrome = (s: ChromeAt) => {
   return (
     <div className="app-root" data-theme={s.theme} data-look={s.look}>
       {/* The first stop for Tab: a way past the sidebar and the bars to the page (drawn only while it has focus). */}
-      <button type="button" className="skip-link" onClick={() => focusPage(true)}>
+      {/* Not while AI holds a phone's screen: the page it skips to is taken away under AI (askDocked). */}
+      <button type="button" className="skip-link" onClick={() => focusPage(true)} inert={askDocked(s) || undefined}>
         Skip to the page
       </button>
       {/* Glass's three pools of light, a layer each, which a desk drifts by a transform (components.css .pg-light). */}
@@ -444,6 +492,7 @@ export const appChrome = (s: ChromeAt) => {
         {/* Asked before the page, and a change not saved on it, are left: a band over the page (kit/record/leave-ask.tsx). */}
         <LeaveHost />
         {routeMain(s, glass)}
+        {phoneGround(s)}
         {phoneTabs(s)}
         {phoneAsk(s)}
       </div>

@@ -1,8 +1,9 @@
 /**
- * The rest of the day on a desk (Today in three zones, 2 Nov 2026), the day drawn on the stub React over the board the
- * Calendar really draws (toCalendarVM): five lines, every one that asks for something among them, never cut for a seat.
- * On a busy evening an hour a cancellation freed, past the first five by time, was cut with its Offer it and nothing in
- * the foot (the re-check of the audit, 3 Nov 2026). With no calendar linked, the one row that links one.
+ * The rest of the day (Today, calm, 19 Nov 2026), drawn on the stub React over the board the Calendar really draws
+ * (toCalendarVM): one line, who is next and what is left, its door the Calendar, and under it the day's bar and every
+ * time that asks for something, never cut for a seat. On a busy evening an hour a cancellation freed, past the first five
+ * by time, was cut with its Offer it and nothing in the foot (the re-check of the audit, 3 Nov 2026). With no calendar
+ * linked, the one row that links one.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -85,29 +86,37 @@ function dayOver(vm) {
 const linesOf = (tree) =>
   all(byTestId(tree, "today-day-rest"), (n) => typeof n.type === "string" && classes(n).includes("tpd-li"));
 
-test("a busy evening on a desk: Offer it stays among the five lines, the plain visits fill the seats left, and the foot says the one cut", () => {
+test("a busy evening: the day is one line, its door the Calendar; Rosa's freed hour stands under it with its Offer it, and no plain visit takes a seat", () => {
   const tree = dayOver(busyEvening());
   assert.ok(
     byTestId(tree, "today-day-offer"),
     "REGRESSION: Rosa's freed hour, past the first five lines by time, was cut with its Offer it",
   );
-  assert.equal(linesOf(tree).length, 5, "five lines on a desk");
-  assert.ok(!textOf(byTestId(tree, "today-day-rest")).includes("Gus Lee"), "the last plain visit gives up its seat");
-  assert.match(textOf(byTestId(tree, "today-day-foot")), /1 more/, "and the foot says it, the Calendar's");
+  assert.equal(linesOf(tree).length, 1, "under the line, only what asks for something");
+  assert.ok(!textOf(byTestId(tree, "today-day-rest")).includes("Gus Lee"), "a plain visit asks nothing of you here");
+  const line = byTestId(tree, "today-day-line");
+  assert.match(textOf(line), /7 appointments/, "the line says how many are left");
+  assert.match(
+    all(line, (n) => typeof n.props?.href === "string")[0].props.href,
+    /\/calendar$/,
+    "and the Calendar holds them",
+  );
 });
 
 test("every time the day says, says so: a copy some minutes old draws none of them (decision 0101)", () => {
   const tree = dayOver(busyEvening());
-  assert.match(textOf(byTestId(tree, "today-day-first")), /Last here Aug 18/, "the fixture says a visit's one fact");
+  assert.match(textOf(byTestId(tree, "today-day-first")), /Next: Ana Reyes/, "the fixture says who is next");
   assert.deepEqual(unmarkedTimes(tree), []);
 });
 
-test("what the day says of now says so too: each cell's word for where it stands, and the bar with now on it", () => {
+test("what the day says of now says so too: who is next and each fact after it, and the bar with now on it", () => {
   const tree = dayOver(busyEvening());
   const drawn = (name) => all(tree, (n) => typeof n.type === "string" && classes(n).includes(name));
-  const words = drawn("tpd-eyebrow");
-  assert.ok(words.length > 0, "the fixture draws the two cells");
-  for (const word of words) assert.notEqual(word.props["data-when"], undefined, `"${textOf(word)}" over a blank time`);
+  const said = (n) =>
+    n.props["data-when"] !== undefined || all(n, (x) => x.props?.["data-when"] !== undefined).length > 0;
+  const words = [byTestId(tree, "today-day-first"), ...drawn("calm-fact")];
+  assert.ok(words.length > 1, "the fixture says who is next, and its facts");
+  for (const word of words) assert.ok(said(word), `"${textOf(word)}" over a blank time`);
   const [bar] = drawn("tpd-bar");
   assert.ok(all(bar, (n) => classes(n).includes("meter-mark")).length > 0, "the fixture's bar has now on it");
   assert.notEqual(bar.props["data-when"], undefined, "now would stand where it stood an hour ago");

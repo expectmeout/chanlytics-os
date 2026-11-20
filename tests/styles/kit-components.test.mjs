@@ -1225,6 +1225,24 @@ const MORE = { label: "Menu", word: "More", glyph: glyph(), onPress() {} };
 const TAB_BARS = {
   "tab-bar": () =>
     h(TabBar, { label: "Main", picked: "today", onPick() {}, places: placesOf({ Inbox: 3 }), more: MORE }),
+  "tab-bar-folded": () =>
+    h(TabBar, {
+      label: "Main",
+      picked: "today",
+      onPick() {},
+      places: placesOf({ Inbox: 3 }),
+      more: MORE,
+      fold: { label: "Back to Today", onBack() {}, field() {} },
+    }),
+  "tab-bar-folded-later": () =>
+    h(TabBar, {
+      label: "Main",
+      picked: "calendar",
+      onPick() {},
+      places: placesOf(),
+      more: MORE,
+      fold: { label: "Back to Calendar", onBack() {}, field() {} },
+    }),
 };
 
 test("TabBar draws the gallery's Tab bar family: links on one capsule, the lozenge before them, a count over a glyph, More after them", () => {

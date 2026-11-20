@@ -177,3 +177,10 @@ export const WAIT_ROW_WORDS = {
     }),
   },
 } as const;
+
+/** A row's key, the same wherever the row is drawn or named: To send's, cold email's, the folded runs' by their first, a run's own. */
+export const waitRowKey = (row: WaitRowOf<{ id: string }>): string => {
+  if (row.kind === "to_send") return "run-to-send";
+  if (row.kind === "cold_email") return "run-cold-email";
+  return row.kind === "run" ? `run-${row.run.id}` : `runs-${row.runs[0]?.id ?? ""}`;
+};

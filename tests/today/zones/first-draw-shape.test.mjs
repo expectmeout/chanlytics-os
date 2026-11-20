@@ -8,8 +8,9 @@
  * Today's first read now carries what they read of People (GET today/people, contracts today/people.ts), Reports' headline
  * and Ask's morning as it stands. Here the page is drawn as a load draws it, part by part: Today, its headline and its
  * first read of People; then People's book; then Ask's morning. What was drawn first stands where it stood: the columns,
- * who leads, Ask found's rows and To do's. And where People is not read yet, the page keeps two columns and never says
- * nothing was found. Run on the stub React, which draws a part as it is created, in the page's order.
+ * what holds the card (Today, calm, 19 Nov 2026), the lines, AI found's rows and To do's. And where People is not read
+ * yet, the page never says nothing was found. Run on the stub React, which draws a part as it is created, in the page's
+ * order.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -146,31 +147,36 @@ const classed = (tree, name) =>
       .includes(name),
   );
 
-/** Where everything stands: the columns and what each holds, who leads, Ask found's rows and line, To do's rows. */
+/**
+ * Where everything stands (Today, calm, 19 Nov 2026): the desk's two columns, what holds the page's card and what it
+ * says, the lines in the page's order, AI found's rows (its card's and its lines) and the line it holds while AI writes,
+ * and To do's steps, in the card or as lines.
+ */
 function shapeOf(tree) {
+  const card = byTestId(tree, "today-card") ?? classed(tree, "tz-setup-lead")[0];
+  const lineOf = (n) => `${n.props["data-testid"]}: ${textOf(classed(n, "calm-name")[0] ?? null)}`;
+  const lines = classed(tree, "calm-line").filter((n) => !n.props["data-folded"]);
   const found = byTestId(tree, "today-ask-found");
-  const todo = byTestId(tree, "today-group-todo");
+  const foundCard = card?.props["data-holder"] === "found" ? [textOf(classed(card, "calm-title")[0])] : [];
+  const reading = byTestId(tree, "today-found-reading");
+  const steps = card?.props["data-holder"] === "todo" ? [textOf(card)] : [];
   return {
-    oneColumn: classed(tree, "tz-bento-one").length === 1,
-    columns: classed(tree, "tz-col").map((col) =>
-      [col.props.children]
-        .flat(Infinity)
-        .filter(Boolean)
-        .map((c) => c.type?.name ?? c.props?.["data-testid"] ?? c.key),
-    ),
+    columns: classed(tree, "calm-col").length,
     phone: all(tree, (n) => n.props?.["data-testid"] === "today-phone").length === 1,
-    found: found
-      ? {
-          wide: String(found.props.className).includes("tz-found-wide"),
-          rows: all(found, (n) => typeof n.props?.["data-key"] === "string").map((n) => n.props["data-key"]),
-          line: textOf(byTestId(found, "today-found-reading") ?? null),
-        }
-      : null,
-    todo: todo ? all(todo, (n) => /^queue-/.test(String(n.props?.["data-testid"] ?? ""))).map(textOf) : null,
+    card: card ? (card.props["data-holder"] ?? "setup") : null,
+    lines: lines.map(lineOf),
+    found:
+      found || foundCard.length || reading
+        ? {
+            rows: [...foundCard, ...(found ? classed(found, "calm-line").map(lineOf) : [])],
+            line: textOf(reading ?? null),
+          }
+        : null,
+    todo: [...steps, ...lines.filter((n) => n.props["data-testid"] === "queue-step").map(textOf)],
   };
 }
 
-test("a quiet desk whose checks find something: the first draw holds AI found and its two columns, and People's book moves nothing", async () => {
+test("a quiet desk whose checks find something: the first draw holds AI found, its card and its two columns, and People's book moves nothing", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", bookingGap());
@@ -178,17 +184,17 @@ test("a quiet desk whose checks find something: the first draw holds AI found an
   fresh();
   const first = shapeOf(draw());
   assert.equal(
-    first.oneColumn,
-    false,
+    first.columns,
+    2,
     "REGRESSION (13 Nov 2026): the day alone in one column, split in two as AI found came",
   );
   assert.ok(first.found?.rows.length, "AI found stands in the first draw");
-  assert.equal(first.found.wide, true, "nobody waits: AI found leads, wide");
+  assert.equal(first.card, "found", "nobody waits: what AI found holds the card");
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
 
-test("a quiet day whose one to-do is a step due: To do draws it first, AI found stands under the day, and People's book moves nothing", async () => {
+test("a quiet day whose one to-do is a step due: it holds the card, AI found stands under the day, and People's book moves nothing", async () => {
   const page = firstPage([stepped("p-rosa", "Rosa Diaz", -1), personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([]));
   setSurfaceValue("reports_headline", bookingGap());
@@ -197,7 +203,11 @@ test("a quiet day whose one to-do is a step due: To do draws it first, AI found 
   const first = shapeOf(draw());
   assert.equal(first.todo?.length, 1, "REGRESSION (13 Nov 2026): To do drew without its step, which came after it");
   assert.match(first.todo[0], /Call Rosa Diaz/);
-  assert.equal(first.found?.wide, false, "someone's step waits: AI found under the day, never leading then moving");
+  assert.equal(first.card, "todo", "the step holds the card");
+  assert.ok(
+    first.found?.rows.every((r) => r.startsWith("today-found-")),
+    "someone's step waits: AI found's are lines under the day, never the card then moved",
+  );
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first, "People's book landed: nothing drawn moved");
 });
@@ -207,7 +217,8 @@ test("before People is read at all, the desk keeps its two columns: not read is 
   setSurfaceValue("reports_headline", wellBooked());
   fresh();
   const first = shapeOf(draw());
-  assert.equal(first.oneColumn, false, "REGRESSION (13 Nov 2026): People unread was drawn as nothing found");
+  assert.equal(first.columns, 2, "REGRESSION (13 Nov 2026): People unread was drawn as nothing found");
+  assert.equal(first.found, null, "nor is anything said of what AI found until it is read");
 });
 
 test("AI still writing its morning on a day nothing else was found: AI found holds its place, and the idea comes into it", async () => {
@@ -218,21 +229,26 @@ test("AI still writing its morning on a day nothing else was found: AI found hol
   await firstReadLands(page);
   fresh();
   const first = shapeOf(draw());
-  assert.equal(first.oneColumn, false, "the day keeps its two columns while AI writes");
+  assert.equal(first.columns, 2, "the day keeps its two columns while AI writes");
   assert.ok(
     first.found,
     "REGRESSION (13 Nov 2026): AI found appeared only once its idea was written, and moved the day",
   );
-  assert.equal(first.found.wide, true, "nobody waits: it leads, wide");
   assert.deepEqual(first.found.rows, []);
   assert.match(first.found.line, /AI is reading your morning/);
   setSurfaceValue("ask_morning", morning("ready", [anIdea]));
   const after = shapeOf(draw());
-  assert.equal(after.found?.rows.length, 1, "the idea came into AI found's place");
+  assert.equal(after.found?.rows.length, 1, "the idea came");
+  assert.equal(
+    after.card,
+    "found",
+    "nobody waits: it is the card, which comes in with its own motion (calm/motion.ts)",
+  );
   assert.equal(after.found.line, "", "and the line it held gave way to it");
   assert.deepEqual(
-    { oneColumn: after.oneColumn, columns: after.columns, wide: after.found.wide },
-    { oneColumn: first.oneColumn, columns: first.columns, wide: first.found.wide },
+    { columns: after.columns, lines: after.lines },
+    { columns: first.columns, lines: first.lines },
+    "the day's lines stand where they stood",
   );
 });
 
@@ -278,14 +294,18 @@ test("Ask writing on a day three rows were found: no line, its ideas would only 
   assert.equal(first.found?.line, "", `no line beside rows: ${JSON.stringify(first.found)}`);
 });
 
-test("someone waiting: Need you leads and AI found stands under the day from the first draw, as before", async () => {
+test("someone waiting: they hold the card and AI found stands under the day from the first draw, as before", async () => {
   const page = firstPage([personDto({ id: "p-a", display_name: "Ana Reyes" })]);
   setSurfaceValue("today", dayWith([row("rosa", "Rosa Díaz")]));
   setSurfaceValue("reports_headline", bookingGap());
   await firstReadLands(page);
   fresh();
   const first = shapeOf(draw());
-  assert.equal(first.found?.wide, false);
+  assert.equal(first.card, "queue", "who waits holds the card");
+  assert.ok(
+    first.found?.rows.length && first.found.rows.every((r) => r.startsWith("today-found-")),
+    "AI found's are lines",
+  );
   W.__PEOPLE = bookOf(page);
   assert.deepEqual(shapeOf(draw()), first);
 });

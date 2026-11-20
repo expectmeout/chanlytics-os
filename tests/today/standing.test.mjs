@@ -149,9 +149,11 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",
   );
   const page = readCode("apps/dashboard/src/surfaces/today/zones/need-you.tsx");
-  // The queue is named for what it holds, its groups for where each row stands (Today in three zones, 2 Nov 2026).
+  // The queue is named for what it holds (Today in three zones, 2 Nov 2026): since Today, calm (19 Nov 2026) its lines are
+  // one list under the card, with no head drawn, so it is named to a reader, and what is past the lines it names is counted
+  // by kind in the one line under them.
   assert.ok(
-    page.includes('className="tq-title tz-name"') && page.includes("W.title") && page.includes("groupsAbove("),
+    page.includes('<CalmList label={W.title} testid="today-queue">') && page.includes("<AlsoLine"),
     "the queue says what it holds",
   );
   const band = readCode("apps/dashboard/src/surfaces/today/zones/alert.tsx");

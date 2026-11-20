@@ -1,8 +1,8 @@
 /**
  * The Inbox list's folds: what a list holds and does not draw among its rows until it is asked for.
  *
- * - Whoever has waited past a week, at Needs you's foot, as Today draws them (today/need-you/older.tsx): one row, how
- *   many and who, in no count and never the page's coral (the one count leaves them out: 0048, amended 2 Nov 2026), which
+ * - Whoever has waited past a week, at Needs you's foot, as Today drew them until Today, calm (19 Nov 2026), which counts
+ *   them in its line of what else is left with this list as its door: one row, how many and who, in no count and never the page's coral (the one count leaves them out: 0048, amended 2 Nov 2026), which
  *   opens in place into their conversations' own rows and the rows of those the Inbox holds no conversation of.
  * - One person past a week (17 Nov 2026): their own row, where the Inbox drew a fold of one, "1 waiting over a week",
  *   under a card that said nobody was waiting. Who, what happened, how long, "toll-free" beside a toll-free number, and
@@ -140,8 +140,8 @@ const namesOf = (rows: readonly Thread[], away: readonly TodayQueueRowVM[] = [])
 
 /**
  * Needs you's fold of whoever has waited past a week, as its one row: how many and who, and Mark all done at its right,
- * as Today's has (today/need-you/older.tsx): the Inbox's had no press but opening each of them, thirty-seven in the
- * demo's (Ruben, 19 Nov 2026). Only those whose conversation is held can be marked, as on Today.
+ * as Today's had: the Inbox's had no press but opening each of them, thirty-seven in the demo's (Ruben, 19 Nov 2026).
+ * Only those whose conversation is held can be marked.
  *
  * It asks first, in the row's own place (contracts NEED_YOU_WORDS oldDone.ask): one press let all of them go, and those
  * nobody answered are archived, which Undo does not bring back; the Inbox's own Archive of several asks for the same

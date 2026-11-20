@@ -7,6 +7,7 @@
  * first draw waits for both, Setup's read as ROUTE_WAITS says and the code as setup-card-code.ts says, so the card never
  * lands over a queue already drawn.
  */
+import type { ColdEmailNote } from "@chanlytics/contracts";
 import { useCode } from "@/lib/use-code";
 import { usePartShown, useSurface } from "../../use-surface";
 import { setupCardCode as bodyCode } from "../setup-card-code";
@@ -28,11 +29,24 @@ export function useSetupActs(): boolean {
   return !!setup && !!body && body.setupCardActs(setup);
 }
 
-/** The card, its first act the page's coral where `coral` (today/arrangement.ts). */
-export const TodaySetup = ({ coral }: { coral: boolean }) => {
+/**
+ * The card, its first act the page's coral where `coral` (today/arrangement.ts): it holds the page's card. Where it does
+ * not (`line`), one line of the page's list, which opens the card under itself, and takes cold email's note (`note`)
+ * among what is left. Until Setup's read is in the note waits with it, so no line lands and then moves.
+ */
+export const TodaySetup = ({
+  coral,
+  line = false,
+  note = null,
+}: {
+  coral: boolean;
+  line?: boolean;
+  note?: ColdEmailNote | null;
+}) => {
   const S = useSurface("setup");
   const body = useCode(bodyCode, true).loaded;
   // Drawn once Setup's read and the card's code are in, the card or nothing (client/page-speed.ts).
   usePartShown("today", "setup", !!S && !!body);
-  return S && body ? <body.TodaySetupCard S={S} coral={coral} /> : null;
+  if (!S || !body) return null;
+  return line ? <body.TodaySetupLine S={S} note={note} /> : <body.TodaySetupCard S={S} coral={coral} />;
 };
