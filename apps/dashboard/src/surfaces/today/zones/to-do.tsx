@@ -16,12 +16,16 @@ import { useDraftsMoved, wantDrafts } from "../need-you/drafts";
 import { stepNoteWantOf } from "../need-you/step-note";
 import type { ToDoModel } from "../need-you-model";
 import { keptWith, keptWithout } from "./kept";
+import { STEP_FINISHED, setRowState } from "../need-you/row-state";
 import { stepDone } from "./queue-steps";
 import { KeptAll } from "../need-you/visit-work";
 
 /** To do's rows as Need you draws them: the rows drawn, how many there are in all, and the toast their presses say in. */
-export interface ToDoRows {
+interface ToDoRows {
   drawn: ReactElement[];
+  /** The rows themselves, in their order, and what their presses are handed: the page's card and its lines draw from them. */
+  rows: readonly TodayQueueRowVM[];
+  ctx: NeedYouRowsCtx;
   /**
    * The steps due, the visits to mark and the reviews drawn, in their order, with how To do keeps one acted on, lets it go
    * and marks a step done: a phone's walk steps into them after the people (the Parts board: "To do's rows join the walk").
@@ -31,7 +35,7 @@ export interface ToDoRows {
     kept: ReadonlySet<string>;
     keep: (row: TodayQueueRowVM) => void;
     unkeep: (row: TodayQueueRowVM) => void;
-    stepDone: (row: TodayQueueRowVM) => void;
+    stepDone: (row: TodayQueueRowVM) => void | Promise<void>;
   };
   count: number;
   /** How many the cap left out: the group's foot says them. */
@@ -57,18 +61,21 @@ export function useToDoRows({
   model,
   open,
   focus = null,
+  coral,
 }: {
   model: ToDoModel;
   open?: (rowId: string) => void;
   focus?: string | null;
+  /** The row whose act is the page's coral, where the page says it (the one in its card): over the model's own. */
+  coral?: string | null;
 }): ToDoRows {
   // The notes steps arrive with (decision 0120): kept on their threads, they land as the drafts do.
   useDraftsMoved();
   const [toastNode, flash] = useToast();
-  const { read, rows, count, steps, visits, answering, word, kept, setKept, setDone } = model;
+  const { read, rows, count, steps, visits, answering, word, kept, setKept } = model;
   const ctx: NeedYouRowsCtx = {
     nav: (to) => appNavigate(to),
-    coral: model.coral,
+    coral: coral === undefined ? model.coral : coral,
     may: canDo("approve"),
     tz: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE,
     flash,
@@ -78,10 +85,17 @@ export function useToDoRows({
     focus,
     open: open ?? (() => undefined),
     word,
-    stepDone: (r) =>
-      void stepDone(r, flash, {
-        hide: (noteId) => setDone((was) => [...was, noteId]),
-        show: (noteId) => setDone((was) => was.filter((id) => id !== noteId)),
+    stepDone: (row) =>
+      stepDone(row, flash, {
+        // Finished, it is kept where it stood with its Undo, which the row says (need-you/row-state.ts STEP_FINISHED).
+        finished: (undo) => {
+          setRowState(row.id, STEP_FINISHED, undo);
+          setKept((was) => keptWith(was, row, rows));
+        },
+        undone: () => {
+          setRowState(row.id, STEP_FINISHED, null);
+          setKept((was) => keptWithout(was, row));
+        },
       }),
   };
   const drawn = needYouRows(rows, ctx);
@@ -108,5 +122,5 @@ export function useToDoRows({
   const cut = Math.max(0, count - rows.filter(held).length);
   const walk = { rows, kept: ctx.kept, keep: ctx.keep, unkeep: ctx.unkeep, stepDone: ctx.stepDone };
   const keptAll = visits ? <KeptAll ids={visits.markIds} older={visits.older} word={word} ctx={ctx} /> : null;
-  return { drawn, walk, count, cut, left: cut, door, keptAll, toast: toastNode };
+  return { drawn, rows, ctx, walk, count, cut, left: cut, door, keptAll, toast: toastNode };
 }

@@ -48,6 +48,7 @@ import {
 import { askJump, askPages, type JumpEntry } from "./jump";
 import { surfaceValue } from "@/surfaces/surface-values";
 import { askOnScreenOf } from "./on-screen";
+import { pageAsksOn } from "./page-asks";
 import { needsYouParts } from "@/surfaces/needs-you";
 import { approvalDaysNow } from "@/surfaces/campaigns/broadcasts/when-words";
 import { pageClock } from "@/bridge/zone";
@@ -303,6 +304,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.
         leadIdeas: (surfaceValue("leads")?.suggestions?.items ?? []).map((i) => i.ask || i.words),
         leadSearches: (surfaceValue("leads")?.searches ?? []).map((s) => s.asked),
+        // On Today: the questions its parts wrote from the lines they draw (page-asks.ts).
+        pageAsks: pageAsksOn(surface),
         // On Campaigns: the campaigns the playbooks surface read, each by name, moment, state and a run that waits.
         campaigns: campaignsRead(),
         // On Campaigns' Ads page, as the page says it: its chips are about ads.

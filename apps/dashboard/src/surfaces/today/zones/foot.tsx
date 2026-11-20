@@ -1,27 +1,24 @@
 /**
- * The page's foot (Today in three zones, 2 Nov 2026): the week in one line with its door to Reports, and the lists this
- * member pinned (decision 0009), each its count and the page it opens. On a desk they are one strip under the zones; on a
- * phone the week stands in Today so far under the day's four figures, the pins under it, and the page says it is done.
- * The week is contracts' (todayPeriodLine over Reports' headline, one small read); the pins' counts are People's lists'
+ * The page's last lines (Today, calm, 19 Nov 2026, D1 and D3; it was the foot of Today in three zones): what the day came
+ * to so far, one line where the head's four figures stood (contracts today/lines.ts `dayCameToWords`: a zero is not said,
+ * and a day with nothing yet has no line at all); the lists this member pinned (decision 0009), a line each, its count
+ * under its name and the page it opens; and the page saying it is done. The pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS, TODAY_PHONE_WORDS as P, type ReportHeadlineVM } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS, dayCameToWords } from "../model/lines";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
-import { Button } from "../../kit/button/button";
-import { FailedRead } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
-import { Spark, type SparkColumn } from "../../kit/spark/spark";
 import { routeDoor } from "../../frame-verbs";
 import { useNeedsYou } from "../../needs-you";
-import { surfaceValue } from "../../surface-values";
-import { useSurface, useSurfaceFailed } from "../../use-surface";
-import { TODAY_HELPERS, peopleForToday } from "../helpers";
-import { TODAY_PEOPLE_HEARD } from "../people-read";
+import { useSurface } from "../../use-surface";
+import { todayAskOf, useTodayAsks } from "../calm/asks";
+import { CalmList, CalmRow } from "../calm/lines";
 import { borrowed, useMoved } from "../shell";
-import { TodayFigures } from "./figures";
+import { useDayTurned } from "./head";
 
 /** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the pins draw. */
 const listsCode = codeOnce(() => import("../../people/people-lists"));
@@ -40,172 +37,58 @@ function usePins() {
   return people && lists ? lists.lists.pinned() : [];
 }
 
-/** The pins, each a door with its count, in the kit's quiet capsule. Called, not drawn. */
-function pinDoors(pins: ReturnType<typeof usePins>) {
-  return pins.map((p) => (
-    <Button
-      key={p.token}
-      variant="secondary"
-      size="sm"
-      className="tz-pin"
-      {...routeDoor(p.to)}
-      aria-label={`Open ${p.label} on People`}
-      data-testid="today-pin"
-    >
-      <b className="tabular">{p.count ?? "–"}</b>
-      {p.label}
-    </Button>
-  ));
-}
+/** What the head's sentence says of the day once it has turned (contracts todayWentLine): never said twice (D18). */
+const SAID_BY_THE_HEAD = ["booked", "answered"] as const;
 
-/** Past a month a column a day is too thin to see (90 of them were dust in 360px): the days go a week a column. */
-const DAYS_A_COLUMN_MAX = 31;
-const DAYS_A_WEEK = 7;
+/** Where the day's line goes: Reports, which holds each of its counts and what is behind it. */
+const REPORTS_ROUTE = "reports";
 
 /**
- * The period's columns: a day each up to a month, else a week each, summed, the last week ending today and the first
- * holding what is left over. Each its messages, and what AI answered of them.
+ * What the day came to so far, one line: what AI answered, the calls, what was booked and who is new, each only where
+ * there is any. Nothing on a day with nothing yet: the head has said the page is quiet.
  */
-function monthColumns(perDay: ReportHeadlineVM["perDay"]): SparkColumn[] {
-  const days = perDay.map((day) => ({ value: day.messages, part: day.answered }));
-  if (days.length <= DAYS_A_COLUMN_MAX) return days;
-  const weeks: SparkColumn[] = [];
-  for (let end = days.length; end > 0; end -= DAYS_A_WEEK) {
-    const week = days.slice(Math.max(0, end - DAYS_A_WEEK), end);
-    weeks.unshift({
-      value: week.reduce((total, day) => total + day.value, 0),
-      part: week.reduce((total, day) => total + day.part, 0),
-    });
-  }
-  return weeks;
-}
-
-/**
- * The period's days beside its line (his look, 17 Nov 2026): a column a day or a week, what AI answered of its messages
- * in the ok tone and the rest in the faint ink, and under the last column the word for where they end, today (a time the
- * page says, so a copy some minutes old leaves it out). Said by the line's own words. None for a period with nothing in it.
- */
-const monthSpark = (headline: ReportHeadlineVM, sentence: string) =>
-  headline.perDay.length > 1 && !headline.empty ? (
-    <span className="tz-month">
-      <Spark className="tz-month-days" columns={monthColumns(headline.perDay)} aria-label={sentence} />
-      <span className="tz-month-end" aria-hidden="true" {...SAYS_WHEN}>
-        {P.monthEnd}
-      </span>
-    </span>
-  ) : null;
-
-/** The key to the days drawn beside the line: what the green of a column is, and its faint rest. A reader hears the line. */
-const monthKey = (
-  <span className="tz-month-key" aria-hidden="true" data-testid="today-period-key">
-    <span>{P.monthKey.ai}</span>
-    <span className="tz-key-rest">{P.monthKey.rest}</span>
-  </span>
-);
-
-/**
- * The week in one line, with the one door to Reports (contracts todayPeriodLine over Reports' headline), and its days
- * beside it with their key under the line. Not read yet is not failed: it is silent while Reports loads, and says so where
- * its read failed.
- */
-function WeekLine() {
-  const headline = useSurface("reports_headline");
-  const failed = useSurfaceFailed("reports_headline");
-  const period = headline ? TODAY_HELPERS.periodLine(headline) : null;
-  if (period) {
-    const days = headline ? monthSpark(headline, period.text) : null;
-    return (
-      <a className="tz-week" {...routeDoor(period.to)} data-testid="today-period">
-        <span className="tz-week-says">
-          <span className="tz-week-line" {...SAYS_WHEN}>
-            {period.text}
-          </span>
-          {days ? monthKey : null}
-        </span>
-        {days}
-        <Icon name="chevron" size={11} />
-      </a>
-    );
-  }
-  return failed ? (
-    <FailedRead
-      kind="line"
-      what="Reports"
-      body="The day's own numbers are current."
-      surface="reports_headline"
-      testid="today-period-failed"
-    />
-  ) : null;
-}
-
-/**
- * The desk's foot: the week and the pinned lists, one strip under the zones; a week whose read failed says so there.
- * Nothing where neither has anything, and nothing before People is in (its book, or Today's first read of it) or has
- * failed: the strip stands under Ask found, which draws from it (found.tsx), and drawn with the week alone it was pushed
- * down as Ask found came, 333 px on a quiet desk (the load review of 10 Nov 2026).
- */
-export function DeskFoot() {
-  useMoved([TODAY_PEOPLE_HEARD]);
-  const pins = usePins();
-  const headline = useSurface("reports_headline");
-  const failed = useSurfaceFailed("reports_headline");
-  const bookFailed = useSurfaceFailed("people");
-  if (!peopleForToday() && !bookFailed) return null;
-  if (!headline && !failed && !pins.length) return null;
+export function DayCameTo() {
+  const vm = useSurface("today");
+  // Once the day has turned the head has said what was booked and what AI answered (head.tsx): this says neither again.
+  const turned = useDayTurned();
+  const words = vm ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  // AI is handed the line's question where AI answered anything (D10).
+  const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
+  useTodayAsks("did", [words && answered ? todayAskOf(TODAY_LINE_WORDS.asks.did) : null]);
+  if (!words) return null;
   return (
-    <section className="tz-pane tz-strip" data-testid="today-foot" aria-label={LIST_GROUP_WORDS.pinned}>
-      <WeekLine />
-      {pins.length ? <span className="tz-pins">{pinDoors(pins)}</span> : null}
-    </section>
+    <CalmList label={words.title} testid="today-came-to">
+      <CalmRow
+        first={{ mark: <Icon name="wave" size={14} /> }}
+        name={<span {...SAYS_WHEN}>{words.title}</span>}
+        said={words.sub ? <span {...SAYS_WHEN}>{words.sub}</span> : undefined}
+        door={routeDoor(REPORTS_ROUTE)}
+        testid="today-came-to-line"
+      />
+    </CalmList>
   );
 }
 
-/** Today so far on a phone: the day's four figures, each with its receipt, and the week under them. */
-export function PhoneSoFar() {
-  return (
-    <section className="tz-pane tz-sofar" data-testid="today-card" aria-labelledby="today-sofar-title">
-      <div className="tz-head">
-        <h2 className="tz-name" id="today-sofar-title">
-          {P.soFar}
-        </h2>
-      </div>
-      <TodayFigures className="tz-sofar-figs" />
-      <WeekLine />
-    </section>
-  );
-}
-
-/**
- * Whether nothing at all was counted today: every figure read, and zero, and no message for the answered to be "of". A
- * count that could not be read is no zero, and keeps its dash in the row.
- */
-export function useNothingSoFar(): boolean {
-  useMoved(["today"]);
-  const figures = surfaceValue("today")?.figures ?? null;
-  return !!figures?.length && figures.every((f) => f.value === 0 && !f.of);
-}
-
-/** Today so far on a day nothing was counted: one line, and the week under it, at the foot of the day's card. */
-export function PhoneNothingYet() {
-  return (
-    <div className="tz-nothing" data-testid="today-sofar-none">
-      <b {...SAYS_WHEN}>{P.soFarNothing}</b>
-      <WeekLine />
-    </div>
-  );
-}
-
-/** The pinned lists on a phone, under Today so far; nothing with none pinned. */
-export function PhonePins() {
+/** The pinned lists, a line each: the list's name, how many are on it, and its page on People; nothing with none pinned. */
+export function TodayPins() {
   const pins = usePins();
   return pins.length ? (
-    <div className="tz-pins tz-pinsbox" data-testid="today-pins">
-      {pinDoors(pins)}
-    </div>
+    <CalmList label={LIST_GROUP_WORDS.pinned} testid="today-pins">
+      {pins.map((pin) => (
+        <CalmRow
+          key={pin.token}
+          first={{ mark: <Icon name="pin" size={14} /> }}
+          name={pin.label}
+          said={pin.count === null || pin.count === undefined ? undefined : String(pin.count)}
+          door={routeDoor(pin.to)}
+          testid="today-pin"
+        />
+      ))}
+    </CalmList>
   ) : null;
 }
 
-/** The page says it is done: on a phone the last thing above the tab bar. */
+/** The page says it is done: its last line, once nobody waits. */
 export function TodayEnd() {
   // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
   const waiting = useNeedsYou() ?? 0;
@@ -213,9 +96,9 @@ export function TodayEnd() {
   const answering = useSurface("setup")?.vm.readiness.answering ?? true;
   if (waiting > 0 || !answering) return null;
   return (
-    <p className="tz-end" data-testid="today-end" {...SAYS_WHEN}>
+    <p className="tz-end calm-done" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />
-      {P.end}
+      {TODAY_LINE_WORDS.end}
     </p>
   );
 }

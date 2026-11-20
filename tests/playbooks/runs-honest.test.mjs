@@ -263,7 +263,7 @@ const { installPolicyStore } = await import(`${S}/bridge/policy-store.ts`);
 const { policiesNow } = await import(`${S}/surfaces/settings/business/shell.ts`);
 installPolicyStore(globalThis.window, policiesNow);
 // Today's queue and card (TSX since decision 0015): the day comes over the seam, the rows a run needs off the window.
-const { NeedYou } = await import(`${S}/surfaces/today/zones/need-you.tsx`);
+const { NeedYouOnToday } = await import("../today/zones/_on-today.mjs");
 const { DayZone } = await import(`${S}/surfaces/today/zones/day.tsx`);
 // The moved surfaces: TSX, drawn over the values the seam holds, their verbs imported.
 const { BroadcastRun } = await import(`${S}/surfaces/campaigns/broadcasts/broadcasts-page.tsx`);
@@ -646,19 +646,18 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
   const done = dto({ id: "b-done", name: "Save our number · 2026-09-15", state: "sent", started_at: iso(0) });
   setSurfaceValue("broadcasts", { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) });
   setSurfaceValue("today", toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")));
+  // What the head counts, and so what the card holds, is read with the Inbox (surfaces/needs-you.ts): read, and empty.
+  setSurfaceValue("inbox", { THREADS: [], UNREAD_HOLDS: 0 });
   try {
     fresh();
-    const queue = NeedYou();
-    const run = byTestId(queue, "brief-run-row");
-    const who = buttonsSaying(run, "See who's on it")[0];
+    const queue = NeedYouOnToday();
+    // Nobody else waits, so the run holds Today's card (Today, calm, D15): its second door is the card's quiet press, and
+    // it opens the run. (The run's own line is folded under the card while the card holds it, out of reach of a press.)
+    const card = byTestId(queue, "today-card");
+    const who = buttonsSaying(card, "See who's on it")[0];
     assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
     press(who);
-    run.props.onClick();
-    assert.deepEqual(
-      went,
-      ["campaigns/sequences/b-wait/runs/b-wait", "campaigns/sequences/b-wait/runs/b-wait"],
-      "REGRESSION: Playbooks",
-    );
+    assert.deepEqual(went, ["campaigns/sequences/b-wait/runs/b-wait"], "REGRESSION: Playbooks");
     // The run about to send is the day's, at its time with its Stop (decision 0064; Going today's band until the redesign
     // of 1 Nov 2026): its words open its run too.
     fresh();
@@ -672,6 +671,7 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     assert.deepEqual(went, ["campaigns/sequences/b-done/runs/b-done"]);
   } finally {
     setSurfaceValue("today", undefined);
+    setSurfaceValue("inbox", undefined);
   }
 });
 

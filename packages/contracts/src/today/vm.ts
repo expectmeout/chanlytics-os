@@ -149,7 +149,14 @@ export interface TodayQueueRowVM {
    * mark it done (the person-notes verb the thread header uses) and Not now can move its day without changing whom it is
    * for (decision 0071). Its `cta.to` is the person, which the row opens; its `cta.label` is the verb.
    */
-  step?: { person_id: string; note_id: string; deal_id: string | null; for_user_id: string | null };
+  step?: {
+    person_id: string;
+    note_id: string;
+    deal_id: string | null;
+    for_user_id: string | null;
+    /** The day it was due, as a day key: where the Undo of a Not now puts it back (Today, calm, D25). */
+    due_on: string;
+  };
   /**
    * On a `visit` only: the record's row for the visit, and the presses it is asked with (Kept, then Missed: visitLineOf's
    * `asks`), so the row's two buttons can say what became of it (POST calendar/visits/[id], the Calendar's own door). Its

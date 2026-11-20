@@ -200,8 +200,8 @@ export function refusalScript(
       // workspace can genuinely have none. Reading "reach the team on
       // undefined" to a caller is worse than not offering a number at all.
       return phoneDisplay
-        ? `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
-        : `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book online, and take their name.`;
+        ? `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book on the business's website, without reading out its address, or reach the team on ${phoneDisplay}.`
+        : `I cannot send ${match.many} automatically for this business right now. Tell the caller they can book on the business's website, without reading out its address, and take their name.`;
     // The same sentence the prompt already gives a workspace on this setting
     // (contracts policyRules, voice): a person confirms, so take their name.
     case "booking_needs_a_person":

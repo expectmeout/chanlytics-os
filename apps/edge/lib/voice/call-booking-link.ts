@@ -109,10 +109,10 @@ import { logAndGoOn } from "@chanlytics/log";
  * cause; never blames the caller's phone.
  */
 const NO_TEMPLATE =
-  "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
+  "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book on the business's website, without reading out its address, take their name, and say someone will follow up.";
 
 /** Spoken when the caller asked for a text and the workspace has no texting line the carriers approved. */
-const NO_TEXT_LINE = `This business cannot send text messages yet, so nothing was sent. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
+const NO_TEXT_LINE = `This business cannot send text messages yet, so nothing was sent. Tell the caller they can book on the business's website, without reading out its address, and take ${NO_LINK_DETAILS} so the team can follow up.`;
 
 /**
  * How long the tool waits for WhatsApp's own answer about the send before it speaks (decision 0073, R14), and how often
@@ -143,8 +143,8 @@ async function sendReceiptOf(db: Db, tenantId: TenantId, wamid: string): Promise
 /** Spoken when WhatsApp refused the send in the moment after it was taken: the number most likely has no WhatsApp. */
 const notDelivered = (publishedNumber: string | null) =>
   publishedNumber
-    ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${publishedNumber}, and take ${NO_LINK_DETAILS} so the team can follow up.`
-    : `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take ${NO_LINK_DETAILS} so the team can follow up.`;
+    ? `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book on the business's website, without reading out its address, or reach us on ${publishedNumber}, and take ${NO_LINK_DETAILS} so the team can follow up.`
+    : `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book on the business's website, without reading out its address, and take ${NO_LINK_DETAILS} so the team can follow up.`;
 
 /**
  * What the receptionist says once Meta took the message: Meta's own answer is waited for a moment (R14), so a number
@@ -180,7 +180,7 @@ const ALREADY_SENT =
 
 /** Spoken when we cannot send. Never names a fallback number we cannot verify. */
 const CANNOT_SEND =
-  "I could not send the WhatsApp message just now. Let the caller know they can book online, and offer to have someone follow up.";
+  "I could not send the WhatsApp message just now. Let the caller know they can book on the business's website, without reading out its address, and offer to have someone follow up.";
 
 /**
  * Spoken when the business has no booking link: one that quotes each job (the first run's decision 2). Its prompt says

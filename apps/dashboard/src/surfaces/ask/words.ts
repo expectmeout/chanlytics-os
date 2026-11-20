@@ -194,6 +194,9 @@ const ASK_TEXT = {
               pipeline: "the Pipeline",
             }[surface] || "this page"
           }`,
+    // AI's home on a phone opened from Today (Today, calm, D10): its title, and the name over the page's own questions.
+    homeTitle: "What do you need?",
+    aboutToday: "About today",
     earlier: "Earlier",
     // Ask's home: the follow-ups it kept that came due (a search finished, replies came in, the day came).
     followUpsDue: "Ready now",
@@ -345,6 +348,8 @@ const ASK_TEXT = {
               pipeline: "el Pipeline",
             }[surface] || "esta página"
           }`,
+    homeTitle: "¿Qué necesitas?",
+    aboutToday: "Sobre hoy",
     earlier: "Anteriores",
     followUpsDue: "Listo ahora",
     noEarlier: "Aún no hay conversaciones anteriores.",

@@ -26,7 +26,7 @@ import { AskWords, AskListPart } from "./answer-words";
 import { AskCards } from "./card";
 import { AskPlan } from "./plan-card";
 import { askKindGlyph } from "./card-parts";
-import { AskBreakdown, AskChart } from "./home";
+import { AskBreakdown, AskChart } from "./charts";
 import type { DrawnAnswer, FoldedTurn, LineMove, LineTurn, LiveSay } from "./line/types";
 import { askCalls } from "./shell";
 import type { LineWords } from "./words";

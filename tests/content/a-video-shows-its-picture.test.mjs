@@ -1,20 +1,20 @@
 /**
- * A video's picture where it is drawn, on Files' tile, on its card and on Today's Content card (decision 0099, stage B; decision
- * 0122): the platform says a video can be played some seconds before its poster is cut (the digest's sheet step, then the look's
+ * A video's picture where it is drawn, on Files' tile and on its card (decision 0099, stage B; decision 0122): the platform says a video can be played some seconds before its poster is cut (the digest's sheet step, then the look's
  * own frame), and a page on screen draws at once. Seen on production 11 Nov 2026: a video made by Ask came ready at 06:26:14, its
  * first poster at 06:26:22, and the tile drawn between stood blank for good. A tile whose picture is not there yet says it is
  * getting ready, never its bare name, and looks again once Ask has looked at it; a card drawn afresh in those seconds says its
  * poster did not come, so its first still stands in. Today's card drew its pictures its own way and kept none of it: four videos
- * Ask made stood black tiles on Today, their lengths in the corner, while Content showed them (Ruben's phone, 17 Nov 2026).
- * Drawn by the real components on the stub React, Today's card over its own read answered as the server answers it.
+ * Ask made stood black tiles on Today, their lengths in the corner, while Content showed them (Ruben's phone, 17 Nov 2026);
+ * since Today, calm (19 Nov 2026), Content is one line there, its face the newest piece's picture, which keeps the same rules.
+ * Drawn by the real components on the stub React, Today's line over its own read answered as the server answers it.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, byTestId, find, all, textOf } from "../_stub-react.mjs";
+import { installStubReact, fresh, again, byTestId, find, textOf } from "../_stub-react.mjs";
 import { until } from "../shared/_until.mjs";
 
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-/** What GET content/note answers Today's card with, as the next read finds it; and how many times it was asked. */
+/** What GET content/note answers Today's line with, as the next read finds it; and how many times it was asked. */
 let note = null;
 let noteReads = 0;
 installStubReact({
@@ -35,7 +35,8 @@ const { createElement } = globalThis.React;
 const { Photo } = await import(`${S}/surfaces/files/photo.tsx`);
 const { AskPieceCard } = await import(`${S}/surfaces/ask/card-piece.tsx`);
 const { askText } = await import(`${S}/surfaces/ask/words.ts`);
-const { TodayContentNote } = await import(`${S}/surfaces/today/content-note.tsx`);
+const { TodayContentLine } = await import(`${S}/surfaces/today/content-note.tsx`);
+const { Icon } = await import(`${S}/surfaces/kit/icon/icon.tsx`);
 const { clearReadCaches } = await import(`${S}/bridge/read-cache.ts`);
 const { api } = await import(`${S}/bridge/api.ts`);
 const { setSurfaceValue } = await import(`${S}/surfaces/surface-values.ts`);
@@ -118,7 +119,7 @@ test("a card drawn afresh whose video's poster is not cut yet says so, and with 
   assert.equal(byTestId(card("blob:stills"), "ask-piece-poster"), null);
 });
 
-/* ------------------------------------------------------------------------------------------- Today's Content card -- */
+/* -------------------------------------------------------------------------------------------- Today's Content line -- */
 
 /** A piece of the week as GET content/note answers it: a video Ask made, where it stands. */
 const madeVideo = (id, over = {}) => ({
@@ -148,81 +149,50 @@ const madeVideo = (id, over = {}) => ({
   posts: [],
 });
 const weekOf = (...week) => ({ week, making: [], ready: null, stopped: null });
-const drawCard = () => again(() => createElement(TodayContentNote));
-const pieceOf = (tree, id) =>
-  all(tree, (n) => n.props?.["data-testid"] === "today-content-piece").find((n) => n.props.href?.includes(id)) ?? null;
-const pictureOf = (piece) => (piece ? find(piece, (n) => n.type === "img") : null);
+const drawLine = () => again(() => createElement(TodayContentLine));
+const lineOf = (tree) => byTestId(tree, "today-content-line");
+const pictureOf = (line) => (line ? find(line, (n) => n.type === "img") : null);
+const markOf = (line) => find(line, (n) => n.type === Icon)?.props.name ?? null;
 
-/** Today's card drawn afresh over this answer, once its read has landed and the piece `id` stands in it. */
-async function cardWith(answer, id) {
+/** Today's line drawn afresh over this answer, once its read has landed. */
+async function lineWith(answer) {
   note = answer;
   clearReadCaches();
   api().forget();
   fresh();
-  await until(() => !!pieceOf(drawCard(), id), "the card's read landed");
-  return drawCard();
+  await until(() => !!lineOf(drawLine()), "the line's read landed");
+  return lineOf(drawLine());
 }
 
-/** The card's next read, a minute on, as the day moves: what it asks for again. */
-async function readAgain(answer, id, done) {
-  note = answer;
+test("Today's Content line asks no picture of a video not ready yet, nor of one the platform could not read: its face is the video's mark", async () => {
+  for (const media_status of ["processing", "failed"]) {
+    const line = await lineWith(weekOf(madeVideo(`today-${media_status}`, { media_status, look_status: "waiting" })));
+    assert.equal(pictureOf(line), null, `${media_status}: nothing is asked of a video the platform has not made ready`);
+    assert.equal(markOf(line), "video", "REGRESSION (17 Nov 2026): a black tile where a video stood");
+  }
+});
+
+test("a ready video's picture is asked for over its mark, which stands where the picture does not come; the line is drawn afresh once Ask has looked at it", async () => {
+  const line = await lineWith(weekOf(madeVideo("today-2", { look_status: "waiting" })));
+  assert.match(pictureOf(line).props.src, /today-2\/view\?w=320/);
+  assert.equal(markOf(line), "video", "the mark under it");
+  const keyOf = (tree) => find(tree, (n) => n.type?.name === "WeekLine")?.props.key;
+  const before = keyOf(drawLine());
+  // Ask's look cuts the poster at the frame it chose: the line's next read, a minute on as the day moves, draws it afresh,
+  // so the picture is asked for again.
+  note = weekOf(madeVideo("today-2", { look_status: "done" }));
   api().forget();
   const realNow = Date.now;
   Date.now = () => realNow() + 61_000;
   try {
-    const before = noteReads;
+    const reads = noteReads;
     setSurfaceValue("today", { moved: noteReads });
-    drawCard();
-    await until(() => noteReads > before, "the card asked again");
-    await until(() => done(drawCard()), "its answer drawn");
+    drawLine();
+    await until(() => noteReads > reads, "the line asked again");
+    await until(() => keyOf(drawLine()) !== before, "drawn afresh");
   } finally {
     Date.now = realNow;
+    setSurfaceValue("today", undefined);
   }
-  return drawCard();
-}
-
-test("Today's card asks no picture of a video not ready yet, and says it is getting ready, never a black tile", async () => {
-  const card = await cardWith(
-    weekOf(madeVideo("today-1", { media_status: "processing", look_status: "waiting" })),
-    "today-1",
-  );
-  const piece = pieceOf(card, "today-1");
-  assert.equal(pictureOf(piece), null, "nothing is asked of a video the platform has not made ready");
-  assert.match(textOf(byTestId(piece, "today-content-waits")), new RegExp(FILE_WORDS.video.gettingReady));
-  assert.match(piece.props["aria-label"], new RegExp(`Long layers: ${FILE_WORDS.video.gettingReady}`));
-  assert.match(textOf(piece), /0:11/, "its length still in the corner");
-});
-
-test("Today's card, whose video's poster was not cut yet, says it is getting ready and asks again once Ask has looked at it", async () => {
-  const card = await cardWith(weekOf(madeVideo("today-2", { look_status: "waiting" })), "today-2");
-  const img = pictureOf(pieceOf(card, "today-2"));
-  assert.ok(img, "a ready video asks for its poster");
-  assert.match(img.props.src, /today-2\/view\?w=/);
-  img.props.onError();
-  const missed = pieceOf(drawCard(), "today-2");
-  assert.equal(pictureOf(missed), null, "REGRESSION: the tile stood black for good (17 Nov 2026)");
-  assert.match(textOf(byTestId(missed, "today-content-waits")), new RegExp(FILE_WORDS.video.gettingReady));
-  // Ask's look cuts the poster at the frame it chose: the card's next read says so, and the poster is asked for afresh.
-  const looked = await readAgain(weekOf(madeVideo("today-2", { look_status: "done" })), "today-2", (tree) =>
-    pictureOf(pieceOf(tree, "today-2")),
-  );
-  assert.ok(pictureOf(pieceOf(looked, "today-2")), "the poster the look cut is asked for");
-});
-
-test("a picture that did not come is asked for again by the card's next read, however long Today has stood open", async () => {
-  const card = await cardWith(weekOf(madeVideo("today-3")), "today-3");
-  pictureOf(pieceOf(card, "today-3")).props.onError();
-  assert.equal(pictureOf(pieceOf(drawCard(), "today-3")), null);
-  // Nothing about the video moved: the read alone asks again, so one asked a moment too soon does not stand for the day.
-  const again_ = await readAgain(weekOf(madeVideo("today-3")), "today-3", (tree) =>
-    pictureOf(pieceOf(tree, "today-3")),
-  );
-  assert.ok(pictureOf(pieceOf(again_, "today-3")));
-});
-
-test("a video the platform could not read says so on Today too, and asks for nothing", async () => {
-  const card = await cardWith(weekOf(madeVideo("today-4", { media_status: "failed" })), "today-4");
-  const piece = pieceOf(card, "today-4");
-  assert.equal(pictureOf(piece), null);
-  assert.match(textOf(byTestId(piece, "today-content-waits")), new RegExp(FILE_WORDS.video.notPrepared));
+  assert.ok(pictureOf(lineOf(drawLine())), "the poster the look cut is asked for");
 });

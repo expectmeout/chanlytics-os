@@ -31,8 +31,7 @@ import { installStubReact, fresh, all, byTestId, find, textOf } from "../_stub-r
 installStubReact({ __surfaceState: () => "live" });
 const { TODAY_HELPERS } = await import("../../apps/dashboard/src/surfaces/today/helpers.ts");
 const { TodayAlertBand } = await import("../../apps/dashboard/src/surfaces/today/zones/alert.tsx");
-const { TodayHeadFigures } = await import("../../apps/dashboard/src/surfaces/today/zones/figures.tsx");
-const { PhoneSoFar } = await import("../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
+const { DayCameTo } = await import("../../apps/dashboard/src/surfaces/today/zones/foot.tsx");
 const { TodayZones } = await import("../../apps/dashboard/src/surfaces/today/zones/page.tsx");
 const { DayZone } = await import("../../apps/dashboard/src/surfaces/today/zones/day.tsx");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -349,7 +348,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
   assert.deepEqual([few.more, few.moreLine], [0, null]);
 });
 
-// The day the hero and the card draw: traffic, so the card has its four figures.
+// The day the hero and the page draw: traffic, so the day has what it came to.
 const NOW = new Date("2026-09-06T14:00:00Z");
 const busyMetrics = () => ({
   workspace: { name: "Marisa's Beauty Salon", timezone: "America/New_York", status: "active" },
@@ -514,8 +513,8 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
       "own read's (calendar-person-facts.ts), so People's book is no read of the day's",
   );
   assert.ok(!dayModule.includes("__PEOPLE"), "Today in three zones reads no People for its day");
-  // The hero and the card over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
-  // from): the day's numbers are the card's figures, not a sentence or a strip of stat cards; no calendar line.
+  // The hero and the page over a busy day, with a calendar the receptionist reads (what the one-line calendar beat drew
+  // from): the day's numbers are one line of what it came to, not a sentence or a strip of stat cards; no calendar line.
   setSurfaceValue("today", toTodayVM(busyMetrics(), [], [], [], NOW));
   setSurfaceValue("calendar", {
     vm: {
@@ -527,13 +526,12 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   });
   const hero = draw(TodayAlertBand);
   assert.equal(textOf(hero), "", "the hero says nothing while every line is up: no sentence of the day, no stat cards");
-  const card = draw(PhoneSoFar);
-  // A desk draws the four in the head beside the greeting (the page heads canvas, H1, 31 Oct 2026); Today so far, which
-  // draws them on a phone, is no pane of a desk's (Today in three zones, 2 Nov 2026), so they are said once on each.
-  assert.ok(byTestId(draw(TodayHeadFigures), "today-figures"), "the day's numbers are the figures");
-  assert.ok(byTestId(card, "today-figures"), "Today so far's, on a phone");
-  assert.equal(byTestId(draw(TodayZones), "today-card"), null, "said once: the head's on a desk");
-  for (const tree of [hero, card]) {
+  // Today, calm (19 Nov 2026, D3 and D7): the four figures went, from the head on a desk and from Today so far on a phone; what
+  // the day came to is one line (foot.tsx DayCameTo), alike on both.
+  const cameTo = draw(DayCameTo);
+  assert.ok(byTestId(cameTo, "today-came-to-line"), "the day's numbers are a line of what it came to");
+  assert.equal(byTestId(draw(TodayZones), "today-figures"), null, "and no figures");
+  for (const tree of [hero, cameTo]) {
     assert.equal(byTestId(tree, "brief-calendar"), null, "the one-line calendar beat is the module now");
     const parts = all(tree, (n) => typeof n.type === "function").map((n) => n.type.name);
     assert.ok(!parts.includes("CalendarLine") && !parts.includes("DayFacts"), parts.join(", "));

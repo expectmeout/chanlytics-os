@@ -110,11 +110,11 @@ const TEXT_SENT =
 const TEXT_AFTER_WHATSAPP =
   "The WhatsApp message could not be delivered, so the booking link was sent by text message instead. Tell them it comes as a text and should be on their phone in a moment.";
 const NO_TEMPLATE =
-  "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
+  "This business has not set up its booking-link WhatsApp message yet, so I cannot send it. Tell the caller they can book on the business's website, without reading out its address, take their name, and say someone will follow up.";
 const NO_TEXT_LINE =
-  "This business cannot send text messages yet, so nothing was sent. Tell the caller they can book online, and take their name, what they need, and where and when so the team can follow up.";
-const NOT_ON_WHATSAPP = `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, or reach us on ${PUBLISHED}, and take their name, what they need, and where and when so the team can follow up.`;
-const NOT_A_MOBILE = `The text message could not be delivered — that number may not take texts. Tell the caller they can book online, or reach us on ${PUBLISHED}, and take their name, what they need, and where and when so the team can follow up.`;
+  "This business cannot send text messages yet, so nothing was sent. Tell the caller they can book on the business's website, without reading out its address, and take their name, what they need, and where and when so the team can follow up.";
+const NOT_ON_WHATSAPP = `The WhatsApp message could not be delivered — that number may not have WhatsApp. Tell the caller they can book on the business's website, without reading out its address, or reach us on ${PUBLISHED}, and take their name, what they need, and where and when so the team can follow up.`;
+const NOT_A_MOBILE = `The text message could not be delivered — that number may not take texts. Tell the caller they can book on the business's website, without reading out its address, or reach us on ${PUBLISHED}, and take their name, what they need, and where and when so the team can follow up.`;
 /** The words the line was approved for: the business first, the link as the owner wrote it, then how to stop. */
 const TEXT_BODY =
   "Harbor Moving: here's the link to book, as you asked on the phone: https://book.example/harbor\nReply STOP to opt out.";
