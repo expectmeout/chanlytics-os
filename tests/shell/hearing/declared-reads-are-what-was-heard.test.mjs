@@ -94,6 +94,8 @@ const HEARD_BEFORE = {
     "google_listings",
     // The visits the Business pane states, on its pages (reads-not-heard's owed, closed 15 October).
     "appointments",
+    // Whether Ads is drawn here reads whether an ad account is held (the Ads plan's 6.2, 20 November), on its pages.
+    "ad_accounts",
   ],
   // The channel rows, read once for every page that draws a number (R6: W-channel-team-plus-1, S3-1, S10-9).
   channels: ["tenant_channels"],
@@ -405,6 +407,7 @@ const ON_ITS_PAGE_BEFORE = {
     "lines",
     "google_listings",
     "appointments",
+    "ad_accounts",
   ],
   // A search's rows and strip, on Leads' scope (S10-5).
   leads: HEARD_BEFORE.leads,

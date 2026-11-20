@@ -3,8 +3,10 @@
 **Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended). Steps P0a and P0b are built
 (18 November 2026: migration 00644, an ad tap keeps what the ad said; migration 00645, the `ads` permission, with the
 shared rules, the one Meta client and the one sign-in state helper), and so is call 2's line on a page (migration
-00646: a person's page and the Ads page name the ad someone came through). Of step P1 the records are built
-(19 November 2026: migration 00648, `ad_accounts`, `ads` and `ad_days`); the rest of it is not. Four
+00646: a person's page and the Ads page name the ad someone came through). Step P1 is built (19 November 2026, #2443:
+migrations 00648 to 00653, `ad_accounts`, `ads` and `ad_days`, Connect, Meta's read on a clock, the page, Reports' lens
+and Disconnect), and on 20 November 2026 the page's mockup left the app and one switch, the edge's list of workspaces,
+took the place of the `ads_preview` flag. Four
 things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
 email, and the consent line's wording, which is counsel's. This is the records half of Campaigns › Ads on the Wiring
 Blueprint (`Claude Video/docs/2026-10-11-chanlytics-wiring-blueprint.md`); 0050 decides how money is spent. It leans on

@@ -8,8 +8,7 @@
  */
 import type { PersonDetailDto, PersonRowDto, PersonVisitsDto, PersonVM, VisitDto } from "@chanlytics/contracts";
 import { DAY_MS, HOUR_MS, MIN_MS, toPersonVM } from "@chanlytics/contracts";
-import { DEMO_ZONE } from "../demo-zone";
-import { DEMO_ADS } from "../demo-ads";
+import { DEMO_ADS, DEMO_ZONE } from "../demo-ads";
 import { peopleSurfaceOf } from "./surface-map";
 import type { PeopleLoaded } from "./surface-map";
 import type { PeopleSurface } from "./surface";

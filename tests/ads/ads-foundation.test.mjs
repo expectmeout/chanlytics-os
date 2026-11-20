@@ -1,45 +1,22 @@
 /**
- * The Ads view's foundation (11 Oct 2026): the DTO's addresses, money and rules, the models over every example fixture, the
- * demo store's verbs behind their port, and the gate that keeps Ads out of a real workspace. The models are contracts'
- * (src/ads), the fixtures and the store the dashboard's (surfaces/campaigns/ads); the real code runs.
+ * The Ads view's foundation: its addresses, its money, and the one switch that draws it. The real code runs.
  *
- *   addresses  campaigns/ads, :ad:<id>, :new[:door], :new:<how>:<id>, :results; a word the view does not know is the page
- *   money      each currency's own minor units, said exact; only an average is rounded; two currencies are two sums
- *   examples   ten fixtures of AdsRead, each drawn by the one model; the default's figures tie to its daily rows
- *   verbs      a press carries the version it was drawn from; a stale one, and an ad made elsewhere, are refused; Undo restores
- *   gate       a real workspace's Campaigns chrome has no strip and takes an Ads address as the home
+ *   addresses  campaigns/ads, :ad:<id>, :new[:door], :new:<how>:<id>; a word the view does not know is the page
+ *   money      each currency's own minor units, said exact; only an average is rounded
+ *   the switch Ads is drawn only where the settings read says so (the server's readAdsShown); the workspace flag that
+ *              drew the mockup is gone, and a config that still holds it parses to one without it
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  aboutMoneyOf,
-  minorOfUnits,
-  moneyOf,
-  perDayOf,
-  leftOfMoney,
-  sumMoney,
-} from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
-import { BUDGET_RULES, countedDoor, DOOR_NEEDS } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/rules.ts";
-import { adsModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/page.ts";
-import { adModel } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/drawer/view.ts";
-import { ADS_EXAMPLES, REFUSED } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
+import { aboutMoneyOf, minorOfUnits, moneyOf } from "../../apps/dashboard/src/surfaces/campaigns/ads/model/money.ts";
 
 const ads = await import("@chanlytics/contracts");
-const { EXAMPLE_READS } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/examples.ts");
-const { CONFIG, SPRING, SATURDAY, OLD_BOOST, connected } =
-  await import("../../apps/dashboard/src/surfaces/campaigns/ads/sample.ts");
-const { makeVerbs } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/store.ts");
 const { campaignsChrome } = await import("../../apps/dashboard/src/surfaces/campaigns/routes.ts");
+const { adsShown } = await import("../../apps/dashboard/src/surfaces/campaigns/ads/shown.ts");
 const { setSurfaceValue } = await import("../../apps/dashboard/src/surfaces/surface-values.ts");
 
-/** A store over a plain variable, the way a test stands in for the hook's ref. */
-function world(read) {
-  const w = { read, get: () => w.read, put: (next) => (w.read = next) };
-  return w;
-}
-
-test("an Ads address says the page, an ad open, the composer on a door or from an ad, or the Results sheet", () => {
-  const none = { ad: null, compose: null, results: false };
+test("an Ads address says the page, an ad open, or the composer on a door or from an ad", () => {
+  const none = { ad: null, compose: null };
   assert.deepEqual(ads.parseAds("ads"), none);
   assert.deepEqual(ads.parseAds("ads:ad:abc"), { ...none, ad: "abc" });
   assert.deepEqual(ads.parseAds("ads:new"), { ...none, compose: { door: "whatsapp", from: null } });
@@ -47,20 +24,17 @@ test("an Ads address says the page, an ad open, the composer on a door or from a
   assert.deepEqual(ads.parseAds("ads:new:copy:abc").compose, { door: "whatsapp", from: { how: "copy", id: "abc" } });
   assert.deepEqual(ads.parseAds("ads:new:again:abc").compose?.from, { how: "again", id: "abc" });
   assert.deepEqual(ads.parseAds("ads:new:google:abc").compose, { door: "call", from: { how: "google", id: "abc" } });
-  assert.deepEqual(ads.parseAds("ads:results"), { ...none, results: true });
   // A word the view does not know is the page: a link never lands on nothing.
-  for (const odd of ["ads:surprise", "ads:ad:", "ads:new:copy", "ads:new:elsewhere"]) {
-    const at = ads.parseAds(odd);
-    assert.equal(at.ad, null, odd);
-    assert.equal(at.results, false, odd);
-  }
+  // The Results sheet went with the mockup (20 Nov 2026): its old address is the page.
+  for (const odd of ["ads:surprise", "ads:ad:", "ads:results", "ads:new:copy", "ads:new:elsewhere"])
+    assert.equal(ads.parseAds(odd).ad, null, odd);
+  assert.deepEqual(ads.parseAds("ads:results"), none);
   assert.deepEqual(ads.parseAds("ads:new:copy"), { ...none, compose: { door: "whatsapp", from: null } });
   // And each address spells back to the same words.
   assert.equal(ads.adRoute("abc"), "campaigns/ads:ad:abc");
   assert.equal(ads.newAdRoute(), "campaigns/ads:new");
   assert.equal(ads.newAdRoute("form"), "campaigns/ads:new:form");
   assert.equal(ads.newAdFromRoute("again", "abc"), "campaigns/ads:new:again:abc");
-  assert.equal(ads.adsResultsRoute(), "campaigns/ads:results");
   assert.equal(ads.parseAds(ads.newAdFromRoute("google", "x").split("/")[1]).compose?.from?.how, "google");
   assert.ok(
     ads.isAdsParam("ads") && ads.isAdsParam("ads:new") && !ads.isAdsParam("adsense") && !ads.isAdsParam("moment:ads"),
@@ -89,7 +63,6 @@ test("money is the currency's own minor units, said exact: a hundred to the doll
   assert.equal(moneyOf(23000, "GBP"), "£230");
   // A yen is its own smallest unit: 1,284 is ¥1,284, never ¥12.84 and never ¥13.
   assert.equal(moneyOf(1284, "JPY"), "¥1,284");
-  assert.equal(perDayOf(1500, "JPY"), "¥1,500 a day");
   // A dinar holds a thousand fils, and keeps three digits where there are some.
   assert.equal(plain(moneyOf(1250, "KWD")), "KWD 1.250");
   assert.equal(plain(moneyOf(15000, "KWD")), "KWD 15");
@@ -103,129 +76,6 @@ test("money is the currency's own minor units, said exact: a hundred to the doll
   assert.equal(aboutMoneyOf(2500 / 3, "USD"), "$8.33");
   assert.equal(aboutMoneyOf(128450 / 3, "JPY"), "¥42,817");
   assert.equal(plain(aboutMoneyOf(128450 / 3, "KWD")), "KWD 43");
-  assert.equal(perDayOf(1500, "USD"), "$15 a day");
-  assert.equal(leftOfMoney(30800, 72000, "USD"), "$308 left of $720");
-  assert.equal(
-    sumMoney([
-      { minor: 41200, currency: "USD" },
-      { minor: 28700, currency: "USD" },
-    ]),
-    "$699",
-  );
-  assert.equal(
-    sumMoney([
-      { minor: 84700, currency: "USD" },
-      { minor: 23000, currency: "GBP" },
-      { minor: 100, currency: "USD" },
-    ]),
-    "$848 + £230",
-    "never converted",
-  );
-  const running = EXAMPLE_READS.running().ads[0];
-  const after = (ad) => ads.aboutADayAfter({ ad, amountMinor: 90000, endDay: "2026-10-31", today: "2026-10-11" });
-  assert.equal(after(running), 2300);
-  // What is left of a total over the days left is a whole unit of the ad's own currency: a whole yen, a whole dinar.
-  const spent = running.days.reduce((all, d) => all + d.spendMinor, 0);
-  assert.equal(after({ ...running, currency: "JPY" }), Math.round((90000 - spent) / 21));
-  assert.equal(after({ ...running, currency: "KWD" }) % 1000, 0);
-});
-
-test("the rules are data: a daily amount's limits per platform, and what a door needs", () => {
-  assert.deepEqual(BUDGET_RULES.tiktok, {
-    maxStep: 0.3,
-    waitDays: 2,
-    totalMaxDays: null,
-    dailyIsAverage: false,
-    changeRelearns: true,
-  });
-  assert.equal(BUDGET_RULES.google.totalMaxDays, 90);
-  assert.equal(countedDoor("call"), false, "a Google call is Google's count");
-  assert.equal(countedDoor("form") && countedDoor("whatsapp"), true);
-  // A connected account lists every check a door asks of it: nothing a door needs is missing from a read.
-  for (const [door, byPlatform] of Object.entries(DOOR_NEEDS)) {
-    for (const [platform, ids] of Object.entries(byPlatform)) {
-      const listed = connected(platform).checks.map((c) => c.id);
-      for (const id of ids) assert.ok(listed.includes(id), `${door} on ${platform} needs ${id}`);
-    }
-  }
-});
-
-test("every example is an AdsRead the one model draws, and the default's figures tie to its daily rows", () => {
-  const modes = {};
-  for (const [id, make] of Object.entries(EXAMPLE_READS)) {
-    const read = make();
-    const vm = adsModel(read, CONFIG);
-    modes[id] = vm.mode;
-    assert.ok(vm.head.rest.length > 0, id);
-    assert.equal(vm.standing.length, 3, id);
-    for (const ad of read.ads) adModel(ad, read, CONFIG);
-  }
-  assert.deepEqual(Object.keys(modes).sort(), [...ADS_EXAMPLES].sort(), "an example for each id the menu lists");
-  assert.equal(modes.v0, "v0");
-  assert.equal(modes["no-ads"], "none");
-  assert.equal(modes.choose, "none");
-  assert.equal(modes.running, "ads");
-
-  const read = EXAMPLE_READS.running();
-  const vm = adsModel(read, CONFIG);
-  const sum = (xs) => xs.reduce((a, b) => a + b, 0);
-  const inWindow = (ad) => ad.days.filter((d) => d.day >= read.window.from && d.day <= read.window.to);
-  const spent = sum(read.ads.flatMap((ad) => inWindow(ad).map((d) => d.spendMinor)));
-  assert.equal(vm.figures[0].value, moneyOf(spent, "USD"), "Spent is the sum of every ad's daily rows");
-  assert.equal(vm.figures[1].value, "114");
-  assert.equal(vm.figures[2].value, "26");
-  assert.equal(vm.head.strong, "26 of 114");
-  assert.match(vm.pane, /^Last 30 days · read 9:19 AM$/);
-  assert.ok(
-    read.ads.every((ad) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(ad.id)),
-    "ids are uuids",
-  );
-});
-
-test("an ad's reach line says when the last number arrived from the person who arrived, not from typed text", () => {
-  const read = EXAMPLE_READS.running();
-  const saturday = read.ads.find((ad) => ad.id === SATURDAY);
-  const drawer = adModel(saturday, read, CONFIG);
-  assert.deepEqual(drawer.reach.parts.at(-1), "last number arrived 9:02 AM today");
-  const arrived = read.people.find((p) => p.adId === SATURDAY && p.day === read.today);
-  assert.ok(arrived && arrived.at && saturday.todaySoFar === 1, "someone did arrive today, and the bar says one");
-  // Without the arrival the line falls back to what the ad stands on.
-  const quiet = adModel({ ...saturday, lastArrivalAt: null }, read, CONFIG);
-  assert.deepEqual(quiet.reach.parts.at(-1), "TikTok account linked");
-});
-
-test("a verb carries the version it was drawn from; a stale press and an ad made elsewhere are refused; Undo restores", () => {
-  const w = world(EXAMPLE_READS.running());
-  const verbs = makeVerbs(w, CONFIG);
-  const spring = () => w.read.ads.find((ad) => ad.id === SPRING);
-  const v1 = spring().version;
-  const paused = verbs.pause(SPRING, v1);
-  assert.equal(paused.ok, true);
-  assert.equal(spring().state, "paused");
-  assert.equal(spring().version, v1 + 1, "every change bumps the version");
-  const stale = verbs.resume(SPRING, v1);
-  assert.deepEqual(stale, { ok: false, why: REFUSED.stale });
-  paused.undo();
-  assert.equal(spring().state, "on", "Undo puts the ad back");
-  assert.ok(spring().version > v1 + 1, "and is a change of its own");
-  assert.deepEqual(verbs.pause("nope", 1), { ok: false, why: REFUSED.gone });
-  // An ad the owner made on the platform itself: only Pause and Resume are here.
-  const boost = () => w.read.ads.find((ad) => ad.id === OLD_BOOST);
-  assert.equal(boost().madeHere, false);
-  assert.deepEqual(verbs.end(OLD_BOOST, boost().version), { ok: false, why: REFUSED.adopted });
-  assert.deepEqual(verbs.rename(OLD_BOOST, boost().version, "Mine"), { ok: false, why: REFUSED.adopted });
-  assert.equal(verbs.resume(OLD_BOOST, boost().version).ok, true);
-  assert.equal(boost().state, "on");
-  // A raise of the total moves what is spent a day with it; a change of the area sends the ad back to be checked.
-  const raised = verbs.setBudget(SPRING, spring().version, 90000);
-  assert.equal(raised.ok, true);
-  assert.equal(spring().budget.amountMinor, 90000);
-  assert.equal(spring().aboutADayMinor, 2300, "$488 left over the 21 days to its end");
-  const moved = verbs.setArea(SPRING, spring().version, { kind: "radius", miles: 8 });
-  assert.equal(moved.ok, true);
-  assert.equal(spring().state, "review");
-  moved.undo();
-  assert.equal(spring().state, "on");
 });
 
 test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequences'", () => {
@@ -239,9 +89,9 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
   );
   assert.deepEqual(campaignsChrome({ param: "ads" }), home);
   assert.deepEqual(campaignsChrome({ param: "ads:ad:abc" }), home);
-  // A workspace whose Ads preview is on has the Ads tab, and the Ads crumbs (the demo that had them too went, 16 Nov 2026).
+  // Where the settings read says Ads is here (the server's one answer), the Ads tab and the Ads crumbs.
   globalThis.window = { location: { pathname: "/w/harbor/campaigns" } };
-  setSurfaceValue("settings", { settings: { config: { features: { ads_preview: true } } } });
+  setSurfaceValue("settings", { settings: { ads: true } });
   try {
     assert.equal(campaignsChrome({ param: null }).views?.picked, "sequences");
     assert.deepEqual(
@@ -258,21 +108,24 @@ test("a real workspace's Campaigns has no Ads tab, and an Ads address is Sequenc
   }
 });
 
-test("a workspace's Ads preview is on only where its config says features.ads_preview is true, and the schema keeps the key", () => {
-  assert.equal(ads.adsPreviewOf({ features: { ads_preview: true } }), true);
-  for (const off of [
-    null,
-    undefined,
-    {},
-    { features: null },
-    { features: {} },
-    { features: { ads_preview: "true" } },
-    { features: { ads_preview: false } },
-  ])
-    assert.equal(ads.adsPreviewOf(off), false, JSON.stringify(off));
-  // A save of the settings parses the config: the switch survives it, so the next save does not drop it.
-  assert.deepEqual(ads.FeaturesConfigSchema.parse({ vision: true, ads_preview: true }), {
-    vision: true,
-    ads_preview: true,
-  });
+test("Ads is drawn where the settings read says it, nowhere else, and the old workspace flag draws nothing", () => {
+  globalThis.window = { location: { pathname: "/w/harbor/campaigns" } };
+  try {
+    for (const [settings, drawn] of [
+      [undefined, false],
+      [{ settings: { ads: false } }, false],
+      [{ settings: { ads: true } }, true],
+      // The flag that drew the mockup gave way to the edge's list (the Ads plan's 6.2): a config holding it draws nothing.
+      [{ settings: { ads: false, config: { features: { ads_preview: true } } } }, false],
+    ]) {
+      setSurfaceValue("settings", settings);
+      assert.equal(adsShown(), drawn, JSON.stringify(settings));
+    }
+  } finally {
+    setSurfaceValue("settings", undefined);
+    delete globalThis.window;
+  }
+  // A config that still holds the flag parses, and a save writes it back without it.
+  assert.deepEqual(ads.FeaturesConfigSchema.parse({ vision: true, ads_preview: true }), { vision: true });
+  assert.equal("adsPreviewOf" in ads, false, "no reader of the flag is left");
 });

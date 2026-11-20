@@ -80,6 +80,11 @@ export interface SettingsRecord {
   reviewLink: boolean;
   /** Whether this workspace makes previews for its leads (GET settings' previews, decision 0079): ours alone. */
   previews: boolean;
+  /**
+   * Whether Campaigns › Ads is drawn here (GET settings' `ads`, the server's one answer: campaigns/ads/shown.ts reads
+   * it for every page). False from an older server.
+   */
+  ads: boolean;
 }
 
 /** A member of the workspace, and an invitation nobody has taken yet, as the team read answers them. */
@@ -212,7 +217,8 @@ export const settingsOverride: SurfaceOverride = {
   // a few times a day, so on its pages alone: Sent's and Playbooks' composers draw the review link too (PAGE_HEARS).
   ...declareReads("settings", {
     // And the visits: the Business pane states the calendar's visits read (getKnownFacts reads the appointments), on its pages.
-    reads: ["facts", "rules", "template", "team", "campaign", "send", "channel", "review", "visit"],
+    // And the ad account: whether Ads is drawn here reads whether one is held (server/connections/ads-ready.ts readAdsShown).
+    reads: ["facts", "rules", "template", "team", "campaign", "send", "channel", "review", "visit", "ad_account"],
     fresh: "its-page",
     always: ["facts", "rules", "template", "team"],
     omit: [
@@ -262,6 +268,7 @@ export const settingsOverride: SurfaceOverride = {
           updatedAt: null,
           reviewLink: false,
           previews: false,
+          ads: cfg.ads === true,
         }
       : {
           config: cfg.config ?? {},
@@ -273,6 +280,7 @@ export const settingsOverride: SurfaceOverride = {
           updatedAt: cfg.updatedAt ?? null,
           reviewLink: cfg.review_link === true,
           previews: cfg.previews === true,
+          ads: cfg.ads === true,
         };
     // Resolved on the server, where the channel rows and the listing are. Null
     // on a broken config for the same reason the forms close: there is nothing

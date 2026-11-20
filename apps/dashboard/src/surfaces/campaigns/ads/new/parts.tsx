@@ -1,17 +1,16 @@
 /**
  * The parts of New ad's one screen over its preview (the Ads plan's 4.6): the one sentence, whose amount, miles and
- * date are changed in place (the drawer's own sentence, so the words are the same tinted ones); the box a tapped word
+ * date are changed in place (each the kit's soft tinted token, pressed to open its box); the box a tapped word
  * opens under it; why that amount; and the one line that stops the ad or asks, with its one act. Nothing here is a
  * list of choices: a number is typed, a date is picked, and anything else is told to AI.
  */
 import { minorOfUnits } from "../model/money";
-import type { SentencePart } from "../model/vm-base";
 import { Button } from "../../../kit/button/button";
 import { Field } from "../../../kit/field/field";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
+import { Token } from "../../../kit/picker/picker";
 import { CardNeed, META_TAB } from "../connect/card";
-import { AdSentence } from "../drawer/sentence";
 import type { AdLinePress, AdLocal, LineAct, LineVM, NewAdVM } from "./model";
 import { NEW } from "./words";
 
@@ -29,31 +28,32 @@ interface SentenceProps {
 /** The one sentence: the service in the ink, and the three words that are changed in place. */
 export function NewSentence({ vm, editing, still, onEdit }: SentenceProps) {
   const { sentence } = vm;
-  const chip = (id: "area" | "amount" | "end", words: string): SentencePart => ({
-    chip: words,
-    id,
-    value: words,
-    blank: false,
-  });
-  const parts: SentencePart[] = [
-    { text: NEW.sentence.show },
-    { chip: sentence.service, id: "offer", value: sentence.service, blank: false },
-    { text: NEW.sentence.within },
-    chip("area", sentence.miles),
-    { text: NEW.sentence.so },
-    chip("amount", sentence.amount),
-    { text: NEW.sentence.until },
-    chip("end", sentence.end),
-    { text: NEW.sentence.end },
-  ];
   const turn = (word: Exclude<AdEditing, null>) => () => onEdit(editing === word ? null : word);
+  // A word that is changed in place: the token that opens its box, or, while AI is changing the draft, only read.
+  const word = (id: "area" | "amount" | "end", words: string, opens: Exclude<AdEditing, null>) =>
+    still ? (
+      <span className="ads-word">{words}</span>
+    ) : (
+      <Token
+        aria-label={NEW.sentence.said(NEW.sentence.word[id], words)}
+        onClick={turn(opens)}
+        data-testid={`ads-chip-${id}`}
+      >
+        {words}
+      </Token>
+    );
   return (
-    <AdSentence
-      parts={parts}
-      editing
-      readOnly={still}
-      jump={{ area: turn("miles"), amount: turn("amount"), end: turn("end") }}
-    />
+    <div className="cm-recipe ads-sentence" data-readonly={still ? "" : undefined} data-testid="ads-sentence">
+      {NEW.sentence.show}
+      <span className="ads-word">{sentence.service}</span>
+      {NEW.sentence.within}
+      {word("area", sentence.miles, "miles")}
+      {NEW.sentence.so}
+      {word("amount", sentence.amount, "amount")}
+      {NEW.sentence.until}
+      {word("end", sentence.end, "end")}
+      {NEW.sentence.end}
+    </div>
   );
 }
 

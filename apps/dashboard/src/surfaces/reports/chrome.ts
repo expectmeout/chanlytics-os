@@ -26,10 +26,8 @@ import type { SurfaceViews } from "../routes";
 export const reportsTakes = (param: string): boolean => reportsParamParts(param) !== null;
 
 /**
- * Whether the workspace has ads to report: a demo session, or a workspace whose Ads preview is on (campaigns/ads/shown.ts),
- * drawn from the Ads sample. MOCKUP: the wiring lane (decision 0049) sets
- * this from the workspace's connected ad accounts, and the lens is then a real one. A test reads a chrome with no window, which is
- * no demo.
+ * Whether Reports has an Ads lens: where Ads is drawn here (campaigns/ads/shown.ts, the one answer every page asks). A test
+ * reads a chrome with no window, which has none.
  */
 export const adsAreOn = (): boolean => adsShown();
 

@@ -102,14 +102,13 @@ export const env = {
   get META_ADS_REDIRECT_URI() {
     return trimmedEnv(process.env.META_ADS_REDIRECT_URI);
   },
-  /** The workspaces Ads is offered in, by id, comma-separated; `*` for every one. Empty offers it nowhere. */
+  /** Switch: the workspaces Ads is offered in, by id, comma-separated; `*` for every one. Empty offers it nowhere.
+   * The dashboard draws Ads where this offers it (its readAdsShown asks the edge's status). */
   get ADS_WORKSPACES() {
     return trimmedEnv(process.env.ADS_WORKSPACES);
   },
-  /**
-   * Whether an owner's presses on an ad reach Meta from this deployment (the Ads plan's 6.2): `live` sends, `sandbox`
-   * does everything but the call, anything else (and unset) is off, where a press is refused before it is kept.
-   */
+  /** Switch: whether an owner's presses on an ad reach Meta from this deployment (the Ads plan's 6.2): `live` sends,
+   * `sandbox` does everything but the call, anything else (and unset) is off, where a press is refused before it is kept. */
   get ADS_WRITES() {
     return trimmedEnv(process.env.ADS_WRITES);
   },

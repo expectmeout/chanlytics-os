@@ -14,8 +14,8 @@
  * the head (head.ts); the date range is the page's act at the strip's right, a capsule that opens it (period-picker.tsx), with what
  * its word leaves out beside it on a desk; the page draws the lens's body (lenses/), which is a view of its own: replaced as the lens
  * changes (keyed by it), and moved by the deck every change of view moves by (kit/motion/view-deck.ts), from the side its lens stands
- * on, while the page and what it holds of a range stay. The Ads lens (a workspace's preview, until its ad accounts are read) draws
- * a fold of its own over the days the address says, from a chunk fetched on demand (lenses/ads-load.ts). The page draws the
+ * on, while the page and what it holds of a range stay. The Ads lens draws the Ads page's own read, over its thirty days, from a
+ * chunk fetched on demand (lenses/ads-load.ts). The page draws the
  * bridge's own numbers (`useSurface("reports")`); without them, it says what Reports reads.
  *
  * What it shows is a range: a period by name, kept in this browser, or the days a member picked, which the address says
@@ -120,10 +120,9 @@ const whileCurrent = <V,>(read: Follower<unknown>, fold: V | null): V | null =>
 
 /**
  * Worth knowing: from the report and, for the campaign that drew the most replies, the Campaigns read's sources while it is current.
- * Where the workspace has ads (a demo session's), the one line the Ads fold makes of the same days is the last of the three.
  */
-const worthKnowing = (vm: ReportVM, campaigns: CampaignLensVM | null, ads: ReportFactVM | null): ReportFactVM[] =>
-  reportFacts(vm, campaigns?.report ?? null, ads);
+const worthKnowing = (vm: ReportVM, campaigns: CampaignLensVM | null): ReportFactVM[] =>
+  reportFacts(vm, campaigns?.report ?? null);
 
 /**
  * The Campaigns lens's sentence: one campaign says its own once read, and nothing before; every campaign the lens's own read's
@@ -182,7 +181,7 @@ function lensBody(
       return <CampaignsLens {...props} own={own.campaigns} fold={campaigns} here={scope} />;
     case "ads":
       if (!ads) return null;
-      return "live" in ads ? <ads.Live dto={ads.live} /> : <ads.parts.Lens fold={ads.fold} onScope={ads.onScope} />;
+      return <ads.Live dto={ads.live} failed={ads.failed} />;
     case "reviews":
       return (
         <ReviewsLens
@@ -219,8 +218,8 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   }, [fetchedAt]);
   const R = live ?? null;
   const own = useOwnReads();
-  // The Ads, where they are on: the lens's head, a demo's one fact on the Overview, and what the lens draws, from a chunk fetched on demand.
-  const adsHere = useAdsLens(lens, at, R);
+  // The Ads, where they are on: the lens's head and what the lens draws, from a chunk fetched on demand.
+  const adsHere = useAdsLens(lens);
   const scope = useCampaignsScope(lens, at, R);
   const desk = useRptDesk();
   const slide = useSlide(LENS_ORDER, lens);
@@ -297,7 +296,7 @@ export function ReportsPage({ pathname }: { pathname: string | null }) {
   );
   if (!R) return readsAWorkspace();
   // Worth knowing, once: the campaign that drew the most replies is the Campaigns read's, while it is of the period shown.
-  const facts = worthKnowing(R.vm, campaignsNow, adsHere.fact);
+  const facts = worthKnowing(R.vm, campaignsNow);
   // Dimmed while the page shows another period than the one picked. A pick painted at once from a held view (a pick back to
   // the period on screen, made while another loads) waits on nothing, though the read behind it is still out. On the Reviews lens
   // the same, while its own read is of another period than the one shown (one that failed is the lens's own card, not a dimming);

@@ -1,27 +1,17 @@
 /**
- * The two Ads pages that are not the ledger: "nothing connected" (v0), which says only what the People report already reads (how new
- * people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, beside the ad account's card),
- * real in a workspace's preview (first-touch.ts), and, as a MOCKUP, "connected, no ads yet", one card for the first
- * ad with its checklist (its press waits
- * while the account lacks something, and says what), or, while an account has to be chosen first, one card to choose it from,
- * each choice with the currency it is charged in. None draws a figure, a cost or a per-ad count: nothing here claims what
- * Chanlytics cannot support yet.
+ * The Ads page with nothing connected (the Ads plan's 4.1): it says only what the People report already reads, how new
+ * people first reached the business, the "An ad" row in the ink and the rest in one quiet hue, beside the ad account's
+ * card (connect/card.tsx). Nothing here draws a figure, a cost or a per-ad count Chanlytics cannot support.
  */
 import type { ReactNode } from "react";
-import type { AdPlatform } from "@chanlytics/contracts";
 import { CARD } from "./connect/words";
-import { GATE } from "./model/words";
 import { V0 } from "./model/words-page";
-import type { ChooseVM, NoAdsVM } from "./model/page-parts";
 import type { V0VM } from "./model/page-v0";
-import { Button } from "../../kit/button/button";
 import { BarList } from "../../kit/charts/bar";
-import { EmptyState } from "../../kit/empty/empty";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
-import { gate, routeDoor } from "../../frame-verbs";
+import { routeDoor } from "../../frame-verbs";
 import type { FirstTouchHere } from "./first-touch";
-import { StandRows } from "./standing";
 
 /** The lead line: while the counts are read, or where they could not be; else its bold part and the rest, or the empty workspace's two lines. */
 function V0Lead({ v0, touch }: { v0: V0VM; touch: FirstTouchHere }) {
@@ -107,82 +97,6 @@ export function V0Page({ v0, touch, card }: { v0: V0VM; touch: FirstTouchHere; c
           {CARD.later}
         </p>
       </section>
-    </div>
-  );
-}
-
-/**
- * Connected, no ads yet: one card for the first ad, what it would be, and the checklist it stands on. The press opens New
- * ad; while the account is not ready (decision 3: a need it does not meet blocks the first ad, as it blocks Turn on) the
- * press waits, and the first need that is not met is said beside it with the door that mends it.
- */
-export function NoAdsCard({ noAds, onSetUp }: { noAds: NoAdsVM; onSetUp: () => void }) {
-  const blocked = noAds.blocked;
-  return (
-    <EmptyState kind="card" glyph="chat" title={noAds.title} body={noAds.line} className="ads-first" testid="ads-first">
-      <StandRows rows={noAds.checklist} />
-      <div className="ads-first-act">
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onSetUp}
-          disabled={blocked !== null}
-          data-testid="ads-set-up"
-          {...gate("approve", GATE.turnOn)}
-        >
-          {noAds.press}
-        </Button>
-        {/* What stops it is said beside the press; the door that mends it is the checklist row's own, just above. */}
-        {blocked ? (
-          <p className="ads-first-why" data-testid="ads-first-blocked">
-            {blocked.text}
-          </p>
-        ) : null}
-      </div>
-    </EmptyState>
-  );
-}
-
-interface ChooseCardsProps {
-  choose: readonly ChooseVM[];
-  /** The owner picked one of an account's choices: its platform, the platform's id for it, and its name. */
-  onChoose: (platform: AdPlatform, externalId: string, name: string) => void;
-}
-
-/**
- * An account that has to be chosen before anything else: one card each, naming the choices with the currency each is
- * charged in (which is fixed for an account), and a press on the one to use. Choosing it makes it the connected account.
- */
-export function ChooseCards({ choose, onChoose }: ChooseCardsProps) {
-  return (
-    <div className="ads-choose" data-testid="ads-choose">
-      {choose.map((c) => (
-        <EmptyState
-          key={c.platform}
-          kind="card"
-          glyph="list"
-          title={c.title}
-          body={c.line}
-          className="ads-first"
-          testid={`ads-choose-${c.platform}`}
-        >
-          <ul className="ads-choices">
-            {c.choices.map((choice) => (
-              <li key={choice.externalId} className="ads-choice" data-testid="ads-choice">
-                <span className="ads-choice-name">{choice.label}</span>
-                <Button
-                  size="sm"
-                  onClick={() => onChoose(c.platform, choice.externalId, choice.name)}
-                  aria-label={`${c.use}: ${choice.label}`}
-                  data-testid="ads-choice-use"
-                >
-                  {c.use}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </EmptyState>
-      ))}
     </div>
   );
 }

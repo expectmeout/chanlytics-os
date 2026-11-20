@@ -94,6 +94,12 @@ export interface AdsLiveDto {
   elsewhere: { people: number; booked: number };
   /** Whether this member may pause and resume here: the owner, on a connected account whose sign-in may change ads. */
   can_press: boolean;
+  /**
+   * When AI was stopped (Stop everything), as the workspace's settings keep it; null while AI runs. While it is, no ad
+   * is turned on from here, and the page says how many are still on, with the press that pauses them all (the Ads
+   * plan's G17).
+   */
+  stopped_at: string | null;
 }
 
 /** One person an ad brought. */

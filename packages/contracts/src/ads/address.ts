@@ -1,6 +1,6 @@
 /**
- * Ads' addresses (`campaigns/ads…`), the second of Campaigns' two views (Messages | Ads): the page, an ad open in its drawer,
- * the New ad composer and the Results sheet. One param holds them, as Leads' does under People (`clients/leads:…`):
+ * Ads' addresses (`campaigns/ads…`), a view of Campaigns: the page, an ad open in its drawer and New ad. One param holds
+ * them, as Leads' does under People (`clients/leads:…`):
  *
  *   campaigns/ads                     the page
  *   campaigns/ads:ad:<id>             an ad open in its drawer, pushed so Back closes it
@@ -9,7 +9,6 @@
  *   campaigns/ads:new:copy:<id>       New ad filled from an ad, as a copy               (Make a copy)
  *   campaigns/ads:new:again:<id>      New ad filled to run an ended ad again            (Run it again)
  *   campaigns/ads:new:google:<id>     New ad on Google's Call door, with this ad's offer (Also run on Google)
- *   campaigns/ads:results             the Results sheet over the page
  *
  * A word the view does not know is the page (a link must never land on nothing). A root module of the package: Reports,
  * People and Campaigns' routes link here, and the frame's route chunk reads `ADS_WORDS`, so none of it is page-only.
@@ -35,27 +34,12 @@ export interface AdsAddress {
    * (a copy keeps that ad's door, Google's is Call).
    */
   compose: null | { door: AdDoor; from: null | { how: AdStart; id: string } };
-  /** The Results sheet. */
-  results: boolean;
 }
 
-const NONE: AdsAddress = { ad: null, compose: null, results: false };
+const NONE: AdsAddress = { ad: null, compose: null };
 
 /** Whether a param of `campaigns` is the Ads view's: `ads`, or `ads:` and more. */
 export const isAdsParam = (param: string): boolean => /^ads(:|$)/.test(param);
-
-/**
- * Whether a workspace's config turns its Ads preview on (`features.ads_preview`, the flag registry's `ads_preview`): its
- * Campaigns › Ads, opening on what is true of it and with the sample a press away, until the Ads read is wired (0049). Read off
- * the config as stored, so anything but `true` is off. The one reader of the flag: the frame and the pages each ask it.
- */
-export function adsPreviewOf(config: unknown): boolean {
-  if (typeof config !== "object" || config === null || !("features" in config)) return false;
-  const features: unknown = config.features;
-  return (
-    typeof features === "object" && features !== null && "ads_preview" in features && features.ads_preview === true
-  );
-}
 
 const adStartOf = (word: string): AdStart | undefined => STARTS.find((s) => s === word);
 
@@ -75,7 +59,6 @@ export function parseAds(param: string): AdsAddress {
     const id = rest.slice("ad:".length);
     return id ? { ...NONE, ad: id } : NONE;
   }
-  if (rest === "results") return { ...NONE, results: true };
   if (rest === "new") return { ...NONE, compose: composeOf("") };
   if (rest.startsWith("new:")) return { ...NONE, compose: composeOf(rest.slice("new:".length)) };
   return NONE;
@@ -91,16 +74,13 @@ export const newAdRoute = (door: AdDoor = "whatsapp"): string =>
 /** The New ad composer, started from an ad: its copy, to run it again, or its offer on Google. */
 export const newAdFromRoute = (how: AdStart, id: string): string => `${ADS_ROUTE}:new:${how}:${id}`;
 
-/** The Results sheet over the page. */
-export const adsResultsRoute = (): string => `${ADS_ROUTE}:results`;
-
 // ---------------------------------------------------------------------------------------------------------------------
-// What a set of results is of: the Results sheet and Reports › Ads read the same three scopes, and Reports' address says one
+// What a set of results is of: Reports' address says one of three scopes
 
 /** What results are narrowed to: every ad, the ads of one platform, or one ad. */
 export type AdsScope = { kind: "all" } | { kind: "platform"; platform: AdPlatform } | { kind: "ad"; id: string };
 
-export const ADS_SCOPE_ALL: AdsScope = { kind: "all" };
+const ADS_SCOPE_ALL: AdsScope = { kind: "all" };
 
 const SCOPE_PLATFORMS: readonly AdPlatform[] = ["meta", "google", "tiktok"];
 
