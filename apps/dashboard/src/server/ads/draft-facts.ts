@@ -73,6 +73,8 @@ export interface AdDraftFacts {
   address: string | null;
   /** Whether AI answers a WhatsApp number an ad can open. */
   whatsapp: boolean;
+  /** That number, as dialled: the one an ad must name, since a Page can hold several (meta-make.ts). Null with none. */
+  whatsappNumber: string | null;
   /** Null where no account is connected, or where Meta has not yet said the least it takes a day. */
   account: AdDraftAccount | null;
   /** An account is connected, and its first read is not in. */
@@ -191,6 +193,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     services: servicesOf(parsed.config, madeHere.names, bookedNames),
     address: parsed.config.brain?.profile?.address?.trim() || null,
     whatsapp: aiNumber !== null,
+    whatsappNumber: aiNumber,
     account,
     accountReading: live !== null && account === null,
     pictures,

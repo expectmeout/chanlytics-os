@@ -14,6 +14,19 @@
         }
       }
     },
+    "POST /api/admin/ads/check": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/ads/check.ts",
+      "knock_args": {
+        "aud": "/api/admin/ads/check",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
     "POST /api/admin/ads/press": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",
@@ -836,7 +849,6 @@
     },
     "POST /api/sources/key": {
       "wrapper": "door",
-      "verb": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts",
       "knock": "knockIsRelays",
       "knock_in": "answerKeyDoor in apps/edge/lib/files/takes/key-door.ts"
     },

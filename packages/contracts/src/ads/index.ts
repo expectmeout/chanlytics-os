@@ -69,7 +69,7 @@ export type {
   AdServiceFacts,
   AdSpecialKind,
 } from "./draft";
-export { ADS_ACCOUNT_DOOR, ADS_PRESS_DOOR } from "./edge-doors";
+export { ADS_ACCOUNT_DOOR, ADS_CHECK_DOOR, ADS_PRESS_DOOR } from "./edge-doors";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
 export type {
   AdBudgetLive,
