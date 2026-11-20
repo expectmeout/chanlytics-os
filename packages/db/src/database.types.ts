@@ -3081,10 +3081,10 @@ export type Database = {
           media_status: string | null
           mime: string
           name: string
-          owner_named: boolean
-          owner_shelved: boolean
           origin_left: string | null
           origin_left_at: string | null
+          owner_named: boolean
+          owner_shelved: boolean
           owner_uploaded: boolean
           picture_print: string | null
           ready_at: string | null
@@ -3125,10 +3125,10 @@ export type Database = {
           media_status?: string | null
           mime: string
           name: string
-          owner_named?: boolean
-          owner_shelved?: boolean
           origin_left?: string | null
           origin_left_at?: string | null
+          owner_named?: boolean
+          owner_shelved?: boolean
           owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
@@ -3169,10 +3169,10 @@ export type Database = {
           media_status?: string | null
           mime?: string
           name?: string
-          owner_named?: boolean
-          owner_shelved?: boolean
           origin_left?: string | null
           origin_left_at?: string | null
+          owner_named?: boolean
+          owner_shelved?: boolean
           owner_uploaded?: boolean
           picture_print?: string | null
           ready_at?: string | null
