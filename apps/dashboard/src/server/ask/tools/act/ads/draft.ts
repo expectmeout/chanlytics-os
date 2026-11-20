@@ -53,7 +53,7 @@ function saidInQuestion(units: number, question: string | undefined): boolean {
 }
 
 /** The names Services lists, which a service the person named is matched against. */
-async function servicesOf(toolContext: ToolContext): Promise<string[]> {
+async function serviceNamesOf(toolContext: ToolContext): Promise<string[]> {
   const row = (await load(toolContext.rc, readers.config, undefined)).data;
   const parsed = parseTenantConfigResult(row?.config ?? null);
   return parsed.ok ? (parsed.config.brain?.profile?.services ?? []).map((service) => service.name) : [];
@@ -68,10 +68,10 @@ async function adDraftOutcome(
   const account = await findLiveAdAccount(rc.ctx.supabase, rc.tenantId, "meta");
   if (account === null || account.status !== "connected" || account.currency === null)
     return refuse(AD_REFUSED.noAccount);
-  const asked = input.service?.trim() ?? "";
-  const services = asked ? await servicesOf(toolContext) : [];
-  const service = asked ? (services.find((name) => name.trim().toLowerCase() === asked.toLowerCase()) ?? null) : null;
-  if (asked && service === null) return refuse(AD_REFUSED.noService(asked, services));
+  const wanted = input.service?.trim() ?? "";
+  const services = wanted ? await serviceNamesOf(toolContext) : [];
+  const service = wanted ? (services.find((name) => name.trim().toLowerCase() === wanted.toLowerCase()) ?? null) : null;
+  if (wanted && service === null) return refuse(AD_REFUSED.noService(wanted, services));
   const owner = ROLE_PERMS[toolContext.role].ads;
   const mostAsked = input.most;
   const mostLeft = mostAsked === undefined ? null : !owner ? AD_REFUSED.mostNotOwner : null;

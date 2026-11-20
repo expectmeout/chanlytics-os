@@ -1044,7 +1044,6 @@ const TENANT_TABLES = {
   ad_accounts: ["member", () => ({ tenant_id: A, ...AD_ACCOUNT, external_id: "stranger-act" })],
   ads: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "stranger-ad" })],
   ad_days: ["member", () => ({ tenant_id: A, ad_id: ctx.ad, day: "2026-11-02" })],
-  // A draft of a new ad (00658): members read their workspace's one; only its door, ad_draft_keep, writes it.
   ad_drafts: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, draft: { service: "Stranger cut" } })],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],

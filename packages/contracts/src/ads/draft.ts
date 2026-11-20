@@ -252,9 +252,9 @@ function amountFor(inputs: AdDraftInputs, days: number): { totalMinor: number; b
   const { account, history, openTimes, ownerMostMinor } = inputs;
   const least = adLeastTotal(account, days);
   const cost = history.costPerBookedMinor;
-  const starting = (why: Extract<AdAmountBasis, { kind: "starting" }>["why"]) => ({
+  const starting = (reason: Extract<AdAmountBasis, { kind: "starting" }>["why"]) => ({
     totalMinor: least,
-    basis: { kind: "starting" as const, why },
+    basis: { kind: "starting" as const, why: reason },
   });
   if (history.booked < AD_BOOKED_TO_FORECAST || cost === null || !(cost > 0)) return starting("few_booked");
   if (openTimes === null) return starting("no_calendar");

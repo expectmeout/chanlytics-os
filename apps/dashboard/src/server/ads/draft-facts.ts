@@ -125,7 +125,7 @@ function runningHereOf(rows: readonly AdRow[], at: { today: string; timezone: st
  * turned on with, made here or in Meta (G6: never above the largest total the owner has turned on). Only ads Chanlytics
  * holds count: one it cannot name brought people, but what it spent is not known.
  */
-function historyOf(ads: readonly AdRow[], counts: AdsPageCounts | null): AdDraftInputs["history"] {
+function adHistoryOf(ads: readonly AdRow[], counts: AdsPageCounts | null): AdDraftInputs["history"] {
   let booked = 0;
   let spentMinor = 0;
   for (const ad of ads) {
@@ -245,7 +245,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
   const ads = live ? await listAdsOfAccount(supabase, rc.tenantId, live.id) : [];
   const aiNumber = number.data?.number_e164 ?? null;
   const account = draftAccountOf(live, aiNumber);
-  const history = historyOf(ads, counts);
+  const history = adHistoryOf(ads, counts);
   // The calendar is read only where the amount can lean on it (contracts ads/draft.ts amountFor).
   const forecast = history.booked >= AD_BOOKED_TO_FORECAST && history.costPerBookedMinor !== null;
   const [openTimes, kept] = await Promise.all([

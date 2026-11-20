@@ -10,7 +10,7 @@
  * most any ad may cost, in whole units of the ad account's currency, where the owner said one in their own words (the
  * plan's G6), which the press keeps on the account before it drafts. Pure.
  */
-import { asText, type ProposalSpec } from "../ask/proposals/spec";
+import type { ProposalSpec } from "../ask/proposals/spec";
 import { newAdRoute } from "./address";
 
 /** What an ad card commits: New ad's own route, with the service named and the owner's most where they said one. */
@@ -18,7 +18,8 @@ export const adDraftSpec: ProposalSpec = {
   needs: "operator",
   gate: "approve",
   commit: ({ payload }) => {
-    const service = asText(payload.service);
+    // Read here, not through the specs' own helpers: the cards' folder imports this one, and leans one way.
+    const service = typeof payload.service === "string" ? payload.service.trim() : "";
     const most = typeof payload.most === "number" && Number.isSafeInteger(payload.most) ? payload.most : null;
     return {
       route: "POST ads/draft",
