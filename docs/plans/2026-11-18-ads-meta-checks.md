@@ -287,3 +287,42 @@ sign-in. No number is written here.
 - **The paused-ad check's gate is met at Meta:** the Page is linked to the number AI answers.
 - **To see on the paused ad:** that Meta takes a number that is linked to the Page and is not its primary one.
 - **Not this part's:** the card's own check of the Page's number, which is step 2's and has been told.
+
+## 20 November 2026 · The paused-ad check, run twice on Ruben's own account
+
+Run on Ruben's word, typed in the session that built it, through the owner's route (`POST /api/v1/ads/check`) with
+`ADS_WRITES` live on the production edge. The account has no card on file. Sent with the business's sign-in that
+Chanlytics holds, in the order above. No id is kept here.
+
+### What it showed
+
+| Run | Step | What Meta did |
+|---|---|---|
+| First, $14.00 to a day fourteen days on | The account's least a day, and its Instagram accounts | Read: $1.00 a day; no Instagram account named |
+| | The campaign: dry run, then made | Taken. The campaign was made paused |
+| | The part that says who sees it, dry run | Refused: "Your ad set budget must be more than $14.48 or your ads may not deliver." |
+| | Nothing after it was sent | The paused, empty campaign was left at Meta, and removed later the same day by its id, once the check could |
+| Second, $15.00 to the same day, New ad's new proposal | The two reads and the campaign | As the first |
+| | The part that says who sees it: dry run, then made | Taken, with a total and its end in the account's zone, adults within 5 miles of the street address alone, Facebook's feed, stories and Reels, and the number AI answers named |
+| | The picture, placed in the account's library | Taken |
+| | One ad with its creative inside it, dry run with Meta's own look at it | Refused: "Update payment method: Visit the Billing and payment center to add a valid payment method." |
+| | What the check made | Removed: the campaign, with the part under it. The picture stays in the library |
+
+### What it settles
+
+- **Meta's least for a total counts every calendar day the run touches,** today and the last day both: fourteen days
+  on at $1.00 a day was refused at $14.00 and taken at $15.00. The rule in code is this one since this day.
+- **The business's sign-in that Chanlytics holds makes a campaign, the part that says who sees it, and a picture.**
+- **The part that says who sees it takes the number AI answers,** though it is not the Page's primary one.
+- **An address alone, with no country, is enough for the area.**
+- **The ad account's Instagram accounts can be read** with that sign-in; this one names none.
+- **An ad is not made, not even as a dry run, on an account with no payment method.** The campaign and the part that
+  says who sees it are. So "no card, so nothing can be charged" holds for every step but the ad itself: the ad's dry
+  run, Meta's own look at it, whose sign-in it takes, and the read back of a whole ad wait for a card on the account.
+- **A check either finishes or leaves nothing:** the second run's removal took, in one call.
+
+### Not settled
+
+Whose sign-in Meta takes for the ad and its creative; Meta's own look at the words and the picture; whether a dry run
+counts against the account's score (the edge's log keeps each call's share, unread here); the read back of a whole ad;
+the ad's own switch through step 2's presses; and Meta's own preview.
