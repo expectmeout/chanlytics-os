@@ -20,6 +20,8 @@ export const FOOTAGE_SAID = {
   straight: "What comes from your folder goes straight into the Library.",
   /** The workspace's video switch is off: said by a folder whose videos wait on it, and by the video maker. */
   videosOff: "Videos aren't on for this workspace yet.",
+  /** The card was pressed with no folder settled: nothing was sent, and the one thing to do. */
+  chooseFirst: "No folder is chosen yet, so nothing changed. Choose the folder, then press Watch folder.",
   /**
    * The folder's older files, asked for through AI (the screens canvas's call 7): what the first look left in Drive, past
    * the newest of the last thirty days. Its card, and what its press says once it went through.

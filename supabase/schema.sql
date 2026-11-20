@@ -9668,17 +9668,26 @@ begin
                   else to_char(v_count, 'FM999,999,999') || ' new photos and videos' end;
   v_body := 'From ' || public.footage_quoted(v_source.folder_name) || ' · in your Library';
 
+  -- The workspace's row of the day, whichever folder began it: a folder switched the same day keeps it.
   select n.id into v_row from public.notifications n
    where n.tenant_id = new.tenant_id
      and n.kind = 'footage_in'
-     and n.subject_type = 'media_source'
-     and n.subject_id = v_source.id::text
      and n.closed_at is null
      and n.created_at >= v_day
    order by n.created_at desc
    limit 1;
   if v_row is not null then
-    update public.notifications n set title = v_title, body = v_body, created_at = now() where n.id = v_row;
+    update public.notifications n
+       set title = v_title, body = v_body, created_at = now(),
+           subject_type = 'media_source', subject_id = v_source.id::text
+     where n.id = v_row;
+    -- A second row of the day, begun before this by a folder switched the same day, is closed: one row a day.
+    update public.notifications n set closed_at = now()
+     where n.tenant_id = new.tenant_id
+       and n.kind = 'footage_in'
+       and n.closed_at is null
+       and n.created_at >= v_day
+       and n.id <> v_row;
   else
     insert into public.notifications (tenant_id, kind, title, body, subject_type, subject_id)
     values (new.tenant_id, 'footage_in', v_title, v_body, 'media_source', v_source.id::text);
@@ -40826,7 +40835,7 @@ CREATE FUNCTION public.video_minutes_by_road(p_tenant_id uuid) RETURNS jsonb
     SET search_path TO 'public'
     AS $$
   with counted as (
-    select f.id, f.source, f.status, f.owner_uploaded, f.copy_state, f.media_status, f.media_ref,
+    select f.id, f.source, f.status, f.owner_uploaded, f.copy_state, f.media_status,
            coalesce(f.seconds, 0) as seconds
       from public.files f
      where f.tenant_id = p_tenant_id and f.kind = 'video' and f.removed_at is null and f.media_status <> 'failed'
@@ -40836,7 +40845,7 @@ CREATE FUNCTION public.video_minutes_by_road(p_tenant_id uuid) RETURNS jsonb
     'total', coalesce(sum(c.seconds), 0),
     'can_step_aside', coalesce(sum(c.seconds) filter (
       where public.file_road_is_watched(c.source) and not c.owner_uploaded and c.copy_state = 'here'
-        and c.media_status = 'ready' and c.media_ref is not null
+        and c.media_status = 'ready'
         and exists (select 1 from public.source_items i
                       join public.media_sources s on s.id = i.source_id
                      where i.tenant_id = p_tenant_id and i.file_id = c.id and i.state = 'in'
@@ -65693,6 +65702,13 @@ GRANT SELECT(copy_state) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT(copy_why) ON TABLE public.files TO authenticated;
+
+
+--
+-- Name: COLUMN files.owner_uploaded; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(owner_uploaded) ON TABLE public.files TO authenticated;
 
 
 --

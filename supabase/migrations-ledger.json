@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00659": "held by cm-ads-draft-kept (#2468, a draft not yet applied): take this line out when 00659 lands on main"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -660,6 +661,7 @@
     "00655_a_watched_folder_says_where_it_stands.sql": "c21bd565c58aa8ab904a7edad25b4c9d12a72204e94fa53de80c4735a5bb314b",
     "00656_an_ad_s_words_are_counted_apart.sql": "55155e583c33c4b4e06e5e80307bb9e7b4ac5fd633e0917c29042c6e9d2778dc",
     "00657_a_watched_folder_rings_the_bell.sql": "72eba770c9480a3448a58df71a08f7c71a448a50be20c031d8f94b84028a5308",
-    "00658_the_bell_rings_for_an_owner_s_ads.sql": "869b5b39d7c0e49ccc481b95b09d76472dff19ea423190c949ffe9ccf4059757"
+    "00658_the_bell_rings_for_an_owner_s_ads.sql": "869b5b39d7c0e49ccc481b95b09d76472dff19ea423190c949ffe9ccf4059757",
+    "00660_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "cd84a191fa9d92d065c9d0f5990d118f811ea7257ea8953f587dfddb16cda2bf"
   }
 }

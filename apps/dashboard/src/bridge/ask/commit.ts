@@ -153,8 +153,11 @@ async function actThroughDoor(
   messageId: string,
   p: AskProposal,
 ): Promise<CommitResult | typeof WALK_HERE> {
+  // A press carries the card as this tab holds it: the server takes from it only what the card's own steps settle here
+  // (its spec's `settles`, AI's folder card's folder), and reads the rest again from the turn. An undo carries nothing.
+  const card = { message_id: messageId, proposal_id: p.id, by: "press" };
   const r = await client(route, {
-    body: { message_id: messageId, proposal_id: p.id, by: "press" },
+    body: route === "POST ask/act" ? { ...card, settled: p.payload } : card,
     once: true,
   });
   // A door down or a server's fault: the verb's own key means the walk that follows can never act twice.

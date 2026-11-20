@@ -375,3 +375,66 @@ test("an undo goes through the spec's own way back, naming the decision it rever
   assert.equal(calls[0].headers["x-undo-of"], "dddddddd-0000-4000-8000-000000000000");
   assert.equal(tables.ask_messages[0].content.proposals[0].outcome.state, "undone");
 });
+
+/** AI's folder card as the turn keeps it when AI made it from words alone: no folder yet, the chooser settles one. */
+const folderCard = (over = {}) => ({
+  id: "p-folder",
+  kind: "bring_in",
+  needs: "partner",
+  title: "Watch a Google Drive folder",
+  summary: "Nothing happens until you press it.",
+  made_at: made,
+  undo: "",
+  origin: { by: "asked", strangers: false },
+  payload: { place: "drive", link: "google drive", folder_id: "", folder_name: "" },
+  ...over,
+});
+
+test("a folder chosen in the browser goes with the press, and only what the card's own steps settle is taken (the first real run, 20 Nov 2026)", async () => {
+  const { tables, ctx } = world([folderCard()]);
+  answers.push({ status: 200, json: { ok: true, data: { source_id: "s-1" } } });
+  const settled = {
+    place: "website",
+    link: "https://elsewhere.example",
+    folder_id: "folder-b",
+    folder_name: "Footage run B",
+    include_subfolders: true,
+    instead: true,
+    more: { a: 1 },
+  };
+  const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-folder", by: "press", settled });
+  assert.equal(a.ok, true, a.message);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/api\/v1\/sources\/watch\?/, "the folder's own door, not a link's");
+  assert.deepEqual(calls[0].body, { folder_id: "folder-b", include_subfolders: true, instead: true });
+  assert.equal(
+    a.outcome.receipt,
+    "Watching “Footage run B”. The first photos and videos show up in your Library as they come in.",
+  );
+  assert.equal(
+    tables.ask_messages[0].content.proposals[0].payload.place,
+    "drive",
+    "what AI proposed is kept as it was",
+  );
+});
+
+test("a folder card pressed with no folder settled says so in words, and nothing is sent", async () => {
+  const { tables, ctx } = world([folderCard()]);
+  const a = await runAct(ctx, req(), member, { messageId: MSG, proposalId: "p-folder", by: "press" });
+  assert.equal(a.ok, false);
+  assert.equal(a.message, "No folder is chosen yet, so nothing changed. Choose the folder, then press Watch folder.");
+  assert.equal(calls.length, 0, "never the door's own refusal of an empty id");
+  assert.equal(tables.ask_messages[0].content.proposals[0].outcome.state, "failed");
+});
+
+test("a card whose spec settles nothing is pressed as the turn kept it, whatever the press sends", async () => {
+  const { ctx } = world([noteCard()]);
+  answers.push({ status: 200, json: { ok: true, data: { id: "note-1", decision_id: "d1" } } });
+  await runAct(ctx, req(), member, {
+    messageId: MSG,
+    proposalId: "p-note",
+    by: "press",
+    settled: { body: "Changed by hand", who: "Someone else" },
+  });
+  assert.equal(calls[0].body.body, "Prefers mornings");
+});
