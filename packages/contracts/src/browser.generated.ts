@@ -30,7 +30,7 @@ export { EFFORT_MESSAGE_BETA, effortAbove, effortInForce, effortMessage, foldEff
 export { DATA_NOT_INSTRUCTIONS, defang, fenceActed, fenced, fencedInline, injectionQuestion, PROFILE_NAME_MAX, promptSafeName } from "./ai/fence";
 export { AI_USAGE_PORTS, AI_USAGE_PURPOSES, HEARING_MODELS, hearingDollars, videoEarModelOf, videoWordsShapeOf } from "./ai/hearing";
 export { FAST_MODE_BETA, hasFastMode, MODEL_IDS, MODEL_SPEEDS, MODEL_TAKES, MODELS, modelTakes, THINKING_TYPES } from "./ai/models/ids";
-export { fallbackModel, isModelId, MODEL_EFFORTS, MODEL_PORTS, MODEL_PURPOSES, MODEL_ROUTES, modelRoute, readsAsModel, RETELL_MODELS, routeThinkingFor, screenFloorOf, secondKeyFloorOf, shadowPortOf, thinkingOffOf } from "./ai/models/routes";
+export { fallbackModel, isModelId, MODEL_EFFORTS, MODEL_PORTS, MODEL_PURPOSES, MODEL_ROUTES, modelRoute, readsAsModel, RETELL_MODELS, routeThinkingFor, screenFloorOf, secondKeyFloorOf, shadowPortOf, SMALL_JSON_PURPOSES, thinkingOffOf } from "./ai/models/routes";
 export { MODEL_TURN_WRITE_MS, modelTurnRequestOf, modelTurnResponseOf } from "./ai/turn";
 export { AI_USAGE_ERROR_CHARS, aiUsageBodyOf, creditRanOut, FAST_MODE_PRICES, hearingUsageBodyOf, MODEL_CALL_OUTCOMES, MODEL_PRICES, NO_USAGE, priceOf, usageDollars, usageOf, usageTokens } from "./ai/usage";
 export { foldWordsMessages, isWordsMessage, wordsMessage } from "./ai/words-message";

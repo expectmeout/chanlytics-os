@@ -14,6 +14,13 @@ import { askTraitsOf, MIN_MS, type AskProposal, type AskProposalOutcome } from "
 import { logAndGoOn } from "@chanlytics/log";
 import { askForJson } from "../../../shared/model-json";
 import { stopEverything, resumeEverything, type StopAnswer } from "../../act/stop";
+import {
+  YES_CHECK_MAX_TOKENS,
+  YES_CHECK_SCHEMA,
+  YES_CHECK_SYSTEM,
+  YesCheckAnswerSchema,
+  yesCheckQuestion,
+} from "../../act/yes-check";
 import { pressOnTurn } from "../../act/world";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../context/tool-defs";
 import { refuse } from "../context/context";
@@ -34,16 +41,6 @@ const tooOldForAYes = (p: AskProposal, now: number): boolean => {
   return !Number.isFinite(madeAtMs) || now - madeAtMs > YES_FRESH_MS;
 };
 
-const YES_SYSTEM =
-  "You decide one thing: did this person just tell us to go ahead with this action? Read only the two lines given. A yes in any language or wording counts (yes, do it, send it, go ahead, dale, hazlo, sounds good). A change, a question, a doubt, a maybe or a no does not count. Answer in JSON.";
-
-const YES_SCHEMA = {
-  type: "object",
-  properties: { yes: { type: "boolean" } },
-  required: ["yes"],
-  additionalProperties: false,
-};
-
 /**
  * Whether the person's own words say go ahead with this card. A check that cannot answer is a no: the card is still one press
  * away, and nothing happens on a guess.
@@ -55,16 +52,17 @@ async function saidYes(t: ToolContext, title: string): Promise<boolean> {
     {
       tenantId: t.tenantId,
       userId: t.ctx.userId,
-      purpose: "lead_draft",
+      // Its own line of the ledger, apart from the drafts (00658): what reading a yes costs is read on its own.
+      purpose: "yes_check",
       signal: AbortSignal.timeout(YES_CHECK_MS),
       request: {
-        max_tokens: 64,
-        system: YES_SYSTEM,
-        schema: YES_SCHEMA,
-        messages: [{ role: "user", content: `The action: ${title}\nThey said: ${words}` }],
+        max_tokens: YES_CHECK_MAX_TOKENS,
+        system: YES_CHECK_SYSTEM,
+        schema: YES_CHECK_SCHEMA,
+        messages: [{ role: "user", content: yesCheckQuestion(title, words) }],
       },
     },
-    z.object({ yes: z.boolean() }),
+    YesCheckAnswerSchema,
     "check",
   ).catch(logAndGoOn("ask yes check", { yes: false }));
   return answer.yes === true;

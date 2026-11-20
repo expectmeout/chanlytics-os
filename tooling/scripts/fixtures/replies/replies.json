@@ -4,7 +4,8 @@
     "The spec's twelve (§7) and more: an automatic 'remove us' (B1), a Microsoft 365 out-of-office (G5), an automatic wrong person (B1), an automatic acknowledgement, an opt-out worded as an instruction, and, from the live eval, a no worded like a not now (18) beside a not now (19).",
     "Every address is on example.com, every number 555-01xx, and no reply names a trade.",
     "`answer` is what a scripted reader returns (tests/reach-out-replies/reply-fixtures.test.mjs); the live run asks the model (evals/reply-intents.mjs).",
-    "`expect.plan` holds the days and the reach a reading's plan must name, beside the row of G6 the test holds."
+    "`expect.plan` holds the days and the reach a reading's plan must name, beside the row of G6 the test holds.",
+    "Added 20 Nov 2026 (the AI audit): 20-25 the six commonest readings in Spanish (`lang: es`), 26 a yes worded with a no, 27 sarcasm, 28-29 a stop beside interest in both languages, and 30 a no that says 'not now'."
   ],
   "lead": {
     "business": "Brightwater & Co.",
@@ -735,6 +736,424 @@
         "refer_to": null
       },
       "note": "Beside 18: when, not whether, so not now. No day named: ninety days on."
+    },
+    {
+      "email": {
+        "id": "received-20",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "No nos interesa, gracias. Por favor no nos escriban más.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-20@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "no",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "suppressFrom": null,
+          "suppressDomain": "example.com"
+        }
+      },
+      "answer": {
+        "intent": "no",
+        "summary": "No le interesa y pide que no le escriban más",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A no and a stop, in Spanish."
+    },
+    {
+      "email": {
+        "id": "received-21",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Por ahora no, gracias. Tal vez más adelante.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-21@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "not_now",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "resumeAt": "2026-12-28T14:00:00.000Z",
+          "step": {
+            "dueOn": "2026-12-28"
+          }
+        }
+      },
+      "answer": {
+        "intent": "not_now",
+        "summary": "Ahora no; quizás más adelante",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A not now in Spanish that names no day: ninety days on, as 4."
+    },
+    {
+      "email": {
+        "id": "received-22",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Me interesa. ¿Me puede mandar más información?",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-22@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "interested",
+        "day": null,
+        "referTo": null
+      },
+      "answer": {
+        "intent": "interested",
+        "summary": "Le interesa y pide más información",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "Interest in Spanish, as 1 in English."
+    },
+    {
+      "email": {
+        "id": "received-23",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "¿Cuánto cuesta? ¿Y funciona también por WhatsApp?",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-23@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "question",
+        "day": null,
+        "referTo": null
+      },
+      "answer": {
+        "intent": "question",
+        "summary": "Pregunta el precio y si funciona por WhatsApp",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "Two questions in Spanish."
+    },
+    {
+      "email": {
+        "id": "received-24",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Yo no me encargo de esto. Escríbale a Dana, la gerente, a dana@example.com.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-24@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "wrong_person",
+        "day": null,
+        "referTo": "Dana, la gerente, at dana@example.com",
+        "plan": {
+          "step": {
+            "dueOn": "2026-09-29"
+          }
+        }
+      },
+      "answer": {
+        "intent": "wrong_person",
+        "summary": "No es la persona indicada; remite a la gerente",
+        "day": null,
+        "refer_to": "Dana, la gerente, at dana@example.com"
+      },
+      "note": "The wrong person in Spanish, as 8: the name and the address carried."
+    },
+    {
+      "email": {
+        "id": "received-25",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Estoy de viaje esta semana, vuelvo el 12. Lo veo entonces.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-25@example.com>",
+        "createdAt": "2026-10-06T15:30:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "away",
+        "day": "2026-10-12",
+        "referTo": null,
+        "plan": {
+          "resumeAt": "2026-10-12T13:00:00.000Z",
+          "step": {
+            "dueOn": "2026-10-12"
+          }
+        }
+      },
+      "answer": {
+        "intent": "away",
+        "summary": "De viaje esta semana; vuelve el 12",
+        "day": "2026-10-12",
+        "refer_to": null
+      },
+      "note": "Away in their own words, in Spanish, as 10."
+    },
+    {
+      "email": {
+        "id": "received-26",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "I wouldn't say no to a quick call.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-26@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": {
+        "claim": "person",
+        "intent": "interested",
+        "day": null,
+        "referTo": null
+      },
+      "answer": {
+        "intent": "interested",
+        "summary": "Open to a quick call",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A yes worded with a no: interest, never a no."
+    },
+    {
+      "email": {
+        "id": "received-27",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Oh great, another email promising to answer every call. Just what I needed.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-27@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": {
+        "claim": "person",
+        "intent": "no",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "suppressFrom": null,
+          "suppressDomain": "example.com"
+        }
+      },
+      "answer": {
+        "intent": "no",
+        "summary": "Annoyed; not interested",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "Sarcasm: words of thanks that mean no."
+    },
+    {
+      "email": {
+        "id": "received-28",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Interesting, but please take me off your list.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-28@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": {
+        "claim": "person",
+        "intent": "no",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "suppressFrom": null,
+          "suppressDomain": "example.com"
+        }
+      },
+      "answer": {
+        "intent": "no",
+        "summary": "Finds it interesting but asks to be taken off the list",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A stop beside interest: the stop wins, always (the reader's rule, as 17)."
+    },
+    {
+      "email": {
+        "id": "received-29",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "Suena interesante, pero bórrenme de su lista.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-29@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "lang": "es",
+      "expect": {
+        "claim": "person",
+        "intent": "no",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "suppressFrom": null,
+          "suppressDomain": "example.com"
+        }
+      },
+      "answer": {
+        "intent": "no",
+        "summary": "Le parece interesante pero pide que la borren de la lista",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A stop beside interest, in Spanish: the stop wins."
+    },
+    {
+      "email": {
+        "id": "received-30",
+        "from": {
+          "address": "office@example.com",
+          "name": "Brightwater & Co."
+        },
+        "to": ["sam@reply.example.com"],
+        "cc": [],
+        "subject": "Re: A quick question",
+        "text": "No. Not now, not later.",
+        "html": null,
+        "headers": {
+          "in-reply-to": "<reach-out-0001@owner.example.com>",
+          "references": "<reach-out-0001@owner.example.com>"
+        },
+        "messageId": "<reply-30@example.com>",
+        "createdAt": "2026-09-29T14:05:00.000Z",
+        "attachments": []
+      },
+      "expect": {
+        "claim": "person",
+        "intent": "no",
+        "day": null,
+        "referTo": null,
+        "plan": {
+          "suppressFrom": null,
+          "suppressDomain": "example.com"
+        }
+      },
+      "answer": {
+        "intent": "no",
+        "summary": "No, now or later",
+        "day": null,
+        "refer_to": null
+      },
+      "note": "A no that says 'not now' and closes the later: never a not now (19 leaves the later open)."
     }
   ]
 }

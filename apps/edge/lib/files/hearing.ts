@@ -94,6 +94,7 @@ async function ledger(
         input: call.input,
         output: call.output,
         ...(call.seconds !== undefined ? { seconds: call.seconds } : {}),
+        atMs: Date.now(),
         userId: forWhom.userId,
         subjectId: forWhom.fileId,
         error: call.error ? { type: call.port, message: call.error } : null,

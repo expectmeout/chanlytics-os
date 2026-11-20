@@ -38,6 +38,16 @@ export const MODEL_PURPOSES = [
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
 
+/**
+ * The calls a person's press makes that ride the small JSON route (`lead_json`: one model, one fallback, one bound), each a
+ * line of the ledger of its own (ai_usage.purpose, 00658), so what each costs is read apart and never summed as one (the AI
+ * audit, 20 Nov 2026): a lead's email, a list from the owner's words, a message to a person, a campaign's steps, and the
+ * check that reads whether a person's words are a yes to a card. The route stays one: these share its model and its bound.
+ */
+export const SMALL_JSON_PURPOSES = ["lead_draft", "list_draft", "person_draft", "sequence_draft", "yes_check"] as const;
+
+export type SmallJsonPurpose = (typeof SMALL_JSON_PURPOSES)[number];
+
 /** The ports a model call leaves by: Anthropic's, and TypeSafe's System One (packages/channels/src/models). */
 export const MODEL_PORTS = ["anthropic", "typesafe"] as const;
 

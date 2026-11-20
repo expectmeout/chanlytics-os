@@ -37,6 +37,7 @@ import {
   type ModelCallOutcome,
   type ModelPurpose,
   type ModelUsage,
+  type SmallJsonPurpose,
 } from "@chanlytics/contracts";
 import { keepModelTurn, recordModelUsage, mayWorkspaceUseModels, type ModelTurnKept } from "@chanlytics/db/ai";
 import { pg } from "../shared/pg.js";
@@ -121,9 +122,10 @@ const MODEL_CREDIT_PAGE_KEY = "model_credit";
 /**
  * One row of the ledger for one call, with what the API said when it got no answer (00469); never thrown. A refusal
  * that says the key's credit ran out pages the platform, once per window: every model call stops until it is topped up.
+ * Its purpose is the route's, or the small JSON call it was (the gateway's ledgerPurposeOf, 00658).
  */
 export async function recordCall(
-  purpose: ModelPurpose,
+  purpose: ModelPurpose | SmallJsonPurpose,
   call: {
     asked: string;
     model: string;

@@ -15,7 +15,8 @@
  *     takes (channels ai/anthropic.ts). A system message among the messages is an effort said there (contracts
  *     ai/effort.ts: Ask's draft, asked harder) or the request is refused, and Ask's round may write what the effort in
  *     force at its messages' end earns (askRoundCap).
- *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as.
+ *   - modelPurposeOf: the registry's purpose a gateway purpose is asked as; ledgerPurposeOf: the line of the ledger it is
+ *     counted on.
  *
  * Two records of one round, on purpose: the event above is the budget's count (a sum over 24 hours, purged with the
  * events), and the ledger row (lib/ai/model.ts recordCall, written by the door once the stream ends) is the round's dollars,
@@ -31,15 +32,18 @@ import {
   MODEL_ROUTES,
   SEQUENCE_DRAFT_MAX_TOKENS,
   SKILL_CRAFT_MAX_TOKENS,
+  SMALL_JSON_PURPOSES,
   THINKING_TYPES,
   askRoundCap,
   effortInForce,
   isEffortMessage,
+  isOneOf,
   isWordsMessage,
   readsAsModel,
   type ModelEffort,
   type ModelPurpose,
   type ModelSpeed,
+  type SmallJsonPurpose,
   type ThinkingType,
   recordOrNull,
   DbFailure,
@@ -268,6 +272,9 @@ export const GATEWAY_PURPOSES = [
   "person_draft",
   // A new sequence drafted from the owner's line (decision 0060, S4): the small JSON route, as the other drafts.
   "sequence_draft",
+  // Whether a person's words are a yes to a card waiting on their thread (the dashboard's ask/tools/act/press.ts): the small
+  // JSON route, counted apart from the drafts (00658).
+  "yes_check",
   // A customer message written again by Ask's message writer skill (contracts ask-skills): a craft call at high effort.
   "message_draft",
   // An ad's words, by the ad writer skill (the Ads plan's 6.7): a craft call at the skill's effort, counted apart (G19).
@@ -281,14 +288,23 @@ const isAsk = (purpose: GatewayPurpose): boolean => purpose === "ask" || purpose
  * The registry's purpose a gateway purpose is asked as (contracts ai/models/routes.ts): Ask's turn is Ask's route (the template
  * drafter's rounds come as Ask's too), the ideas for a new search their own (00398), a customer message the skill writes
  * the template drafter's (a message's words, the ledger's word for them, so no new purpose for its CHECK), an ad's words
- * their own (00656: what ad writing costs is read apart), the lead and list drafts the small JSON route. The route names
- * the fallback and bounds the try.
+ * their own (00656: what ad writing costs is read apart), the small drafts and the yes check the small JSON route. The route
+ * names the fallback and bounds the try.
  */
 export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
   if (isAsk(purpose)) return "ask";
   if (purpose === "message_draft") return "template_draft";
   if (purpose === "ad_draft") return "ad_draft";
   return purpose === "lead_suggest" ? "lead_suggest" : "lead_json";
+}
+
+/**
+ * The ledger's purpose for a gateway purpose (ai_usage.purpose): what the call was for. The small JSON calls share one route
+ * (modelPurposeOf) and are each a line of their own (contracts SMALL_JSON_PURPOSES, 00658), so what each costs is read apart;
+ * every other purpose is its route's.
+ */
+export function ledgerPurposeOf(purpose: GatewayPurpose): ModelPurpose | SmallJsonPurpose {
+  return isOneOf(SMALL_JSON_PURPOSES, purpose) ? purpose : modelPurposeOf(purpose);
 }
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";

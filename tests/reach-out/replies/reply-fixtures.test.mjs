@@ -112,8 +112,8 @@ const shapeOf = (p) => ({
 });
 
 test("the set: every intent, an automatic no, on example.com, 555-01xx numbers", () => {
-  assert.equal(set.replies.length, 19);
-  assert.equal(new Set(set.replies.map((r) => r.email.id)).size, 19);
+  assert.equal(set.replies.length, 30);
+  assert.equal(new Set(set.replies.map((r) => r.email.id)).size, 30);
   for (const intent of REPLY_INTENTS)
     assert.ok(
       set.replies.some((r) => r.expect.intent === intent),
@@ -133,6 +133,27 @@ test("the set: every intent, an automatic no, on example.com, 555-01xx numbers",
     assert.match(address, /@(?:[\w-]+\.)*example\.com$/, `${address} is not on example.com`);
   for (const [n] of text.matchAll(/\b\d{3}[-.\s]\d{4}\b/g))
     assert.match(n, /^555-01\d\d$/, `${n} is not a 555-01xx number`);
+});
+
+test("the hard readings (the AI audit, 20 Nov 2026): the six commonest in Spanish, a yes worded with a no, sarcasm, a stop beside interest in both languages, and a no that says 'not now'", () => {
+  const spanish = set.replies.filter((r) => r.lang === "es");
+  assert.deepEqual([...new Set(spanish.map((r) => r.expect.intent))].sort(), [
+    "away",
+    "interested",
+    "no",
+    "not_now",
+    "question",
+    "wrong_person",
+  ]);
+  assert.equal(byId(26).expect.intent, "interested", '"I wouldn\'t say no" is interest');
+  assert.equal(byId(27).expect.intent, "no", "sarcasm");
+  // A stop beside interest is a no in either language: the stop wins, as the reader's rule says (17).
+  for (const n of [28, 29]) {
+    assert.match(byId(n).email.text, /interes/i, `${n} shows interest`);
+    assert.equal(byId(n).expect.intent, "no", `${n}: the stop wins`);
+  }
+  assert.match(byId(30).email.text, /not now/i);
+  assert.equal(byId(30).expect.intent, "no", "a no that closes the later is never a not now");
 });
 
 test("each reply's claim is the intake's own", () => {

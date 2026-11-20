@@ -15,7 +15,7 @@ import {
   type HearingPurpose,
 } from "./hearing";
 import { MODELS, type ModelId, type ModelSpeed } from "./models/ids";
-import type { ModelPurpose } from "./models/routes";
+import type { ModelPurpose, SmallJsonPurpose } from "./models/routes";
 
 /**
  * One call's tokens, as the API counts them, and the speed it ran at when that was fast mode (the API's own
@@ -184,10 +184,10 @@ export interface AiUsageBody {
 /** How much of a failed call's words the ledger keeps (the column's own bound, 00469). */
 export const AI_USAGE_ERROR_CHARS = 300;
 
-/** The ledger's row for one call, its dollars priced here. */
+/** The ledger's row for one call, its dollars priced here: its route's purpose, or the small JSON call it was (00658). */
 export function aiUsageBodyOf(call: {
   tenantId: string;
-  purpose: ModelPurpose;
+  purpose: ModelPurpose | SmallJsonPurpose;
   asked: string;
   answered: string;
   outcome: ModelCallOutcome;
@@ -232,6 +232,8 @@ export function hearingUsageBodyOf(call: {
   output: number;
   /** Seconds of audio heard, for a model priced by the hour. */
   seconds?: number;
+  /** When the call was made (epoch ms): a price is the one in force that day (hearing.ts). */
+  atMs: number;
   userId?: string | null;
   subjectId?: string | null;
   error?: { type: string; message: string } | null;
@@ -246,7 +248,7 @@ export function hearingUsageBodyOf(call: {
     output_tokens: Math.max(0, Math.round(call.output)),
     cache_read_tokens: 0,
     cache_write_tokens: 0,
-    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }),
+    usd: hearingDollars(call.model, { input: call.input, output: call.output, seconds: call.seconds ?? 0 }, call.atMs),
     prompt_hash: null,
     user_id: call.userId ?? null,
     subject_id: call.subjectId ?? null,
