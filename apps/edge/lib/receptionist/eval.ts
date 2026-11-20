@@ -18,7 +18,7 @@
  * and who is the made-up person the case speaks with (contracts EVAL_DOOR): the
  * note about them is the live turn's own (db describeLead), so a case can show
  * the model an ad a person tapped, or a profile name, as a live turn shows it;
- * its answer says so (`told_who`). The answer carries the prices the workspace may say (allowed_prices, contracts
+ * its answer says so (`heard_who`). The answer carries the prices the workspace may say (allowed_prices, contracts
  * priceAllowance; null for the strict rule), so the runner judges a price
  * against the workspace's own switch.
  *
@@ -273,7 +273,7 @@ function noteFor(person: CasePerson | null, now: Date, timezone: string | null):
  * What an answer says of the person its case named: that the model was told who they are, so a runner can tell an answer
  * to them from an older edge's answer to a stranger (eval-judge.mjs). Nothing for a case that names nobody.
  */
-const toldOf = (person: CasePerson | null): { told_who?: true } => (person ? { told_who: true } : {});
+const heardOf = (person: CasePerson | null): { heard_who?: true } => (person ? { heard_who: true } : {});
 
 export async function evaluateCases(
   auth: Admitted,
@@ -333,7 +333,7 @@ export async function evaluateCases(
         ms: Date.now() - t0,
         then: thenOf(rt, rt.brain, result, now),
         ...said(result),
-        ...toldOf(person),
+        ...heardOf(person),
       });
     } catch (e) {
       results.push({

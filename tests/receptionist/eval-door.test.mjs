@@ -755,7 +755,7 @@ test("who a case is with: the note about the person it names -- the live turn's 
   const [status, body] = await answer(await knock({ tenant_id: T, cases }, { workspace: T, brain: port }));
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(
-    body.results.map((r) => [r.id, r.ok, r.told_who]),
+    body.results.map((r) => [r.id, r.ok, r.heard_who]),
     [
       ["hours_en", true, undefined],
       ["dana_en", true, true],

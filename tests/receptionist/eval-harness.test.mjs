@@ -143,7 +143,7 @@ test("a case may name who it speaks with: the set's four are what the door takes
   // and one to a case that names nobody, stand as they came.
   const heard = judge.heardResults(cases, [
     ok({ id: "ad_price_en" }),
-    ok({ id: "ad_plain_en", told_who: true }),
+    ok({ id: "ad_plain_en", heard_who: true }),
     ok({ id: cases[0].id }),
   ]);
   assert.deepEqual(

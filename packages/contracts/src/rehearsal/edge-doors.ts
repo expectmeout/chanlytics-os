@@ -12,7 +12,7 @@ const TURN = z.object({ role: z.enum(["user", "assistant"]), content: z.string()
 const EVAL_NAME_MAX = 200;
 
 /** A part of an ad as AI is told it (db ad-tap.ts AdTapTold): one line of at most `max` characters, or null where the ad did not say it. */
-const toldPart = (max: number) =>
+const adLine = (max: number) =>
   z
     .string()
     .max(max)
@@ -29,9 +29,9 @@ const EVAL_PERSON = z.strictObject({
   returning: z.boolean().exactOptional(),
   ad: z
     .strictObject({
-      name: toldPart(AD_TOLD_MAX.name),
-      headline: toldPart(AD_TOLD_MAX.headline),
-      body: toldPart(AD_TOLD_MAX.body),
+      name: adLine(AD_TOLD_MAX.name),
+      headline: adLine(AD_TOLD_MAX.headline),
+      body: adLine(AD_TOLD_MAX.body),
       visual: z.enum(["image", "video"]).nullable(),
     })
     .nullable()
