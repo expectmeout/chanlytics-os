@@ -13,7 +13,7 @@ type AdWordsAsk =
 export interface AdSource {
   /** An example on the page's sample: nothing is made anywhere. */
   sample: boolean;
-  /** A fresh draft where none is sent; else that draft as it stands now. */
+  /** The workspace's kept draft, or a fresh one, where none is sent; else that draft as it stands now. */
   draft: (body: { draft?: AdDraftState; act?: "next_picture" }) => Promise<AdDraftAnswer | null>;
   /** The ad writer's words, or the one change AI was told to make. */
   words: (body: AdWordsAsk) => Promise<AdWordsAnswer | null>;

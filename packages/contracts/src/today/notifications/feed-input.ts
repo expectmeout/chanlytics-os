@@ -256,6 +256,11 @@ export const SERVER_NOTIFICATION_KINDS = [
   "footage",
   /** The day's new photos and videos from the watched folder (00657): one row a day, counted up in place. */
   "footage_in",
+  /**
+   * A draft ad an operator or a partner left for the owner (00658; decision 0050, call 2): written by the database as it
+   * is kept with its words, once to each owner while their row is open, and closed when the owner keeps it.
+   */
+  "ad_draft",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

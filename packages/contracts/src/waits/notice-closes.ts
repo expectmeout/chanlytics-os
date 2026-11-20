@@ -193,6 +193,11 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "The day's new photos and videos are one row, counted up in place · they are in the Library, and nothing waits.",
   },
+  // Closed by the database itself the moment the owner keeps the draft (00658 ad_draft_keep).
+  ad_draft: {
+    ends: "news",
+    why: "A draft ad left for the owner is told once while it waits · the row closes itself once the owner opens it.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

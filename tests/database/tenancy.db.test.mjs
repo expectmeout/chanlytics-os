@@ -402,6 +402,7 @@ before(async () => {
   await seed("ad_entries", { tenant_id: A, message_id: ctx.message, ...AD_ENTRY }, null);
   ctx.adAccount = await seed("ad_accounts", { tenant_id: A, ...AD_ACCOUNT, external_id: "tenancy-act-1" });
   ctx.ad = await seed("ads", { tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "tenancy-ad-1" });
+  await seed("ad_drafts", { tenant_id: A, account_id: ctx.adAccount, draft: { service: "Tenancy cut" } });
   await seed("ad_days", { tenant_id: A, ad_id: ctx.ad, day: "2026-11-01" }, null);
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
@@ -1043,6 +1044,8 @@ const TENANT_TABLES = {
   ad_accounts: ["member", () => ({ tenant_id: A, ...AD_ACCOUNT, external_id: "stranger-act" })],
   ads: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "stranger-ad" })],
   ad_days: ["member", () => ({ tenant_id: A, ad_id: ctx.ad, day: "2026-11-02" })],
+  // A draft of a new ad (00658): members read their workspace's one; only its door, ad_draft_keep, writes it.
+  ad_drafts: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, draft: { service: "Stranger cut" } })],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],

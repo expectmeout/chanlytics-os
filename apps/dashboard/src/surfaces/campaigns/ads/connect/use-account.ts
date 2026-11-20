@@ -168,10 +168,21 @@ export function useAdAccount(on: boolean): AdAccountHere {
   const again = useCallback(() => setAsked((count) => count + 1), []);
 
   // The owner is back on the tab: where something is missing on a connected account, Chanlytics looks again at Meta.
+  // Only once they have left it: the focus a page is given as it opens is no coming back, and the account's first read
+  // has just said how it stands (a look at Meta then sent a check and two reads more with every open).
   useEffect(() => {
     if (!on || typeof document === "undefined") return undefined;
+    let away = false;
+    const leave = () => {
+      away = true;
+    };
     const back = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        away = true;
+        return;
+      }
+      if (!away) return;
+      away = false;
       const account = held.current;
       const card = account?.meta;
       const missing = card?.status === "connected" && card.checks.some((check) => check.ok !== true);
@@ -183,9 +194,11 @@ export function useAdAccount(on: boolean): AdAccountHere {
     };
     document.addEventListener("visibilitychange", back);
     window.addEventListener("focus", back);
+    window.addEventListener("blur", leave);
     return () => {
       document.removeEventListener("visibilitychange", back);
       window.removeEventListener("focus", back);
+      window.removeEventListener("blur", leave);
     };
   }, [on, again]);
 

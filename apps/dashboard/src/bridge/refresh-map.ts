@@ -707,8 +707,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ads/account/check":
     "Chanlytics looked again at an ad account: its card reads the account once the look answers",
   "POST ads/account/choose": "the owner's answer to which ad account: its card reads the account once it answers",
-  "POST ads/draft": "a new ad's draft, picked or judged again: nothing is kept, and New ad draws the answer",
-  "POST ads/words": "a draft's words, or one change of AI's to it: nothing is kept, and New ad draws the answer",
+  "POST ads/draft": "the workspace's ad draft, judged again and kept: New ad draws the answer, and reads it on open",
+  "POST ads/words": "a draft's words, or one change of AI's to it, kept: New ad draws the answer, and reads it on open",
   // A watched folder's screens read the folder itself, one read shared by all of them (surfaces/files/footage/use-footage.ts):
   // no surface holds it, and each press reads it again once it answers.
   "POST sources/watch":

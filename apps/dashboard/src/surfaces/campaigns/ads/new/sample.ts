@@ -70,13 +70,18 @@ function sampleAnswer(read: AdsRead, sent: AdDraftState | null): AdDraftAnswer {
     today: read.today,
     days,
     account: { name: meta?.name ?? "", currency, page: read.business.name, min_daily_minor: account.minDailyMinor },
-    amount: { starting: total === least, least_minor: least, history: false },
+    amount: {
+      least_minor: least,
+      proposed: { total_minor: least, days, basis: { kind: "starting", why: "few_booked" } },
+      most_minor: null,
+    },
     picked: service === first ? "first" : null,
     checks,
     question: null,
     declared: "none",
     turn_on: "not_yet",
     owner: true,
+    left_by: null,
   };
 }
 

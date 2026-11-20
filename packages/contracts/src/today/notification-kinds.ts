@@ -84,6 +84,9 @@ const NOTIFICATION_DELIVERY = {
   // place. Lines on the bell, written by the database as the folder's state turns; the folder's row says the rest.
   footage: "bell",
   footage_in: "bell",
+  // A draft ad someone left for the owner (00658): a line on the owner's bell, written by the database as it is kept, and
+  // closed when the owner keeps it.
+  ad_draft: "bell",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -359,6 +362,8 @@ export const BELL_LINE_KINDS = [
   // A watched Google Drive folder (00657): one that needs someone, and the day's new photos and videos.
   "footage",
   "footage_in",
+  // A draft ad left for the owner (00658).
+  "ad_draft",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

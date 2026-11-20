@@ -44,6 +44,7 @@ export type Database = {
           disconnected_at: string | null
           external_id: string | null
           id: string
+          most_minor: number | null
           name: string | null
           next_read_at: string | null
           notices_at: string | null
@@ -72,6 +73,7 @@ export type Database = {
           disconnected_at?: string | null
           external_id?: string | null
           id?: string
+          most_minor?: number | null
           name?: string | null
           next_read_at?: string | null
           notices_at?: string | null
@@ -100,6 +102,7 @@ export type Database = {
           disconnected_at?: string | null
           external_id?: string | null
           id?: string
+          most_minor?: number | null
           name?: string | null
           next_read_at?: string | null
           notices_at?: string | null
@@ -175,6 +178,51 @@ export type Database = {
             foreignKeyName: "ad_days_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_drafts: {
+        Row: {
+          account_id: string
+          created_at: string
+          draft: Json
+          id: string
+          kept_by: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          draft: Json
+          id?: string
+          kept_by?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          draft?: Json
+          id?: string
+          kept_by?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_drafts_account_id_same_workspace"
+            columns: ["tenant_id", "account_id"]
+            isOneToOne: false
+            referencedRelation: "ad_accounts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "ad_drafts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -8925,6 +8973,10 @@ export type Database = {
         Args: { p_account_id: string; p_actor: string; p_tenant_id: string }
         Returns: Json
       }
+      ad_account_most: {
+        Args: { p_most_minor: number; p_tenant_id: string }
+        Returns: boolean
+      }
       ad_account_read_keep: {
         Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
         Returns: string
@@ -8938,6 +8990,10 @@ export type Database = {
       ad_credentials_put: {
         Args: { p_account_id: string; p_secret: Json }
         Returns: string
+      }
+      ad_draft_keep: {
+        Args: { p_account_id: string; p_draft: Json; p_tenant_id: string }
+        Returns: Json
       }
       ad_entry_keep: {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }

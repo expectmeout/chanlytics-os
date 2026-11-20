@@ -379,3 +379,18 @@ writer's words under a purpose of their own (`ad_draft`).
 - **A special kind is asked, never guessed** (the plan's G7). Where a draft reads as a job, housing, finance, politics
   or gambling ad, the screen asks; a no is what the press would tell Meta, and a yes is not run here, with a door to
   Meta.
+
+## As built, 20 November 2026, later · A draft is kept, and left for the owner (the Ads plan's step 4, its third part)
+
+Built with nothing sent to Meta. One migration is written and not applied: `00658`.
+
+- **Call 2's draft has its row.** A workspace keeps one draft (`ad_drafts`), written only by a member's door,
+  `ad_draft_keep`, which an owner, an operator or a partner who showed the second factor may call: drafting touches no
+  platform. "A draft left for the owner is a bell row": kept with its words by a member who may not run ads, it rings
+  each owner's bell once while their row is open (kind `ad_draft`, opening New ad), and the owner's own keep closes it.
+  The row holds what was chosen; every read judges it afresh, as Turn on's press will. It is not yet the `ads` row of
+  status `draft` the Shape names: that row arrives with Turn on's door, which makes it from this one.
+- **Call 12's draft.** AI's card for an ad (`ad_draft`, an operator's) drafts on New ad's own route and opens New ad on
+  it; it never makes an ad at a platform, holds no token and spends nothing there.
+- **The owner's most** (the plan's G6) is kept on the account (`ad_accounts.most_minor`, the owner's door
+  `ad_account_most`), and every draft's amount is held to it.

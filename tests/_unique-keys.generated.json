@@ -126,6 +126,30 @@
       "where": null
     },
     {
+      "table": "ad_drafts",
+      "name": "ad_drafts_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "ad_drafts",
+      "name": "ad_drafts_one_a_workspace",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ad_entries",
       "name": "ad_entries_pkey",
       "primary": true,

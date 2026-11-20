@@ -15,7 +15,7 @@ import "./new.css";
 import "../connect/connect.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { CONTENT_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
 import type { AdCantDraft } from "@/server/ads/draft-shape";
 import { MASCOT } from "@/bridge/mascot";
 import { Button } from "../../../kit/button/button";
@@ -41,7 +41,10 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   service: "admin/business",
   address: "admin/business",
   whatsapp: "admin/integrations",
-  picture: CONTENT_ROUTE,
+  picture: CONTENT_LIBRARY_ROUTE,
+  picture_none: CONTENT_LIBRARY_ROUTE,
+  picture_person: CONTENT_LIBRARY_ROUTE,
+  picture_music: CONTENT_LIBRARY_ROUTE,
   account: null,
   account_reading: null,
   stopped: null,
@@ -218,15 +221,11 @@ function newAdParts(
       need: props.need,
       sample: props.source.sample,
     });
-    const turnOn = () => {
-      acts.forget();
-      props.onTurnOn();
-    };
     return {
       title: vm.title,
       sub: vm.kicker,
       body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
-      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={turnOn} />,
+      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={props.onTurnOn} />,
       fit: false,
     };
   }

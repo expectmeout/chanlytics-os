@@ -228,6 +228,42 @@ COMMENT ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uuid,
 
 
 --
+-- Name: ad_account_most(uuid, bigint); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_kept integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- What an ad may spend is the owner's alone (0050, call 2).
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'ads'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_most_minor is not null and p_most_minor <= 0 then
+    raise exception 'The most an ad may cost is more than nothing.' using errcode = '22023';
+  end if;
+  update public.ad_accounts a
+     set most_minor = p_most_minor
+   where a.tenant_id = p_tenant_id and a.platform = 'meta' and a.status = 'connected';
+  get diagnostics v_kept = row_count;
+  return v_kept > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_account_most(p_tenant_id uuid, p_most_minor bigint); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) IS 'The owner''s door (00658; the Ads plan''s G6): the most any ad may cost, in the connected Meta account''s minor units, kept on that account, or let go with null. The owner alone (caller_has_permission ads). True where a connected account took it.';
+
+
+--
 -- Name: ad_account_read_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -450,6 +486,89 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret jsonb) IS 'Service-role only: stores an ad account''s token in Vault under ad-creds-<account id> (00648, decision 0049). The only write path for the token, and it writes no table: which secret is an account''s follows from the account''s id.';
+
+
+--
+-- Name: ad_draft_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor   uuid := auth.uid();
+  v_id      uuid;
+  v_words   integer;
+  v_name    text;
+  v_service text;
+  v_rung    integer := 0;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Operators and partners may draft (0050, call 2): an acting member, a partner only once their session showed its
+  -- second factor. A viewer reads.
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_draft is null or jsonb_typeof(p_draft) <> 'object' or octet_length(p_draft::text) > 20000 then
+    raise exception 'A draft is an object of at most 20,000 bytes.' using errcode = '22023';
+  end if;
+  if not exists (select 1 from public.ad_accounts a where a.id = p_account_id and a.tenant_id = p_tenant_id) then
+    return jsonb_build_object('kept', false, 'draft_id', null, 'rung', 0);
+  end if;
+  insert into public.ad_drafts as d (tenant_id, account_id, draft, kept_by)
+  values (p_tenant_id, p_account_id, p_draft, v_actor)
+  on conflict (tenant_id) do update
+     set account_id = excluded.account_id, draft = excluded.draft, kept_by = excluded.kept_by
+  returning d.id into v_id;
+  if public.has_permission(v_actor, p_tenant_id, 'ads') then
+    -- The owner has it now: what told them it waited is closed.
+    update public.notifications n
+       set closed_at = now()
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.closed_at is null;
+    return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', 0);
+  end if;
+  v_words := case when jsonb_typeof(p_draft -> 'versions') = 'array' then jsonb_array_length(p_draft -> 'versions')
+                  else 0 end;
+  -- Left with its words, it waits for whoever may turn it on: one row each, never a second while one is open.
+  if v_words > 0 then
+    begin
+      select nullif(btrim(p.display_name), '') into v_name from public.profiles p where p.user_id = v_actor;
+      -- The service as the writer named it in a few words, where it did: a service's own name can run to a sentence.
+      v_service := coalesce(nullif(btrim(p_draft ->> 'label'), ''), nullif(btrim(p_draft ->> 'service'), ''));
+      if char_length(v_service) > 120 then
+        v_service := left(v_service, 119) || '…';
+      end if;
+      insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                        recipient_user_id)
+      select p_tenant_id, 'ad_draft', coalesce(v_name, 'Someone on your team') || ' left you a draft ad',
+             coalesce('For ' || v_service || '. ', '') || 'It runs only once you turn it on.',
+             'campaigns/ads:new', 'ad_draft', v_id::text, m.user_id
+        from public.memberships m
+       where m.tenant_id = p_tenant_id
+         and m.user_id <> v_actor
+         and public.has_permission(m.user_id, p_tenant_id, 'ads')
+         and not exists (
+               select 1 from public.notifications n
+                where n.tenant_id = p_tenant_id and n.kind = 'ad_draft' and n.recipient_user_id = m.user_id
+                  and n.closed_at is null);
+      get diagnostics v_rung = row_count;
+    exception when others then
+      -- The bell's line never costs the draft its keeping.
+      raise warning 'ad_draft_keep: %', sqlerrm;
+    end;
+  end if;
+  return jsonb_build_object('kept', true, 'draft_id', v_id, 'rung', v_rung);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) IS 'A member''s door (00658; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. Answers {kept, draft_id, rung}; kept false, and nothing written, for an account not of this workspace.';
 
 
 --
@@ -41086,9 +41205,11 @@ CREATE TABLE public.ad_accounts (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     next_read_at timestamp with time zone,
     settle_at timestamp with time zone,
+    most_minor bigint,
     CONSTRAINT ad_accounts_config_check CHECK ((jsonb_typeof(config) = 'object'::text)),
     CONSTRAINT ad_accounts_currency_check CHECK ((currency ~ '^[A-Z]{3}$'::text)),
     CONSTRAINT ad_accounts_external_id_check CHECK (((char_length(external_id) >= 1) AND (char_length(external_id) <= 200))),
+    CONSTRAINT ad_accounts_most_minor_check CHECK (((most_minor IS NULL) OR (most_minor > 0))),
     CONSTRAINT ad_accounts_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 500))),
     CONSTRAINT ad_accounts_named_once_chosen CHECK (((status = 'choosing'::text) OR (external_id IS NOT NULL))),
     CONSTRAINT ad_accounts_platform_check CHECK ((platform = ANY (ARRAY['meta'::text, 'google'::text, 'tiktok'::text]))),
@@ -41157,6 +41278,13 @@ COMMENT ON COLUMN public.ad_accounts.settle_at IS 'When the account''s next four
 
 
 --
+-- Name: COLUMN ad_accounts.most_minor; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_accounts.most_minor IS 'The most the owner said any ad may cost, in this account''s minor units (00658; the Ads plan''s G6), said once in a sentence to AI. Null until they say one: a draft''s amount is then never above the largest total turned on. Written only by ad_account_most.';
+
+
+--
 -- Name: ad_days; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -41189,6 +41317,43 @@ COMMENT ON TABLE public.ad_days IS 'The platform''s day for one ad, in the accou
 --
 
 COMMENT ON COLUMN public.ad_days.settled IS 'Whether the platform''s numbers for the day have stopped moving. A platform keeps correcting a day for about two weeks, so a figure with an unsettled day in it says "so far" (contracts adCostRule).';
+
+
+--
+-- Name: ad_drafts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ad_drafts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    account_id uuid NOT NULL,
+    draft jsonb NOT NULL,
+    kept_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ad_drafts_draft_check CHECK (((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 20000)))
+);
+
+
+--
+-- Name: TABLE ad_drafts; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.ad_drafts IS 'A workspace''s one draft of a new ad (00658; the Ads plan''s 4.6, 6.2 and G18): what New ad chose and the ad writer''s words, for the ad account it was drafted for. Members read it; ad_draft_keep writes it. Never trusted: every read, and Turn on''s press, judges it afresh from the business as it stands.';
+
+
+--
+-- Name: COLUMN ad_drafts.draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.draft IS 'What New ad chose, as server/ads/draft-shape.ts holds it: the service by its name, the picture''s file id, the miles, the amount in minor units, the end day, the words (three versions or none) and the answers to Meta''s special-kind question.';
+
+
+--
+-- Name: COLUMN ad_drafts.kept_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.kept_by IS 'The member who kept it last (auth.uid() at ad_draft_keep): the owner, or someone who left it for the owner.';
 
 
 --
@@ -44965,7 +45130,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_draft'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -47266,6 +47431,22 @@ ALTER TABLE ONLY public.ad_days
 
 
 --
+-- Name: ad_drafts ad_drafts_one_a_workspace; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_drafts
+    ADD CONSTRAINT ad_drafts_one_a_workspace UNIQUE (tenant_id);
+
+
+--
+-- Name: ad_drafts ad_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_drafts
+    ADD CONSTRAINT ad_drafts_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: ad_entries ad_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -48865,6 +49046,13 @@ CREATE INDEX ad_days_day ON public.ad_days USING btree (day);
 --
 
 CREATE INDEX ad_days_window ON public.ad_days USING btree (tenant_id, day);
+
+
+--
+-- Name: ad_drafts_account; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ad_drafts_account ON public.ad_drafts USING btree (tenant_id, account_id);
 
 
 --
@@ -51556,6 +51744,13 @@ CREATE TRIGGER ad_accounts_set_updated_at BEFORE UPDATE ON public.ad_accounts FO
 
 
 --
+-- Name: ad_drafts ad_drafts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
 -- Name: ads ads_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -53509,6 +53704,22 @@ ALTER TABLE ONLY public.ad_days
 
 ALTER TABLE ONLY public.ad_days
     ADD CONSTRAINT ad_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: ad_drafts ad_drafts_account_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_drafts
+    ADD CONSTRAINT ad_drafts_account_id_same_workspace FOREIGN KEY (tenant_id, account_id) REFERENCES public.ad_accounts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: ad_drafts ad_drafts_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ad_drafts
+    ADD CONSTRAINT ad_drafts_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -55694,6 +55905,21 @@ CREATE POLICY ad_days_member_select ON public.ad_days FOR SELECT TO authenticate
 
 
 --
+-- Name: ad_drafts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.ad_drafts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: ad_drafts ad_drafts_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY ad_drafts_member_select ON public.ad_drafts FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: ad_entries; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -57631,6 +57857,15 @@ GRANT ALL ON FUNCTION public.ad_account_disconnect(p_tenant_id uuid, p_actor uui
 
 
 --
+-- Name: FUNCTION ad_account_most(p_tenant_id uuid, p_most_minor bigint); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_account_most(p_tenant_id uuid, p_most_minor bigint) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_account_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -57668,6 +57903,15 @@ GRANT ALL ON FUNCTION public.ad_credentials_get(p_account_id uuid) TO service_ro
 
 REVOKE ALL ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO service_role;
 
 
 --
@@ -64394,6 +64638,14 @@ GRANT ALL ON TABLE public.ad_accounts TO service_role;
 
 GRANT SELECT ON TABLE public.ad_days TO authenticated;
 GRANT ALL ON TABLE public.ad_days TO service_role;
+
+
+--
+-- Name: TABLE ad_drafts; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.ad_drafts TO authenticated;
+GRANT ALL ON TABLE public.ad_drafts TO service_role;
 
 
 --

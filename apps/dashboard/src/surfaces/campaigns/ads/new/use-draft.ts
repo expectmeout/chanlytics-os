@@ -1,6 +1,6 @@
 /**
- * What New ad's screen holds, and what its presses do (the Ads plan's 4.6 and G18). The draft is the screen's own until
- * Turn on: the server keeps none, and judges it afresh each time it is asked.
+ * What New ad's screen holds, and what its presses do (the Ads plan's 4.6, 6.2 and G18). The workspace keeps its one
+ * draft, with its words (server/ads/draft.ts): each answer is that draft judged afresh as the business stands, and kept.
  *
  *  - Opened, it asks for the draft: the sentence is there the moment that answers, with no model in its way. Then it
  *    asks the ad writer for the words, once. Words that failed the checks are asked for once more, and after that the
@@ -10,8 +10,9 @@
  *    brings the draft as it was sent: it never overwrites what the owner set while it was on its way.
  *  - While the ad writer is out, what the owner sets waits and is judged as the words land. A change the words are
  *    written from (another picture) asks the writer again.
- *  - The draft, with its words, is kept for the tab: closed and opened again, or the page loaded again, it is the same
- *    draft, and the writer is not asked twice.
+ *  - Opened, on this device or another, by + New, by the bell's row for a draft someone left, or by AI's card, it is
+ *    the workspace's kept draft, words and all, and the writer is not asked twice. Nothing is held in the tab: a draft
+ *    held there could put an older one back over what someone else changed since.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AdSpecialKind } from "@chanlytics/contracts";
@@ -34,51 +35,6 @@ export type AdStand =
 /** How long after the owner stops typing the draft is judged again. */
 const JUDGE_AFTER_MS = 500;
 
-/**
- * The drafts kept for this tab, by where they were made: the workspace's own, and the page's example. Each is in the
- * tab's own storage too, so a page loaded again opens the same draft; where storage is blocked (a private window) it
- * is kept for as long as the page is.
- */
-const keptDrafts = new Map<string, Held>();
-const KEPT_KEY = "ads-new-draft";
-/** The shape a kept draft is in: one kept in another shape is let go, and a fresh one is drafted. */
-const KEPT_SHAPE = 1;
-
-const draftKey = (source: AdSource): string =>
-  `${typeof window === "undefined" ? "" : window.location.pathname.split("/").slice(0, 3).join("/")}:${source.sample ? "sample" : "live"}`;
-
-const isKept = (value: unknown): value is { shape: number; held: Held } =>
-  typeof value === "object" &&
-  value !== null &&
-  "shape" in value &&
-  value.shape === KEPT_SHAPE &&
-  "held" in value &&
-  typeof value.held === "object" &&
-  value.held !== null;
-
-function keptDraft(key: string): Held | null {
-  const here = keptDrafts.get(key);
-  if (here) return here;
-  try {
-    const stored: unknown = JSON.parse(window.sessionStorage.getItem(`${KEPT_KEY}:${key}`) ?? "null");
-    return isKept(stored) ? stored.held : null;
-  } catch {
-    // Storage can be blocked, or hold something that is no draft: then none is kept.
-    return null;
-  }
-}
-
-function keepDraft(key: string, held: Held | null): void {
-  if (held) keptDrafts.set(key, held);
-  else keptDrafts.delete(key);
-  try {
-    if (held) window.sessionStorage.setItem(`${KEPT_KEY}:${key}`, JSON.stringify({ shape: KEPT_SHAPE, held }));
-    else window.sessionStorage.removeItem(`${KEPT_KEY}:${key}`);
-  } catch {
-    // Storage can be blocked: the draft is still kept for as long as the page is.
-  }
-}
-
 const localOf = (answer: AdDraftHere): AdLocal => ({
   total_minor: answer.draft.total_minor,
   miles: answer.draft.miles,
@@ -86,11 +42,12 @@ const localOf = (answer: AdDraftHere): AdLocal => ({
   answers: answer.draft.answers,
 });
 
-/** The draft as it is sent: the server's own, with what the owner has set since. */
+/** The draft as it is sent: the server's own, with what the owner has set since, and the writer's name for its service. */
 const sentDraft = (held: Pick<Held, "answer" | "local">): AdDraftState => ({
   service: held.answer.draft.service,
   picture: held.answer.draft.picture.id,
   versions: held.answer.draft.versions,
+  ...(held.answer.draft.label ? { label: held.answer.draft.label } : {}),
   ...held.local,
 });
 
@@ -124,6 +81,8 @@ interface Asking {
   sets: { current: number };
   /** "Tell AI" is out. */
   tellingNow: { current: boolean };
+  /** The draft is being read: one read at a time, however many times the screen is opened meanwhile. */
+  opening: { current: boolean };
   setTelling: (on: boolean) => void;
   /** What "Tell AI" last came to. */
   setOutcome: (outcome: AdTellResult | null) => void;
@@ -185,28 +144,31 @@ async function judgeDraft(io: Asking, held: Held, act?: "next_picture"): Promise
   io.show({ at: "draft", ...next });
 }
 
-/** A fresh draft: the sentence the moment the server answers, then its words, asked for once. */
+/**
+ * The workspace's draft: the kept one, or a fresh one where none is kept. The sentence is there the moment the server
+ * answers; words it does not hold yet are asked for once.
+ */
 async function openDraft(io: Asking): Promise<void> {
   const turn = ++io.turns.current;
   io.tried.current = 0;
   io.show({ at: "opening" });
-  const first = standOf(await io.source.draft({}));
+  io.opening.current = true;
+  const first = standOf(
+    await io.source.draft({}).finally(() => {
+      io.opening.current = false;
+    }),
+  );
   if (turn !== io.turns.current) return;
   io.show(first);
   if (first.at === "draft" && first.words.at === "writing") return writeWords(io, first);
 }
 
-/** Opened: the draft kept for the tab where there is one, judged again as the business now stands; else a fresh one. */
+/** Opened: the workspace's draft as it is kept now, judged again as the business stands. */
 function reopenDraft(io: Asking): void {
-  const had = keptDraft(draftKey(io.source));
-  if (!had) {
-    void openDraft(io);
-    return;
-  }
-  // Still on the page with its writer out: the answer on its way is this draft's, and the writer is not asked twice.
-  if (draftNow(io)?.words.at === "writing") return;
-  io.show({ at: "draft", ...had });
-  void (had.words.at === "writing" ? writeWords(io, had) : judgeDraft(io, had));
+  // Still on the page with its writer out, or its read: the answer on its way is this draft's, and nothing is asked
+  // twice. An effect run twice (React's own check, in development) opens it once.
+  if (io.opening.current || draftNow(io)?.words.at === "writing") return;
+  void openDraft(io);
 }
 
 /** The owner set something: it shows at once, and is theirs over any answer already on its way. */
@@ -267,10 +229,8 @@ export interface AdDraftActs {
   answer: (about: AdSpecialKind, answer: "no" | "yes") => void;
   tell: (words: string) => void;
   nextVersion: () => void;
-  /** Read the draft again from nothing: after the one thing missing was added, or an answer that never came. */
+  /** Read the draft again: after the one thing missing was added, or an answer that never came. */
   again: () => void;
-  /** Let the kept draft go: it was turned on, where that can be done. */
-  forget: () => void;
 }
 
 /** The screen's presses, each over the draft as it stands when pressed. */
@@ -292,13 +252,8 @@ const draftActs = (io: Asking, afterTyping: (run: () => void) => void): AdDraftA
     if (held) io.show({ at: "draft", ...held, version: held.version + 1 });
   },
   again: () => {
-    keepDraft(draftKey(io.source), null);
     io.setOutcome(null);
     void openDraft(io);
-  },
-  forget: () => {
-    keepDraft(draftKey(io.source), null);
-    io.setOutcome(null);
   },
 });
 
@@ -333,19 +288,17 @@ export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
   const tried = useRef(0);
   const sets = useRef(0);
   const tellingNow = useRef(false);
+  const opening = useRef(false);
   const io = useMemo<Asking>(() => {
     const show = (next: AdStand) => {
       now.current = next;
       setStand(next);
-      if (next.at !== "draft") return;
-      const { answer, local, words, version } = next;
-      keepDraft(draftKey(source), { answer, local, words, version });
     };
     const tellIs = (on: boolean) => {
       tellingNow.current = on;
       setTelling(on);
     };
-    return { source, show, now, turns, tried, sets, tellingNow, setTelling: tellIs, setOutcome };
+    return { source, show, now, turns, tried, sets, tellingNow, opening, setTelling: tellIs, setOutcome };
   }, [source]);
 
   useEffect(() => {

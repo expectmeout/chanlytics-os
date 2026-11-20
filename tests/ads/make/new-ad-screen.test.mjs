@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, find, textOf, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { CONTENT_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
 import { dayWord } from "../../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { newAdView } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/model.ts";
 import {
@@ -55,13 +55,18 @@ const answerOf = (over = {}, draft = {}) => ({
   today: TODAY,
   days: 14,
   account: { name: "Harbor Studio Ads", currency: "USD", page: "Harbor Studio", min_daily_minor: 500 },
-  amount: { starting: true, least_minor: 7000, history: false },
+  amount: {
+    least_minor: 7000,
+    proposed: { total_minor: 7000, days: 14, basis: { kind: "starting", why: "few_booked" } },
+    most_minor: null,
+  },
   picked: "most_booked",
   checks: [],
   question: null,
   declared: "none",
   turn_on: "not_yet",
   owner: true,
+  left_by: null,
   ...over,
 });
 const written = (over = {}, draft = {}) => answerOf(over, { versions: THREE, ...draft });
@@ -166,13 +171,57 @@ test("the amount, the miles and the date follow what is typed at once, and the p
   assert.equal(vm.hints.amount, "about $20 a day · Meta needs at least $5 a day");
   assert.equal(vm.hints.end, "7 days · Meta needs at least a day");
   assert.deepEqual(vm.units, { now: 140, perUnit: 100 });
-  // Where ads have brought enough bookings to lean on, the starting amount says what it is the least for.
-  const known = written({ amount: { starting: true, least_minor: 7000, history: true } });
-  assert.equal(view({ answer: known }).why[0], "A starting amount: the least Meta takes for 14 days.");
   assert.deepEqual(view({ answer: written({ picked: "first" }) }).why.slice(1), [
     "It offers the first of your Services.",
   ]);
   assert.equal(view({ answer: written({ picked: null }) }).why.length, 1, "a service the owner chose needs no reason");
+});
+
+test("why that amount (4.6, G6): a starting amount and why, or the open times and what a booking cost, never a number of bookings", () => {
+  const proposed = (basis, total = 7000) => written({
+    picked: null,
+    amount: { least_minor: 7000, proposed: { total_minor: total, days: 14, basis }, most_minor: null },
+  }, { total_minor: total });
+  const why = (basis, total) => view({ answer: proposed(basis, total) }).why;
+  assert.deepEqual(why({ kind: "starting", why: "few_booked" }), [
+    "A starting amount. There is no history yet to say what a booking costs.",
+  ]);
+  assert.deepEqual(why({ kind: "starting", why: "no_calendar" }), [
+    "A starting amount. Without a calendar link, AI can't see your open times.",
+  ]);
+  assert.deepEqual(why({ kind: "starting", why: "full" }), [
+    "A starting amount. The calendar has no open time in the next 14 days.",
+  ]);
+  const booked = (held, total) =>
+    why({ kind: "booked", open_times: 12, cost_minor: 900, held_to: held }, total);
+  assert.deepEqual(booked(null, 10800), [
+    "12 open times in the next 14 days, and a booking from an ad has cost about $9.",
+  ]);
+  assert.deepEqual(booked("owner_most", 9000)[1], "Kept to $90, the most you said an ad may cost.");
+  assert.deepEqual(booked("largest_turned_on", 8000)[1], "Kept to $80, the largest total of any ad you have run.");
+  assert.deepEqual(
+    booked("nothing_turned_on", 7000)[1],
+    "Kept to the least Meta takes until you tell AI the most an ad may cost.",
+  );
+  assert.deepEqual(booked("meta_least", 7000)[1], "Raised to the least Meta takes for 14 days.");
+  // One open time is said as one.
+  assert.match(why({ kind: "booked", open_times: 1, cost_minor: 900, held_to: "meta_least" })[0], /^1 open time in/);
+  // Once the owner sets another amount, or another end, what it comes to a day.
+  const typed = view({ answer: proposed({ kind: "starting", why: "no_calendar" }), typed: { total_minor: 14000 } });
+  assert.deepEqual(typed.why, ["About $10 a day for 14 days."]);
+  // A draft someone else left says who, as they left it.
+  assert.equal(view({ answer: written({ left_by: "Maria" }) }).kicker, "New ad · left by Maria");
+});
+
+test("a service named in a sentence: the title and the sentence say the writer's few words, and its whole name before them", () => {
+  const long = "discovery call on Chanlytics and how it helps streamline parts of your business";
+  const whole = view({ answer: answerOf({}, { service: long }), words: { at: "writing" } });
+  assert.equal(whole.title, "Discovery call on Chanlytics and how it helps streamline parts of your business");
+  assert.equal(whole.sentence.service, long, "never cut by a rule of ours");
+  const named = view({ answer: written({}, { service: long, label: "Discovery call" }) });
+  assert.deepEqual([named.title, named.sentence.service], ["Discovery call", "Discovery call"]);
+  // A short name is said whole, as Services keeps it.
+  assert.equal(view().sentence.service, "First appointment");
 });
 
 test("couldn't write the words: one calm line with Try again, the amount and the dates kept, and no press", () => {
@@ -366,16 +415,13 @@ test("Tell AI what to change: what the last one came to, in one quiet sentence",
 // What the screen holds and asks, as it is pressed
 
 let worlds = 0;
-/** Where a tab's storage keeps the n-th world's draft. */
-const storedAt = (n) => `ads-new-draft:/w/screen-${n}:live`;
 /**
  * New ad open in a tab of its own, over a source the test answers by hand: every ask waits in `asks` until the test
  * lands it. `same` opens it again in the tab a world before it used.
  */
-function world({ same = false, stored = null } = {}) {
+function world({ same = false } = {}) {
   if (!same) worlds += 1;
   globalThis.location.pathname = `/w/screen-${worlds}/campaigns/ads`;
-  if (stored !== null) globalThis.sessionStorage.setItem(storedAt(worlds), stored);
   fresh();
   const asks = [];
   const ask = (kind) => (body) => new Promise((resolve) => asks.push({ kind, body, land: resolve }));
@@ -562,7 +608,10 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     service: "admin/business",
     address: "admin/business",
     whatsapp: "admin/integrations",
-    picture: CONTENT_ROUTE,
+    picture: CONTENT_LIBRARY_ROUTE,
+    picture_none: CONTENT_LIBRARY_ROUTE,
+    picture_person: CONTENT_LIBRARY_ROUTE,
+    picture_music: CONTENT_LIBRARY_ROUTE,
     account: "closed",
     stopped: "closed",
   };
@@ -577,6 +626,8 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     assert.deepEqual(w.went, [door], missing);
     assert.equal(w.asks.length, 1, `${missing}: no writer is asked`);
   }
+  for (const missing of ["picture", "picture_none", "picture_person", "picture_music"])
+    assert.doesNotMatch(Object.values(MISSING[missing]).join(" "), /for now/i, `${missing}: what to do, not a limit`);
   // An ad account still being read asks for nothing: its press looks again.
   const reading = world();
   reading.asks[0].land({ can: false, missing: "account_reading" });
@@ -593,47 +644,28 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
   assert.deepEqual((await none.asked(2, "the draft to be read again")).body, {});
 });
 
-test("closed and opened again in the tab: the same draft and its words, judged again, and the writer is not asked twice (G18)", async () => {
+test("opened again, in the tab or on another device: the workspace's kept draft and its words, and the writer is not asked twice (G18)", async () => {
   const first = world();
   first.asks[0].land(answerOf());
   (await first.asked(2, "the ad writer to be asked")).land(wrote());
   await first.shows("ads-new-text", "the words to land");
+  // The key the tab once held it under stays empty: nothing of the draft is held in the tab.
+  assert.equal(globalThis.sessionStorage.getItem(`ads-new-draft:/w/screen-${worlds}:live`), null);
 
+  // Opened again: the kept draft is read, words and all, and no writer is asked.
   const back = world({ same: true });
-  assert.equal(back.said("ads-new-text"), THREE[0].text, "its words are there at once");
-  assert.equal(back.asks.length, 1);
-  assert.equal(back.asks[0].kind, "draft", "judged again as the business now stands");
-  assert.equal(back.asks[0].body.draft.versions.length, 3);
-  back.asks[0].land(written());
-  await until(() => back.said("ads-new-text") !== null, "the judged draft to show");
+  assert.deepEqual(
+    back.asks.map((one) => [one.kind, one.body]),
+    [["draft", {}]],
+    "the workspace's draft is read, never the tab's copy put back over it",
+  );
+  back.asks[0].land(written({ left_by: "Maria" }));
+  await until(() => back.said("ads-new-text") !== null, "the kept draft to show");
+  assert.equal(back.said("ads-new-text"), THREE[0].text);
   assert.equal(
     back.asks.some((one) => one.kind === "words"),
     false,
   );
-});
-
-test("the page loaded again: the tab's own storage still holds the draft and its words; one kept in another shape is let go", async () => {
-  const first = world();
-  first.asks[0].land(answerOf());
-  (await first.asked(2, "the ad writer to be asked")).land(wrote());
-  await first.shows("ads-new-text", "the words to land");
-  const stored = globalThis.sessionStorage.getItem(storedAt(worlds));
-  assert.ok(stored, "the draft is in the tab's storage as well");
-
-  // A page that has only the storage to read from, as one loaded again has.
-  const loaded = world({ stored });
-  assert.equal(loaded.said("ads-new-text"), THREE[0].text, "its words are there at once");
-  assert.deepEqual(
-    loaded.asks.map((one) => [one.kind, one.body.draft?.versions.length]),
-    [["draft", 3]],
-    "judged again, and no writer asked",
-  );
-  // Kept in a shape this screen no longer reads: let go, and a fresh draft is asked for.
-  const old = world({ stored: JSON.stringify({ shape: 0, held: JSON.parse(stored).held }) });
-  assert.equal(old.said("ads-new-body"), null);
-  assert.deepEqual(old.asks[0].body, {});
-  const junk = world({ stored: "not a draft" });
-  assert.deepEqual(junk.asks[0].body, {});
 });
 
 test("Tell AI what to change: one line to AI, the one change it made shown, and a change Meta would turn down not made", async () => {
