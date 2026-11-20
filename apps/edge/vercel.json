@@ -8,6 +8,9 @@
           "api/admin/ads/account.ts": {
             "maxDuration": 60
           },
+          "api/admin/ads/check.ts": {
+            "maxDuration": 60
+          },
           "api/admin/ads/press.ts": {
             "maxDuration": 60
           },
