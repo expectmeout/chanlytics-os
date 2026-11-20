@@ -142,8 +142,10 @@ export interface NeedYouModel {
   drawn: NeedYouDrawn;
   /** Up next, the waiting drawn and the asks drawn, in the order they stand. */
   order: TodayQueueRowVM[];
-  /** The row worked in place: the first still open, on a phone always, on a desk until another is opened. */
+  /** The row in the page's card: the one the member pressed while it is still open, else the first still open. */
   focus: string | null;
+  /** The row the member last pressed open, whatever group it stands in (Older's rows open in their own place). */
+  opened: string | null;
   /** Whether the focus's own act takes the coral: a reply that goes on its own takes none (its press is Stop). */
   focusTakes: boolean;
   /** The row of the groups above To do whose act is the page's coral; null where none of them takes it. */
@@ -190,7 +192,10 @@ export function useNeedYouModel(vm: TodayVM | null): NeedYouModel | null {
   // A reply that goes on its own is a focus too (the canvas's shift moment): drawn as its card, it leaves the first waiting
   // row short, holding the coral, and once it is stopped the next open row rises.
   const first = order.find((r) => !kept[r.id] && (opensToWork(r) || r.kind === "held"))?.id ?? null;
-  const focus = phone || opened === undefined ? first : opened;
+  // The row in the page's card (Today, calm, D1): the one the member pressed, while it stands among the rows drawn and is
+  // still open; else the first still open. A phone and a desk alike: a line pressed rises into the card on both.
+  const pressed = order.find((r) => r.id === opened && !kept[r.id])?.id ?? null;
+  const focus = pressed ?? first;
   const focusRow = order.find((r) => r.id === focus) ?? null;
   const focusTakes = !!focusRow && !kept[focusRow.id] && focusRow.kind !== "held";
   // Up next's short row is the focus put aside, never the coral; a row waiting or asking, drawn short, takes it only where
@@ -202,7 +207,7 @@ export function useNeedYouModel(vm: TodayVM | null): NeedYouModel | null {
     ],
     { kept, focus },
   );
-  const todo = useToDoModel({ queueHolds: coral !== null, focus: phone ? null : focus });
+  const todo = useToDoModel({ queueHolds: coral !== null, focus: opened ?? null });
   if (!vm) return null;
   const runs = waitRowsOf(runsPending().waiting, []).length;
   const above = order.length > 0 || runs > 0;
@@ -212,6 +217,7 @@ export function useNeedYouModel(vm: TodayVM | null): NeedYouModel | null {
     drawn,
     order,
     focus,
+    opened: opened ?? null,
     focusTakes,
     coral,
     kept,

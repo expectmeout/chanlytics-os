@@ -20,19 +20,15 @@ import {
   runStopWords,
   runStoppedWords,
   runTitleOf,
-  todayDayFoot,
-  todayWentFoot,
   todayZoneDay,
   type BroadcastVM,
   type CalendarLike,
   type GoingTodayRowVM,
   type TodayDayBarVM,
-  type TodayDayVM,
-  type TodayVM,
-  type TodayZoneCellVM,
   type TodayZoneDayVM,
   type TodayZoneLineVM,
 } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS as L } from "../model/lines";
 import { api } from "@/bridge/api";
 import { pageClock, type PageClock } from "@/bridge/zone";
 import { surfaceValue } from "../../surface-values";
@@ -44,16 +40,10 @@ import { routeDoor } from "../../frame-verbs";
 import { usePartShown, useSurface } from "../../use-surface";
 import { broadcastVerbs, broadcastsRead, refreshPlaybooks, useRunsActing } from "../../waits/run-acts";
 import { TODAY_HELPERS } from "../helpers";
-import { useTodayOnPhone } from "../phone";
-import { sectionDoor } from "./section-door";
 import { canDo, gate, refusalFlash, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 import { useDayVm } from "./day-vm";
-
-/**
- * How many lines of the rest of the day it draws on a desk, more only where more ask for something: past these, the
- * Calendar holds them, and the foot says so.
- */
-const LINES_MAX = 5;
+import { todayAskOf, useTodayAsks } from "../calm/asks";
+import { CalmList, CalmRow } from "../calm/lines";
 
 /** The runs that go on their own today, soonest first: a batch held for a stop, a message set for later, a reach-out's run. */
 function goingNow(): GoingTodayRowVM[] {
@@ -123,36 +113,6 @@ const barParts = (bar: TodayDayBarVM) => bar.parts.map((p) => ({ share: p.share,
 function hoursOnTheClock(zone: string, atMs: number): number {
   const { hh, mm } = clockInZone(zone, atMs);
   return hh + mm / 60;
-}
-
-/** The two cells over the bar, each its time over who and what and one fact of them, each opening its visit. */
-function dayCells(cells: readonly TodayZoneCellVM[]) {
-  return (
-    <div className="tpd-cells">
-      {cells.map((c, i) => (
-        <a
-          key={c.to + i}
-          className="tpd-cell"
-          {...routeDoor(c.to)}
-          data-testid={i === 0 ? "today-day-first" : undefined}
-        >
-          <span className="tpd-eyebrow" data-now={c.now || undefined} {...SAYS_WHEN}>
-            {c.now ? <span className="live-dot" aria-hidden="true" /> : null}
-            {c.eyebrow}
-          </span>
-          <span className="tpd-when tabular" {...SAYS_WHEN}>
-            {c.when}
-          </span>
-          <span className="tpd-what">{c.what}</span>
-          {c.fact ? (
-            <span className="tpd-fact" data-testid="today-day-fact" {...SAYS_WHEN}>
-              {c.fact}
-            </span>
-          ) : null}
-        </a>
-      ))}
-    </div>
-  );
 }
 
 /**
@@ -334,44 +294,35 @@ type DayItem = { key: string; at: number } & (
 /** Whether a line stays on a phone: one that asks for something or comes back; a plain visit is the Calendar's. */
 const staysOnAPhone = (i: DayItem) => !("line" in i) || i.line.kind !== "visit";
 
-/** A line that asks for something or comes back: a send's Stop, a freed hour's Offer it, someone back from Not now. */
-const asks = (i: DayItem) => "send" in i || ("line" in i && (i.line.kind === "back" || !!i.line.freed));
-
 /**
- * A desk's five lines: every one that asks for something or comes back, never cut for a seat, and the others at their
- * times in the seats left. The visits past them are the Calendar's, which the foot says.
+ * The day as one line of Today (Today, calm, 19 Nov 2026, D1): who is under way or next, when, and under it who comes after
+ * and how the day stands; with no visit to say, how the day stands, in the day's own words (contracts todayZoneDay's note:
+ * "No appointments · open 2 – 6 PM", its first part the line and the rest under it). Tomorrow says it is tomorrow's.
  */
-function onADesk(items: readonly DayItem[]): DayItem[] {
-  const rest = items.filter((i) => !asks(i)).slice(0, Math.max(0, LINES_MAX - items.filter(asks).length));
-  return items.filter((i) => asks(i) || rest.includes(i));
-}
-
-/** How many letters a name and its note may come to and still stand on one line with the door, on a phone. */
-const HEAD_ONE_LINE_LETTERS = 26;
-
-/**
- * The day's head: its name, how it stands, and the door to the Calendar, on one line where they fit it on a phone, and the
- * note a line of its own where they do not (`data-long`; 8 Nov 2026: "The day" and "Closed today" took two). Called, not
- * drawn.
- */
-function dayHead(title: string, note: string) {
-  return (
-    <div className="tpd-head tz-head">
-      <h2 className="tz-name" id="today-day-title">
-        {title}
-      </h2>
-      {note ? (
-        <span
-          className="tpd-note tz-fact"
-          data-long={title.length + note.length > HEAD_ONE_LINE_LETTERS || undefined}
-          {...SAYS_WHEN}
-        >
-          {note}
-        </span>
-      ) : null}
-      {sectionDoor("calendar", P.calendar)}
-    </div>
-  );
+function dayAsALine(zone: TodayZoneDayVM | null, noCalendar: boolean) {
+  if (!zone) return { name: P.day, said: noCalendar ? P.link.note : "", when: null, now: false };
+  const [first, then] = zone.cells;
+  const day = zone.tomorrow ? `${zone.title}: ` : "";
+  if (!first) {
+    const [head = zone.title, ...rest] = zone.note.split(" · ");
+    return { name: `${day}${head}`, said: rest.join(" · "), when: null, now: false };
+  }
+  // Once the day has turned it is tomorrow's (D19): when it starts, then who is first and how many are booked.
+  if (zone.tomorrow)
+    return {
+      name: L.tomorrowStarts(first.when),
+      said: [first.what, zone.note].filter(Boolean).join(" · "),
+      when: null,
+      now: false,
+    };
+  const after = then ? `${then.eyebrow}: ${then.what}, ${then.when}` : "";
+  return {
+    // The one under way is said by its dot, any other by where it stands (Next).
+    name: first.now ? first.what : `${first.eyebrow}: ${first.what}`,
+    said: [after, zone.note].filter(Boolean).join(" · "),
+    when: first.when,
+    now: first.now,
+  };
 }
 
 /** The day with no calendar linked (the fresh workspace's canvas): the one row that links one. Called, not drawn. */
@@ -403,24 +354,16 @@ function drawItem(
 }
 
 /**
- * The rest of the day at its places, the day's own lines among the sends going (and, with no calendar, the runs that went),
- * and what the foot says: on a desk five lines, every one that asks for something among them, on a phone the ones that ask
- * for something or come back; the visits past them are the Calendar's, said with what is over, or once the day has turned
- * how today went.
+ * What the day itself asks, at its times (D19): an hour a cancellation freed with Offer it, a send going with its Stop,
+ * who comes back from Not now, and, with no calendar, the runs that went out. The plain visits are the Calendar's, one
+ * press away on the line, and the bar shows where they stand.
  */
-function dayLinesOf(
+function dayAsksOf(
   zone: TodayZoneDayVM | null,
   runs: { going: GoingTodayRowVM[]; wentOut: ReturnType<typeof runsDoneToday> },
-  at: {
-    phone: boolean;
-    tz: string;
-    day: TodayDayVM | null;
-    vm: TodayVM | undefined;
-    offered: (l: TodayZoneLineVM) => boolean;
-  },
-): { kept: DayItem[]; foot: string } {
-  // On a calendar's day what went out is over, as the visits before now are: folded into "N earlier", never a seat taken
-  // from what is coming (the canvas). With no calendar it is the day's own say of the runs.
+  at: { tz: string; offered: (l: TodayZoneLineVM) => boolean },
+): DayItem[] {
+  // On a calendar's day what went out is over, as the visits before now are. With no calendar it is the day's own say.
   const fold = !!zone && !zone.tomorrow;
   const items: DayItem[] = [
     // An hour already offered (its batch is in the runs) is To decide's or gone: never offered twice.
@@ -430,16 +373,7 @@ function dayLinesOf(
       ? []
       : runs.wentOut.rows.map((w) => ({ key: `went-${w.run.id}`, at: hoursOnTheClock(at.tz, w.atMs), went: w }))),
   ].sort((a, b) => a.at - b.at);
-  const kept = at.phone ? items.filter(staysOnAPhone) : onADesk(items);
-  const cut = items.filter((i) => !kept.includes(i) && "line" in i && i.line.kind === "visit").length;
-  const word = at.day?.word ?? at.vm?.word ?? "appointment";
-  if (!zone?.tomorrow) {
-    const earlier = (zone?.earlier ?? 0) + (fold ? runs.wentOut.count : 0);
-    return { kept, foot: todayDayFoot(earlier, (zone?.more ?? 0) + cut, word) };
-  }
-  const today = at.day?.frames.find((f) => f.today) ?? null;
-  const answered = at.vm?.figures.find((f) => f.id === "answered") ?? null;
-  return { kept, foot: todayWentFoot(today, zone.toMark, answered, word) };
+  return items.filter(staysOnAPhone);
 }
 
 /**
@@ -461,10 +395,20 @@ function dayBar(zone: TodayZoneDayVM, clock: ReturnType<typeof workspaceClock>) 
           .join("; ")}
         {...(bar.now === null ? {} : SAYS_WHEN)}
       />
-      <span className="tpd-ends tabular" aria-hidden="true" {...SAYS_WHEN}>
-        <span>{bar.ends.from}</span>
-        <span>{bar.ends.to}</span>
-      </span>
+      {bar.marks.length ? (
+        // A column an hour: a label where the hour is marked, and the day's end at its right.
+        <span className="calm-hours tabular" aria-hidden="true" {...SAYS_WHEN}>
+          {bar.marks.map((mark, at) => (
+            <span key={at}>{mark}</span>
+          ))}
+          <span className="calm-hours-end">{bar.ends.to}</span>
+        </span>
+      ) : (
+        <span className="tpd-ends tabular" aria-hidden="true" {...SAYS_WHEN}>
+          <span>{bar.ends.from}</span>
+          <span>{bar.ends.to}</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -475,15 +419,28 @@ const runsOfTheDay = (zone: TodayZoneDayVM | null) => ({
   wentOut: runsDoneToday(),
 });
 
-/** No day to say: what stands under it keeps its pane where there is any, else only the toast. Called, not drawn. */
-function dayAbsent(under: ReactNode, toastNode: ReactNode) {
-  return under ? (
-    <section className="tpd tz-day" data-testid="today-day" aria-label={P.soFar}>
-      {under}
-      {toastNode}
-    </section>
-  ) : (
-    toastNode
+/**
+ * What the day itself asks or says at its times stands under its line: its bar, a freed hour to offer, a send with its Stop,
+ * who comes back, and, with no calendar linked, the row that links one. Nothing where it has none of them. Called, not
+ * drawn.
+ */
+function dayUnder(parts: {
+  zone: TodayZoneDayVM | null;
+  noCalendar: boolean;
+  clock: ReturnType<typeof workspaceClock>;
+  items: ReactNode[];
+}): ReactNode {
+  if (!parts.zone?.bar && !parts.items.length && !parts.noCalendar) return null;
+  return (
+    <div className="calm-under">
+      {parts.zone ? dayBar(parts.zone, parts.clock) : null}
+      {parts.items.length || parts.noCalendar ? (
+        <div className="tpd-rest" data-testid="today-day-rest">
+          {parts.items}
+          {parts.noCalendar ? linkRow() : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -495,7 +452,6 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
   // It stands where the strip stood, drawn once the Calendar's weeks are in (client/page-speed.ts).
   usePartShown("today", "strip", calRead !== undefined);
   const vm = useSurface("today");
-  const phone = useTodayOnPhone();
   const [toastNode, flash] = useToast();
   const acting = useRunsActing();
   // The freed hours offered from here this visit: the line stays, saying what came of it, once the runs hold its batch.
@@ -508,35 +464,50 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
     ? null
     : todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, vm?.back ?? [], Date.now());
   const runs = runsOfTheDay(zone);
-  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length) return dayAbsent(under, toastNode);
+  // AI is handed the day's question where the day has a visit to say (D10).
+  useTodayAsks("day", [zone && zone.cells.length ? todayAskOf(zone.tomorrow ? L.asks.tomorrow : L.asks.day) : null]);
+  if (!zone && !noCalendar && !runs.going.length && !runs.wentOut.rows.length)
+    return (
+      <>
+        {under}
+        {toastNode}
+      </>
+    );
   const clock = workspaceClock();
   const offered = offeredHours();
-  const { kept, foot } = dayLinesOf(zone, runs, {
-    phone,
+  const kept = dayAsksOf(zone, runs, {
     tz: clock?.zone() ?? "UTC",
-    day,
-    vm,
     offered: (l) => !!l.freed && offered.has(l.freed.visitId) && !offeredHere.includes(l.freed.visitId),
   });
   const onOffered = (visitId: string) => setOfferedHere((was) => (was.includes(visitId) ? was : [...was, visitId]));
+  const words = dayAsALine(zone, noCalendar);
+  const rest = dayUnder({
+    zone,
+    noCalendar,
+    clock,
+    items: kept.map((i) => drawItem(i, { clock, acting, flash, onOffered })),
+  });
   return (
-    <section className="tpd tz-day" data-testid="today-day" aria-labelledby="today-day-title">
-      {dayHead(zone?.title ?? P.day, noCalendar ? P.link.note : (zone?.note ?? ""))}
-      {zone?.cells.length ? dayCells(zone.cells) : null}
-      {zone ? dayBar(zone, clock) : null}
-      {kept.length || noCalendar ? (
-        <div className="tpd-rest" data-testid="today-day-rest">
-          {kept.map((i) => drawItem(i, { clock, acting, flash, onOffered }))}
-          {noCalendar ? linkRow() : null}
-        </div>
-      ) : null}
-      {foot ? (
-        <a className="tpd-more" {...routeDoor("calendar")} data-testid="today-day-foot">
-          {foot}
-        </a>
-      ) : null}
+    <>
+      <CalmList label={zone?.title ?? P.day} testid="today-day">
+        <CalmRow
+          first={{ mark: <Icon name="calendar" size={14} /> }}
+          name={
+            <span data-testid="today-day-first" {...SAYS_WHEN}>
+              {words.now ? <span className="live-dot calm-now" aria-hidden="true" /> : null}
+              {words.name}
+            </span>
+          }
+          facts={words.said ? words.said.split(" · ").map((fact) => <span {...SAYS_WHEN}>{fact}</span>) : undefined}
+          wait={words.when ? { words: words.when, long: false } : null}
+          door={routeDoor("calendar")}
+          under={rest}
+          tight
+          testid="today-day-line"
+        />
+      </CalmList>
       {under}
       {toastNode}
-    </section>
+    </>
   );
 }

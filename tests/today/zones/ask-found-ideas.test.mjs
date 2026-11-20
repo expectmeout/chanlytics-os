@@ -1,13 +1,14 @@
 /**
- * Ask's cards in Ask found (decisions 0070, 0071 and 0087; Today in three zones, 2 Nov 2026), EXECUTED on the stub React
- * over the rows the page draws (zones/found.tsx), where the old test drew Need you's idea rows no page draws any more (the
- * 3 Nov audit, items 33 to 38 and 41). Each case was red on the page:
+ * Ask's cards in what AI found (decisions 0070, 0071 and 0087; Today, calm, 19 Nov 2026), EXECUTED on the stub React over
+ * what the page draws where AI found holds its card (zones/found.tsx): the first finding the card, whole, with its act and
+ * Not today; the rest lines, each opening its act under itself. Each case was red on the page (the 3 Nov audit, items 33
+ * to 38 and 41):
  *
  * - an approved card's receipt and Undo stay in its place when the morning is read again without it;
  * - Not today waits while an Approve is on its way, rests the card for the member and keeps "dismissed" on its turn, one
  *   outcome after another;
- * - a new campaign's sentence is its one line, and a press opens its rules, holds first; any other card says what Approve
- *   changes;
+ * - a new campaign's sentence is its one line, and its rules, holds first, are read before its Approve, in the card or
+ *   under its line, never its run-on summary; any other card says what Approve changes;
  * - a fix card's act is its door, never an Approve that has nothing to approve;
  * - what Ask noticed has its act: replies that fell their door, in the canvas's words, a mode one step on its Approve;
  * - a press refused because what it was about moved on says so and asks for no second press.
@@ -19,7 +20,7 @@ import { ASK_FOUND_WORDS as F } from "../../../apps/dashboard/src/surfaces/today
 import { again, all, byTestId, fresh, press, textOf } from "../../_stub-react.mjs";
 import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
-import { answerWith, json, went, wire } from "./_world.mjs";
+import { W, answerWith, json, went, wire } from "./_world.mjs";
 
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 const { AskFound } = await import("../../../apps/dashboard/src/surfaces/today/zones/found.tsx");
@@ -90,19 +91,37 @@ function door() {
   return { commits, outcomes };
 }
 
-/** Ask found drawn fresh, a visit of its own (row-state.ts keeps what a row came to for the visit). */
+/**
+ * What AI found as the page draws it where it holds the card: its first finding the card, the rest its lines, drawn fresh,
+ * a visit of its own (row-state.ts keeps what a row came to for the visit).
+ */
+const page = () =>
+  W.React.createElement(
+    "div",
+    null,
+    W.React.createElement(AskFound, { part: "lead", held: true }),
+    W.React.createElement(AskFound, { part: "lines", held: true }),
+  );
 const draw = () => {
   clearRowStates();
   fresh();
-  return again(() => AskFound({ wide: false }));
+  return again(page);
 };
-const redraw = () => again(() => AskFound({ wide: false }));
-const rowOf = (tree, key) => all(tree, (n) => n.props?.["data-key"] === key)[0] ?? null;
-const actOf = (tree, key) => byTestId(rowOf(tree, key), "today-found-act");
-const openWhy = async (key) => {
-  await press(byTestId(rowOf(redraw(), key), "today-found-sentence"));
-  return rowOf(redraw(), key);
+const redraw = () => again(page);
+const cardOf = (tree) => byTestId(tree, "today-card");
+/** Where a finding stands, by what it says: the page's card, or one of the lines under it. */
+const rowOf = (tree, says) =>
+  [cardOf(tree), ...all(byTestId(tree, "today-ask-found"), (n) => n.props?.className === "calm-line")].find(
+    (r) => r && textOf(r).includes(says),
+  ) ?? null;
+const actOf = (tree, says) => byTestId(rowOf(tree, says), "today-found-act");
+/** A finding with its acts drawn: the card has them; a line opens them under itself as it is pressed. */
+const openWhy = async (says) => {
+  const row = rowOf(redraw(), says);
+  if (row.props["data-testid"] !== "today-card") await press(all(row, (n) => n.props?.role === "button")[0]);
+  return rowOf(redraw(), says);
 };
+const titleOf = (tree) => textOf(all(cardOf(tree), (n) => n.props?.className === "calm-title")[0]);
 // The member's rests are a view written through PUT views/ask_found: answered yes.
 answerWith(() => json(200, { ok: true, data: {} }));
 
@@ -110,15 +129,16 @@ test("Approve: the receipt is said in the row at once, and stays there with its 
   const { commits, outcomes } = door();
   morning(CARDS);
   const tree = draw();
-  const sending = press(actOf(tree, "p-1"));
-  const held = await openWhy("p-1");
+  assert.match(titleOf(tree), /Write to Rosa/, "the first finding is the card");
+  const sending = press(actOf(tree, "Write to Rosa"));
+  const held = await openWhy("Write to Rosa");
   assert.equal(
     byTestId(held, "today-found-rest").props.disabled,
     true,
     "Not today waits while the Approve is on its way",
   );
   commits[0].land({ ok: true, receipt: "Sent to Rosa", undo: { message_id: "m-1" } });
-  await until(() => textOf(rowOf(redraw(), "p-1")).includes("Sent to Rosa"), "what it came to, in its place");
+  await until(() => textOf(rowOf(redraw(), "Write to Rosa")).includes("Sent to Rosa"), "what it came to, in its place");
   assert.deepEqual(
     outcomes.map((o) => [o.messageId, o.pid, o.state]),
     [[MESSAGE, "p-1", "done"]],
@@ -127,7 +147,7 @@ test("Approve: the receipt is said in the row at once, and stays there with its 
   outcomes[0].land();
   await sending;
   morning(CARDS.slice(1));
-  const after = rowOf(redraw(), "p-1");
+  const after = rowOf(redraw(), "Write to Rosa");
   assert.ok(after, "REGRESSION: the approved row left with the next read, its receipt and its Undo with it");
   assert.match(textOf(after), /Sent to Rosa/);
   assert.match(textOf(after), new RegExp(NEED_YOU_WORDS.undo));
@@ -139,8 +159,8 @@ test("Not today rests an idea for the member and keeps 'dismissed' on its turn, 
   wire.length = 0;
   morning(CARDS);
   draw();
-  const first = press(byTestId(await openWhy("p-2"), "today-found-rest"));
-  const second = press(byTestId(await openWhy("p-3"), "today-found-rest"));
+  const first = press(byTestId(await openWhy("Write to Ana"), "today-found-rest"));
+  const second = press(byTestId(await openWhy("Write to Lu"), "today-found-rest"));
   await until(() => outcomes.length > 0, "the first outcome asked for");
   outcomes[0].land();
   await until(() => outcomes.length === 2, "the second, once the first landed");
@@ -179,21 +199,28 @@ const CAMPAIGN = card("p-c", "Campaign: Meeting reminder", {
   },
 });
 
-test("a campaign says its one line, and a press opens its rules, holds first; any other card's press says what Approve changes", async () => {
+test("a campaign says its one line, and its rules, holds first, are read before its Approve, in the card or under its line; any other card's press says what Approve changes", async () => {
   door();
+  const rulesIn = (where) => {
+    const inside = textOf(byTestId(where, "today-found-sheet"));
+    for (const s of [...CAMPAIGN.sheet.holds, ...CAMPAIGN.sheet.rows.flatMap((r) => [r.label, r.value])])
+      assert.ok(inside.includes(s), `${s} is read`);
+    assert.ok(inside.indexOf(CAMPAIGN.sheet.holds[0]) < inside.indexOf("Runs"), "what holds it is read first");
+    assert.ok(!textOf(where).includes("Meeting reminder — the day before"), "never the run-on summary");
+  };
+  // The card: its line the title, its rules over its Approve (REGRESSION, 20 Nov 2026: the card said the run-on summary
+  // as its why, and its rules nowhere; and a line said it under its name).
   morning([CAMPAIGN, CARDS[0]]);
   const tree = draw();
-  assert.equal(textOf(byTestId(rowOf(tree, "p-c"), "today-found-sentence")), CAMPAIGN.line);
-  const opened = await openWhy("p-c");
-  const sheet = byTestId(opened, "today-found-sheet");
-  const inside = textOf(sheet);
-  for (const s of [...CAMPAIGN.sheet.holds, ...CAMPAIGN.sheet.rows.flatMap((r) => [r.label, r.value])])
-    assert.ok(inside.includes(s), `${s} is opened`);
-  assert.ok(inside.indexOf(CAMPAIGN.sheet.holds[0]) < inside.indexOf("Runs"), "what holds it is read first");
-  assert.ok(!textOf(opened).includes("Meeting reminder — the day before"), "never the run-on summary");
-  // A card with no line: its title is the sentence, and a press says the exact change.
-  const plain = await openWhy("p-1");
+  assert.equal(titleOf(tree), CAMPAIGN.line);
+  rulesIn(cardOf(tree));
+  // A card with no line, under it: its title is the sentence, and a press says the exact change.
+  const plain = await openWhy("Write to Rosa");
   assert.match(textOf(plain), /Write to Rosa, as Ask would send it\./, "REGRESSION: a press opened an empty line");
+  // A line: its one line its name, its rules opened under it as it is pressed.
+  morning([CARDS[0], CAMPAIGN]);
+  draw();
+  rulesIn(await openWhy(CAMPAIGN.line));
   setSurfaceValue("ask_morning", undefined);
 });
 
@@ -209,14 +236,14 @@ test("a fix card's act is its door, never Approve: pressed, it opens where the t
   went.length = 0;
   morning([FIX]);
   const tree = draw();
-  const act = actOf(tree, "p-f");
+  const act = actOf(tree, "Nobody has said yes");
   assert.equal(textOf(act).trim(), "Get their yes", "REGRESSION: Approve on a card with nothing to approve");
   await press(act);
   assert.deepEqual(went, ["clients/get-yes"]);
   assert.deepEqual([commits.length, outcomes.length], [0, 0], "nothing committed or recorded");
   // Not today on it, one of Ask's ideas: rested for the member and kept on its turn, as an idea pressed is (0087).
   wire.length = 0;
-  void press(byTestId(await openWhy("p-f"), "today-found-rest"));
+  void press(byTestId(await openWhy("Nobody has said yes"), "today-found-rest"));
   await until(() => outcomes.length === 1, "what became of it, kept on its turn");
   assert.deepEqual(
     outcomes.map((o) => [o.messageId, o.pid, o.state]),
@@ -244,7 +271,7 @@ test("what Ask noticed, set aside: rested for the member, and kept on no turn, s
   });
   morning([], [fell]);
   draw();
-  press(byTestId(await openWhy(fell.id), "today-found-rest"));
+  press(byTestId(await openWhy("Win-back drew"), "today-found-rest"));
   await until(() => wire.some((w) => w.method === "PUT" && w.path === "/api/v1/views/ask_found"), "the rest saved");
   assert.deepEqual(outcomes, [], "REGRESSION guard: what Ask noticed rides no turn, so nothing is kept on one");
   setSurfaceValue("ask_morning", undefined);
@@ -267,25 +294,24 @@ test("what Ask noticed has its act: replies that fell, its door in the canvas's 
   });
   morning([], [fell, steady]);
   const tree = draw();
-  const fellRow = rowOf(tree, fell.id);
-  assert.match(textOf(fellRow), /Replies fell/);
   assert.equal(
-    textOf(byTestId(fellRow, "today-found-sentence")),
+    titleOf(tree),
     "Win-back drew 2 of 40 replies, down from 21 of 120.",
     "the numbers in its sentence, as the canvas says it",
   );
-  assert.equal(textOf(actOf(tree, fell.id)).trim(), "Look at it");
-  const act = actOf(tree, steady.id);
-  assert.equal(textOf(act).trim(), F.approve, "REGRESSION: a steady finding stood with no act at all");
+  assert.equal(textOf(actOf(tree, "Win-back drew")).trim(), "Look at it");
+  const line = rowOf(tree, steady.line);
   assert.equal(
-    textOf(byTestId(rowOf(tree, steady.id), "today-found-sentence")),
+    textOf(all(line, (n) => n.props?.className === "calm-name")[0]),
     steady.line,
     "its number, in a sentence",
   );
+  const act = byTestId(await openWhy(steady.line), "today-found-act");
+  assert.equal(textOf(act).trim(), F.approve, "REGRESSION: a steady finding stood with no act at all");
   void press(act);
   await until(() => commits.length === 1, "the card's own verb walk");
   commits[0].land({ ok: true, receipt: "Birthday notes now go on their own", undo: null });
-  await until(() => textOf(rowOf(redraw(), steady.id)).includes("go on their own"), "the receipt");
+  await until(() => textOf(rowOf(redraw(), steady.line)).includes("go on their own"), "the receipt");
   assert.deepEqual(outcomes, [], "no turn holds what Ask noticed: nothing is kept on one");
   setSurfaceValue("ask_morning", undefined);
 });
@@ -294,14 +320,14 @@ test("a press refused because what the card was about moved on says so, keeps th
   const { commits, outcomes } = door();
   morning([CARDS[0]]);
   const tree = draw();
-  void press(actOf(tree, "p-1"));
+  void press(actOf(tree, "Write to Rosa"));
   commits[0].land({ ok: false, message: "This run is not waiting for approval.", moved: true });
   await until(() => outcomes.length === 1, "what became of it, kept on its turn");
   assert.deepEqual(
     outcomes.map((o) => [o.pid, o.state, o.moved]),
     [["p-1", "failed", true]],
   );
-  assert.equal(actOf(redraw(), "p-1"), null, "no Approve left to press");
+  assert.equal(actOf(redraw(), "Write to Rosa"), null, "no Approve left to press");
   outcomes[0].land();
   setSurfaceValue("ask_morning", undefined);
 });
