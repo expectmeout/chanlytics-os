@@ -87,7 +87,7 @@ const NOTIFICATION_DELIVERY = {
   // An owner's ads (00658, decision 0050 call 15): Meta didn't approve one or couldn't charge for one, one ended or spent
   // its total, or no one wrote from one in a week. Lines on the owner's bell, written by the database as each read turns
   // them; Campaigns › Ads says the rest. The two that stop an ad are also mailed, once a cause (Ruben, 20 Nov 2026): the
-  // ring marks the row's mail owed (00662) and the account's read sends it (the edge's ads/mail.ts), as the business
+  // ring marks the row's mail owed (00664) and the account's read sends it (the edge's ads/mail.ts), as the business
   // chooses. The other three stay on the bell.
   ad_refused: "email",
   ad_unpaid: "email",

@@ -123,7 +123,7 @@ export interface MailOwed {
 
 /**
  * The workspace's notices of these kinds whose mail is still owed (`mail_due_at`, 00409), oldest first, at most
- * `limit`: for news a database function writes and marks owed in the act that rings it (an ad that can't run, 00662),
+ * `limit`: for news a database function writes and marks owed in the act that rings it (an ad that can't run, 00664),
  * which the edge then mails once and says so (recordMailSent). Since `since`, so a row nothing will ever send is not
  * read for ever. A read that fails throws.
  */

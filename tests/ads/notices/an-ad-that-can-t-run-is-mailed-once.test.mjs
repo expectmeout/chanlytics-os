@@ -2,7 +2,7 @@
  * An ad that can't run is mailed once (decision 0050, call 15; Ruben, 20 November 2026): the edge's lib/ads/mail.ts,
  * run over a database in memory with the mail handed to a transport of the test's own.
  *
- * The database rings `ad_refused` and `ad_unpaid` owing their mail (00662, held by
+ * The database rings `ad_refused` and `ad_unpaid` owing their mail (00664, held by
  * the-bell-rings-for-an-owner-s-ads.db.test.mjs); after each good read the account's job sends what is owed. What must
  * hold: one mail a cause, whatever number of owners hears it; never twice; one mail a read, naming each cause where
  * there are several; nothing for a cause that cleared first, for a business that turned the mail off, or with no
@@ -25,7 +25,7 @@ const OTHER_AD = "4f2a9c1e-5b7d-4e8a-9c0b-1d2e3f4a5b6c";
 const MAILBOX = { escalation_emails: ["owner@salon.example"], from: "Salon <hi@salon.example>" };
 
 let seq = 0;
-/** A bell row as 00662's ring writes it: owing its mail from the moment it rings. */
+/** A bell row as 00664's ring writes it: owing its mail from the moment it rings. */
 const rung = (kind, over = {}) => {
   seq += 1;
   return {

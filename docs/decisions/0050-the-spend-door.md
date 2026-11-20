@@ -490,8 +490,8 @@ Built with nothing sent to Meta. One migration is written and not applied: `0065
 
 ## As built, 20 November 2026, later still · The calls settled that day
 
-Built with nothing sent to Meta. One migration is written and not applied: `00662`
-(`supabase/migrations/00662_an_ad_that_can_t_run_is_mailed_once.sql`).
+Built with nothing sent to Meta. One migration is written and not applied: `00664`
+(`supabase/migrations/00664_an_ad_that_can_t_run_is_mailed_once.sql`).
 
 - **The card counts three** (contracts `AD_CARD_CHECKS`: the account is active, a payment method, the Page), each read
   from what is kept of the account, and says "Ready" when all three are met. The Page's link to the number AI answers is

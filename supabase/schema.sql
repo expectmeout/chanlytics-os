@@ -662,7 +662,7 @@ begin
              public.ad_bell_words(w.kind, w.name, w.many::integer, w.platform_issue, w.ends_at, v_zone) as said
         from named w
     ), rung as (
-      -- The two that stop an ad owe their mail from the moment they ring (00662): the account's read sends it, once.
+      -- The two that stop an ad owe their mail from the moment they ring (00664): the account's read sends it, once.
       insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
                                         recipient_user_id, mail_due_at)
       select p_tenant_id, w.kind, w.said ->> 'title', w.said ->> 'body', 'campaigns/ads:ad:' || w.id::text, 'ad',
@@ -695,7 +695,7 @@ end $$;
 -- Name: FUNCTION ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) IS 'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. The rows of ad_refused and ad_unpaid are written owing their mail (mail_due_at, 00662), which the account''s read sends once. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
+COMMENT ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) IS 'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. The rows of ad_refused and ad_unpaid are written owing their mail (mail_due_at, 00664), which the account''s read sends once. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
 
 
 --

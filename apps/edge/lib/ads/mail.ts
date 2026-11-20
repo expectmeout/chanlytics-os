@@ -2,7 +2,7 @@
  * An ad that can't run, mailed (decision 0050, call 15; Ruben, 20 November 2026). Of the bell's five notices for an
  * owner's ads, the two that stop an ad until the owner fixes something in Meta (`ad_refused`, `ad_unpaid`) are mailed
  * as well; the three that are news stay on the bell. The database rings them in the read's own transaction and marks
- * each row's mail owed (migration 00662), so a mail is never lost between the ring and the send. After each good
+ * each row's mail owed (migration 00664), so a mail is never lost between the ring and the send. After each good
  * read the account's job sends what is owed here, through the one mail every notice takes (notify.ts sendOpsMail, to
  * the addresses Settings › Notifications names), and says it went (recordMailSent).
  *
