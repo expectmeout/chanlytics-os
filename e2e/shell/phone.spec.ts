@@ -1016,6 +1016,35 @@ test.describe("Phone shell on a real workspace", () => {
   });
 
   /**
+   * On a phone the bell stands on the name's row, and the name's place reached under it: drawn after the bell and
+   * positioned, it took every press at the bell's place on each page that names itself in the bar, so the bell did not
+   * open but on Today, where every other bell test here starts (the watched folder's live check, 20 Nov 2026). A thumb
+   * at the bell's middle and at the four sides of what it is drawn at reaches the bell, and the press opens its notes.
+   */
+  test("the bell takes a thumb's press on every page that names itself in the bar", async ({ page }) => {
+    for (const hash of ["inbox", "clients", "calendar", "campaigns"]) {
+      await page.goto(`/#/${hash}`);
+      await page.waitForLoadState("networkidle");
+      const bell = page.getByRole("button", { name: /^Notifications/ });
+      const reached = await bell.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return [
+          [0.5, 0.5],
+          [0.1, 0.5],
+          [0.9, 0.5],
+          [0.5, 0.1],
+          [0.5, 0.9],
+        ].map(([fx, fy]) => el.contains(document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy)));
+      });
+      expect(reached, `${hash}: a press anywhere on the bell reaches it`).toEqual([true, true, true, true, true]);
+      await bell.click();
+      await expect(page.getByRole("dialog", { name: "Notifications" }), `${hash}: its notes open`).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(bell).toHaveAttribute("aria-expanded", "false");
+    }
+  });
+
+  /**
    * On a phone the bell's notes are a sheet from the bottom, as every other sheet there is (25 Sep): edge to edge, a
    * handle, and a thumb pulls it down to close (kit/motion/swipe.ts touchSwipe). It was a 568px popover hung from the top bar, as
    * far from the thumb as the screen allows. A real touch through the browser's own input (CDP), as Ask's is pulled.
