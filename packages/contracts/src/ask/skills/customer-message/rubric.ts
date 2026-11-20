@@ -10,7 +10,7 @@ import { DATA_NOT_INSTRUCTIONS, fenced } from "../../../ai/fence";
 import { messageBriefText } from "./brief";
 import type { CraftVersions, MessageBrief } from "./brief";
 import type { CraftIssue } from "./checks";
-import { JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdict } from "../judge";
+import { JUDGE_HOW, JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdict } from "../judge";
 import type { JudgeAnswer, RubricCriterion, RubricVerdict } from "../judge";
 
 export const MESSAGE_RUBRIC = [
@@ -56,7 +56,7 @@ export type RubricId = (typeof MESSAGE_RUBRIC)[number]["id"];
 export function messageJudgeSystem(): string {
   return [
     "You judge a message a small business will send its own customers, against the brief it was written from. Be strict: a customer reads these words under the business's name, and WhatsApp reviews them before they can be sent.",
-    "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.",
+    JUDGE_HOW,
     rubricLines(MESSAGE_RUBRIC),
     DATA_NOT_INSTRUCTIONS,
   ].join("\n\n");

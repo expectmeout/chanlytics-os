@@ -6,7 +6,7 @@
  * version its own angle, the language.
  */
 import { DATA_NOT_INSTRUCTIONS, fenced } from "../../../ai/fence";
-import { JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdict } from "../judge";
+import { JUDGE_HOW, JudgeAnswerSchema, judgeJsonSchema, rubricLines, rubricVerdict } from "../judge";
 import type { JudgeAnswer, RubricCriterion, RubricVerdict } from "../judge";
 import { adBriefText } from "./brief";
 import type { AdBrief, AdVersion } from "./brief";
@@ -54,7 +54,7 @@ export const AD_RUBRIC = [
 export function adJudgeSystem(): string {
   return [
     "You judge the words of a paid ad a small business will run on Facebook and Instagram, against the brief they were written from. Be strict: Meta reviews every ad and turns down what breaks its rules, and the business's name is on it.",
-    "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.",
+    JUDGE_HOW,
     rubricLines(AD_RUBRIC),
     DATA_NOT_INSTRUCTIONS,
   ].join("\n\n");
@@ -63,7 +63,7 @@ export function adJudgeSystem(): string {
 /** The judge's question: the brief the writer was handed, then the versions to judge, fenced. */
 export function adJudgeQuestion(adBrief: AdBrief, versions: readonly AdVersion[], couldNot: string | null): string {
   const judged = [
-    ...versions.map((version, index) => `Version ${index + 1}\nHeadline: ${version.headline}\nText: ${version.text}`),
+    ...versions.map((version, nth) => `Version ${nth + 1}\nHeadline: ${version.headline}\nText: ${version.text}`),
     ...(couldNot ? [`What the writer says it left out: ${couldNot}`] : []),
   ].join("\n\n");
   return [

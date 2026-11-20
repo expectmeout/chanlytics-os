@@ -146,7 +146,7 @@ function adWordIssues(version: number, text: string, adBrief: AdBrief): AdIssue[
   const known = new Set(adFigures(held));
   const extra = adFigures(text).filter((figure) => !known.has(figure));
   if (extra.length) at("new_number", `numbers the brief does not hold: ${[...new Set(extra)].join(", ")}`);
-  if (AD_CONTACT.test(text)) at("typed_contact", "a link, an email address or a phone number typed in");
+  if (AD_CONTACT.test(text)) at("typed_contact", "a web address, an email address or a phone number written out");
   const own = new Set(held.match(AD_CAPS) ?? []);
   const loud = (text.match(AD_CAPS) ?? []).filter((word) => !own.has(word));
   if (loud.length) at("shouting", `capitals for emphasis: ${[...new Set(loud)].join(", ")}`);
@@ -168,8 +168,8 @@ export function adCraftIssues(versions: readonly AdVersion[], adBrief: AdBrief):
     out.push({ version: 0, code: "count", words: `${versions.length} versions, asked ${wanted}` });
   const lengths = adLengths(adBrief.places);
   const texts = new Set<string>();
-  versions.forEach((adVersion, index) => {
-    const version = index + 1;
+  versions.forEach((adVersion, nth) => {
+    const version = nth + 1;
     if (!adVersion.text || !adVersion.headline) {
       out.push({ version, code: "empty", words: "a text and a headline, each with words" });
       return;

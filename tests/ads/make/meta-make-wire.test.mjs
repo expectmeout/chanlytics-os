@@ -59,7 +59,7 @@ const CREATIVE_ASK = {
   instagramUserId: null,
   text: "A first visit with time to talk it through. Message us on WhatsApp to pick a time.",
   headline: "First visits this month",
-  media: { kind: "image", hash: "a1b2c3d4e5f60718293a4b5c6d7e8f90" },
+  picture: { kind: "image", hash: "a1b2c3d4e5f60718293a4b5c6d7e8f90" },
 };
 
 test("money goes out in Meta's own units, exact or not at all", () => {
@@ -239,7 +239,7 @@ test("a creative opens a WhatsApp chat as the Page, with every one of Meta's own
       link: "https://api.whatsapp.com/send",
       message: CREATIVE_ASK.text,
       name: CREATIVE_ASK.headline,
-      image_hash: CREATIVE_ASK.media.hash,
+      image_hash: CREATIVE_ASK.picture.hash,
       call_to_action: { type: "WHATSAPP_MESSAGE", value: { app_destination: "WHATSAPP" } },
     },
   });
@@ -257,7 +257,7 @@ test("a creative opens a WhatsApp chat as the Page, with every one of Meta's own
   const video = metaCreativeSpec({
     ...CREATIVE_ASK,
     instagramUserId: "17841400000000001",
-    media: { kind: "video", videoId: "880000000000001", thumbnailHash: "b1b2c3d4e5f60718293a4b5c6d7e8f91" },
+    picture: { kind: "video", videoId: "880000000000001", thumbnailHash: "b1b2c3d4e5f60718293a4b5c6d7e8f91" },
   });
   assert.deepEqual(video.object_story_spec, {
     page_id: PAGE,
@@ -278,7 +278,7 @@ test("a creative opens a WhatsApp chat as the Page, with every one of Meta's own
   assert.throws(() => metaCreativeSpec({ ...CREATIVE_ASK, text: "x".repeat(1025) }), /text/);
   assert.throws(() => metaCreativeSpec({ ...CREATIVE_ASK, headline: "x".repeat(256) }), /headline/);
   assert.throws(
-    () => metaCreativeSpec({ ...CREATIVE_ASK, media: { kind: "image", hash: "https://example.com/a.png" } }),
+    () => metaCreativeSpec({ ...CREATIVE_ASK, picture: { kind: "image", hash: "https://example.com/a.png" } }),
     /library/,
   );
   assert.throws(() => metaCreativeSpec({ ...CREATIVE_ASK, pageId: "the-page" }), /Page/);

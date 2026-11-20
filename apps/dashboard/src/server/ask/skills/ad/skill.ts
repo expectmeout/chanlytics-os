@@ -54,7 +54,7 @@ export const AD_SKILL: AdSkill = {
       title: "One thing to do",
       lines: [
         "The ad asks for one thing: to message the business on WhatsApp. Say it once, in the text.",
-        "Never a phone number, a web address or an email address, and never 'call', 'visit our website' or 'sign up'.",
+        "Never a phone number, a web address or an email address, and never 'call', 'go to our website' or 'sign up'.",
         "No hurry put on the reader: no 'last chance', 'today only' or 'don't miss out', unless the brief's own facts give the deadline, and then said once, plainly.",
       ],
     },

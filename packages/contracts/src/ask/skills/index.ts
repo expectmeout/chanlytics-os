@@ -2,16 +2,14 @@ export {
   AD_CHANGE_KINDS,
   AD_CRAFT_JSON_SCHEMA,
   AD_JOBS,
-  AD_MILES,
   AD_PLACES,
-  AD_VERSIONS,
   adBriefText,
   adChangeOf,
   AdCraftAnswerSchema,
   adLengths,
   adVersionsOf,
 } from "./ad/brief";
-export type { AdBrief, AdChange, AdChangeKind, AdCraftAnswer, AdJob, AdPlace, AdVersion } from "./ad/brief";
+export type { AdBrief, AdChange, AdCraftAnswer, AdJob, AdPlace, AdVersion } from "./ad/brief";
 export { adCraftIssues } from "./ad/checks";
 export type { AdIssue, AdIssueCode } from "./ad/checks";
 export {

@@ -253,7 +253,7 @@ export const META_OWN_CHANGES = [
 ] as const;
 
 /** What the ad shows: a picture from the account's library, or a video with the picture shown before it plays. */
-export type MetaCreativeMedia =
+export type MetaCreativePicture =
   { kind: "image"; hash: string } | { kind: "video"; videoId: string; thumbnailHash: string };
 
 /** One version of an ad: its picture and its words, as the Page says them. */
@@ -265,7 +265,7 @@ export interface MetaCreativeAsk {
   /** The text above the picture, and the headline under it. */
   text: string;
   headline: string;
-  media: MetaCreativeMedia;
+  picture: MetaCreativePicture;
 }
 
 const HASH = /^[A-Za-z0-9]{8,64}$/;
@@ -290,20 +290,20 @@ function storyOf(ask: MetaCreativeAsk): Record<string, unknown> {
   // Meta's hard lengths for a text and a headline. What reads well in each place is the ad writer's to hold.
   const message = wordsSent(ask.text, "the text", 1024);
   const headline = wordsSent(ask.headline, "the headline", 255);
-  if (ask.media.kind === "image")
+  if (ask.picture.kind === "image")
     return {
       link_data: {
         link: WHATSAPP_LINK,
         message,
         name: headline,
-        image_hash: imageHashOf(ask.media.hash),
+        image_hash: imageHashOf(ask.picture.hash),
         call_to_action: whatsappButton(false),
       },
     };
   return {
     video_data: {
-      video_id: metaIdOf(ask.media.videoId, "the video"),
-      image_hash: imageHashOf(ask.media.thumbnailHash),
+      video_id: metaIdOf(ask.picture.videoId, "the video"),
+      image_hash: imageHashOf(ask.picture.thumbnailHash),
       message,
       title: headline,
       call_to_action: whatsappButton(true),

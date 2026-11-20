@@ -55,7 +55,6 @@ export {
   AD_BOOKED_TO_FORECAST,
   AD_DRAFT_MILES,
   AD_RUN_DAYS,
-  AD_SPECIAL_KINDS,
   adAmountIssue,
   adDraftOf,
   adEndIssue,

@@ -16,6 +16,10 @@ export interface RubricCriterion {
   ask: string;
 }
 
+/** How every judge is told to answer, whatever it judges. */
+export const JUDGE_HOW =
+  "Give one verdict for each criterion below, by its id: pass or not, and why in one short line. Judge only what the words say, never what the writer might have meant.";
+
 /** A rubric as the judge is told it: each criterion by its id, the ones that must pass marked. */
 export const rubricLines = (rubric: readonly RubricCriterion[]): string =>
   rubric.map((criterion) => `- ${criterion.id}${criterion.hard ? " (must pass)" : ""}: ${criterion.ask}`).join("\n");

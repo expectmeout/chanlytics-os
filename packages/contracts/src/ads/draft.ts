@@ -25,8 +25,8 @@ import { minorPerUnit } from "./money";
 /* ------------------------------------------------------------ special kinds */
 
 /** The kinds of ad Meta asks an advertiser to declare (its special ad categories), in Chanlytics' words. */
-export const AD_SPECIAL_KINDS = ["employment", "housing", "financial", "politics", "gambling"] as const;
-export type AdSpecialKind = (typeof AD_SPECIAL_KINDS)[number];
+export type AdSpecialKind = "employment" | "housing" | "financial" | "politics" | "gambling";
+const SPECIAL_KINDS: readonly AdSpecialKind[] = ["employment", "housing", "financial", "politics", "gambling"];
 
 const SPECIAL_KIND_WORDS: Record<AdSpecialKind, RegExp> = {
   employment:
@@ -47,7 +47,7 @@ const SPECIAL_KIND_WORDS: Record<AdSpecialKind, RegExp> = {
  * one the draft asks the owner (the plan's G7), and an ad of that kind is not run here.
  */
 export function adSpecialKinds(text: string): AdSpecialKind[] {
-  return AD_SPECIAL_KINDS.filter((kind) => SPECIAL_KIND_WORDS[kind].test(text));
+  return SPECIAL_KINDS.filter((kind) => SPECIAL_KIND_WORDS[kind].test(text));
 }
 
 /* -------------------------------------------------------------- the picture */

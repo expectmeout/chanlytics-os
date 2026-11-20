@@ -36,7 +36,7 @@ export type {
   MetaAreaCentre,
   MetaCampaignAsk,
   MetaCreativeAsk,
-  MetaCreativeMedia,
+  MetaCreativePicture,
   MetaMakeHow,
 } from "./meta-make";
 export {

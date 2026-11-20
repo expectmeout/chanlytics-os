@@ -92,7 +92,7 @@ const LANGUAGE_WORDS: Record<AdBrief["language"], string> = { en: "English", es:
 
 const versionLines = (versions: readonly AdVersion[]): string =>
   versions
-    .map((version, index) => `Version ${index + 1}\nHeadline: ${version.headline}\nText: ${version.text}`)
+    .map((version, nth) => `Version ${nth + 1}\nHeadline: ${version.headline}\nText: ${version.text}`)
     .join("\n\n");
 
 /** What the writer is asked to do, by job: the last block of its question. */
@@ -156,7 +156,6 @@ export function adBriefText(adBrief: AdBrief): string {
 
 /** What a change may be (the plan's G8), and none where the owner asked for none of them. */
 export const AD_CHANGE_KINDS = ["none", "words", "service", "picture", "area", "amount", "end"] as const;
-export type AdChangeKind = (typeof AD_CHANGE_KINDS)[number];
 
 /** The writer's answer, for the API's structured output: every field, an empty one where the job has none. */
 export const AD_CRAFT_JSON_SCHEMA = {
@@ -227,7 +226,7 @@ export type AdChange =
   | { kind: "end"; day: string };
 
 /** The fewest and the most miles a draft offers (Meta takes 0.63 to 50; a draft says whole miles). */
-export const AD_MILES = { least: 1, most: 50 } as const;
+const DRAFT_MILES = { least: 1, most: 50 } as const;
 
 /**
  * The change a `change` answer names, or null where it names none that a draft may take: a service not on the list, an
@@ -249,7 +248,7 @@ export function adChangeOf(adCraftAnswer: AdCraftAnswer, adBrief: AdBrief): AdCh
   if (change.kind === "picture") return { kind: "picture" };
   if (change.kind === "area") {
     const miles = Math.round(change.miles);
-    return miles >= AD_MILES.least && miles <= AD_MILES.most ? { kind: "area", miles } : null;
+    return miles >= DRAFT_MILES.least && miles <= DRAFT_MILES.most ? { kind: "area", miles } : null;
   }
   if (change.kind === "amount")
     return Number.isSafeInteger(change.amount) && change.amount > 0 ? { kind: "amount", units: change.amount } : null;
