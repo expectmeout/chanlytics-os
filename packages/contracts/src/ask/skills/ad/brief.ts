@@ -124,8 +124,8 @@ function jobLines(adBrief: AdBrief): string[] {
 
 /** Where an ad is shown, as the writer is told it. */
 function areaWords(area: AdBrief["area"]): string {
-  if (area.wide === "city" && area.place) return `in and around ${area.place}`;
-  if (area.wide !== null && area.place) return `across ${area.place}`;
+  if (area.place && area.wide === "city") return `in and around ${area.place}`;
+  if (area.place && (area.wide === "region" || area.wide === "country")) return `across ${area.place}`;
   return `within ${area.miles} miles${area.place ? ` of ${area.place}` : ""}`;
 }
 
