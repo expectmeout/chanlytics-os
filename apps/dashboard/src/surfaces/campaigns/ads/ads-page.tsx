@@ -10,6 +10,7 @@
 import "./ads.css";
 import "./drawer/drawer.css";
 import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, parseAds } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/bridge/surface-data";
@@ -25,6 +26,9 @@ import { CARD } from "./connect/words";
 import { useFirstTouch } from "./first-touch";
 import { V0Page } from "./hero";
 import { LiveAds } from "./live/live-ads";
+import { LIVE } from "./live/words";
+import { V0 } from "./model/words-page";
+import { LinkButton } from "../../kit/link-button/link-button";
 import { NewAd } from "./new/sheet";
 import { LIVE_AD_SOURCE } from "./new/source";
 
@@ -109,6 +113,35 @@ function HeadActs({ phone, connect, onConnect }: HeadActsProps) {
   );
 }
 
+/**
+ * An account is held and its ads are on their way, or their read did not come: a line that says which, beside the
+ * card. Never the page with nothing connected, whose counts would say nobody came from an ad.
+ */
+function HeldLoading({ failed, again, card }: { failed: boolean; again: () => void; card: ReactNode }) {
+  return (
+    <div className="ads-hero" data-testid="ads-held">
+      <section className="ads-hero-main">
+        {failed ? (
+          <p className="ads-hero-muted" role="alert" data-testid="ads-held-failed">
+            {LIVE.loadFailed}{" "}
+            <LinkButton onClick={again} data-testid="ads-held-again">
+              {V0.again}
+            </LinkButton>
+          </p>
+        ) : (
+          <p className="ads-hero-muted" data-testid="ads-held-loading">
+            {LIVE.loading}
+          </p>
+        )}
+      </section>
+      <section className="ads-hero-side">
+        {card}
+        <p className="ads-conn-later">{CARD.later}</p>
+      </section>
+    </div>
+  );
+}
+
 interface AdsPageProps {
   /** The address's param, `campaigns/<param>`: `ads`, an ad open, or New ad. */
   param: string;
@@ -170,20 +203,26 @@ export function AdsPage({ param, view }: AdsPageProps) {
         quiet
         allowance={false}
         testid="ads-head"
-        sub={sentence}
+        sub={held ? null : sentence}
         right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
       />
-      {phone ? (
-        <p className="ads-lead" data-testid="ads-lead">
-          {sentence}
-        </p>
-      ) : null}
-      <div className="ads-window" data-testid="ads-window">
-        <p className="ads-window-said">
-          <span data-testid="ads-window-said">{vm.pane}</span>
-        </p>
-      </div>
-      <V0Page v0={vm.v0} touch={touch} card={connect.card} />
+      {held ? (
+        <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
+      ) : (
+        <>
+          {phone ? (
+            <p className="ads-lead" data-testid="ads-lead">
+              {sentence}
+            </p>
+          ) : null}
+          <div className="ads-window" data-testid="ads-window">
+            <p className="ads-window-said">
+              <span data-testid="ads-window-said">{vm.pane}</span>
+            </p>
+          </div>
+          <V0Page v0={vm.v0} touch={touch} card={connect.card} />
+        </>
+      )}
       {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. */}
       <NewAd
         open={address.compose !== null && account.dto !== null}

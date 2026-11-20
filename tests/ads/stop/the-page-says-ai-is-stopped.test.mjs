@@ -164,7 +164,7 @@ const ACCOUNT = {
   },
 };
 
-const route = { page: page(), pressed: [] };
+const route = { page: page(), pressed: [], pageFails: false };
 /** What the page said in a toast, where the frame would draw it. */
 const flashes = [];
 const realToast = globalThis.window.usePPToast;
@@ -181,7 +181,10 @@ globalThis.fetch = async (input, init) => {
     return json({ outcome: "told", version: body.version + 1 });
   }
   if (url.pathname === "/api/v1/ads/account") return json(ACCOUNT);
-  if (url.pathname === "/api/v1/ads/page") return json(route.page);
+  if (url.pathname === "/api/v1/ads/page")
+    return route.pageFails
+      ? new Response(JSON.stringify({ ok: false, error: { message: "no" } }), { status: 500 })
+      : json(route.page);
   return json({ series: { first_came: { by_via: {} }, today: "2026-11-20", days: 30 }, now: null });
 };
 after(() => {
@@ -230,6 +233,24 @@ test("with AI running the page says nothing of a stop, and an account with no ad
   const empty = (await heldPage(page({ ads: [], stopped_at: null })))();
   assert.match(textOf(byTestId(empty, "ads-live-empty")), new RegExp(LIVE.noAds.rest));
   assert.ok(byTestId(empty, "ads-live-empty-new"), "with New ad beside it");
+});
+
+test("an account held whose ads did not load says so, and never says nobody came from an ad", async () => {
+  api().forget();
+  route.pageFails = true;
+  fresh();
+  const draw = () => AdsPage({ param: "ads" });
+  draw();
+  try {
+    await until(() => byTestId(again(draw), "ads-held-failed") !== null, "the page's read refused");
+    const tree = again(draw);
+    assert.equal(textOf(byTestId(tree, "ads-held-failed")), `${LIVE.loadFailed} Try again`);
+    assert.equal(byTestId(tree, "ads-v0"), null, "not the page with nothing connected");
+    assert.doesNotMatch(textOf(tree), /No one has written from an ad/);
+    assert.ok(byTestId(tree, "ads-conn"), "the card stands beside it");
+  } finally {
+    route.pageFails = false;
+  }
 });
 
 test("in Settings the card says it, with the same press", async () => {
