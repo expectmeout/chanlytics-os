@@ -82,10 +82,10 @@ export interface AdPictures {
  */
 export async function listAdPictures(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<AdPictures> {
   const { supabase } = rc.ctx;
-  const shelf = async (made: boolean): Promise<FileMemberRow[]> => {
+  const shelf = async (madeByAi: boolean): Promise<FileMemberRow[]> => {
     const [images, videos] = await Promise.all([
-      listFilesForAds(supabase, rc.tenantId, { made, kind: "image" }, AD_SHELF_READ),
-      listFilesForAds(supabase, rc.tenantId, { made, kind: "video" }, AD_SHELF_READ),
+      listFilesForAds(supabase, rc.tenantId, { made: madeByAi, kind: "image" }, AD_SHELF_READ),
+      listFilesForAds(supabase, rc.tenantId, { made: madeByAi, kind: "video" }, AD_SHELF_READ),
     ]);
     // One shelf newest first again, the two kinds among each other, as Files offers them.
     return [...images, ...videos].sort(
