@@ -292,7 +292,7 @@ const WALK_HERE: AskActAnswer = { ok: false, message: "", outcome: null, calls: 
  * press sent. The first real run (20 Nov 2026) pressed a folder card the turn kept with no folder: the folder chosen in
  * the browser never reached the door, and the owner read the door's own refusal of an empty id.
  */
-function settledOf<Card extends { payload: Record<string, unknown> }>(
+function cardAsPressed<Card extends { payload: Record<string, unknown> }>(
   card: Card,
   spec: ProposalSpec,
   settled: Record<string, unknown> | null,
@@ -330,7 +330,7 @@ export async function runAct(
   const sides = { messageId: input.messageId, proposalId: input.proposalId, actionId: null as string | null };
   const stands = await cardAsItStands(ctx, tenantId, card, proposals);
   if ("stopped" in stands) return failed(ctx, sides, { ...stands.stopped, card });
-  const filled = settledOf(stands.filled, spec, input.settled ?? null);
+  const filled = cardAsPressed(stands.filled, spec, input.settled ?? null);
   const started = await recordFirst(ctx, {
     tenantId,
     userId: ctx.userId,
