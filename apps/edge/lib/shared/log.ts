@@ -90,9 +90,13 @@ function signedName(request: Request): string | null {
  * by. Now one line says which door, what failed and where, and the caller reads a code. The status is still a failure's,
  * so a provider still redelivers and a clock still counts a failed tick.
  */
-async function answerCaught(handler: (request: Request) => Promise<Response>, request: Request): Promise<Response> {
+async function answerCaught<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
+  request: Request,
+  rest: A,
+): Promise<Response> {
   try {
-    return await handler(request);
+    return await handler(request, ...rest);
   } catch (failure) {
     oneLogger<LogEvent>().error("door_failed", {
       door: request?.url ? new URL(request.url).pathname : undefined,
@@ -109,28 +113,25 @@ async function answerCaught(handler: (request: Request) => Promise<Response>, re
  * in both apps are one search and a header cannot rename a call whose token verified; a name on a knock that carries no
  * verified token (a refusal's, or the platform key's) is the header's, and only labels that call's own lines. Every
  * other door is named by the platform (x-vercel-id), or freshly: a webhook's delivery is its own request.
- *
- * The handler is handed the request alone. The platform calls a door with arguments of its own after the request,
- * and a handler's second parameter is what a test hands in: the relay's key door took a test's sync there, and on
- * 20 November 2026 the platform's argument stood in its place, so every real clip's key was refused ("sync.open is
- * not a function") while every test, which called the handler itself, passed.
  */
-export function door(
-  handler: (request: Request) => Promise<Response>,
+export function door<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
   opts: { trustCaller?: boolean } = {},
-): (request: Request) => Promise<Response> {
-  return (request) => {
+): (request: Request, ...rest: A) => Promise<Response> {
+  return (request, ...rest) => {
     // A door a test calls with no request at all (the health door's GET()) is still named, freshly.
     const trust = opts.trustCaller === true;
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
-    return withRequestId(id, async () => named(await answerCaught(handler, request), id));
+    return withRequestId(id, async () => named(await answerCaught(handler, request, rest), id));
   };
 }
 
 /** An admin door: named by the dashboard's request when it says one (door, trustCaller). */
-export function adminDoor(handler: (request: Request) => Promise<Response>): (request: Request) => Promise<Response> {
+export function adminDoor<A extends unknown[]>(
+  handler: (request: Request, ...rest: A) => Promise<Response>,
+): (request: Request, ...rest: A) => Promise<Response> {
   return door(handler, { trustCaller: true });
 }
 
