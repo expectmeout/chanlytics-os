@@ -32,8 +32,6 @@ being read is dropped by a migration.
 
 | Function | Why it stays |
 | --- | --- |
-| `ad_account_most` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `ad_draft_keep` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
@@ -51,13 +49,13 @@ being read is dropped by a migration.
 | --- | --- | --- | --- | --- |
 | `ad_account_connect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner's ad account connected (00649, decision 0049 step P1). |
 | `ad_account_disconnect` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an owner disconnects their ad account (00653; |
-| `ad_account_most` | door | a signed-in person, the server | nothing at run time | The owner's door (00658; |
+| `ad_account_most` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | The owner's door (00658; |
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
-| `ad_draft_keep` | door | a signed-in person, the server | nothing at run time | A member's door (00658; |
+| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00658; |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |

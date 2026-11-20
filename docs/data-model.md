@@ -18,7 +18,7 @@ what the script writes.
 | --- | --- | --- |
 | [`ad_accounts`](#ad_accounts) | `packages/db/src/repositories/ads/accounts.ts` | on, 1 policy |
 | [`ad_days`](#ad_days) | none | on, 1 policy |
-| [`ad_drafts`](#ad_drafts) | none | on, 1 policy |
+| [`ad_drafts`](#ad_drafts) | `packages/db/src/repositories/ads/drafts.ts` | on, 1 policy |
 | [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts` | on, 1 policy |
 | [`ads`](#ads) | `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
@@ -236,7 +236,7 @@ Foreign keys:
 
 A workspace's one draft of a new ad (00658; the Ads plan's 4.6, 6.2 and G18): what New ad chose and the ad writer's words, for the ad account it was drafted for. Members read it; ad_draft_keep writes it. Never trusted: every read, and Turn on's press, judges it afresh from the business as it stands.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/ads/drafts.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
