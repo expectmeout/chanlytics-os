@@ -3,8 +3,8 @@
  * said; nothing is sent, nothing is written.
  *
  * The door is the knock (authorizeAdmin: a token for this door and that workspace, or the key on an edge without the
- * secret), the body (readBody) and the model as a port, which a test hands in; evaluateCases in
- * lib/receptionist/eval.ts is everything after.
+ * secret), the body (readBody) and the model as a port, which a test hands in (`POST.with(brain)`: the platform's own
+ * argument after the request never reaches it, log.ts `door`); evaluateCases in lib/receptionist/eval.ts is everything after.
  */
 import { readBody } from "../../lib/shared/admin-door.js";
 import { authorizeAdmin } from "../../lib/shared/admin-auth.js";

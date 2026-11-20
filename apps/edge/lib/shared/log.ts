@@ -90,13 +90,9 @@ function signedName(request: Request): string | null {
  * by. Now one line says which door, what failed and where, and the caller reads a code. The status is still a failure's,
  * so a provider still redelivers and a clock still counts a failed tick.
  */
-async function answerCaught<A extends unknown[]>(
-  handler: (request: Request, ...rest: A) => Promise<Response>,
-  request: Request,
-  rest: A,
-): Promise<Response> {
+async function answerCaught(request: Request, answer: () => Promise<Response>): Promise<Response> {
   try {
-    return await handler(request, ...rest);
+    return await answer();
   } catch (failure) {
     oneLogger<LogEvent>().error("door_failed", {
       door: request?.url ? new URL(request.url).pathname : undefined,
@@ -113,25 +109,46 @@ async function answerCaught<A extends unknown[]>(
  * in both apps are one search and a header cannot rename a call whose token verified; a name on a knock that carries no
  * verified token (a refusal's, or the platform key's) is the header's, and only labels that call's own lines. Every
  * other door is named by the platform (x-vercel-id), or freshly: a webhook's delivery is its own request.
+ *
+ * The handler is handed the request alone. The platform calls a door with an argument of its own after the request
+ * (Vercel's Node launcher hands each GET and POST a FetchEvent, `{ waitUntil }`), and a handler's parameter after the
+ * request is a test's: on 20 November 2026 that argument stood in the key door's sync, and every real clip's key was
+ * refused ("sync.open is not a function"). A test hands a handler what it takes after the request with `with`.
  */
-export function door<A extends unknown[]>(
-  handler: (request: Request, ...rest: A) => Promise<Response>,
+export function door<A extends unknown[] = []>(
+  handler: (request: Request, ...ports: A | []) => Promise<Response>,
   opts: { trustCaller?: boolean } = {},
-): (request: Request, ...rest: A) => Promise<Response> {
-  return (request, ...rest) => {
+): DoorAddress<A> {
+  const trust = opts.trustCaller === true;
+  const answer = (request: Request, call: () => Promise<Response>): Promise<Response> => {
     // A door a test calls with no request at all (the health door's GET()) is still named, freshly.
-    const trust = opts.trustCaller === true;
     const id = request?.headers
       ? ((trust ? signedName(request) : null) ?? requestIdOf(request.headers, { trustCaller: trust }))
       : globalThis.crypto.randomUUID();
-    return withRequestId(id, async () => named(await answerCaught(handler, request, rest), id));
+    return withRequestId(id, async () => named(await answerCaught(request, call), id));
   };
+  return Object.assign((request: Request) => answer(request, () => handler(request)), {
+    with:
+      (...ports: A) =>
+      (request: Request) =>
+        answer(request, () => handler(request, ...ports)),
+  });
+}
+
+/**
+ * A door's address: what the platform calls, with the request (and its own argument, which the handler never sees),
+ * and `with(...ports)`, the same door with what a test hands its handler after the request (the eval and steer doors'
+ * model), named and caught as the address is.
+ */
+interface DoorAddress<A extends unknown[]> {
+  (request: Request): Promise<Response>;
+  with(...ports: A): (request: Request) => Promise<Response>;
 }
 
 /** An admin door: named by the dashboard's request when it says one (door, trustCaller). */
-export function adminDoor<A extends unknown[]>(
-  handler: (request: Request, ...rest: A) => Promise<Response>,
-): (request: Request, ...rest: A) => Promise<Response> {
+export function adminDoor<A extends unknown[] = []>(
+  handler: (request: Request, ...ports: A | []) => Promise<Response>,
+): DoorAddress<A> {
   return door(handler, { trustCaller: true });
 }
 
