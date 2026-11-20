@@ -6,8 +6,9 @@
  * What must hold. Nothing is sent unless this deployment's switch is live for the workspace, and for anyone but the
  * owner. Each dry run comes just before its own make and carries no key; each make carries one, and is paused. The ad
  * set names the number AI answers, a total and its end in the account's own zone. The picture goes as Files keeps it.
- * Where Meta refuses a step, nothing after it is sent and Meta's own words are said. And the read back says what Meta
- * holds that is not what was sent.
+ * Where Meta refuses a step, nothing after it is sent and Meta's own words are said, and a campaign already made is
+ * removed. The read back says what Meta holds that is not what was sent. And a campaign an earlier check left is removed
+ * only where it is this account's, paused, named by a check, with no ad.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -131,7 +132,9 @@ globalThis.fetch = async (url, init) => {
   const name =
     method === "GET"
       ? ({ minimum_budgets: "least_a_day", connected_instagram_accounts: "instagram" }[edge] ?? "read_back")
-      : { campaigns: "campaign", adsets: "ad_set", adimages: "picture", ads: "ad" }[edge] + (options ? "_dry" : "");
+      : method === "DELETE"
+        ? "remove"
+        : { campaigns: "campaign", adsets: "ad_set", adimages: "picture", ads: "ad" }[edge] + (options ? "_dry" : "");
   asked.push({ name, form, key: init?.headers?.["X-Client-Idempotent-Key"] ?? null, url: address });
   const reply = (status, body) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -154,6 +157,7 @@ globalThis.fetch = async (url, init) => {
     picture: { images: { bytes: { hash: HASH, url: "https://example.com/picture.png" } } },
     ad: { id: META_AD },
     read_back: held,
+    remove: { success: true },
   };
   return reply(200, answers[name]);
 };
@@ -276,26 +280,53 @@ test("the ad set names the number AI answers, a total and its end in the account
   assert.ok(String(creative.name).startsWith("Chanlytics · First appointment · paused check [cl:"));
 });
 
-test("where Meta refuses a step, nothing after it is sent and Meta's own words are said", async () => {
+test("where Meta refuses a step, nothing after it is sent, Meta's own words are said, and what was made is removed", async () => {
   const check = world();
   refuseAt = "ad_set_dry";
   const [status, body] = await heard(await check());
   assert.equal(status, 200);
-  assert.deepEqual(names(), ["least_a_day", "instagram", "campaign_dry", "campaign", "ad_set_dry"]);
+  assert.deepEqual(names(), ["least_a_day", "instagram", "campaign_dry", "campaign", "ad_set_dry", "remove"]);
   assert.equal(body.outcome, "stopped");
-  assert.deepEqual(body.steps.at(-1), {
+  assert.deepEqual(body.steps.at(-2), {
     at: "ad_set_dry",
     outcome: "refused",
     said: "Your budget is too low.",
     id: null,
   });
   assert.equal(body.steps.find((step) => step.at === "campaign").id, CAMPAIGN, "what was made is named");
+  assert.deepEqual(body.steps.at(-1), { at: "remove", outcome: "ok", said: null, id: null });
+  assert.equal(asked.at(-1).url.pathname, `/v27.0/${CAMPAIGN}`, "the campaign it made, and with it what is under it");
+
+  // A refusal before anything is made leaves nothing to remove.
+  world();
+  refuseAt = "campaign_dry";
+  await check();
+  assert.deepEqual(names(), ["least_a_day", "instagram", "campaign_dry"]);
+
+  // A removal Meta refuses is said in Meta's own words too.
+  world();
+  refuseAt = "remove";
+  held = {};
+  const [, unremoved] = await heard(await check());
+  assert.deepEqual(unremoved.steps.at(-1), {
+    at: "remove",
+    outcome: "refused",
+    said: "Your budget is too low.",
+    id: null,
+  });
 });
 
 test("a picture Files cannot hand over as a photo stops the check before Meta is sent it", async () => {
   const [, body] = await heard(await world({ file: { mime: "video/mp4" } })());
-  assert.deepEqual(names(), ["least_a_day", "instagram", "campaign_dry", "campaign", "ad_set_dry", "ad_set"]);
-  assert.deepEqual([body.outcome, body.steps.at(-1).at, body.steps.at(-1).outcome], ["stopped", "picture", "unread"]);
+  assert.deepEqual(names(), ["least_a_day", "instagram", "campaign_dry", "campaign", "ad_set_dry", "ad_set", "remove"]);
+  assert.deepEqual(
+    body.steps.slice(-2).map((step) => [step.at, step.outcome]),
+    [
+      ["picture", "unread"],
+      ["remove", "ok"],
+    ],
+  );
+  assert.equal(body.outcome, "stopped");
 });
 
 test("the read back says what Meta holds that is not what was sent", async () => {
@@ -311,4 +342,49 @@ test("the read back says what Meta holds that is not what was sent", async () =>
   const [, body] = await heard(await check());
   assert.equal(body.outcome, "differs");
   assert.deepEqual(body.differs, ["declared", "total", "number", "places", "ad_paused", "own_changes"]);
+});
+
+test("a campaign a check left is removed only where it is this account's, paused, named by a check, with no ad", async () => {
+  const leftover = () => ({
+    id: CAMPAIGN,
+    account_id: META_ACCOUNT,
+    name: "Chanlytics · First appointment · paused check [cl:1a2b3c4d]",
+    status: "PAUSED",
+    effective_status: "PAUSED",
+    objective: "OUTCOME_ENGAGEMENT",
+    special_ad_categories: [],
+  });
+  const remove = (id = CAMPAIGN) => runAdsCheck(auth, { tenant_id: T, user_id: U, remove: id });
+  world();
+  held = leftover();
+  const [status, body] = await heard(await remove());
+  assert.equal(status, 200);
+  assert.deepEqual(names(), ["read_back", "remove"]);
+  assert.equal(body.outcome, "removed");
+  assert.equal(asked[1].url.pathname, `/v27.0/${CAMPAIGN}`);
+
+  for (const [why, change] of [
+    ["in another account", (campaign) => Object.assign(campaign, { account_id: "1200000000000099" })],
+    ["not named by a check", (campaign) => Object.assign(campaign, { name: "Spring offer" })],
+    ["switched on", (campaign) => Object.assign(campaign, { status: "ACTIVE" })],
+    ["with an ad under it", (campaign) => Object.assign(campaign, { ads: heldAsSent().ads })],
+  ]) {
+    world();
+    held = change(leftover());
+    const [, left] = await heard(await remove());
+    assert.deepEqual(names(), ["read_back"], why);
+    assert.deepEqual(
+      [left.outcome, left.steps.at(-1).at, left.steps.at(-1).outcome],
+      ["stopped", "remove", "refused"],
+      why,
+    );
+  }
+
+  // Neither a draft nor a campaign, both, or an id that is not Meta's: refused before Meta is asked anything.
+  world();
+  for (const ask of [{}, { draft: DRAFT, remove: CAMPAIGN }, { remove: `act_${META_ACCOUNT}` }, { remove: "12" }]) {
+    const [refused, said] = await heard(await runAdsCheck(auth, { tenant_id: T, user_id: U, ...ask }));
+    assert.deepEqual([refused, said.error], [400, "bad_request"], JSON.stringify(ask));
+  }
+  assert.deepEqual(asked, []);
 });
