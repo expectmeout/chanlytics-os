@@ -7,8 +7,8 @@
  * (docs/plans/2026-11-18-ads-meta-checks.md):
  *
  *  - Meta's least is set for a day and holds for a total too, so a total is never under the account's least for a day
- *    times the days it runs. No page names a shortest run for a total: here it is one whole day, until the paused-ad
- *    check shows Meta's own.
+ *    times every calendar day the run touches (seen on the paused-ad check, 20 November 2026). No page names a
+ *    shortest run for a total: here it is one whole day.
  *  - One picture is shown in every place, so it is the feed's shape (4:5 through square to 1.91:1, at least 600 pixels
  *    wide), which stories and Reels show whole. A video runs 3 to 60 seconds, inside every place's own limits.
  *  - A video with music runs as an ad only with a licence of the advertiser's own, and a person shown must have said
@@ -115,9 +115,15 @@ const wholeUnitsUp = (minor: number, currency: string): number => {
   return Math.ceil(minor / unit) * unit;
 };
 
-/** Meta's least for a total: the account's least for a day times the days it runs, as a whole amount of the currency. */
+/**
+ * Meta's least for a total: the account's least for a day times every calendar day the run touches, today and its last
+ * day both counted, as a whole amount of the currency. Meta counts a run to the hour, from the moment it starts to the
+ * end of its last day, and wants more than its least a day for each part of a day: on the paused-ad check (20 November
+ * 2026) a run from midday to the end of a day fourteen days on was refused at $14.00 and asked for more than $14.48.
+ * `days` is whole days from today to the last day: 0 for a run that ends today.
+ */
 export function adLeastTotal(account: { currency: string; minDailyMinor: number }, days: number): number {
-  return wholeUnitsUp(account.minDailyMinor * Math.max(AD_RUN_DAYS.least, days), account.currency);
+  return wholeUnitsUp(account.minDailyMinor * (Math.max(0, days) + 1), account.currency);
 }
 
 /** What is wrong with an amount, and the nearest amount that is right. */

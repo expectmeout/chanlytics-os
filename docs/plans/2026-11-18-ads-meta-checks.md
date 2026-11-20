@@ -171,7 +171,7 @@ check, which waits for the Page to be linked to a WhatsApp number.
 | Three versions of the words in one ad | Meta has three ways to put several texts in one ad, and as its pages read none fits an ad that opens WhatsApp. Dynamic Creative takes up to five texts and five headlines, shows any headline with any text, takes one ad for each part that says who sees it, and its page asks for a goal other than conversations. The flexible format is for Sales and App campaigns alone. The rules that pick a text by place or by language list older objectives, messaging not among them |
 | What one request can make | A campaign is its own request. An ad can carry its creative inside it. Requests sent together as one batch cannot carry the key that makes a create safe to repeat |
 | Where the amount sits | On the part that says who sees it, or on the campaign, never both. A total must have an end. A daily amount is taken only for a run longer than a day. Meta says a total is not passed "unless you change your delivery settings" |
-| Meta's least, and the shortest run | The account says its least for a day. The least is set for a day and holds for a total too: a five-day run needs five times it. No page names a shortest run for a total |
+| Meta's least, and the shortest run | The account says its least for a day. The least is set for a day and holds for a total too: Meta counts the run to the hour, from the moment it starts to the end of its last day, and wants more than the least for each part of a day, so a run touches one more calendar day than its length (the paused-ad check, 20 November: a run fourteen days on was refused at fourteen times the least and asked for a little more). No page names a shortest run for a total |
 | A new account's daily limit | Not readable. The ad account's page lists the account's own spending limit, what it has spent, its least for a day and its payment method. It lists nothing for a limit Meta itself puts on a new account's day |
 | How far a day may pass a daily amount | Two of Meta's pages disagree: its budgets page says a quarter, its page on sharing budget between parts says three quarters |
 | Meta's dry run | The campaign, the part that says who sees it, the creative and the ad each take one (`validate_only`): Meta runs its rules, makes nothing, and answers yes or with its own words. The ad's can also ask for Meta's own look at the words and the picture (`synchronous_ad_review`). A thing's dry run names what sits above it, so that must exist first |
@@ -215,7 +215,8 @@ Each is written into [the plan](2026-11-18-ads.md) in the same change.
    Meta checks each version by itself, so it can turn down one and run two.
 2. **Each dry run comes just before its own make.** A refusal of the campaign leaves nothing. A refusal further down
    leaves a paused, empty campaign, which is removed.
-3. **A total is never under the account's least for a day times its days.** That is the "starting amount" too.
+3. **A total is never under the account's least for a day times every calendar day the run touches,** today and its
+   last day both counted. That is the "starting amount" too.
 4. **The check against a new account's daily limit is Meta's dry run,** not a rule of ours: there is nothing to read.
 5. **The first version names where an ad shows:** the feed, stories and Reels, on Facebook, and on Instagram where the
    Page's Instagram account is known. WhatsApp Status, Messenger, Threads and other apps are left out.
