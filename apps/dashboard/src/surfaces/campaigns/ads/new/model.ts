@@ -35,7 +35,7 @@ export type AdDraftHere = Extract<AdDraftAnswer, { can: true }>;
 export type AdWordsHere = { at: "writing" } | { at: "written" } | { at: "none"; why: AdNoWords | "failed" };
 
 /** What "Tell AI" last came to. */
-export type AdTold =
+export type AdTellResult =
   | { kind: "changed"; what: keyof typeof NEW.tell.changed }
   | { kind: "none"; fault: AdWordsFault | null }
   | { kind: "failed" };
@@ -58,7 +58,7 @@ interface NewAdHere {
   version: number;
   /** "Tell AI" is out. */
   telling: boolean;
-  told: AdTold | null;
+  told: AdTellResult | null;
   /** The card's own need for the ad account, as the page read it: the same line the card says, with the same act. */
   need: NeedVM | null;
   /** An example, on the page's sample: nothing is made anywhere, and its press says so. */
@@ -223,7 +223,7 @@ function waitsFor(here: NewAdHere): string | null {
 }
 
 /** What "Tell AI" last came to, as one quiet sentence. On the example it changes nothing, and says so. */
-function toldLine(outcome: AdTold | null, sample: boolean): string | null {
+function tellStatusOf(outcome: AdTellResult | null, sample: boolean): string | null {
   if (outcome === null) return null;
   if (outcome.kind === "changed") return NEW.tell.changed[outcome.what];
   if (outcome.kind === "failed") return NEW.tell.failed;
@@ -306,7 +306,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
         video: picture.kind === "video",
       },
     },
-    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : toldLine(here.told, here.sample) },
+    tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told, here.sample) },
     facts: [
       { label: NEW.facts.charges, value: NEW.facts.account(answer.account.name, currencyWords(currency)) },
       {

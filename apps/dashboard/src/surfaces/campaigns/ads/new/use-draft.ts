@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AdSpecialKind } from "@chanlytics/contracts";
 import type { AdCantDraft, AdDraftAnswer, AdDraftState, AdWordsAnswer } from "@/server/ads/draft-shape";
-import type { AdDraftHere, AdLocal, AdTold, AdWordsHere } from "./model";
+import type { AdDraftHere, AdLocal, AdTellResult, AdWordsHere } from "./model";
 import type { AdSource } from "./source";
 
 /** A draft as the screen holds it. */
@@ -104,7 +104,7 @@ const standOf = (answer: AdDraftAnswer | null): AdStand => {
 };
 
 /** What "Tell AI" came to, from the writer's answer. */
-function tellOutcome(answer: AdWordsAnswer): AdTold {
+function tellOutcome(answer: AdWordsAnswer): AdTellResult {
   if (answer.changed && answer.changed.kind !== "none") return { kind: "changed", what: answer.changed.kind };
   if (answer.changed) return { kind: "none", fault: answer.changed.fault };
   return { kind: "failed" };
@@ -126,7 +126,7 @@ interface Asking {
   tellingNow: { current: boolean };
   setTelling: (on: boolean) => void;
   /** What "Tell AI" last came to. */
-  setOutcome: (outcome: AdTold | null) => void;
+  setOutcome: (outcome: AdTellResult | null) => void;
 }
 
 const draftNow = (io: Asking): Held | null => (io.now.current.at === "draft" ? io.now.current : null);
@@ -305,7 +305,7 @@ const draftActs = (io: Asking, afterTyping: (run: () => void) => void): AdDraftA
 interface AdDraftHereNow {
   stand: AdStand;
   telling: boolean;
-  told: AdTold | null;
+  told: AdTellResult | null;
   acts: AdDraftActs;
 }
 
@@ -326,7 +326,7 @@ function useAfterTyping(): (run: () => void) => void {
 export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
   const [stand, setStand] = useState<AdStand>({ at: "opening" });
   const [isTelling, setTelling] = useState(false);
-  const [outcome, setOutcome] = useState<AdTold | null>(null);
+  const [outcome, setOutcome] = useState<AdTellResult | null>(null);
   const now = useRef<AdStand>(stand);
   now.current = stand;
   const turns = useRef(0);
