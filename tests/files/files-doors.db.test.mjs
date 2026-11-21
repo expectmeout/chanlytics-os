@@ -776,6 +776,35 @@ test("the library answers a page, and counts them all", { skip }, async () => {
   assert.deepEqual(await libFound("libOwner", { p_limit: 2, p_offset: 4 }), { keys: [], total: 4 });
 });
 
+test(
+  "a page reads on from the file the last one ended on, by its time and then its id, and holds one kind (00668)",
+  { skip },
+  async () => {
+    const after = (minute, id, args = {}) =>
+      libFound("libOwner", { p_before_at: `2026-11-10T10:0${minute}:00Z`, p_before_id: id, ...args });
+    assert.deepEqual(
+      await after(4, lib.post),
+      { keys: ["balayage", "storefront"], total: 4 },
+      "the total is every match",
+    );
+    assert.deepEqual(await after(4, lib.post, { p_limit: 1 }), { keys: ["balayage"], total: 4 });
+    assert.deepEqual(await after(1, lib.storefront), { keys: [], total: 4 }, "past the last, an empty page");
+    // At one instant the id says which comes first, as the plain list's order does.
+    const highest = "ffffffff-ffff-4fff-bfff-ffffffffffff";
+    const lowest = "00000000-0000-4000-8000-000000000000";
+    assert.deepEqual((await after(5, highest)).keys, ["unsorted", "post", "balayage", "storefront"]);
+    assert.deepEqual((await after(5, lowest)).keys, ["post", "balayage", "storefront"]);
+    assert.deepEqual(
+      await after(5, lowest, { p_words: "shop" }),
+      { keys: ["storefront"], total: 1 },
+      "found by its words",
+    );
+    // One kind alone, as the Library's Photos or Videos: in the database, so a page of one kind is whole.
+    assert.deepEqual(await libFound("libOwner", { p_kind: "video" }), { keys: ["balayage"], total: 1 });
+    assert.deepEqual((await libFound("libOwner", { p_kind: "image", p_limit: 2 })).keys, ["unsorted", "post"]);
+  },
+);
+
 test("the library: another workspace's member finds nothing of this one, under row security", { skip }, async () => {
   assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }), { keys: [], total: 0 });
   assert.deepEqual(await libFound("libStranger", { p_words: "dusk" }, E), { keys: ["theirs"], total: 1 });

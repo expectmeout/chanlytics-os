@@ -30,6 +30,8 @@ import { declareReads } from "../surface-registry";
 import type { TemplateDto } from "@/surfaces/inbox/types";
 import type { StoredProfile } from "@/surfaces/settings/business/save";
 import { setSurfaceValue } from "../../surfaces/surface-values";
+import { getActiveWorkspace, routeOnScreen } from "../workspace";
+import { readAdsOpening } from "./ads-first-reads";
 
 /**
  * Settings · Workspace — the business's own facts, and who is on the team.
@@ -197,6 +199,21 @@ function policiesOf(pol: Output<"GET policies">): PoliciesSurface {
   };
 }
 
+/** Whether this tab has asked what Campaigns › Ads opens on: once, as the boot first asks for this read. */
+let adsOpeningAsked = false;
+
+/**
+ * Where the tab opened on Campaigns › Ads, its own first reads come with its first draw, as this read does: the account
+ * and its ads, which say which page Ads is (./ads-first-reads.ts). Once a tab: a later settings read finds Ads drawn, and
+ * its hooks read for themselves. A node test's window with no address opens on no page.
+ */
+function askAdsOpening(): void {
+  if (adsOpeningAsked) return;
+  adsOpeningAsked = true;
+  if (typeof window === "undefined" || typeof window.location?.pathname !== "string") return;
+  void readAdsOpening({ read, route: routeOnScreen(), workspace: getActiveWorkspace() });
+}
+
 export const settingsOverride: SurfaceOverride = {
   key: "settings",
   value: "settings",
@@ -237,6 +254,7 @@ export const settingsOverride: SurfaceOverride = {
     ],
   }),
   apply: async () => {
+    askAdsOpening();
     const [cfg, team, pol, tpl, zone] = await Promise.all([
       read("GET settings"),
       // A team read that fails must not blank the business card beside it.

@@ -52,7 +52,7 @@ interface LiveAdsProps {
 
 export function LiveAds(p: LiveAdsProps) {
   const { dto, address, phone } = p;
-  const said = { timezone: dto.account.timezone ?? p.timezone };
+  const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now() };
   const vm = liveModel(dto, said);
   const sheet = sheetModel(dto, address.ad, said);
   const acts = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });

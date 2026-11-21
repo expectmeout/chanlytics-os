@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/shared/rate-limit.ts"));
 const route = await import(at("apps/dashboard/app/api/v1/content/route.ts"));
-const { CONTENT_PAGE } = await import(at("packages/contracts/src/content/page.ts"));
+const { CONTENT_MAX, CONTENT_PAGE } = await import(at("packages/contracts/src/content/page.ts"));
 const { MIN_MS, DAY_MS } = await import(at("packages/contracts/src/shared/time.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
@@ -280,6 +280,80 @@ test("a page holds a page, says there is more, and the next page starts where it
   assert.equal(second.made.length, 5);
   assert.equal(second.next, null);
   assert.equal(second.made[0].file.name, `post-${CONTENT_PAGE + 1}`);
+});
+
+/** A made piece its words find ("dusk"), by its number: the look's sentence says it, its name does not. */
+const atDusk = (n, over = {}) => made(n, { look: { line: "The shop front at dusk." }, ...over });
+
+/** Every page of a read, following `next` from the first until it is null: the names, in the order the pages said them. */
+async function readEveryPage(tables, query) {
+  const names = [];
+  let next = null;
+  let pages = 0;
+  do {
+    const { body } = await read(tables, `${query}${next ? `&before=${encodeURIComponent(next)}` : ""}`);
+    names.push(...body.made.map((m) => m.file.name));
+    next = body.next;
+    pages += 1;
+    assert.ok(pages < 50, "the pages end");
+  } while (next);
+  return { names, pages };
+}
+
+test("a search finds every match a page at a time, past the most one read answers, newest first as the list is", async () => {
+  // 130 found among 170 made, more than CONTENT_MAX: the search once answered 96 of them and said nothing more was there.
+  const files = Array.from({ length: 170 }, (_, i) => (i % 17 < 13 ? atDusk(i + 1) : made(i + 1)));
+  const found = files.filter((f) => f.look.line.includes("dusk")).map((f) => f.name);
+  assert.equal(found.length, 130);
+  const first = (await read({ files }, "about=dusk")).body;
+  assert.equal(first.made.length, CONTENT_PAGE);
+  assert.equal(first.about, "dusk");
+  assert.ok(first.next, "a page that is not the last says so");
+  const { names, pages } = await readEveryPage({ files }, "about=dusk");
+  assert.deepEqual(names, found, "every match, once, newest first");
+  assert.equal(pages, Math.ceil(130 / CONTENT_PAGE));
+  // A page as long as a read again asks for (CONTENT_MAX): the next read on from its last, as the list's does.
+  const long = (await read({ files }, `about=dusk&limit=${CONTENT_MAX}`)).body;
+  assert.equal(long.made.length, CONTENT_MAX);
+  const rest = (await read({ files }, `about=dusk&before=${encodeURIComponent(long.next)}`)).body;
+  assert.deepEqual(
+    [...long.made, ...rest.made].map((m) => m.file.name),
+    found.slice(0, CONTENT_MAX + CONTENT_PAGE),
+  );
+});
+
+test("a piece made between two pages of a search is read on its own first page, and the next page neither repeats nor skips", async () => {
+  const files = Array.from({ length: 30 }, (_, i) => atDusk(i + 1));
+  const first = (await read({ files }, "about=dusk")).body;
+  assert.equal(first.made.length, CONTENT_PAGE);
+  // A new match lands at the top while the owner reads: an offset would read the first page's last again.
+  files.push(atDusk(0, { id: idOf(999), name: "post-new", created_at: new Date(NOW + MIN_MS).toISOString() }));
+  const second = (await read({ files }, `about=dusk&before=${encodeURIComponent(first.next)}`)).body;
+  assert.deepEqual(
+    [...first.made, ...second.made].map((m) => m.file.name),
+    files.slice(0, 30).map((f) => f.name),
+  );
+  assert.equal(second.next, null);
+  assert.equal(
+    (await read({ files }, "about=dusk")).body.made[0].file.name,
+    "post-new",
+    "and leads a search read again",
+  );
+});
+
+test("a search that ends on its page says so, and a next page whose matches went is empty and the last", async () => {
+  const whole = Array.from({ length: CONTENT_PAGE }, (_, i) => atDusk(i + 1));
+  const exact = (await read({ files: whole }, "about=dusk")).body;
+  assert.equal(exact.made.length, CONTENT_PAGE);
+  assert.equal(exact.next, null, "no Show more that would read nothing");
+  const files = Array.from({ length: CONTENT_PAGE + 2 }, (_, i) => atDusk(i + 1));
+  const first = (await read({ files }, "about=dusk")).body;
+  assert.ok(first.next);
+  for (const f of files.slice(CONTENT_PAGE)) f.removed_at = new Date(NOW).toISOString();
+  const after = (await read({ files }, `about=dusk&before=${encodeURIComponent(first.next)}`)).body;
+  assert.deepEqual(after.made, []);
+  assert.equal(after.next, null);
+  assert.equal(after.about, "dusk");
 });
 
 test("a cursor this route did not give, and a limit past the cap, are refused", async () => {

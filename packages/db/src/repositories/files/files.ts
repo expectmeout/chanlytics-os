@@ -106,13 +106,15 @@ export async function listFilesByName(
 
 /**
  * One page of one shelf, newest first, found by its words where words are given (00597 files_found), and how many stand there in
- * all: the search answers the page's ids, and their rows are read through the member's own columns, in the search's order.
+ * all: the search answers the page's ids, and their rows are read through the member's own columns, in the search's order. A
+ * page `before` a file ends just before it, by its time and then its id, and a shelf of one kind holds that kind alone, as
+ * listFilesOnShelf's do (00668), so a search reads on the way the plain list does; `offset` counts on from there.
  */
 export async function listFilesFound(
   db: Db,
   tenantId: TenantId,
   shelf: FileShelfFilter,
-  page: { words?: string | undefined; offset: number; limit: number },
+  page: { words?: string | undefined; offset: number; limit: number; before?: { at: string; id: string } | null },
 ): Promise<{ rows: FileMemberRow[]; total: number }> {
   const { data, error } = await db.rpc("files_found", {
     p_tenant_id: tenantId,
@@ -123,6 +125,9 @@ export async function listFilesFound(
     ...(shelf.shows ? { p_shows: [...shelf.shows] } : {}),
     ...(shelf.orUnsorted ? { p_or_unsorted: true } : {}),
     ...(page.words?.trim() ? { p_words: page.words } : {}),
+    // Asked only where they say something, so a first page of every kind reads the door as a database before 00668 holds it.
+    ...(shelf.kind ? { p_kind: shelf.kind } : {}),
+    ...(page.before ? { p_before_at: page.before.at, p_before_id: page.before.id } : {}),
   });
   if (error) throw new DbFailure(error, "files found");
   const found = recordOrEmpty(data);

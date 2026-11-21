@@ -81,4 +81,10 @@ export {
   seePersonNote,
 } from "./people";
 export type { ResolvedPerson, ResolvePersonInput } from "./people";
-export { getThreadIdsWaitingOnYou, getTodayDoneCount, listLastClosedHolds } from "./waiting-on-you";
+export {
+  getThreadIdsWaitingOnYou,
+  getTodayDoneCount,
+  listAdPeopleWaitingOnYou,
+  listLastClosedHolds,
+} from "./waiting-on-you";
+export type { AdPersonWaitingRow } from "./waiting-on-you";

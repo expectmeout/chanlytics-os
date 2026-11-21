@@ -5,6 +5,64 @@
 .ads-live .ads-live-notice {
   margin-bottom: var(--space-3);
 }
+/* AI's one line and who from an ad needs you (lines.tsx), above the ads: each a press the width of the column, its
+   mark, its words, and a chevron that says it opens. AI's floats on the page as the canvas draws it; who needs you is
+   amber, as every Needs you is. */
+.ads-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ads-ai-line,
+.ads-needs-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--control-h-touch);
+  box-sizing: border-box;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ads-ai-line {
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-radius: var(--radius-2xl);
+  background-color: var(--surface-control-fill);
+  background-image: var(--surface-control-sheen);
+  box-shadow: var(--surface-float-depth);
+  font: inherit;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+  color: var(--ink);
+}
+.ads-needs-line {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-2xl);
+  background: var(--warn-soft);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  color: var(--warn-ink);
+}
+.ads-needs-line b {
+  font-weight: var(--weight-semibold);
+}
+.ads-line-said {
+  min-width: 0;
+  text-wrap: pretty;
+}
+.ads-ai-line .ads-line-go {
+  color: var(--ink-faint);
+}
+.ads-ai-line:focus-visible,
+.ads-needs-line:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
 .ads-live-list-head {
   display: flex;
   align-items: baseline;
