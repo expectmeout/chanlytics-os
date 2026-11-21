@@ -122,6 +122,20 @@ const READS = {
   },
 };
 
+// A website's form entry kept with its person (00675): each of its three steps reads the entry's arrival.
+const ENTRY = "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0";
+const AN_ENTRY = {
+  kind: "form_entry.accepted",
+  category: "contact",
+  subject_type: "form_entry",
+  subject_id: ENTRY,
+  data: { form: "signup", owed: ["note", "notice", "confirm"] },
+  created_at: "2026-10-06T00:00:00Z",
+};
+READS.form_entry_note = AN_ENTRY;
+READS.form_entry_notice = AN_ENTRY;
+READS.form_entry_confirm = AN_ENTRY;
+
 const CONV = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
 const PERSON = "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0";
 const APPT = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
@@ -296,6 +310,8 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const reminded = [];
   // The edge's enrolment for an occasion, recorded: its rows are kept once, which is the door's to hold (decision 0119).
   const enrolled = [];
+  // The edge's steps for a website form's entry, recorded: each is settled on the entry, which is the edge's to hold (00675).
+  const stepped = [];
   const ctx = {
     db,
     wire: { whatsapp: null, sms: null },
@@ -335,6 +351,11 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
         return { enrolled: 1, left: 0 };
       },
     },
+    forms: {
+      effect: async (tenantId, entryId, effect) => {
+        stepped.push([tenantId, entryId, effect]);
+      },
+    },
   };
   const job = {
     id: "j-1",
@@ -352,6 +373,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
     offered,
     reminded,
     enrolled,
+    stepped,
     delivery: () => tables.event_deliveries[0],
   };
 }
@@ -453,6 +475,9 @@ test("the harness: every subscriber run twice on one delivery leaves the same ro
       visit_reminder: () => w.reminded.length,
       occasion_enrol: () => w.enrolled.length,
       visit_arrival: () => w.tables.appointments.filter((visit) => visit.arrived_at).length,
+      form_entry_note: () => w.stepped.length,
+      form_entry_notice: () => w.stepped.length,
+      form_entry_confirm: () => w.stepped.length,
     };
     assert.ok(acted[subscriber]() > 0, `${subscriber}: the first run acted`);
     const once = JSON.stringify(w.tables);
@@ -1466,4 +1491,32 @@ test("team_notice tells the workspace that a teammate left, once, on the bell, o
     [["member_left", "A teammate deleted their account"]],
     "the account is gone: no address is asked for, and none is said",
   );
+});
+
+test("a website form's entry: each step is handed its own, and only the notice runs again on the ask's outcome", async () => {
+  for (const [subscriber, effect] of [
+    ["form_entry_note", "note"],
+    ["form_entry_notice", "notice"],
+    ["form_entry_confirm", "confirm"],
+  ]) {
+    const w = world({ subscriber });
+    assert.equal(await dispatchJob(w.ctx, w.job), "done");
+    assert.deepEqual(w.stepped, [[T, ENTRY, effect]], `${subscriber}: its own step of the entry the event names`);
+    // The ask's first outcome (form_entry.asked) is the notice's alone: it waited for the ask to say what became of it.
+    const asked = world({ subscriber });
+    asked.tables.events[0].kind = "form_entry.asked";
+    asked.tables.events[0].data = { state: "done" };
+    asked.tables.event_subscriptions[0].kind = "form_entry.asked";
+    asked.tables.event_deliveries[0].kind = "form_entry.asked";
+    asked.job.payload.kind = "form_entry.asked";
+    assert.equal(await dispatchJob(asked.ctx, asked.job), "done");
+    assert.deepEqual(asked.stepped, subscriber === "form_entry_notice" ? [[T, ENTRY, "notice"]] : [], subscriber);
+  }
+  // A step that fails is a failed delivery, tried again: the edge kept why on the entry.
+  const w = world({ subscriber: "form_entry_notice" });
+  w.ctx.forms.effect = async () => {
+    throw new Error("the notice of form entry f0f0 failed (mail_owed); it tries again");
+  };
+  await assert.rejects(() => dispatchJob(w.ctx, w.job));
+  assert.equal(w.delivery().state, "failed");
 });

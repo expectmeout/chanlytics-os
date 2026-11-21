@@ -5,6 +5,7 @@
 import type { ReceivedEmail } from "@chanlytics/channels/email";
 import type {
   FeedNames,
+  FormEffect,
   FreedTimeOffer,
   JobKind,
   JobNews,
@@ -401,6 +402,14 @@ export interface JobContext {
   occasions?: {
     /** Each sequence that starts on what happened takes its person in, once. Throws when it could not be asked. */
     enrol: (tenantId: TenantId, event: OccasionEvent) => Promise<OccasionEnrolment>;
+  };
+  /**
+   * What a website form's entry owes (00675): its note, its owner's notice and a sign-up's ask, as the edge holds them.
+   * INJECTED like the freed time's offer; a delivery to a form_entry_* subscriber in a runtime without it fails loudly.
+   */
+  forms?: {
+    /** One step of one entry run and settled, once; nothing for one it does not owe. Throws when it failed, after keeping why. */
+    effect: (tenantId: TenantId, entryId: string, effect: FormEffect) => Promise<void>;
   };
   /**
    * A lead's own receptionist built (00497, decision 0079), as the edge holds it: the website read and the model's key

@@ -10979,6 +10979,315 @@ COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p
 
 
 --
+-- Name: form_entries_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.form_entries where tenant_id = new.tenant_id and contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entries_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_erase_on_contact() IS 'When a person is erased, their website form entries go with them (00675, decision 0036).';
+
+
+--
+-- Name: form_entry_settled(uuid, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_entry   public.form_entries%rowtype;
+  v_before  jsonb;
+  v_effects jsonb;
+  v_done    boolean;
+begin
+  if p_effect is null or p_effect not in ('note', 'notice', 'confirm') then
+    raise exception 'An effect is the note, the notice or the confirmation.' using errcode = '22023';
+  end if;
+  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object'
+     or coalesce(p_outcome ->> 'state', '') not in ('done', 'failed') then
+    raise exception 'An outcome is done or failed.' using errcode = '22023';
+  end if;
+  select * into v_entry from public.form_entries e
+   where e.tenant_id = p_tenant_id and e.id = p_entry_id
+   for update;
+  -- Gone: its person was erased since. Nothing is owed any more.
+  if not found then
+    return jsonb_build_object('settled', false, 'gone', true, 'effects', '{}'::jsonb);
+  end if;
+  v_before := v_entry.effects -> p_effect;
+  -- A step once done stays as it was: a second run, or a twin delivery that lost to it, never says something else of
+  -- it (an ask done is never called open; a notice told is never called failed).
+  if v_before ->> 'state' = 'done' then
+    return jsonb_build_object('settled', false, 'gone', false, 'effects', v_entry.effects);
+  end if;
+  v_effects := v_entry.effects || jsonb_build_object(p_effect, p_outcome || jsonb_build_object('at', now()));
+  v_done := not exists (
+    select 1 from unnest(v_entry.owed) o where (v_effects -> o ->> 'state') is distinct from 'done');
+  update public.form_entries e
+     set effects = v_effects,
+         state = case when v_done then 'processed' else e.state end,
+         told_at = case when p_effect = 'notice' and coalesce((p_outcome ->> 'told')::boolean, false)
+                        then coalesce(e.told_at, now()) else e.told_at end
+   where e.tenant_id = p_tenant_id and e.id = p_entry_id;
+  -- The confirmation's first outcome is news to the notice, which says what became of the ask.
+  if p_effect = 'confirm' and v_before is null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.asked', 'contact', 'form_entry', p_entry_id,
+            jsonb_build_object('state', p_outcome ->> 'state'));
+  end if;
+  return jsonb_build_object('settled', true, 'gone', false, 'effects', v_effects);
+end $$;
+
+
+--
+-- Name: FUNCTION form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) IS 'One effect of a website form entry settled (00675): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
+
+
+--
+-- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_entry   uuid;
+  v_contact uuid;
+  v_person  jsonb;
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_form is null or p_form not in ('signup', 'request') then
+    raise exception 'A form is a sign-up or a request.' using errcode = '22023';
+  end if;
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' or p_person is null or jsonb_typeof(p_person) <> 'object' then
+    raise exception 'The answers and the person are objects.' using errcode = '22023';
+  end if;
+  if p_words is null or p_words !~ '^[0-9a-f]{64}$' then
+    raise exception 'The words are a digest.' using errcode = '22023';
+  end if;
+
+  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on.
+  if p_key_id is null then
+    insert into public.form_keys as k (tenant_id, first, last_used_at)
+    values (p_tenant_id, true, now())
+    on conflict (tenant_id) where first do update set last_used_at = now()
+    returning k.id into p_key_id;
+  else
+    update public.form_keys set last_used_at = now() where tenant_id = p_tenant_id and id = p_key_id;
+  end if;
+
+  -- Once. The site's own id is the entry's; with none, the same words within ten minutes are a retry (call 19), and
+  -- later they are a new entry. Two posts of the same words at once wait for each other here.
+  if nullif(btrim(coalesce(p_ref, '')), '') is not null then
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+  else
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || p_words, 0));
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.words = p_words and e.ref is null
+       and e.created_at > now() - interval '10 minutes'
+     order by e.created_at desc
+     limit 1;
+  end if;
+  if v_entry is not null then
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+  end if;
+
+  -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
+  -- nothing of theirs is written: the door's own writes are taken back with it.
+  begin
+    v_person := public.resolve_person(
+      p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
+      coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
+  exception when sqlstate 'PE001' then
+    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+  end;
+  v_contact := (v_person ->> 'contact_id')::uuid;
+
+  begin
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, nullif(btrim(coalesce(p_ref, '')), ''), p_words,
+            coalesce(p_owed, '{}'))
+    returning id into v_entry;
+  exception when unique_violation then
+    -- The same site id at the same moment: the other post kept it.
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+  end;
+
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry,
+          jsonb_build_object('form', p_form, 'owed', to_jsonb(coalesce(p_owed, '{}'))));
+
+  return jsonb_build_object('outcome', 'accepted', 'entry_id', v_entry, 'contact_id', v_contact,
+                            'person', v_person ->> 'outcome');
+end $_$;
+
+
+--
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+
+
+--
+-- Name: form_key_change(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_old  public.form_keys%rowtype;
+  v_id   uuid;
+  v_name text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
+    raise exception 'A key is kept as its digest.' using errcode = '22023';
+  end if;
+  -- A key that works and is not already on its last day: one changed twice would leave two old keys working.
+  select * into v_old from public.form_keys k
+   where k.tenant_id = p_tenant_id and k.id = p_key_id and k.ends_at is null
+   for update;
+  if not found then
+    raise exception 'That key is ending or has ended already.' using errcode = 'P0002';
+  end if;
+  -- The new key keeps the site's name; the first key had none, and its new one is the website's.
+  v_name := coalesce(v_old.name, 'Website');
+  insert into public.form_keys (tenant_id, name, hash, made_by)
+  values (p_tenant_id, v_name, p_hash, auth.uid())
+  returning id into v_id;
+  -- The old one keeps working for a day, so the site can be given the new one without a form refused.
+  update public.form_keys set ends_at = now() + interval '1 day' where tenant_id = p_tenant_id and id = p_key_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
+          jsonb_build_object('act', 'changed', 'was', p_key_id, 'by', auth.uid()));
+  return jsonb_build_object('id', v_id, 'name', v_name);
+end $_$;
+
+
+--
+-- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+
+
+--
+-- Name: form_key_end(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ended integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.form_keys
+     set ends_at = now()
+   where tenant_id = p_tenant_id and id = p_key_id and (ends_at is null or ends_at > now());
+  get diagnostics v_ended = row_count;
+  if v_ended > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_key.set', 'settings', 'form_key', p_key_id,
+            jsonb_build_object('act', 'ended', 'by', auth.uid()));
+  end if;
+  return v_ended > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION form_key_end(p_tenant_id uuid, p_key_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An owner''s or a partner''s door (00675): a key refused from now on, the first key too. Answers whether one still working was ended.';
+
+
+--
+-- Name: form_key_make(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_name is null or char_length(btrim(p_name)) not between 1 and 60 then
+    raise exception 'A key is named for its site, in at most 60 characters.' using errcode = '22023';
+  end if;
+  if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
+    raise exception 'A key is kept as its digest.' using errcode = '22023';
+  end if;
+  -- One key a site: a workspace has at most ten that still work.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_keys', 0));
+  if (select count(*) from public.form_keys k
+       where k.tenant_id = p_tenant_id and (k.ends_at is null or k.ends_at > now())) >= 10 then
+    raise exception 'A workspace has at most ten keys that work. End one first.' using errcode = '22023';
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by)
+  values (p_tenant_id, btrim(p_name), p_hash, auth.uid())
+  returning id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
+          jsonb_build_object('act', 'made', 'by', auth.uid()));
+  return v_id;
+end $_$;
+
+
+--
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+
+
+--
 -- Name: found_read_spend(uuid, text, text, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -44691,6 +45000,96 @@ COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''
 
 
 --
+-- Name: form_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    key_id uuid,
+    form text NOT NULL,
+    answers jsonb NOT NULL,
+    ref text,
+    words text NOT NULL,
+    owed text[] NOT NULL,
+    effects jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state text DEFAULT 'accepted'::text NOT NULL,
+    told_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
+    CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
+    CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
+    CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
+    CONSTRAINT form_entries_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
+    CONSTRAINT form_entries_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'processed'::text]))),
+    CONSTRAINT form_entries_words_check CHECK ((words ~ '^[0-9a-f]{64}$'::text))
+);
+
+
+--
+-- Name: TABLE form_entries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_entries IS 'One entry of a website''s form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
+
+
+--
+-- Name: COLUMN form_entries.owed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.owed IS 'What the entry owes after it, each by its own subscriber: note (what they asked, waiting on their page for Keep), notice (the owner told), confirm (a sign-up with an address that arrived as it was sent is asked to confirm).';
+
+
+--
+-- Name: COLUMN form_entries.effects; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.effects IS 'Each owed effect''s outcome, by name: {state: done|failed, why?, outcome?, told?, at}. Written only by form_entry_settled.';
+
+
+--
+-- Name: COLUMN form_entries.told_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.told_at IS 'When the owner first had a notice of the entry (its bell row kept). An accepted entry nobody was told of after ten minutes is paged (apps/edge/lib/website/form-watch.ts).';
+
+
+--
+-- Name: form_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text,
+    hash text,
+    first boolean DEFAULT false NOT NULL,
+    made_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    CONSTRAINT form_keys_hash_check CHECK (((hash IS NULL) OR (hash ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT form_keys_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60)))),
+    CONSTRAINT form_keys_one_way CHECK (((first = (hash IS NULL)) AND (first = (name IS NULL))))
+);
+
+
+--
+-- Name: TABLE form_keys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00675, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
+
+
+--
+-- Name: COLUMN form_keys.ends_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_keys.ends_at IS 'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
+
+
+--
 -- Name: google_connections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -49502,6 +49901,38 @@ ALTER TABLE ONLY public.files
 
 
 --
+-- Name: form_entries form_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_entries form_entries_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: form_keys form_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_keys form_keys_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: google_connections google_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -51553,6 +51984,62 @@ CREATE INDEX files_removed ON public.files USING btree (removed_at) WHERE (remov
 --
 
 CREATE INDEX files_superseded ON public.files USING btree (superseded_at) WHERE ((superseded_at IS NOT NULL) AND (removed_at IS NULL));
+
+
+--
+-- Name: form_entries_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_contact ON public.form_entries USING btree (tenant_id, contact_id);
+
+
+--
+-- Name: form_entries_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_key ON public.form_entries USING btree (tenant_id, key_id);
+
+
+--
+-- Name: form_entries_made; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_made ON public.form_entries USING btree (tenant_id, created_at);
+
+
+--
+-- Name: form_entries_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE (ref IS NOT NULL);
+
+
+--
+-- Name: form_entries_untold; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_untold ON public.form_entries USING btree (created_at) WHERE (told_at IS NULL);
+
+
+--
+-- Name: form_entries_words; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_words ON public.form_entries USING btree (tenant_id, words, created_at);
+
+
+--
+-- Name: form_keys_first; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_keys_first ON public.form_keys USING btree (tenant_id) WHERE first;
+
+
+--
+-- Name: form_keys_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_keys_hash ON public.form_keys USING btree (hash) WHERE (hash IS NOT NULL);
 
 
 --
@@ -53625,6 +54112,13 @@ CREATE TRIGGER contacts_erase_marks_its_notices AFTER UPDATE OF erased_at ON pub
 --
 
 CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.contact_events_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_takes_form_entries; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_form_entries AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_erase_on_contact();
 
 
 --
@@ -56096,6 +56590,38 @@ ALTER TABLE ONLY public.files
 
 
 --
+-- Name: form_entries form_entries_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entries form_entries_key_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_key_id_same_workspace FOREIGN KEY (tenant_id, key_id) REFERENCES public.form_keys(tenant_id, id) ON DELETE SET NULL (key_id);
+
+
+--
+-- Name: form_entries form_entries_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_keys form_keys_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: google_connections google_connections_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -58307,6 +58833,36 @@ ALTER TABLE public.files_let_go ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY files_member_select ON public.files FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_entries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_entries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_entries form_entries_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_entries_member_select ON public.form_entries FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_keys; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_keys ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_keys form_keys_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_keys_member_select ON public.form_keys FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -61442,6 +61998,57 @@ GRANT ALL ON FUNCTION public.footage_quoted(p_name text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_entries_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_end(p_tenant_id uuid, p_key_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO service_role;
 
 
 --
@@ -67503,6 +68110,22 @@ GRANT SELECT(yes_back) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files_let_go TO service_role;
+
+
+--
+-- Name: TABLE form_entries; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_entries TO authenticated;
+GRANT ALL ON TABLE public.form_entries TO service_role;
+
+
+--
+-- Name: TABLE form_keys; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_keys TO authenticated;
+GRANT ALL ON TABLE public.form_keys TO service_role;
 
 
 --

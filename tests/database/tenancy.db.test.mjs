@@ -248,6 +248,16 @@ before(async () => {
   await seed("pieces", { tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "seeded" });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
+  // A website's key and an entry it sent (00675): members read them, only their doors write them.
+  await seed("form_keys", { tenant_id: A, name: "Seeded site", hash: "a".repeat(64) });
+  await seed("form_entries", {
+    tenant_id: A,
+    contact_id: ctx.contact,
+    form: "request",
+    answers: {},
+    words: "b".repeat(64),
+    owed: [],
+  });
   // Keyed by their workspace and day, so no id to pick.
   await seed("ask_journal_days", { tenant_id: A, day: "2026-10-20", state: "written", text: "A quiet day." }, null);
   await seed("ask_mornings", { tenant_id: A, user_id: ctx.viewerId, day: "2026-10-21" }, null);
@@ -809,6 +819,11 @@ const TENANT_TABLES = {
   ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
   files: ["member", () => fileRow("a-strangers")],
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
+  form_keys: ["member", () => ({ tenant_id: A, name: "A stranger's site", hash: "c".repeat(64) })],
+  form_entries: [
+    "member",
+    () => ({ tenant_id: A, contact_id: ctx.contact, form: "request", answers: {}, words: "d".repeat(64), owed: [] }),
+  ],
   file_consents: ["member", () => ({ tenant_id: A, file_id: ctx.file, use: "ad", who: "Stranger", said_in: "ai" })],
   // Where a post went and each send of it (00611): a member reads them, the service role writes them.
   posts: ["member", () => ({ tenant_id: A, file_id: ctx.file, place: "google", kind: "picture", status: "published" })],

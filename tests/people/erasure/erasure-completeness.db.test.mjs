@@ -116,6 +116,9 @@ const SHAPED = {
   "contacts.before": { via: "vagaro", last_visit: "2026-09-30", visits: 12, birthday: "--04-23" },
   "conversations.control_kind": "call",
   "leads.mark_path": `${"a".repeat(64)}.png`,
+  // A website entry's digest of its words, and the steps it owes (00675): hex and step names, as their CHECKs hold them.
+  "form_entries.words": "e".repeat(64),
+  "form_entries.owed": ["note", "notice"],
 };
 
 before(async () => {
@@ -607,6 +610,18 @@ async function seed() {
     await db.from("ask_journal_days").insert({ tenant_id: T, day: "2026-10-20", state: "written", text: WORDS }),
     "ask_journal_days",
   );
+  // A website form they sent (00675): what they typed, the site's id for it and what came of it go with them.
+  await insert("form_entries", {
+    tenant_id: T,
+    contact_id: A,
+    form: "request",
+    answers: { form: "request", email: EMAIL, phone: PHONE, note: WORDS },
+    ref: WORDS.slice(0, 100),
+    words: SHAPED["form_entries.words"],
+    owed: SHAPED["form_entries.owed"],
+    effects: { note: { state: "failed", why: WORDS } },
+  });
+
   // What their mail to a connected mailbox left there, and the workspace's word that they are a person (00483): both
   // go with them by the erasure's trigger.
   ok(

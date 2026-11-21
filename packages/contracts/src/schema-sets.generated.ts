@@ -129,6 +129,8 @@ export const SCHEMA_SETS = {
   "files.source": ["upload", "google_profile", "google_listing", "website", "instagram", "made", "drive"],
   "files.status": ["inbox", "filed", "set_aside"],
   "files.who_in_it": ["not_asked", "no_one"],
+  "form_entries.form": ["signup", "request"],
+  "form_entries.state": ["accepted", "processed"],
   "google_reviews.origin": ["places", "profile"],
   "imports.source": [
     "google_reviews", "calendar", "clients_file", "mailbox", "contacts", "whatsapp_contacts",

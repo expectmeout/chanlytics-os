@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 194 | 194 |
+| door | 197 | 197 |
 | reader | 89 | 0 |
-| the server's | 412 | 344 |
+| the server's | 414 | 346 |
 | computed column | 3 | 0 |
-| trigger | 113 | 83 |
-| all | 811 | 621 |
+| trigger | 114 | 84 |
+| all | 817 | 627 |
 
 ## Called by nothing
 
@@ -121,7 +121,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 21 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 24 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -268,6 +268,12 @@ being read is dropped by a migration.
 | `footage_hearers` | the server's | the server | SQL `footage_ring` | Who hears that a watched folder or its account needs someone (00657): |
 | `footage_quoted` | the server's | the server | SQL `files_ring_footage_in`, `media_sources_ring` and 1 more | A watched folder's name as the bell says it (00657): |
 | `footage_ring` | the server's | the server | SQL `media_sources_ring`, `source_connections_ring` and 1 more | One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: |
+| `form_entries_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_form_entries on contacts` | When a person is erased, their website form entries go with them (00675, decision 0036). |
+| `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |
+| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675; |
+| `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
+| `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
+| `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675; |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
 | `get_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts` |  |
@@ -675,7 +681,7 @@ being read is dropped by a migration.
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
 | `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ads_sweep_ask`, `ask_for_tick` and 20 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
-| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 6 more | The one door a person is resolved by (decision 0034): |
+| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 7 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
 | `run_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts`; SQL `playbook_totals` | Each named run's people by state (queued, sent, skipped, failed), its receipts (delivered; |

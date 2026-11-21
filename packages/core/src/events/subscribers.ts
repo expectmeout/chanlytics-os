@@ -55,6 +55,11 @@
  *                     bookingArriving) is stamped on its visit with the event's own moment (decision 0141, 00647), so a
  *                     day's bookings are counted from the record and never from a second copy of the rule. The later
  *                     moment wins, so a second run moves nothing.
+ *   form_entry_note, form_entry_notice, form_entry_confirm
+ *                     a website's form entry kept with its person (form_entry.accepted, 00675) is handed to the edge's
+ *                     steps, each its own: what they asked as a note to keep, the owner's notice, a sign-up's ask to
+ *                     confirm. The ask's first outcome (form_entry.asked) runs the notice again, which waited for it. Each
+ *                     step is settled on the entry, and one done is never run again.
  */
 import { heldContactId } from "@chanlytics/contracts";
 import {
@@ -75,6 +80,7 @@ import {
   waitsOnAPerson,
   type BookedVisit,
   type EventSubscriber,
+  type FormEffect,
   type FreedTimeCalendar,
   type FreedTimeEvent,
   type FreedTimeOffer,
@@ -202,6 +208,11 @@ export interface SubscriberPorts {
    * once for the event the news names. Throws when it could not, so the delivery tries again.
    */
   tell(news: JobNews): Promise<void>;
+  /**
+   * One step a website form's entry owes, run by the edge and settled on the entry (00675): nothing for one it does not
+   * owe or did already. Throws when it failed, so the delivery tries again.
+   */
+  formEffect(tenantId: TenantId, entryId: string, effect: FormEffect): Promise<void>;
 }
 
 /** A subscriber: the event, once; nothing to return, a throw is a failed delivery. */
@@ -244,6 +255,25 @@ function reasonOfEvent(event: DeliveredEvent): unknown {
  * that died taking it in (jobs settle.ts). Told here as well, the owner would hear of one email twice.
  */
 const TOLD_WHERE_TAKEN_IN = "email_review";
+
+/**
+ * The website form entry an event names, and whether it is the entry's own arrival (form_entry.accepted) or its ask
+ * settled (form_entry.asked); null for any other event.
+ */
+function formEntryOf(event: DeliveredEvent): { entryId: string; asked: boolean } | null {
+  if (event.subject_type !== "form_entry" || !event.subject_id) return null;
+  if (event.kind === "form_entry.accepted") return { entryId: event.subject_id, asked: false };
+  if (event.kind === "form_entry.asked") return { entryId: event.subject_id, asked: true };
+  return null;
+}
+
+/** A step a website form's entry owes, handed to the edge on the entry's arrival (and, for the notice, on its ask). */
+const formStep =
+  (effect: FormEffect, onAsked: boolean): Subscriber =>
+  async (event, ports) => {
+    const entry = formEntryOf(event);
+    if (entry && (!entry.asked || onAsked)) await ports.formEffect(event.tenant_id, entry.entryId, effect);
+  };
 
 /** The changes that may book a lead: an appointment that is there now (a cancelled one books nobody). */
 const BOOKS = new Set(["added", "confirmed", "moved"]);
@@ -302,6 +332,9 @@ async function offerForNews(
 }
 
 export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
+  form_entry_note: formStep("note", false),
+  form_entry_notice: formStep("notice", true),
+  form_entry_confirm: formStep("confirm", false),
   reply_draft: async (event, ports) => {
     const ref = draftHoldOfEvent(event);
     if (ref) await ports.askReplyDraft(event.tenant_id, ref);

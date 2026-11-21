@@ -166,6 +166,7 @@ export const ROUTES = {
   "GET today": { method: "GET", path: "/api/v1/today" },
   "GET today/people": { method: "GET", path: "/api/v1/today/people" },
   "GET views": { method: "GET", path: "/api/v1/views" },
+  "GET website-forms": { method: "GET", path: "/api/v1/website-forms" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
   "PATCH files/[id]": { method: "PATCH", path: "/api/v1/files/[id]" },
@@ -411,6 +412,7 @@ export const ROUTES = {
   "POST templates/versions": { method: "POST", path: "/api/v1/templates/versions" },
   "POST templates/versions/rewrite": { method: "POST", path: "/api/v1/templates/versions/rewrite" },
   "POST vitals": { method: "POST", path: "/api/v1/vitals" },
+  "POST website-forms": { method: "POST", path: "/api/v1/website-forms" },
   "POST workspaces/create": { method: "POST", path: "/api/v1/workspaces/create" },
   "POST workspaces/logo/lookup": { method: "POST", path: "/api/v1/workspaces/logo/lookup" },
   "PUT business-record": { method: "PUT", path: "/api/v1/business-record" },
@@ -610,6 +612,7 @@ export type Routes = {
   "GET today": typeof import("../../app/api/v1/today/route").GET;
   "GET today/people": typeof import("../../app/api/v1/today/people/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
+  "GET website-forms": typeof import("../../app/api/v1/website-forms/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
   "PATCH files/[id]": typeof import("../../app/api/v1/files/[id]/route").PATCH;
@@ -855,6 +858,7 @@ export type Routes = {
   "POST templates/versions": typeof import("../../app/api/v1/templates/versions/route").POST;
   "POST templates/versions/rewrite": typeof import("../../app/api/v1/templates/versions/rewrite/route").POST;
   "POST vitals": typeof import("../../app/api/v1/vitals/route").POST;
+  "POST website-forms": typeof import("../../app/api/v1/website-forms/route").POST;
   "POST workspaces/create": typeof import("../../app/api/v1/workspaces/create/route").POST;
   "POST workspaces/logo/lookup": typeof import("../../app/api/v1/workspaces/logo/lookup/route").POST;
   "PUT business-record": typeof import("../../app/api/v1/business-record/route").PUT;
