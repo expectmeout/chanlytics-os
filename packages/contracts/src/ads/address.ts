@@ -9,6 +9,7 @@
  *   campaigns/ads:new:copy:<id>       New ad filled from an ad, as a copy               (Make a copy)
  *   campaigns/ads:new:again:<id>      New ad filled to run an ended ad again            (Run it again)
  *   campaigns/ads:new:google:<id>     New ad on Google's Call door, with this ad's offer (Also run on Google)
+ *   campaigns/ads:new:piece:<id>      New ad drafted around a made piece, by its file   (Run as an ad, in Content)
  *
  * A word the view does not know is the page (a link must never land on nothing). A root module of the package: Reports,
  * People and Campaigns' routes link here, and the frame's route chunk reads `ADS_WORDS`, so none of it is page-only.
@@ -20,10 +21,13 @@ export const ADS_ROUTE = "campaigns/ads";
 
 const DOORS: readonly AdDoor[] = ["whatsapp", "call", "form"];
 
-/** How New ad starts from an ad: a copy of it, to run it again once it has ended, or the same offer on Google's Call door. */
-export type AdStart = "copy" | "again" | "google";
+/**
+ * How New ad starts from something: an ad's copy, an ended ad run again, an ad's offer on Google's Call door, or a piece
+ * Content made, as the draft's picture (the Ads plan's 6.8, join 3: Content's page only opens this address).
+ */
+export type AdStart = "copy" | "again" | "google" | "piece";
 
-const STARTS: readonly AdStart[] = ["copy", "again", "google"];
+const STARTS: readonly AdStart[] = ["copy", "again", "google", "piece"];
 
 /** What the address asks of the Ads view. */
 export interface AdsAddress {

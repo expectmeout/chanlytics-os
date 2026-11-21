@@ -118,6 +118,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `draft` | object | no |  |
 | `act` | one of `"next_picture"` | no |  |
 | `service` | string | no | at least 1 characters; at most 200 characters |
+| `picture` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `most` | integer | no | ≤ 100000000 |
 
 ### `GET /api/v1/ads/page`

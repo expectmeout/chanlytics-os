@@ -34,6 +34,8 @@ const { readerContext, readerCache } = await import(at("apps/dashboard/src/serve
 const { AD_SKILL } = await import(at("apps/dashboard/src/server/ask/skills/ad/skill.ts"));
 const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { adDraftAct } = await import(at("apps/dashboard/src/server/ask/tools/act/ads/draft.ts"));
+const { readPieceAd } = await import(at("apps/dashboard/src/server/content/ad-pictures.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const C = await import("@chanlytics/contracts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -148,6 +150,8 @@ beforeEach(() => {
   calls = [];
   readerCache.clear();
   forgetFeeds();
+  // The service role's client, which a test of made pieces hands in (seatedMade): built from the environment again.
+  setServiceClient(null);
   globalThis.fetch = async (url) => {
     // The calendar a business links (calendar.ical_url): nothing on it is taken, so every hour it offers is open.
     if (String(url).startsWith("https://cal.example/"))
@@ -168,6 +172,7 @@ beforeEach(() => {
 after(() => {
   globalThis.fetch = real;
   setModelStream(null);
+  setServiceClient(null);
 });
 
 /** The model, answering `answer` (or throwing `refused`), one text event and a stop, as the gateway streams them. */
@@ -646,6 +651,9 @@ test("what the routes take: a draft's own shape, and nothing else", () => {
   assert.equal(AdDraftBodySchema.safeParse({ draft, act: "turn_on" }).success, false);
   // AI's card: a service by its name, and the owner's most in whole units.
   assert.equal(AdDraftBodySchema.safeParse({ service: "Consultation", most: 300 }).success, true);
+  // Run as an ad, in Content: a picture by its file's id, and nothing else in its place.
+  assert.equal(AdDraftBodySchema.safeParse({ picture: FILE(1) }).success, true);
+  assert.equal(AdDraftBodySchema.safeParse({ picture: "front-desk-1" }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ most: 0 }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ most: 2.5 }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ draft: { ...draft, picture: "not-an-id" } }).success, false);
@@ -951,4 +959,192 @@ test("a service named in a sentence: the writer names it in a few words, kept wi
   }
   // The writer is told to answer it, as its schema requires.
   assert.ok(C.AD_CRAFT_JSON_SCHEMA.required.includes("label"));
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Run as an ad, on a made piece in Content (the plan's 6.8, join 3, with G13 and G15)
+
+/** A post AI made of the front desk: nobody in it, the feed's portrait shape. */
+const piece = (n, over = {}) =>
+  file(n, {
+    source: "made",
+    name: `post-${n}`,
+    width: 1080,
+    height: 1350,
+    look: { line: "A post of the front desk.", people: { count: 0, recognizable: 0 }, issues: [] },
+    ...over,
+  });
+/** A video AI made, ready to play. */
+const pieceVideo = (over = {}) =>
+  piece(7, { kind: "video", mime: "video/mp4", seconds: 20, media_status: "ready", ...over });
+/** What a made piece was drawn from, as files_drawn_from answers it: the photo or the clips it shows. */
+const drawnFrom = (from) => ({ file_id: FILE(7), from_id: from });
+/** Someone at the chair, whom someone who knows them could recognize. */
+const AT_THE_CHAIR = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
+/** A video's sound, heard whole: with music, or with none. */
+const HEARD = (music) => ({
+  note: {
+    speech: false,
+    music: music ? { present: true, kind: "pop" } : { present: false },
+    voices: [],
+    sounds: [],
+    feel: music ? "bright" : "calm",
+    unsure: false,
+  },
+});
+
+/**
+ * A workspace whose made pieces say what they were drawn from. The service role reads that (files_drawn_from), so its
+ * client is this workspace's database in memory, as the session's is.
+ */
+function seatedMade(tables, drawn = [], role = "owner") {
+  const who = seated(tables, role);
+  const db = fakeDb(
+    who.tables,
+    {},
+    {
+      ads_page_counts: () => NO_COUNTS,
+      ...draftDoors(who.tables, who.userId, who.keeps),
+      files_drawn_from: ({ p_ids }) => drawn.filter((row) => p_ids.includes(row.file_id)),
+    },
+  );
+  setServiceClient(db);
+  const ctx = { supabase: db, userId: who.userId, email: "ada@example.com", params: {} };
+  return { ...who, rc: readerContext(ctx, { tenantId: who.tenantId, role }, NOW) };
+}
+
+test("Run as an ad: a fresh draft around the piece Content chose, kept, and never 'gone' for being older than the newest read", async () => {
+  // Thirty newer posts, each fine in ads, fill the shelf a draft reads: the one chosen is older than all of them.
+  const id = (n) => `f${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
+  const newer = (n) => `2026-11-19T${String(10 + (n % 10)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}:00Z`;
+  const others = Array.from({ length: 30 }, (_, n) =>
+    piece(1, { id: id(300 + n), name: `post-new-${n}`, created_at: newer(n), updated_at: newer(n) }),
+  );
+  const chosen = piece(7, { created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-01T10:00:00Z" });
+  const who = seatedMade(world({ tables: { files: [...others, chosen, file(1)] } }));
+  const plain = await draftAd(who.rc, {});
+  assert.notEqual(plain.draft.picture.id, FILE(7), "+ New picks by its own rule: the newest piece AI made");
+  const ran = await draftAd(who.rc, { picture: FILE(7) });
+  assert.equal(ran.can, true);
+  assert.deepEqual(ran.draft.picture, { id: FILE(7), kind: "photo", name: "post-7", made: true });
+  // Files says no service a picture is about: the draft's own pick, said as it is for + New.
+  assert.deepEqual([ran.draft.service, ran.picked, ran.draft.versions, ran.checks], ["Consultation", "first", [], []]);
+  assert.equal(who.keeps.at(-1).draft.picture, FILE(7), "kept in place of the draft there was");
+  // Judged again as the screen sends it, opened again from the kept draft, and written: still its picture.
+  const judged = await draftAd(who.rc, { draft: sent(ran) });
+  assert.deepEqual([judged.draft.picture.id, judged.checks], [FILE(7), []]);
+  const reopened = await draftAd(who.rc, {});
+  assert.deepEqual([reopened.draft.picture.id, reopened.checks], [FILE(7), []]);
+  modelSays(
+    wrote([
+      { headline: "Consultation", text: "A consultation at Harbor Studio. Message us on WhatsApp to pick a time." },
+      { headline: "Harbor Studio", text: "Consultations at Harbor Studio. Message us on WhatsApp for a time." },
+      { headline: "A consultation", text: "Message Harbor Studio on WhatsApp to book a consultation." },
+    ]),
+  );
+  const words = await writeAdWords(who, { job: "write", draft: sent(ran) });
+  assert.deepEqual([words.wrote, words.draft.picture.id, words.checks], [{ ok: true }, FILE(7), []]);
+  // Nothing is made at Meta by drafting: this file's fetch answers the edge's word on Ads alone, and refuses the rest.
+});
+
+test("Run as an ad offers the service the piece is about, where its name says one, as a calendar title names one", async () => {
+  const offered = async (name, tables = {}) => {
+    const who = seatedMade(world({ tables: { files: [file(1), piece(7, { name })], ...tables } }));
+    const answer = await draftAd(who.rc, { picture: FILE(7) });
+    return [answer.draft.service, answer.picked];
+  };
+  // A post named for its headline: the service it names, said with no "why this service", since the piece says it.
+  assert.deepEqual(await offered("Autumn FIRST appointment"), ["First appointment", null]);
+  // A name that names none, or a service an ad made here already runs for: the draft's own pick, and why.
+  assert.deepEqual(await offered("The front desk"), ["Consultation", "first"]);
+  const running = {
+    id: "d0000000-0000-4000-8000-000000000002",
+    tenant_id: A,
+    account_id: ACCOUNT,
+    platform: "meta",
+    origin: "chanlytics",
+    name: "First appointment",
+    door: "whatsapp",
+    status: "made",
+    intent: "on",
+    platform_state: "ACTIVE",
+    platform_ad_id: "23850000000000002",
+    budget_kind: "total",
+    budget_minor: 12000,
+    budget_left_minor: 9000,
+    ends_at: "2026-12-10T22:00:00Z",
+    version: 1,
+    created_at: "2026-11-10T10:00:00Z",
+  };
+  assert.deepEqual(await offered("Autumn first appointment", { ads: [running] }), ["Consultation", "first"]);
+  // AI's card named one: the card's, whatever the piece is named.
+  const who = seatedMade(world({ tables: { files: [file(1), piece(7, { name: "Autumn first appointment" })] } }));
+  const both = await draftAd(who.rc, { picture: FILE(7), service: "Consultation" });
+  assert.deepEqual([both.draft.service, both.draft.picture.id, both.picked], ["Consultation", FILE(7), null]);
+});
+
+test("Run as an ad on a piece that may not run: the one thing missing for it, never another picture, and nothing kept", async () => {
+  const ranOn = async (files, drawn = [], tables = {}) => {
+    const who = seatedMade(world({ tables: { files: [file(1), ...files], ...tables } }), drawn);
+    const answer = await draftAd(who.rc, { picture: FILE(7) });
+    return { got: answer.can ? answer.draft.picture.id : answer.missing, kept: who.keeps.length };
+  };
+  // Fine: drawn from a photo whose person said yes to ads.
+  const yes = file(2, { look: AT_THE_CHAIR, yes_for: ["ad", "post"] });
+  assert.deepEqual(await ranOn([piece(7), yes], [drawnFrom(FILE(2))]), { got: FILE(7), kept: 1 });
+  // Someone shown, on the piece or on the photo it was drawn from with a yes for posts alone. The front desk photo,
+  // fine in ads, stands beside it the whole time, and is never offered in its place.
+  assert.deepEqual(await ranOn([piece(7, { look: AT_THE_CHAIR })]), { got: "picture_person", kept: 0 });
+  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
+  assert.deepEqual(await ranOn([piece(7), postsOnly], [drawnFrom(FILE(2))]), { got: "picture_person", kept: 0 });
+  // A video with music, or not heard yet; a quiet square one runs; a story's tall shape is not a feed's.
+  assert.equal((await ranOn([pieceVideo({ sound: HEARD(true) })])).got, "picture_music");
+  assert.equal((await ranOn([pieceVideo({ sound: null })])).got, "picture_music");
+  assert.equal((await ranOn([pieceVideo({ sound: HEARD(false), width: 1080, height: 1080 })])).got, FILE(7));
+  assert.equal((await ranOn([piece(7, { width: 1080, height: 1920 })])).got, "picture");
+  // Deleted, or set aside, since the press: gone, said as such; an ad account not connected is said first.
+  assert.equal((await ranOn([piece(7, { removed_at: "2026-11-19T14:00:00Z" })])).got, "picture_gone");
+  assert.equal((await ranOn([piece(7, { status: "set_aside" })])).got, "picture_gone");
+  assert.equal((await ranOn([])).got, "picture_gone");
+  assert.equal((await ranOn([piece(7)], [], { ad_accounts: [] })).got, "account");
+});
+
+test("a made piece says as it opens whether it may run as an ad: Content's one rule, where Ads is on and an account connected", async () => {
+  const standsOf = async (row, { drawn = [], others = [], tables = {} } = {}) => {
+    const who = seatedMade(world({ tables: { files: [row, ...others], ...tables } }), drawn);
+    return readPieceAd(
+      who.rc,
+      who.tables.files.find((one) => one.id === row.id),
+    );
+  };
+  assert.deepEqual(await standsOf(piece(7)), { is: "may" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR })), { is: "wont", why: "person" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR, yes_for: ["ad"] })), { is: "may" });
+  assert.deepEqual(
+    await standsOf(piece(7), {
+      drawn: [drawnFrom(FILE(2))],
+      others: [file(2, { look: AT_THE_CHAIR, yes_for: ["post"] })],
+    }),
+    { is: "wont", why: "person" },
+    "a piece shows who its photo shows: a yes for posts doesn't cover an ad",
+  );
+  // Music, and a video not heard yet: both held back, each said as what it is.
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(true) })), { is: "wont", why: "music" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: null })), { is: "wont", why: "unheard" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), width: 1080, height: 1080 })), { is: "may" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), width: 1080, height: 1920 })), {
+    is: "wont",
+    why: "shape",
+  });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), seconds: 90 })), { is: "wont", why: "length" });
+  // No ad account connected yet: that is what it says, whatever the picture.
+  assert.deepEqual(await standsOf(piece(7), { tables: { ad_accounts: [] } }), { is: "no_account" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR }), { tables: { ad_accounts: [] } }), {
+    is: "no_account",
+  });
+  // Nothing said: a photo of the Library, a video not ready to play, and Ads not on in this workspace here.
+  assert.equal(await standsOf(file(1)), null);
+  assert.equal(await standsOf(pieceVideo({ media_status: "processing" })), null);
+  offered = false;
+  assert.equal(await standsOf(piece(7)), null);
 });
