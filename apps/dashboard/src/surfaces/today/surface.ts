@@ -29,6 +29,7 @@ function publishToday(h: TodayReadDto, now: Date): boolean {
       previewsTried: h.previews_tried,
       doneToday: h.done_today,
       word: h.word ?? null,
+      ai: h.ai ?? null,
     }),
   );
   if (vm === was) return false;

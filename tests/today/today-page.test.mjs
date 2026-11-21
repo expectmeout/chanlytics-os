@@ -1101,7 +1101,7 @@ test("AI found ranks what the workspace's own counts say first: the first its ca
   assert.equal(textOf(find(card, (n) => classes(n).includes("calm-title"))), ranked[0].head, "its head");
   assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), ranked[0].sub, "its numbers under it");
   assert.equal(textOf(byTestId(card, "today-found-act")).trim(), ranked[0].cta.label, "its one door");
-  assert.ok(byTestId(card, "today-found-rest"), "Not today");
+  assert.ok(all(card, (n) => n.props?.trigger?.props?.["data-testid"] === "today-found-rest").length, "Not today");
   // Ask why beside it: the row's own words and its arithmetic go to Ask (the AskFound board: "Ask why stays").
   press(byTestId(card, "today-found-ask"));
   assert.deepEqual(asked.at(-1), { prompt: ranked[0].ask }, "REGRESSION: a rule's row had lost Ask why");
@@ -1418,7 +1418,7 @@ test("the page is its bands and nothing seeded", () => {
   // Setting up (decision 0073) is a line at the foot of the day's column, so the two end near each other (L8). What goes on
   // its own today is the day's (0064); AI found is under the day: nothing it suggests outranks a person waiting (0070).
   const [work, rest] = all(tree, (n) => classes(n).includes("calm-col"));
-  const day = ["DayZone", "DayCameTo", "AskFound", "TodayContentLine", "TodayPins"];
+  const day = ["DayZone", "DayCameTo", "AskFound", "LetAiDoMore", "TodayContentLine", "TodayPins"];
   assert.deepEqual([partsOf(work), partsOf(rest)], [["NeedYou"], [...day, "TodaySetup", "today-setting-up"]]);
   assert.equal(
     all(tree, (n) => n.props?.["data-testid"] === "today-recap").length,

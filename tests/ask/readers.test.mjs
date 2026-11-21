@@ -806,7 +806,11 @@ const dayTables = () => ({
   ],
   lead_searches_view: [view()],
 });
-const SUMMARY = { period: { messages_in: 2 } };
+// The day's window, which every summary carries: what AI booked today is read from its start.
+const SUMMARY = {
+  period: { messages_in: 2 },
+  window: { days: 1, since: "2026-09-18T07:00:00Z", since_local: "2026-09-18", now_local: "2026-09-18" },
+};
 const dayDoors = { metrics_summary: () => SUMMARY, lead_list_counts: () => COUNTS };
 
 test("the Inbox as the page composes it: the newest hundred and the open escalations at once, then every escalated thread outside the hundred in one read by id, first; one the extra read cannot bring is counted in the log", async () => {
@@ -890,7 +894,12 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "heldThreads",
     "going",
     "previewsTried", // not done today or the word: GET today's route reads those beside this reader
+    "ai",
   ]);
+  // What Today says of AI beside the day (Working for you, W1 to W3): each part a read of its own, null where it fails
+  // (here no visits, settings or saved views are kept), and the day stands.
+  assert.deepEqual(Object.keys(r.data.ai), ["booked", "stopped", "looked_at"]);
+  assert.equal(r.data.ai.looked_at, null, "a first look: nothing kept of an earlier one");
   // What goes on its own today, each with its Stop (decision 0064): the runs set to start before the day ends, none here.
   assert.deepEqual(r.data.going, []);
   assert.deepEqual(
@@ -898,7 +907,8 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     [OUTSIDE],
     "the thread of the hold past the hundred, read by id: Ask's Today counts it as the badge does (S7-7)",
   );
-  assert.deepEqual(r.data.metrics, SUMMARY);
+  // A one-day window reads what was booked in it as well (decision 0076): none in this world.
+  assert.deepEqual(r.data.metrics, { ...SUMMARY, bookings: { booked: 0, visits: [], arrive: false } });
   assert.deepEqual(
     r.data.conversations.map((c) => c.id),
     Array.from({ length: 100 }, (_, i) => uuid(i)),
@@ -972,7 +982,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
   );
   assert.equal(noSearches.data.searches, null, "the queue says nothing of searches it could not read");
   assert.equal(noSearches.data.calls.length, 2);
-  assert.deepEqual(noSearches.data.metrics, SUMMARY);
+  assert.deepEqual(noSearches.data.metrics, { ...SUMMARY, bookings: { booked: 0, visits: [], arrive: false } });
   assert.deepEqual(searchLines, [{ error: "DbFailure: down" }]);
 });
 

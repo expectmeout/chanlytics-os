@@ -156,9 +156,10 @@ test("always heard, wherever the tab is: Settings its facts, rules, library and 
   for (const o of [inboxOverride, conversationsOverride, todayOverride])
     for (const table of ["messages", "conversations", "escalations"])
       assert.equal(hears(o, table, "INSERT"), true, `${o.key}: ${table}`);
-  // Today draws the day's figures and its queue, and no hours: its five reads name no configuration. It draws whether a mailbox
-  // exists, its email chip (R6: W-channel-team-plus-3).
-  for (const table of ["tenant_config", "templates", "policies", "memberships"])
+  // Today draws the day's figures and its queue, and no hours. It draws whether a mailbox exists, its email chip (R6:
+  // W-channel-team-plus-3), and whether Stop everything is on from the settings (Working for you, W1).
+  assert.equal(hears(todayOverride, "tenant_config"), true, "Today hears the stop");
+  for (const table of ["templates", "policies", "memberships"])
     assert.equal(hears(todayOverride, table), false, `Today draws no ${table}`);
   for (const event of ["INSERT", "UPDATE"])
     assert.equal(hears(todayOverride, "mailboxes", event), true, `a mailbox ${event}`);

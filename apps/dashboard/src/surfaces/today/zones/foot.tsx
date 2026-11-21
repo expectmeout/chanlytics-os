@@ -5,8 +5,8 @@
  * under its name and the page it opens; and the page saying it is done. The pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
-import { TODAY_LINE_WORDS, dayCameToWords } from "../model/lines";
+import { DEFAULT_TIMEZONE, LIST_GROUP_WORDS } from "@chanlytics/contracts";
+import { TODAY_LINE_WORDS, dayCameToWords, usualDayWords } from "../model/lines";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -17,8 +17,10 @@ import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
-import { borrowed, useMoved } from "../shell";
-import { useDayTurned } from "./head";
+import { useTodayQuiet } from "../calm/quiet";
+import { useSinceSaid } from "../ai/since";
+import { borrowed, useMoved, workspaceClock } from "../shell";
+import { useDayTurned, useTodayEvening } from "./head";
 
 /** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the pins draw. */
 const listsCode = codeOnce(() => import("../../people/people-lists"));
@@ -43,6 +45,22 @@ const SAID_BY_THE_HEAD = ["booked", "answered"] as const;
 /** Where the day's line goes: Reports, which holds each of its counts and what is behind it. */
 const REPORTS_ROUTE = "reports";
 
+/** The day's weekday in the business's zone: "Tuesday". */
+const weekdayNow = (): string =>
+  new Intl.DateTimeFormat("en-US", { timeZone: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE, weekday: "long" }).format(
+    Date.now(),
+  );
+
+/** What AI answered today against a usual day of its weekday, once the day is done; null by day or without the history. */
+function useUsualDay(turned: boolean): string | null {
+  const headline = useSurface("reports_headline");
+  if (!turned || !headline) return null;
+  return usualDayWords(
+    headline.perDay.map((d) => d.answered),
+    weekdayNow(),
+  );
+}
+
 /**
  * What the day came to so far, one line: what AI answered, the calls, what was booked and who is new, each only where
  * there is any. Nothing on a day with nothing yet: the head has said the page is quiet.
@@ -51,7 +69,13 @@ export function DayCameTo() {
   const vm = useSurface("today");
   // Once the day has turned the head has said what was booked and what AI answered (head.tsx): this says neither again.
   const turned = useDayTurned();
-  const words = vm ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  // Where the head says what AI did since this member last looked (W2), the day's line steps aside: said once.
+  const since = useSinceSaid(turned);
+  const cameTo = vm && !since ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  // Once the day is done, against a usual one of its weekday where four weeks back it (W8).
+  const usual = useUsualDay(turned);
+  const words =
+    cameTo && usual ? { title: cameTo.title, sub: [cameTo.sub, usual].filter(Boolean).join(" · ") } : cameTo;
   // AI is handed the line's question where AI answered anything (D10).
   const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
   useTodayAsks("did", [words && answered ? todayAskOf(TODAY_LINE_WORDS.asks.did) : null]);
@@ -88,17 +112,32 @@ export function TodayPins() {
   ) : null;
 }
 
-/** The page says it is done: its last line, once nobody waits. */
+/**
+ * The page says it is done: its last line, once nobody waits and the page is sure of it (calm/quiet.ts). While a line is
+ * down it says instead that this may not be everything, whoever waits; while it is checking, behind or could not read a
+ * part, it just ends.
+ */
 export function TodayEnd() {
+  const quiet = useTodayQuiet("end");
+  const waiting = useNeedsYou();
+  // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026), read.
+  const answering = useSurface("setup")?.vm.readiness.answering;
+  // Once the day is over, the end says AI stays on while it does (W5): never while Stop everything holds it.
+  const closed = useTodayEvening();
+  const aiOn = useSurface("today")?.ai?.stopped === false;
+  const evening = closed && aiOn;
+  if (quiet.kind === "unread" && quiet.line)
+    return (
+      <p className="tz-end calm-done" data-testid="today-end-unsure" {...SAYS_WHEN}>
+        {TODAY_LINE_WORDS.quiet.lineDown}
+      </p>
+    );
   // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
-  const waiting = useNeedsYou() ?? 0;
-  // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026).
-  const answering = useSurface("setup")?.vm.readiness.answering ?? true;
-  if (waiting > 0 || !answering) return null;
+  if (quiet.kind !== "sure" || waiting !== 0 || answering !== true) return null;
   return (
     <p className="tz-end calm-done" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />
-      {TODAY_LINE_WORDS.end}
+      {evening ? TODAY_LINE_WORDS.evening.end : TODAY_LINE_WORDS.end}
     </p>
   );
 }

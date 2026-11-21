@@ -120,6 +120,31 @@ const EARLIER_OF_MANY_MAX = 1000;
 const quotedList = (vs: readonly string[]): string =>
   vs.map((v) => `"${v.replace(/["\\]/g, (c) => `\\${c}`)}"`).join(",");
 
+/** Who a read of several people asks for: their own id, or a number or address a booking carries. */
+type VisitPerson = { id: string; phone: string | null; email: string | null };
+
+/** The read's filter for several people: the person the record linked, or the number or address a booking carries. */
+function peopleOr(people: readonly VisitPerson[]): string {
+  const phones = people.flatMap((p) => (p.phone ? [p.phone] : []));
+  const emails = people.flatMap((p) => (p.email ? [p.email] : []));
+  return [
+    `contact_id.in.(${quotedList(people.map((p) => p.id))})`,
+    phones.length ? `client_phone.in.(${quotedList(phones)})` : "",
+    emails.length ? `client_email.in.(${quotedList(emails)})` : "",
+  ]
+    .filter(Boolean)
+    .join(",");
+}
+
+/** Whether a visit the read found is this person's: by their id, number or address. */
+const isTheirs = (
+  r: { contact_id: string | null; client_phone: string | null; client_email: string | null },
+  p: VisitPerson,
+): boolean =>
+  r.contact_id === p.id ||
+  (p.phone !== null && r.client_phone === p.phone) ||
+  (p.email !== null && r.client_email === p.email);
+
 /**
  * Which of `people` the record holds a visit of that ended at or before `beforeIso` (the season's start): kept, missed,
  * or booked with nobody having said, found as getEarlierVisitRows finds one person's (the person the record linked, or the
@@ -133,15 +158,7 @@ export async function findPeopleWithEarlierVisits(
   beforeIso: string,
 ): Promise<ReadonlySet<string> | null> {
   if (!people.length) return new Set();
-  const phones = people.flatMap((p) => (p.phone ? [p.phone] : []));
-  const emails = people.flatMap((p) => (p.email ? [p.email] : []));
-  const or = [
-    `contact_id.in.(${quotedList(people.map((p) => p.id))})`,
-    phones.length ? `client_phone.in.(${quotedList(phones)})` : "",
-    emails.length ? `client_email.in.(${quotedList(emails)})` : "",
-  ]
-    .filter(Boolean)
-    .join(",");
+  const or = peopleOr(people);
   const { data, error } = await db
     .from("appointments")
     .select("contact_id, client_phone, client_email")
@@ -154,14 +171,41 @@ export async function findPeopleWithEarlierVisits(
   if (error) throw new DbFailure(error, "people_with_earlier_visits");
   const rows = data ?? [];
   if (rows.length >= EARLIER_OF_MANY_MAX) return null;
-  const theirs = (p: (typeof people)[number]) =>
-    rows.some(
-      (r) =>
-        r.contact_id === p.id ||
-        (p.phone !== null && r.client_phone === p.phone) ||
-        (p.email !== null && r.client_email === p.email),
-    );
-  return new Set(people.filter(theirs).map((p) => p.id));
+  return new Set(people.filter((p) => rows.some((r) => isTheirs(r, p))).map((p) => p.id));
+}
+
+/**
+ * How many visits the record holds of each of `people` that they kept and that ended at or before `beforeIso`, found as
+ * findPeopleWithEarlierVisits finds them (the person the record linked, or the number or address a booking carries): what
+ * Today's day says of who is coming ("10th visit", Working for you, W14). Null where the read filled its page, so no count
+ * may be said. A person with none is absent. A failure throws.
+ */
+export async function countKeptVisitsOf(
+  db: Db,
+  tenantId: TenantId,
+  people: readonly VisitPerson[],
+  beforeIso: string,
+): Promise<ReadonlyMap<string, number> | null> {
+  if (!people.length) return new Map();
+  const or = peopleOr(people);
+  const { data, error } = await db
+    .from("appointments")
+    .select("contact_id, client_phone, client_email")
+    .eq("tenant_id", tenantId)
+    .eq("status", "kept")
+    .is("vanished_at", null)
+    .lte("ends_at", beforeIso)
+    .or(or)
+    .limit(EARLIER_OF_MANY_MAX);
+  if (error) throw new DbFailure(error, "kept_visits_of_people");
+  const rows = data;
+  if (rows.length >= EARLIER_OF_MANY_MAX) return null;
+  const counts = new Map<string, number>();
+  for (const p of people) {
+    const n = rows.filter((r) => isTheirs(r, p)).length;
+    if (n) counts.set(p.id, n);
+  }
+  return counts;
 }
 
 /* ------------------------------------------------------------------ an erasure's hand */
@@ -361,4 +405,40 @@ export async function listServicesBookedSince(
     .limit(limit);
   if (error) throw new DbFailure(error, "services_booked_since");
   return data.flatMap((row) => (typeof row.service === "string" && row.service.trim() ? [row.service] : []));
+}
+
+/** A visit AI booked, as Today's AI sheet names it (Working for you, W2): who, when it is, what, and when AI booked it. */
+export interface BookedByAiRow {
+  id: string;
+  starts_at: string;
+  service: string | null;
+  client_name: string | null;
+  conversation_id: string | null;
+  timezone: string;
+  created_at: string;
+}
+
+/**
+ * The visits AI booked since a moment (source `receptionist`), newest first, up to `limit`. A visit booked since then
+ * starts after it, so the read walks the tenant's visits from that moment on (appointments_tenant_start) and never its
+ * whole history. Under the caller's RLS; a proposed time or a cancelled visit is no booking.
+ */
+export async function listBookedByAiSince(
+  db: Db,
+  tenantId: TenantId,
+  sinceIso: string,
+  limit: number,
+): Promise<BookedByAiRow[]> {
+  const { data, error } = await db
+    .from("appointments")
+    .select("id, starts_at, service, client_name, conversation_id, timezone, created_at")
+    .eq("tenant_id", tenantId)
+    .gte("starts_at", sinceIso)
+    .eq("source", "receptionist")
+    .in("status", [...BOOKED_STATUSES])
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "booked_by_ai_since");
+  return data;
 }

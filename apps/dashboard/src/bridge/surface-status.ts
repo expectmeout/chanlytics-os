@@ -31,6 +31,12 @@ const statuses = new Map<string, SurfaceStatus>();
 const ready = new Set<string>();
 const failed = new Set<string>();
 const listeners = new Set<() => void>();
+/**
+ * When each surface's rows were last read whole: in this document, or on this device by an earlier visit, as the cache
+ * kept them (`noteReadAt`). A page whose latest read failed says how old what it shows is from this (Working for you, W18:
+ * "As of 10:42 AM").
+ */
+const readAt = new Map<string, number>();
 
 /**
  * Record a surface's status after a read. The listeners hear it only when something changed -- the status, whether
@@ -46,9 +52,20 @@ export function setStatus(key: string, s: SurfaceStatus): void {
     ready.add(key); // only a real payload opens the gate
   }
   statuses.set(key, s);
+  if (s === "live") readAt.set(key, Date.now());
   if (`${s}|${ready.has(key)}|${failed.has(key)}` === was) return;
   surfaceMoved(key);
   listeners.forEach((l) => l());
+}
+
+/** When a surface's rows the cache restored were read, by the visit that kept them; a read in this document wins. */
+export function noteReadAt(key: string, at: number): void {
+  if (!readAt.has(key)) readAt.set(key, at);
+}
+
+/** When the rows a surface holds were read whole, or null where none ever was. */
+export function readAtOf(key: string): number | null {
+  return readAt.get(key) ?? null;
 }
 
 /** Seed the ready set with what the cache restored before React mounted. */

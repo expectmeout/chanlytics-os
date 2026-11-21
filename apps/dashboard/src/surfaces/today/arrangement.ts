@@ -20,13 +20,16 @@
 import { useFirstWait, useWaitsOnToday } from "../needs-you";
 import { useSurface } from "../use-surface";
 import type { TodayCard } from "./calm/lead";
+import type { TodayMorning } from "./calm/evening";
+import { useTodayEvening } from "./zones/head";
+import { useWeekMoment } from "./calm/week";
 import { useNeedYouModel } from "./need-you-model";
 import { canDo } from "./shell";
 import { useFoundModel } from "./zones/found";
 import { useSetupActs } from "./zones/setup-card";
 
 /** What may hold the page's coral, in the walk's order; null where nothing on the page asks for it. */
-type CoralHolder = "queue" | "todo" | "setup" | "found" | null;
+type CoralHolder = "queue" | "todo" | "week" | "setup" | "found" | null;
 
 export interface TodayArrangement {
   /** Anyone waiting on the owner (the one count, needs-you.ts): setting up then stands under Need you, never over it. */
@@ -38,6 +41,11 @@ export interface TodayArrangement {
   coral: CoralHolder;
   /** The one card: the thing most worth doing, which the page draws first and whole; every other item is a line. */
   card: TodayCard;
+  /**
+   * Once the business has closed for the day (W5, calm/evening.tsx): what waits for morning, folded into one line; null by
+   * day. Only who truly needs you holds the card then: a to-do, setting up and what AI found wait for the morning.
+   */
+  morning: TodayMorning | null;
 }
 
 /** What the arrangement is worked out from: what each part will draw. */
@@ -71,6 +79,10 @@ interface ArrangementReads {
   todoPressed: string | null;
   /** Ask found's first row, by its key; null where it has none. */
   foundFirst: string | null;
+  /** What waits for morning once the business has closed for the day; null by day. */
+  morning: TodayMorning | null;
+  /** The week's card while it is still to be seen (calm/week.tsx, W9), by its id; null where there is none. */
+  week?: string | null;
 }
 
 /**
@@ -81,7 +93,17 @@ interface ArrangementReads {
 function todayCardOf(
   reads: Pick<
     ArrangementReads,
-    "read" | "known" | "focus" | "waitFirst" | "todoFirst" | "todoPressed" | "waiting" | "setupActs" | "foundFirst"
+    | "read"
+    | "known"
+    | "focus"
+    | "waitFirst"
+    | "todoFirst"
+    | "todoPressed"
+    | "waiting"
+    | "setupActs"
+    | "foundFirst"
+    | "morning"
+    | "week"
   >,
 ): TodayCard {
   if (!reads.read) return null;
@@ -89,25 +111,41 @@ function todayCardOf(
   if (reads.focus) return { holder: "queue", id: reads.focus };
   // What the head counts takes the card before what it does not (D15): a run waiting for a word, then To do.
   if (reads.waitFirst) return { holder: "wait", id: reads.waitFirst };
+  // Once the day is over, what can wait for morning does not take the card (W5).
+  if (reads.morning) return null;
   if (reads.todoFirst) return { holder: "todo", id: reads.todoFirst };
+  // Once a week, while nobody waits, what AI did, until Got it (W9).
+  if (!reads.waiting && reads.week) return { holder: "week", id: reads.week };
   if (!reads.waiting && reads.setupActs) return { holder: "setup", id: "setup" };
   if (reads.known && reads.foundFirst) return { holder: "found", id: reads.foundFirst };
   return null;
 }
 
+/**
+ * Who holds the page's coral, in the walk's order: who waits, then (by day) a to-do, the week's card, setting up, and what
+ * AI found where it leads. Once the day is over only who waits holds it.
+ */
+function coralOf(reads: ArrangementReads, lead: boolean): CoralHolder {
+  if (reads.queueCoral) return "queue";
+  if (reads.morning) return null;
+  if (reads.todoCoral) return "todo";
+  if (!reads.waiting && reads.week) return "week";
+  if (!reads.waiting && reads.setupActs) return "setup";
+  return lead && reads.found.acts && reads.mayAct ? "found" : null;
+}
+
 /** The arrangement, from what each part will draw. Pure: the page's tests hold the walk here. */
 export function arrangementOf(reads: ArrangementReads): TodayArrangement {
   const lead = reads.read && reads.known && !reads.needYou;
-  const coral: CoralHolder = reads.queueCoral
-    ? "queue"
-    : reads.todoCoral
-      ? "todo"
-      : !reads.waiting && reads.setupActs
-        ? "setup"
-        : lead && reads.found.acts && reads.mayAct
-          ? "found"
-          : null;
-  return { waiting: reads.waiting, lead, alone: lead && !reads.found.draws, coral, card: todayCardOf(reads) };
+  const coral = coralOf(reads, lead);
+  return {
+    waiting: reads.waiting,
+    lead,
+    alone: lead && !reads.found.draws,
+    coral,
+    card: todayCardOf(reads),
+    morning: reads.morning,
+  };
 }
 
 /** Today's arrangement, read in the page's render from the same reads its parts draw from. */
@@ -118,7 +156,20 @@ export function useTodayArrangement(): TodayArrangement {
   const waitFirst = useFirstWait();
   const setupActs = useSetupActs();
   const found = useFoundModel();
+  const evening = useTodayEvening();
+  const week = useWeekMoment();
+  const todo = needYou?.todo ?? null;
+  const morning: TodayMorning | null = evening
+    ? {
+        toDo: todo?.count ?? 0,
+        toDoDoor: todo?.steps?.to ?? todo?.visits?.to ?? null,
+        found: found.found.rows.length + found.found.rest.length,
+        setup: setupActs,
+      }
+    : null;
   return arrangementOf({
+    morning,
+    week: week?.id ?? null,
     read: !!vm,
     known: found.shown,
     needYou: !!needYou?.draws,

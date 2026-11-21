@@ -182,6 +182,11 @@ export type CalendarSources = {
    */
   firsts: ReadonlySet<string>;
   /**
+   * Which visit of theirs each of today's and tomorrow's people comes for, from the record (people-visits.ts
+   * visitNumbersOf): Today's day says "10th visit" of them (Working for you, W14). Empty where nobody was counted.
+   */
+  numbers: ReadonlyMap<string, number>;
+  /**
    * The appointments the record holds over the span (00345): the bookings that arrived by email, drawn beside the
    * feed's events (docs/plans/2026-10-07-bookings-arrive-by-email.md). Empty for a workspace none have reached.
    */

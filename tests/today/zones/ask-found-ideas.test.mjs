@@ -22,6 +22,13 @@ import { importSrc } from "../../_source.mjs";
 import { until } from "../../shared/_until.mjs";
 import { W, answerWith, json, went, wire } from "./_world.mjs";
 
+/**
+ * Not today is a menu of times (Working for you, W22): its trigger carries the old test id. A row is rested here as a
+ * member picks its last time, next week, the week it always rested.
+ */
+const notTodayOf = (tree) => all(tree, (n) => n.props?.trigger?.props?.["data-testid"] === "today-found-rest")[0];
+const restNextWeek = (tree) => notTodayOf(tree).props.groups[0].items.at(-1).onSelect();
+
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 const { AskFound } = await import("../../../apps/dashboard/src/surfaces/today/zones/found.tsx");
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
@@ -132,11 +139,7 @@ test("Approve: the receipt is said in the row at once, and stays there with its 
   assert.match(titleOf(tree), /Write to Rosa/, "the first finding is the card");
   const sending = press(actOf(tree, "Write to Rosa"));
   const held = await openWhy("Write to Rosa");
-  assert.equal(
-    byTestId(held, "today-found-rest").props.disabled,
-    true,
-    "Not today waits while the Approve is on its way",
-  );
+  assert.equal(notTodayOf(held).props.trigger.props.disabled, true, "Not today waits while the Approve is on its way");
   commits[0].land({ ok: true, receipt: "Sent to Rosa", undo: { message_id: "m-1" } });
   await until(() => textOf(rowOf(redraw(), "Write to Rosa")).includes("Sent to Rosa"), "what it came to, in its place");
   assert.deepEqual(
@@ -159,8 +162,8 @@ test("Not today rests an idea for the member and keeps 'dismissed' on its turn, 
   wire.length = 0;
   morning(CARDS);
   draw();
-  const first = press(byTestId(await openWhy("Write to Ana"), "today-found-rest"));
-  const second = press(byTestId(await openWhy("Write to Lu"), "today-found-rest"));
+  const first = restNextWeek(await openWhy("Write to Ana"));
+  const second = restNextWeek(await openWhy("Write to Lu"));
   await until(() => outcomes.length > 0, "the first outcome asked for");
   outcomes[0].land();
   await until(() => outcomes.length === 2, "the second, once the first landed");
@@ -243,7 +246,7 @@ test("a fix card's act is its door, never Approve: pressed, it opens where the t
   assert.deepEqual([commits.length, outcomes.length], [0, 0], "nothing committed or recorded");
   // Not today on it, one of Ask's ideas: rested for the member and kept on its turn, as an idea pressed is (0087).
   wire.length = 0;
-  void press(byTestId(await openWhy("Nobody has said yes"), "today-found-rest"));
+  void restNextWeek(await openWhy("Nobody has said yes"));
   await until(() => outcomes.length === 1, "what became of it, kept on its turn");
   assert.deepEqual(
     outcomes.map((o) => [o.messageId, o.pid, o.state]),
@@ -271,7 +274,7 @@ test("what Ask noticed, set aside: rested for the member, and kept on no turn, s
   });
   morning([], [fell]);
   draw();
-  press(byTestId(await openWhy("Win-back drew"), "today-found-rest"));
+  restNextWeek(await openWhy("Win-back drew"));
   await until(() => wire.some((w) => w.method === "PUT" && w.path === "/api/v1/views/ask_found"), "the rest saved");
   assert.deepEqual(outcomes, [], "REGRESSION guard: what Ask noticed rides no turn, so nothing is kept on one");
   setSurfaceValue("ask_morning", undefined);

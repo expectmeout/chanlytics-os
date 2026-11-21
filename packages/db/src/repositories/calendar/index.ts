@@ -27,6 +27,7 @@ export type {
   VisitOriginRow,
 } from "./appointments/rows";
 export {
+  countKeptVisitsOf,
   findAppointmentWorkspace,
   findContactIdByEmail,
   findContactIdByPhone,
@@ -34,13 +35,14 @@ export {
   getAppointmentStates,
   getEarlierVisitRows,
   listAppointmentsForClient,
+  listBookedByAiSince,
   listServicesBookedSince,
   markVisit,
   recordReachOutBookedFrom,
   scrubAppointments,
   syncFeedAppointments,
 } from "./appointments/visits";
-export type { AppointmentSync, EarlierVisitRow } from "./appointments/visits";
+export type { AppointmentSync, BookedByAiRow, EarlierVisitRow } from "./appointments/visits";
 export { canBookingsArrive, findVisitChangesSince } from "./arrivals";
 export {
   dismissAppointmentNotice,

@@ -1,0 +1,39 @@
+/*
+ * What opens over Today (the second look of 20 Nov 2026; Working for you, 21 Nov 2026). Layout alone: the faces and the
+ * press are the kit's.
+ */
+
+/* Next, at the foot of a conversation's sheet once yours is answered (W4): the next person who waits, and Open. */
+.calm-next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
+  background: var(--selected-fill);
+}
+.calm-next-word {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.calm-next-tx {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.calm-next-tx > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.calm-next-tx > small {
+  overflow: hidden;
+  font-size: var(--text-aside);
+  color: var(--ink-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

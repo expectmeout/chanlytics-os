@@ -6,15 +6,17 @@
  * how long they have waited; or AI's three and "AI found"), what it is in a sentence, why under it, then its acts or its
  * work.
  */
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { AskFace } from "../../kit/face/ask-face";
 import { Panel } from "../../kit/panel/panel";
-import { cardPressed, useCardGone, useCardHandOff } from "./motion";
+import { TODAY_LINE_WORDS } from "../model/lines";
+import { CLEARED_BEAT_MS, cardPressed, useCardGone, useCardHandOff } from "./motion";
 
 /**
  * The page's one card, as the arrangement names it (arrangement.ts `todayCardOf`): which part holds it, and which of that
  * part's items it is. Null where nothing is left to do, and the page ends after its lines.
  */
-export type TodayCard = { holder: "queue" | "wait" | "todo" | "setup" | "found"; id: string } | null;
+export type TodayCard = { holder: "queue" | "wait" | "todo" | "setup" | "week" | "found"; id: string } | null;
 
 /** Which part's item the card holds. */
 type LeadHolder = NonNullable<TodayCard>["holder"];
@@ -67,9 +69,33 @@ export function Lead({
  * Where the card stood, once nothing holds it (the last thing done): its room folds shut, so the lines rise under it
  * instead of jumping. Nothing where no card was drawn on this visit.
  */
-export function LeadGone() {
-  const { room, gone } = useCardGone();
-  return gone ? null : <div ref={room} className="calm-gone" aria-hidden="true" />;
+export function LeadGone({ cleared = false }: { cleared?: boolean }) {
+  const { room, gone } = useCardGone(cleared ? CLEARED_BEAT_MS : 0);
+  if (gone) return null;
+  return (
+    <div ref={room} className="calm-gone" aria-hidden="true">
+      {cleared ? <Cleared /> : null}
+    </div>
+  );
+}
+
+/**
+ * The one celebration (Working for you, W6): as the last thing waiting is done, where the card stood says so for a beat
+ * while the three give the sweep they give when an answer is done (the three in motion, M7: speaking, then at rest), once,
+ * and the room folds away. No confetti, no sound, and the words stay still; the head has said it for a reader.
+ */
+function Cleared() {
+  const [state, setState] = useState<"speaking" | "idle">("speaking");
+  useEffect(() => {
+    const at = requestAnimationFrame(() => setState("idle"));
+    return () => cancelAnimationFrame(at);
+  }, []);
+  return (
+    <div className="calm-cleared" data-testid="today-cleared">
+      <AskFace className="calm-cleared-three" holds={state} enter={false} />
+      <span>{TODAY_LINE_WORDS.cleared}</span>
+    </div>
+  );
 }
 
 /** The card's acts, in a row: its one press first, what is quieter after it. */

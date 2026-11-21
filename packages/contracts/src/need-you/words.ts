@@ -134,6 +134,10 @@ export const NEED_YOU_WORDS = {
   doneToday: (n: number) => `${n} done today`,
   /** Not today pressed: said in the toast, with the day it comes back on, beside its Undo. */
   restedUntil: (day: string) => `Not today. It comes back ${day}.`,
+  /** Not today, at a time chosen (Working for you, W22): when it comes back. */
+  restedBack: (back: string) => `Not today. It comes back ${back}.`,
+  /** Not today, every one of its kind (W22): said back as it is kept, with its Undo. */
+  restedKind: "AI won’t suggest this kind again.",
   /** Ends the head's sentence once nobody is left waiting on you (todayHeadLine). */
   end: "That's everyone.",
   /** A reply of yours that never reached them: what the row says, what its bubble says, what it may do, and its presses. */

@@ -91,7 +91,7 @@
     "appointments DELETE": "audiences calendar people today · 9 routes",
     "contacts INSERT": "audiences conversations inbox today · 10 routes",
     "contacts UPDATE": "audiences calendar conversations inbox today · 11 routes",
-    "tenant_config UPDATE": "audiences broadcasts calendar sequences settings · 12 routes",
+    "tenant_config UPDATE": "audiences broadcasts calendar sequences settings today · 13 routes",
     "policies INSERT": "audiences google reach_outs sequences settings · 13 routes",
     "policies UPDATE": "audiences google reach_outs sequences settings · 13 routes",
     "policies DELETE": "audiences google reach_outs sequences settings · 13 routes",

@@ -15,12 +15,19 @@
  */
 import type { ReactNode } from "react";
 import {
+  DEFAULT_TIMEZONE,
   NEED_YOU_WORDS,
   todayWentLine,
   todayZoneDay,
+  tzClock,
   type CalendarLike,
   type TodayHeadLineVM,
 } from "@chanlytics/contracts";
+import { aiPill } from "../ai/pill";
+import { useSinceSaid } from "../ai/since";
+import { useCatchUp, useTodayQuiet, type TodayQuiet } from "../calm/quiet";
+import { TODAY_LINE_WORDS, dayAheadWords } from "../model/lines";
+import { workspaceClock } from "../shell";
 import { surfaceValue } from "../../surface-values";
 import { useStanding } from "../../kit/head/standing";
 import { routeDoor } from "../../frame-verbs";
@@ -42,7 +49,13 @@ import { listenButton, useBriefWords, useSpeech } from "./listen";
  */
 function headSentence(
   line: TodayHeadLineVM,
-  { done, why, door, count }: { done: string | null; why: string | null; door: string | null; count: number },
+  {
+    done,
+    why,
+    door,
+    count,
+    ai,
+  }: { done: string | null; why: string | null; door: string | null; count: number; ai: ReactNode },
 ): ReactNode {
   const waits = count > 0;
   // Someone waits on you: the warn tone's dot before how many (Today with colour, D5), as the menu's count says it.
@@ -77,19 +90,74 @@ function headSentence(
           {why}
         </span>
       ) : null}
+      {/* AI's state, its own press under the sentence (W1): it opens AI's sheet. */}
+      {ai}
     </>
   );
 }
+
+/** The page's quiet, in words. */
+const QUIET_WORDS = TODAY_LINE_WORDS.quiet;
 
 /** How many were done today, after how many need you, where nothing else stands: no list's head says it (Today, calm). */
 const doneTodayOf = (line: TodayHeadLineVM, count: number, done: number): string | null =>
   count > 0 && !line.rest && done > 0 ? `${NEED_YOU_WORDS.doneToday(done)}.` : null;
 
+/**
+ * The sentence as the page's quiet has it (calm/quiet.ts, W18): while who needs you is still being read the head says it is
+ * checking, never "Nothing needs you."; where a read failed, that there may be more; where what it shows is an older read's,
+ * since when, and that it is catching up. Sure, or drawn from this device's copy while the read is out, it stands as made.
+ */
+function quietLine(line: TodayHeadLineVM, quiet: TodayQuiet, count: number): TodayHeadLineVM {
+  // Someone known to wait is said as they are: only "nobody" waits on what is still being read.
+  if (quiet.kind === "checking" && count === 0) return { lead: QUIET_WORDS.checking, rest: null };
+  if (quiet.kind === "unread" && !quiet.line) return { lead: line.lead, rest: QUIET_WORDS.unread };
+  if (quiet.kind !== "behind") return line;
+  const at = quiet.at === null ? null : tzClock(new Date(quiet.at).toISOString(), headZone(), new Date());
+  return { lead: line.lead, rest: [line.rest, QUIET_WORDS.behind(at)].filter(Boolean).join(" ") };
+}
+
+/** The business's own zone, which every time on Today is said in. */
+const headZone = (): string => workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
+
 /** Whether the day has turned to tomorrow, as the day's zone says it (contracts todayZoneDay): the head says how today went. */
 export function useDayTurned(): boolean {
+  return useZoneDayNow()?.tomorrow ?? false;
+}
+
+/** The day's zone now, from the Calendar and the day the page holds; and whether the business set its hours. */
+function useZoneDayNow() {
   const day = useDayVm();
   const cal = surfaceValue("calendar");
-  return todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now())?.tomorrow ?? false;
+  const zone = todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now());
+  return zone ? { ...zone, hoursSet: !!cal?.vm.hoursSet } : null;
+}
+
+/**
+ * Whether the business has closed for the day by its own hours (Working for you, W5, calm/evening.tsx): the day's line has
+ * turned to tomorrow, the hours are Settings' own, and today was not a closed day (that turns at once, whatever the hour,
+ * and is no evening). A business with no hours set keeps the day's page as it is.
+ */
+export function useTodayEvening(): boolean {
+  const zone = useZoneDayNow();
+  return !!zone?.hoursSet && zone.tomorrow && !zone.closedToday;
+}
+
+/**
+ * The sentence's rest where AI's "since you last looked" says nothing: the day ahead in facts while nobody waits (W15), or,
+ * once the business has closed with someone waiting, that the rest waits for morning (W5). Only on a page sure of itself.
+ */
+function restOfDay(at: {
+  count: number;
+  turned: boolean;
+  sure: boolean;
+  alert: boolean;
+  evening: boolean;
+  ahead: string | null;
+}): string | null {
+  if (!at.sure) return null;
+  if (at.count === 0) return !at.turned && !at.alert ? at.ahead : null;
+  return at.evening ? TODAY_LINE_WORDS.evening.rest : null;
 }
 
 /** Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. */
@@ -101,13 +169,28 @@ export function useZonesStanding(): void {
   const said = useNeedYouLine(vm ?? null);
   // The one count, the badge's: it leaves a row the moment Need you acts on it (needs-you.ts needsYouActed).
   const count = useNeedsYou() ?? 0;
+  // How sure the count is: checking, behind or a part unread says so (W18), and the page asks again by itself meanwhile.
+  const quiet = useTodayQuiet("count");
+  useCatchUp(useTodayQuiet("end"));
   const turned = useDayTurned();
   const words = useBriefWords();
   const brief = words && words.sentences.length ? words.text : null;
   const speech = useSpeech(brief);
   const went = turned && vm ? todayWentLine(vm.figures) : null;
   const done = vm?.done_today ?? 0;
-  const line = vm ? TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0) : null;
+  // What AI did since this member last looked, where it is said (W2): the sentence's rest, in place of what it said.
+  const since = useSinceSaid(turned);
+  const headLine = vm
+    ? quietLine(TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0), quiet, count)
+    : null;
+  // Nobody waits and nothing new since the last look: the day ahead, in facts (W15).
+  const ahead = dayAheadWords(useDayVm());
+  // Only on a page sure of itself: behind or unread, its own sentence is the one that matters.
+  const sure = quiet.kind === "sure" || quiet.kind === "settling";
+  // Once the day is over, whoever waits is said, and the rest waits for morning in its one line (W5).
+  const evening = useTodayEvening();
+  const rest = since ?? restOfDay({ count, turned, sure, alert: vm?.standing.tone === "alert", evening, ahead });
+  const line = headLine && rest ? { lead: headLine.lead, rest } : headLine;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({
@@ -119,6 +202,7 @@ export function useZonesStanding(): void {
           why: speech.why,
           door: phone && count > 0 ? "inbox" : null,
           count,
+          ai: aiPill(vm?.ai ?? null),
         })
       : undefined,
     beside: listen ?? undefined,

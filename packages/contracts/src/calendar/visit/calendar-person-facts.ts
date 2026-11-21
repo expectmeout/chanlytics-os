@@ -47,6 +47,12 @@ export interface CalendarPersonFactsDto {
    * and the record was not asked of before it), and from a read before it: then nothing is said.
    */
   last_visit_at?: string | null;
+  /**
+   * Which of their visits the one they come for is, counted from the record (the server's visitNumbersOf): Today's day says
+   * "10th visit" (Working for you, W14). Absent where it was not counted (nobody comes today or tomorrow, a first visit, a
+   * read that failed), and then nothing is said of it.
+   */
+  visit_number?: number;
 }
 
 /** The deal's columns of a row, and nothing else: what dealOf reads. */
@@ -87,6 +93,8 @@ export function calendarPersonFactsOf(
   tz: string,
   nowMs: number,
   first: boolean,
+  /** Which visit of theirs this is, where the record counted it (CalendarPersonFactsDto.visit_number); null where not. */
+  number: number | null,
 ): CalendarPersonFactsDto {
   const last = lastContactOf(person, tz, nowMs);
   const visits = visitsAt(person.visits ?? null, nowMs);
@@ -104,6 +112,7 @@ export function calendarPersonFactsOf(
     phone: person.phone_e164 ?? null,
     email: person.email ?? null,
     next_visit_at: visits?.next?.start ?? null,
+    ...(number ? { visit_number: number } : {}),
   };
 }
 

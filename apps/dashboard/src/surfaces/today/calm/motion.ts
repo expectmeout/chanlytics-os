@@ -13,7 +13,7 @@
  * The page's card is drawn by whichever part holds it (Need you's row, a run waiting, what AI found), each its own
  * element, so what the card last held and how tall it stood is kept here, across them.
  */
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 /** A movement's length (--duration-slow), and how far apart the parts of one movement start. */
 const SLOW_MS = 360;
@@ -120,10 +120,17 @@ export function useCardHandOff(key: string): RefObject<HTMLDivElement | null> {
 }
 
 /**
- * Where the card stood, once nothing holds it: its room folds shut, so the lines rise under it instead of jumping. The
- * ref of an empty box, and whether it is done (the box is then not drawn at all). Nothing where no card was drawn.
+ * How long the one celebration stands before its room folds (Working for you, W6): long enough for the three's sweep to
+ * run once and the words to be read, never long enough to wait on.
  */
-export function useCardGone(): { room: RefObject<HTMLDivElement | null>; gone: boolean } {
+export const CLEARED_BEAT_MS = 1400;
+
+/**
+ * Where the card stood, once nothing holds it: its room folds shut, so the lines rise under it instead of jumping. The
+ * ref of an empty box, and whether it is done (the box is then not drawn at all). Nothing where no card was drawn. `beat`
+ * holds the room at the card's height that long first, for what it says (the one celebration, W6).
+ */
+export function useCardGone(beat = 0): { room: RefObject<HTMLDivElement | null>; gone: boolean } {
   const room = useRef<HTMLDivElement | null>(null);
   const [gone, setGone] = useState(() => lastCard === null || still());
   useLayoutEffect(() => {
@@ -137,10 +144,13 @@ export function useCardGone(): { room: RefObject<HTMLDivElement | null>; gone: b
     const fold = el.animate([{ height: `${was.height}px` }, { height: "0px" }], {
       duration: SLOW_MS,
       easing: EASE_IN_OUT,
+      delay: beat,
+      fill: "backwards",
     });
     fold.onfinish = () => setGone(true);
     fold.oncancel = () => setGone(true);
     return () => fold.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the room folds once, as it was drawn: a beat is read at its first draw
   }, []);
   return { room, gone };
 }
@@ -165,3 +175,35 @@ export const countRolls =
       { duration: SLOW_MS, easing: HAND_OFF_EASE },
     );
   };
+
+/** No line folding in. */
+const NONE_ARRIVING: ReadonlySet<string> = new Set();
+
+/**
+ * Someone new folds into their place (Working for you, W7), as a finished line folds today: a line whose key was not on
+ * the list a moment ago is drawn folded for its first two frames, then opens where it stands, so nothing under it jumps.
+ * The lines of the page's first draw open at once, and with reduced motion every line does. The bell keeps the alert; this
+ * says nothing. The keys arriving, by the list's keys in order.
+ */
+export function useFoldsIn(keys: readonly string[]): ReadonlySet<string> {
+  const seen = useRef<ReadonlySet<string> | null>(null);
+  const [, opened] = useState(0);
+  const was = seen.current;
+  const arriving = was && !still() ? keys.filter((k) => !was.has(k)) : [];
+  const keyList = keys.join("|");
+  useEffect(() => {
+    seen.current = new Set(keys);
+    if (!arriving.length || typeof requestAnimationFrame !== "function") return undefined;
+    // Two frames: the first paints them folded, the second opens them, so the fold has a start to move from.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => opened((n) => n + 1));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the list is the same list while its keys are
+  }, [keyList]);
+  return arriving.length ? new Set(arriving) : NONE_ARRIVING;
+}

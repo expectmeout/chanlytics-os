@@ -504,5 +504,15 @@
     "kind": "on-open",
     "fresh": "Read every ten seconds while a clip the owner pressed Play on is on its way back from Google Drive (or waits for room), and only while its page is open and in view; the moment it answers that the copy is here, the clip plays.",
     "why": "It reads one row's two words and asks for nothing, so waiting never spends a return. The files surface hears the same change through the feed (00655 tells of copy_state), which redraws the Library's rows; this is the open clip's own wait, for a page whose feed was asleep."
+  },
+  "apps/dashboard/src/surfaces/today/ai/sheet.tsx GET policies": {
+    "kind": "on-open",
+    "fresh": "Read as AI's sheet on Today opens, each time it opens.",
+    "why": "The sheet says how AI works for you from the Autonomy rows, a few lines a member changes on Settings; an older word costs nothing, and its door opens Autonomy itself."
+  },
+  "apps/dashboard/src/surfaces/today/calm/more.tsx GET policies": {
+    "kind": "on-open",
+    "fresh": "Read once as Today draws its lines, and again on the next visit.",
+    "why": "Let AI do more offers one Autonomy row a step on from 30 days of its drafts, which move over days; the change it offers is the policies route's own write, which refuses a mode the row cannot take and says so."
   }
 }

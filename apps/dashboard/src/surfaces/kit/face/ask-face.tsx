@@ -4,11 +4,13 @@
  * keep everything the three do inside the canvas (fitSide).
  * `tone="accent"` draws them on a coral ground in that ground's own foreground (colour.ts `Tone`); `ground="raised"` draws
  * them on the cards' surface (--bg-raised), so the fades down the stack are toward the surface they sit on, not the page
- * behind it (the phone's ✦).
+ * behind it (the phone's ✦). `holds` draws a state of its own in place of Ask's mood: Today's AI pill (Working for you, W1)
+ * orbits while AI is in a conversation and rests otherwise, whatever Ask itself is doing.
  */
 import { useEffect, useRef } from "react";
 import { MASCOT } from "@/bridge/mascot";
-import type { MountOptions } from "@/bridge/mascot/driver";
+import type { CharacterState } from "@/bridge/mascot/character";
+import type { Mounted, MountOptions } from "@/bridge/mascot/driver";
 
 /** The page's tokens as the driver reads them, with the ground the three sit on in place of the page. */
 const groundTokens = (ground: string) => () => {
@@ -30,6 +32,7 @@ export const AskFace = ({
   ground = "page",
   side,
   enter = true,
+  holds,
   testId,
 }: {
   className?: string;
@@ -38,9 +41,14 @@ export const AskFace = ({
   side?: number;
   /** Whether the three come in as they are first drawn; false where they are carried in whole from somewhere else. */
   enter?: boolean;
+  /** A state of the face's own, which it holds in place of following Ask's mood. */
+  holds?: CharacterState;
   testId?: string;
 }) => {
   const ref = useRef(null);
+  const face = useRef<Mounted | null>(null);
+  const held = useRef(holds);
+  held.current = holds;
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return undefined;
@@ -50,13 +58,21 @@ export const AskFace = ({
     if (ground === "raised") opts.env = { tokens: groundTokens(ground) };
     const m = MASCOT.mount(canvas, opts);
     if (!m) return undefined;
-    const stop = MASCOT.follow(m, MASCOT.mood);
+    face.current = m;
+    const own = held.current;
+    if (own) m.set(own);
+    const stop = own ? () => undefined : MASCOT.follow(m, MASCOT.mood);
     return () => {
       stop();
+      face.current = null;
       m.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a face is mounted once: its tone, ground and side are what it was drawn with
   }, []);
+  // A face that holds its own state follows it as it changes.
+  useEffect(() => {
+    if (holds) face.current?.set(holds);
+  }, [holds]);
   return <canvas ref={ref} className={className} aria-hidden="true" data-testid={testId} />;
 };
 
