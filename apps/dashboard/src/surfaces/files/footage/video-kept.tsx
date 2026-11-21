@@ -39,14 +39,20 @@ interface CopyStanding {
   why: FileCopyWhy | null;
 }
 
-/** What the page knows beside the clip's own row: its folder and account, where a watched folder was read, and its day to leave. */
-function factsHere(file: Pick<FileDto, "origin_left_at">): CopyFacts {
+/**
+ * What the page knows beside the clip's own row: its folder and account, where a watched folder was read, its day to
+ * leave, and whether its owner added it. `addedHere` is the press of "Add the video again" that brought it back, which
+ * the Library's row says only at its next read.
+ */
+function factsHere(file: Pick<FileDto, "origin_left_at" | "owner_uploaded">, addedHere: boolean): CopyFacts {
   const footage = heldFootage();
+  const uploaded = addedHere || file.owner_uploaded === true;
   return {
     folder: footage?.folder?.name ?? null,
     account: footage?.account?.email ?? null,
-    leaves: leavesOn(file, knownZone() ?? "UTC"),
+    leaves: uploaded ? null : leavesOn(file, knownZone() ?? "UTC"),
     connected: !!footage?.account,
+    uploaded,
   };
 }
 
@@ -214,6 +220,7 @@ export function VideoKept({ file, said, standing, asking, onPlay, onComing }: Vi
   // hands its upload to the clip already kept); another video is simply added to the Library, and this one says so.
   const picker = useRef<HTMLInputElement>(null);
   const [adding, setAdding] = useState(false);
+  const [addedHere, setAddedHere] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const again = async (picked: File | undefined) => {
     if (!picked) return;
@@ -222,10 +229,11 @@ export function VideoKept({ file, said, standing, asking, onPlay, onComing }: Vi
     const added = await fileVerbs.add(picked);
     setAdding(false);
     if (!added.kept) return setRefused(added.message);
-    if (added.id === file.id) return onComing();
-    return setRefused(W.otherVideo);
+    if (added.id !== file.id) return setRefused(W.otherVideo);
+    setAddedHere(true);
+    return onComing();
   };
-  const words = copySaidOf(standing.copy, standing.why, factsHere(file));
+  const words = copySaidOf(standing.copy, standing.why, factsHere(file, addedHere));
   if (!words) return null;
   const hasSound = !!file.sound_said && file.sound_said !== "no sound";
   return (

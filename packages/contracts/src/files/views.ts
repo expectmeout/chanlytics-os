@@ -109,6 +109,12 @@ export interface FileDto {
    */
   origin_left?: "gone" | "outside" | null;
   origin_left_at?: string | null;
+  /**
+   * Its owner added this same file themselves (00654 files.owner_uploaded, read by a member since 00661): it is theirs, so
+   * it never steps aside, its original leaving its folder takes nothing from the Library, and a copy on its way back comes
+   * from what they added. Absent is no, as on a row read before it.
+   */
+  owner_uploaded?: boolean;
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
   /**
