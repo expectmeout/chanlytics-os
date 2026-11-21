@@ -254,7 +254,10 @@ Meta's check of an ad, so its words and picture are ones the checks of the plan'
 it after the campaign is made, the check deletes that campaign (Meta's DELETE on it, read on its campaign reference on
 20 November), so a check either finishes, paused, or leaves nothing. A campaign an earlier check left is removed the
 same way, by its id, and only where it is in the owner's account, named as a check names it, with it and everything
-under it paused, a finished check's paused ad included.
+under it paused, a finished check's paused ad included. Removing it removes each of its ads' creatives too, and then each ad's picture
+from the account's library; an ad whose campaign is already gone is tidied so by its id. The unpublished Page post a
+creative made is named and left: deleting a Page post takes `pages_manage_posts` on the Page's own sign-in, and
+Chanlytics' sign-in holds `pages_manage_ads`.
 
 What it settles that no page does: whose sign-in Meta takes for an ad that opens WhatsApp; whether a dry run counts
 against the account's score; whether Meta refuses a total over a new account's day; the shortest run it takes; that

@@ -9,7 +9,9 @@
  * picture), then made; and the campaign read back whole, compared with what was sent. Where Meta refuses a step, nothing
  * after it is sent, the answer says Meta's own words, and a campaign already made is removed, with whatever is under it:
  * a check either finishes, paused, or leaves nothing. With `remove` in place of a draft, a campaign an earlier check
- * left is removed: one in this account, named as a check names it, with it and everything under it paused.
+ * left is removed: one in this account, named as a check names it, with it and everything under it paused, and then each
+ * ad's creative and picture. With `tidy`, an ad a check made whose campaign is already gone has its creative and picture
+ * removed. The unpublished Page post a creative made is named and left: only the Page's own sign-in may remove it.
  *
  * Nothing here can spend: every part is made paused, and the campaign above the ad stays paused, so the ad is never
  * shown. An ad made paused still goes through Meta's check of an ad, and a creative leaves an unpublished post on the
@@ -24,20 +26,25 @@ import {
   callMetaAds,
   isMetaId,
   metaAccountInstagramRequest,
+  metaAdImageRemoveRequest,
   metaAdImageRequest,
+  metaAdReadBackRequest,
   metaAdRequest,
   metaAdSetRequest,
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
   metaCampaignRequest,
+  metaCreativeRemoveRequest,
   metaMinimumBudgetsRequest,
   parseMetaAccountInstagram,
+  parseMetaAdHeld,
   parseMetaCampaignHeld,
   parseMetaImageHash,
   parseMetaLeastADay,
   parseMetaMadeId,
   parseMetaRefusal,
   parseMetaRemoved,
+  type MetaAdHeld,
   type MetaAdsAnswer,
   type MetaCampaignHeld,
   type MetaMakeHow,
@@ -87,6 +94,8 @@ interface AdsCheckBody {
   draft?: CheckedDraft;
   /** Meta's id for a campaign an earlier check left, to remove in place of a check. */
   remove?: string;
+  /** Meta's id for an ad a check made whose campaign is gone: its creative and picture are removed. */
+  tidy?: string;
 }
 
 /** One step, as the answer says it: what Meta did, its own words where it refused, and the id of what it made. */
@@ -195,14 +204,43 @@ interface CheckAt {
   account: { externalId: string; timezone: string; currency: string; pageId: string };
 }
 
+/** Whether a removal took, as Meta's answer says: one Meta answered without saying so is kept as refused. */
+function removalTook(steps: CheckStep[], answer: MetaAdsAnswer, thing: string): boolean {
+  if (answer.fault !== null) return false;
+  if (parseMetaRemoved(answer.json)) return true;
+  Object.assign(steps.at(-1) ?? {}, { outcome: "refused", said: `Meta did not say the ${thing} was removed.` });
+  return false;
+}
+
 /** A campaign removed, with whatever is under it: Meta's own words where it refused, and whether it took. */
 async function removeStep(at: CheckAt, steps: CheckStep[], campaignId: string): Promise<boolean> {
   const { token, appSecret } = at.signIn;
   const answer = await sendStep(at.log, steps, "remove", metaCampaignRemoveRequest(token, appSecret, campaignId));
-  if (answer.fault !== null) return false;
-  if (parseMetaRemoved(answer.json)) return true;
-  Object.assign(steps.at(-1) ?? {}, { outcome: "refused", said: "Meta did not say the campaign was removed." });
-  return false;
+  return removalTook(steps, answer, "campaign");
+}
+
+/** The words for the one thing a check's ad leaves that Chanlytics cannot remove. */
+const POST_LEFT =
+  "The unpublished Page post the ad made is left: only the Page's own sign-in may remove a post, and Chanlytics does not hold it.";
+
+/**
+ * What an ad a check made leaves in the account once it is gone, removed: its creative, then its picture, which Meta
+ * takes only once no creative uses it. The unpublished Page post its creative made is named and left. Whether every
+ * removal took.
+ */
+async function removeAdLeftovers(at: CheckAt, steps: CheckStep[], ad: MetaAdHeld): Promise<boolean> {
+  const { token, appSecret } = at.signIn;
+  let took = true;
+  if (ad.creativeId) {
+    const creative = metaCreativeRemoveRequest(token, appSecret, ad.creativeId);
+    took = removalTook(steps, await sendStep(at.log, steps, "remove_creative", creative), "creative");
+  }
+  if (took && ad.imageHash) {
+    const picture = metaAdImageRemoveRequest(token, appSecret, at.account.externalId, ad.imageHash);
+    took = removalTook(steps, await sendStep(at.log, steps, "remove_picture", picture), "picture");
+  }
+  if (ad.storyId) steps.push({ at: "post", outcome: "left", said: POST_LEFT, id: ad.storyId });
+  return took;
 }
 
 /** Everything under a campaign just made, step by step: the ad set, the picture, the ad, and the read back compared. */
@@ -303,8 +341,8 @@ async function runCheck(at: CheckAt, draft: CheckedDraft): Promise<{ steps: Chec
 /**
  * A campaign an earlier check made and left, removed with whatever is under it: only one in this account, named as a
  * check names it, with the campaign, every ad set and every ad under it paused by its own switch, read back first. A
- * check's paused ad goes with it, so the ad a finished check made can be removed too. Anything else is left as it stands,
- * and the answer says so.
+ * check's paused ad goes with it, so the ad a finished check made can be removed too, and then each ad's creative and
+ * picture. Anything else is left as it stands, and the answer says so.
  */
 async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps: CheckStep[]; removed: boolean }> {
   const { token, appSecret } = at.signIn;
@@ -320,14 +358,51 @@ async function removeLeftover(at: CheckAt, campaignId: string): Promise<{ steps:
     steps.push({ at: "remove", outcome: "refused", said: reason, id: null });
     return { steps, removed: false };
   }
-  return { steps, removed: await removeStep(at, steps, campaignId) };
+  if (!(await removeStep(at, steps, campaignId))) return { steps, removed: false };
+  let removed = true;
+  for (const ad of held.ads) removed = (await removeAdLeftovers(at, steps, ad)) && removed;
+  return { steps, removed };
 }
 
-/** What the door was asked for, read: a draft to check, or a campaign to remove; null where it is neither, or both. */
-function checkAskOf(body: Partial<AdsCheckBody>): { draft: CheckedDraft } | { remove: string } | null {
-  if (body.draft && body.remove === undefined) return { draft: body.draft };
-  if (!body.draft && body.remove !== undefined && isMetaId(body.remove)) return { remove: body.remove };
-  return null;
+/**
+ * An ad a check made whose campaign is already gone, read by its id: only one in this account, named as a check names
+ * it, and switched off (paused, or gone with its campaign) has its creative and picture removed.
+ */
+async function tidyCheckAd(at: CheckAt, adId: string): Promise<{ steps: CheckStep[]; removed: boolean }> {
+  const { token, appSecret } = at.signIn;
+  const steps: CheckStep[] = [];
+  const ad = readStepAnswer(
+    steps,
+    await sendStep(at.log, steps, "read_ad", metaAdReadBackRequest(token, appSecret, adId)),
+    parseMetaAdHeld,
+  );
+  if (!ad) return { steps, removed: false };
+  const inAccount = ad.accountId === at.account.externalId.replace(/^act_/, "");
+  const off = ad.paused || ad.state === "DELETED" || ad.state === "ARCHIVED";
+  if (!inAccount || !ad.name.includes(CHECK_MARK) || !off) {
+    const reason = "Not an ad a check made in this account, switched off, so what it left stands.";
+    steps.push({ at: "remove_creative", outcome: "refused", said: reason, id: null });
+    return { steps, removed: false };
+  }
+  return { steps, removed: await removeAdLeftovers(at, steps, ad) };
+}
+
+type CheckAsk = { draft: CheckedDraft } | { remove: string } | { tidy: string };
+
+/** What the door was asked for, read: a draft to check, a campaign to remove, or an ad to tidy; null unless one alone. */
+function checkAskOf(body: Partial<AdsCheckBody>): CheckAsk | null {
+  if ([body.draft, body.remove, body.tidy].filter((part) => part !== undefined).length !== 1) return null;
+  if (body.draft) return { draft: body.draft };
+  if (body.remove !== undefined) return isMetaId(body.remove) ? { remove: body.remove } : null;
+  return body.tidy !== undefined && isMetaId(body.tidy) ? { tidy: body.tidy } : null;
+}
+
+/** The door's answer to a removal or a tidy: removed, or stopped where Meta or the rule refused, with each step. */
+async function answerRemoval(at: CheckAt, ask: { remove: string } | { tidy: string }): Promise<Response> {
+  const { steps, removed } = "remove" in ask ? await removeLeftover(at, ask.remove) : await tidyCheckAd(at, ask.tidy);
+  const outcome = removed ? "removed" : "stopped";
+  at.log.info("ads_check_done", { outcome, steps: steps.length, differs: [] });
+  return json(200, { ok: true, outcome, steps, differs: [] });
 }
 
 /** The door's work: the owner, the switch, the account and its sign-in asked first, then the check or the removal. */
@@ -338,7 +413,7 @@ export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): 
   const userId = personFor(auth, body.user_id) ?? "";
   const ask = checkAskOf(body);
   if (!isTenantId(tenantId) || !UUID.test(userId) || !ask)
-    return refuse(400, "bad_request", "tenant_id, user_id, and a draft or Meta's id for a campaign to remove");
+    return refuse(400, "bad_request", "tenant_id, user_id, and one of a draft, a campaign to remove or an ad to tidy");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   // A check makes things at Meta: only where this deployment's switch is live, never in sandbox.
@@ -362,12 +437,7 @@ export async function runAdsCheck(auth: Admitted, body: Partial<AdsCheckBody>): 
     pageId,
   };
   const at = { db, log, tenantId, signIn, account };
-  if ("remove" in ask) {
-    const { steps, removed } = await removeLeftover(at, ask.remove);
-    const outcome = removed ? "removed" : "stopped";
-    log.info("ads_check_done", { outcome, steps: steps.length, differs: [] });
-    return json(200, { ok: true, outcome, steps, differs: [] });
-  }
+  if (!("draft" in ask)) return answerRemoval(at, ask);
   const { steps, differs } = await runCheck(at, ask.draft);
   const outcome = differs === null ? "stopped" : differs.length === 0 ? "matches" : "differs";
   log.info("ads_check_done", { outcome, steps: steps.length, differs: differs ?? [] });
