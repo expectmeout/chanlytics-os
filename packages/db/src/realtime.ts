@@ -140,7 +140,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
   ad_accounts: ["status", "name", "standing", "config", "read_at", "read_error", "withdrawn_at"],
   // What an ad's row draws (00650): never the read's own stamp, which every hour writes. A launch's step and where the
   // ad shows (00666): Setting up turns to In review, or to Couldn't finish, while the page is open. A change of the
-  // owner's on its way (00670): "Changing the total to $90…" turns to the new total once Meta takes it.
+  // owner's on its way (00673): "Changing the total to $90…" turns to the new total once Meta takes it.
   ads: [
     "name",
     "intent",

@@ -924,7 +924,7 @@ end $$;
 -- Name: FUNCTION ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) IS 'Service-role only: an owner changes a running ad made here (00670; decision 0050, Routes budget, end-date, end): its total (total_minor), its last day (end_day, with ends_at), the miles it is shown across, or the end. Keeps the change on the ad (ads.change) with what the platform held, bumps its version, and writes the decision (change_ad, end_ad) and the event (ad.change_asked) in one transaction. Answers outcome: asked, with the new version and tell; same where it is on its way or the platform holds it already; took_back where it undid one on its way the platform was never told of; stale for a press drawn from an old version, or from a total or last day the platform no longer holds; busy while another change is on its way; amount_soon with next_at after four amounts in an hour; unsure while one sent was never answered; over for an ad ended; not_here for an ad made at the platform; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
+COMMENT ON FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) IS 'Service-role only: an owner changes a running ad made here (00673; decision 0050, Routes budget, end-date, end): its total (total_minor), its last day (end_day, with ends_at), the miles it is shown across, or the end. Keeps the change on the ad (ads.change) with what the platform held, bumps its version, and writes the decision (change_ad, end_ad) and the event (ad.change_asked) in one transaction. Answers outcome: asked, with the new version and tell; same where it is on its way or the platform holds it already; took_back where it undid one on its way the platform was never told of; stale for a press drawn from an old version, or from a total or last day the platform no longer holds; busy while another change is on its way; amount_soon with next_at after four amounts in an hour; unsure while one sent was never answered; over for an ad ended; not_here for an ad made at the platform; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
 
 
 --
@@ -1029,7 +1029,7 @@ end $$;
 -- Name: FUNCTION ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text) IS 'Service-role only: what telling the platform of an owner''s change to an ad came to (00670; decision 0050). told: the row says the platform''s new total (and what is left of it), last day or miles, what was approved is kept with it, an ad ended is ended (intent ended), and an event says so (ad.changed, ad.ended). refused: nothing changed, and an ad.press_refused event keeps the platform''s words. unknown: sent with no answer; kept with sent_at, never sent again, settled by a read back. not_taken: that read back found the platform holds what it held. An amount sent is kept in amounts_at (four an hour). Answers the outcome, nothing where no change is on its way, or not_found.';
+COMMENT ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text) IS 'Service-role only: what telling the platform of an owner''s change to an ad came to (00673; decision 0050). told: the row says the platform''s new total (and what is left of it), last day or miles, what was approved is kept with it, an ad ended is ended (intent ended), and an event says so (ad.changed, ad.ended). refused: nothing changed, and an ad.press_refused event keeps the platform''s words. unknown: sent with no answer; kept with sent_at, never sent again, settled by a read back. not_taken: that read back found the platform holds what it held. An amount sent is kept in amounts_at (four an hour). Answers the outcome, nothing where no change is on its way, or not_found.';
 
 
 --
@@ -1451,6 +1451,51 @@ $$;
 --
 
 COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform, and an ad made here says it for each version of its words (ad_held_for, 00666); one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+
+
+--
+-- Name: ad_pause_all(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_press jsonb;
+  v_ad    uuid;
+  v_kept  jsonb;
+  v_out   jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200 then
+    raise exception 'ad_pause_all: between 1 and 200 ads' using errcode = '22023';
+  end if;
+  -- The owner alone pauses an ad (0050, call 2): asked once here before anything is kept, and by the door for each ad.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- In the ads' own order, as ids and not as text in any collation: two presses over the same ads lock them in the same
+  -- order, so neither waits on the other. An id that is not one refuses the whole set before anything is kept.
+  for v_press in
+    select p.value from jsonb_array_elements(p_presses) p order by (p.value ->> 'ad_id')::uuid
+  loop
+    v_ad := (v_press ->> 'ad_id')::uuid;
+    v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, (v_press ->> 'version')::integer, 'paused');
+    -- A pause Meta is to be told of goes at Meta's pace, by its account's read, as one Meta would not take at once.
+    if v_kept ->> 'outcome' = 'asked' and coalesce((v_kept ->> 'tell')::boolean, false) then
+      perform public.ad_tell_ask(p_tenant_id, v_ad);
+    end if;
+    v_out := v_out || jsonb_build_array(v_kept || jsonb_build_object('ad_id', v_ad));
+  end loop;
+  return jsonb_build_object('outcome', 'kept', 'ads', v_out);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) IS 'Service-role only: an owner pauses every ad of a set at once (00671; the Ads plan''s G17, decision 0050 calls 1 and 2). Each ad ({ad_id, version}, 1 to 200 of them) is paused through ad_set_intent, in one transaction, in the ads'' own order; each kept pause the platform is to be told of asks for its account''s read (ad_tell_ask), which tells the platform at its pace. The platform is asked nothing here. Answers outcome kept with ads, what ad_set_intent answered for each with its ad_id; not_allowed for anyone but the owner (has_permission ads), with nothing kept.';
 
 
 --
@@ -42745,14 +42790,14 @@ COMMENT ON COLUMN public.ads.shown_on IS 'Where the ad shows, as the platform ho
 -- Name: COLUMN ads.change; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ads.change IS 'A change of the owner''s to a running ad made here, on its way to the platform (00670; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account''s zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told.';
+COMMENT ON COLUMN public.ads.change IS 'A change of the owner''s to a running ad made here, on its way to the platform (00673; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account''s zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told.';
 
 
 --
 -- Name: COLUMN ads.amounts_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ads.amounts_at IS 'When the ad''s amount was lately sent to the platform (00670): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
+COMMENT ON COLUMN public.ads.amounts_at IS 'When the ad''s amount was lately sent to the platform (00673): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
 
 
 --
@@ -59510,6 +59555,14 @@ GRANT ALL ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text,
 REVOKE ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO authenticated;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) TO service_role;
 
 
 --

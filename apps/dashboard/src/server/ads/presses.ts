@@ -1,5 +1,5 @@
 /**
- * An owner's presses on an ad, for the dashboard (decision 0050, calls 1, 2, 3, 9 and 10, and its Routes): Pause, and
+ * An owner's presses on an ad, for the dashboard (decision 0050, calls 1, 2, 3, 9 and 10, and its Routes): Pause, Pause all, and
  * turning one back on; and, for a running ad made here, a new total, a new last day, new miles, or ending it for good
  * (the Ads plan's step 4, item 6). The edge keeps the press, holds Meta's token and tells Meta
  * (apps/edge/lib/ads/press.ts, change.ts); this hands it the ad, the version the press was drawn from and who pressed,
@@ -51,15 +51,23 @@ type Answer = EdgeAnswer<EdgeRead<"/api/admin/ads/press">>;
 type AdPressOp = "pause" | "resume" | "check" | "change";
 
 const STALE = "This ad changed since the page was read. Look again, then press.";
-const DOING: Record<AdPressOp, string> = {
-  pause: "pause it",
-  resume: "turn it back on",
-  check: "ask Meta about it",
-  change: "change it",
-};
+
+/**
+ * What one ad of a pause of them all came to, as the page reads it. soon: kept, and Meta is told at its pace. took_back:
+ * it undid a turning back on Meta was never told of, so the ad stands paused. same: it stood paused already. stale,
+ * not_found, not_ready: not kept, and why. unknown: no answer came, so whether it was kept is not known.
+ */
+const PAUSED_ONE = ["soon", "took_back", "same", "stale", "not_found", "not_ready", "unknown"] as const;
+
+interface AdPausedOne {
+  id: string;
+  outcome: (typeof PAUSED_ONE)[number];
+  /** Its version once kept; null where it was not, or nobody knows. */
+  version: number | null;
+}
 
 /** The words a refusal of the edge's is said in. */
-function refusalOf(answer: Answer, op: AdPressOp): AppError {
+function refusalOf(answer: Answer, op: AdPressOp | "pause_all"): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
     return new AppError(
@@ -82,7 +90,7 @@ function refusalOf(answer: Answer, op: AdPressOp): AppError {
   if (code === "not_found") return new AppError("not_found", "That ad is no longer here.", 404);
   if (code === "ad_not_ready")
     return new AppError("conflict", "This ad can't be changed from here right now. Change it in Meta.", 409);
-  return new AppError("upstream_provider", `Couldn't ${DOING[op]} just now. Nothing was changed. Try again.`);
+  return new AppError("upstream_provider", `Couldn't ${PRESS_DOING[op]} just now. Nothing was changed. Try again.`);
 }
 
 /** Meta didn't take the change: its own words in quotes, where it gave them, and that nothing changed. */
@@ -95,6 +103,15 @@ function metaRefused(detail: unknown): AppError {
       : "Meta didn't take the change, so nothing was changed. Change it in Meta.",
   );
 }
+
+/** What each press does, in the words its refusal says it could not. */
+const PRESS_DOING: Record<AdPressOp | "pause_all", string> = {
+  pause: "pause it",
+  resume: "turn it back on",
+  check: "ask Meta about it",
+  change: "change it",
+  pause_all: "pause them",
+};
 
 const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
 
@@ -244,4 +261,51 @@ export async function changeAd(
       ...(typeof pressed.expect_max_minor === "number" ? { expect_max_minor: pressed.expect_max_minor } : {}),
     },
   });
+}
+
+/** What pausing every ad of a set came to, ad by ad, in the order asked. */
+interface AdsPausedAll {
+  ads: AdPausedOne[];
+}
+
+/**
+ * `POST ads/pause-all`: every ad of a set paused at once, each with the version it was drawn from (the Ads plan's G17:
+ * AI stopped with ads still on). The edge keeps every pause in one transaction before it answers, and tells Meta at
+ * Meta's pace (apps/edge/lib/ads/press.ts, pause_all), so a tab that closes after the press leaves none running that it meant to
+ * pause. Where the edge gave no answer in time, whether the pauses were kept is not known: each ad says so, and the page
+ * reads what stands. Pressed again, each is kept once (a pause of a paused ad is the same press). A pause always goes,
+ * AI stopped or not.
+ */
+export async function pauseAllAds(
+  ctx: RouteContext,
+  member: Member,
+  ads: readonly { id: string; version: number }[],
+): Promise<AdsPausedAll> {
+  if (!edgeConfigured() || !deployment.providersLive)
+    throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
+  const answer: Answer = await callEdge(
+    "/api/admin/ads/press",
+    {
+      op: "pause_all",
+      tenant_id: member.tenantId,
+      user_id: ctx.userId,
+      ads: ads.map((ad) => ({ ad_id: ad.id, version: ad.version })),
+    },
+    { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
+  );
+  const body = answer.body ?? {};
+  if (body.error === "edge_timeout")
+    return { ads: ads.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })) };
+  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "pause_all");
+  const answered = new Map((body.ads ?? []).map((one) => [one.ad_id, one]));
+  return {
+    ads: ads.map((ad) => {
+      const one = answered.get(ad.id);
+      return {
+        id: ad.id,
+        outcome: PAUSED_ONE.find((word) => word === one?.outcome) ?? "unknown",
+        version: one?.version ?? null,
+      };
+    }),
+  };
 }

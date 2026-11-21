@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-439 handlers in 60 domains.
+440 handlers in 60 domains.
 
 ## activity
 
@@ -170,6 +170,14 @@ Writes; for a member of the workspace the request names, operator or above; coun
 Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/ads/page/route.ts`).
+
+### `POST /api/v1/ads/pause-all`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ads` | array of object | yes | at least 1; at most 200 |
 
 ### `GET /api/v1/ads/people`
 
@@ -3936,6 +3944,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `ad_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `version` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `change` | object | no |  |
+| `ads` | array of object | no | at most 200 |
 
 ### `POST /api/admin/ads/preview`
 

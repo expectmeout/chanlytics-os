@@ -18,7 +18,8 @@ export interface AdPreviewFrame {
 }
 
 /**
- * Why a place shows Chanlytics' own drawing and not Meta's: Meta can't be asked from here; the account is not connected,
+ * Why a place shows Chanlytics' own drawing and not Meta's: Meta can't be asked from here, or answered in a shape this
+ * page can't read (both said as the plain drawing); the account is not connected,
  * or Meta needs it connected again; the picture is a video, which Meta's preview is not asked for yet; Meta did not
  * answer, or is holding the account back; or Meta said no.
  */

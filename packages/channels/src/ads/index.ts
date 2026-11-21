@@ -64,7 +64,13 @@ export type {
 } from "./meta-make";
 export { META_CITY_MILES, metaAreaSent, metaPlacesRequest, parseMetaPlaces } from "./meta-place";
 export type { MetaPlace, MetaPlaceKind } from "./meta-place";
-export { META_PREVIEW_PLACES, metaPreviewFrameSrc, metaPreviewRequest, parseMetaPreview } from "./meta-preview";
+export {
+  META_PREVIEW_PLACES,
+  metaPreviewFrameSrc,
+  metaPreviewRequest,
+  metaPreviewShape,
+  parseMetaPreview,
+} from "./meta-preview";
 export type { MetaPreviewAsk, MetaPreviewFrame, MetaPreviewPlace } from "./meta-preview";
 export {
   META_ADS_PAGE,

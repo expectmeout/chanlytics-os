@@ -134,11 +134,20 @@ export const ADS_PREVIEW_DOOR = edgeDoor(
 );
 
 /**
- * POST /api/admin/ads/press: an owner pauses an ad (`pause`) or turns one back on (`resume`), carrying the version the
- * press was drawn from; or changes a running ad made here (`change`, the Ads plan's step 4, item 6): its total, its last
- * day, its miles, or ending it, with what Meta held when the press was drawn and the most a raise names. `outcome`
- * says what it came to: told, sent, soon, took_back or same; `next_at`, where Meta's four changes of an amount an hour
- * are used, when the next is taken.
+ * The most ads one press pauses at once (`pause_all`): what the database's door takes (ad_pause_all, 00671), far past
+ * the ads a business runs, and the most a page lists.
+ */
+export const AD_PAUSE_ALL_MAX = 200;
+
+/**
+ * POST /api/admin/ads/press: an owner pauses an ad (`pause`), turns one back on (`resume`) or asks Meta what stands of one
+ * (`check`), carrying the version the press was drawn from; or pauses every ad of a set at once (`pause_all`, `ads`), each
+ * with its own version, kept together before the door answers; or changes a running ad made here (`change`, the Ads
+ * plan's step 4, item 6): its total, its last day, its miles, or ending it, with what Meta held when the press was drawn
+ * and the most a raise names. `outcome` says what it came to: told, sent, soon, took_back or same, and for `pause_all`
+ * kept, with what each ad came to in `ads`; `next_at`, where Meta's four changes of an amount an hour are used, when
+ * the next is taken.
+
  */
 export const ADS_PRESS_DOOR = edgeDoor(
   "/api/admin/ads/press",
@@ -161,8 +170,17 @@ export const ADS_PRESS_DOOR = edgeDoor(
         expect_max_minor: z.number().int().positive().optional(),
       })
       .optional(),
+    ads: z
+      .array(z.object({ ad_id: DOOR_ID, version: z.number().int() }))
+      .max(AD_PAUSE_ALL_MAX)
+      .optional(),
   }),
-  answerFields({ outcome: z.string(), version: z.number(), next_at: z.string() }),
+  answerFields({
+    outcome: z.string(),
+    version: z.number(),
+    next_at: z.string(),
+    ads: z.array(z.object({ ad_id: z.string(), outcome: z.string(), version: z.number().nullable() })),
+  }),
 );
 
 /**

@@ -1,5 +1,5 @@
 /**
- * An owner's changes to a running ad made here (00670; decision 0050, Routes budget, end-date, end): what they asked,
+ * An owner's changes to a running ad made here (00673; decision 0050, Routes budget, end-date, end): what they asked,
  * kept through its one door with the decision; what telling the platform came to; and an account's changes still on
  * their way, or sent and never answered. Every write is a door's, called as the service role. A database that has not
  * run the migration answers `no_door`, where nothing is written and nothing is wrong (either deploy order).
@@ -57,7 +57,7 @@ const CHANGE_OUTCOMES = [
   "not_found",
 ] as const;
 
-/** An owner's change (ad_change_keep, 00670): kept with its decision, in one transaction. */
+/** An owner's change (ad_change_keep, 00673): kept with its decision, in one transaction. */
 export async function keepAdChange(
   db: Db,
   by: { tenantId: TenantId; userId: string },
@@ -89,7 +89,7 @@ export async function keepAdChange(
   };
 }
 
-/** What telling the platform of a change came to (ad_change_told, 00670). */
+/** What telling the platform of a change came to (ad_change_told, 00673). */
 export async function markAdChangeTold(
   db: Db,
   tenantId: TenantId,

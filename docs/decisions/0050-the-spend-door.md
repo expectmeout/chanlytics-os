@@ -576,8 +576,8 @@ with a card limit he sets.
 
 ## As built, 21 November 2026, later · Changing a running ad made here, and Fix it (the Ads plan's step 4, item 6)
 
-Built with nothing sent to Meta and nothing spent. One migration is written and not applied: `00670`
-(`supabase/migrations/00670_an_owner_changes_a_running_ad.sql`, claimed 21 November).
+Built with nothing sent to Meta and nothing spent. One migration is written and not applied: `00673`
+(`supabase/migrations/00673_an_owner_changes_a_running_ad.sql`, claimed 21 November).
 
 - **The Shape's `setBudget` and `setEnd`, and `endAd`, are the routes** `budget`, `end-date` and `end`, with `area` for
   the miles (`apps/dashboard/app/api/v1/ads/[id]/budget/route.ts` and its three beside it, over

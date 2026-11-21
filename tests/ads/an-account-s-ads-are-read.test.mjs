@@ -500,6 +500,12 @@ function world({ account = {}, ads = [], secret = { access_token: "the-business-
         return tables.ad_accounts.some((r) => r.external_id === p_external_id && r.status === "connected") ? 1 : 0;
       },
       ads_hand_out: ({ p_spread_seconds }) => ({ reads: p_spread_seconds > 0 ? 3 : 0 }),
+      // An owner's press on its way, told as 00652's door keeps it.
+      ad_told: ({ p_ad_id, p_outcome, p_platform_state }) => {
+        const row = tables.ads.find((ad) => ad.id === p_ad_id);
+        Object.assign(row, { told_at: new Date().toISOString(), platform_state: p_platform_state ?? null });
+        return p_outcome;
+      },
     },
   );
   const job = { id: "job-1", tenant_id: T, kind: "ad_read", payload: { account_id: ACCOUNT } };
@@ -707,6 +713,100 @@ test("a look back that reaches the most one read takes keeps what it read, settl
   assert.equal(kept.settled_before, undefined, "days it did not read whole are left open: their figures say so far");
   assert.ok(kept.settle_at, "and the look back is next due tomorrow, never again every hour");
   assert.equal(kept.ads.length, 2, "the ads and what Meta says of each are kept all the same");
+});
+
+test("a read that leaves presses on their way reads all the same, and the next is the clock's next turn, never the hour", async () => {
+  // Pauses on their way, as a pause of every ad leaves them: more than the five one read sends.
+  const pressed = (n) => ({
+    id: `adadadad-5555-4000-8000-00000000010${n}`,
+    tenant_id: T,
+    account_id: ACCOUNT,
+    origin: "platform",
+    platform_ad_id: `2385000000000020${n}`,
+    platform_campaign_id: null,
+    intent: "paused",
+    intent_at: new Date(Date.now() - 60_000).toISOString(),
+    told_at: null,
+    status: "made",
+  });
+  process.env.ADS_WRITES = "sandbox";
+  try {
+    // Read a minute ago: a read asked only to send presses would read nothing more.
+    const w = world({
+      account: { read_at: new Date(Date.now() - 60_000).toISOString() },
+      ads: [1, 2, 3, 4, 5, 6, 7].map(pressed),
+    });
+    // Meta's list names them beside its own two, so nothing is asked of them by name.
+    answers.ads[1].data.push(...w.tables.ads.map((ad) => metaAd(ad.platform_ad_id)));
+    const told = () => w.tables.ads.filter((ad) => ad.told_at !== null).length;
+    await w.read();
+    assert.equal(told(), 5, "five told, as one read sends");
+    assert.equal(w.kept.reads.length, 1, "and the account read all the same, so its keeping hands the rest on");
+    assert.ok(
+      Date.parse(w.kept.reads[0].next_read_at) <= Date.now() + 60_000,
+      "its next read the clock's next turn, not an hour on",
+    );
+    // The next read tells the two left, and with none left it reads nothing more.
+    const { read } = await w.read();
+    assert.deepEqual([told(), read.outcome, w.kept.reads.length], [7, "told", 1]);
+  } finally {
+    delete process.env.ADS_WRITES;
+  }
+});
+
+test("a pause pressed while the read runs, when no second read can be asked for, is counted as the read ends", async () => {
+  process.env.ADS_WRITES = "sandbox";
+  try {
+    const w = world();
+    // The owner presses Pause as Meta is asked for the days: the account's read is running, so none is put on the
+    // ledger for it, and nothing was on its way as the read began.
+    const days = answers.days;
+    Object.defineProperty(answers, "days", {
+      get() {
+        if (w.tables.ads.length === 0)
+          w.tables.ads.push({
+            id: "adadadad-5555-4000-8000-000000000201",
+            tenant_id: T,
+            account_id: ACCOUNT,
+            origin: "platform",
+            platform_ad_id: AD1,
+            platform_campaign_id: null,
+            intent: "paused",
+            intent_at: new Date().toISOString(),
+            told_at: null,
+            status: "made",
+          });
+        return days;
+      },
+    });
+    await w.read();
+    assert.equal(w.kept.reads.length, 1);
+    assert.ok(Date.parse(w.kept.reads[0].next_read_at) <= Date.now() + 60_000, "the clock's next turn takes it");
+  } finally {
+    delete process.env.ADS_WRITES;
+  }
+});
+
+test("with nothing reaching Meta from here, a press on its way brings no read nearer", async () => {
+  // A press kept while the switch was on, and the switch turned off since: no read would tell it.
+  const w = world({
+    ads: [
+      {
+        id: "adadadad-5555-4000-8000-000000000301",
+        tenant_id: T,
+        account_id: ACCOUNT,
+        origin: "platform",
+        platform_ad_id: AD1,
+        platform_campaign_id: null,
+        intent: "paused",
+        intent_at: new Date(Date.now() - 60_000).toISOString(),
+        told_at: null,
+        status: "made",
+      },
+    ],
+  });
+  await w.read();
+  assert.ok(Date.parse(w.kept.reads[0].next_read_at) > Date.now() + 50 * 60_000, "an hour on, as ever");
 });
 
 test("a read is skipped where there is nothing to read with, and never asks Meta", async () => {

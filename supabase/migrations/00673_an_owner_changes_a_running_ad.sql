@@ -1,4 +1,4 @@
--- 00670 · An owner changes a running ad made here (the Ads plan's step 4, item 6, 4.5 and 5.2; decision 0050, calls 3,
+-- 00673 · An owner changes a running ad made here (the Ads plan's step 4, item 6, 4.5 and 5.2; decision 0050, calls 3,
 -- 4 and 10, and its Routes: budget, end-date, end).
 --
 -- Turn on made an ad at Meta (00666). These are what its owner changes of it from its drawer: its total, its last day,
@@ -55,9 +55,9 @@ alter table public.ads drop constraint if exists ads_amounts_at_check;
 alter table public.ads add constraint ads_amounts_at_check check (amounts_at is null or cardinality(amounts_at) <= 20);
 
 comment on column public.ads.change is
-  'A change of the owner''s to a running ad made here, on its way to the platform (00670; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account''s zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told.';
+  'A change of the owner''s to a running ad made here, on its way to the platform (00673; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account''s zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told.';
 comment on column public.ads.amounts_at is
-  'When the ad''s amount was lately sent to the platform (00670): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
+  'When the ad''s amount was lately sent to the platform (00673): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
 
 /* ----------------------------------------------------------------------------------------- 3. the owner's press -- */
 
@@ -195,7 +195,7 @@ end $$;
 revoke all on function public.ad_change_keep(uuid, uuid, uuid, integer, jsonb) from public, anon, authenticated;
 grant execute on function public.ad_change_keep(uuid, uuid, uuid, integer, jsonb) to service_role;
 comment on function public.ad_change_keep(uuid, uuid, uuid, integer, jsonb) is
-  'Service-role only: an owner changes a running ad made here (00670; decision 0050, Routes budget, end-date, end): its total (total_minor), its last day (end_day, with ends_at), the miles it is shown across, or the end. Keeps the change on the ad (ads.change) with what the platform held, bumps its version, and writes the decision (change_ad, end_ad) and the event (ad.change_asked) in one transaction. Answers outcome: asked, with the new version and tell; same where it is on its way or the platform holds it already; took_back where it undid one on its way the platform was never told of; stale for a press drawn from an old version, or from a total or last day the platform no longer holds; busy while another change is on its way; amount_soon with next_at after four amounts in an hour; unsure while one sent was never answered; over for an ad ended; not_here for an ad made at the platform; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
+  'Service-role only: an owner changes a running ad made here (00673; decision 0050, Routes budget, end-date, end): its total (total_minor), its last day (end_day, with ends_at), the miles it is shown across, or the end. Keeps the change on the ad (ads.change) with what the platform held, bumps its version, and writes the decision (change_ad, end_ad) and the event (ad.change_asked) in one transaction. Answers outcome: asked, with the new version and tell; same where it is on its way or the platform holds it already; took_back where it undid one on its way the platform was never told of; stale for a press drawn from an old version, or from a total or last day the platform no longer holds; busy while another change is on its way; amount_soon with next_at after four amounts in an hour; unsure while one sent was never answered; over for an ad ended; not_here for an ad made at the platform; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
 
 /* ------------------------------------------------------------------------------- 4. what telling Meta came to -- */
 
@@ -299,7 +299,7 @@ end $$;
 revoke all on function public.ad_change_told(uuid, uuid, text, text) from public, anon, authenticated;
 grant execute on function public.ad_change_told(uuid, uuid, text, text) to service_role;
 comment on function public.ad_change_told(uuid, uuid, text, text) is
-  'Service-role only: what telling the platform of an owner''s change to an ad came to (00670; decision 0050). told: the row says the platform''s new total (and what is left of it), last day or miles, what was approved is kept with it, an ad ended is ended (intent ended), and an event says so (ad.changed, ad.ended). refused: nothing changed, and an ad.press_refused event keeps the platform''s words. unknown: sent with no answer; kept with sent_at, never sent again, settled by a read back. not_taken: that read back found the platform holds what it held. An amount sent is kept in amounts_at (four an hour). Answers the outcome, nothing where no change is on its way, or not_found.';
+  'Service-role only: what telling the platform of an owner''s change to an ad came to (00673; decision 0050). told: the row says the platform''s new total (and what is left of it), last day or miles, what was approved is kept with it, an ad ended is ended (intent ended), and an event says so (ad.changed, ad.ended). refused: nothing changed, and an ad.press_refused event keeps the platform''s words. unknown: sent with no answer; kept with sent_at, never sent again, settled by a read back. not_taken: that read back found the platform holds what it held. An amount sent is kept in amounts_at (four an hour). Answers the outcome, nothing where no change is on its way, or not_found.';
 
 /* --------------------------------------------------------------------- 5. the page hears a change on its way -- */
 

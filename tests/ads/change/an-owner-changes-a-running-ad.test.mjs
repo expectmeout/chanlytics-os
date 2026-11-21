@@ -1,7 +1,7 @@
 /**
  * An owner changes a running ad made here (the Ads plan's step 4, item 6, 4.5 and 5.2; decision 0050, Routes budget,
  * end-date, end): the edge's press door's `change` op (apps/edge/lib/ads/press.ts runAdPress, change.ts), run over a
- * database in memory whose doors answer as 00670's do, with Meta's answers as its pages document them.
+ * database in memory whose doors answer as 00673's do, with Meta's answers as its pages document them.
  *
  * What must hold. A change is judged again against what Meta holds, and a raise whose most is not the one its press
  * named, or past the owner's most, is refused before anything is kept or sent. A press drawn from an old version, or
@@ -144,7 +144,7 @@ const heldOf = (o = {}) => ({
 
 /**
  * A workspace whose owner is U, its account connected, and one ad made here running: $70 in all, $20 of it spent, its
- * run five days in and nine to go. The doors answer as 00670's do: one press at a time, by the ad's version.
+ * run five days in and nine to go. The doors answer as 00673's do: one press at a time, by the ad's version.
  */
 function world({ owner = true, ad = {}, account = {}, stopped = null } = {}) {
   resetBreakers();

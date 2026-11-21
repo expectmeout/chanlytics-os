@@ -32,6 +32,7 @@ export {
   listMadeAds,
   listPendingAds,
   markAdTold,
+  pauseAdsKept,
   setAdIntent,
 } from "./presses";
 export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept } from "./presses";

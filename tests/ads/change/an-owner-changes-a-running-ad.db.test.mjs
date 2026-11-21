@@ -1,5 +1,5 @@
 /**
- * 00670 on a real Postgres: an owner changes a running ad made here (decision 0050, Routes budget, end-date, end; the
+ * 00673 on a real Postgres: an owner changes a running ad made here (decision 0050, Routes budget, end-date, end; the
  * Ads plan's step 4, item 6).
  *
  * What must hold. The owner's change is kept on the ad with what Meta held, its version bumped and the decision

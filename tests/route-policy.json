@@ -132,6 +132,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST ads/pause-all": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "GET ads/people": {
       "kind": "read",
       "scope": "workspace",
