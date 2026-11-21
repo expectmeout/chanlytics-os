@@ -81,6 +81,8 @@ export interface MetaAdsAnswer {
   outcome: SendOutcome;
   status: number;
   json: Record<string, unknown> | null;
+  /** An answer Meta gives as a list, as a batch's is: each request's own answer, in order. Null for any other. */
+  list: unknown[] | null;
   /** Null where the call went well. */
   fault: MetaAdsFault | null;
   /** Meta's own words for a refusal, or why no answer came. Null where the call went well. */
@@ -130,6 +132,7 @@ export async function callMetaAds(
     outcome: reply.outcome,
     status: reply.status,
     json,
+    list: Array.isArray(reply.json) ? reply.json : null,
     fault,
     said: fault === null ? null : (metaErrorOf(json)?.message ?? reply.error ?? `HTTP ${reply.status}`).slice(0, 300),
     usage: metaUsageOf(reply.headers),
