@@ -68,7 +68,6 @@ export interface AskFoundVM {
 export const ASK_FOUND_WORDS = {
   title: "AI found",
   more: (n: number) => `${n} more`,
-  fewer: "Fewer",
   came: "What came of it.",
   notToday: "Not today",
   idea: "AI's idea",

@@ -10,7 +10,8 @@
 import { useRef } from "react";
 import { NEED_YOU_WORDS as W, addressOf, sendCountdown } from "@chanlytics/contracts";
 import { commitVerb } from "@/bridge/verbs/commit";
-import { carryFromToday, carryReply } from "../../inbox/carried-reply";
+import { carryReply } from "../../inbox/carried-reply";
+import { goFromToday } from "../over/open";
 import { cancelSend } from "../../inbox/verbs";
 import { Button, Meter } from "../../kit";
 import { appNavigate } from "../shell";
@@ -40,8 +41,7 @@ export function HeldWork(p: WorkProps) {
     const to = row.conversationId ? addressOf({ kind: "conversation", id: row.conversationId }) : row.cta.to;
     const replyThere = () => {
       carryReply(to, held.text);
-      carryFromToday(to);
-      appNavigate(to);
+      goFromToday(to);
     };
     return (
       <Done

@@ -10,17 +10,32 @@
  * Pure: the grammar of the param and which homes open in place. The frame reads it in the browser (the frame is one
  * prerender for every address), as it reads the lead sheet's `?lead=<id>`.
  */
-import { SEQUENCES_ROUTE, TO_SEND_ROUTE, messageOfRoute, parseSequencesRoute, runRoute } from "@chanlytics/contracts";
+import {
+  SEQUENCES_ROUTE,
+  TO_SEND_ROUTE,
+  addressOf,
+  calendarParamParts,
+  isDayKey,
+  messageOfRoute,
+  parseSequencesRoute,
+  runRoute,
+  visitRoute,
+} from "@chanlytics/contracts";
 
 /** The query param a thing open over the page rides on. */
 export const SEE_PARAM = "see";
 
 /**
  * A thing that opens over the page: a run (with the sequence it is a day of, where the writer knew it), a message, or To
- * send, the one list of every email handed to its owner.
+ * send, the one list of every email handed to its owner. And, over Today alone (the second look of 20 Nov 2026, N1 to
+ * N3): a visit to mark, by its id and its day; and a conversation, by its own id.
  */
 export type SeeRef =
-  { kind: "run"; id: string; sequenceId: string | null } | { kind: "message"; name: string } | { kind: "to-send" };
+  | { kind: "run"; id: string; sequenceId: string | null }
+  | { kind: "message"; name: string }
+  | { kind: "to-send" }
+  | { kind: "visit"; id: string; day: string }
+  | { kind: "thread"; id: string };
 
 /** To send's word on the address: the list is one, so it names no id. */
 const TO_SEND_SEE = "to-send";
@@ -28,12 +43,24 @@ const TO_SEND_SEE = "to-send";
 /** A word of the param: an id, a uuid's shape or a name's (a message's snake_case), never a colon, slash or space. */
 const WORD = /^[A-Za-z0-9_-]+$/;
 
-/** The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`, `to-send`. */
+/**
+ * The param's value for a thing: `run:<id>`, `run:<id>:<sequence>`, `message:<name>`, `to-send`, `visit:<id>:<day>`,
+ * `thread:<id>`. A run keeps the sequence it is a day of where the writer knew it: its home, and a lead's way there, need
+ * it where Sent's runs were never read (the second look, N4, kept it). Its colons stand as written (over-query.ts).
+ */
 export function seeValueOf(ref: SeeRef): string {
   if (ref.kind === "to-send") return TO_SEND_SEE;
   if (ref.kind === "message") return `message:${ref.name}`;
+  if (ref.kind === "visit") return `visit:${ref.id}:${ref.day}`;
+  if (ref.kind === "thread") return `thread:${ref.id}`;
   return ref.sequenceId && ref.sequenceId !== ref.id ? `run:${ref.id}:${ref.sequenceId}` : `run:${ref.id}`;
 }
+
+/**
+ * Whether Today draws the thing over itself (a visit, a conversation: the second look, N1 to N3), where it is made of the
+ * Calendar's and the Inbox's reads, which Today makes already; the frame's sheet draws every other.
+ */
+export const drawnByToday = (ref: SeeRef): boolean => ref.kind === "visit" || ref.kind === "thread";
 
 /** The thing a param's value names, or null for a value that names none (a word out of shape, a kind not opened so). */
 export function seeRefOf(value: string | null | undefined): SeeRef | null {
@@ -42,20 +69,40 @@ export function seeRefOf(value: string | null | undefined): SeeRef | null {
   const [kind, id, sequenceId, ...rest] = value.split(":");
   if (rest.length > 0 || !id || !WORD.test(id)) return null;
   if (kind === "message") return sequenceId === undefined ? { kind: "message", name: id } : null;
+  if (kind === "thread") return sequenceId === undefined ? { kind: "thread", id } : null;
+  if (kind === "visit") return sequenceId && isDayKey(sequenceId) ? { kind: "visit", id, day: sequenceId } : null;
   if (kind !== "run") return null;
   if (sequenceId !== undefined && !WORD.test(sequenceId)) return null;
   return { kind: "run", id, sequenceId: sequenceId ?? null };
 }
 
+/** The Inbox's address of a conversation: `inbox/th-<conversation>`. */
+const THREAD_ROUTE = /^inbox\/th-([A-Za-z0-9_-]+)$/;
+
+/**
+ * The visit or the conversation a route names (`calendar/2026-11-18:a-<id>`, `inbox/th-<id>`), which Today opens over
+ * itself; null for any other route.
+ */
+function visitOrThreadOf(path: string): SeeRef | null {
+  const thread = THREAD_ROUTE.exec(path)?.[1];
+  if (thread) return { kind: "thread", id: thread };
+  if (!path.startsWith("calendar/")) return null;
+  const { day, visitId } = calendarParamParts(path.slice("calendar/".length));
+  return day && visitId ? { kind: "visit", id: visitId, day } : null;
+}
+
 /**
  * The thing a home's route names, which a mention of it opens in place: a run's home (runRoute), or a message's address
- * (messageRoute), which opens it over Campaigns' list; null for any other route, which a press goes to. The route as the shell names
- * it, a retired one moved first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run, one kept as
+ * (messageRoute), which opens it over Campaigns' list; a visit on its day, or a conversation, which Today opens over
+ * itself (see-over.ts inPlace); null for any other route, which a press goes to. The route as the shell names it, a
+ * retired one moved first (canonicalRoute): a bell row kept as `broadcasts/run:<id>` is the run, one kept as
  * `campaigns/message:<name>` or `campaigns/messages/<name>` the message.
  */
 export function seeRefOfRoute(route: string): SeeRef | null {
   const [path = ""] = route.split("?");
   if (path === TO_SEND_ROUTE) return { kind: "to-send" };
+  const named = visitOrThreadOf(path);
+  if (named) return named;
   const place = parseSequencesRoute(path);
   if (place?.view === "record" && place.run && WORD.test(place.run))
     return { kind: "run", id: place.run, sequenceId: place.id === place.run ? null : place.id };
@@ -71,6 +118,8 @@ export function seeRefOfRoute(route: string): SeeRef | null {
  */
 export function seeHomeOf(ref: SeeRef): string {
   if (ref.kind === "to-send") return TO_SEND_ROUTE;
+  if (ref.kind === "visit") return visitRoute(ref.id, ref.day);
+  if (ref.kind === "thread") return addressOf({ kind: "conversation", id: ref.id });
   return ref.kind === "message" ? SEQUENCES_ROUTE : runRoute(ref.id, ref.sequenceId);
 }
 
@@ -78,8 +127,12 @@ export function seeHomeOf(ref: SeeRef): string {
 export const SEE_WORDS = {
   /** The door from a run's sheet to its home. */
   home: "Open in Campaigns",
+  /** The door from a visit's sheet to its day on the Calendar, and from a conversation's to the Inbox. */
+  homeVisit: "Open in Calendar",
+  homeThread: "Open in Inbox",
   /** Its kicker, where it was opened over. */
   run: "A run",
   message: "A message",
   toSend: "To send",
+  thread: "A conversation",
 } as const;

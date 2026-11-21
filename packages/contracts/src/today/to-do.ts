@@ -35,6 +35,8 @@ export interface TodayStepVM {
   words: string;
   /** "Due today", "Overdue since Mon". */
   when: string;
+  /** The day as a chip says it near today: "today", "Mon", "Sep 30" (steps.ts StepDayVM.near). */
+  near: string;
   due: StepDue;
   /** The day it was due, as a day key ("2026-11-12"). */
   dueOn: string;
@@ -47,10 +49,14 @@ export interface TodayStepVM {
   dealId: string | null;
 }
 
-/** Someone else's step as a row says it, by first name, never an address: "For Dana Ortiz" is "For Dana". */
+/**
+ * Someone else's step as a row says it, by first name, never an address: "For Dana Ortiz" is "For Dana", and a member
+ * known by an address alone is named by it as a name is written, "ruben@" is "For Ruben" (the second look, L2).
+ */
 const forOther = (forWho: string): string => {
   const name = forWho.replace(/^For\s+/i, "").trim();
-  return `For ${(name.split("@")[0] ?? name).split(/\s+/)[0] ?? name}`;
+  const first = (name.split("@")[0] ?? name).split(/\s+/)[0] ?? name;
+  return `For ${first.charAt(0).toUpperCase()}${first.slice(1)}`;
 };
 
 /**
@@ -102,6 +108,7 @@ export function todaySteps(
       noteId: step.id,
       words: step.words,
       when: step.day.words,
+      near: step.day.near,
       due: step.due,
       dueOn: step.day.day,
       forWho: step.forMe || !step.forWho ? null : forOther(step.forWho),
@@ -148,6 +155,7 @@ function stepRow(todayStep: TodayStepVM): TodayQueueRowVM {
       deal_id: todayStep.dealId,
       for_user_id: todayStep.forUserId,
       due_on: todayStep.dueOn,
+      late: todayStep.due === "past" ? todayStep.near : null,
     },
     waitedMs: Number.NEGATIVE_INFINITY,
   };

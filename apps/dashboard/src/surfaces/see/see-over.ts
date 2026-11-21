@@ -11,7 +11,7 @@
  * Messages folded into Campaigns (17 Nov 2026) none to be at home on either: a press on one opens it over whatever page it
  * was pressed on, Campaigns' list too. A move that asks for the home itself (a run's Open in Campaigns) says so (`home`).
  */
-import { SEE_PARAM, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "./over";
+import { SEE_PARAM, drawnByToday, seeRefOf, seeRefOfRoute, seeValueOf, type SeeRef } from "./over";
 import { overQuery } from "./over-query";
 
 const SEE = overQuery(SEE_PARAM);
@@ -55,6 +55,9 @@ export function inPlace(route: string): boolean {
   const head = /^\/w\/[^/?#]+\/([^/?#]*)/.exec(path)?.[1] ?? "";
   // To send and a message have no page of their own: each opens over whatever page it was pressed on.
   if (ref.kind === "run" && RUN_HOMES.has(head)) return false;
+  // A visit and a conversation open over Today by Today's own presses alone (today/over/open.ts): a bell row, a push or
+  // a link goes to them, on Today too.
+  if (drawnByToday(ref)) return false;
   openSeeOver(ref);
   return true;
 }

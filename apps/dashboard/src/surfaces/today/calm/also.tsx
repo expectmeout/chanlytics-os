@@ -10,7 +10,8 @@ import { useState, type ReactNode } from "react";
 import { todayVisitsSub, type AppointmentWord } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS as L, alsoWords, type TodayAlsoCounts } from "../model/lines";
 import { routeDoor } from "../../frame-verbs";
-import { CalmList, CalmRow } from "./lines";
+import { goFromToday } from "../over/open";
+import { CalmList, CalmOpen, CalmRow } from "./lines";
 
 /** Where each kind opens: null where the page has no address for it. */
 export interface AlsoDoors {
@@ -19,6 +20,29 @@ export interface AlsoDoors {
   toDo: string | null;
   toMark: string | null;
   setAside: string | null;
+}
+
+/**
+ * The visits nobody has marked, as a door to the first of them, with Mark all kept at the door's end, beside the link and
+ * never in it (the second look, L5). Called, not drawn.
+ */
+function visitsLine(count: number, at: { word: AppointmentWord; door: string | null; keptAll: ReactNode }) {
+  const line = (
+    <CalmRow
+      quiet
+      name={todayVisitsSub(count, at.word)}
+      // A visit opens over Today, its Next walking on to the next to mark (N1).
+      door={at.door ? routeDoor(at.door, goFromToday) : null}
+      testid="today-also-visits"
+    />
+  );
+  if (!at.keptAll) return line;
+  return (
+    <div className="calm-sub-acts">
+      {line}
+      <div className="calm-sub-act">{at.keptAll}</div>
+    </div>
+  );
 }
 
 export function AlsoLine({
@@ -37,42 +61,44 @@ export function AlsoLine({
   const [open, setOpen] = useState(false);
   const words = alsoWords(left);
   if (!words) return null;
-  const opened = open ? (
-    <div className="calm-subs" role="list" data-testid="today-also-open">
-      {left.waiting > 0 ? (
-        <CalmRow quiet name={L.moreWaiting(left.waiting)} door={routeDoor(doors.waiting)} testid="today-also-waiting" />
-      ) : null}
-      {left.toDo > 0 && doors.toDo ? (
-        <CalmRow quiet name={L.toDo(left.toDo)} door={routeDoor(doors.toDo)} testid="today-also-todo" />
-      ) : null}
-      {left.toMark > 0 ? (
-        <CalmRow
-          quiet
-          name={todayVisitsSub(left.toMark, word)}
-          door={doors.toMark ? routeDoor(doors.toMark) : null}
-          under={keptAll ? <div className="calm-sub-act">{keptAll}</div> : null}
-          testid="today-also-visits"
-        />
-      ) : null}
-      {left.older > 0 ? (
-        <CalmRow quiet name={L.olderThanAWeek(left.older)} door={routeDoor(doors.older)} testid="today-also-older" />
-      ) : null}
-      {left.setAside > 0 && doors.setAside ? (
-        <CalmRow
-          quiet
-          name={L.setAside(left.setAside)}
-          door={routeDoor(doors.setAside)}
-          testid="today-also-set-aside"
-        />
-      ) : null}
-    </div>
-  ) : null;
+  // Drawn shut as well as open, so it folds where it stands (the second look, M2); a reader and a test find it open only.
+  const opened = (
+    <CalmOpen open={open}>
+      <div className="calm-subs" role="list" data-testid={open ? "today-also-open" : undefined}>
+        {left.waiting > 0 ? (
+          <CalmRow
+            quiet
+            name={L.moreWaiting(left.waiting)}
+            door={routeDoor(doors.waiting)}
+            testid="today-also-waiting"
+          />
+        ) : null}
+        {left.toDo > 0 && doors.toDo ? (
+          <CalmRow quiet name={L.toDo(left.toDo)} door={routeDoor(doors.toDo)} testid="today-also-todo" />
+        ) : null}
+        {left.toMark > 0 ? visitsLine(left.toMark, { word, door: doors.toMark, keptAll }) : null}
+        {left.older > 0 ? (
+          <CalmRow quiet name={L.olderThanAWeek(left.older)} door={routeDoor(doors.older)} testid="today-also-older" />
+        ) : null}
+        {left.setAside > 0 && doors.setAside ? (
+          <CalmRow
+            quiet
+            name={L.setAside(left.setAside)}
+            // The conversation opens over Today (N2).
+            door={routeDoor(doors.setAside, goFromToday)}
+            testid="today-also-set-aside"
+          />
+        ) : null}
+      </div>
+    </CalmOpen>
+  );
   return (
     <CalmList label={words.title} testid="today-also">
       <CalmRow
         quiet
         name={words.title}
-        said={words.sub ?? undefined}
+        // Open, its doors say each count, so the line says them once (the second look, L5).
+        said={open ? undefined : (words.sub ?? undefined)}
         press={() => setOpen(!open)}
         open={open}
         under={opened}

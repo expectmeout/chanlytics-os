@@ -22,8 +22,7 @@
  * the left, the day and the rest on the right (D7); the head's four figures are the day's one line now. The head over it
  * is the frame's (head.tsx): the greeting, one sentence, Listen. The layout is calm/calm.css's.
  */
-import { useEffect } from "react";
-import { forgetFromToday } from "../../inbox/carried-reply";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import type { ColdEmailNote } from "@chanlytics/contracts";
 import { ColdEmailLine, useColdEmailNote } from "./cold-email-note";
 import { TodayContentLine } from "../content-note";
@@ -37,6 +36,9 @@ import { AskFound } from "./found";
 import { NeedYou } from "./need-you";
 import { TodayHistory } from "./history";
 import { TodaySetup } from "./setup-card";
+import { drawnByToday, type SeeRef } from "../../see/over";
+import { useSeeOver } from "../../see/see-mount";
+import { useToast } from "../shell";
 
 /**
  * What is left to set up, and under it the business's history while it is still coming in or a part of it stopped
@@ -79,9 +81,33 @@ const theRest = (at: TodayArrangement) => (
   </>
 );
 
+/** What opens over Today, its own chunk, asked for as a visit or a conversation opens (today/over/mount.tsx). */
+const TodayOver = lazy(() => import("../over/mount").then((m) => ({ default: m.TodayOver })));
+
+/**
+ * A visit or a conversation open over Today (the second look of 20 Nov 2026, N1 to N3), by the page's address: the one
+ * open, or the one last open while its sheet leaves. Nothing, and nothing loaded, until one is.
+ */
+function TodayOverHere() {
+  const ref = useSeeOver();
+  const [toastNode, flash] = useToast();
+  const kept = useRef<SeeRef | null>(null);
+  const mine = ref && drawnByToday(ref) ? ref : null;
+  if (mine) kept.current = mine;
+  const shown = mine ?? kept.current;
+  return (
+    <>
+      {shown ? (
+        <Suspense fallback={null}>
+          <TodayOver seeRef={shown} open={mine !== null} flash={flash} />
+        </Suspense>
+      ) : null}
+      {toastNode}
+    </>
+  );
+}
+
 export function TodayZones() {
-  // Back on Today: the thread it last opened no longer offers the way back to it (carried-reply.ts carryFromToday).
-  useEffect(() => forgetFromToday(), []);
   // Today left: the next visit's first draw moves nothing (D14).
   useEffect(() => forgetTodayMotion, []);
   const at = useTodayArrangement();
@@ -97,6 +123,7 @@ export function TodayZones() {
         {waitingOnYou(at)}
         {theRest(at)}
         {setupLater}
+        <TodayOverHere />
         <TodayEnd />
       </div>
     );
@@ -107,10 +134,14 @@ export function TodayZones() {
         <div className="calm-col">
           {cardOfAnother(at)}
           {waitingOnYou(at)}
+        </div>
+        {/* Setting up stands at the foot of the day's column, so the two columns end near each other (the second look, L8). */}
+        <div className="calm-col">
+          {theRest(at)}
           {setupLater}
         </div>
-        <div className="calm-col">{theRest(at)}</div>
       </div>
+      <TodayOverHere />
       <TodayEnd />
     </div>
   );

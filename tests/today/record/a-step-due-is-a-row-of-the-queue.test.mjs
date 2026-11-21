@@ -111,8 +111,16 @@ test("the steps due are rows of the queue's own shape: the person, the step's wo
       initials: "DI",
       cta: { label: NOTE_WORDS.done, to: "clients/d" },
       // Whom it is for rides with it: Need you's Not now moves its day and leaves it Maria's (decision 0071).
-      // And the day it was due, where an Undo of Not now puts it back (Today, calm, D25).
-      step: { person_id: "d", note_id: "s-d", deal_id: null, for_user_id: "u-Maria", due_on: want.dueOn },
+      // And the day it was due, where an Undo of Not now puts it back (Today, calm, D25), and how late, said as its line
+      // ends (the second look, L2).
+      step: {
+        person_id: "d",
+        note_id: "s-d",
+        deal_id: null,
+        for_user_id: "u-Maria",
+        due_on: want.dueOn,
+        late: want.due === "past" ? want.near : null,
+      },
       conversationId: null,
       callId: null,
       also: null,
@@ -273,7 +281,9 @@ test("the steps due are To do's lines under whoever waits: the job, the person, 
   const said = textOf(steps[0]);
   const when = todaySteps(SIX(), nowMs, ZONE).items[0].when;
   assert.ok(said.includes("Di"), said);
-  assert.ok(said.includes(when.charAt(0).toLowerCase() + when.slice(1)) && said.includes("For Maria"), said);
+  // How late it is stands at the line's end, as a wait does, the day alone (the second look, L2): said once.
+  assert.ok(said.includes(when.replace(/^Overdue since /, "")) && said.includes("For Maria"), said);
+  assert.ok(!/overdue since/i.test(said), `said once, at the line's end: ${said}`);
   // Six are due: three named, the three past them counted under the lines, never dropped.
   assert.match(textOf(alsoOf(tree)), /3 to do/, "the steps are counted, never dropped");
   const open = openAlso(tree);

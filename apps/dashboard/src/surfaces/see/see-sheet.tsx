@@ -12,7 +12,7 @@
  * them): each read the thing needs and the page has not read is asked for as the sheet opens. An Approve that opens the
  * next run waiting moves the sheet to it in place; the toast host is the frame's (see-mount.tsx).
  */
-import { SEE_WORDS, seeHomeOf, seeRefOfRoute, type SeeRef } from "./over";
+import { SEE_WORDS, drawnByToday, seeHomeOf, seeRefOfRoute, type SeeRef } from "./over";
 import { closeSeeOver, openSeeOver } from "./see-over";
 import { goToRoute } from "@/bridge/workspace";
 import { Icon } from "../kit/icon/icon";
@@ -27,17 +27,22 @@ import { ToSendPart } from "../waits/to-send-part";
 
 type Flash = ReturnType<typeof useFrameToast>[1];
 
-/** What each thing is drawn from: Sent's runs (where it sits among those waiting), its playbook, its message, the number. */
+/**
+ * What each thing is drawn from: Sent's runs (where it sits among those waiting), its playbook, its message, the number.
+ * A visit and a conversation are Today's to draw, and to read for (today/over/mount.tsx).
+ */
 const READS: Record<SeeRef["kind"], readonly SurfaceKey[]> = {
   run: ["broadcasts", "playbooks", "settings", "channels"],
   message: ["playbooks", "settings", "channels"],
   "to-send": ["broadcasts"],
+  visit: [],
+  thread: [],
 };
 
 /** A run To send's list opens: over the list, as an entry of its own, so Back comes back to it. */
 const openRunOverToSend = (to: string) => {
   const ref = seeRefOfRoute(to);
-  if (ref) openSeeOver(ref, true);
+  if (ref && !drawnByToday(ref)) openSeeOver(ref, true);
   else goToRoute(to);
 };
 
@@ -58,6 +63,8 @@ function HomeDoor({ seeRef }: { seeRef: SeeRef }) {
 export function SeeSheet({ seeRef, open, flash }: { seeRef: SeeRef; open: boolean; flash: Flash }) {
   // Each read the thing needs that the page under it has not made.
   useReadsHere(READS[seeRef.kind]);
+  // A visit and a conversation open over Today alone, and Today draws them (today/over/mount.tsx).
+  if (drawnByToday(seeRef)) return null;
   if (seeRef.kind === "to-send")
     return (
       <PaneSheet
