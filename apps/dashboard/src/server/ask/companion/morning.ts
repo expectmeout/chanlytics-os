@@ -25,6 +25,7 @@ import {
   type AskMorningCard,
   type AskMorningDto,
   type AskProposal,
+  type AskRested,
   recordOrEmpty,
   isOneOf,
 } from "@chanlytics/contracts";
@@ -94,6 +95,21 @@ interface AroundMorning {
   beside: Pick<AskMorningDto, "findings" | "rested" | "lately">;
 }
 
+/**
+ * What this member set aside on Today (their saved view), read whoever they are: a viewer, and a member of a workspace
+ * with mornings off, set things aside too (Not today, the week's Got it), and they stay set aside on the next visit. A
+ * read that fails is none, logged.
+ */
+async function restsOf(ctx: RouteContext, member: Member): Promise<AskRested> {
+  const views = await getMemberViews(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }).catch(
+    (e: unknown): Record<string, unknown> => {
+      log.error("ask_findings_unread", { tenant_id: member.tenantId, error: e });
+      return {};
+    },
+  );
+  return restedOf(views[ASK_FOUND_VIEW]);
+}
+
 /** The morning's surroundings: each read that fails costs itself, never the morning. */
 async function aroundMorning(
   ctx: RouteContext,
@@ -101,18 +117,12 @@ async function aroundMorning(
   clock: { timezone: string; day: string },
   nowMs: number,
 ): Promise<AroundMorning> {
-  const [read, offered, views] = await Promise.all([
+  const [read, offered, rested] = await Promise.all([
     getSequencesAndRuns(ctx, member.tenantId),
     seenLately(ctx, member, clock.day),
-    getMemberViews(ctx.supabase, { tenantId: member.tenantId, userId: ctx.userId }).catch(
-      (e: unknown): Record<string, unknown> => {
-        log.error("ask_findings_unread", { tenant_id: member.tenantId, error: e });
-        return {};
-      },
-    ),
+    restsOf(ctx, member),
   ]);
   const seen = ideasWithResults(offered, read.runs);
-  const rested = restedOf(views[ASK_FOUND_VIEW]);
   const findings = await listFindingCards(ctx, member, { ...clock, nowMs }, read, rested);
   return { seen, beside: { findings, rested, lately: latelyRows(seen, clock.day) } };
 }
@@ -204,7 +214,7 @@ export async function getMorning(ctx: RouteContext, member: Member, nowMs: numbe
     rested: {},
     lately: [],
   };
-  if (!offered) return none;
+  if (!offered) return { ...none, rested: await restsOf(ctx, member) };
   const { seen, beside } = await aroundMorning(ctx, member, clock, nowMs);
   const asOfNow: AskMorningDto = { ...none, ...beside };
   const row = await askMorningOf(ctx.supabase, member.tenantId, ctx.userId, day);

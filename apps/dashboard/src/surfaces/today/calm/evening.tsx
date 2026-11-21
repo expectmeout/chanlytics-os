@@ -58,7 +58,7 @@ export function TonightLine() {
       <CalmRow
         first={{ mark: <Icon name="send" size={14} /> }}
         name={AI_WORDS.tonight(people)}
-        said={<span {...SAYS_WHEN}>{AI_WORDS.tonightSaid(runTitleOf(first), at)}</span>}
+        said={<span {...SAYS_WHEN}>{AI_WORDS.tonightSaid(runTitleOf(first), at, runs.length - 1)}</span>}
         press={openAiSheet}
         testid="today-tonight-line"
       />

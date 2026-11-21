@@ -92,19 +92,6 @@ export const TODAY_LINE_WORDS = {
   },
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
-  /** Keys on a desk (W12): the sheet ? opens, each key with what it does, in the order a hand meets them. */
-  keys: {
-    title: "Keys",
-    list: [
-      ["J K", "Move between lines"],
-      ["Enter", "Open the line"],
-      ["E", "Done"],
-      ["N", "Not now"],
-      ["/", "Ask AI about this"],
-      ["Esc", "Close"],
-      ["?", "Show these keys"],
-    ] as const,
-  },
   /** Where the card stood, for a beat, as the last thing waiting is done (W6). */
   cleared: "Nothing needs you.",
   /**

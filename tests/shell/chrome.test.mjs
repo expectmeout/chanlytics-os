@@ -114,7 +114,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   const groups = shortcutGroups(SHORTCUTS);
   assert.deepEqual(
     groups.map((g) => g.group),
-    ["Everywhere", "Ask", "People", "The pile, on Leads", "A person", "Inbox", "Calendar"],
+    ["Everywhere", "Ask", "Today", "People", "The pile, on Leads", "A person", "Inbox", "Calendar"],
   );
   // The pile's keys (00426): its rail left to right, Undo, and the way out; the page's one listener hears them.
   assert.deepEqual(
@@ -146,8 +146,11 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   const where = (key) => SHORTCUTS.filter((s) => s.keys.includes(key)).map((s) => s.group);
   assert.deepEqual(
     [where("/"), where("J")],
-    [["People"], ["People", "A person", "Inbox"]],
-    "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People, and J/K walk People's rows, a person's list from their page, and the Inbox's",
+    [
+      ["Today", "People"],
+      ["Today", "People", "A person", "Inbox"],
+    ],
+    "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People and asks AI about a line of Today's (W12), and J/K walk Today's lines, People's rows, a person's list from their page, and the Inbox's",
   );
   assert.deepEqual(
     groups.find((g) => g.group === "People").items.map((s) => [s.keys.join(" "), s.does]),
