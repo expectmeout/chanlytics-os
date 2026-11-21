@@ -3013,8 +3013,15 @@ html.frame-on .tl-msg-why { position: relative; min-height: 0; }
   .main-scroll > .pg-slot {
     margin-top: 0;
   }
+  /* The name keeps clear of the bell by its padding, but the place is drawn after the bell and positioned, so its padding
+     took every press at the bell's place: the bell opened on Today alone (20 Nov 2026). The place takes no press; what
+     stands in it does, as the date's place does above. */
   .pg-head-slot {
     padding-right: 56px;
+    pointer-events: none;
+  }
+  .pg-head-slot > * {
+    pointer-events: auto;
   }
   /* The way back in the date's place (a person's ‹ People, a room's ‹ Campaigns, a pane's ‹ Settings) is a capsule of the
      control layer's glass on a phone (P-phone-person), as tall as the bell beside it and on the bell's line: the date's
