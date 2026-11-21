@@ -345,11 +345,11 @@ test("a line's model and temperature are read under the provider's model_config,
   const config = (model, temperature) => ({ type: "cascading", primary: { model, tier: "standard" }, temperature });
 
   // As the provider answers from 31 January 2027: model_config alone. A line off the product's model is still named.
-  const after = await read({ model_config: config("claude-5.5-sonnet", 0.4) });
-  assert.deepEqual([after.model, after.model_temperature], ["claude-5.5-sonnet", 0.4]);
+  const after = await read({ model_config: config("claude-5.5-haiku", 0.4) });
+  assert.deepEqual([after.model, after.model_temperature], ["claude-5.5-haiku", 0.4]);
   const plan = planVoiceConvergence(after, desired);
   assert.ok(
-    plan.drift.some((d) => d.includes("claude-5.5-sonnet")),
+    plan.drift.some((d) => d.includes("claude-5.5-haiku")),
     JSON.stringify(plan.drift),
   );
   assert.equal(plan.notes.length, 1);

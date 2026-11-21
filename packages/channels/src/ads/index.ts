@@ -22,6 +22,7 @@ export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta
 export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
 export {
   metaAccountInstagramRequest,
+  metaAdImageRemoveRequest,
   metaAdImageRequest,
   metaMinimumBudgetsRequest,
   parseMetaAccountInstagram,
@@ -29,9 +30,12 @@ export {
   parseMetaLeastADay,
 } from "./meta-library";
 export {
+  metaAdReadBackRequest,
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
+  metaCreativeRemoveRequest,
   metaFoundByNameRequest,
+  parseMetaAdHeld,
   parseMetaCampaignHeld,
   parseMetaFoundByName,
   parseMetaMadeId,

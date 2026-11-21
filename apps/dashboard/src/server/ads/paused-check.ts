@@ -6,8 +6,9 @@
  *
  * Only a draft that could be turned on is sent: written, with three versions of words that passed, nothing that would
  * stop it but the account having no card yet, and no special kind (decision 0050, calls 3 and 7). The first version is
- * the one sent. In place of a draft, Meta's id for a campaign an earlier check left is handed on to be removed; the edge
- * removes only one a check made. The owner alone, as every press that makes something at Meta is.
+ * the one sent. In place of a draft, Meta's id for a campaign an earlier check left is handed on to be removed, or for an
+ * ad a check made whose campaign is gone, to have its creative and picture removed; the edge removes only what a check
+ * made. The owner alone, as every press that makes something at Meta is.
  */
 import "server-only";
 import { AppError, ROLE_PERMS } from "@chanlytics/contracts";
@@ -88,16 +89,16 @@ async function draftToSend(rc: ReaderContext, draft: AdDraftState): Promise<Sent
   };
 }
 
-/** `POST ads/check`: the draft sent to Meta once, made paused, and read back; or a campaign a check left, removed. */
+/** `POST ads/check`: the draft sent to Meta once, made paused, and read back; or what a check left, removed. */
 export async function runPausedAdCheck(
   ctx: RouteContext,
   member: Member,
-  input: { draft?: AdDraftState; remove?: string },
+  input: { draft?: AdDraftState; remove?: string; tidy?: string },
 ): Promise<PausedCheckAnswer> {
   if (!ROLE_PERMS[member.role].ads) throw new AppError("forbidden", "Only the owner can make an ad.", 403);
   const rc = readerContext(ctx, member);
   await requireAdsOffered(rc);
-  const ask = input.draft ? { draft: await draftToSend(rc, input.draft) } : { remove: input.remove };
+  const ask = input.draft ? { draft: await draftToSend(rc, input.draft) } : { remove: input.remove, tidy: input.tidy };
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("upstream_provider", "Meta can't be reached from here.");
   const sent = await callEdge(

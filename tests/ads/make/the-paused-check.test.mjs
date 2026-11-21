@@ -8,7 +8,7 @@
  * set names the number AI answers, a total and its end in the account's own zone. The picture goes as Files keeps it.
  * Where Meta refuses a step, nothing after it is sent and Meta's own words are said, and a campaign already made is
  * removed. The read back says what Meta holds that is not what was sent. And a campaign an earlier check left is removed
- * only where it is this account's, paused, named by a check, with no ad.
+ * only where it is this account's and named by a check, with it and everything under it paused.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -36,6 +36,9 @@ const CAMPAIGN = "23850000000000071";
 const SET = "23850000000000072";
 const META_AD = "23850000000000073";
 const HASH = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
+const CREATIVE = "120000000000079";
+/** The unpublished Page post the creative made: Meta names it by the Page and the post. */
+const STORY = `${PAGE}_400000000000071`;
 const APP = {
   META_APP_ID: "990000000000077",
   META_APP_SECRET: "meta-secret-for-this-file",
@@ -96,14 +99,18 @@ function heldAsSent() {
       data: [
         {
           id: META_AD,
+          name: "Chanlytics · First appointment · paused check [cl:1a2b3c4d]",
+          account_id: META_ACCOUNT,
           status: "PAUSED",
           effective_status: "PENDING_REVIEW",
           adset_id: SET,
           creative: {
-            id: "120000000000079",
+            id: CREATIVE,
+            effective_object_story_id: STORY,
             object_story_spec: {
               page_id: PAGE,
               link_data: {
+                image_hash: HASH,
                 message: DRAFT.text,
                 name: DRAFT.headline,
                 call_to_action: { type: "WHATSAPP_MESSAGE", value: { app_destination: "WHATSAPP" } },
@@ -122,6 +129,7 @@ function heldAsSent() {
 const asked = [];
 let refuseAt = null;
 let held = heldAsSent();
+let theAd = heldAsSent().ads.data[0];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const address = new URL(String(url));
@@ -131,9 +139,14 @@ globalThis.fetch = async (url, init) => {
   const edge = address.pathname.split("/").at(-1);
   const name =
     method === "GET"
-      ? ({ minimum_budgets: "least_a_day", connected_instagram_accounts: "instagram" }[edge] ?? "read_back")
+      ? ({ minimum_budgets: "least_a_day", connected_instagram_accounts: "instagram", [META_AD]: "read_ad" }[edge] ??
+        "read_back")
       : method === "DELETE"
-        ? "remove"
+        ? edge === "adimages"
+          ? "remove_picture"
+          : edge === CREATIVE
+            ? "remove_creative"
+            : "remove"
         : { campaigns: "campaign", adsets: "ad_set", adimages: "picture", ads: "ad" }[edge] + (options ? "_dry" : "");
   asked.push({ name, form, key: init?.headers?.["X-Client-Idempotent-Key"] ?? null, url: address });
   const reply = (status, body) =>
@@ -158,6 +171,9 @@ globalThis.fetch = async (url, init) => {
     ad: { id: META_AD },
     read_back: held,
     remove: { success: true },
+    remove_creative: { success: true },
+    remove_picture: { success: true },
+    read_ad: theAd,
   };
   return reply(200, answers[name]);
 };
@@ -173,6 +189,7 @@ function world({ owner = true, account = {}, file = {} } = {}) {
   asked.length = 0;
   refuseAt = null;
   held = heldAsSent();
+  theAd = heldAsSent().ads.data[0];
   const db = fakeDb(
     {
       ad_accounts: [
@@ -344,7 +361,7 @@ test("the read back says what Meta holds that is not what was sent", async () =>
   assert.deepEqual(body.differs, ["declared", "total", "number", "places", "ad_paused", "own_changes"]);
 });
 
-test("a campaign a check left is removed only where it is this account's, paused, named by a check, with no ad", async () => {
+test("a campaign a check left is removed only where it is this account's, named by a check, and everything in it is paused", async () => {
   const leftover = () => ({
     id: CAMPAIGN,
     account_id: META_ACCOUNT,
@@ -363,11 +380,45 @@ test("a campaign a check left is removed only where it is this account's, paused
   assert.equal(body.outcome, "removed");
   assert.equal(asked[1].url.pathname, `/v27.0/${CAMPAIGN}`);
 
+  // A finished check's campaign, its paused ad set and its paused ad under it: removed whole, in one call.
+  world();
+  held = {
+    ...heldAsSent(),
+    account_id: META_ACCOUNT,
+    name: "Chanlytics · First appointment · paused check [cl:1a2b3c4d]",
+  };
+  const [, whole] = await heard(await remove());
+  assert.deepEqual([names(), whole.outcome], [["read_back", "remove", "remove_creative", "remove_picture"], "removed"]);
+  // The ad's creative, then its picture, which Meta takes only once no creative uses it; the Page post is named and left.
+  assert.equal(asked[2].url.pathname, `/v27.0/${CREATIVE}`);
+  assert.equal(asked[3].url.searchParams.get("hash"), HASH);
+  assert.deepEqual(whole.steps.at(-1), {
+    at: "post",
+    outcome: "left",
+    said: "The unpublished Page post the ad made is left: only the Page's own sign-in may remove a post, and Chanlytics does not hold it.",
+    id: STORY,
+  });
+
   for (const [why, change] of [
     ["in another account", (campaign) => Object.assign(campaign, { account_id: "1200000000000099" })],
     ["not named by a check", (campaign) => Object.assign(campaign, { name: "Spring offer" })],
     ["switched on", (campaign) => Object.assign(campaign, { status: "ACTIVE" })],
-    ["with an ad under it", (campaign) => Object.assign(campaign, { ads: heldAsSent().ads })],
+    [
+      "with an ad switched on under it",
+      (campaign) => {
+        const { ads } = heldAsSent();
+        ads.data[0].status = "ACTIVE";
+        return Object.assign(campaign, { ads });
+      },
+    ],
+    [
+      "with an ad set switched on under it",
+      (campaign) => {
+        const { adsets } = heldAsSent();
+        adsets.data[0].status = "ACTIVE";
+        return Object.assign(campaign, { adsets });
+      },
+    ],
   ]) {
     world();
     held = change(leftover());
@@ -382,9 +433,48 @@ test("a campaign a check left is removed only where it is this account's, paused
 
   // Neither a draft nor a campaign, both, or an id that is not Meta's: refused before Meta is asked anything.
   world();
-  for (const ask of [{}, { draft: DRAFT, remove: CAMPAIGN }, { remove: `act_${META_ACCOUNT}` }, { remove: "12" }]) {
+  for (const ask of [
+    {},
+    { draft: DRAFT, remove: CAMPAIGN },
+    { remove: CAMPAIGN, tidy: META_AD },
+    { remove: `act_${META_ACCOUNT}` },
+    { remove: "12" },
+    { tidy: "12" },
+  ]) {
     const [refused, said] = await heard(await runAdsCheck(auth, { tenant_id: T, user_id: U, ...ask }));
     assert.deepEqual([refused, said.error], [400, "bad_request"], JSON.stringify(ask));
   }
   assert.deepEqual(asked, []);
+});
+
+test("an ad a check made whose campaign is gone has its creative and picture removed, and only such an ad", async () => {
+  const tidy = () => runAdsCheck(auth, { tenant_id: T, user_id: U, tidy: META_AD });
+  world();
+  // Gone with its campaign: Meta still describes it by its id.
+  Object.assign(theAd, { status: "DELETED", effective_status: "DELETED" });
+  const [status, body] = await heard(await tidy());
+  assert.equal(status, 200);
+  assert.deepEqual(names(), ["read_ad", "remove_creative", "remove_picture"]);
+  assert.equal(asked[0].url.pathname, `/v27.0/${META_AD}`);
+  assert.deepEqual([body.outcome, body.steps.at(-1).at, body.steps.at(-1).id], ["removed", "post", STORY]);
+
+  // A picture Meta does not take back is said in its words, and the outcome is not "removed".
+  world();
+  refuseAt = "remove_picture";
+  const [, kept] = await heard(await tidy());
+  assert.equal(kept.outcome, "stopped");
+  assert.deepEqual(kept.steps.find((step) => step.at === "remove_picture").outcome, "refused");
+
+  // Never an ad of another account, one no check named, or one switched on.
+  for (const [why, change] of [
+    ["in another account", { account_id: "1200000000000099" }],
+    ["not named by a check", { name: "Spring offer" }],
+    ["switched on", { status: "ACTIVE", effective_status: "ACTIVE" }],
+  ]) {
+    world();
+    Object.assign(theAd, change);
+    const [, left] = await heard(await tidy());
+    assert.deepEqual(names(), ["read_ad"], why);
+    assert.deepEqual([left.outcome, left.steps.at(-1).outcome], ["stopped", "refused"], why);
+  }
 });

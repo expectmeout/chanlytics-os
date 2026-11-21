@@ -439,12 +439,13 @@ first two runs, and with one for the third. No migration. Its order and what it 
   and none on a dry run. The campaign above everything stays paused, so nothing is shown and nothing spends.
 - **A check either finishes, paused, or leaves nothing.** Where Meta stops it after the campaign is made, the
   campaign is removed. In place of a draft, the route takes one campaign a check left, and removes it only where it
-  is in the owner's account, paused, named as a check names it, and has no ad.
+  is in the owner's account, named as a check names it, with it and everything under it paused (a finished check's
+  paused ad goes with it).
 - **What it found:** Meta's least for a total counts every calendar day the run touches, so the rule in
   `packages/contracts/src/ads/draft.ts` says so now; and Meta makes no ad, not even as a dry run, on an account with no
   payment method. Ruben added a card, and the third run made one paused ad whose read back matched what was sent on
-  every point call 4 compares. The ad's own switch through step 2's presses waits for the account's read to take it
-  in.
+  every point call 4 compares. The account's hourly read then took the ad in, and step 2's Resume and Pause
+  (call 9) each reached Meta and were confirmed, with nothing spent.
 
 ## As built, 20 November 2026, later · A draft is kept, and left for the owner (the Ads plan's step 4, its third part)
 

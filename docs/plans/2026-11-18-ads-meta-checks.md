@@ -253,7 +253,11 @@ It leaves a paused campaign, a picture in the account's library and an unpublish
 Meta's check of an ad, so its words and picture are ones the checks of the plan's section 5.1 pass. Where Meta stops
 it after the campaign is made, the check deletes that campaign (Meta's DELETE on it, read on its campaign reference on
 20 November), so a check either finishes, paused, or leaves nothing. A campaign an earlier check left is removed the
-same way, by its id, and only where it is in the owner's account, paused, named as a check names it, with no ad.
+same way, by its id, and only where it is in the owner's account, named as a check names it, with it and everything
+under it paused, a finished check's paused ad included. Removing it removes each of its ads' creatives too, and then each ad's picture
+from the account's library; an ad whose campaign is already gone is tidied so by its id. The unpublished Page post a
+creative made is named and left: deleting a Page post takes `pages_manage_posts` on the Page's own sign-in, and
+Chanlytics' sign-in holds `pages_manage_ads`.
 
 What it settles that no page does: whose sign-in Meta takes for an ad that opens WhatsApp; whether a dry run counts
 against the account's score; whether Meta refuses a total over a new account's day; the shortest run it takes; that
@@ -335,13 +339,30 @@ used the same picture as the second.
 - **What Meta holds is what was sent,** on every point the launch compares (decision 0050, call 4).
 - **A check either finishes or leaves nothing:** the second run's removal took, in one call.
 
+### The ad's own switch, through step 2's presses (the same evening)
+
+On Ruben's word, once the account's hourly read had taken the ad in. The Ads page showed it paused, with its whole total
+left, nothing spent and no showing, and offered Resume.
+
+| Press | What Meta did | What the Ads page then said |
+|---|---|---|
+| Resume | Took the change, and said so when the ad was read back | Under review: its own switch on, Meta still checking it. Nothing spent, no showing, since the campaign above it stayed paused |
+| Pause, 35 seconds later (Meta takes one change to an ad every thirty seconds) | Took the change, and said so when the ad was read back | Paused, nothing spent |
+
+After the pause, Meta's word for where the ad stands names the pause above it rather than its own, and the Ads page
+does not offer Resume: the rule reads that turning the ad on here would start nothing while the campaign is paused,
+which is true. Before the first press Meta had named the ad's own pause, and Resume was offered.
+
 ### Not settled
 
 Whether a dry run counts against the account's score (the edge's log keeps each call's share, unread here); what
-Meta's review of the paused ad comes to (an ad made paused is still reviewed); the ad's own switch through step 2's
-presses, once the account's hourly read takes the ad in; and Meta's own preview.
+Meta's review of the paused ad comes to (an ad made paused is still reviewed, and while the campaign is paused Meta's
+word names that pause, so only a refusal would show); and Meta's own preview.
 
 ### What stands at Meta now
 
-On Ruben's account, all paused: one campaign, one part that says who sees it, one ad under Meta's review, the picture
-in the account's library, and an unpublished post on the Page that the ad's creative made. With the campaign paused, nothing is shown and nothing is spent.
+The check's campaign was removed later that evening, on Ruben's word, through the check's own removal: Meta read it
+back as his, named by the check, with it and everything under it paused, and took its removal with the part that says
+who sees it and the ad. Nothing was spent and nothing was shown. Left at Meta: the picture in the account's library,
+and the unpublished post on the Page that the ad's creative made. Meta's review of the ad came to nothing seen here:
+nothing came back refused while it stood.
