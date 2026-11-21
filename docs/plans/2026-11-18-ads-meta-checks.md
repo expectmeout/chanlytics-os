@@ -363,6 +363,7 @@ word names that pause, so only a refusal would show); and Meta's own preview.
 
 The check's campaign was removed later that evening, on Ruben's word, through the check's own removal: Meta read it
 back as his, named by the check, with it and everything under it paused, and took its removal with the part that says
-who sees it and the ad. Nothing was spent and nothing was shown. Left at Meta: the picture in the account's library,
-and the unpublished post on the Page that the ad's creative made. Meta's review of the ad came to nothing seen here:
-nothing came back refused while it stood.
+who sees it and the ad. Nothing was spent and nothing was shown. Meta's review of the ad came to nothing seen here:
+nothing came back refused while it stood. Just after midnight the ad's creative and its picture were removed too,
+through the check's `tidy`: Meta described the removed ad by its id, and took both removals. Left at Meta: the
+unpublished post on the Page that the creative made, which only the Page's own sign-in may remove.
