@@ -19,7 +19,7 @@
  * confirm it's on" past a few minutes. The one thing sent twice is the picture, which Meta's library keeps once by its
  * bytes. A launch that stops part way removes its campaign, with everything under it; what cannot be removed stays
  * there, named and paused, and the ad says what was left. A disconnect or a sign-out stops a launch at its next step
- * (00662's trigger), and so does AI's stop before any switch.
+ * (00666's trigger), and so does AI's stop before any switch.
  *
  * `ADS_WRITES`: `live` sends; `sandbox` does everything but the call (Meta's answers are made up here, ids that begin
  * 0000, which Meta never gives); anything else stops a launch before it sends.

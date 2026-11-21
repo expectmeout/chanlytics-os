@@ -487,7 +487,7 @@ end $$;
 -- Name: FUNCTION ad_accounts_stop_launches(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00662): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
+COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00666): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
 
 
 --
@@ -601,7 +601,7 @@ $$;
 -- Name: FUNCTION ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it, or from any version of an ad made here, since the first of them; 00662). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
+COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it, or from any version of an ad made here, since the first of them; 00666). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
 
 
 --
@@ -1058,7 +1058,7 @@ $$;
 -- Name: FUNCTION ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) IS 'The one ad Chanlytics holds for a platform''s id for an ad (00662): the ad that is that id, or the ad made here that holds it as one version of its words (ad_objects). An ad made here is three ads at the platform, and a tap on any of them came through the one ad the owner made. Null where Chanlytics holds none. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_platform_ad_id text) IS 'The one ad Chanlytics holds for a platform''s id for an ad (00666): the ad that is that id, or the ad made here that holds it as one version of its words (ad_objects). An ad made here is three ads at the platform, and a tap on any of them came through the one ad the owner made. Null where Chanlytics holds none. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -1142,7 +1142,7 @@ end $$;
 -- Name: FUNCTION ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) IS 'Service-role only: what the launch of an ad made here came to, step by step (00662; decision 0050, calls 5 and 6). objects: each part as the job saw it (ad_objects: written sent before its make goes, then made with the platform''s id, refused, removed or left); a part made after the launch stopped is kept as left. status: made (with campaign_id, set_id, platform_ad_id and the platform''s word) or failed, once, from sending, with the event ad.made or ad.setup_stopped. launch: merged into ads.launch (step, unknown_at, stopped, said). While the launch is still on its way, and once it is made, its account''s next read is brought within a minute, so the job takes it up again and the page says what the platform says. Answers {status, intent, launch}; status not_found for an ad that is not one made here.';
+COMMENT ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) IS 'Service-role only: what the launch of an ad made here came to, step by step (00666; decision 0050, calls 5 and 6). objects: each part as the job saw it (ad_objects: written sent before its make goes, then made with the platform''s id, refused, removed or left); a part made after the launch stopped is kept as left. status: made (with campaign_id, set_id, platform_ad_id and the platform''s word) or failed, once, from sending, with the event ad.made or ad.setup_stopped. launch: merged into ads.launch (step, unknown_at, stopped, said). While the launch is still on its way, and once it is made, its account''s next read is brought within a minute, so the job takes it up again and the page says what the platform says. Answers {status, intent, launch}; status not_found for an ad that is not one made here.';
 
 
 --
@@ -1204,7 +1204,7 @@ $$;
 -- Name: FUNCTION ad_named(p_tenant_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform, and an ad made here says it for each version of its words (ad_held_for, 00662); one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform, and an ad made here says it for each version of its words (ad_held_for, 00666); one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -1306,7 +1306,7 @@ $$;
 -- Name: FUNCTION ad_people_in(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought in a window, a row a person (00651; decision 0049, calls 5 and 6): the same people people_series counts under "An ad" (a first moment in the window, reached the business in it, alive, not merged away, first touch an ad), each with the ad Chanlytics holds for their first touch (ad_held_for, 00662: an ad made here for a tap on any version of its words; null where it holds none) and whether they have booked since: a visit in the record (appointments) that starts after their first touch and is neither cancelled nor only asked for, theirs by the record''s link or, where a visit names no person, by its number or address. Worked out when read, kept nowhere. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_people_in(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought in a window, a row a person (00651; decision 0049, calls 5 and 6): the same people people_series counts under "An ad" (a first moment in the window, reached the business in it, alive, not merged away, first touch an ad), each with the ad Chanlytics holds for their first touch (ad_held_for, 00666: an ad made here for a tap on any version of its words; null where it holds none) and whether they have booked since: a visit in the record (appointments) that starts after their first touch and is neither cancelled nor only asked for, theirs by the record''s link or, where a visit names no person, by its number or address. Worked out when read, kept nowhere. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -1643,7 +1643,7 @@ end $$;
 -- Name: FUNCTION ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00662; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
+COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) IS 'Service-role only: an owner turns an ad on (00666; decision 0050, calls 3 and 5). The workspace''s kept draft, as the press judged it (p_draft_at, its updated_at then), becomes an ad made here: status sending, intent on, its total and end, what was approved, where it shows and its first words, and the launch''s key. In one transaction: the draft goes, a draft left for the owner stops waiting on the bell, the decision (turn_on_ad) and the event (ad.turned_on) are written, and the account''s job (ad_read, which launches first) is asked for at once. Answers outcome: kept with the ad''s id; same with the ad a press of this key made; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected; stopped while AI is stopped (tenants.sending_stopped_at); busy while another ad of the account is being set up; stale where the draft changed since, or was turned on already.';
 
 
 --
@@ -2018,7 +2018,7 @@ end $$;
 -- Name: FUNCTION ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00662); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00666); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
 
 
 --
@@ -42097,7 +42097,7 @@ CREATE TABLE public.ad_objects (
 -- Name: TABLE ad_objects; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.ad_objects IS 'What Chanlytics made at the platform for an ad made here (00662; decision 0049''s ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform''s id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.';
+COMMENT ON TABLE public.ad_objects IS 'What Chanlytics made at the platform for an ad made here (00666; decision 0049''s ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform''s id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.';
 
 
 --
@@ -42207,21 +42207,21 @@ COMMENT ON COLUMN public.ads.intent_at IS 'When the owner last asked something o
 -- Name: COLUMN ads.approved; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ads.approved IS 'What the owner approved at Turn on, for an ad made here (00662; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account''s zone), the three versions of the words, the number a tap opens, the area''s address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform.';
+COMMENT ON COLUMN public.ads.approved IS 'What the owner approved at Turn on, for an ad made here (00666; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account''s zone), the three versions of the words, the number a tap opens, the area''s address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform.';
 
 
 --
 -- Name: COLUMN ads.launch; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ads.launch IS 'Where the launch of an ad made here stands (00662): key (the press''s), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform''s own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform.';
+COMMENT ON COLUMN public.ads.launch IS 'Where the launch of an ad made here stands (00666): key (the press''s), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform''s own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform.';
 
 
 --
 -- Name: COLUMN ads.shown_on; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.ads.shown_on IS 'Where the ad shows, as the platform holds it (00662): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known.';
+COMMENT ON COLUMN public.ads.shown_on IS 'Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known.';
 
 
 --

@@ -361,7 +361,7 @@ export async function runAdRead(
     log.info("ads_revoked", { how: "read" });
     return out("revoked", calls);
   };
-  // An ad the owner turned on goes first (00662): its launch is this account's job's first work, one call after another.
+  // An ad the owner turned on goes first (00666): its launch is this account's job's first work, one call after another.
   const launched = await runLaunches(db, log, {
     tenantId,
     signIn,

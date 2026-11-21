@@ -218,7 +218,7 @@ after(() => {
 
 /* -------------------------------------------------------------------------------------- the workspace's rows */
 
-/** The job's door, as 00662's ad_launch_keep keeps a step: what it made, sent or left, and where it ends, once. */
+/** The job's door, as 00666's ad_launch_keep keeps a step: what it made, sent or left, and where it ends, once. */
 function launchKeep(tables) {
   return ({ p_tenant_id, p_ad_id, p_kept }) => {
     const ad = tables.ads.find((row) => row.id === p_ad_id && row.tenant_id === p_tenant_id);
@@ -259,7 +259,7 @@ function launchKeep(tables) {
   };
 }
 
-/** As 00662's trigger does when the owner disconnects: the launch stopped, what it made left at Meta. */
+/** As 00666's trigger does when the owner disconnects: the launch stopped, what it made left at Meta. */
 function disconnect(tables) {
   tables.ad_accounts[0].status = "disconnected";
   for (const ad of tables.ads.filter((row) => row.status === "sending")) {
@@ -538,7 +538,7 @@ test("a switch Meta never answered is never sent again: the ad is made, and says
   const at = (minutes) => ({ nowMs: Date.parse(ad.launch.unknown_at) + minutes * 60_000, timezone: "UTC" });
   assert.equal(adStateOfRow(ad, at(1)), "setting-up", "followed a few minutes");
   assert.equal(adStateOfRow(ad, at(6)), "unconfirmed", "then said: Couldn't confirm it's on");
-  // A read that says what stands settles it (00662's ads_read_keep drops unknown_at for an ad made here).
+  // A read that says what stands settles it (00666's ads_read_keep drops unknown_at for an ad made here).
   const read = { ...ad, launch: { ...ad.launch, unknown_at: undefined }, platform_state: "PENDING_REVIEW" };
   assert.equal(adStateOfRow(read, at(6)), "review");
   // A second pass sends nothing more.

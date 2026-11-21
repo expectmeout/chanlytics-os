@@ -1287,7 +1287,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The ad a tap on one version of an ad made here names (ad_held_for over ad_objects, 00662): an ad made here is three ads at Meta, and ad_named and people_series name the one the owner made. The feed tells no part: what was made at Meta for an ad is written with that ad's own row, which is told, and a part's Meta id is kept once, when Meta makes it, before anyone can have tapped it. A person's page and the people report read it with what they hear (heardWith).",
+      "why": "The ad a tap on one version of an ad made here names (ad_held_for over ad_objects, 00666): an ad made here is three ads at Meta, and ad_named and people_series name the one the owner made. The feed tells no part: what was made at Meta for an ad is written with that ad's own row, which is told, and a part's Meta id is kept once, when Meta makes it, before anyone can have tapped it. A person's page and the people report read it with what they hear (heardWith).",
       "reads": {
         "person": [
           "ad_objects"

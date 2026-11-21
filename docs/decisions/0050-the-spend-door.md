@@ -14,7 +14,7 @@ Built so far: the owner-only `ads` permission (migration 00645); Pause, Resume a
 writer's own purpose (#2456, migration 00656); call 15, the bell's five ad notices to the owner alone (20 November
 2026, #2459, migration 00658); and, while AI is stopped, no ad turned back on from the page and one press that
 pauses every ad still on (20 November 2026). Turn on, the job that makes an ad and never leaves one running, is built
-with migration 00662 (20 November 2026, below), and nothing has been switched on at Meta with it yet.
+with migration 00666 (20 November 2026, below), and nothing has been switched on at Meta with it yet.
 
 ## Context
 
@@ -464,8 +464,8 @@ Built with nothing sent to Meta. One migration is written and not applied: `0065
 
 ## As built, 20 November 2026, later · Turn on, and after (the Ads plan's step 4, items 4 and 5)
 
-Built with nothing switched on at Meta and nothing spent. One migration is written and not applied: `00662`
-(`supabase/migrations/00662_an_owner_turns_an_ad_on.sql`). The first live ad waits for Ruben's word, on his own account
+Built with nothing switched on at Meta and nothing spent. One migration is written and not applied: `00666`
+(`supabase/migrations/00666_an_owner_turns_an_ad_on.sql`). The first live ad waits for Ruben's word, on his own account
 with a card limit he sets.
 
 - **Call 3, the press.** `POST ads/turn-on` (`apps/dashboard/src/server/ads/turn-on.ts`, owner, `fresh`) carries what

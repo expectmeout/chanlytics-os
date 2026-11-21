@@ -295,7 +295,7 @@ Foreign keys:
 
 ### ad_objects
 
-What Chanlytics made at the platform for an ad made here (00662; decision 0049's ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform's id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.
+What Chanlytics made at the platform for an ad made here (00666; decision 0049's ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform's id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.
 
 - Owned by: `packages/db/src/repositories/ads/launches.ts`
 - Primary key: `id`
@@ -362,9 +362,9 @@ An ad as its owner thinks of it (decision 0049, 00648): its account and platform
 | `read_at` | timestamp with time zone | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `approved` | jsonb | yes |  | What the owner approved at Turn on, for an ad made here (00662; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account's zone), the three versions of the words, the number a tap opens, the area's address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform. |
-| `launch` | jsonb | yes |  | Where the launch of an ad made here stands (00662): key (the press's), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform's own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform. |
-| `shown_on` | text[] | yes |  | Where the ad shows, as the platform holds it (00662): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known. |
+| `approved` | jsonb | yes |  | What the owner approved at Turn on, for an ad made here (00666; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account's zone), the three versions of the words, the number a tap opens, the area's address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform. |
+| `launch` | jsonb | yes |  | Where the launch of an ad made here stands (00666): key (the press's), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform's own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform. |
+| `shown_on` | text[] | yes |  | Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known. |
 
 Foreign keys:
 

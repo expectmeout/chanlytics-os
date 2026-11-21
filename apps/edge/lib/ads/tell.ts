@@ -93,7 +93,7 @@ export async function tellAd(
   if (who.writes !== "live") return done(await kept("told", SWITCH[ad.intent], null), null, null);
 
   const sent = await callMetaAds(
-    // An ad made here is switched at its own campaign, which holds its versions and nothing else (00662).
+    // An ad made here is switched at its own campaign, which holds its versions and nothing else (00666).
     metaAdSwitchRequest(signIn.token, signIn.appSecret, ad.switch_id ?? ad.platform_ad_id, SWITCH[ad.intent]),
   );
   if (sent.fault === "revoked") return { outcome: "revoked", usage: sent.usage, said: sent.said };

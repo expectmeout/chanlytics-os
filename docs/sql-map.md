@@ -53,7 +53,7 @@ being read is dropped by a migration.
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
 | `ad_accounts_close_ad_bell` | trigger | the server | trigger `ad_accounts_close_ad_bell on ad_accounts` | A trigger on ad_accounts (00658): |
-| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00662): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. |
+| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. |
 | `ad_bell_cause` | the server's | the server | SQL `ad_bell_causes`, `ad_bell_ring` | The key one of the bell's five ad causes is known by, read off one of its ads (00658): |
 | `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every made ad of one ad account under each of the bell's five ad causes at a moment, with the cause's key (00658): |
 | `ad_bell_hearers` | the server's | the server | SQL `ad_bell_ring` | Who hears the bell's five ad notices (00658): |
@@ -64,8 +64,8 @@ being read is dropped by a migration.
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
 | `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659; |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
-| `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00662): |
-| `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00662; |
+| `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00666): |
+| `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666; |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
@@ -74,7 +74,7 @@ being read is dropped by a migration.
 | `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses an ad or turns it back on (00652; |
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
-| `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00662; |
+| `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |

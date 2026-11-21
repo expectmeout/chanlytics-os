@@ -1,5 +1,5 @@
 /**
- * Turning an ad on, and its launch (00662; decision 0050, calls 3 to 6): the owner's press kept through its one door,
+ * Turning an ad on, and its launch (00666; decision 0050, calls 3 to 6): the owner's press kept through its one door,
  * what the launch made, sent or left kept through its own, the launches of an account still on their way, and what an
  * account's read needs to fold an ad made here, three ads at the platform, into the one ad the owner made. Every write
  * is a door's, called as the service role. A database that has not run the migration answers `no_door`, where nothing
@@ -23,7 +23,7 @@ const TURN_ON_OUTCOMES = ["kept", "same", "not_allowed", "not_connected", "stopp
 const launchTextOf = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
 
 /**
- * An owner's Turn on (ad_turn_on, 00662): the kept draft, as the press judged it, becomes the ad, setting up, with the
+ * An owner's Turn on (ad_turn_on, 00666): the kept draft, as the press judged it, becomes the ad, setting up, with the
  * decision, the event and the account's job, in one transaction.
  */
 export async function keepTurnOn(
@@ -77,7 +77,7 @@ export interface AdLaunchAfter {
   intent: string;
 }
 
-/** One step of a launch kept (ad_launch_keep, 00662). */
+/** One step of a launch kept (ad_launch_keep, 00666). */
 export async function keepAdLaunch(
   db: Db,
   tenantId: TenantId,

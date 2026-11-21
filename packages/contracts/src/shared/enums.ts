@@ -368,7 +368,7 @@ export const EVENT_KINDS = [
   "ad.paused",
   "ad.resumed",
   "ad.press_refused",
-  /** An ad turned on by its owner (00662): the press, the launch made at Meta and switched on, or stopped part way. */
+  /** An ad turned on by its owner (00666): the press, the launch made at Meta and switched on, or stopped part way. */
   "ad.turned_on",
   "ad.made",
   "ad.setup_stopped",
@@ -913,7 +913,7 @@ export const DECISION_VERBS = [
   "reply_anyway",
   /**
    * An owner's ad account and its ads (00649, decision 0050): the account connected or let go, subject 'ad_account';
-   * an ad paused, turned back on, or turned on from New ad (00662), subject 'ad'. The owner's alone (the `ads`
+   * an ad paused, turned back on, or turned on from New ad (00666), subject 'ad'. The owner's alone (the `ads`
    * permission).
    */
   "connect_ad_account",

@@ -1,5 +1,5 @@
 /**
- * 00662 on a real Postgres: an owner turns an ad on (decision 0050, calls 2, 3, 5, 6 and 11; the Ads plan's 4.7).
+ * 00666 on a real Postgres: an owner turns an ad on (decision 0050, calls 2, 3, 5, 6 and 11; the Ads plan's 4.7).
  *
  * What must hold. The kept draft, as the press judged it, becomes one ad made here, setting up, with the decision, the
  * event and the account's job asked for at once, and the draft gone. The same press twice is one ad; a draft changed

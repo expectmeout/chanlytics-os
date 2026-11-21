@@ -114,7 +114,7 @@ export interface AdPendingRow {
   platform_ad_id: string;
   /**
    * The part whose switch a press sets: the ad's own, or, for an ad made here, its campaign, which holds its three
-   * versions and nothing else, so one switch pauses or turns on all of them (00662).
+   * versions and nothing else, so one switch pauses or turns on all of them (00666).
    */
   switch_id: string;
   intent: AdIntent;
@@ -160,7 +160,7 @@ export async function listPendingAds(db: Db, tenantId: TenantId, accountId: stri
 
 /**
  * The part whose switch an owner's press on an ad sets: an ad made here is paused and turned back on by its own
- * campaign (00662), any other by its own switch. Null where the platform holds no part for it yet.
+ * campaign (00666), any other by its own switch. Null where the platform holds no part for it yet.
  */
 export function adSwitchIdOf(row: {
   origin: string;

@@ -1,7 +1,7 @@
 /**
  * Turn on at the edge (apps/edge/lib/ads/turn-on.ts runAdTurnOn) and what the account's read makes of an ad made here
  * (apps/edge/lib/ads/fold.ts, tag.ts; decision 0050, calls 2, 3, 5 and 6; the Ads plan's 4.7 and 6.1), over a database
- * in memory whose door answers as 00662's ad_turn_on does.
+ * in memory whose door answers as 00666's ad_turn_on does.
  *
  * What must hold. The door turns nothing on where this deployment's switch is off or the workspace is not on its list,
  * for anyone but the owner, without a connected account and its Page, or while AI is stopped; and it calls Meta for
@@ -65,7 +65,7 @@ after(() => {
   setPg(null);
 });
 
-/** A workspace whose owner is U, its ad account connected with a Page, and 00662's door as it answers. */
+/** A workspace whose owner is U, its ad account connected with a Page, and 00666's door as it answers. */
 function world({ owner = true, account = {}, stopped = null, door } = {}) {
   resetBreakers();
   Object.assign(process.env, APP);
