@@ -368,3 +368,10 @@ who sees it and the ad. Nothing was spent and nothing was shown. Meta's review o
 nothing came back refused while it stood. Just after midnight the ad's creative and its picture were removed too,
 through the check's `tidy`: Meta described the removed ad by its id, and took both removals. Left at Meta: the
 unpublished post on the Page that the creative made, which only the Page's own sign-in may remove.
+
+Removing the campaign also showed that Meta refuses a question the hourly read asked. The read asks by name for an
+ad Chanlytics holds that Meta's list no longer names, and it did so with a root `GET /?ids=`; Meta answered "The ids
+query parameter is deprecated in v26.0+.", and the whole read failed every twenty minutes, leaving the Ads page on its
+last good read with the removed ad still shown as paused. Meta's v26.0 changelog says such requests "return an error.
+Use per-object requests or supported batching." The read now sends one of Meta's batches, each ad its own GET (the
+same night, #2481); its next read kept the account, and the removed ad showed as ended.
