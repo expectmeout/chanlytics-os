@@ -10323,10 +10323,10 @@ COMMENT ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) IS '
 
 
 --
--- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text, timestamp with time zone, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer DEFAULT 0, p_made boolean DEFAULT NULL::boolean, p_shows text[] DEFAULT NULL::text[], p_or_unsorted boolean DEFAULT false, p_words text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer DEFAULT 0, p_made boolean DEFAULT NULL::boolean, p_shows text[] DEFAULT NULL::text[], p_or_unsorted boolean DEFAULT false, p_words text DEFAULT NULL::text, p_before_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_id uuid DEFAULT NULL::uuid, p_kind text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -10354,6 +10354,7 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
        and (f.media_status is null or f.media_status <> 'uploading')
        and f.status = p_status
        and (p_made is null or (f.source = 'made') = p_made)
+       and (p_kind is null or f.kind = p_kind)
        and (p_shows is null or f.shows = any (p_shows) or (coalesce(p_or_unsorted, false) and f.shows is null))
   ),
   matched as (
@@ -10366,6 +10367,8 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
   page as (
     select m.id, m.created_at
       from matched m
+     -- After the file the last page ended on, by its time and then its id, where one is named.
+     where p_before_at is null or (m.created_at, m.id) < (p_before_at, p_before_id)
      order by m.created_at desc, m.id desc
      offset greatest(coalesce(p_offset, 0), 0)
      limit least(greatest(coalesce(p_limit, 1), 1), 1000)
@@ -10378,10 +10381,10 @@ $$;
 
 
 --
--- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. At most 1,000 a page. Under the caller''s row security.';
+COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612, 00668): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, kind, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. Given p_before_at and p_before_id, the page ends just before that file, by its time and then its id, as the plain list''s does; the total is every match still. At most 1,000 a page. Under the caller''s row security.';
 
 
 --
@@ -60939,12 +60942,12 @@ GRANT ALL ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) TO
 
 
 --
--- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO authenticated;
-GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO service_role;
+REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) TO authenticated;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) TO service_role;
 
 
 --

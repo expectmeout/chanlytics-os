@@ -222,32 +222,30 @@ async function ideaFilesOf(db: Db, tenantId: TenantId) {
   });
 }
 
-/** A page of what was made, newest first, each with its posts: All. One past the page, so its last says it is the last. */
-async function madePage(db: Db, tenantId: TenantId, request: ContentAsked, shelf: "made" | "made_aside" = "made") {
+/**
+ * A page of what was made, newest first, each with its posts: All, or All found by its words (`about`, 00612 files_found: a
+ * piece's name, what Ask's look saw in it, what a video says), or what was set aside. Every one reads on the same way, from the
+ * last piece the page before showed, by its time and its id (00668), so a search finds every match, a page at a time, and a
+ * piece made meanwhile is neither read twice nor skipped. One past the page, so its last says it is the last.
+ */
+async function madePage(
+  db: Db,
+  tenantId: TenantId,
+  request: Pick<ContentAsked, "limit" | "before" | "about">,
+  shelf: "made" | "made_aside" = "made",
+) {
   const limit = Math.min(request.limit ?? CONTENT_PAGE, CONTENT_MAX);
-  const rows = await listFilesOnShelf(db, tenantId, shelfFilterOf(shelf), {
-    limit: limit + 1,
-    before: cursorAsked(request.before),
-  });
-  const page = rows.slice(0, limit);
-  const last = page.at(-1);
+  const page = { limit: limit + 1, before: cursorAsked(request.before) };
+  const words = request.about?.trim();
+  const rows = words
+    ? (await listFilesFound(db, tenantId, shelfFilterOf(shelf), { words, offset: 0, ...page })).rows
+    : await listFilesOnShelf(db, tenantId, shelfFilterOf(shelf), page);
+  const shown = rows.slice(0, limit);
+  const last = shown.at(-1);
   return {
-    made: await piecesOf(db, tenantId, page),
+    made: await piecesOf(db, tenantId, shown),
     next: rows.length > limit && last ? fileCursorOf(last) : null,
   };
-}
-
-/**
- * What was made, found by its words (00612 files_found: a piece's name, what Ask's look saw in it, what a video says), newest
- * first, as the Library is found: one page, as many as a page holds at most.
- */
-async function madeFound(db: Db, tenantId: TenantId, about: string) {
-  const { rows } = await listFilesFound(db, tenantId, shelfFilterOf("made"), {
-    words: about,
-    offset: 0,
-    limit: CONTENT_MAX,
-  });
-  return { made: await piecesOf(db, tenantId, rows), next: null };
 }
 
 /**
@@ -380,16 +378,18 @@ export const content: Reader<ContentAsked, ContentPageDto> = {
       postsStillStopped(db, rc.tenantId),
     ]);
     const about = view === "all" ? (request.about?.trim() ?? "") : "";
+    // All alone is found by its words; any other view reads as it is, whatever words were sent with it.
+    const paged = { limit: request.limit, before: request.before, about };
     const empty = { making: [], made: [], lines: [], next: null, ideas: [], about: about || null };
     const [tally, shown] = await Promise.all([
       tallyOf(db, rc.tenantId, standing, stopped, timedAfter),
       view === "all" && about
-        ? madeFound(db, rc.tenantId, about).then((page) => ({ ...empty, ...page }))
+        ? madePage(db, rc.tenantId, paged).then((page) => ({ ...empty, ...page }))
         : view === "aside"
-          ? madePage(db, rc.tenantId, request, "made_aside").then((page) => ({ ...empty, ...page }))
+          ? madePage(db, rc.tenantId, paged, "made_aside").then((page) => ({ ...empty, ...page }))
           : view === "all"
             ? Promise.all([
-                madePage(db, rc.tenantId, request),
+                madePage(db, rc.tenantId, paged),
                 request.before ? Promise.resolve([]) : ideaFilesOf(db, rc.tenantId),
                 // What needs the owner heads All's first page, each stopped post with its piece (Made's Needs you group;
                 // Ruben, 12 Nov 2026: a heading over them, as Messages opens on Need you), rather than a line that led to them.
