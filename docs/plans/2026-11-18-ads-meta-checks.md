@@ -513,5 +513,12 @@ Safari's, at 360, 375, 390 and 430 wide and on a desk, thirty frames in all: eve
 desk: each frame inside its room, the feed's asked for alone until it had loaded, no page error
 (`app-fit-2026-11-21`).
 
+Seen live (21 November, 17:51 UTC, both hosts on `e9a8b727d8`): asked once more for the kept draft's first version from
+your signed-in tab, Meta drew all three places and the answer framed the feed 335 × 650, the story 320 × 568 and the
+Reel 320 × 567, the sizes walked above. The log's line said what Meta named for them, `335x450`, `320x567` and
+`274x213`, with the account's allowance at 1%. The Ads page serves the frame's new rules and holds no frame of Meta's
+until New ad is opened.
+
 Not seen: Meta's page as someone signed in to Facebook sees it; a feed ad with a wide or a square picture, or with
-more words than three lines; and New ad on your account once this is live.
+more words than three lines; and New ad's own screen on your account, whose frames are opened only outside this app's
+browser pane.
