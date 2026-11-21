@@ -4,7 +4,7 @@
  * Meta never answered. Each answers as the typed client answers, or null where no answer came at all.
  */
 import { api } from "@/bridge/api";
-import type { AdDraftState } from "@/server/ads/draft-shape";
+import type { AdDraftState, AdWideArea } from "@/server/ads/draft-shape";
 
 /** A fresh draft where none is sent; else that draft as it stands now, after the one act a check offers where named. */
 export const askAdDraft = (body: { draft?: AdDraftState; act?: "next_picture" }) =>
@@ -21,6 +21,8 @@ export interface TurnOnPressed {
   service: string;
   picture: string;
   miles: number;
+  /** The wider place it showed the ad across; none for the circle. */
+  area?: Pick<AdWideArea, "kind" | "key">;
   most_minor: number;
   end_day: string;
   versions: { text: string; headline: string }[];

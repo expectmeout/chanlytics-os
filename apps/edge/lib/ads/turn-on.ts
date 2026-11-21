@@ -32,11 +32,14 @@ interface TurnOnAd {
   picture: string;
   picture_kind: "photo" | "video";
   miles: number;
+  /** A place wider than the circle, by Meta's key, where the owner chose one: then no street address is sent. */
+  area?: { kind: "city" | "region" | "country"; key: string } | undefined;
   total_minor: number;
   most_minor: number;
   end_day: string;
   versions: { text: string; headline: string }[];
-  address: string;
+  /** The circle's centre: none where a wider place is chosen. */
+  address?: string | undefined;
   whatsapp: string;
   declared: "none";
 }
@@ -101,6 +104,8 @@ export async function runAdTurnOn(auth: Admitted, body: Partial<AdsTurnOnBody>):
   const ad = body.ad;
   if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(key) || !draftAt || !ad)
     return refuse(400, "bad_request", "tenant_id, user_id, key, draft_at and the ad required");
+  // Where the ad shows: a wider place, or a circle around the business's address.
+  if (!ad.area && !ad.address) return refuse(400, "bad_request", "the ad's area or the business's address required");
   const db = pg();
   if (!db) return refuse(503, "no_database");
   const writes = adsWrites();

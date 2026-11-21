@@ -121,6 +121,12 @@ test("the press is kept with what was approved, its end in the account's zone, a
   );
   assert.deepEqual(args.p_ad.said, { headline: "First visit", body: AD.versions[0].text });
   assert.deepEqual(metaAsked, [], "Meta is asked nothing: the account's job makes the ad");
+  // A wider place is approved by itself, with no street address: the launch sends it in the circle's stead.
+  const { address: _circle, ...wide } = AD;
+  const across = world();
+  assert.equal((await across.pressed({ ad: { ...wide, area: { kind: "region", key: "3847" } } })).status, 202);
+  const [kept] = across.kept;
+  assert.deepEqual([kept.p_ad.approved.area, kept.p_ad.approved.address], [{ kind: "region", key: "3847" }, undefined]);
 });
 
 test("the same press twice is one ad; a draft changed since, or another ad still being set up, is refused", async () => {
@@ -157,7 +163,8 @@ test("nothing is kept where the switch is off or the workspace is not on its lis
   assert.equal((await heard(await world({ account: { config: {} } }).pressed()))[1].error, "nothing_to_do");
   assert.equal((await heard(await world({ stopped: "2026-11-20T20:00:00Z" }).pressed()))[1].error, "ai_stopped");
   const bare = world();
-  for (const body of [{ key: "not-a-key" }, { draft_at: "" }, { ad: undefined }]) {
+  const { address: _nowhere, ...nowhere } = AD;
+  for (const body of [{ key: "not-a-key" }, { draft_at: "" }, { ad: undefined }, { ad: nowhere }]) {
     const [refused, said] = await heard(await bare.pressed(body));
     assert.deepEqual([refused, said.error], [400, "bad_request"], JSON.stringify(body));
   }

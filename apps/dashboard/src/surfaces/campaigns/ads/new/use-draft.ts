@@ -59,6 +59,8 @@ const sentDraft = (held: Pick<Held, "answer" | "local">): AdDraftState => ({
   picture: held.answer.draft.picture.id,
   versions: held.answer.draft.versions,
   ...(held.answer.draft.label ? { label: held.answer.draft.label } : {}),
+  // A wider place rides back as the server found it: the owner changes it by telling AI, never by typing.
+  ...(held.answer.draft.area ? { area: held.answer.draft.area } : {}),
   ...held.local,
 });
 
@@ -241,6 +243,7 @@ const shownOf = (held: Held): TurnOnPressed => ({
   service: held.answer.draft.service,
   picture: held.answer.draft.picture.id,
   miles: held.local.miles,
+  ...(held.answer.draft.area ? { area: { kind: held.answer.draft.area.kind, key: held.answer.draft.area.key } } : {}),
   most_minor: adMostOf(held.local),
   end_day: held.local.end_day,
   versions: held.answer.draft.versions.map((version) => ({ text: version.text, headline: version.headline })),

@@ -17,7 +17,8 @@ import { stableJson, type ReaderContext } from "../shared/reader";
 import { readAdsOffered } from "../connections/ads-ready";
 import { adDeclared, adDraftChecks, adKindsOf } from "./draft-checks";
 import { readAdDraftFacts, type AdDraftAccount, type AdDraftFacts, type AdDraftService } from "./draft-facts";
-import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn } from "./draft-shape";
+import { findCustomersPlace } from "./area";
+import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn, AdWideArea } from "./draft-shape";
 
 /**
  * A new ad's draft, picked, judged and kept (the Ads plan's 4.6, 5.1, 6.2 and 6.3): code picks the service, the
@@ -41,12 +42,13 @@ export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Pr
     throw new AppError("conflict", "Ads aren't available in this workspace yet.", 409);
 }
 
-/** What the draft's rules pick from, as contracts reads it. */
-const inputsOf = (facts: AdDraftFacts, account: AdDraftAccount): AdDraftInputs => ({
+/** What the draft's rules pick from, as contracts reads it. `wide`: the draft is shown across a wider place. */
+const inputsOf = (facts: AdDraftFacts, account: AdDraftAccount, wide: boolean): AdDraftInputs => ({
   today: facts.today,
   services: facts.services,
   pictures: facts.pictures.pictures,
   address: facts.address,
+  wide,
   whatsapp: facts.whatsapp,
   account,
   history: facts.history,
@@ -72,7 +74,7 @@ export function nextAdPicture(facts: AdDraftFacts, current: string): string {
 function adOfferOf(
   facts: AdDraftFacts,
   account: AdDraftAccount,
-  draft: Pick<AdDraftState, "service" | "picture" | "miles">,
+  draft: Pick<AdDraftState, "service" | "picture" | "miles" | "area">,
   noPrice = false,
 ): AdOfferFacts {
   const service = serviceOf(facts, draft.service);
@@ -80,7 +82,7 @@ function adOfferOf(
     service: { name: service?.name ?? draft.service, price: service?.price ?? null },
     facts: service ? adServiceFacts(service) : [],
     picture: facts.pictures.files.get(draft.picture)?.line ?? null,
-    area: { place: null, miles: draft.miles },
+    area: { place: draft.area?.name ?? null, miles: draft.miles, wide: draft.area?.kind ?? null },
     places: account.places,
     noPrice,
   };
@@ -90,7 +92,7 @@ function adOfferOf(
 export const adDraftBrief = (
   facts: AdDraftFacts,
   account: AdDraftAccount,
-  draft: Pick<AdDraftState, "service" | "picture" | "miles">,
+  draft: Pick<AdDraftState, "service" | "picture" | "miles" | "area">,
   job: { ask?: AdAsk; noPrice?: boolean } = {},
 ) => adBriefOf(facts.business, adOfferOf(facts, account, draft, job.noPrice === true), job.ask ?? { job: "write" });
 
@@ -139,11 +141,12 @@ function basisDto(basis: AdDraftParts["basis"]): AdAmountBasisDto {
 /** Whether two drafts hold the same choices, whatever order their fields came in. */
 const sameDraft = (first: AdDraftState, second: AdDraftState): boolean => stableJson(first) === stableJson(second);
 
-/** A draft as the rule picks it fresh, before anything was chosen. */
-const freshDraft = (parts: AdDraftParts): AdDraftState => ({
+/** A draft as the rule picks it fresh, before anything was chosen: across the wider place proposed, where one was. */
+const freshDraft = (parts: AdDraftParts, proposed: AdWideArea | null): AdDraftState => ({
   service: parts.serviceId,
   picture: parts.pictureId,
   miles: parts.miles,
+  ...(proposed ? { area: proposed } : {}),
   total_minor: parts.totalMinor,
   end_day: parts.endDay,
   versions: [],
@@ -157,7 +160,8 @@ const freshDraft = (parts: AdDraftParts): AdDraftState => ({
 export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): AdDraftAnswer {
   const account = standsOf(facts);
   if ("missing" in account) return { can: false, missing: account.missing };
-  const fresh = adDraftOf(inputsOf(facts, account));
+  const wide = sent ? sent.area !== undefined : facts.proposedArea !== null;
+  const fresh = adDraftOf(inputsOf(facts, account, wide));
   if (!fresh.ok)
     return {
       can: false,
@@ -168,7 +172,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
           : fresh.missing,
     };
   const { parts } = fresh;
-  const draft = sent ? heldDraft(sent, facts, parts.serviceId) : freshDraft(parts);
+  const draft = sent ? heldDraft(sent, facts, parts.serviceId) : freshDraft(parts, facts.proposedArea);
   const days = daysBetween(facts.today, draft.end_day);
   const brief = adDraftBrief(facts, account, draft);
   const file = facts.pictures.files.get(draft.picture);
@@ -199,6 +203,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       most_minor: facts.ownerMostMinor,
     },
     picked: pickedHere ? ((serviceOf(facts, draft.service)?.booked ?? 0) > 0 ? "most_booked" : "first") : null,
+    area_why: draft.area && facts.servesAt !== null ? "goes_to_customers" : null,
     checks: adDraftChecks(draft, {
       today: facts.today,
       account,
@@ -264,6 +269,17 @@ function namedDraftAnswer(facts: AdDraftFacts, service: string): AdDraftAnswer {
   return answer.can ? { ...answer, picked: null } : answer;
 }
 
+/**
+ * The facts with the wider place a fresh draft proposes where Google says the business goes to its customers: the
+ * place its listing names, found at Meta (area.ts). Asked only for a fresh draft, so a draft being changed never waits
+ * on Meta; where none is sure, the draft keeps its circle.
+ */
+async function withProposedArea(rc: ReaderContext, facts: AdDraftFacts): Promise<AdDraftFacts> {
+  if (facts.servesAt === null || facts.account === null) return facts;
+  const proposed = await findCustomersPlace({ tenantId: rc.tenantId, userId: rc.userId }, facts.servesAt);
+  return proposed ? { ...facts, proposedArea: proposed } : facts;
+}
+
 /** What POST ads/draft takes (draft-shape.ts AdDraftBodySchema). */
 interface AdDraftBody {
   draft?: AdDraftState | undefined;
@@ -282,8 +298,9 @@ export async function draftAd(rc: ReaderContext, body: AdDraftBody): Promise<AdD
   const read = await readAdDraftFacts(rc);
   const facts = body.most === undefined ? read : await keepOwnersMost(rc, read, body.most);
   if (body.service !== undefined && body.draft === undefined)
-    return keepDraftAnswer(rc, facts, namedDraftAnswer(facts, body.service));
+    return keepDraftAnswer(rc, facts, namedDraftAnswer(await withProposedArea(rc, facts), body.service));
   const sent = body.draft ?? facts.kept?.draft ?? null;
-  const moved = sent && body.act === "next_picture" ? { ...sent, picture: nextAdPicture(facts, sent.picture) } : sent;
+  if (sent === null) return keepDraftAnswer(rc, facts, adDraftAnswer(await withProposedArea(rc, facts), null));
+  const moved = body.act === "next_picture" ? { ...sent, picture: nextAdPicture(facts, sent.picture) } : sent;
   return keepDraftAnswer(rc, facts, adDraftAnswer(facts, moved));
 }

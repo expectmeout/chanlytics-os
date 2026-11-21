@@ -98,8 +98,11 @@ export type LineVM =
 export interface NewAdVM {
   title: string;
   kicker: string;
-  /** The four words of the sentence. */
-  sentence: { service: string; miles: string; amount: string; end: string };
+  /**
+   * The four words of the sentence, and the words before the area: "within" a circle, whose miles are tapped to change
+   * them, or "in and around" a city or "across" a state or a country, which the owner changes by telling AI.
+   */
+  sentence: { service: string; within: string; miles: string; areaTaps: boolean; amount: string; end: string };
   why: string[];
   line: LineVM | null;
   /** The hints under a word being changed. */
@@ -273,7 +276,16 @@ function whyLines(here: NewAdHere, days: number): string[] {
   const picked =
     answer.picked === "most_booked" ? NEW.why.mostBooked : answer.picked === "first" ? NEW.why.first : null;
   const amount = amountWhy(answer, local, days);
-  return picked ? [...amount, picked] : amount;
+  const area = answer.area_why === "goes_to_customers" ? [NEW.why.goesToCustomers] : [];
+  return [...amount, ...(picked ? [picked] : []), ...area];
+}
+
+/** The area's words: "within" the miles of a circle, or the wider place the draft is shown across. */
+function areaSaid(here: NewAdHere): Pick<NewAdVM["sentence"], "within" | "miles" | "areaTaps"> {
+  const { area } = here.answer.draft;
+  if (!area) return { within: NEW.sentence.within, miles: NEW.sentence.miles(here.local.miles), areaTaps: true };
+  const within = area.kind === "city" ? NEW.sentence.inAround : NEW.sentence.across;
+  return { within, miles: area.name, areaTaps: false };
 }
 
 /** About what a total is a day, as a whole amount of the currency. */
@@ -305,7 +317,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
     kicker: answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker,
     sentence: {
       service,
-      miles: NEW.sentence.miles(local.miles),
+      ...areaSaid(here),
       amount: moneyOf(local.total_minor, currency),
       end: dayWord(local.end_day),
     },

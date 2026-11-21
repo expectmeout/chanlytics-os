@@ -7,7 +7,7 @@
  * Pure: the request and what was approved are handed in.
  */
 import { createHash } from "node:crypto";
-import type { MetaAdsAnswer, MetaCampaignHeld, callMetaAds } from "@chanlytics/channels/ads";
+import { metaAreaSent, type MetaAdsAnswer, type MetaCampaignHeld, type callMetaAds } from "@chanlytics/channels/ads";
 import { LAUNCH_PLACES, type LaunchApproved, type LaunchMoment } from "./launch-parts.js";
 import { launchNameOf } from "./tag.js";
 
@@ -68,7 +68,8 @@ export function sandboxHeld(
         pageId: approved.pageId,
         whatsappNumber: approved.whatsapp.replace(/\D/g, ""),
         youngest: 18,
-        miles: approved.miles,
+        miles: approved.area ? null : approved.miles,
+        area: metaAreaSent({ wide: approved.area, miles: approved.miles }),
         places: LAUNCH_PLACES,
       },
     ],

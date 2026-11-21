@@ -132,7 +132,7 @@ test("an account read with no ad in it says so where the ads would be, beside Ne
 // ---------------------------------------------------------------------------------------------------------------------
 // The page, and the press
 
-const READY = ["account-active", "payment", "page-linked", "whatsapp-linked", "chanlytics-whatsapp"].map((id) => ({
+const READY = ["account-active", "payment", "page-linked"].map((id) => ({
   id,
   ok: true,
 }));
@@ -158,6 +158,7 @@ const ACCOUNT = {
     instagram_handle: null,
     ai_number: "+15550100142",
     checks: READY,
+    whatsapp_link: "unsaid",
     can_pause: true,
     reads_instagram: true,
     choices: [],

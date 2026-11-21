@@ -18,7 +18,7 @@ import { readerContext } from "../shared/reader";
 import type { RouteContext } from "../shared/with-route";
 import { adDraftAnswer, requireAdsOffered } from "./draft";
 import { readAdDraftFacts } from "./draft-facts";
-import type { AdDraftAnswer } from "./draft-shape";
+import type { AdDraftAnswer, AdWideArea } from "./draft-shape";
 
 /** How long the press waits for the edge: its door keeps the ad and asks for the account's job, and calls no one. */
 const TURN_ON_WAIT_MS = 20 * SECOND_MS;
@@ -28,6 +28,8 @@ interface PressedAd {
   service: string;
   picture: string;
   miles: number;
+  /** The wider place it showed the ad across; none for the circle. */
+  area?: Pick<AdWideArea, "kind" | "key"> | undefined;
   most_minor: number;
   end_day: string;
   versions: { text: string; headline: string }[];
@@ -42,6 +44,10 @@ interface TurnedOn {
 type Judged = Extract<AdDraftAnswer, { can: true }>;
 type Answer = EdgeAnswer<EdgeRead<"/api/admin/ads/turn-on">>;
 
+/** Whether two areas are one: the same wider place by Meta's key, or both the circle. */
+const sameArea = (held: PressedAd["area"], shown: PressedAd["area"]): boolean =>
+  (held?.kind ?? null) === (shown?.kind ?? null) && (held?.key ?? null) === (shown?.key ?? null);
+
 /** Whether the draft holds now exactly what the press showed: the most it can cost worked out in one place. */
 function asPressed(answer: Judged, pressed: PressedAd): boolean {
   const { draft } = answer;
@@ -49,6 +55,7 @@ function asPressed(answer: Judged, pressed: PressedAd): boolean {
     draft.service === pressed.service &&
     draft.picture.id === pressed.picture &&
     draft.miles === pressed.miles &&
+    sameArea(draft.area, pressed.area) &&
     draft.end_day === pressed.end_day &&
     adMostOf(draft) === pressed.most_minor &&
     draft.versions.length === pressed.versions.length &&
@@ -114,9 +121,10 @@ export async function requestTurnOn(
     throw new AppError("conflict", "This ad changed since you saw it. Look at it again, then press.", 409);
   const reason = turnOnBlockedBy(answer);
   if (reason) throw new AppError("conflict", reason, 409);
-  if (!facts.address || !facts.whatsappNumber)
-    throw new AppError("conflict", "Add the business's address and connect WhatsApp, then press again.", 409);
   const { draft } = answer;
+  // A circle needs the business's address at its centre; a wider place is named by itself (the plan's 4.6).
+  if (!(draft.area || facts.address) || !facts.whatsappNumber)
+    throw new AppError("conflict", "Add the business's address and connect WhatsApp, then press again.", 409);
   const answered: Answer = await callEdge(
     "/api/admin/ads/turn-on",
     {
@@ -130,11 +138,11 @@ export async function requestTurnOn(
         picture: draft.picture.id,
         picture_kind: draft.picture.kind,
         miles: draft.miles,
+        ...(draft.area ? { area: { kind: draft.area.kind, key: draft.area.key } } : { address: facts.address ?? "" }),
         total_minor: draft.total_minor,
         most_minor: adMostOf(draft),
         end_day: draft.end_day,
         versions: draft.versions.map((version) => ({ text: version.text, headline: version.headline })),
-        address: facts.address,
         whatsapp: facts.whatsappNumber,
         declared: "none",
       },

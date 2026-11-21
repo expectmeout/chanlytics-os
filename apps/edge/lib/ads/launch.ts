@@ -272,6 +272,7 @@ async function makeAll(
     whatsappNumber: approved.whatsapp,
     centre: { address: approved.address },
     miles: approved.miles,
+    wide: approved.area ?? undefined,
     instagram: false,
   };
   const set = await makePart(pass, {

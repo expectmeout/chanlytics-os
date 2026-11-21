@@ -6,7 +6,7 @@
  * Pure: the row, Meta's read back and the zone are handed in.
  */
 import { adMostOf, localToUtcMs, recordOrEmpty } from "@chanlytics/contracts";
-import type { MetaCampaignHeld } from "@chanlytics/channels/ads";
+import { metaAreaSent, type MetaCampaignHeld, type MetaPlaceKind } from "@chanlytics/channels/ads";
 
 /** What the owner approved at Turn on, as ads.approved keeps it (the edge's turn-on door wrote it). */
 export interface LaunchApproved {
@@ -15,11 +15,14 @@ export interface LaunchApproved {
   picture: string;
   pictureKind: "photo" | "video";
   miles: number;
+  /** A place wider than the circle, by Meta's key: shown across it in the circle's stead. Null for the circle. */
+  area: { kind: MetaPlaceKind; key: string } | null;
   totalMinor: number;
   mostMinor: number;
   endDay: string;
   endsAt: string;
   versions: { text: string; headline: string }[];
+  /** The circle's centre; empty where a wider place is approved. */
   address: string;
   whatsapp: string;
   pageId: string;
@@ -35,6 +38,16 @@ const countAt = (row: Record<string, unknown>, key: string): number => {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : 0;
 };
 
+const PLACE_KINDS: readonly MetaPlaceKind[] = ["city", "region", "country"];
+
+/** The wider place approved, by its kind and Meta's key; null for the circle, or anything else. */
+function areaAt(row: Record<string, unknown>): LaunchApproved["area"] {
+  const area = recordOrEmpty(row.area);
+  const kind = PLACE_KINDS.find((one) => one === area.kind);
+  const key = textAt(area, "key");
+  return kind && key ? { kind, key } : null;
+}
+
 /** What was approved, read; null where the row holds anything less than a whole approval, which is never sent. */
 export function approvedOf(json: unknown): LaunchApproved | null {
   const row = recordOrEmpty(json);
@@ -48,6 +61,7 @@ export function approvedOf(json: unknown): LaunchApproved | null {
     picture: textAt(row, "picture"),
     pictureKind: row.picture_kind === "video" ? "video" : "photo",
     miles: countAt(row, "miles"),
+    area: areaAt(row),
     totalMinor: countAt(row, "total_minor"),
     mostMinor: countAt(row, "most_minor"),
     endDay: textAt(row, "end_day"),
@@ -69,7 +83,8 @@ export function approvedOf(json: unknown): LaunchApproved | null {
     versions.length >= 1 &&
     versions.length <= 3 &&
     versions.every((version) => version.text !== "" && version.headline !== "") &&
-    approved.address !== "" &&
+    // A circle needs its centre; a wider place is named by itself.
+    (approved.area !== null || approved.address !== "") &&
     approved.whatsapp !== "" &&
     approved.pageId !== "" &&
     approved.currency !== "";
@@ -114,7 +129,9 @@ export function launchDiffers(
   differ("end", set?.endsAt === approved.endsAt);
   differ("number", set?.whatsappNumber === approved.whatsapp.replace(/\D/g, ""));
   differ("adults", set?.youngest === 18);
-  differ("miles", set?.miles === approved.miles);
+  // Where it shows, as one word for what was sent and what Meta holds: the wider place, or the circle's miles.
+  const area = metaAreaSent({ wide: approved.area, miles: approved.miles });
+  differ("area", area !== null && set?.area === area);
   differ("places", JSON.stringify(set?.places ?? []) === JSON.stringify(LAUNCH_PLACES));
   differ("ads", held.ads.length === approved.versions.length);
   approved.versions.forEach((version, nth) => {

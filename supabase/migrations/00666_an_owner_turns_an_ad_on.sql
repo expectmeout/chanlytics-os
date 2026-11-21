@@ -72,7 +72,7 @@ alter table public.ads add constraint ads_shown_on_check
   check (shown_on is null or cardinality(shown_on) <= 10);
 
 comment on column public.ads.approved is
-  'What the owner approved at Turn on, for an ad made here (00666; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account''s zone), the three versions of the words, the number a tap opens, the area''s address, the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform.';
+  'What the owner approved at Turn on, for an ad made here (00666; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account''s zone), the three versions of the words, the number a tap opens, the area (a wider place by the platform''s key, or the address at the circle''s centre), the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform.';
 comment on column public.ads.launch is
   'Where the launch of an ad made here stands (00666): key (the press''s), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform''s own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform.';
 comment on column public.ads.shown_on is

@@ -267,6 +267,7 @@ test("a press drawn from an older amount, end, area, picture or words is refused
     ["an older amount", { most_minor: 7000 }],
     ["another end", { end_day: "2026-12-10" }],
     ["another area", { miles: 8 }],
+    ["a wider place the draft doesn't hold", { area: { kind: "region", key: "3847" } }],
     ["another picture", { picture: "f0f0f0f0-9999-4000-8000-000000000009" }],
     ["older words", { versions: [WORDS[1], WORDS[0], WORDS[2]] }],
   ]) {
@@ -280,6 +281,19 @@ test("a press drawn from an older amount, end, area, picture or words is refused
   edgeSays = () => ({ status: 409, body: { ok: false, error: "ad_stale" } });
   assert.equal(await refusal(press()()), "This ad changed since you saw it. Look at it again, then press.");
   assert.equal(handed.length, 1, "only the last press reached the edge");
+});
+
+test("a draft shown across a wider place is pressed with that place, and no street address is handed on", async () => {
+  const wide = { draft: { area: { kind: "region", key: "3847", name: "Florida", country: "US" } } };
+  const shown = { ...SHOWN, area: { kind: "region", key: "3847" } };
+  assert.equal((await press(wide)(shown)).outcome, "kept");
+  const body = handed.at(-1);
+  assert.deepEqual(body.ad.area, { kind: "region", key: "3847" });
+  assert.equal(body.ad.address, undefined, "a wider place is named by itself");
+  // A press drawn before the place was chosen showed the circle: it is the older one.
+  const said = await refusal(press(wide)(SHOWN));
+  assert.equal(said, "This ad changed since you saw it. Look at it again, then press.");
+  assert.equal(AdTurnOnBodySchema.safeParse({ key: KEY, expect: shown }).success, true);
 });
 
 test("every check before Turn on runs again at the press, and what would stop the ad stops the press", async () => {

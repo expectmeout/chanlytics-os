@@ -47,6 +47,7 @@ import type { ClaimedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../shared/log.js";
 import { metaAdsApp, signInOf } from "./account-ops.js";
+import { mailAdNotices } from "./mail.js";
 import {
   ADS_PACE,
   adRowsOf,
@@ -411,7 +412,9 @@ export async function runAdRead(
     moved: kept.moved,
     cut: learned.cut,
   };
+  // An ad that can't run, rung by this read or owed by one before: mailed once, where the read's time leaves room.
+  const mailed = await mailAdNotices(db, tenantId, { deadline, ports: {} });
   // How long a read took, from the account's first question to its last write: what a real read is timed by.
-  log.info("ads_read", { ...read, usage_pct: reading.usage?.pct ?? null, ms: Date.now() - nowMs });
+  log.info("ads_read", { ...read, mailed, usage_pct: reading.usage?.pct ?? null, ms: Date.now() - nowMs });
   return { read };
 }

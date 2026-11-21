@@ -106,9 +106,8 @@ function heldJson() {
               promoted_object: { page_id: PAGE, whatsapp_phone_number: "13055550142" },
               targeting: {
                 age_min: 18,
-                geo_locations: {
-                  custom_locations: [{ address_string: APPROVED.address, radius: 5, distance_unit: "mile" }],
-                },
+                // Where it shows, as the ad set was sent it: a circle around the address, or a wider place.
+                geo_locations: meta.set.geo,
                 publisher_platforms: ["facebook"],
                 facebook_positions: ["feed", "story", "facebook_reels"],
               },
@@ -180,7 +179,7 @@ globalThis.fetch = async (url, init) => {
     });
   if (form?.get("execution_options")) return reply(200, { success: true });
   if (name === "campaign") meta.campaign = { status: form.get("status") };
-  if (name === "set") meta.set = { status: form.get("status") };
+  if (name === "set") meta.set = { status: form.get("status"), geo: JSON.parse(form.get("targeting")).geo_locations };
   if (name === "ad") {
     const creative = JSON.parse(form.get("creative"));
     const id = AD_IDS[meta.ads.length];
@@ -387,6 +386,33 @@ test("every part made paused just after its dry run, read back and compared, the
   assert.deepEqual(names(), []);
 });
 
+test("an ad approved across a wider place is sent that place in the circle's stead, never a street address", async () => {
+  const { address: _circle, ...rest } = APPROVED;
+  const w = world({ approved: { ...rest, area: { kind: "region", key: "3847" } } });
+  await w.run();
+  assert.deepEqual(names(), [...MAKES, ...ADS, "read_back", ...ON, "read_back"]);
+  for (const call of asked.filter((one) => one.name === "set" || one.name === "set_dry")) {
+    const geo = JSON.parse(call.form.get("targeting")).geo_locations;
+    assert.deepEqual(geo.regions, [{ key: "3847" }], call.name);
+    assert.equal(geo.custom_locations, undefined, `${call.name}: no circle`);
+  }
+  const street = (call) =>
+    String(call.form ?? "").includes("address_string") || String(call.form ?? "").includes("Street");
+  assert.ok(!asked.some(street), "no street address is sent");
+  assert.deepEqual([w.ad().status, w.ad().launch.step], ["made", "done"]);
+
+  // Meta holding the circle where a region was approved is a difference: nothing is switched on.
+  const again = world({ approved: { ...rest, area: { kind: "region", key: "3847" } } });
+  meta.heldOver = (held) => {
+    held.adsets.data[0].targeting.geo_locations = { custom_locations: [{ radius: 5, distance_unit: "mile" }] };
+    return held;
+  };
+  await again.run();
+  assert.deepEqual(switches(), []);
+  // The area is all that differs here, so the stop is its.
+  assert.deepEqual([again.ad().status, again.ad().launch.stopped], ["failed", "differs"]);
+});
+
 /* ------------------------------------------------------------------------------------ each step broken in turn -- */
 
 test("at every step Meta refuses, nothing after it is sent, nothing is switched on, and what was made is removed", async () => {
@@ -435,6 +461,13 @@ test("what Meta holds that is not what was approved stops it before any switch, 
     ["the total", (held) => Object.assign(held.adsets.data[0], { lifetime_budget: "1600" })],
     ["the end", (held) => Object.assign(held.adsets.data[0], { end_time: "2026-12-05T23:59:00-0500" })],
     ["a declaration", (held) => Object.assign(held, { special_ad_categories: ["HOUSING"] })],
+    [
+      "the area",
+      (held) =>
+        Object.assign(held.adsets.data[0].targeting, {
+          geo_locations: { custom_locations: [{ radius: 10, distance_unit: "mile" }] },
+        }),
+    ],
     ["a switch left on", (held) => Object.assign(held.ads.data[1], { status: "ACTIVE" })],
     [
       "the words",
@@ -489,7 +522,8 @@ test("a make Meta never answered is never sent again: it is found by its tagged 
   );
   // Meta made it after all: the next pass looks for it by name, and never sends it again.
   silentAt = null;
-  meta.set = { status: "PAUSED" };
+  const sent = JSON.parse(asked.find((call) => call.name === "set").form.get("targeting")).geo_locations;
+  meta.set = { status: "PAUSED", geo: sent };
   meta.found.set("find_adsets", { id: SET, name: "Chanlytics · First visit [cl:adadadad]", status: "PAUSED" });
   asked.length = 0;
   await w.run();

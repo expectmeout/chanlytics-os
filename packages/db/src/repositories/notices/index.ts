@@ -44,6 +44,7 @@ export {
   holdFactsOf,
   holdTold,
   insertNotification,
+  listMailOwed,
   listReviewsNamed,
   recordMailSent,
   reviewRowsByGoogleId,
@@ -51,4 +52,4 @@ export {
   wasNoticeKept,
   wasOptOutTold,
 } from "./notifications/kept";
-export type { KeptNotice } from "./notifications/kept";
+export type { KeptNotice, MailOwed } from "./notifications/kept";

@@ -1,8 +1,9 @@
 /**
  * The ad account's card, opened from its caret (the canvas's Step2 board, scene "card"): who Meta charges, the Page
- * and Meta's own limit, then all five checks with what each is needed for, the quiet line on what needs none, and at
- * its foot the two things an owner does here: change the ad account or the Page, and disconnect. Both foot acts are the
- * owner's alone, and the page hands them in where it offers them.
+ * and Meta's own limit, then its checks with what each is needed for, the Page's link to the number AI answers (a
+ * quiet line, since Meta doesn't share it), the quiet line on what needs none, and at its foot the two things an owner
+ * does here: change the ad account or the Page, and disconnect. Both foot acts are the owner's alone, and the page
+ * hands them in where it offers them.
  */
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
@@ -42,6 +43,7 @@ function footOf({ onChange, onDisconnect }: Pick<CardSheetProps, "onChange" | "o
 
 export function CardSheet({ open, vm, onClose, onChange, onDisconnect }: CardSheetProps) {
   const met = vm.checks.filter((check) => check.state === "ok").length;
+  const head = met === vm.checks.length ? CARD.allReady : CARD.ready(met, vm.checks.length);
   return (
     <Sheet
       open={open}
@@ -58,10 +60,15 @@ export function CardSheet({ open, vm, onClose, onChange, onDisconnect }: CardShe
         <CardFacts facts={vm.facts} />
         <div className="ads-conn-checks-head">
           <b>{CARD.checks}</b>
-          <span>{CARD.ready(met, vm.checks.length)}</span>
+          <span>{head}</span>
           <span className="ads-conn-for">{CARD.neededFor}</span>
         </div>
         <CardChecks checks={vm.checks} neededFor />
+        {vm.whatsapp ? (
+          <p className="ads-conn-says" data-testid="ads-conn-whatsapp">
+            {vm.whatsapp}
+          </p>
+        ) : null}
         <p className="ads-conn-says">{vm.quiet}</p>
       </div>
     </Sheet>
