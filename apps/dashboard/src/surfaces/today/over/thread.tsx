@@ -13,6 +13,7 @@ import { ROUTES } from "../../inbox/constants";
 import { navigate, type Flash } from "../../inbox/shell";
 import { inboxOverride } from "../../inbox/surface";
 import { ThreadPane } from "../../inbox/thread/thread-pane";
+import { NextUp } from "./next";
 
 const THREAD_READS = [inboxOverride];
 
@@ -28,13 +29,17 @@ export function ThreadOver({
   const held = useSurface("inbox")?.THREADS.some((t) => t.id === threadId) ?? false;
   useReadNamedRecord("inbox", THREAD_READS, isUuid(id) ? id : null, held);
   return (
-    <ThreadPane
-      key={threadId}
-      threadId={threadId}
-      // The sheet's Close is the way back: the thread's head draws no second one.
-      onBack={null}
-      onOpenClient={(person) => navigate(ROUTES.client(String(person)))}
-      flash={flash}
-    />
+    <>
+      <ThreadPane
+        key={threadId}
+        threadId={threadId}
+        // The sheet's Close is the way back: the thread's head draws no second one.
+        onBack={null}
+        onOpenClient={(person) => navigate(ROUTES.client(String(person)))}
+        flash={flash}
+      />
+      {/* Sent, and they no longer wait: the next person who does, in this same sheet (Working for you, W4). */}
+      <NextUp key={`next-${id}`} conversationId={id} />
+    </>
   );
 }

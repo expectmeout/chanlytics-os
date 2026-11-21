@@ -1,4 +1,6 @@
 /** What needs the owner now: Today's brief, the bell's feed, and the phone it pushes to. */
+export { lookedAtOf, TODAY_LOOKED_PAGE } from "./ai";
+export type { AiBookedDto, AiDidVM, AiTalkingVM, TodayAiReadDto, TodayAiVM } from "./ai";
 export { BELL_READ_WORDS, bellSections, todayAwayGrouped } from "./away";
 export type {
   AwayGroupVM,
@@ -134,6 +136,7 @@ export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./queue";
 export { NO_REPLY_AFTER_MS } from "./rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./runs";
 export type { RunLike, TodayRunWordsVM } from "./runs";
+export type { TodayTheirsVM } from "./theirs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./to-do";
 export type { TodayStepsVM, TodayStepVM, TodayVisitAskVM, TodayVisitsAskedVM } from "./to-do";
 export type {

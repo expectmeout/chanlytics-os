@@ -73,7 +73,9 @@ export const todayOverride: SurfaceOverride = {
   // going-today rows are Sent's, drawn from the broadcasts read), so a batch made, approved, stopped or finished is read
   // again for, as Sent's rows are.
   ...declareReads("today", {
-    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit", "send"],
+    // And the business's settings (facts): whether Stop everything is on, which AI's line and sheet say (Working for you,
+    // W1), so a stop pressed in another tab reaches this one. A save of them is rarer than any message the day hears.
+    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit", "send", "facts"],
     fresh: "live",
     omit: [
       {

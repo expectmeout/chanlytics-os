@@ -22,14 +22,21 @@
  * one line that counts it by kind and opens a door to each (calm/also.tsx): who else waits, the to-dos, the visits to
  * mark, whoever has waited past a week, what AI set aside.
  */
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  addressOf,
   DEFAULT_TIMEZONE,
+  HELD_WORDS,
   isPersonRow,
   NEED_YOU_WORDS as W,
   type TodayQueueRowVM,
+  type TodayTheirsVM,
   type TodayVM,
 } from "@chanlytics/contracts";
+import { routeDoor } from "../../frame-verbs";
+import { holdLineOf, useHandsBusy } from "../calm/held";
+import { heldActsOf } from "../need-you/held-acts";
+import { goFromToday } from "../over/open";
 import { TODAY_LINE_WORDS, TODAY_NAMED_MAX, type TodayAlsoCounts } from "../model/lines";
 import { FailedRead } from "../../kit/empty/empty";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
@@ -48,19 +55,19 @@ import { appNavigate, canDo, surfaceFailed, useMoved, useToast, workspaceClock }
 import { useTodayWord } from "./day-vm";
 import { AlsoLine, type AlsoDoors } from "../calm/also";
 import { LeadGone } from "../calm/lead";
-import { cardPressed, cardPressedLately } from "../calm/motion";
+import { cardPressed, cardPressedLately, useFoldsIn } from "../calm/motion";
 import { CalmList, CalmRow, type CalmLine } from "../calm/lines";
 import type { TodayCard } from "../calm/lead";
 import { ActedLine, QueueLead, queueLine } from "../calm/queue";
 import { WaitLead, waitLine } from "../calm/wait";
 
 /** The list, once Today has been read: the page is READY when it is drawn (client/page-speed.ts). */
-export const NeedYou = ({ card }: { card: TodayCard }) => {
+export const NeedYou = ({ card, evening = false }: { card: TodayCard; evening?: boolean }) => {
   useMoved("today");
   const vm = surfaceValue("today");
   usePartShown("today", "queue", !!vm);
   const model = useNeedYouModel(vm ?? null);
-  return vm && model ? <NeedYouList vm={vm} model={model} card={card} /> : null;
+  return vm && model ? <NeedYouList vm={vm} model={model} card={card} evening={evening} /> : null;
 };
 
 /** The drafts the drawn rows read, asked for once per set, where the page's first reads did not hold them. */
@@ -236,16 +243,70 @@ const actedLines = (order: readonly TodayQueueRowVM[], ctx: NeedYouRowsCtx, todo
 const entriesOf = (order: readonly TodayQueueRowVM[], waits: Waits, todo: ToDo, ctx: NeedYouRowsCtx): Entry[] => [
   ...order
     .filter((r) => !ctx.kept.has(r.id))
-    .map((r) => ({ key: r.id, as: "waiting" as const, line: queueLine(r, ctx) })),
+    // Held, a line offers its acts without opening (W11).
+    .map((r) => ({
+      key: r.id,
+      as: "waiting" as const,
+      line: { ...queueLine(r, ctx), hold: holdLineOf(heldActsOf(r, ctx)) },
+    })),
   ...waits.parts.map((x) => ({ key: x.key, as: "waiting" as const, line: waitLine(x) })),
   ...todo.rows
     .filter((r) => !todo.ctx.kept.has(r.id))
     .map((r) => ({
       key: r.id,
       as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
-      line: queueLine(r, todo.ctx),
+      line: { ...queueLine(r, todo.ctx), hold: holdLineOf(heldActsOf(r, todo.ctx)) },
     })),
 ];
+
+/**
+ * Nothing moves under your hands (W23): while a line is held or a sheet is open over Today, someone new is not placed among
+ * the lines. They are said once, "1 new · placed when you're done", and placed as the hand is free. What leaves (a reply
+ * sent, a line done) still leaves: that is the hand's own doing.
+ */
+function useHeldArrivals(entries: Entry[], flash: NeedYouRowsCtx["flash"]): Entry[] {
+  const busy = useHandsBusy();
+  // The lines there as the hand got busy, kept as the page draws (React's own way to keep what an earlier draw held).
+  const there = useRef<ReadonlySet<string> | null>(null);
+  if (!busy) there.current = null;
+  else there.current ??= new Set(entries.map((x) => x.key));
+  const keys = there.current;
+  const shown = keys ? entries.filter((x) => keys.has(x.key)) : entries;
+  const arrived = entries.length - shown.length;
+  const arrivedSeen = useRef({ arrived: 0, flash });
+  arrivedSeen.current.flash = flash;
+  useEffect(() => {
+    if (arrived > arrivedSeen.current.arrived)
+      arrivedSeen.current.flash({ msg: <>{TODAY_LINE_WORDS.held.arrived(arrived)}</> });
+    arrivedSeen.current.arrived = arrived;
+  }, [arrived]);
+  return shown;
+}
+
+/**
+ * The conversations a teammate has (W19), a quiet line each under who waits on you: in no count, saying whose they are,
+ * each opening over Today, where it can be taken back. Three at most, as the named lines are.
+ */
+function theirsLines(theirs: readonly TodayTheirsVM[]) {
+  if (!theirs.length) return null;
+  return (
+    <div className="calm-theirs">
+      <CalmList label={HELD_WORDS.theirs.pill} testid="today-theirs">
+        {theirs.slice(0, TODAY_NAMED_MAX).map((their) => (
+          <CalmRow
+            key={their.conversationId}
+            first={{ face: { person: { name: their.who, initials: their.initials } } }}
+            name={their.who}
+            // Whose it is first, then what they said: one line under the name.
+            facts={their.said ? [HELD_WORDS.theirs.pill, their.said] : [HELD_WORDS.theirs.pill]}
+            door={routeDoor(addressOf({ kind: "conversation", id: their.conversationId }), goFromToday)}
+            testid="today-theirs-line"
+          />
+        ))}
+      </CalmList>
+    </div>
+  );
+}
 
 /**
  * What is left past the named lines, by kind (calm/also.tsx), as it will stand once the card has handed off, so the count
@@ -294,14 +355,31 @@ function alsoLeftOf(parts: { entries: Entry[]; next: string | null; model: NeedY
  * The card, where this part holds it: a row finished a moment ago, the row it holds, or the run; where nothing holds it,
  * the room it stood in folds shut.
  */
-function cardIn(p: { heldLead: CardRow | null; lead: CardRow | null; waitLead: WaitPart | null; card: TodayCard }) {
-  if (p.heldLead) return <QueueLead row={p.heldLead.row} ctx={p.heldLead.ctx} holder={p.heldLead.holder} done />;
-  if (p.lead) return <QueueLead row={p.lead.row} ctx={p.lead.ctx} holder={p.lead.holder} />;
-  if (p.waitLead) return <WaitLead part={p.waitLead} />;
-  return p.card === null ? <LeadGone /> : null;
+function cardIn(at: {
+  heldLead: CardRow | null;
+  lead: CardRow | null;
+  waitLead: WaitPart | null;
+  card: TodayCard;
+  cleared: boolean;
+}) {
+  if (at.heldLead) return <QueueLead row={at.heldLead.row} ctx={at.heldLead.ctx} holder={at.heldLead.holder} done />;
+  if (at.lead) return <QueueLead row={at.lead.row} ctx={at.lead.ctx} holder={at.lead.holder} />;
+  if (at.waitLead) return <WaitLead part={at.waitLead} />;
+  // The last thing waiting done, and nothing else to do: the one celebration, once (W6).
+  return at.card === null ? <LeadGone cleared={at.cleared} /> : null;
 }
 
-const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; card: TodayCard }) => {
+const NeedYouList = ({
+  vm,
+  model,
+  card,
+  evening,
+}: {
+  vm: TodayVM;
+  model: NeedYouModel;
+  card: TodayCard;
+  evening: boolean;
+}) => {
   const [toastNode, ppFlash] = useToast();
   const { groups, drawn, order, kept } = model;
   useEffect(() => () => clearRowStates(), []);
@@ -339,7 +417,10 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   const waitLead =
     card?.holder === "wait" ? (waits.parts.find((x) => x.key === card.id) ?? waits.parts[0] ?? null) : null;
   const acted = actedLines(order, ctx, todo, heldLead?.row.id ?? cardRow);
-  const entries = entriesOf(order, waits, todo, ctx);
+  // Once the day is over the to-dos wait for morning, in the page's one line for it (calm/evening.tsx, W5): only who
+  // truly needs you stands here.
+  const all = entriesOf(order, waits, todo, ctx);
+  const entries = useHeldArrivals(evening ? all.filter((x) => x.as === "waiting") : all, ppFlash);
   // Every one of them keeps its line while the page is open. The card's own is folded shut, and so is one past the three
   // named: a line folds or opens where it stands as the card hands off, and nothing under it jumps (D6). While a finished
   // row still holds the card, the next one keeps its line.
@@ -347,13 +428,17 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   const inCard = heldLead ? null : next;
   const free = entries.filter((x) => x.key !== inCard);
   const named = new Set(free.slice(0, TODAY_NAMED_MAX).map((x) => x.key));
-  const { left, doors } = alsoLeftOf({ entries, next, model, waits, todo });
+  // Someone new folds into their place (W7).
+  const arriving = useFoldsIn(entries.map((x) => x.key));
+  const also = alsoLeftOf({ entries, next, model, waits, todo });
+  const { doors } = also;
+  const left = evening ? { ...also.left, toDo: 0, toMark: 0 } : also.left;
   const callsUnread = vm.callsRead === false;
   // A read that failed is said where its rows would stand.
   const rest = callsUnread || (!broadcastsRead() && surfaceFailed("broadcasts"));
   return (
     <>
-      {cardIn({ heldLead, lead, waitLead, card })}
+      {cardIn({ heldLead, lead, waitLead, card, cleared: entries.length === 0 && left.waiting === 0 })}
       {/* What was finished here opens at the top of the list, where the next thing's line shuts as it rises into the
           card (the second look, M1): the two cross where they stand. */}
       {acted.length ? (
@@ -364,10 +449,16 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
       {entries.length ? (
         <CalmList label={W.title} testid="today-queue">
           {entries.map((x) => (
-            <CalmRow key={x.key} {...x.line} folded={!named.has(x.key)} top={x.key === free[0]?.key} />
+            <CalmRow
+              key={x.key}
+              {...x.line}
+              folded={!named.has(x.key) || arriving.has(x.key)}
+              top={x.key === free[0]?.key}
+            />
           ))}
         </CalmList>
       ) : null}
+      {theirsLines(vm.theirs)}
       {rest ? (
         <section className="tq today-queue tz-need calm-rest" data-testid="today-queue-rest" aria-label={W.title}>
           <div className="tq-list ny-groups">{readsFailed(callsUnread)}</div>

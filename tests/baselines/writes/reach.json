@@ -453,6 +453,7 @@
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "today": "every page",
         "today_pins": "today"
       }
     },
@@ -478,7 +479,7 @@
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today",
+        "today": "every page",
         "today_pins": "today",
         "workspace": "every page"
       }
@@ -1250,6 +1251,7 @@
         "reports_receptionist": "reports/receptionist",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
+        "today": "every page",
         "today_pins": "today"
       }
     },
@@ -2350,6 +2352,7 @@
         "reports_receptionist": "reports/receptionist",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
         "setup": "admin/integrations, start, today",
+        "today": "every page",
         "today_pins": "today"
       }
     },
@@ -2548,6 +2551,7 @@
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "today": "every page",
         "today_pins": "today"
       }
     },
@@ -3034,7 +3038,7 @@
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "reports_reviews": "reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today",
+        "today": "every page",
         "today_pins": "today"
       }
     },

@@ -9,7 +9,10 @@ import {
   NEED_YOU_WORDS as W,
   dayInZone,
   isRested,
+  kindRestId,
   restEndsDay,
+  RESTED_FOR_GOOD,
+  restedUntil,
   restedWith,
   restedWithout,
   usableZone,
@@ -26,11 +29,28 @@ const NOT_READ: AskRested = {};
 /** The business's day, YYYY-MM-DD: what a rest runs out against, where the morning has not said it. */
 const dayToday = (): string => dayInZone(usableZone(workspaceClock()?.zone()), Date.now()).key;
 
+/**
+ * When Not today puts a row off (Working for you, W22): to a time chosen (`until`, an instant, said back as `back`: "at 4 PM",
+ * "tomorrow at 9 AM"), or every row of its kind for good (`kind`). None: a week, as it always was.
+ */
+export type RestFor = { until: string; back: string } | { kind: string } | { kept: string };
+
 /** What a row's Not today is handed: what it says, and what puts its row back as its Undo is pressed. */
 export interface RestPress {
   key: string;
   flash: (f: Flash) => void;
   onUndone?: () => void;
+  for?: RestFor;
+}
+
+/** The rest a press keeps: which id rests, until when, and what the toast says of it. */
+function restOf(key: string, f: RestFor | undefined): { id: string; until: string | null; said: string } {
+  if (!f)
+    return { id: key, until: null, said: W.restedUntil(restEndsDay(usableZone(workspaceClock()?.zone()), Date.now())) };
+  if ("kind" in f) return { id: kindRestId(f.kind), until: RESTED_FOR_GOOD, said: W.restedKind };
+  // Seen for good (the week's card, W9): the row's own id, and what it says back as it goes.
+  if ("kept" in f) return { id: key, until: RESTED_FOR_GOOD, said: f.kept };
+  return { id: key, until: f.until, said: W.restedBack(f.back) };
 }
 
 /** The member's rests as they stand this visit, whether a row rests, and the one press that rests it. */
@@ -47,16 +67,20 @@ export function useRests() {
     });
     return saveView(ASK_FOUND_VIEW, { rested: now });
   };
-  const rest = async ({ key, flash, onUndone }: RestPress): Promise<void> => {
-    const put = await change((was) => restedWith(was, key, today));
+  const rest = async ({ key, flash, onUndone, for: when }: RestPress): Promise<void> => {
+    const kept = restOf(key, when);
+    const until = kept.until;
+    const put = await change((was) =>
+      until ? restedUntil(was, kept.id, today, until) : restedWith(was, kept.id, today),
+    );
     if (!put.ok) {
       flash({ tone: "danger", msg: <>{put.message}</> });
       return;
     }
     flash({
-      msg: <>{W.restedUntil(restEndsDay(usableZone(workspaceClock()?.zone()), Date.now()))}</>,
+      msg: <>{kept.said}</>,
       undo: async () => {
-        const back = await change((was) => restedWithout(was, key, today));
+        const back = await change((was) => restedWithout(was, kept.id, today));
         if (!back.ok) {
           flash({ tone: "danger", msg: <>{back.message}</> });
           return;
@@ -66,7 +90,7 @@ export function useRests() {
     });
   };
   const rested = pressed ?? read;
-  return { rested, today, rest, rests: (key: string) => isRested(rested, key, today) };
+  return { rested, today, rest, rests: (key: string) => isRested(rested, key, today, Date.now()) };
 }
 
 /** A review's key among the rests: Ask found's rows keep theirs, and the two never meet. */

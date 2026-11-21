@@ -37,6 +37,7 @@ export const GET = read({
         previews_tried: r.previewsTried,
         done_today: done,
         word,
+        ai: r.ai,
       },
     };
   },

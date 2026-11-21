@@ -15,6 +15,7 @@ import {
 import { undoVerb } from "@/bridge/verbs/commit";
 import { askAbout, askCards, canDo } from "../shell";
 import type { WorkProps } from "./parts";
+import type { RestFor } from "./rests";
 import { useRowState } from "./row-state";
 
 /** The last outcome on its way for each turn: the next is kept after it, since the store writes a turn whole. */
@@ -66,7 +67,7 @@ interface IdeaPorts {
    * is kept on that turn besides, so tomorrow's morning and every member's Today leave it out (contracts settledTitles).
    * `onUndone` is told as its toast's Undo brings the row back.
    */
-  rest: (onUndone: () => void) => Promise<void>;
+  rest: (onUndone: () => void, when?: RestFor) => Promise<void>;
 }
 
 /**
@@ -121,7 +122,7 @@ export function useIdeaActs(p: IdeaPorts) {
     setSaid(null);
     void keptOnTurn(messageId, card, { state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null });
   };
-  const notToday = async () => {
+  const notToday = async (when?: RestFor) => {
     if (busy) return;
     p.keep();
     setSaid({ words: W.idea.gone, tone: "rest", undo: null });
@@ -131,7 +132,7 @@ export function useIdeaActs(p: IdeaPorts) {
       setSaid(null);
       void restoreOnTurn(messageId, card);
     };
-    await p.rest(back).catch(() => undefined);
+    await p.rest(back, when).catch(() => undefined);
     await dismissedOnTurn(messageId, card);
   };
   return { said, busy, open, approve, undo, notToday };

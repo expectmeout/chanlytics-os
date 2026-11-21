@@ -1,0 +1,29 @@
+/*
+ * A line held, and who owns a line (Working for you, 21 Nov 2026, W11 and W19). Layout alone: the acts are the kit's
+ * buttons, the sheet is the kit's sheet, the lines are Today's.
+ */
+
+/* A line that can be held: a finger kept on it selects no words and opens no link's preview, so the hold is the line's. */
+.calm-line[data-holds] {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The held line's acts: one under another, each the width of the sheet, its glyph before its words. */
+.calm-held-acts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-2);
+}
+.calm-held-act {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+/* A teammate's lines: theirs, not yours, so quieter than who waits on you. */
+.calm-theirs .calm-name {
+  color: var(--ink-muted);
+}

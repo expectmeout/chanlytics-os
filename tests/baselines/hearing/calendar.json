@@ -84,7 +84,7 @@
     "appointments DELETE": "calendar people today · 5 routes",
     "contacts INSERT": "conversations inbox today · 6 routes",
     "contacts UPDATE": "calendar conversations inbox today · 7 routes",
-    "tenant_config UPDATE": "calendar settings · 5 routes",
+    "tenant_config UPDATE": "calendar settings today · 6 routes",
     "policies INSERT": "calendar_runs google reach_outs settings · 9 routes",
     "policies UPDATE": "calendar_runs google reach_outs settings · 9 routes",
     "policies DELETE": "calendar_runs google reach_outs settings · 9 routes",

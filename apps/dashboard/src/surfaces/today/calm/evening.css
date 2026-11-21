@@ -1,0 +1,8 @@
+/*
+ * Today in the evening (Working for you, 21 Nov 2026, W5 and W16): once the day is over the page warms a little, a wash
+ * from the top's far corner that never means anything, and what waits for morning rests in one line.
+ */
+.calm[data-evening] {
+  background-image: radial-gradient(130% 55% at 85% -5%, var(--evening-light), transparent 70%);
+  background-repeat: no-repeat;
+}

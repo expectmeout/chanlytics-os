@@ -119,6 +119,8 @@ const HEARD_BEFORE = {
     "appointments",
     // The runs GET today carries (Today in three zones, 2 Nov 2026): a batch made, approved, stopped or finished.
     "sequence_batches",
+    // Whether Stop everything is on, which AI's line and sheet say (Working for you, W1, 21 Nov 2026).
+    "tenant_config",
   ],
   people: [
     "messages",

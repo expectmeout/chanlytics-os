@@ -246,7 +246,7 @@ async function withFeedAndPeople(
   tenantId: TenantId,
   read: Omit<
     CalendarSources,
-    "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "taken" | "origins" | "followed"
+    "feed" | "parsed" | "serviceNames" | "people" | "book" | "firsts" | "numbers" | "taken" | "origins" | "followed"
   >,
   url: string | null,
   profile: BusinessProfile | null,
@@ -270,7 +270,9 @@ async function withFeedAndPeople(
   // logs a failure and answers null), so the board says when someone was last in.
   const recordRead = !feedOnly && url ? findPoolRecord(ctx, tenantId, now) : Promise.resolve(null);
   // The matcher's people and the rows they were made of, from the one read, each with its visits where the feed parsed.
-  const people = async (parsed: ParsedFeed | null): Promise<Pick<CalendarSources, "people" | "book" | "firsts">> => {
+  const people = async (
+    parsed: ParsedFeed | null,
+  ): Promise<Pick<CalendarSources, "people" | "book" | "firsts" | "numbers">> => {
     const all = await everyoneRead;
     const pool = { timezone, source: read.source, own: read.ownAddresses, services: profile?.services ?? [] };
     const seen = parsed
@@ -282,8 +284,13 @@ async function withFeedAndPeople(
           { ...pool, rules: read.rules, record: await recordRead },
           now,
         )
-      : { rows: all, firsts: new Set<string>() };
-    return { people: all.map(personLike), book: new Map(seen.rows.map((r) => [r.id, r])), firsts: seen.firsts };
+      : { rows: all, firsts: new Set<string>(), numbers: new Map<string, number>() };
+    return {
+      people: all.map(personLike),
+      book: new Map(seen.rows.map((r) => [r.id, r])),
+      firsts: seen.firsts,
+      numbers: seen.numbers,
+    };
   };
   if (!url) return { ...read, feed: null, parsed: null, serviceNames: [], ...(await people(null)) };
 
@@ -435,7 +442,7 @@ function withVisitRecord<D extends { items: CalendarItemDto[] }>(
  */
 function withPersonFacts<D extends { items: CalendarItemDto[] }>(
   days: D[],
-  { book, firsts }: Pick<CalendarSources, "book" | "firsts">,
+  { book, firsts, numbers }: Pick<CalendarSources, "book" | "firsts" | "numbers">,
   tz: string,
   now: Date,
 ): D[] {
@@ -444,7 +451,7 @@ function withPersonFacts<D extends { items: CalendarItemDto[] }>(
   const factsOf = (id: string) => {
     if (!facts.has(id)) {
       const row = book.get(id);
-      if (row) facts.set(id, calendarPersonFactsOf(row, tz, now.getTime(), firsts.has(id)));
+      if (row) facts.set(id, calendarPersonFactsOf(row, tz, now.getTime(), firsts.has(id), numbers.get(id) ?? null));
     }
     return facts.get(id);
   };

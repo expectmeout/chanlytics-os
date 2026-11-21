@@ -642,6 +642,9 @@
      that draws nothing, since some rules lay the focus ring over it). */
   --selected-fill: oklch(0.5 0.02 275 / 0.1);
   --selected-depth: 0 0 0 0 transparent;
+  /* Today's evening light (Working for you, W16): the page warms a little once the day is over, a wash and never a
+     colour that means something. Read by today/calm/evening.css. */
+  --evening-light: oklch(0.93 0.05 66 / 0.35);
   /* A row under a pointer: a lighter lilac grey than the pick. Read by the Inbox's, Conversations' and People's rows;
      the dark side keeps the selected fill at half strength (its block, below). */
   --hover-fill: oklch(0.5 0.02 275 / 0.05);
@@ -780,6 +783,7 @@
 
   --selected-fill: oklch(0.97 0.014 285 / 0.13);
   --selected-depth: inset 0 1px 0 oklch(1 0 0 / 0.2), 0 2px 6px -3px oklch(0.1 0.025 280 / 0.22);
+  --evening-light: oklch(0.42 0.06 58 / 0.16);
   /* A row under a pointer: the selected fill at half strength, so the lozenge it becomes when pressed is the same glass a
      step up, and the opaque fallbacks follow it (the light side's is a well, above). */
   --hover-fill: color-mix(in oklab, var(--selected-fill) 55%, transparent);

@@ -6,8 +6,11 @@ export {
   findingCardId,
   isFindingCard,
   isRested,
+  kindRestId,
   repliesFellCard,
+  RESTED_FOR_GOOD,
   restedOf,
+  restedUntil,
   restedWith,
   restedWithout,
 } from "./findings";
