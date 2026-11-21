@@ -1610,7 +1610,9 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // 0076: Today reads what was booked (bookings.ts); 00512: a lead plan, the month's allowance. Bytes unchanged.
     // 14 Nov 2026 (decision 0132): and the number's row, for what WhatsApp holds against it (metrics.ts whatsappHeld): one
     // `tenant_channels` read more. Its bytes are unchanged: this world's number is held by nothing.
-    const booked = old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select"] : [];
+    // 21 Nov 2026 (W1, W2): and AI's bookings, the stop and the member's last look (today.ts aiBeside). Bytes unchanged.
+    const ai = ["appointments.select", "tenant_config.select", "memberships.select"];
+    const booked = old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select", ...ai] : [];
     const allowance = leadPlan && !want.isError ? ["rpc:lead_allowance"] : [];
     const reads =
       NAMES[old] === "report"
