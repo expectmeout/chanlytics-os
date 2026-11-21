@@ -1403,16 +1403,20 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
   );
 });
 
-test("where Campaigns › Ads is drawn, an ad that can't run is a topic under Needs you, mailed until the business turns it off (0050 call 15)", () => {
+test("where Campaigns › Ads is drawn, an ad that needs its owner is a topic under Needs you, mailed until the business turns it off (0050 call 15)", () => {
   const config = { notifications: { escalation_emails: ["dana@northside.example"] } };
   workspace("owner", { record: { role: "owner", version: 3, ads: true, config } });
   alertsRead({ push_off: [], phones: [], choosable: true });
   const grid = byTestId(settings("notifications"), "ntf-grid");
   const row = byTestId(byTestId(grid, "ntf-group-needs_you"), "ntf-topic-ads");
-  assert.ok(textOf(row).startsWith("An ad can't run"));
+  assert.ok(textOf(row).startsWith("Your ads need you"));
   assert.equal(byTestId(row, "ntf-email-ads").props["aria-pressed"], true, "mailed until turned off");
   const ads = ALERT_TOPICS.find((t) => t.key === "ads");
-  assert.deepEqual([ads.kinds, ads.email, ads.phone], [["ad_refused", "ad_unpaid"], "choice", false]);
+  // An ad on that AI can't answer, and ads Chanlytics paused for the workspace, are mailed the same way (00676).
+  assert.deepEqual(
+    [ads.kinds, ads.email, ads.phone],
+    [["ad_refused", "ad_unpaid", "ad_way_in", "ads_paused"], "choice", false],
+  );
 });
 
 test("a member with a phone ticks what reaches it, whatever their role; a kind no phone is told has no tick, and a choice that cannot be saved yet shows what is told (0040)", async () => {

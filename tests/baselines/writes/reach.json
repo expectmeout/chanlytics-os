@@ -464,8 +464,8 @@
       "changes": "ask_messages UPDATE"
     },
     "POST ask/stop": {
-      "changes": "tenant_config UPDATE · tenants UPDATE",
-      "tells": "tenant_config · tenants",
+      "changes": "ads UPDATE · notifications INSERT · remediation_actions UPDATE · remediations UPDATE · tenant_config UPDATE · tenants UPDATE",
+      "tells": "ads · tenant_config · tenants",
       "extra": {
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
@@ -473,6 +473,7 @@
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
         "files": "admin/files",
+        "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
         "reach_outs": "outbound",
@@ -1297,10 +1298,13 @@
       }
     },
     "POST files/[id]/yes/back": {
-      "changes": "file_consents UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · source_items UPDATE",
-      "tells": "files · notifications",
+      "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · file_consents UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE · source_items UPDATE",
+      "tells": "ad_accounts · ads · files · notifications",
       "missing": {
-        "notifications": "every page"
+        "notifications": "every page",
+        "person": "clients/person",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages"
       }
     },
     "POST files/keep": {

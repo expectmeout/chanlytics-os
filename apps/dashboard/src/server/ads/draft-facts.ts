@@ -263,6 +263,23 @@ function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
   };
 }
 
+/**
+ * Whether AI can answer the chat a draft's ad opens with the workspace's active number (contracts adWayInOf), from what
+ * its channel keeps of Meta's word: the number the draft names is that number, so only the number's own standing, billing
+ * and the stop can close it here.
+ */
+function draftWayInOf(
+  number: { config: Record<string, unknown>; number: string | null } | null,
+  workspace: { paused: boolean; stopped: boolean },
+): AdWayIn {
+  const canSend = number ? (standingFromConfig(number.config.standing)?.can_send ?? null) : null;
+  return adWayInOf({
+    named: number?.number ?? null,
+    number: number ? { e164: number.number, canSend } : null,
+    ...workspace,
+  });
+}
+
 /** The picture a kept draft shows, as its row holds it: read with the shelves, wherever it stands on them. */
 const keptPictureOf = (row: AdDraftRow | null): string | null => {
   const picture = recordOrEmpty(row?.draft).picture;
@@ -330,12 +347,7 @@ export async function readAdDraftFacts(
     servesAt: listing.error ? null : servesAtOf(listing.data),
     proposedArea: null,
     // What Meta last said of the number, as its channel keeps it; Turn on asks Meta again at the press (turn-on.ts).
-    wayIn: adWayInOf({
-      named: aiNumber,
-      number: number && { e164: number.number, canSend: standingFromConfig(number.config.standing)?.can_send ?? null },
-      paused,
-      stopped,
-    }),
+    wayIn: draftWayInOf(number, { paused, stopped }),
     whatsappNumber: aiNumber,
     account,
     accountReading: live !== null && account === null,

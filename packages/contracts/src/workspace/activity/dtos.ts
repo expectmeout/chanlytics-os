@@ -130,6 +130,7 @@ export const WORDS: Record<string, string> = {
   turn_on_ad: "Turned an ad on",
   change_ad: "Changed an ad",
   end_ad: "Ended an ad",
+  cancel_ad: "Cancelled an ad being set up",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",

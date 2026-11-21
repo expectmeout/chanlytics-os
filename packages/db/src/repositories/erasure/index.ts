@@ -19,5 +19,7 @@ export {
   visitNeedles,
 } from "./legs";
 export type { ErasedRows } from "./legs";
-export { ERASURE_LEGS, ERASURE_STRATEGIES } from "./registry";
-export type { ErasureLeg, ErasureStrategy } from "./registry";
+export { ERASURE_LEGS } from "./leg-words";
+export type { ErasureLeg } from "./leg-words";
+export { ERASURE_STRATEGIES } from "./registry";
+export type { ErasureStrategy } from "./registry";
