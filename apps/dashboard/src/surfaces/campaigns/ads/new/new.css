@@ -74,10 +74,17 @@
 .ads-new-plain {
   aspect-ratio: 4 / 5;
 }
-/* Meta's own preview: its frame at the size Meta drew it, seen once it has loaded. A frame not on show, or still
-   loading, loads out of sight in a box of one pixel, so it takes no room and nothing jumps. */
+/* Meta's own preview: its frame at the size Meta's page draws the place, seen once it has loaded. Meta's page never
+   narrows below that size, so where the room is narrower the frame is drawn smaller, whole, and its box takes the
+   room that leaves (meta-frame.tsx measures the room and sets the three). A frame not on show, or still loading,
+   loads out of sight in a box of one pixel, so it takes no room and nothing jumps. */
 .ads-new-meta {
+  flex: none;
+  width: var(--ads-meta-wide, auto);
+  height: var(--ads-meta-tall, auto);
   max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
 }
 .ads-new-meta[data-on="no"] {
   position: absolute;
@@ -91,10 +98,10 @@
 }
 .ads-new-meta-frame {
   display: block;
-  max-width: 100%;
   border: 0;
-  border-radius: var(--radius-lg);
   background: var(--bg-sunken);
+  transform: scale(var(--ads-meta-fit, 1));
+  transform-origin: 0 0;
 }
 /* A story and a Reel: the same picture, whole, centred in their taller frame. */
 .ads-new-tall {

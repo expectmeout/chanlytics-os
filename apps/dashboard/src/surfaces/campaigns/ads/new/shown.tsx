@@ -1,16 +1,16 @@
 /**
  * The ad as it will look (the Ads plan's 4.6): Meta's own preview once the ad account is connected (meta-frame.tsx,
- * meta-preview.ts), and where Meta's can't be had, drawn by Chanlytics in a neutral frame, saying so and why in one
- * line, never a platform's own chrome. The Page it runs as, the version's text and headline, the picture whole in its own shape
- * (Ads never crops), and the press a person sees. "1 of 3 versions" steps through the three the writer wrote, each
- * its own ad at Meta. A story and a Reel show the same picture whole in their taller frame, inside the room Meta
- * keeps clear.
+ * meta-preview.ts), the place on show loaded first and the others after it, and where Meta's can't be had, drawn by
+ * Chanlytics in a neutral frame, saying so and why in one line, never a platform's own chrome. The Page it runs as,
+ * the version's text and headline, the picture whole in its own shape (Ads never crops), and the press a person sees.
+ * "1 of 3 versions" steps through the three the writer wrote, each its own ad at Meta. A story and a Reel show the
+ * same picture whole in their taller frame, inside the room Meta keeps clear.
  *
  * While the words are being written the three are at work beside "AI is writing…": the mark is the one moving thing,
  * and the words stand still.
  */
-import { useCallback, useState } from "react";
-import type { AdPreviewAnswer, AdPreviewPlace } from "@/server/ads/preview-shape";
+import { useCallback, useEffect, useState } from "react";
+import type { AdPreviewAnswer, AdPreviewFrame, AdPreviewPlace } from "@/server/ads/preview-shape";
 import { AskFace } from "../../../kit/face/ask-face";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
@@ -119,6 +119,29 @@ function useFramesHeard() {
   return { loaded, late, onLoaded, onLate };
 }
 
+/**
+ * Which of Meta's frames have begun to load, each by its address: the place on show at once, and the others once it
+ * has loaded or run late (or where Meta drew none for it), so a phone draws the one being looked at before it fetches
+ * the rest, and a change of place still finds Meta's there. A frame that has begun stays.
+ */
+function useFramesBegun(
+  frames: Partial<Record<Face, AdPreviewFrame>>,
+  face: Face,
+  settled: boolean,
+): readonly string[] {
+  const [begun, setBegun] = useState<readonly string[]>([]);
+  const onShow = frames[face]?.src ?? null;
+  const wanted = FACES.flatMap(({ value }) => {
+    const src = frames[value]?.src;
+    return src && (src === onShow || settled || onShow === null) ? [src] : [];
+  }).join(" ");
+  useEffect(() => {
+    const more = wanted ? wanted.split(" ") : [];
+    setBegun((was) => (more.every((src) => was.includes(src)) ? was : [...new Set([...was, ...more])]));
+  }, [wanted]);
+  return onShow === null || begun.includes(onShow) ? begun : [...begun, onShow];
+}
+
 export function AdShown({ shown, onNext, preview }: ShownProps) {
   const [face, setFace] = useState<Face>("feed");
   const meta = useMetaPreview(versionAsked(shown), shown.picture.video, preview);
@@ -127,6 +150,7 @@ export function AdShown({ shown, onNext, preview }: ShownProps) {
   const frame = frames[face] ?? null;
   const loaded = frame !== null && heard.loaded.includes(frame.src);
   const late = frame !== null && heard.late.includes(frame.src);
+  const begun = useFramesBegun(frames, face, loaded || late);
   const headline = shown.headline ? <p className="ads-frame-head">{shown.headline}</p> : null;
   return (
     <section className="ads-new-shown" aria-label={NEW.shown.label} data-testid="ads-new-shown">
@@ -148,7 +172,7 @@ export function AdShown({ shown, onNext, preview }: ShownProps) {
       </div>
       {FACES.map(({ value, label }) => {
         const one = frames[value];
-        return one ? (
+        return one && begun.includes(one.src) ? (
           <MetaFrame
             key={one.src}
             place={value}

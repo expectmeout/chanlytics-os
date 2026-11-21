@@ -895,7 +895,7 @@ test("once the words are written, Meta is asked for the version on show; its fra
   loadFrame(w, "feed");
   assert.equal(w.said("ads-new-text"), null, "Meta's own in its place");
   assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
-  // Each place loads at once; the one on show is Meta's once it has loaded.
+  // The other places began once the feed's had loaded; the one on show is Meta's once it has loaded.
   pickPlace(w, "story");
   assert.equal(lineOf(w), "Asking Meta for its own preview…");
   loadFrame(w, "story");
@@ -914,6 +914,28 @@ test("once the words are written, Meta is asked for the version on show; its fra
   press(byTestId(w.draw(), "ads-new-next"));
   await until(() => byTestId(w.draw(), "ads-new-meta-feed")?.props.src === META("feed"), "the first version again");
   assert.equal(w.asks.length, 4, "the first version's preview was held");
+  unmount();
+});
+
+test("Meta's frame of the place on show loads first; the others begin once it has loaded, and one that has begun stays", async () => {
+  const w = world({ preview: true });
+  const picture = "66666666-6666-4666-8666-666666666666";
+  w.asks[0].land(written({}, { picture: { id: picture, kind: "photo", name: "front desk", made: false } }));
+  await w.shows("ads-new-text", "the written draft");
+  const asked = await w.asked(2, "Meta's preview to be asked");
+  asked.land(drawnAs(THREE[0], picture));
+  await w.shows("ads-new-meta-feed", "Meta's frame of the feed");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-story"), null, "the story's frame waits for the one on show");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-reel"), null, "and the Reel's");
+  // The owner looks at the story before the feed's has loaded: its frame begins at once, and the feed's stays.
+  pickPlace(w, "story");
+  await w.shows("ads-new-meta-story", "the story's frame, now the one on show");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-feed")?.props.src, META("feed"), "the feed's frame stays");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-reel"), null, "the Reel's still waits");
+  // Once the one on show has loaded, the last begins.
+  loadFrame(w, "story");
+  await w.shows("ads-new-meta-reel", "the Reel's frame, once the one on show has loaded");
+  assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
   unmount();
 });
 

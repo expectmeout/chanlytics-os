@@ -67,6 +67,7 @@ export type { MetaPlace, MetaPlaceKind } from "./meta-place";
 export {
   META_PREVIEW_PLACES,
   metaPreviewFrameSrc,
+  metaPreviewNamedSize,
   metaPreviewRequest,
   metaPreviewShape,
   parseMetaPreview,
