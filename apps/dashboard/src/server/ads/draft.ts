@@ -30,11 +30,12 @@ import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn, AdWideAre
  */
 
 /**
- * How Turn on stands here. The job that makes an ad at Meta is the next part of the plan's step 4, so the press is
- * drawn and cannot be pressed, with the reason under it. The one place that says so: when the job exists, this
- * answers whether it may run in this workspace, and the screen changes nothing.
+ * How Turn on stands here, the one place that says so: whether the edge turns ads on in this workspace from this
+ * deployment (its switch), and whether the picture is one Turn on sends (a photo: a video's upload to Meta is not built
+ * yet). The checks before Turn on are each a line of their own, and the screen draws the press from both.
  */
-const adTurnOnStands = (): AdTurnOn => "not_yet";
+const adTurnOnStands = (facts: Pick<AdDraftFacts, "presses">, picture: "photo" | "video"): AdTurnOn =>
+  !facts.presses ? "off" : picture === "video" ? "video" : "ready";
 
 /** Refused where Ads is not switched on for the workspace on this deployment (the plan's D7). */
 export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Promise<void> {
@@ -176,6 +177,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
   const days = daysBetween(facts.today, draft.end_day);
   const brief = adDraftBrief(facts, account, draft);
   const file = facts.pictures.files.get(draft.picture);
+  const pictureKind = file?.kind === "video" ? "video" : "photo";
   const pickedHere = draft.service === parts.serviceId;
   return {
     can: true,
@@ -183,7 +185,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       ...draft,
       picture: {
         id: draft.picture,
-        kind: file?.kind === "video" ? "video" : "photo",
+        kind: pictureKind,
         name: file?.name ?? "",
         made: file?.source === "made",
       },
@@ -211,7 +213,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       brief,
     }),
     ...adDeclared(adKindsOf(brief, draft.versions), draft.answers),
-    turn_on: adTurnOnStands(),
+    turn_on: adTurnOnStands(facts, pictureKind),
     owner: facts.owner,
     // Who left it, while it is as they left it: an answer that changes it is this member's from then on.
     left_by: facts.kept !== null && sameDraft(draft, facts.kept.draft) ? facts.kept.leftBy : null,

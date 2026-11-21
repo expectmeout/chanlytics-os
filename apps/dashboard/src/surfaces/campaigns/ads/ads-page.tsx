@@ -11,7 +11,7 @@ import "./ads.css";
 import "./drawer/drawer.css";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, newAdRoute, parseAds } from "@chanlytics/contracts";
+import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/bridge/surface-data";
 import { HEAD } from "./model/words-page";
@@ -249,7 +249,7 @@ export function AdsPage({ param, view }: AdsPageProps) {
         onClose={nav.close}
         onConnect={account.connect}
         onGo={navigate}
-        onTurnOn={() => undefined}
+        onSee={(adId) => navigate(adRoute(adId))}
         start={address.compose?.from ?? null}
         onDrafted={() => replaceRoute(newAdRoute())}
       />

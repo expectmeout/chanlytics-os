@@ -174,6 +174,7 @@ export const ROUTES = {
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
+  "POST ads/[id]/check": { method: "POST", path: "/api/v1/ads/[id]/check" },
   "POST ads/[id]/pause": { method: "POST", path: "/api/v1/ads/[id]/pause" },
   "POST ads/[id]/resume": { method: "POST", path: "/api/v1/ads/[id]/resume" },
   "POST ads/account/check": { method: "POST", path: "/api/v1/ads/account/check" },
@@ -181,6 +182,7 @@ export const ROUTES = {
   "POST ads/account/disconnect": { method: "POST", path: "/api/v1/ads/account/disconnect" },
   "POST ads/check": { method: "POST", path: "/api/v1/ads/check" },
   "POST ads/draft": { method: "POST", path: "/api/v1/ads/draft" },
+  "POST ads/turn-on": { method: "POST", path: "/api/v1/ads/turn-on" },
   "POST ads/words": { method: "POST", path: "/api/v1/ads/words" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/act": { method: "POST", path: "/api/v1/ask/act" },
@@ -609,6 +611,7 @@ export type Routes = {
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
+  "POST ads/[id]/check": typeof import("../../app/api/v1/ads/[id]/check/route").POST;
   "POST ads/[id]/pause": typeof import("../../app/api/v1/ads/[id]/pause/route").POST;
   "POST ads/[id]/resume": typeof import("../../app/api/v1/ads/[id]/resume/route").POST;
   "POST ads/account/check": typeof import("../../app/api/v1/ads/account/check/route").POST;
@@ -616,6 +619,7 @@ export type Routes = {
   "POST ads/account/disconnect": typeof import("../../app/api/v1/ads/account/disconnect/route").POST;
   "POST ads/check": typeof import("../../app/api/v1/ads/check/route").POST;
   "POST ads/draft": typeof import("../../app/api/v1/ads/draft/route").POST;
+  "POST ads/turn-on": typeof import("../../app/api/v1/ads/turn-on/route").POST;
   "POST ads/words": typeof import("../../app/api/v1/ads/words/route").POST;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/act": typeof import("../../app/api/v1/ask/act/route").POST;

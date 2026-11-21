@@ -34,13 +34,15 @@ export {
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
   metaCreativeRemoveRequest,
+  metaFoundByNameRequest,
   parseMetaAdHeld,
   parseMetaCampaignHeld,
+  parseMetaFoundByName,
   parseMetaMadeId,
   parseMetaRefusal,
   parseMetaRemoved,
 } from "./meta-made";
-export type { MetaAdHeld, MetaAdSetHeld, MetaCampaignHeld, MetaRefusal } from "./meta-made";
+export type { MetaAdHeld, MetaAdSetHeld, MetaCampaignHeld, MetaPartEdge, MetaRefusal } from "./meta-made";
 export {
   META_MILES,
   META_OWN_CHANGES,

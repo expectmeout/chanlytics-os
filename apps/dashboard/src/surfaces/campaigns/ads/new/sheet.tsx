@@ -2,7 +2,8 @@
  * New ad: one screen that AI has already written (the Ads plan's 4.6; the canvas's "Making an ad: one screen"). It
  * opens from + New with the sentence there at once, and the words arriving under "AI is writing…". The owner reads
  * it, changes the amount, the miles or the date by tapping it, tells AI anything else, and presses Turn on, which
- * names the most the ad can cost. Above the press: who Meta charges, and what the press tells Meta.
+ * names the most the ad can cost. Above the press: who Meta charges, and what the press tells Meta. After the press,
+ * it says the ad is being set up at Meta, and opens the ad.
  *
  * It stands in the kit's sheet, from the side on a desk and from the bottom edge on a phone, open by the address so
  * Back closes it. Where a draft cannot be written yet it is a short sheet that says the one thing missing and opens
@@ -200,8 +201,8 @@ interface NewAdProps {
   onConnect: () => void;
   /** Go to a page of the app. */
   onGo: (route: string) => void;
-  /** Turn on was pressed, where it can be: the example's alone, until the job that makes an ad exists. */
-  onTurnOn: () => void;
+  /** After Turn on: open the ad it made, which is being set up at Meta. */
+  onSee: (adId: string) => void;
   /**
    * What the address says New ad starts from: a piece Run as an ad chose in Content is drafted around once, and the
    * address then says New ad alone (`onDrafted`), so a reload opens the kept draft. Anything else opens the kept draft.
@@ -225,12 +226,14 @@ function newAdParts(
       telling: here.telling,
       told: here.told,
       need: props.need,
+      turning: here.turning,
+      refused: here.refused === null ? null : "said" in here.refused ? here.refused.said : NEW.press.failed,
     });
     return {
       title: vm.title,
       sub: vm.kicker,
       body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
-      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={props.onTurnOn} />,
+      foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={acts.turnOn} />,
       fit: false,
     };
   }
@@ -245,6 +248,20 @@ function newAdParts(
       foot: (
         <Button variant="primary" className="ads-new-go" onClick={press} data-testid="ads-new-missing-act">
           {words.act}
+        </Button>
+      ),
+      fit: true,
+    };
+  }
+  if (stand.at === "turned_on") {
+    const { adId } = stand;
+    return {
+      title: NEW.turnedOn.title,
+      sub: null,
+      body: <ShortBody title={NEW.turnedOn.title} body={NEW.turnedOn.body} small={NEW.turnedOn.small} />,
+      foot: (
+        <Button variant="primary" className="ads-new-go" onClick={() => props.onSee(adId)} data-testid="ads-new-see">
+          {NEW.turnedOn.act}
         </Button>
       ),
       fit: true,

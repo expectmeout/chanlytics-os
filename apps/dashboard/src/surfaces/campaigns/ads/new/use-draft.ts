@@ -15,9 +15,13 @@
  *    held there could put an older one back over what someone else changed since.
  *  - Opened by "Run as an ad" on a made piece in Content (the plan's 6.8, join 3), it asks once for a fresh draft around
  *    that piece, which the server keeps as the workspace's; from then on it is the kept draft, like any other.
+ *  - Turn on carries what it shows (decision 0050, call 3): where the owner set something the server has not judged
+ *    yet, it is judged (and kept) first, so the press never names a number the server would not. It goes under a key
+ *    of its own, kept until an answer comes, so a press sent again after no answer makes one ad.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AdSpecialKind } from "@chanlytics/contracts";
+import { adMostOf, type AdSpecialKind } from "@chanlytics/contracts";
+import type { TurnOnPressed } from "@/bridge/verbs/ads";
 import type { AdCantDraft, AdDraftAnswer, AdDraftState, AdWordsAnswer } from "@/server/ads/draft-shape";
 import type { AdDraftHere, AdLocal, AdTellResult, AdWordsHere } from "./model";
 import type { AdSource } from "./source";
@@ -30,9 +34,16 @@ interface Held {
   version: number;
 }
 
-/** Where the screen stands. */
+/** Where the screen stands. After Turn on, the ad it made, being set up at Meta. */
 export type AdStand =
-  { at: "opening" } | { at: "failed" } | { at: "missing"; missing: AdCantDraft } | ({ at: "draft" } & Held);
+  | { at: "opening" }
+  | { at: "failed" }
+  | { at: "missing"; missing: AdCantDraft }
+  | ({ at: "draft" } & Held)
+  | { at: "turned_on"; adId: string };
+
+/** What Turn on was last refused with: the server's own words, or that no answer came. */
+type AdTurnRefused = { said: string } | { failed: true };
 
 /** How long after the owner stops typing the draft is judged again. */
 const JUDGE_AFTER_MS = 500;
@@ -97,6 +108,11 @@ interface Asking {
     done: { current: () => void };
     open: { current: boolean };
   };
+  /** Turn on is on its way; and its key, kept until an answer comes. */
+  turningNow: { current: boolean };
+  pressKey: { current: string | null };
+  setTurning: (on: boolean) => void;
+  setRefused: (refused: AdTurnRefused | null) => void;
   setTelling: (on: boolean) => void;
   /** What "Tell AI" last came to. */
   setOutcome: (outcome: AdTellResult | null) => void;
@@ -248,6 +264,48 @@ async function tellAiToChange(io: Asking, words: string): Promise<void> {
   io.show({ at: "draft", ...next });
 }
 
+/** What Turn on's press shows: the draft as the server judged it, with the amount, miles and date the owner set. */
+const shownOf = (held: Held): TurnOnPressed => ({
+  service: held.answer.draft.service,
+  picture: held.answer.draft.picture.id,
+  miles: held.local.miles,
+  ...(held.answer.draft.area ? { area: { kind: held.answer.draft.area.kind, key: held.answer.draft.area.key } } : {}),
+  most_minor: adMostOf(held.local),
+  end_day: held.local.end_day,
+  versions: held.answer.draft.versions.map((version) => ({ text: version.text, headline: version.headline })),
+});
+
+/** Whether the owner set something the server has not judged yet. */
+const unjudged = (held: Held): boolean =>
+  held.local.total_minor !== held.answer.draft.total_minor ||
+  held.local.miles !== held.answer.draft.miles ||
+  held.local.end_day !== held.answer.draft.end_day ||
+  JSON.stringify(held.local.answers) !== JSON.stringify(held.answer.draft.answers);
+
+/**
+ * Turn on: what the owner set judged first where the server has not, then the press, under its key. Turned on, the
+ * screen says the ad is being set up; refused, it says the server's words and judges the draft again, which may have
+ * changed since it was drawn.
+ */
+async function turnOnDraft(io: Asking): Promise<void> {
+  const first = draftNow(io);
+  if (!first || io.turningNow.current) return;
+  io.setTurning(true);
+  io.setRefused(null);
+  if (unjudged(first)) await judgeDraft(io, first);
+  const held = draftNow(io);
+  if (!held || held.words.at !== "written") return io.setTurning(false);
+  io.pressKey.current ??= crypto.randomUUID();
+  const answer = await io.source.turnOn(io.pressKey.current, shownOf(held));
+  io.setTurning(false);
+  if (answer === null) return io.setRefused({ failed: true });
+  // An answer came: a press after it is a new intent, with a new key.
+  io.pressKey.current = null;
+  if ("ad" in answer) return io.show({ at: "turned_on", adId: answer.ad });
+  io.setRefused({ said: answer.refused });
+  await judgeDraft(io, held);
+}
+
 export interface AdDraftActs {
   /** The owner typed an amount, miles or a date: the sentence and the press follow at once. */
   type: (patch: Partial<AdLocal>) => void;
@@ -259,6 +317,8 @@ export interface AdDraftActs {
   nextVersion: () => void;
   /** Read the draft again: after the one thing missing was added, or an answer that never came. */
   again: () => void;
+  /** Turn on, as the press shows it. */
+  turnOn: () => void;
 }
 
 /** The screen's presses, each over the draft as it stands when pressed. */
@@ -283,12 +343,15 @@ const draftActs = (io: Asking, afterTyping: (run: () => void) => void): AdDraftA
     io.setOutcome(null);
     void openDraft(io);
   },
+  turnOn: () => void turnOnDraft(io),
 });
 
 interface AdDraftHereNow {
   stand: AdStand;
   telling: boolean;
   told: AdTellResult | null;
+  turning: boolean;
+  refused: AdTurnRefused | null;
   acts: AdDraftActs;
 }
 
@@ -332,6 +395,10 @@ export function useAdDraft(open: boolean, source: AdSource, from: AdOpenedFrom =
   const done = useRef(from.drafted);
   done.current = from.drafted;
   const shown = useRef(false);
+  const [isTurning, setTurning] = useState(false);
+  const [refused, setRefused] = useState<AdTurnRefused | null>(null);
+  const turningNow = useRef(false);
+  const pressKey = useRef<string | null>(null);
   const io = useMemo<Asking>(() => {
     const show = (next: AdStand) => {
       now.current = next;
@@ -341,8 +408,27 @@ export function useAdDraft(open: boolean, source: AdSource, from: AdOpenedFrom =
       tellingNow.current = on;
       setTelling(on);
     };
-    const opened = { piece, drafted, done, open: shown };
-    return { source, show, now, turns, tried, sets, tellingNow, opening, from: opened, setTelling: tellIs, setOutcome };
+    const turnIs = (on: boolean) => {
+      turningNow.current = on;
+      setTurning(on);
+    };
+    return {
+      source,
+      show,
+      now,
+      turns,
+      tried,
+      sets,
+      tellingNow,
+      opening,
+      from: { piece, drafted, done, open: shown },
+      turningNow,
+      pressKey,
+      setTurning: turnIs,
+      setRefused,
+      setTelling: tellIs,
+      setOutcome,
+    };
   }, [source]);
 
   useEffect(() => {
@@ -359,5 +445,12 @@ export function useAdDraft(open: boolean, source: AdSource, from: AdOpenedFrom =
   }, [open]);
 
   const afterTyping = useAfterTyping();
-  return { stand, telling: isTelling, told: outcome, acts: draftActs(io, afterTyping) };
+  return {
+    stand,
+    telling: isTelling,
+    told: outcome,
+    turning: isTurning,
+    refused,
+    acts: draftActs(io, afterTyping),
+  };
 }

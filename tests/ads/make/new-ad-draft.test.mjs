@@ -280,8 +280,8 @@ test("a fresh draft: the service, the picture, five miles, Meta's least for the 
   });
   assert.equal(answer.left_by, null);
   assert.deepEqual(answer.checks, []);
-  // The job that makes an ad at Meta is the next part: the press is drawn, and cannot be pressed yet.
-  assert.equal(answer.turn_on, "not_yet");
+  // The edge turns ads on in this workspace, and the picture is a photo: Turn on may be pressed (its checks aside).
+  assert.equal(answer.turn_on, "ready");
   assert.equal(calls.length, 0, "the sentence is there at once: it waits for no model");
 });
 

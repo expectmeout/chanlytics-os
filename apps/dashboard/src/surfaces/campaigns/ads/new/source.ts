@@ -3,7 +3,7 @@
  * source, so a test can answer it by hand. An answer that never came is null: the screen says so, and nothing is guessed.
  */
 import type { AdDraftAnswer, AdDraftState, AdWordsAnswer } from "@/server/ads/draft-shape";
-import { askAdDraft, askAdWords } from "@/bridge/verbs/ads";
+import { askAdDraft, askAdWords, pressTurnOn, type TurnOnPressed } from "@/bridge/verbs/ads";
 
 /** What the screen asks the ad writer for. */
 type AdWordsAsk =
@@ -17,6 +17,8 @@ export interface AdSource {
   draft: (body: { draft?: AdDraftState; act?: "next_picture"; picture?: string }) => Promise<AdDraftAnswer | null>;
   /** The ad writer's words, or the one change AI was told to make. */
   words: (body: AdWordsAsk) => Promise<AdWordsAnswer | null>;
+  /** Turn on, under the press's own key, carrying what the press showed: the ad, or the server's words for no. */
+  turnOn: (key: string, expect: TurnOnPressed) => Promise<{ ad: string } | { refused: string } | null>;
 }
 
 /** The workspace's own routes. A refusal is no answer: the screen says it could not, in its own words. */
@@ -28,5 +30,10 @@ export const LIVE_AD_SOURCE: AdSource = {
   words: async (body) => {
     const answer = await askAdWords(body);
     return answer?.ok ? answer.data : null;
+  },
+  turnOn: async (key, expect) => {
+    const answer = await pressTurnOn(key, expect);
+    if (answer === null) return null;
+    return answer.ok ? { ad: answer.data.ad_id } : { refused: answer.message };
   },
 };

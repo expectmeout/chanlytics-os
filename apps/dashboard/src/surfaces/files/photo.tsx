@@ -160,6 +160,7 @@ function VideoFrame({ file, name }: { file: FileDto; name: string }) {
   const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
     folder: heldFootage()?.folder?.name ?? null,
     leaves: leavesOn(file, knownZone() ?? "UTC"),
+    uploaded: file.owner_uploaded === true,
   });
   return (
     <>
