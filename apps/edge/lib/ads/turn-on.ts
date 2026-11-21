@@ -22,6 +22,7 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { NO_ADS_DOORS, adsOfferedIn } from "./account-ops.js";
+import { endFixedAd } from "./change.js";
 import { endOfDayIn } from "./launch-parts.js";
 import { adsWrites } from "./tell.js";
 
@@ -33,7 +34,7 @@ interface TurnOnAd {
   picture_kind: "photo" | "video";
   miles: number;
   /** A place wider than the circle, by Meta's key, where the owner chose one: then no street address is sent. */
-  area?: { kind: "city" | "region" | "country"; key: string } | undefined;
+  area?: { kind: "city" | "region" | "country"; key: string; name?: string; country?: string } | undefined;
   total_minor: number;
   most_minor: number;
   end_day: string;
@@ -51,6 +52,8 @@ interface AdsTurnOnBody {
   key?: string;
   draft_at?: string;
   ad?: TurnOnAd;
+  /** The ad Meta turned down that this one is Fix it's draft of. */
+  fixes?: string;
 }
 
 /** Where an ad made here shows: Facebook alone, since no Instagram account of the Page's is named (meta-make.ts). */
@@ -133,6 +136,9 @@ export async function runAdTurnOn(auth: Admitted, body: Partial<AdsTurnOnBody>):
       },
     },
   );
-  logger({ tenant_id: tenantId }).info("ads_turned_on", { outcome: kept.outcome, ad_id: kept.adId, writes });
+  // Fix it's draft takes the place of the ad Meta turned down: that one ends, its campaign archived by the account's job.
+  const fixes = kept.outcome === "kept" && body.fixes && UUID.test(body.fixes) ? body.fixes : null;
+  const fixed = fixes === null ? null : await endFixedAd(db, { tenantId, userId }, fixes);
+  logger({ tenant_id: tenantId }).info("ads_turned_on", { outcome: kept.outcome, ad_id: kept.adId, writes, fixed });
   return turnOnAnswerOf(kept);
 }

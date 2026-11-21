@@ -48,6 +48,17 @@ export type {
 } from "./ads";
 export { bookedAfterTouch } from "./booked-after-touch";
 export {
+  adAmountAfter,
+  adApprovedMiles,
+  adChangeFactsOf,
+  adChangeIssue,
+  adChangeLeast,
+  adChangeMostOf,
+  adChangeOnWayOf,
+  adChangeSpendsMore,
+} from "./change";
+export type { AdChangeAsk, AdChangeFacts, AdChangeIssue, AdChangeOnWay, AdChangeWhat } from "./change";
+export {
   AD_BEFORE_AFTER,
   AD_BOOKED_TO_FORECAST,
   AD_MILES,
@@ -76,6 +87,7 @@ export type {
   AdBudgetLive,
   AdLaunchLive,
   AdLiveDto,
+  AdMadeHereLive,
   AdNeedsLive,
   AdOpens,
   AdPartLeft,

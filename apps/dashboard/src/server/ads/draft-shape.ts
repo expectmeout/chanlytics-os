@@ -57,6 +57,11 @@ export const AdDraftStateSchema = z.object({
    * say. None until the words are written, and none once the service changes.
    */
   label: z.string().trim().min(1).max(60).optional(),
+  /**
+   * The ad Meta turned down that this draft is Fix it's of (the Ads plan's 4.5): its id and name. Turned on, this one
+   * goes through Meta's check whole, and that one ends.
+   */
+  fixes: z.object({ id: z.string().regex(UUID), name: z.string().trim().min(1).max(200) }).optional(),
 });
 export type AdDraftState = z.infer<typeof AdDraftStateSchema>;
 
@@ -181,6 +186,7 @@ interface AdDraftDto {
   versions: AdVersion[];
   answers: Partial<Record<AdSpecialKind, "no" | "yes">>;
   label?: string | undefined;
+  fixes?: AdDraftState["fixes"];
 }
 
 /**

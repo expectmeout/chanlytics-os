@@ -73,6 +73,7 @@ import {
 import { foldAds, foldDays, foldOf } from "./fold.js";
 import { runLaunches } from "./launch.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
+import { runChanges } from "./change.js";
 import { adsWrites, tellPending } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
@@ -377,18 +378,27 @@ export async function runAdRead(
   // The owner's presses still on their way go next: a pause must not wait behind a read (00652).
   const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, { accountId: account.id, nowMs });
   if (sent.revoked) return revokedAfter(launched.calls);
+  // Then the owner's changes to ads made here (00670): one never answered settled from what Meta holds, then the rest.
+  const changed = await runChanges(
+    db,
+    log,
+    { tenantId, signIn, writes: adsWrites(), currency },
+    { accountId: account.id, nowMs },
+  );
+  if (changed.revoked) return revokedAfter(launched.calls);
   const reading: Reading = {
     log,
     signIn,
     account: { ...account, external_id: externalId, currency },
     deadline,
     calls: launched.calls,
-    usage: sent.usage ?? launched.usage,
+    usage: changed.usage ?? sent.usage ?? launched.usage,
   };
   const revoked = () => revokedAfter(reading.calls);
   // A read asked for only to send a press, moments after the account's last read, has nothing new to read.
-  if (sent.told > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
-    return out("told", sent.told);
+  const toldNow = sent.told + changed.told;
+  if (toldNow > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
+    return out("told", toldNow);
   const learned = await learn(db, app, reading, { depth, nowMs });
   if (stopped(learned)) {
     if (learned.fault === "revoked") return revoked();

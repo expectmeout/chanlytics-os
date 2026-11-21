@@ -96,7 +96,8 @@ export const SCHEMA_SETS = {
     "archive_list", "restore_list", "delete_list", "import", "open_recording", "merge",
     "change_playbook", "mark_visit", "change_step", "leave_sequence", "make_sequence",
     "discard_sequence", "answer_booking_request", "return_to_sequence", "not_a_customer", "reply_anyway",
-    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad", "turn_on_ad",
+    "connect_ad_account", "disconnect_ad_account", "pause_ad", "resume_ad", "turn_on_ad", "change_ad",
+    "end_ad",
   ],
   "escalations.reason": [
     "human_token", "non_text", "refusal", "rate_cap", "policy_block", "send_failed", "deadman",

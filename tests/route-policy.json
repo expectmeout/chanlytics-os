@@ -9,12 +9,51 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST ads/[id]/area": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/budget": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST ads/[id]/check": {
       "kind": "write",
       "scope": "row",
       "role": "owner",
       "rate": "settings",
       "spend": false
+    },
+    "POST ads/[id]/end-date": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/end": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST ads/[id]/fix": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "ad_words",
+      "spend": true
     },
     "POST ads/[id]/pause": {
       "kind": "write",

@@ -19,7 +19,8 @@ export {
 export type { MetaAdAccount, MetaPage } from "./meta-account";
 export { callMetaAds, metaConfirmed } from "./meta-call";
 export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta-call";
-export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
+export { metaAdSetChangeRequest, metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
+export type { MetaAdSetChange } from "./meta-change";
 export {
   metaAccountInstagramRequest,
   metaAdImageRemoveRequest,

@@ -26,6 +26,8 @@ import { isMetaId, metaAccountPath, minorToMetaUnits } from "./meta-account";
 import { metaPlaceTargeting, type MetaPlace } from "./meta-place";
 
 const MAKE_KEY = /^[A-Za-z0-9_-]{1,128}$/;
+/** Why a request with a total is never built: Meta could not hold it exact in the account's currency. */
+export const NOT_EXACT_TOTAL = "the total is not an amount Meta can hold exact in this currency";
 
 /** How a make is sent: as Meta's dry run, which makes nothing, or for real under a key that makes it safe to repeat. */
 export type MetaMakeHow = { dryRun: true } | { key: string };
@@ -179,8 +181,13 @@ function geoOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide">): Record<str
   return { custom_locations: [{ ...centreOf(ask.centre), radius: ask.miles, distance_unit: "mile" }] };
 }
 
-/** Who sees it: adults in the area, on the places named, with Meta's automatic audience on. */
-function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "instagram">): Record<string, unknown> {
+/**
+ * Who sees it: adults in the area, on the places named, with Meta's automatic audience on. The ad set's make sends it,
+ * and a change of its miles sends it again whole (meta-change.ts), so the two can never name different places.
+ */
+export function metaAdSetTargeting(
+  ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "instagram">,
+): Record<string, unknown> {
   return {
     age_min: ADULT,
     geo_locations: {
@@ -203,7 +210,7 @@ function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "inst
  */
 export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSetAsk, how: MetaMakeHow): MetaRequest {
   const total = minorToMetaUnits(ask.totalMinor, ask.currency);
-  if (total === null) throw new Error("the total is not an amount Meta can hold exact in this currency");
+  if (total === null) throw new Error(NOT_EXACT_TOTAL);
   const endsAt = momentSent(ask.endsAt, "the end");
   const startsAt = ask.startsAt === undefined ? null : momentSent(ask.startsAt, "the start");
   if (startsAt !== null && startsAt >= endsAt) throw new Error("the end comes after the start");
@@ -226,7 +233,7 @@ export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSe
         page_id: metaIdOf(ask.pageId, "the Page"),
         whatsapp_phone_number: number,
       }),
-      targeting: JSON.stringify(targetingOf(ask)),
+      targeting: JSON.stringify(metaAdSetTargeting(ask)),
     },
     { token, appSecret },
     how,

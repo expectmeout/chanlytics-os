@@ -8,7 +8,7 @@
  */
 import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
@@ -28,6 +28,7 @@ import { LiveBody } from "./live-page";
 import { liveModel, sheetModel } from "./model";
 import { StopNotice } from "./stop-notice";
 import type { StopHere } from "./stop-notice";
+import { useAdChanges } from "./use-change";
 import { useAdPresses } from "./use-press";
 
 interface LiveAdsProps {
@@ -54,8 +55,17 @@ export function LiveAds(p: LiveAdsProps) {
   const { dto, address, phone } = p;
   const said = { timezone: dto.account.timezone ?? p.timezone };
   const vm = liveModel(dto, said);
-  const sheet = sheetModel(dto, address.ad, said);
-  const acts = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  // The moment the page opened: when Meta takes an ad's next amount is the server's to say, read again on each read.
+  const [openedMs] = useState(() => Date.now());
+  const sheet = sheetModel(dto, address.ad, { ...said, nowMs: openedMs });
+  const presses = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  const changes = useAdChanges({
+    ads: dto.ads,
+    currency: dto.account.currency,
+    again: p.again,
+    flash: p.flash,
+    onGo: p.nav.push,
+  });
   // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
   useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
   const sentence = (
@@ -127,7 +137,13 @@ export function LiveAds(p: LiveAdsProps) {
         stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
         onOpen={p.nav.push}
       />
-      <AdSheet vm={sheet} timezone={said.timezone} acts={acts} onClose={p.nav.close} onGo={p.nav.push} />
+      <AdSheet
+        vm={sheet}
+        timezone={said.timezone}
+        acts={{ ...presses, ...changes }}
+        onClose={p.nav.close}
+        onGo={p.nav.push}
+      />
       <NewAd
         open={address.compose !== null}
         source={LIVE_AD_SOURCE}

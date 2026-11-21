@@ -21,7 +21,7 @@ what the script writes.
 | [`ad_drafts`](#ad_drafts) | `packages/db/src/repositories/ads/drafts.ts` | on, 1 policy |
 | [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts` | on, 1 policy |
 | [`ad_objects`](#ad_objects) | `packages/db/src/repositories/ads/launches.ts` | on, 1 policy |
-| [`ads`](#ads) | `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
+| [`ads`](#ads) | `packages/db/src/repositories/ads/changes.ts`, `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
@@ -329,7 +329,7 @@ Foreign keys:
 
 An ad as its owner thinks of it (decision 0049, 00648): its account and platform, whether Chanlytics made it or the owner did on the platform itself, its name, what a tap on it opens, the platform's own ids, the budget it sits under, when it starts and ends, what it says, and three words side by side: where Chanlytics is with making it (status), what the owner last asked of it (intent) and the platform's own word (platform_state). The badge a page says is read from the three by contracts adStateOf and kept nowhere. Money is whole minor units of its account's currency. Members read; every write is a door's.
 
-- Owned by: `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts`
+- Owned by: `packages/db/src/repositories/ads/changes.ts`, `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -366,6 +366,8 @@ An ad as its owner thinks of it (decision 0049, 00648): its account and platform
 | `approved` | jsonb | yes |  | What the owner approved at Turn on, for an ad made here (00666; decision 0050, call 3): the service, the picture, the miles, the total and its end (end_day, and ends_at in the account's zone), the three versions of the words, the number a tap opens, the area (a wider place by the platform's key, or the address at the circle's centre), the Page, the declaration (none) and the most it may cost. The launch compares what the platform holds with it before anything is switched on. Null for an ad made at the platform. |
 | `launch` | jsonb | yes |  | Where the launch of an ad made here stands (00666): key (the press's), step (make, switch, done), since, unknown_at (when one of its writes went unanswered: followed by reading, never sent again), stopped (why it stopped part way) and said (the platform's own words where it refused). Read through contracts adStateOfRow; null for an ad made at the platform. |
 | `shown_on` | text[] | yes |  | Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known. |
+| `change` | jsonb | yes |  | A change of the owner's to a running ad made here, on its way to the platform (00670; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account's zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told. |
+| `amounts_at` | timestamp with time zone[] | yes |  | When the ad's amount was lately sent to the platform (00670): Meta changes an ad set's amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour's are kept. |
 
 Foreign keys:
 

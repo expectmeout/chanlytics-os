@@ -135,14 +135,15 @@ const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts
 
 /**
  * The services of the ads made here that still run, or are still being set up: a service one of them offers is not
- * offered again (G5). An ad made here is named in a few words; the service it offers is what its owner approved.
+ * offered again (G5). One Meta turned down runs nowhere, so its service is offered again, by Fix it or by + New. An ad
+ * made here is named in a few words; the service it offers is what its owner approved.
  */
 function runningHereOf(rows: readonly AdRow[], at: { today: string; timezone: string; nowMs: number }): string[] {
   return rows
     .filter((row) => row.origin === "chanlytics" && (row.status === "made" || row.status === "sending"))
     .filter((row) => {
       const state = adStateOfRow(row, at);
-      return state !== "ended" && state !== "finished";
+      return state !== "ended" && state !== "finished" && row.platform_state !== "DISAPPROVED";
     })
     .map((row) => {
       const service = recordOrEmpty(row.approved).service;

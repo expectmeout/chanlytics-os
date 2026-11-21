@@ -20,6 +20,8 @@ export const NEW = {
   kicker: "New ad · drafted by AI",
   /** A draft someone else left, as they left it. */
   kickerLeft: (name: string) => `New ad · left by ${name}`,
+  /** Fix it's draft of an ad Meta turned down (the Ads plan's 4.5). */
+  kickerFix: (name: string) => `New ad · fixing ${name}`,
   opening: "New ad",
   close: "Close",
 
@@ -51,6 +53,8 @@ export const NEW = {
     heldToLeast: "Kept to the least Meta takes until you tell AI the most an ad may cost.",
     raisedToLeast: (n: number) => `Raised to the least Meta takes for ${days(n)}.`,
     aDay: (money: string, n: number) => `About ${money} a day for ${days(n)}.`,
+    /** Fix it's draft: AI rewrote the words from Meta's reason, and turning it on ends the one Meta turned down. */
+    fixing: (name: string) => `AI rewrote the words from Meta's reason. Turn this on and ${name} ends.`,
     mostBooked: "It offers what people booked most in the last 90 days.",
     /** Google says the business goes to its customers: the ad is shown across the place it serves. */
     goesToCustomers: "You go to your customers, so it shows across the place you serve. Tell AI to change it.",

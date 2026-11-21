@@ -37,6 +37,9 @@ import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn, AdWideAre
 const adTurnOnStands = (facts: Pick<AdDraftFacts, "presses">, picture: "photo" | "video"): AdTurnOn =>
   !facts.presses ? "off" : picture === "video" ? "video" : "ready";
 
+/** What a press on an ad says where the workspace's ad account is not connected now: Turn on, a change, Fix it. */
+export const AD_ACCOUNT_NOT_CONNECTED = "Your ad account isn't connected right now. Connect it again first.";
+
 /** Refused where Ads is not switched on for the workspace on this deployment (the plan's D7). */
 export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Promise<void> {
   if (!(await readAdsOffered(rc.tenantId)))
