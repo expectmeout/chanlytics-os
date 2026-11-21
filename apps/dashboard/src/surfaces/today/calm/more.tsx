@@ -42,8 +42,11 @@ interface MoreOffer {
 /** The step a row would take from asking you: holding it where the row can, else sending it. */
 const stepFrom = (cls: HeldDraftsClass): PolicyMode => (POLICY_CLASS_MODES[cls].includes("veto") ? "veto" : "auto");
 
-/** The first row that asks you first and whose held drafts all went as written, enough of them; null where none. */
-function offerOf(read: {
+/**
+ * The first row that asks you first and whose held drafts all went as written, enough of them; null where none.
+ * Exported so a test holds the evidence it asks for.
+ */
+export function offerOf(read: {
   policies: readonly { class: string; mode: string }[];
   held: Parameters<typeof heldDraftsByClass>[0] | null;
   role: Parameters<typeof uiRows>[0]["role"];

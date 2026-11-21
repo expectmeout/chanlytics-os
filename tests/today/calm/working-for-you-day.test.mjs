@@ -8,7 +8,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { SHORTCUTS, dayInZone, shiftKey, toCalendarVM, todayDay } from "@chanlytics/contracts";
-import { byTestId, press, textOf } from "../../_stub-react.mjs";
+import { byTestId, press, redrawWanted, textOf } from "../../_stub-react.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { until } from "../../shared/_until.mjs";
 import { W, ZONE, answerWith, draw, json, redraw, wire } from "../zones/_world.mjs";
@@ -18,7 +18,7 @@ const { arrangementOf } = await import("../../../apps/dashboard/src/surfaces/tod
 const { useTodayEvening } = await import("../../../apps/dashboard/src/surfaces/today/zones/head.tsx");
 const { MorningFold, TonightLine } = await import("../../../apps/dashboard/src/surfaces/today/calm/evening.tsx");
 const { WeekLead, useWeekMoment, weekWords } = await import("../../../apps/dashboard/src/surfaces/today/calm/week.tsx");
-const { LetAiDoMore } = await import("../../../apps/dashboard/src/surfaces/today/calm/more.tsx");
+const { LetAiDoMore, offerOf } = await import("../../../apps/dashboard/src/surfaces/today/calm/more.tsx");
 const { TodayKeys } = await import("../../../apps/dashboard/src/surfaces/today/calm/keys.tsx");
 const { typing } = await import("../../../apps/dashboard/src/surfaces/today/calm/held.tsx");
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
@@ -294,29 +294,37 @@ const heldRow = (intent, held, sent, over = {}) => ({
   ...over,
 });
 
-/** Let AI do more as the page draws it once its read is in: its line, or nothing. */
-async function moreWith(answer) {
-  forget();
-  morning();
-  answerWith((u) => (u.pathname === "/api/v1/policies" ? json(200, answer) : json(200, { ok: true, data: {} })));
-  draw(LetAiDoMore);
-  await until(() => wire.some((w) => w.path === "/api/v1/policies"), "the Autonomy rows asked for");
-  await new Promise((r) => setImmediate(r));
-  return redraw(LetAiDoMore);
-}
+const readOf = (answer) => answer.data;
 
 test("Let AI do more (W10) is offered only where AI asks first and every held draft of the kind went as written; never to a viewer", async () => {
-  const offered = await moreWith(policies([heldRow("other", 6, 6)]));
-  assert.match(textOf(byTestId(offered, "today-more-line")), /Let AI do more with .*\?/);
-  assert.match(textOf(byTestId(offered, "today-more-line")), /You sent all 6 of its drafts as written in 30 days\./);
-  const rewritten = await moreWith(policies([heldRow("other", 6, 5, { steered: 1 })]));
-  assert.equal(byTestId(rewritten, "today-more-line"), null, "one rewritten: no evidence it may send them");
-  const few = await moreWith(policies([heldRow("other", 4, 4)]));
-  assert.equal(byTestId(few, "today-more-line"), null, "too few to say");
-  const viewer = await moreWith(policies([heldRow("other", 6, 6)], { role: "viewer" }));
-  assert.equal(byTestId(viewer, "today-more-line"), null, "a viewer changes no rule");
-  const unread = await moreWith(policies(null));
-  assert.equal(byTestId(unread, "today-more-line"), null, "the evidence unread: nothing is said");
+  const offer = (held, over) => offerOf(readOf(policies(held, over)));
+  assert.deepEqual(offer([heldRow("other", 6, 6)]), {
+    cls: "reply",
+    label: "Replies to customers",
+    sent: 6,
+    from: "ask",
+    to: "veto",
+  });
+  assert.equal(offer([heldRow("other", 6, 5, { steered: 1 })]), null, "one rewritten: no evidence it may send them");
+  assert.equal(offer([heldRow("other", 6, 5, { canceled: 1 })]), null, "one stopped");
+  assert.equal(offer([heldRow("other", 4, 4)]), null, "too few to say");
+  assert.equal(offer([heldRow("other", 6, 6)], { role: "viewer" }), null, "a viewer changes no rule");
+  assert.equal(offer(null), null, "the evidence unread: nothing is said");
+  const sends = { policies: [{ class: "reply", mode: "auto" }] };
+  assert.equal(offer([heldRow("other", 6, 6)], sends), null, "AI already sends them: nothing to offer");
+  // And the line as the page draws it, once its read and the member's rests are in.
+  forget();
+  morning();
+  answerWith((u) =>
+    u.pathname === "/api/v1/policies"
+      ? json(200, policies([heldRow("other", 6, 6)]))
+      : json(200, { ok: true, data: {} }),
+  );
+  draw(LetAiDoMore);
+  await until(redrawWanted, "the Autonomy rows read, and the offer made");
+  const line = byTestId(redraw(LetAiDoMore), "today-more-line");
+  assert.match(textOf(line), /Let AI do more with replies to customers\?/);
+  assert.match(textOf(line), /You sent all 6 of its drafts as written in 30 days\./);
   forget();
 });
 
