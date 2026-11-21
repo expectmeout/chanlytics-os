@@ -1,5 +1,5 @@
 /**
- * A website form's entry on a real database (00674): form_entry_take keeps the entry with its person and its event in
+ * A website form's entry on a real database (00675): form_entry_take keeps the entry with its person and its event in
  * one write, finds the same entry again by the site's own id or by the same words within ten minutes, and writes
  * nothing at all for a person who asked to be forgotten; form_entry_settled keeps each step's outcome, says the entry
  * is processed once all are done, stamps when the owner was first told, writes the ask's first outcome as

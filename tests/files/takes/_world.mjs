@@ -105,6 +105,8 @@ export function world({
     tenant_config: takesVideos
       ? tenants.map((id) => ({ tenant_id: id, config: { features: { video_preview: true } } }))
       : [],
+    // The Google account every folder here is read through, reading.
+    source_connections: [{ id: CONNECTION, tenant_id: T, provider: "google", health: "ok" }],
     media_sources: tenants.map((id, i) => ({
       id: i === 0 ? SOURCE : randomUUID(),
       tenant_id: id,
@@ -237,11 +239,16 @@ export function theSync({ drive = {}, closed = null, silent = false, recordThrow
   const opened = [];
   // What a call under the key threw and the sync was asked to settle: kept beside the list, not as one of its items.
   Object.defineProperty(opened, "settled", { value: [] });
+  // What each open was for (a take, or a return), in order: kept beside the list too.
+  Object.defineProperty(opened, "roads", { value: [] });
   sync = {
-    open: async (_db, named) => {
+    open: async (_db, named, _log, road) => {
       opened.push(named);
+      opened.roads.push(road);
       if (silent) throw new Error("the token endpoint did not answer");
-      if (closed) return { ok: false, skipped: closed };
+      // `closed` is why, as the sync says it: a word alone is the folder's, or `{ skipped, cause }`.
+      if (closed)
+        return typeof closed === "string" ? { ok: false, skipped: closed, cause: "folder" } : { ok: false, ...closed };
       return {
         ok: true,
         accessToken: DRIVE_KEY,

@@ -1,6 +1,6 @@
 /**
  * A website's sign-up asks its person to confirm (00489, the double opt-in). An address typed into a form proves
- * nothing, so a sign-up's entry asks here, as a step of its own once the entry is kept (form-effects.ts, 00674): the
+ * nothing, so a sign-up's entry asks here, as a step of its own once the entry is kept (form-effects.ts, 00675): the
  * address is emailed a link, sealed (channels confirm-token.ts), to the dashboard's page /c/<token>, and only their press
  * there is a yes to offers by email (set_email_offers_yes, confirmed_signup).
  *
@@ -202,7 +202,7 @@ async function askToConfirm(db: Db, params: AskFor): Promise<SignupAsked> {
 }
 
 /**
- * A website entry's ask (form-effects.ts, the entry's `confirm` step, 00674): a sign-up with an address that arrived
+ * A website entry's ask (form-effects.ts, the entry's `confirm` step, 00675): a sign-up with an address that arrived
  * as it was sent asks its person to confirm, and what came of it is said ("asked", or why not; contracts signupAskLine
  * words it for the owner). Asked twice for one person and address within a link's span of days, the second finds the
  * first's email (`open`). Throws when a read or a write fails: the step is tried again, and the person is kept either way.

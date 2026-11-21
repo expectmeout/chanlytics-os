@@ -1,5 +1,5 @@
 /**
- * A website's key pressed from Settings › Connections (00674): made for a site, changed for a new one, or ended. Each
+ * A website's key pressed from Settings › Connections (00675): made for a site, changed for a new one, or ended. Each
  * answers as the typed client answers, or null where no answer came at all: the row reads the keys again either way.
  */
 import { api } from "@/bridge/api";

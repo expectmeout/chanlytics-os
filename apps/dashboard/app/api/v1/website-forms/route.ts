@@ -5,7 +5,7 @@ import { websiteForms } from "@/server/readers/connections";
 import { changeWebsiteKey } from "@/server/connections/website-forms";
 
 /**
- * GET /api/v1/website-forms — a website's forms as Settings › Connections shows them (00674): the workspace's keys
+ * GET /api/v1/website-forms — a website's forms as Settings › Connections shows them (00675): the workspace's keys
  * (never a key itself), when an entry last arrived, the door a site's server posts to, and whether this member may
  * change a key. The body is its reader's (readers/connections.ts websiteForms).
  */

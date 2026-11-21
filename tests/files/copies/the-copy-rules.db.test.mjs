@@ -760,6 +760,8 @@ test(
       ["source_items_grace_end", { p_grace_seconds: 0, p_limit: 1 }],
       ["video_seconds_free", { p_tenant_id: ws.T }],
       ["video_seconds_held", { p_tenant_id: ws.T }],
+      // Health's read of the footage day (00674) is the platform's.
+      ["platform_health_footage", {}],
     ]) {
       const refused = await member.rpc(name, args);
       assert.ok(refused.error, `${name}: a member's session is refused`);
@@ -983,3 +985,108 @@ test(
     assert.equal((await fileNow(held.file.id)).removed_at, null);
   },
 );
+
+/* ---------------------------------------------------------------------------------------------------- 00674 -- */
+
+test(
+  "a stopped folder's clips step aside and say when they could while its account reads, and never once it does not (00674)",
+  { skip },
+  async () => {
+    const ws = await workspace("stopped");
+    const resting = await clip(ws, { seconds: 120, copy_used_at: daysAgo(2) });
+    const fresh = await clip(ws, { seconds: 120, copy_used_at: new Date().toISOString() });
+    const comesBack = async (file) =>
+      ok(await db.rpc("file_copy_comes_back", { p_tenant_id: ws.T, p_file_id: file.id }), "comes back");
+    assert.equal(await comesBack(resting.file), true, "a stopped folder's original is still read through its account");
+    const minutes = ok(await db.rpc("video_minutes_by_road", { p_tenant_id: ws.T }), "minutes");
+    assert.equal(Number(minutes.can_step_aside), 240, "both can step aside, rested or not");
+    const free = ok(await db.rpc("file_copies_free_at", { p_tenant_id: ws.T, p_rest_seconds: 3600 }), "free at");
+    assert.ok(free !== null, "a full workspace waits for the fresh one's rest, not six hours");
+    const gone = ok(await letGo(ws, { p_unused_before: daysAgo(1) }), "by age");
+    assert.deepEqual(
+      gone.map((g) => g.id),
+      [resting.file.id],
+      "the one unused since steps aside; the one used just now rests",
+    );
+
+    // Its account needs connecting again: nothing of the folder can come back, so nothing steps aside or is waited on.
+    ok(await db.from("source_connections").update({ health: "needs_reconnect" }).eq("id", ws.connection), "signed out");
+    assert.equal(await comesBack(fresh.file), false);
+    const after = ok(await db.rpc("video_minutes_by_road", { p_tenant_id: ws.T }), "minutes after");
+    assert.equal(Number(after.can_step_aside), 0);
+    assert.equal(
+      ok(await db.rpc("file_copies_free_at", { p_tenant_id: ws.T, p_rest_seconds: 3600 }), "free after"),
+      null,
+    );
+    assert.deepEqual(ok(await letGo(ws, { p_unused_before: new Date().toISOString() }), "by age after"), []);
+
+    // A paused or frozen folder gives nothing back either, whatever its account.
+    ok(await db.from("source_connections").update({ health: "ok" }).eq("id", ws.connection), "connected again");
+    for (const state of ["paused", "frozen"]) {
+      ok(await db.from("media_sources").update({ state }).eq("id", ws.source), state);
+      assert.equal(await comesBack(fresh.file), false, `${state}: nothing comes back`);
+    }
+  },
+);
+
+test("why a copy waits names its account or its folder, never a folder only stopped (00674)", { skip }, async () => {
+  const ws = await workspace();
+  for (const why of ["connection", "cant_open"]) {
+    const { file } = await clip(ws, { copy_state: "away" });
+    ok(await db.from("files").update({ copy_why: why }).eq("id", file.id), why);
+  }
+  const { file } = await clip(ws, { copy_state: "away" });
+  assert.ok((await db.from("files").update({ copy_why: "folder" }).eq("id", file.id)).error, "folder is no word now");
+});
+
+test(
+  "a folder's files are counted once as the Library holds them, with what could not come in and what Drive is still processing (00674)",
+  { skip },
+  async () => {
+    const ws = await workspace();
+    const item = (over) => origin(ws, null, over);
+    // Two in, one of them held by two items (a twin); one whose original left, still in the Library for its week.
+    const twin = await clip(ws);
+    await origin(ws, twin.file, {});
+    await clip(ws, { copy_state: "away" });
+    await clip(ws, {}, { state: "gone", gone_at: new Date().toISOString() });
+    // A file removed from the Library is no longer counted.
+    await clip(ws, { removed_at: new Date().toISOString() });
+    // What could not come in.
+    for (const why of ["stopped", "unreadable", "stream"]) await item({ state: "failed", why });
+    await item({ state: "too_big", why: "seconds" });
+    await item({ state: "too_big", why: "bytes" });
+    await item({ state: "too_big", why: "pixels", kind: "image" });
+    // Passed over, which is not "could not come in": a document.
+    await item({ state: "not_media", why: "kind", kind: "other" });
+    // Coming, and two videos Drive is still processing.
+    await item({ state: "waiting" });
+    await item({ state: "taking" });
+    const later = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await item({ state: "waiting", length_until: later });
+    await item({ state: "waiting", length_until: later });
+    // Its length waited for past its day: taken as any other.
+    await item({ state: "waiting", length_until: daysAgo(1) });
+    const tally = ok(await db.rpc("source_items_tally", { p_tenant_id: ws.T, p_source_id: ws.source }), "the tally");
+    assert.deepEqual(
+      [tally.in, tally.away, tally.coming, tally.waiting_length],
+      [3, 1, 3, 2],
+      "in, away, coming and still processing",
+    );
+    assert.deepEqual([tally.failed, tally.too_long, tally.too_large], [3, 1, 2], "what could not come in");
+  },
+);
+
+test("Health reads the footage day and what waits on the video platform's storage (00674)", { skip }, async () => {
+  const ws = await workspace();
+  const before = ok(await db.rpc("platform_health_footage"), "health before");
+  await origin(ws, null, { state: "waiting", why: "stream_full" });
+  await clip(ws, { copy_state: "away", copy_why: "stream_full" });
+  const health = ok(await db.rpc("platform_health_footage"), "health");
+  // Other suites share the stack, so what this one added is a floor.
+  assert.ok(health.stream_full - before.stream_full >= 2, "a take and a copy wait on the storage");
+  assert.ok(health.stream_full_workspaces.includes(ws.T));
+  assert.ok(health.stream_full_since);
+  for (const key of ["units", "bytes", "takes", "returns"]) assert.equal(typeof health[key], "number", key);
+  assert.match(health.day, /^\d{4}-\d{2}-\d{2}$/);
+});

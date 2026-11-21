@@ -25,7 +25,7 @@ const line = (max: number) => z.optional(z.string().trim().max(max));
  * made from the platform's: edge form-key.ts), which form, and what the visitor wrote. `about` is what the site says the
  * request is ("A seat in the spring class"); `at` is when the visitor sent it, which a form re-sent later passes as it
  * was. `entry_id` is the site's own name for the entry, where it gives one: the same id again is the same entry
- * (00674). With none, the same words within ten minutes are the same entry, and later they are a new one.
+ * (00675). With none, the same words within ten minutes are the same entry, and later they are a new one.
  */
 export const WebsiteFormBody = z.object({
   workspace: z.uuid(),
@@ -44,7 +44,7 @@ export const WebsiteFormBody = z.object({
 export type WebsiteFormInput = z.infer<typeof WebsiteFormBody>;
 
 /**
- * What a kept entry owes after it, each by its own subscriber (00674, core SUBSCRIBERS): the note that waits on their
+ * What a kept entry owes after it, each by its own subscriber (00675, core SUBSCRIBERS): the note that waits on their
  * page for a member's Keep, the owner's notice, and a sign-up's ask to confirm (signup-confirm, 00489).
  */
 export const FORM_EFFECTS = ["note", "notice", "confirm"] as const;

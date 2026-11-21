@@ -233,7 +233,7 @@ const SEND_DECIDED_WORDS: Record<string, string> = {
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */
 const FORWARDING_WORDS: Record<string, string> = { unanswered: "the calls not answered", always: "every call" };
 
-/** A website's key, by what was done to it (00674 form_key.set): never the key. */
+/** A website's key, by what was done to it (00675 form_key.set): never the key. */
 const WEBSITE_KEY_WORDS: Record<string, string> = {
   made: "Made a key for a website",
   changed: "Changed a website's key",

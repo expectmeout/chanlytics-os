@@ -432,6 +432,28 @@
 .calm-count {
   display: inline-block;
 }
+/* A line's own presses, open under it (Let AI do more, W10): in a row, under its words. */
+.calm-under-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* A line that holds the keys (J and K on a desk, W12; Tab anywhere): ringed inside itself, as a row in use is, since a
+   line clips what stands outside it so it can fold. */
+.calm .calm-fold > a:focus-visible,
+.calm .calm-fold > [role="button"]:focus-visible {
+  outline: none;
+  background-color: var(--hover-fill);
+  box-shadow: var(--focus-row);
+}
+/* What waits for morning, open under its line (evening.tsx, W5): the page's own column again, a step between its lists,
+   so the lists that stand as one list by day (each pulled up a step, above) do so here too and never overlap. */
+.calm-morning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--calm-gap);
+  padding-bottom: var(--space-2);
+}
 /* Where the card stood once nothing holds it: an empty box that folds shut (motion.ts). */
 .calm-gone {
   height: 0;
@@ -478,35 +500,4 @@
   .calm-receipt .ny-done {
     animation: none;
   }
-}
-
-/* Keys on a desk (W12): each key as the key itself, beside what it does, in two columns. */
-.calm-keys {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-}
-.calm-key {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-}
-.calm-key dt {
-  display: flex;
-  gap: var(--space-1);
-}
-.calm-key dd {
-  margin: 0;
-  color: var(--ink-muted);
-}
-.calm-key kbd {
-  min-width: 24px;
-  padding: 2px var(--space-1);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-align: center;
-  color: var(--ink);
 }

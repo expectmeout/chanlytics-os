@@ -122,7 +122,7 @@ const READS = {
   },
 };
 
-// A website's form entry kept with its person (00674): each of its three steps reads the entry's arrival.
+// A website's form entry kept with its person (00675): each of its three steps reads the entry's arrival.
 const ENTRY = "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0";
 const AN_ENTRY = {
   kind: "form_entry.accepted",
@@ -310,7 +310,7 @@ function world({ paused = false, withEvent = true, subscriber = "reach_out_booke
   const reminded = [];
   // The edge's enrolment for an occasion, recorded: its rows are kept once, which is the door's to hold (decision 0119).
   const enrolled = [];
-  // The edge's steps for a website form's entry, recorded: each is settled on the entry, which is the edge's to hold (00674).
+  // The edge's steps for a website form's entry, recorded: each is settled on the entry, which is the edge's to hold (00675).
   const stepped = [];
   const ctx = {
     db,

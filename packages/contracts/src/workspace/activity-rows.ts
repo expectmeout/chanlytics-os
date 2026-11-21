@@ -44,7 +44,7 @@ export const ACTIVITY_NOISE_KINDS = [
   "appointment.changed",
   // Ask's draft for a refused message, kept for its editor (Messages, 12 Nov 2026): what the owner sends is template.submitted.
   "template.fix_written",
-  // A sign-up's ask settled (00674): what tells the owner's notice. The form's arrival is what the owner reads.
+  // A sign-up's ask settled (00675): what tells the owner's notice. The form's arrival is what the owner reads.
   "form_entry.asked",
 ] as const;
 

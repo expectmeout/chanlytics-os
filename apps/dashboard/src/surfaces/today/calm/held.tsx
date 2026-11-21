@@ -15,7 +15,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import type { AskScope } from "@chanlytics/contracts";
+import { isTypingTarget, type AskScope } from "@chanlytics/contracts";
 import { askAbout } from "../../frame-doors";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
@@ -97,8 +97,10 @@ export function typing(keyEvent: {
   metaKey: boolean;
 }): boolean {
   if (keyEvent.altKey || keyEvent.ctrlKey || keyEvent.metaKey) return true;
-  const el = keyEvent.target instanceof HTMLElement ? keyEvent.target : null;
-  return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  const target: unknown = keyEvent.target;
+  if (!target || typeof target !== "object") return false;
+  const tag = "tagName" in target && typeof target.tagName === "string" ? target.tagName : null;
+  return isTypingTarget(tag, "isContentEditable" in target && target.isContentEditable === true);
 }
 
 /** A held line's act by its key, where the line has it: E Done, N its Not now (the sheet, at its times), / Ask AI. */

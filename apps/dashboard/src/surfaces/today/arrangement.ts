@@ -113,23 +113,24 @@ function todayCardOf(
   if (reads.waitFirst) return { holder: "wait", id: reads.waitFirst };
   // Once the day is over, what can wait for morning does not take the card (W5).
   if (reads.morning) return null;
-  if (reads.todoFirst) return { holder: "todo", id: reads.todoFirst };
-  // Once a week, while nobody waits, what AI did, until Got it (W9).
+  // Once a week, while nobody waits, what AI did, until Got it (W9): before a to-do, which a business always has, and
+  // which takes the card back as Got it is pressed.
   if (!reads.waiting && reads.week) return { holder: "week", id: reads.week };
+  if (reads.todoFirst) return { holder: "todo", id: reads.todoFirst };
   if (!reads.waiting && reads.setupActs) return { holder: "setup", id: "setup" };
   if (reads.known && reads.foundFirst) return { holder: "found", id: reads.foundFirst };
   return null;
 }
 
 /**
- * Who holds the page's coral, in the walk's order: who waits, then (by day) a to-do, the week's card, setting up, and what
+ * Who holds the page's coral, in the walk's order: who waits, then (by day) the week's card, a to-do, setting up, and what
  * AI found where it leads. Once the day is over only who waits holds it.
  */
 function coralOf(reads: ArrangementReads, lead: boolean): CoralHolder {
   if (reads.queueCoral) return "queue";
   if (reads.morning) return null;
-  if (reads.todoCoral) return "todo";
   if (!reads.waiting && reads.week) return "week";
+  if (reads.todoCoral) return "todo";
   if (!reads.waiting && reads.setupActs) return "setup";
   return lead && reads.found.acts && reads.mayAct ? "found" : null;
 }

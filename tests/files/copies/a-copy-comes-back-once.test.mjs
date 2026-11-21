@@ -215,14 +215,14 @@ test("a copy the platform holds that no row does is deleted at its word, unless 
   assert.ok(!platformSaw(web).deleted.includes(stranger));
 });
 
-test("a folder that is not being read gives nothing back: the copy waits for it, and nothing is asked of the platform", async () => {
+test("a folder whose account is paused gives nothing back: the copy says the account, and nothing is asked of the platform", async () => {
   const clip = watchedClip({ copy_state: "away" });
   const w = world({ files: [clip.row], items: [clip.origin] });
-  theSync({ drive: driveOf(clip), closed: "the folder is paused" });
+  theSync({ drive: driveOf(clip), closed: { skipped: "the folder is paused", cause: "account" } });
   const web = theWeb({});
   assert.equal((await ensureCopy(w.db, T, clip.row.id, "play")).copy, "returning");
   assert.deepEqual(await runReturns(w), [{ skipped: "the folder is paused" }]);
-  assert.deepEqual([w.file(clip.row.id).copy_state, w.file(clip.row.id).copy_why], ["away", "folder"]);
+  assert.deepEqual([w.file(clip.row.id).copy_state, w.file(clip.row.id).copy_why], ["away", "connection"]);
   assert.equal(platformSaw(web).asked, 0);
 });
 

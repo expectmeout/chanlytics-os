@@ -1,19 +1,20 @@
 /**
  * Once a week, what AI did (Working for you, 21 Nov 2026, W9): in the card while nobody waits, from the first look of the
  * week until Got it, one sentence of the last seven days in the business's own counts (Reports' headline, the days the
- * page already reads). Got it is kept for the member as a rest for good (need-you/rests.tsx), so it is said once a week,
- * on any of their devices. Nothing where the days are not read, or AI did nothing in them: no number the data can't back.
- * A milestone (AI's 100th booking) waits for a count of AI's bookings since the start, which nothing keeps yet.
+ * page already reads): the messages AI answered, and under it the calls and what was booked, which are the business's
+ * and not said as AI's. Got it is kept for the member until the next Monday (need-you/rests.tsx), so it is said once a
+ * week, on any of their devices, and never before what they set aside is read. Nothing where the days are not read, or
+ * AI answered nothing in them: no number the data can't back. A milestone (AI's 100th booking) waits for a count of AI's
+ * bookings since the start, which nothing keeps yet.
  */
 import { DAY_MS, DEFAULT_TIMEZONE, dayInZone, type ReportHeadlineVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
-import { LinkButton } from "../../kit/link-button/link-button";
 import { Icon } from "../../kit/icon/icon";
-import { routeDoor } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
 import { AI_WORDS } from "../model/ai";
 import { useRests } from "../need-you/rests";
-import { useToast, workspaceClock } from "../shell";
+import { useTodayOnPhone } from "../phone";
+import { appNavigate, useToast, workspaceClock } from "../shell";
 import { CardActs, Lead } from "./lead";
 
 /** The days a week's sentence counts: the seven before today, today being still under way. */
@@ -21,45 +22,56 @@ const WEEK_DAYS = 7;
 
 const WEEK_WORDS = AI_WORDS.week;
 
-/** The Monday the business's week began on, YYYY-MM-DD: the rest's id, so Got it holds until the next Monday. */
-function mondayKey(): string {
+/** Where the week's numbers are held, each with what is behind it. */
+const REPORTS_ROUTE = "reports";
+
+/** The Monday the business's week began on, and the next one, YYYY-MM-DD: the rest's id, and the day it runs to. */
+function mondays(): { began: string; next: string } {
   const day = dayInZone(workspaceClock()?.zone() ?? DEFAULT_TIMEZONE, Date.now());
   const at = Date.UTC(day.y, day.m - 1, day.d);
-  const back = (new Date(at).getUTCDay() + 6) % 7;
-  return new Date(at - back * DAY_MS).toISOString().slice(0, 10);
+  const back = (new Date(at).getUTCDay() + 6) % WEEK_DAYS;
+  const keyOf = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+  return { began: keyOf(at - back * DAY_MS), next: keyOf(at + (WEEK_DAYS - back) * DAY_MS) };
+}
+
+/** What the week's card says: its sentence, and the quieter line under it (null where it has none). */
+export interface WeekWords {
+  sentence: string;
+  sub: string | null;
 }
 
 /**
- * The week's sentence from the period's days (oldest first, today last): what AI answered and the calls, and what was
- * booked where every one of the seven days was counted. Null without seven days before today, or with nothing in them.
+ * The week's words from the period's days (oldest first, today last): the messages AI answered in the seven days before
+ * today, and under them the calls and what was booked (only where every one of the seven days was counted). Null without
+ * seven days before today, or where AI answered nothing in them.
  */
-export function weekSentence(days: ReportHeadlineVM["perDay"]): string | null {
+export function weekWords(days: ReportHeadlineVM["perDay"]): WeekWords | null {
   if (days.length < WEEK_DAYS + 1) return null;
   const week = days.slice(-(WEEK_DAYS + 1), -1);
   const answered = week.reduce((n, d) => n + d.answered, 0);
+  if (answered === 0) return null;
   const calls = week.reduce((n, d) => n + d.calls, 0);
-  if (answered + calls === 0) return null;
   const counted = week.every((d) => d.booked !== null);
   const booked = counted ? week.reduce((n, d) => n + (d.booked ?? 0), 0) : 0;
-  const did = [answered ? WEEK_WORDS.messages(answered) : null, calls ? WEEK_WORDS.calls(calls) : null]
-    .filter(Boolean)
-    .join(" and ");
-  return `In the last 7 days AI answered ${did}${booked ? `, and ${WEEK_WORDS.booked(booked)}` : ""}.`;
+  const sub = [calls ? WEEK_WORDS.calls(calls) : null, booked ? WEEK_WORDS.booked(booked) : null].filter(Boolean);
+  return { sentence: WEEK_WORDS.answered(answered), sub: sub.length ? sub.join(" · ") : null };
 }
 
-/** The week's card where it is still to be seen: its rest's id and its sentence; null where there is none to say. */
-export function useWeekMoment(): { id: string; sentence: string } | null {
+/** The week's card where it is still to be seen: its rest's id and its words; null where there is none to say. */
+export function useWeekMoment(): ({ id: string } & WeekWords) | null {
   const headline = useSurface("reports_headline");
-  const { rests } = useRests();
-  const sentence = headline ? weekSentence(headline.perDay) : null;
-  const id = `week:${mondayKey()}`;
-  return sentence && !rests(id) ? { id, sentence } : null;
+  const { rests, known } = useRests();
+  const words = headline ? weekWords(headline.perDay) : null;
+  const id = `week:${mondays().began}`;
+  // Not before what the member set aside is read: a card they answered would show, then go.
+  return words && known && !rests(id) ? { id, ...words } : null;
 }
 
 /** The week, as the page's card: its sentence, Got it (the page's coral while it holds the card) and Reports' door. */
-export function WeekLead({ id, sentence }: { id: string; sentence: string }) {
+export function WeekLead({ id, sentence, sub }: { id: string } & WeekWords) {
   const { rest } = useRests();
   const [toastNode, flash] = useToast();
+  const size = useTodayOnPhone() ? "touch" : "lg";
   return (
     <>
       <Lead
@@ -73,19 +85,27 @@ export function WeekLead({ id, sentence }: { id: string; sentence: string }) {
           </>
         }
         title={sentence}
+        why={sub}
         testid="today-week"
       >
         <CardActs>
+          {/* The card's presses at the card's size, as every card has them: its one press, then its quiet door. */}
           <Button
             variant="primary"
-            onClick={() => void rest({ key: id, flash, for: { kept: WEEK_WORDS.kept } })}
+            size={size}
+            onClick={() => void rest({ key: id, flash, for: { until: mondays().next, kept: WEEK_WORDS.kept } })}
             data-testid="today-week-got-it"
           >
             {WEEK_WORDS.gotIt}
           </Button>
-          <LinkButton {...routeDoor("reports")} data-testid="today-week-reports">
+          <Button
+            variant="quiet"
+            size={size}
+            onClick={() => appNavigate(REPORTS_ROUTE)}
+            data-testid="today-week-reports"
+          >
             {WEEK_WORDS.reports}
-          </LinkButton>
+          </Button>
         </CardActs>
       </Lead>
       {toastNode}

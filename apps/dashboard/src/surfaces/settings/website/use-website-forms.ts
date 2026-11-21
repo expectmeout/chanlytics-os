@@ -1,5 +1,5 @@
 /**
- * A website's forms, read and pressed (00674): one read (`GET website-forms`) says the workspace's keys, when an entry
+ * A website's forms, read and pressed (00675): one read (`GET website-forms`) says the workspace's keys, when an entry
  * last arrived and where a site sends them. It is read as the row is drawn, again after each press, and again when the
  * owner comes back to the tab, so a site that has just moved shows its key's last use without a reload. A press answers
  * a key made or changed, the key itself shown once, never kept here past its sheet.

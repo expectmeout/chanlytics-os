@@ -1,5 +1,5 @@
 /**
- * A website's keys from Settings › Connections (00674), through the dashboard's own route over a database in memory: a
+ * A website's keys from Settings › Connections (00675), through the dashboard's own route over a database in memory: a
  * key made for a site is answered once and kept only as its hash, the hash the edge's door looks it up by; a key
  * changed is a new one by the same name with the old one honoured a day; a key ended is refused from then; a viewer
  * may press none of it; and the read says each key's last use, when an entry last arrived and where a site sends them,
@@ -38,7 +38,7 @@ const PERSON = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const DAY = 86_400_000;
 const sha = (key) => createHash("sha256").update(key, "utf8").digest("hex");
 
-/** The owner's doors as 00674 writes them: an owner or a partner, at most ten keys that work, a change's day. */
+/** The owner's doors as 00675 writes them: an owner or a partner, at most ten keys that work, a change's day. */
 function world(role = "owner") {
   const tables = {
     memberships: [{ user_id: U, tenant_id: A, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" }],

@@ -1,4 +1,4 @@
--- 00674 · A website's form is kept as its own entry, in one write with its person and its event, and each website
+-- 00675 · A website's form is kept as its own entry, in one write with its person and its event, and each website
 -- has a key of its own (the Forms plan, step F0; Ruben's calls 2, 9 and 19 of 21 November 2026).
 --
 -- Today's door (apps/edge/lib/website/form-door.ts) kept the person first and then wrote the note and the notice one
@@ -72,7 +72,7 @@ grant select on public.form_keys to authenticated;
 grant all on public.form_keys to service_role;
 
 comment on table public.form_keys is
-  'A website''s key for the form door (00674; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00674, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
+  'A website''s key for the form door (00675; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00675, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
 comment on column public.form_keys.ends_at is
   'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
 
@@ -121,7 +121,7 @@ grant select on public.form_entries to authenticated;
 grant all on public.form_entries to service_role;
 
 comment on table public.form_entries is
-  'One entry of a website''s form (00674; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
+  'One entry of a website''s form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
 comment on column public.form_entries.owed is
   'What the entry owes after it, each by its own subscriber: note (what they asked, waiting on their page for Keep), notice (the owner told), confirm (a sign-up with an address that arrived as it was sent is asked to confirm).';
 comment on column public.form_entries.effects is
@@ -144,7 +144,7 @@ end $$;
 
 revoke all on function public.form_entries_erase_on_contact() from public, anon, authenticated;
 comment on function public.form_entries_erase_on_contact() is
-  'When a person is erased, their website form entries go with them (00674, decision 0036).';
+  'When a person is erased, their website form entries go with them (00675, decision 0036).';
 
 drop trigger if exists contacts_erase_takes_form_entries on public.contacts;
 create trigger contacts_erase_takes_form_entries
@@ -248,7 +248,7 @@ end $$;
 revoke all on function public.form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text) from public, anon, authenticated;
 grant execute on function public.form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text) to service_role;
 comment on function public.form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text) is
-  'The website form door''s one write (00674; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+  'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
 
 /* ------------------------------------------------------------------------------------- 4. what came of it -- */
 
@@ -305,7 +305,7 @@ end $$;
 revoke all on function public.form_entry_settled(uuid, uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function public.form_entry_settled(uuid, uuid, text, jsonb) to service_role;
 comment on function public.form_entry_settled(uuid, uuid, text, jsonb) is
-  'One effect of a website form entry settled (00674): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
+  'One effect of a website form entry settled (00675): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
 
 /* ------------------------------------------------------------------------------------ 5. an owner's keys -- */
 
@@ -348,7 +348,7 @@ end $$;
 revoke all on function public.form_key_make(uuid, text, text) from public, anon;
 grant execute on function public.form_key_make(uuid, text, text) to authenticated, service_role;
 comment on function public.form_key_make(uuid, text, text) is
-  'An owner''s or a partner''s door (00674; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+  'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
 
 create or replace function public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text)
 returns jsonb
@@ -393,7 +393,7 @@ end $$;
 revoke all on function public.form_key_change(uuid, uuid, text) from public, anon;
 grant execute on function public.form_key_change(uuid, uuid, text) to authenticated, service_role;
 comment on function public.form_key_change(uuid, uuid, text) is
-  'An owner''s or a partner''s door (00674): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+  'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
 
 create or replace function public.form_key_end(p_tenant_id uuid, p_key_id uuid)
 returns boolean
@@ -425,7 +425,7 @@ end $$;
 revoke all on function public.form_key_end(uuid, uuid) from public, anon;
 grant execute on function public.form_key_end(uuid, uuid) to authenticated, service_role;
 comment on function public.form_key_end(uuid, uuid) is
-  'An owner''s or a partner''s door (00674): a key refused from now on, the first key too. Answers whether one still working was ended.';
+  'An owner''s or a partner''s door (00675): a key refused from now on, the first key too. Answers whether one still working was ended.';
 
 /* ---------------------------------------------------------------------------------- 6. who reacts to it -- */
 

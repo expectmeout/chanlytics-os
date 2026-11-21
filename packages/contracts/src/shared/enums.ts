@@ -253,7 +253,7 @@ export type JobKind = (typeof JOB_KINDS)[number];
  * `reply_draft` writes a held thread's reply ahead (0093, 00538); `visit_reminder` reminds a late booking (0118);
  * `occasion_enrol` enrols a person in the sequences an occasion starts (0119, 00599); `visit_arrival` stamps a visit
  * with the moment its booking arrived, so a day's bookings are counted from the record (0141, 00647); the form_entry_*
- * three do what a website's form entry owes, each on its own (00674). */
+ * three do what a website's form entry owes, each on its own (00675). */
 export const EVENT_SUBSCRIBERS = [
   "reach_out_booked",
   "owner_notice",
@@ -633,7 +633,7 @@ export const EVENT_KINDS = [
   "billing.payment_failed",
   "billing.paid",
   "billing.trial_ending",
-  /** A website's entry kept ({ form, owed }) and its ask settled ({ state }); a website's key made, changed or ended (00674). */
+  /** A website's entry kept ({ form, owed }) and its ask settled ({ state }); a website's key made, changed or ended (00675). */
   "form_entry.accepted",
   "form_entry.asked",
   "form_key.set",

@@ -8807,10 +8807,7 @@ CREATE FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds inte
    where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
      and not f.owner_uploaded
      and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
-     and exists (select 1 from public.source_items i
-                   join public.media_sources s on s.id = i.source_id
-                  where i.tenant_id = f.tenant_id and i.file_id = f.id and i.state = 'in'
-                    and s.state = any (array['setting_up', 'watching']))
+     and public.file_copy_comes_back(f.tenant_id, f.id)
      and (coalesce(f.copy_used_at, f.ready_at, f.created_at) >= now() - make_interval(secs => p_rest_seconds)
           or (f.look_status <> all (array['done', 'refused']) and f.created_at >= now() - interval '7 days')
           or exists (select 1 from public.pieces p
@@ -8823,7 +8820,7 @@ $$;
 -- Name: FUNCTION file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) IS 'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads, made and found videos, or folders no longer read. A take that found the videos full waits until then. The service role''s.';
+COMMENT ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) IS 'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads, made and found videos, or clips that cannot be fetched again (file_copy_comes_back, 00674). A take that found the videos full waits until then. The service role''s.';
 
 
 --
@@ -8849,9 +8846,9 @@ begin
   end if;
   with eligible as (
     -- Only what can come back is let go by itself: a watched folder's clip its owner did not also upload, playable,
-    -- looked at (or past the week a
-    -- look is tried again in), held by an item that is in, in a folder still being read; named by no video being
-    -- made; and not used, or arrived, since the rest began.
+    -- looked at (or past the week a look is tried again in), that can be fetched again (00674: a folder being read,
+    -- or one stopped whose account reads); named by no video being made; and not used, or arrived, since the rest
+    -- began.
     select f.id, f.seconds, coalesce(f.copy_used_at, f.ready_at, f.created_at) as used_at
       from public.files f
      where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
@@ -8859,10 +8856,7 @@ begin
        and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
        and (f.look_status = any (array['done', 'refused']) or f.created_at < now() - interval '7 days')
        and coalesce(f.copy_used_at, f.ready_at, f.created_at) < p_rested_before
-       and exists (select 1 from public.source_items i
-                     join public.media_sources s on s.id = i.source_id
-                    where i.tenant_id = f.tenant_id and i.file_id = f.id and i.state = 'in'
-                      and s.state = any (array['setting_up', 'watching']))
+       and public.file_copy_comes_back(f.tenant_id, f.id)
        and not exists (select 1 from public.pieces p
                         where p.tenant_id = f.tenant_id and p.status = 'making'
                           and position(f.id::text in p.plan::text) > 0)
@@ -8903,7 +8897,35 @@ end $$;
 -- Name: FUNCTION file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip its owner did not also upload (owner_uploaded), playable, looked at, held by an item that is in under a folder still being read, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
+COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip its owner did not also upload (owner_uploaded), playable, looked at, that can be fetched again (file_copy_comes_back, 00674: a folder being read, or one stopped whose account reads), named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
+
+
+--
+-- Name: file_copy_comes_back(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- An item of the file's that is in, under a folder being read, or one that was stopped: its original is still read
+  -- through its account's key, so a copy let go comes back on a press as a watched folder's does. Only while that
+  -- account reads: one that needs connecting again gives nothing back, and its folders' clips stay.
+  select exists (
+    select 1 from public.source_items i
+      join public.media_sources s on s.id = i.source_id
+      join public.source_connections c on c.id = s.connection_id
+     where i.tenant_id = p_tenant_id and i.file_id = p_file_id and i.state = 'in'
+       and s.state = any (array['setting_up', 'watching', 'stopped'])
+       and c.health = 'ok')
+$$;
+
+
+--
+-- Name: FUNCTION file_copy_comes_back(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) IS 'Whether a watched clip''s copy can be fetched again by itself (00674, the content loop PRD''s F1): an item of the file''s that is in, under a folder being read or one that was stopped, whose Google account reads (health ok). The one place that says so: file_copies_let_go, file_copies_free_at and video_minutes_by_road ask it. Runs as its caller: a member reads only their own workspace''s rows.';
 
 
 --
@@ -10976,7 +10998,7 @@ end $$;
 -- Name: FUNCTION form_entries_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entries_erase_on_contact() IS 'When a person is erased, their website form entries go with them (00674, decision 0036).';
+COMMENT ON FUNCTION public.form_entries_erase_on_contact() IS 'When a person is erased, their website form entries go with them (00675, decision 0036).';
 
 
 --
@@ -11036,7 +11058,7 @@ end $$;
 -- Name: FUNCTION form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) IS 'One effect of a website form entry settled (00674): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
+COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) IS 'One effect of a website form entry settled (00675): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
 
 
 --
@@ -11129,7 +11151,7 @@ end $_$;
 -- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00674; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
 
 
 --
@@ -11179,7 +11201,7 @@ end $_$;
 -- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00674): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
 
 
 --
@@ -11216,7 +11238,7 @@ end $$;
 -- Name: FUNCTION form_key_end(p_tenant_id uuid, p_key_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An owner''s or a partner''s door (00674): a key refused from now on, the first key too. Answers whether one still working was ended.';
+COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An owner''s or a partner''s door (00675): a key refused from now on, the first key too. Answers whether one still working was ended.';
 
 
 --
@@ -11262,7 +11284,7 @@ end $_$;
 -- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00674; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
 
 
 --
@@ -26213,6 +26235,44 @@ COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (0046
 
 
 --
+-- Name: platform_health_footage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_health_footage() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  -- Google's day, as the takes count it (00643): Pacific time.
+  with today as (select (now() at time zone 'America/Los_Angeles')::date as day),
+  spent as (select d.* from public.source_days d, today t where d.day = t.day),
+  -- What waits on the video platform's own storage: takes waiting, and copies that could not come back.
+  stuck as (
+    select i.tenant_id, i.updated_at from public.source_items i
+     where i.state = 'waiting' and i.why = 'stream_full'
+    union all
+    select f.tenant_id, f.updated_at from public.files f
+     where f.copy_state = 'away' and f.copy_why = 'stream_full'
+  )
+  select jsonb_build_object(
+    'day', (select t.day from today t),
+    'units', coalesce((select s.units from spent s), 0),
+    'bytes', coalesce((select s.bytes from spent s), 0),
+    'takes', coalesce((select s.takes from spent s), 0),
+    'returns', coalesce((select s.returns from spent s), 0),
+    'stream_full', (select count(*) from stuck),
+    'stream_full_workspaces', coalesce((select jsonb_agg(distinct x.tenant_id) from stuck x), '[]'::jsonb),
+    'stream_full_since', (select min(x.updated_at) from stuck x))
+$$;
+
+
+--
+-- Name: FUNCTION platform_health_footage(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_health_footage() IS 'Health''s read of watched folders today (00674, the content loop PRD''s 14.3): Google''s day (Pacific time, as the takes count it) of units, bytes, takes and returns spent from source_days, and what waits on the video platform''s own storage (takes waiting and copies away with why stream_full): how many, the workspaces, and since when. Service role only.';
+
+
+--
 -- Name: platform_health_parts(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -39971,10 +40031,26 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
     AS $$
   -- What was asked for and is not in yet: a first watch's fifty, or what arrived since. Few rows, by the state's index.
   with moving as (
-    select i.state, i.why
+    select i.state, i.why, i.length_until > now() as processing
       from public.source_items i
      where i.tenant_id = p_tenant_id and i.source_id = p_source_id
        and i.state = any (array['waiting', 'taking'])
+  ),
+  -- The folder's files in the Library, each once (two items may hold one file), as the Library holds them: a file
+  -- whose original left the folder stays until its week is out, and is counted until then.
+  kept as (
+    select distinct f.id, f.kind, f.copy_state
+      from public.source_items i
+      join public.files f on f.id = i.file_id
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.file_id is not null
+       and f.tenant_id = p_tenant_id and f.removed_at is null
+  ),
+  -- What could not come in: tried three times and failed, or too long or too large to bring.
+  missed as (
+    select i.state, i.why
+      from public.source_items i
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+       and i.state = any (array['failed', 'too_big']) and i.kind <> 'folder'
   ),
   -- Google counts a day in Pacific time, and a workspace's takes of a day are counted in the same day (00643).
   today as (
@@ -39988,12 +40064,15 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
            - (select count(*) from public.source_items i
                where i.source_id = p_source_id and i.kind = 'folder' and i.tenant_id = p_tenant_id
                  and i.state <> all (array['gone', 'outside', 'no_access'])),
-    'in', (select count(*) from public.source_items i
-            where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.state = 'in'),
-    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace).
+    'in', (select count(*) from kept),
+    -- Of them, the clips whose copy is kept in Drive just now.
+    'away', (select count(*) from kept k where k.kind = 'video' and k.copy_state <> 'here'),
+    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace). A video Drive
+    -- is still processing waits for its length, and is said apart.
     'coming', (select count(*) from moving m
-                where m.state = 'taking' or m.why is null
-                   or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder'])),
+                where m.state = 'taking'
+                   or ((m.why is null or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder']))
+                       and not coalesce(m.processing, false))),
     -- Landed today: what the day's takes brought in, so "12 of 40" is twelve of today's forty.
     'landed', (select count(*) from public.source_items i, today t
                 where i.tenant_id = p_tenant_id and i.taken_at >= t.began
@@ -40001,7 +40080,13 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
     'budget', (select count(*) from moving m where m.state = 'waiting' and m.why = 'budget'),
     'room', (select count(*) from moving m where m.state = 'waiting' and m.why = 'room'),
     'library_full', (select count(*) from moving m where m.state = 'waiting' and m.why = 'library_full'),
-    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off')
+    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off'),
+    'waiting_length', (select count(*) from moving m
+                        where m.state = 'waiting' and coalesce(m.processing, false)
+                          and (m.why is null or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder']))),
+    'failed', (select count(*) from missed x where x.state = 'failed'),
+    'too_long', (select count(*) from missed x where x.state = 'too_big' and x.why = 'seconds'),
+    'too_large', (select count(*) from missed x where x.state = 'too_big' and x.why is distinct from 'seconds')
   );
 $$;
 
@@ -40010,7 +40095,7 @@ $$;
 -- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens): found (photos and videos still where they were), in (in the Library), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), and those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off). Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
+COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens; 00674): found (photos and videos still where they were), in (its files in the Library, each once, as the Library holds them), away (of them, clips kept in Drive just now), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off), waiting_length (videos Drive is still processing, said apart from coming), and what could not come in: failed (tried and failed), too_long (longer than AI can watch), too_large (too heavy, or a photo of too many pixels). Every screen''s count of a folder is one of these. Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
 
 
 --
@@ -42204,11 +42289,7 @@ CREATE FUNCTION public.video_minutes_by_road(p_tenant_id uuid) RETURNS jsonb
     'total', coalesce(sum(c.seconds), 0),
     'can_step_aside', coalesce(sum(c.seconds) filter (
       where public.file_road_is_watched(c.source) and not c.owner_uploaded and c.copy_state = 'here'
-        and c.media_status = 'ready'
-        and exists (select 1 from public.source_items i
-                      join public.media_sources s on s.id = i.source_id
-                     where i.tenant_id = p_tenant_id and i.file_id = c.id and i.state = 'in'
-                       and s.state = any (array['setting_up', 'watching']))), 0),
+        and c.media_status = 'ready' and public.file_copy_comes_back(p_tenant_id, c.id)), 0),
     'set_aside', coalesce(sum(c.seconds) filter (where c.status = 'set_aside'), 0),
     'own', coalesce(sum(c.seconds) filter (where c.status <> 'set_aside'
                                              and (c.source = 'upload' or c.owner_uploaded)), 0),
@@ -44635,7 +44716,7 @@ CREATE TABLE public.files (
     yes_back text[] DEFAULT '{}'::text[] NOT NULL,
     CONSTRAINT files_copy_shape CHECK ((((copy_state = 'here'::text) OR ((kind = 'video'::text) AND (source = 'drive'::text))) AND ((copy_state <> ALL (ARRAY['away'::text, 'lost'::text])) OR (media_ref IS NULL)) AND ((copy_why IS NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text]))))),
     CONSTRAINT files_copy_state_check CHECK ((copy_state = ANY (ARRAY['here'::text, 'going'::text, 'away'::text, 'returning'::text, 'lost'::text]))),
-    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'folder'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
+    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'connection'::text, 'cant_open'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
     CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_status IS NOT NULL) AND ((media_ref IS NOT NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text, 'returning'::text])))))),
@@ -44841,7 +44922,7 @@ COMMENT ON COLUMN public.files.copy_state IS 'Where a video''s copy at the video
 -- Name: COLUMN files.copy_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.copy_why IS 'Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, folder, videos_off, busy, unreadable, changed, failed, stopped). One of a closed set (contracts FILE_COPY_WHYS).';
+COMMENT ON COLUMN public.files.copy_why IS 'Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, connection, cant_open, videos_off, busy, stream_full, unreadable, changed, failed, stopped). connection: its folder''s account does not read; cant_open: its folder itself won''t open (00674, which split folder: a folder only stopped gives its clips back). One of a closed set (contracts FILE_COPY_WHYS).';
 
 
 --
@@ -44950,7 +45031,7 @@ CREATE TABLE public.form_entries (
 -- Name: TABLE form_entries; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.form_entries IS 'One entry of a website''s form (00674; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
+COMMENT ON TABLE public.form_entries IS 'One entry of a website''s form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
 
 
 --
@@ -44998,7 +45079,7 @@ CREATE TABLE public.form_keys (
 -- Name: TABLE form_keys; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00674; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00674, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
+COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00675, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
 
 
 --
@@ -51833,6 +51914,13 @@ CREATE INDEX files_copies_moving ON public.files USING btree (updated_at) WHERE 
 --
 
 CREATE INDEX files_copies_returned ON public.files USING btree (tenant_id, copy_returned_at) WHERE (copy_returned_at IS NOT NULL);
+
+
+--
+-- Name: files_copies_stream_full; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_copies_stream_full ON public.files USING btree (updated_at) WHERE ((copy_state = 'away'::text) AND (copy_why = 'stream_full'::text));
 
 
 --
@@ -61483,6 +61571,15 @@ GRANT ALL ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds nume
 
 
 --
+-- Name: FUNCTION file_copy_comes_back(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION file_copy_gone(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -64342,6 +64439,14 @@ GRANT ALL ON FUNCTION public.platform_clocks(p_days integer) TO service_role;
 REVOKE ALL ON FUNCTION public.platform_find(p_q text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO authenticated;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_health_footage(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_health_footage() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_health_footage() TO service_role;
 
 
 --

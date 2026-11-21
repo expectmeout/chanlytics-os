@@ -1,10 +1,10 @@
 /**
- * A website's form entries and its keys (00674; the Forms plan, F0). The edge's door keeps an entry through one write,
+ * A website's form entries and its keys (00675; the Forms plan, F0). The edge's door keeps an entry through one write,
  * form_entry_take: the key's last use, the once rule, the person through resolve_person, the entry and its event, all
  * in one transaction. What follows it (the note, the notice, a sign-up's ask) is each settled on the entry by
  * form_entry_settled. The keys are an owner's: made, changed and ended through their own doors on the caller's client,
  * read under its row security; the edge reads them by hash on the service role. A read that fails THROWS, but for a
- * database before 00674, whose missing tables read as no keys and no entries.
+ * database before 00675, whose missing tables read as no keys and no entries.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -20,7 +20,7 @@ import type { Database, Json } from "../../types";
 
 type Db = SupabaseClient<Database>;
 
-/** The codes PostgREST and Postgres answer for a table that is not there yet: before 00674, no keys and no entries. */
+/** The codes PostgREST and Postgres answer for a table that is not there yet: before 00675, no keys and no entries. */
 const NOT_THERE_YET = new Set(["PGRST205", "42P01"]);
 
 /** What the door's one write came to: kept now, kept before (the same entry again), or a person who asked to be forgotten. */

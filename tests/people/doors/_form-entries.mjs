@@ -1,5 +1,5 @@
 /**
- * A website form's two SQL doors (00674) over a database in memory, as the migration writes them: form_entry_take (the
+ * A website form's two SQL doors (00675) over a database in memory, as the migration writes them: form_entry_take (the
  * key's last use, the once rule, the person through the door the suite hands it, the entry and its event, or nothing
  * for a person who asked to be forgotten) and form_entry_settled (an effect's outcome on its entry, the entry processed,
  * when the owner was first told, and the ask's first outcome as form_entry.asked). The real SQL is proved on a database
@@ -13,7 +13,7 @@ import { randomUUID } from "node:crypto";
 /** The ten minutes the same words are the same entry within (call 19). */
 export const AGAIN_WITHIN_MS = 10 * 60_000;
 
-/** Who reacts to which kind (00674's event_subscriptions rows). */
+/** Who reacts to which kind (00675's event_subscriptions rows). */
 const SUBSCRIBED = {
   "form_entry.accepted": ["note", "notice", "confirm"],
   "form_entry.asked": ["notice"],

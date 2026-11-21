@@ -1,5 +1,5 @@
 /**
- * A form on a business's own website (00488, 00674): a sign-up for its offers, or a request. The site's server posts
+ * A form on a business's own website (00488, 00675): a sign-up for its offers, or a request. The site's server posts
  * each one with its workspace and one of that workspace's keys.
  *
  * The door names the request (log.ts `door`) and calls receiveWebsiteForm in lib/website/form-door.ts, which holds what

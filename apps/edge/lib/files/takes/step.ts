@@ -137,7 +137,7 @@ async function takeItem(
   if (kept) return kept;
   // It holds no file, or the one it held is no longer there: it is taken as any waiting file is.
   const held = { db, item: { ...found, file_id: null }, log };
-  const key = await run.sync.open(db, { tenantId, sourceId: found.source_id }, log);
+  const key = await run.sync.open(db, { tenantId, sourceId: found.source_id }, log, "take");
   if (!key.ok) {
     await waitForFolder(held);
     return { skipped: key.skipped };

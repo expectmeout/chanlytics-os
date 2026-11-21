@@ -1,5 +1,5 @@
 /**
- * What Settings › Connections says of a website's forms (00674; the Forms plan, F0), in the owner's words
+ * What Settings › Connections says of a website's forms (00675; the Forms plan, F0), in the owner's words
  * (docs/words.md): a key for each site, shown once; when each was last used; when an entry last arrived. Only this
  * surface says them, so they live beside it.
  */

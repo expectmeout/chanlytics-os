@@ -1,5 +1,5 @@
 /**
- * A form on a business's own website (00488, 00674), run as Vercel runs the door, over a database in memory: the key or
+ * A form on a business's own website (00488, 00675), run as Vercel runs the door, over a database in memory: the key or
  * nothing, a way to reach them or nothing, then ONE write (the person through the one door, source 'website', the entry
  * and its event), answered only after it; and what the entry owes after it, each its own step from its event
  * (form-effects.ts, delivered here as the relay would: _form-entries.mjs): what they asked suggested as a note on their
@@ -38,7 +38,7 @@ const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const LOGO = "11111111-1111-4111-8111-111111111111";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const PERSON = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-/** The first key: made from the platform's own key and the workspace's id, as before 00674. */
+/** The first key: made from the platform's own key and the workspace's id, as before 00675. */
 const firstKeyOf = (t, service = SERVICE_KEY) =>
   createHmac("sha256", service).update(`website-form:${t}`).digest("base64url");
 const NOW = Date.now();

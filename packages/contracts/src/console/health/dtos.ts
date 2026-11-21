@@ -50,6 +50,23 @@ export const HEALTH_WINDOWS = [7, 30] as const;
 
 export type HealthWindow = (typeof HEALTH_WINDOWS)[number];
 
+/**
+ * Watched folders today, as Health reads them (00674 platform_health_footage; the content loop PRD's 14.3): Google's
+ * day (Pacific time, as the takes count it) of units and bytes spent, and what waits on the video platform's own
+ * storage, which only the platform's owner can mend.
+ */
+interface HealthFootageDto {
+  day: string;
+  units: number;
+  bytes: number;
+  takes: number;
+  returns: number;
+  /** Takes waiting and copies away because the video platform's storage is spent. */
+  stream_full: number;
+  stream_full_workspaces: string[];
+  stream_full_since: string | null;
+}
+
 /** What GET platform/health answers. A part that could not be read is null, and says so; never an empty list. */
 export interface HealthDto {
   days: HealthWindow;
@@ -69,6 +86,8 @@ export interface HealthDto {
   speed: { rows: PageSpeedRowDto[]; spots: PageSpotRowDto[] } | null;
   /** Whom Anthropic is told a call is for (decision 0097), and whom it has paused. Absent from a server before it. */
   anthropic_profiles?: HealthAnthropicProfilesDto | null;
+  /** Watched folders today (00674); absent from a server before it. */
+  footage?: HealthFootageDto | null;
 }
 
 // ------------------------------------------------------------------------------------------------- the states

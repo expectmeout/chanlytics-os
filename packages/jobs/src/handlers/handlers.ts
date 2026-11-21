@@ -262,7 +262,7 @@ const thankThrough =
     return ctx.reminders.thank(tenantId, appointmentId);
   };
 
-/** A website form entry's steps as the subscribers ask them (00674); a runtime that holds none fails loudly. */
+/** A website form entry's steps as the subscribers ask them (00675); a runtime that holds none fails loudly. */
 const formsThrough =
   (ctx: JobContext): SubscriberPorts["formEffect"] =>
   (tenantId, entryId, effect) => {
@@ -371,7 +371,7 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     },
     // The delivery is the event's workspace's job, so the runtime addresses the notice to it (job-alert.ts).
     tell: (news) => ctx.alert(news),
-    // What a website form's entry owes (00674): its steps live with the edge's run context, like the freed time's offer.
+    // What a website form's entry owes (00675): its steps live with the edge's run context, like the freed time's offer.
     formEffect: formsThrough(ctx),
   };
   try {

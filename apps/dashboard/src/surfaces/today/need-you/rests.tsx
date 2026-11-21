@@ -33,7 +33,7 @@ const dayToday = (): string => dayInZone(usableZone(workspaceClock()?.zone()), D
  * When Not today puts a row off (Working for you, W22): to a time chosen (`until`, an instant, said back as `back`: "at 4 PM",
  * "tomorrow at 9 AM"), or every row of its kind for good (`kind`). None: a week, as it always was.
  */
-export type RestFor = { until: string; back: string } | { kind: string } | { kept: string };
+export type RestFor = { until: string; back: string } | { kind: string } | { until: string; kept: string };
 
 /** What a row's Not today is handed: what it says, and what puts its row back as its Undo is pressed. */
 export interface RestPress {
@@ -48,8 +48,8 @@ function restOf(key: string, f: RestFor | undefined): { id: string; until: strin
   if (!f)
     return { id: key, until: null, said: W.restedUntil(restEndsDay(usableZone(workspaceClock()?.zone()), Date.now())) };
   if ("kind" in f) return { id: kindRestId(f.kind), until: RESTED_FOR_GOOD, said: W.restedKind };
-  // Seen for good (the week's card, W9): the row's own id, and what it says back as it goes.
-  if ("kept" in f) return { id: key, until: RESTED_FOR_GOOD, said: f.kept };
+  // Seen until a day (the week's card, W9: until next Monday), saying its own words as it goes.
+  if ("kept" in f) return { id: key, until: f.until, said: f.kept };
   return { id: key, until: f.until, said: W.restedBack(f.back) };
 }
 
@@ -90,7 +90,15 @@ export function useRests() {
     });
   };
   const rested = pressed ?? read;
-  return { rested, today, rest, rests: (key: string) => isRested(rested, key, today, Date.now()) };
+  return {
+    rested,
+    today,
+    rest,
+    rests: (key: string) => isRested(rested, key, today, Date.now()),
+    // Whether what the member set aside is known yet: read with the morning, or pressed this visit. Before it, a line
+    // that may have been set aside is not drawn (it would show, then go).
+    known: morning !== null || pressed !== null,
+  };
 }
 
 /** A review's key among the rests: Ask found's rows keep theirs, and the two never meet. */

@@ -56,7 +56,7 @@
  *                     day's bookings are counted from the record and never from a second copy of the rule. The later
  *                     moment wins, so a second run moves nothing.
  *   form_entry_note, form_entry_notice, form_entry_confirm
- *                     a website's form entry kept with its person (form_entry.accepted, 00674) is handed to the edge's
+ *                     a website's form entry kept with its person (form_entry.accepted, 00675) is handed to the edge's
  *                     steps, each its own: what they asked as a note to keep, the owner's notice, a sign-up's ask to
  *                     confirm. The ask's first outcome (form_entry.asked) runs the notice again, which waited for it. Each
  *                     step is settled on the entry, and one done is never run again.
@@ -209,7 +209,7 @@ export interface SubscriberPorts {
    */
   tell(news: JobNews): Promise<void>;
   /**
-   * One step a website form's entry owes, run by the edge and settled on the entry (00674): nothing for one it does not
+   * One step a website form's entry owes, run by the edge and settled on the entry (00675): nothing for one it does not
    * owe or did already. Throws when it failed, so the delivery tries again.
    */
   formEffect(tenantId: TenantId, entryId: string, effect: FormEffect): Promise<void>;

@@ -21,8 +21,13 @@ export const FILE_COPY_WAITS = [
   "room",
   /** A day's budget of returns bound: it comes back tomorrow. */
   "budget",
-  /** Its folder is not being read just now (paused, stopped, or its account needs to reconnect). */
-  "folder",
+  /**
+   * Its folder's Google account does not read just now: signed out, or whoever connected it left (00674, which split
+   * `folder` in two). A folder that was only stopped still gives its clips back.
+   */
+  "connection",
+  /** Its folder itself can't be opened just now (frozen): it opens again by itself (00674). */
+  "cant_open",
   /** The workspace takes no videos yet, or this deployment cannot fetch one. */
   "videos_off",
   /** The video platform is preparing as many videos as it takes at once. */

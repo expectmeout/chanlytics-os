@@ -248,7 +248,7 @@ before(async () => {
   await seed("pieces", { tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "seeded" });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
-  // A website's key and an entry it sent (00674): members read them, only their doors write them.
+  // A website's key and an entry it sent (00675): members read them, only their doors write them.
   await seed("form_keys", { tenant_id: A, name: "Seeded site", hash: "a".repeat(64) });
   await seed("form_entries", {
     tenant_id: A,

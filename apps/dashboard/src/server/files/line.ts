@@ -6,6 +6,7 @@
 import {
   FILE_SHELVES,
   clockOf,
+  footageAsidesOf,
   footageStandingOf,
   keptSaidOf,
   filesCountedOf,
@@ -205,8 +206,9 @@ export function fileIndexLineOf(fileForAsk: FileForAsk): string {
 /**
  * What Ask is told of a watched Google Drive folder, in a line every turn (the canvas's Confirm 12: asked how the folder
  * is doing, AI says it, with no card and no tool): which folder, whose Drive, and where it stands in the words Settings
- * says. The time it was last read is left out, so the line changes only when the folder does. None where no Google
- * account is connected.
+ * says. The time it was last read is left out, so the line changes only when the folder does. What it could not bring
+ * in and what Drive is still processing follow, each with its one reason (the content loop PRD's F3 and F5), so AI
+ * says them as the row does. None where no Google account is connected.
  */
 export function folderLineOf(footage: FootageDto): string | null {
   const { account } = footage;
@@ -215,5 +217,6 @@ export function folderLineOf(footage: FootageDto): string | null {
   const standing = footageStandingOf({ ...footage, folder }, () => "");
   const holder = account.email ?? "the connected account";
   const subject = folder ? `Google Drive folder “${folder.name}” (${holder}), watched` : `Google Drive (${holder})`;
-  return `${subject}: ${standing.badge}. ${standing.say.replace(/\.?$/, ".")}`;
+  const asides = folder ? footageAsidesOf(folder).map((aside) => `${aside.head}: ${aside.reasons.join("; ")}.`) : [];
+  return [`${subject}: ${standing.badge}.`, standing.say.replace(/\.?$/, "."), ...asides].join(" ");
 }

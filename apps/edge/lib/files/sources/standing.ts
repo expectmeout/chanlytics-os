@@ -55,7 +55,10 @@ export interface OpenSource {
   log: Logger;
 }
 
-type Opened = { ok: true; open: OpenSource } | { ok: false; skipped: string };
+/** Whose a folder that will not open is to mend: its account's (signed out, its connector gone) or the folder's own. */
+export type SourceClosedBy = "account" | "folder";
+
+type Opened = { ok: true; open: OpenSource } | { ok: false; skipped: string; cause: SourceClosedBy };
 
 /** A folder as its provider knows it, from its row. */
 const folderOf = (source: MediaSourceRow): SourceFolder => ({
@@ -186,7 +189,8 @@ export async function resumeSourcesOf(
 
 /**
  * A folder opened for a job in one of the states named. Answers `skipped` with the reason when it is not one to read
- * now; a folder whose account or connector no longer lets it be read is paused on the way.
+ * now, and whose it is to mend (`cause`); a folder whose account or connector no longer lets it be read is paused on
+ * the way (one stopped stays stopped: pauseSource takes only a folder being read).
  */
 export async function openSource(
   db: Db,
@@ -195,28 +199,35 @@ export async function openSource(
   log: Logger,
 ): Promise<Opened> {
   const source = await findMediaSource(db, named.tenantId, named.sourceId);
-  if (!source) return { ok: false, skipped: "no such folder" };
-  if (!states.some((state) => state === source.state)) return { ok: false, skipped: `the folder is ${source.state}` };
+  if (!source) return { ok: false, skipped: "no such folder", cause: "folder" };
+  // A paused folder waits on its account (signed out, or whoever connected it left); any other on itself.
+  if (!states.some((state) => state === source.state))
+    return {
+      ok: false,
+      skipped: `the folder is ${source.state}`,
+      cause: source.state === "paused" ? "account" : "folder",
+    };
   const connection = await findSourceConnection(db, named.tenantId, source.connection_id);
-  if (!connection) return { ok: false, skipped: "no such account" };
+  if (!connection) return { ok: false, skipped: "no such account", cause: "account" };
   const now = new Date();
   if (connection.health !== "ok") {
     await pauseSource(db, source, "signed_out", now);
-    return { ok: false, skipped: `the account is ${connection.health}` };
+    return { ok: false, skipped: `the account is ${connection.health}`, cause: "account" };
   }
   // The plan's D13: an account is read only while whoever connected it is still one of the workspace's members.
   if (!connection.connected_by || !(await isStillMember(db, named.tenantId, connection.connected_by))) {
     const paused = await pauseSourcesOf(db, connection, "connector_left", now);
     log.warn("source_paused", { connection: connection.id, reason: "connector_left", folders: paused });
-    return { ok: false, skipped: "whoever connected the account left" };
+    return { ok: false, skipped: "whoever connected the account left", cause: "account" };
   }
   const token = await getSourceToken(db, connection.id, now.getTime());
   if (!token.ok) {
     if (token.reason === "signed_out" || token.reason === "no_credentials") {
       await markSourceSignedOut(db, connection, log, now);
-      return { ok: false, skipped: "the account is signed out" };
+      return { ok: false, skipped: "the account is signed out", cause: "account" };
     }
-    if (token.reason === "no_client") return { ok: false, skipped: "no client on this deployment" };
+    // A deployment with no Google client of its own: no account of the business's is to blame.
+    if (token.reason === "no_client") return { ok: false, skipped: "no client on this deployment", cause: "folder" };
     throw new Error(`footage account ${connection.id}: no token (${token.detail ?? "no answer"})`);
   }
   const spent = { units: 0 };

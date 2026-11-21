@@ -91,7 +91,9 @@ export async function answerKeyDoor(request: Request, sync: TakeSync = takeSync)
   const log = logger({ door: "source-key", tenant_id: item.tenant_id });
   let key;
   try {
-    key = await sync.open(db, { tenantId: item.tenant_id, sourceId: item.source_id }, log);
+    // A clip being taken is a take's; any other being fetched is a copy coming back, which a stopped folder gives too.
+    const road = item.state === "taking" ? "take" : "return";
+    key = await sync.open(db, { tenantId: item.tenant_id, sourceId: item.source_id }, log, road);
   } catch (failure) {
     // Google or the database gave no answer: the video platform asks again.
     log.error("source_key", { item: item.id, error: errField(failure) });

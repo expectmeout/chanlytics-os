@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 197 | 197 |
-| reader | 88 | 0 |
-| the server's | 413 | 345 |
+| reader | 89 | 0 |
+| the server's | 414 | 346 |
 | computed column | 3 | 0 |
 | trigger | 114 | 84 |
-| all | 815 | 626 |
+| all | 817 | 627 |
 
 ## Called by nothing
 
@@ -217,6 +217,7 @@ being read is dropped by a migration.
 | `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
 | `file_copies_free_at` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | When a copy that may not be let go yet could be (00654): |
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
+| `file_copy_comes_back` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 1 more | Whether a watched clip's copy can be fetched again by itself (00674, the content loop PRD's F1): |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
 | `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
@@ -267,12 +268,12 @@ being read is dropped by a migration.
 | `footage_hearers` | the server's | the server | SQL `footage_ring` | Who hears that a watched folder or its account needs someone (00657): |
 | `footage_quoted` | the server's | the server | SQL `files_ring_footage_in`, `media_sources_ring` and 1 more | A watched folder's name as the bell says it (00657): |
 | `footage_ring` | the server's | the server | SQL `media_sources_ring`, `source_connections_ring` and 1 more | One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: |
-| `form_entries_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_form_entries on contacts` | When a person is erased, their website form entries go with them (00674, decision 0036). |
-| `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00674): |
-| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00674; |
-| `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00674): |
-| `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00674): |
-| `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00674; |
+| `form_entries_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_form_entries on contacts` | When a person is erased, their website form entries go with them (00675, decision 0036). |
+| `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |
+| `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675; |
+| `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
+| `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
+| `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675; |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
 | `get_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts` |  |
@@ -549,6 +550,7 @@ being read is dropped by a migration.
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |
 | `platform_clocks` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every registered clock (sweep_status) with its pg_cron schedule and, over the last p_days (at most 14, the history kept), how many times it ran, how many of those failed, and the newest failure's word |
 | `platform_find` | door | a signed-in person, the server | code `packages/db/src/repositories/console/staff.ts` | The Console's Find (00467, decision 0066): |
+| `platform_health_footage` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Health's read of watched folders today (00674, the content loop PRD's 14.3): |
 | `platform_health_parts` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every part the Console's Health draws, over the last p_days (at most 90; |
 | `platform_health_previews` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Health's read of leads' previews over the last p_days (1 to 90; |
 | `platform_metrics_read` | the server's | the server | code `packages/db/src/repositories/ops/console.ts` | The back office's read of platform_metrics (00277): |
@@ -787,7 +789,7 @@ being read is dropped by a migration.
 | `source_items_passed` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | What a watched folder holds that is not in the Library (00655), by its state and cause: |
 | `source_items_ring_full` | trigger | the server | trigger `source_items_ring_full on source_items` | A trigger on source_items (00657, the footage screens' call 3): |
 | `source_items_stamp_left` | trigger | the server | trigger `source_items_stamp_left on source_items` | A trigger on source_items (00657): |
-| `source_items_tally` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A watched folder's files counted where they stand (00655, the footage sources plan's screens): |
+| `source_items_tally` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A watched folder's files counted where they stand (00655, the footage sources plan's screens; |
 | `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00643, the footage sources plan's D15): |
 | `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00643, decision 0115): |
 | `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00643): |

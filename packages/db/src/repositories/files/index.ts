@@ -121,6 +121,7 @@ export type {
 export { listFilesUnprinted } from "./prints";
 export {
   askForListedItems,
+  askForStoppedItems,
   countSourceItems,
   insertSourceItems,
   keepSourceItemFacts,
