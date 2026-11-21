@@ -57,6 +57,8 @@ export const PaneNotificationsReal = ({ flash }: { flash: (f: FrameFlash) => voi
     notifications: notif,
     emailHeld,
     phone: dto && phones.length > 0 ? { pushOff: dto.push_off, choosable: dto.choosable } : null,
+    // The Ads topic only where Campaigns › Ads is drawn (the settings read's one answer, campaigns/ads/shown.ts).
+    ads: settings?.ads === true,
   });
   const me = meNow()?.email ?? null;
 

@@ -14,6 +14,8 @@
  *   choose    The owner's answer to which of two: the account is read again, and the same door finishes the connect.
  *   check     Chanlytics looks again: the account and its Page as Meta describes them now, kept on the row. Asked when
  *             the owner comes back from mending something at Meta, and never faster than Meta's pace allows.
+ *   place     The places Meta keys by a name (a city, a region, a country), for an ad shown wider than the circle
+ *             around a business (places.ts). A read that keeps nothing, asked for any member who may draft.
  *
  * The owner alone: `has_permission(…, 'ads')` is asked here before anything is asked of Meta, and again by the door
  * that writes. Every answer is JSON with `ok`; a refusal is a code (http.ts refuse) with words for support in `detail`.
@@ -55,6 +57,7 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
+import { findMetaPlaces } from "./places.js";
 import { env } from "../shared/env.js";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger } from "../shared/log.js";
@@ -87,6 +90,8 @@ interface AdsAccountBody {
   code?: string;
   external_id?: string;
   pause?: boolean;
+  /** `place`: the kind of place and the name looked for (places.ts). */
+  place?: unknown;
 }
 
 /** The Meta app's sign-in for ads as this deployment holds it, or null when any part is not set. */
@@ -416,6 +421,13 @@ function adsStatus(tenantId: string, app: MetaApp | null): Response {
   });
 }
 
+/** `place`: Meta's places by the name asked, with the connected account's sign-in; none where none is connected. */
+async function findPlaces(db: Db, app: MetaApp, tenantId: TenantId, place: unknown): Promise<Response> {
+  const live = await findLiveAdAccount(db, tenantId, "meta");
+  const signIn = live?.status === "connected" ? await signInOf(db, app, live.id) : null;
+  return findMetaPlaces(live && signIn ? { tenantId, accountId: live.id, signIn } : null, place);
+}
+
 /** The door's ops: what each answers is in the module's head. */
 export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBody>): Promise<Response> {
   const op = typeof body.op === "string" ? body.op : "";
@@ -435,6 +447,8 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
   }
   if (!app) return refuse(503, "no_app_credentials");
   if (!adsOfferedIn(tenantId)) return refuse(409, "meta_off", "Ads is not offered in this workspace yet.");
+  // A place by its name (places.ts): a read that changes nothing, asked for any member who may draft an ad.
+  if (op === "place") return findPlaces(db, app, tenantId, body.place);
   // The owner alone, asked before anything is asked of Meta (decision 0050, call 2).
   if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
   const by = { tenantId, userId };
@@ -448,5 +462,5 @@ export async function runAdsAccountOp(auth: Admitted, body: Partial<AdsAccountBo
     const live = await findLiveAdAccount(db, tenantId, "meta");
     return json(200, { ok: true, outcome: live ? await lookAgain(db, app, live, Date.now()) : "not_connected" });
   }
-  return refuse(400, "unknown_op", "op is status, connect, choose, check or disconnect");
+  return refuse(400, "unknown_op", "op is status, connect, choose, check, place or disconnect");
 }

@@ -627,6 +627,10 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
   // WhatsApp webhook's number and template news, the job runner's, the playbooks', the sweeps', the call summary), so
   // a kind that joins or leaves is a decision made here and in contracts' table together, and the page follows.
   const EMAILED = [
+    // An ad that can't run (00658, mailed since 20 Nov 2026): Meta didn't approve it, or couldn't charge the card. The
+    // database writes the row and marks its mail owed; the account's read mails it (the edge's ads/mail.ts).
+    "ad_refused",
+    "ad_unpaid",
     "alert",
     "billing",
     "broadcast_sent",
@@ -656,13 +660,11 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     [
       // An ad account that needs its owner (00653): a line on the bell from the database, opening Campaigns › Ads.
       "ad_account",
-      // An owner's ads (00658): five lines on the owner's bell from the database, each opening its ad. Which of them is
-      // also emailed is Ruben's open call (decision 0050, "Not decided here"), so none is yet.
+      // An owner's ads (00658): lines on the owner's bell from the database, each opening its ad. The three that are
+      // news stay there; the two that stop an ad are mailed too (above).
       "ad_ended",
       "ad_quiet",
-      "ad_refused",
       "ad_spent",
-      "ad_unpaid",
       // A draft ad left for the owner (00659): a line on the owner's bell from the database, opening New ad.
       "ad_draft",
       // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.

@@ -198,6 +198,7 @@ over, and adds nothing it does not know.
 | Can't be done as it is                  | Why, and what would change it                         | That change                       |
 | The member's role may not               | "Only an owner can do this"                           | None                              |
 | Out of date                             | "Updated 2:14 PM", and "Couldn't update" if it failed | Try again                         |
+| Something Chanlytics can't know         | A quiet line: who doesn't say, and what settles it    | None. Never a check left open     |
 
 ### A problem, said right
 
@@ -232,6 +233,10 @@ Before a refusal can happen, the product checks for it and says what to change, 
   days". Never a bare date and time ("Since Wed 2:32 PM").
 - **Two facts never share a word.** Appointments on today's calendar and bookings made today are different facts:
   "6 appointments today" in the day and "3 booked" among the figures, never "6 booked" over "3 booked".
+- **A count can always be finished.** It counts only what Chanlytics can read. A fact a provider does not share is a
+  quiet line that says so and what settles it, never a check that stays open: the Ads card said "3 of 5 ready" forever
+  until 20 November 2026, for a Page's WhatsApp number Meta never shares, and says "Ready" now, with "Meta doesn't share
+  whether your Page is linked to … Meta checks it when an ad is made." under its checks.
 - **A thing is said once on a page** (decision 0137). What waits on you is Needs you's row and the one count; news is
   the bell's. A card or a line that says a row's fact again, with its own count, is the bug: "8 emails wait for your
   approval" over "Your next 5 emails are ready for your approval".

@@ -1355,6 +1355,7 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
     notifications: settingsHeld().config.notifications,
     emailHeld: null,
     phone: null,
+    ads: false,
   });
   assert.deepEqual(
     groups.map((g) => g.group),
@@ -1384,11 +1385,13 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
     assert.equal(lock?.props["data-tip"], ALERT_PANE_WORDS.always, key);
     assert.equal(byTestId(row, `ntf-email-${key}`), null, `${key}: nothing to turn off`);
   }
-  // Every other emailed topic is a tick, on until the business turns it off; and no phone column without a phone.
+  // Every other emailed topic is a tick, on until the business turns it off; and no phone column without a phone. Ads'
+  // own is drawn only where Campaigns › Ads is, which it is not here.
   assert.deepEqual(
     ticks(grid, "email").map((n) => [n.props["data-testid"], n.props["aria-pressed"]]),
-    ALERT_TOPICS.filter((t) => t.email === "choice").map((t) => [`ntf-email-${t.key}`, true]),
+    ALERT_TOPICS.filter((t) => t.email === "choice" && t.ads !== true).map((t) => [`ntf-email-${t.key}`, true]),
   );
+  assert.equal(byTestId(grid, "ntf-topic-ads"), null, "no choice about ads where no ad can run");
   assert.equal(ticks(grid, "phone").length, 0);
   assert.ok(!textOf(grid).includes(ALERT_PANE_WORDS.phoneHead), "no column of a phone nobody has");
   assert.ok(!textOf(tree).includes("to Chanlytics"), "Chanlytics' own alerts are not the workspace's");
@@ -1398,6 +1401,18 @@ test("Notifications: what the workspace is told, a topic a row in its group, whe
     0,
     "a browser that cannot alert draws no switch (none can here)",
   );
+});
+
+test("where Campaigns › Ads is drawn, an ad that can't run is a topic under Needs you, mailed until the business turns it off (0050 call 15)", () => {
+  const config = { notifications: { escalation_emails: ["dana@northside.example"] } };
+  workspace("owner", { record: { role: "owner", version: 3, ads: true, config } });
+  alertsRead({ push_off: [], phones: [], choosable: true });
+  const grid = byTestId(settings("notifications"), "ntf-grid");
+  const row = byTestId(byTestId(grid, "ntf-group-needs_you"), "ntf-topic-ads");
+  assert.ok(textOf(row).startsWith("An ad can't run"));
+  assert.equal(byTestId(row, "ntf-email-ads").props["aria-pressed"], true, "mailed until turned off");
+  const ads = ALERT_TOPICS.find((t) => t.key === "ads");
+  assert.deepEqual([ads.kinds, ads.email, ads.phone], [["ad_refused", "ad_unpaid"], "choice", false]);
 });
 
 test("a member with a phone ticks what reaches it, whatever their role; a kind no phone is told has no tick, and a choice that cannot be saved yet shows what is told (0040)", async () => {

@@ -182,6 +182,11 @@ export interface AdDraftInputs {
   /** In the order Files offers them. */
   pictures: readonly AdPicture[];
   address: string | null;
+  /**
+   * Whether the draft is shown across a place wider than the circle around the business (a city, a state or region,
+   * the whole country), which needs no street address: the owner chose one, or the business goes to its customers.
+   */
+  wide: boolean;
   /** Whether AI answers a WhatsApp number the ad can open. */
   whatsapp: boolean;
   account: { currency: string; minDailyMinor: number };
@@ -291,7 +296,8 @@ export function adDraftOf(
 ): { ok: true; parts: AdDraftParts } | { ok: false; missing: AdDraftMissing } {
   const open = inputs.services.filter((service) => !service.advertised);
   if (open.length === 0) return { ok: false, missing: "service" };
-  if (!inputs.address?.trim()) return { ok: false, missing: "address" };
+  // A circle needs its centre; a wider place is named by itself.
+  if (!inputs.wide && !inputs.address?.trim()) return { ok: false, missing: "address" };
   if (!inputs.whatsapp) return { ok: false, missing: "whatsapp" };
   const shown = open.flatMap((service) => {
     const picture = pictureFor(service.id, inputs.pictures);

@@ -123,7 +123,8 @@ test("Connect is one press: Meta's own window opens by the app's route, and the 
   const checking = page.draw();
   assert.equal(byTestId(checking, "ads-conn").props["data-state"], "checking");
   assert.equal(headConnect().connect, null, "nothing to press while it checks");
-  assert.equal(byTestId(checking, "ads-conn-checks").props.children.length, 5);
+  // Three checks, each one Chanlytics can read (the Page's WhatsApp number is a quiet line, never a check).
+  assert.equal(byTestId(checking, "ads-conn-checks").props.children.length, 3);
   // The window says what happened on the app's channel; the page reads the account again and the card goes on.
   route.account = {
     offered: true,
@@ -144,10 +145,11 @@ test("Connect is one press: Meta's own window opens by the app's route, and the 
       spend_limit_minor: null,
       instagram_handle: null,
       ai_number: "+15550100142",
-      checks: ["account-active", "payment", "page-linked", "whatsapp-linked", "chanlytics-whatsapp"].map((id) => ({
+      checks: ["account-active", "payment", "page-linked"].map((id) => ({
         id,
         ok: true,
       })),
+      whatsapp_link: "unsaid",
       can_pause: true,
       reads_instagram: true,
       choices: [],
@@ -240,27 +242,29 @@ test("the card says its name as its page gives it: the Ads page's own, and the a
   assert.equal(card.props["aria-label"], CARD.name);
 });
 
-test("a check Meta does not answer says so, its dot still: never turning as if it were being checked", async () => {
+test("a check met is still, a check not known yet turns, and a check not met warns", async () => {
   const { CardChecks } = await import(`${S}/surfaces/campaigns/ads/connect/card.tsx`);
-  const { CHECK_UNSAID } = await import(`${S}/surfaces/campaigns/ads/connect/words.ts`);
   fresh();
   const tree = again(() =>
     CardChecks({
       checks: [
-        { id: "whatsapp-linked", label: "WhatsApp number linked to the Page", neededFor: "A new ad", state: "unsaid" },
+        { id: "page-linked", label: "Page", neededFor: "A new ad", state: "ok" },
         { id: "payment", label: "Payment method in Meta", neededFor: "Turn on, Resume", state: "unknown" },
+        { id: "account-active", label: "Ad account is active", neededFor: "Turn on, Resume", state: "missing" },
       ],
       neededFor: false,
     }),
   );
-  const [unsaid, checking] = all(tree, (n) => n.type === "li");
-  assert.equal(textOf(unsaid), `WhatsApp number linked to the Page${CHECK_UNSAID}`);
-  assert.equal(find(unsaid, (n) => n.props?.className === "ads-dot").props["data-turning"], undefined);
-  assert.equal(find(checking, (n) => n.props?.className === "ads-dot").props["data-turning"], "true");
+  const [met, checking, missing] = all(tree, (n) => n.type === "li");
+  const dotOf = (li) => find(li, (n) => n.props?.className === "ads-dot").props;
+  assert.deepEqual([dotOf(met)["data-state"], dotOf(met)["data-turning"]], ["ok", undefined]);
+  assert.equal(dotOf(checking)["data-turning"], "true");
+  assert.equal(dotOf(missing)["data-state"], "warn");
+  assert.equal(textOf(met), "Page");
 });
 
 test("Chanlytics looks again at Meta when the owner comes back to the tab, never at the focus a page is given as it opens", async () => {
-  const checks = ["account-active", "payment", "page-linked", "whatsapp-linked", "chanlytics-whatsapp"];
+  const checks = ["account-active", "payment", "page-linked"];
   const page = await pageWith({
     offered: true,
     can_connect: true,
@@ -282,6 +286,7 @@ test("Chanlytics looks again at Meta when the owner comes back to the tab, never
       ai_number: "+15550100142",
       // Meta has no payment method: the one thing an owner goes to Meta to mend, and comes back from.
       checks: checks.map((id) => ({ id, ok: id !== "payment" })),
+      whatsapp_link: "unsaid",
       can_pause: true,
       reads_instagram: true,
       choices: [],

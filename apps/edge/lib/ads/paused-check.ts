@@ -31,6 +31,7 @@ import {
   metaAdReadBackRequest,
   metaAdRequest,
   metaAdSetRequest,
+  metaAreaSent,
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
   metaCampaignRequest,
@@ -48,6 +49,7 @@ import {
   type MetaAdsAnswer,
   type MetaCampaignHeld,
   type MetaMakeHow,
+  type MetaPlaceKind,
 } from "@chanlytics/channels/ads";
 import { findLiveAdAccount, mayRunAds } from "@chanlytics/db/ads";
 import { filesBucket, findFileForWork } from "@chanlytics/db/files";
@@ -79,11 +81,14 @@ interface CheckedDraft {
   service: string;
   picture: string;
   miles: number;
+  /** A place wider than the circle, by Meta's key, where the owner chose one: shown across it in place of the circle. */
+  area?: { kind: MetaPlaceKind; key: string } | undefined;
   total_minor: number;
   end_day: string;
   text: string;
   headline: string;
-  address: string;
+  /** The business's street address, the circle's centre: none where a wider place is chosen. */
+  address?: string | undefined;
   whatsapp: string;
 }
 
@@ -158,7 +163,7 @@ function endOfDayIn(timezone: string, day: string): string {
 
 /** What Meta holds that is not what was sent: each by a short name. Empty where they agree. */
 function checkDiffers(
-  sent: { totalMinor: number; endsAt: string; whatsapp: string; miles: number; text: string; headline: string },
+  sent: { totalMinor: number; endsAt: string; whatsapp: string; area: string | null; text: string; headline: string },
   held: MetaCampaignHeld,
 ): string[] {
   const out: string[] = [];
@@ -176,7 +181,7 @@ function checkDiffers(
   differ("end", set?.endsAt === sent.endsAt);
   differ("number", set?.whatsappNumber === sent.whatsapp.replace(/\D/g, ""));
   differ("adults", set?.youngest === 18);
-  differ("miles", set?.miles === sent.miles);
+  differ("area", sent.area !== null && set?.area === sent.area);
   differ("places", JSON.stringify(set?.places ?? []) === JSON.stringify(PLACES_SENT));
   const [ad] = held.ads;
   differ("one_ad", held.ads.length === 1);
@@ -263,8 +268,9 @@ async function makeUnder(
     endsAt,
     pageId: account.pageId,
     whatsappNumber: draft.whatsapp,
-    centre: { address: draft.address },
+    centre: { address: draft.address ?? "" },
     miles: draft.miles,
+    wide: draft.area,
     instagram: false,
   };
   if ((await sendStep(log, steps, "ad_set_dry", metaAdSetRequest(token, appSecret, setAsk, DRY))).fault) return null;
@@ -303,7 +309,7 @@ async function makeUnder(
     totalMinor: draft.total_minor,
     endsAt,
     whatsapp: draft.whatsapp,
-    miles: draft.miles,
+    area: metaAreaSent({ wide: draft.area ?? null, miles: draft.miles }),
     text: draft.text,
     headline: draft.headline,
   };
