@@ -15,8 +15,10 @@ export {
   readAdSecret,
 } from "./accounts";
 export type { AdAccountReadKept, AdAccountRow, AdAccountToConnect, AdConnectOutcome, AdDisconnected } from "./accounts";
-export { findAdDraft, keepAdDraft, keepAdMost } from "./drafts";
-export type { AdDraftKept, AdDraftRow } from "./drafts";
+export { keepAdChange, listAdChanges, markAdChangeTold } from "./changes";
+export type { AdChangeKept, AdChangeRow } from "./changes";
+export { endAdDraftWriting, findAdDraft, keepAdDraft, keepAdMost, markAdDraftWriting } from "./drafts";
+export type { AdDraftKept, AdDraftRow, AdDraftWriter, AdDraftWriting } from "./drafts";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
 export { keepAdLaunch, keepTurnOn, listAdLaunches, listAdsLeftParts, listAdsMadeHere } from "./launches";
@@ -30,6 +32,7 @@ export {
   listMadeAds,
   listPendingAds,
   markAdTold,
+  pauseAdsKept,
   setAdIntent,
 } from "./presses";
 export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept } from "./presses";

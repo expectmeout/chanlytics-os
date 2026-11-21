@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, find, textOf, press, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE } from "@chanlytics/contracts";
 import { dayWord } from "../../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { newAdView } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/model.ts";
 import {
@@ -238,6 +238,10 @@ test("why that amount (4.6, G6): a starting amount and why, or the open times an
   assert.deepEqual(typed.why, ["About $10 a day for 14 days."]);
   // A draft someone else left says who, as they left it.
   assert.equal(view({ answer: written({ left_by: "Maria" }) }).kicker, "New ad · left by Maria");
+  // Fix it's draft of an ad Meta turned down says which, and that turning this one on ends that one.
+  const fixing = view({ answer: written({}, { fixes: { id: FILE, name: "Spring offer" } }) });
+  assert.equal(fixing.kicker, "New ad · fixing Spring offer");
+  assert.equal(fixing.why[0], "AI rewrote the words from Meta's reason. Turn this on and Spring offer ends.");
 });
 
 test("a service named in a sentence: the title and the sentence say the writer's few words, and its whole name before them", () => {
@@ -445,18 +449,23 @@ let worlds = 0;
  * New ad open in a tab of its own, over a source the test answers by hand: every ask waits in `asks` until the test
  * lands it. `same` opens it again in the tab a world before it used.
  */
-function world({ same = false, preview = false } = {}) {
+function world({ same = false, preview = false, start = null } = {}) {
   if (!same) worlds += 1;
   globalThis.location.pathname = `/w/screen-${worlds}/campaigns/ads`;
   fresh();
   const asks = [];
-  // Each ask hands back the promise the screen waits on: a test that lands one waits on it, and the screen has run.
+  // Each ask hands back the promise the screen waits on (`answered`): a test that lands one waits on it, and the screen
+  // has run. It says too once its answer was handed back (`landed`), for a screen that draws nothing of it (a closed one).
   const ask = (kind) => (body) => {
     let land = () => {};
     const answered = new Promise((resolve) => {
       land = resolve;
     });
-    asks.push({ kind, body, land, answered });
+    const entry = { kind, body, land, answered, landed: false };
+    void answered.then(() => {
+      entry.landed = true;
+    });
+    asks.push(entry);
     return answered;
   };
   const went = [];
@@ -473,6 +482,9 @@ function world({ same = false, preview = false } = {}) {
     onConnect() {},
     onGo: (route) => went.push(route),
     onSee: (adId) => went.push(`see:${adId}`),
+    // Where the address says it starts from: Run as an ad's piece, drafted around once (then the address says New ad).
+    start,
+    onDrafted: () => went.push("drafted"),
   };
   NewAd(props);
   const draw = () => again(() => NewAd(props));
@@ -653,6 +665,7 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     picture_none: CONTENT_LIBRARY_ROUTE,
     picture_person: CONTENT_LIBRARY_ROUTE,
     picture_music: CONTENT_LIBRARY_ROUTE,
+    picture_gone: CONTENT_ROUTE,
     account: "closed",
     stopped: "closed",
   };
@@ -701,6 +714,48 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
   assert.match(none.said("ads-new-short"), /Couldn't open New ad/);
   press(byTestId(none.draw(), "ads-new-again"));
   assert.deepEqual((await none.asked(2, "the draft to be read again")).body, {});
+});
+
+test("opened by Run as an ad on a made piece: one draft around that piece, then the kept draft like any other (6.8)", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  assert.deepEqual(
+    w.asks.map((one) => [one.kind, one.body]),
+    [["draft", { picture: FILE }]],
+    "the draft is asked for around the piece, once",
+  );
+  w.asks[0].land(
+    answerOf({ picked: "first" }, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }),
+  );
+  // Drafted and kept: the address can say New ad alone, so a reload opens the kept draft and drafts nothing again.
+  await until(() => w.went.includes("drafted"), "the address to be told");
+  const writer = await w.asked(2, "the ad writer to be asked");
+  assert.equal(writer.body.draft.picture, FILE, "its words are written for that piece");
+  assert.deepEqual(w.went, ["drafted"]);
+  // The one thing missing keeps nothing: Look again asks around the piece again.
+  const reading = world({ start: { how: "piece", id: FILE } });
+  reading.asks[0].land({ can: false, missing: "account_reading" });
+  await reading.shows("ads-new-short", "the reading to be said");
+  assert.deepEqual(reading.went, [], "nothing was drafted, so the address keeps the piece");
+  press(byTestId(reading.draw(), "ads-new-missing-act"));
+  assert.deepEqual((await reading.asked(2, "the draft to be read again")).body, { picture: FILE });
+  // An ad's copy, run again, or on Google, opens on the kept draft as + New does; so does an address naming no file.
+  assert.deepEqual(world({ start: { how: "copy", id: OTHER } }).asks[0].body, {});
+  assert.deepEqual(world({ start: { how: "piece", id: "not-a-file" } }).asks[0].body, {});
+});
+
+test("a draft that lands after New ad was closed moves no address and asks AI for no words: nobody has it open", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  w.props.open = false;
+  w.draw();
+  w.asks[0].land(answerOf({}, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }));
+  await until(() => w.asks[0].landed, "the answer to land while it is closed");
+  assert.equal(w.asks.length, 1, "no writer asked for a screen nobody has open");
+  // Opened again: the next ask is the draft's, never the writer's for the screen that was closed.
+  w.props.open = true;
+  w.draw();
+  const next = await w.asked(2, "the draft to be asked for again as it opens");
+  assert.deepEqual([next.kind, next.body], ["draft", { picture: FILE }], "nothing was kept for it: around the piece");
+  assert.deepEqual(w.went, [], "the address was not moved while it was closed");
 });
 
 test("opened again, in the tab or on another device: the workspace's kept draft and its words, and the writer is not asked twice (G18)", async () => {
@@ -856,7 +911,7 @@ test("once the words are written, Meta is asked for the version on show; its fra
   loadFrame(w, "feed");
   assert.equal(w.said("ads-new-text"), null, "Meta's own in its place");
   assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
-  // Each place loads at once; the one on show is Meta's once it has loaded.
+  // The other places began once the feed's had loaded; the one on show is Meta's once it has loaded.
   pickPlace(w, "story");
   assert.equal(lineOf(w), "Asking Meta for its own preview…");
   loadFrame(w, "story");
@@ -875,6 +930,28 @@ test("once the words are written, Meta is asked for the version on show; its fra
   press(byTestId(w.draw(), "ads-new-next"));
   await until(() => byTestId(w.draw(), "ads-new-meta-feed")?.props.src === META("feed"), "the first version again");
   assert.equal(w.asks.length, 4, "the first version's preview was held");
+  unmount();
+});
+
+test("Meta's frame of the place on show loads first; the others begin once it has loaded, and one that has begun stays", async () => {
+  const w = world({ preview: true });
+  const picture = "66666666-6666-4666-8666-666666666666";
+  w.asks[0].land(written({}, { picture: { id: picture, kind: "photo", name: "front desk", made: false } }));
+  await w.shows("ads-new-text", "the written draft");
+  const asked = await w.asked(2, "Meta's preview to be asked");
+  asked.land(drawnAs(THREE[0], picture));
+  await w.shows("ads-new-meta-feed", "Meta's frame of the feed");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-story"), null, "the story's frame waits for the one on show");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-reel"), null, "and the Reel's");
+  // The owner looks at the story before the feed's has loaded: its frame begins at once, and the feed's stays.
+  pickPlace(w, "story");
+  await w.shows("ads-new-meta-story", "the story's frame, now the one on show");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-feed")?.props.src, META("feed"), "the feed's frame stays");
+  assert.equal(byTestId(w.draw(), "ads-new-meta-reel"), null, "the Reel's still waits");
+  // Once the one on show has loaded, the last begins.
+  loadFrame(w, "story");
+  await w.shows("ads-new-meta-reel", "the Reel's frame, once the one on show has loaded");
+  assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
   unmount();
 });
 

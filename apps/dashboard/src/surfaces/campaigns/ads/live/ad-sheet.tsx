@@ -3,7 +3,9 @@
  * Meta's own words where Meta will not run it, Chanlytics' count beside Meta's numbers, each labelled as whose it is,
  * the people it brought, and at its foot the one thing its owner can do here: Pause, always; turn it back on only
  * where Meta holds a total and an end date for it alone, as a question that names the most it can cost; otherwise a
- * door into Meta. Every sentence is the model's (model.ts).
+ * door into Meta. An ad made here also says its one sentence, whose total, last day and miles its owner taps to change
+ * (change-sentence.tsx), with End; one Meta turned down offers Fix it, and a door to ask Meta to look again. Every
+ * sentence is the model's (model.ts, change-model.ts).
  */
 import type { ReactNode } from "react";
 import { personTabRoute } from "@chanlytics/contracts";
@@ -15,7 +17,10 @@ import { gate, routeDoor } from "../../../frame-verbs";
 import { GATE } from "../model/words";
 import { dayOfIso } from "../model/vm-base";
 import { dayWord } from "../model/words";
+import { ChangeSentence, EndAd } from "./change-sentence";
+import { FIX } from "./change-words";
 import type { FigureVM, SheetVM } from "./model";
+import type { AdChangeActs } from "./use-change";
 import { useAdPeople } from "./use-live";
 import { ADS_MANAGER, SHEET } from "./words";
 
@@ -72,7 +77,7 @@ function People({ adId, timezone, onGo }: { adId: string; timezone: string; onGo
 }
 
 /** What the drawer's presses do: each carries the version the drawer was drawn from. */
-export interface SheetActs {
+export interface SheetActs extends AdChangeActs {
   pause: (id: string, version: number) => void;
   resume: (id: string, version: number) => void;
   /** Ask Meta what stands of an ad whose last switch it never answered. */
@@ -130,6 +135,23 @@ function footOf(vm: SheetVM, acts: SheetActs, onClose: () => void): ReactNode {
         {SHEET.check}
       </Button>
     );
+  if (foot.kind === "fix")
+    return (
+      <>
+        <Button
+          variant="primary"
+          disabled={acts.busy || acts.fixing}
+          onClick={() => acts.fix(vm.id)}
+          data-testid="ads-live-fix"
+          {...gate("approve", GATE.change)}
+        >
+          {acts.fixing ? FIX.writing : FIX.press}
+        </Button>
+        <LinkButton href={ADS_MANAGER} {...META_TAB} data-testid="ads-live-look-again">
+          {FIX.again} <Icon name="chevron" size={12} />
+        </LinkButton>
+      </>
+    );
   if (foot.kind === "left")
     return (
       <LinkButton href={ADS_MANAGER} {...META_TAB} data-testid="ads-live-left">
@@ -142,7 +164,7 @@ function footOf(vm: SheetVM, acts: SheetActs, onClose: () => void): ReactNode {
 /** The words above the foot's press: what it will do, or why there is none. */
 function Above({ vm }: { vm: SheetVM }) {
   const { foot } = vm;
-  if (foot.kind === "pause") return <p className="ads-conn-says">{foot.body}</p>;
+  if (foot.kind === "pause" || foot.kind === "fix") return <p className="ads-conn-says">{foot.body}</p>;
   if (foot.kind === "check" || foot.kind === "left")
     return (
       <div className="ads-conn-need" data-tone="warn" data-testid="ads-live-launch">
@@ -186,6 +208,15 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
             {vm.line}
           </p>
           {vm.made ? <p className="ads-conn-says">{vm.made}</p> : null}
+          {vm.change ? (
+            <ChangeSentence
+              key={`${vm.id}:${vm.version}`}
+              vm={vm.change}
+              timezone={timezone}
+              busy={acts.busy || acts.changing}
+              onChange={(ask, back) => acts.change(vm.id, ask, back)}
+            />
+          ) : null}
           {vm.reason ? (
             <div className="ads-conn-need" data-tone="warn" data-testid="ads-live-reason">
               <b>{vm.reason.label}</b>
@@ -197,6 +228,7 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
           <Figures label={SHEET.theirs} figures={vm.theirs} note={SHEET.theirsNote} />
           {vm.counted ? <People adId={vm.id} timezone={timezone} onGo={onGo} /> : null}
           <Above vm={vm} />
+          {vm.ends ? <EndAd name={vm.name} busy={acts.busy || acts.changing} onEnd={() => acts.end(vm.id)} /> : null}
         </div>
       ) : null}
     </Sheet>

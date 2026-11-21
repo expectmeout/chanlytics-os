@@ -10,7 +10,7 @@ export type AdPreviewPlace = "feed" | "story" | "reel";
 /** GET ads/preview?version=: which of the kept draft's versions, from 0. */
 export const AdPreviewQuery = z.object({ version: z.coerce.number().int().min(0).max(2) });
 
-/** Meta's own frame of one place: its preview page, and the size Meta drew it at where it said one. */
+/** Meta's own frame of one place: its preview page, and the size its page draws the place at, where that is known. */
 export interface AdPreviewFrame {
   src: string;
   width: number | null;
@@ -18,7 +18,8 @@ export interface AdPreviewFrame {
 }
 
 /**
- * Why a place shows Chanlytics' own drawing and not Meta's: Meta can't be asked from here; the account is not connected,
+ * Why a place shows Chanlytics' own drawing and not Meta's: Meta can't be asked from here, or answered in a shape this
+ * page can't read (both said as the plain drawing); the account is not connected,
  * or Meta needs it connected again; the picture is a video, which Meta's preview is not asked for yet; Meta did not
  * answer, or is holding the account back; or Meta said no.
  */

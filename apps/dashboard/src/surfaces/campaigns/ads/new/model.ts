@@ -279,7 +279,8 @@ function whyLines(here: NewAdHere, days: number): string[] {
     answer.picked === "most_booked" ? NEW.why.mostBooked : answer.picked === "first" ? NEW.why.first : null;
   const amount = amountWhy(answer, local, days);
   const area = answer.area_why === "goes_to_customers" ? [NEW.why.goesToCustomers] : [];
-  return [...amount, ...(picked ? [picked] : []), ...area];
+  const fixing = answer.draft.fixes ? [NEW.why.fixing(answer.draft.fixes.name)] : [];
+  return [...fixing, ...amount, ...(picked ? [picked] : []), ...area];
 }
 
 /** The area's words: "within" the miles of a circle, or the wider place the draft is shown across. */
@@ -304,6 +305,12 @@ function aDayOf(totalMinor: number, days: number, currency: string): number {
 const serviceSaid = (draft: AdDraftHere["draft"]): string => draft.label ?? draft.service.trim();
 
 /** The screen, from what it holds. */
+/** The line over the service's name: Fix it's draft of an ad Meta turned down, one someone left, or AI's own. */
+function kickerOf(answer: AdDraftHere): string {
+  if (answer.draft.fixes) return NEW.kickerFix(answer.draft.fixes.name);
+  return answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker;
+}
+
 export function newAdView(here: NewAdHere): NewAdVM {
   const { answer, local, words } = here;
   const { currency } = answer.account;
@@ -316,7 +323,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
   const service = serviceSaid(answer.draft);
   return {
     title: service.charAt(0).toUpperCase() + service.slice(1),
-    kicker: answer.left_by ? NEW.kickerLeft(answer.left_by) : NEW.kicker,
+    kicker: kickerOf(answer),
     sentence: {
       service,
       ...areaSaid(here),

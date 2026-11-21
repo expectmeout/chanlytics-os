@@ -789,6 +789,250 @@ COMMENT ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many intege
 
 
 --
+-- Name: ad_change_keep(uuid, uuid, uuid, integer, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad      public.ads;
+  v_status  text;
+  v_what    text := p_change ->> 'what';
+  v_key     text;
+  v_pending jsonb;
+  v_held    boolean;
+  v_lately  timestamptz[];
+  v_miles   integer;
+begin
+  if p_change is null or jsonb_typeof(p_change) <> 'object' or v_what is null
+     or v_what not in ('total', 'end_day', 'miles', 'end')
+     or (v_what = 'total' and coalesce((p_change ->> 'total_minor')::bigint, 0) <= 0)
+     or (v_what = 'end_day' and ((p_change ->> 'end_day') is null or (p_change ->> 'ends_at') is null))
+     or (v_what = 'miles' and coalesce((p_change ->> 'miles')::integer, 0) not between 1 and 50) then
+    raise exception 'ad_change_keep: a change is a total, a last day with its moment, miles from 1 to 50, or the end'
+      using errcode = '22023';
+  end if;
+  -- The owner alone changes an ad (0050, call 2): asked here again, whoever knocked.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- One press at a time for an ad: two that arrive together are taken in turn, and the second sees the first.
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  select a.status into v_status from public.ad_accounts a where a.id = v_ad.account_id;
+  if v_status is distinct from 'connected' then
+    return jsonb_build_object('outcome', 'not_connected');
+  end if;
+  -- An ad made in Meta is changed there (0050, call 9): here it takes Pause, and Resume under its rule, alone.
+  if v_ad.origin <> 'chanlytics' then
+    return jsonb_build_object('outcome', 'not_here');
+  end if;
+  if v_ad.status <> 'made' or v_ad.platform_campaign_id is null or v_ad.platform_set_id is null then
+    return jsonb_build_object('outcome', 'not_made');
+  end if;
+  if v_ad.intent = 'ended' then
+    return jsonb_build_object('outcome', 'over', 'version', v_ad.version);
+  end if;
+  v_pending := v_ad.change;
+  -- Meta never said whether it took the last change: nothing more is asked until a read back settles it.
+  if v_pending ? 'sent_at' then
+    return jsonb_build_object('outcome', 'unsure', 'version', v_ad.version);
+  end if;
+  v_key := case v_what when 'total' then 'total_minor' when 'end_day' then 'end_day' when 'miles' then 'miles' end;
+  -- The same press again, on its way: answered once, changed once.
+  if v_pending ->> 'what' = v_what and (v_what = 'end' or (v_pending -> v_key) = (p_change -> v_key)) then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version, 'pending', true);
+  end if;
+  v_miles := case when jsonb_typeof(v_ad.approved -> 'area') = 'object' then null
+                  else (v_ad.approved ->> 'miles')::integer end;
+  -- Whether Meta holds what is asked already.
+  v_held := case v_what
+              when 'total' then v_ad.budget_minor = (p_change ->> 'total_minor')::bigint
+              when 'end_day' then v_ad.ends_at = (p_change ->> 'ends_at')::timestamptz
+              when 'miles' then v_miles = (p_change ->> 'miles')::integer
+              else false
+            end;
+  if coalesce(v_held, false) and v_pending is null then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version, 'pending', false);
+  end if;
+  if v_ad.version <> p_version then
+    return jsonb_build_object('outcome', 'stale', 'version', v_ad.version);
+  end if;
+  -- Drawn from what Meta holds: a total or a last day changed in Meta since the page was read is never put back.
+  if (v_what = 'total' and (p_change ->> 'from_minor')::bigint is distinct from v_ad.budget_minor)
+     or (v_what = 'end_day' and (p_change ->> 'from_ends_at')::timestamptz is distinct from v_ad.ends_at) then
+    return jsonb_build_object('outcome', 'stale', 'version', v_ad.version);
+  end if;
+  -- One change at a time: another on its way is sent first. Ending the ad takes the place of any.
+  if v_pending is not null and v_pending ->> 'what' <> v_what and v_what <> 'end' then
+    return jsonb_build_object('outcome', 'busy', 'version', v_ad.version);
+  end if;
+  -- Meta changes an ad set's amount at most four times an hour: a fifth waits, and the press says until when.
+  if v_what = 'total' and not coalesce(v_held, false) then
+    v_lately := array(select x from unnest(coalesce(v_ad.amounts_at, '{}'::timestamptz[])) as x
+                       where x > now() - interval '1 hour' order by x);
+    if cardinality(v_lately) >= 4 then
+      return jsonb_build_object('outcome', 'amount_soon', 'version', v_ad.version,
+                                'next_at', v_lately[cardinality(v_lately) - 3] + interval '1 hour');
+    end if;
+  end if;
+
+  if coalesce(v_held, false) then
+    -- It takes back one on its way that Meta was never told of: nothing is left to tell.
+    update public.ads a set change = null, version = a.version + 1 where a.id = p_ad_id;
+  else
+    update public.ads a
+       set change = jsonb_strip_nulls(jsonb_build_object(
+             'what', v_what,
+             'total_minor', case v_what when 'total' then (p_change ->> 'total_minor')::bigint end,
+             'end_day', case v_what when 'end_day' then p_change ->> 'end_day' end,
+             'ends_at', case v_what when 'end_day' then (p_change ->> 'ends_at')::timestamptz end,
+             'miles', case v_what when 'miles' then (p_change ->> 'miles')::integer end,
+             'from_minor', v_ad.budget_minor,
+             'from_ends_at', v_ad.ends_at,
+             'from_miles', v_miles,
+             'asked_at', now(),
+             'by', p_actor)),
+           version = a.version + 1
+     where a.id = p_ad_id;
+  end if;
+
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', p_ad_id, case v_what when 'end' then 'end_ad' else 'change_ad' end, 'user', p_actor,
+          jsonb_strip_nulls(jsonb_build_object(
+            'platform', v_ad.platform, 'name', v_ad.name, 'what', v_what, 'took_back', coalesce(v_held, false),
+            'from_minor', v_ad.budget_minor, 'from_ends_at', v_ad.ends_at, 'from_miles', v_miles,
+            'to', p_change -> v_key, 'most_minor', p_change -> 'expect_max_minor')));
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'ad.change_asked', 'ads', 'ad', p_ad_id,
+          jsonb_strip_nulls(jsonb_build_object(
+            'platform', v_ad.platform, 'name', v_ad.name, 'what', v_what, 'by', p_actor, 'to', p_change -> v_key,
+            'took_back', coalesce(v_held, false))));
+  return jsonb_build_object('outcome', case when coalesce(v_held, false) then 'took_back' else 'asked' end,
+                            'version', v_ad.version + 1, 'tell', not coalesce(v_held, false),
+                            'account_id', v_ad.account_id, 'told_at', v_ad.told_at);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) IS 'Service-role only: an owner changes a running ad made here (00673; decision 0050, Routes budget, end-date, end): its total (total_minor), its last day (end_day, with ends_at), the miles it is shown across, or the end. Keeps the change on the ad (ads.change) with what the platform held, bumps its version, and writes the decision (change_ad, end_ad) and the event (ad.change_asked) in one transaction. Answers outcome: asked, with the new version and tell; same where it is on its way or the platform holds it already; took_back where it undid one on its way the platform was never told of; stale for a press drawn from an old version, or from a total or last day the platform no longer holds; busy while another change is on its way; amount_soon with next_at after four amounts in an hour; unsure while one sent was never answered; over for an ad ended; not_here for an ad made at the platform; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
+
+
+--
+-- Name: ad_change_told(uuid, uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text DEFAULT NULL::text) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad     public.ads;
+  v_change jsonb;
+  v_what   text;
+  v_lately timestamptz[];
+  v_total  bigint;
+begin
+  if p_outcome not in ('told', 'refused', 'unknown', 'not_taken') then
+    raise exception 'ad_change_told: outcome told, refused, unknown or not_taken' using errcode = '22023';
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id
+   for update;
+  if not found then
+    return 'not_found';
+  end if;
+  v_change := v_ad.change;
+  if v_change is null then
+    return 'nothing';
+  end if;
+  v_what := v_change ->> 'what';
+  v_lately := array(select x from unnest(coalesce(v_ad.amounts_at, '{}'::timestamptz[])) as x
+                     where x > now() - interval '1 hour' order by x);
+
+  if p_outcome = 'unknown' then
+    -- Sent, and no answer came: whether Meta took it is not known. Never sent again; a read back settles it.
+    update public.ads a
+       set change = v_change || jsonb_build_object('sent_at', now()),
+           told_at = now(),
+           amounts_at = case when v_what = 'total' then v_lately || now() else a.amounts_at end
+     where a.id = p_ad_id;
+    return 'unknown';
+  end if;
+
+  if p_outcome in ('refused', 'not_taken') then
+    -- Meta holds what it held: the change goes, and an event says so, with Meta's own words where it gave them.
+    update public.ads a
+       set change = null,
+           told_at = case when p_outcome = 'refused' then now() else a.told_at end
+     where a.id = p_ad_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.press_refused', 'ads', 'ad', p_ad_id,
+            jsonb_strip_nulls(jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'asked', v_what,
+                                                 'said', nullif(left(coalesce(p_said, ''), 300), ''),
+                                                 'unanswered', p_outcome = 'not_taken')));
+    return p_outcome;
+  end if;
+
+  -- Taken: the row says what Meta now holds, and what was approved with it, until the account's next read says more.
+  if v_what = 'total' then
+    v_total := (v_change ->> 'total_minor')::bigint;
+    update public.ads a
+       set budget_left_minor = greatest(0, v_total - (a.budget_minor - coalesce(a.budget_left_minor, a.budget_minor))),
+           budget_minor = v_total,
+           approved = coalesce(a.approved, '{}'::jsonb)
+                      || jsonb_build_object('total_minor', v_total, 'most_minor', v_total),
+           amounts_at = case when v_change ? 'sent_at' then a.amounts_at else v_lately || now() end
+     where a.id = p_ad_id;
+  elsif v_what = 'end_day' then
+    update public.ads a
+       set ends_at = (v_change ->> 'ends_at')::timestamptz,
+           approved = coalesce(a.approved, '{}'::jsonb)
+                      || jsonb_build_object('end_day', v_change ->> 'end_day', 'ends_at', v_change ->> 'ends_at')
+     where a.id = p_ad_id;
+  elsif v_what = 'miles' then
+    update public.ads a
+       set approved = coalesce(a.approved, '{}'::jsonb) || jsonb_build_object('miles', (v_change ->> 'miles')::integer)
+     where a.id = p_ad_id;
+  else
+    update public.ads a set intent = 'ended', intent_at = now() where a.id = p_ad_id;
+  end if;
+  update public.ads a set change = null, told_at = now() where a.id = p_ad_id;
+
+  if v_what = 'end' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.ended', 'ads', 'ad', p_ad_id,
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', v_change ->> 'by'));
+  else
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'ad.changed', 'ads', 'ad', p_ad_id,
+            jsonb_strip_nulls(jsonb_build_object(
+              'platform', v_ad.platform, 'name', v_ad.name, 'what', v_what, 'by', v_change ->> 'by',
+              'from_minor', v_change -> 'from_minor', 'to_minor', v_change -> 'total_minor',
+              'from_ends_at', v_change -> 'from_ends_at', 'to_ends_at', v_change -> 'ends_at',
+              'from_miles', v_change -> 'from_miles', 'to_miles', v_change -> 'miles')));
+  end if;
+  return 'told';
+end $$;
+
+
+--
+-- Name: FUNCTION ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text) IS 'Service-role only: what telling the platform of an owner''s change to an ad came to (00673; decision 0050). told: the row says the platform''s new total (and what is left of it), last day or miles, what was approved is kept with it, an ad ended is ended (intent ended), and an event says so (ad.changed, ad.ended). refused: nothing changed, and an ad.press_refused event keeps the platform''s words. unknown: sent with no answer; kept with sent_at, never sent again, settled by a read back. not_taken: that read back found the platform holds what it held. An amount sent is kept in amounts_at (four an hour). Answers the outcome, nothing where no change is on its way, or not_found.';
+
+
+--
 -- Name: ad_credentials_drop(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -878,16 +1122,17 @@ COMMENT ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret jsonb)
 
 
 --
--- Name: ad_draft_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ad_draft_keep(uuid, uuid, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) RETURNS jsonb
+CREATE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_actor   uuid := auth.uid();
   v_id      uuid;
+  v_at      timestamptz;
   v_words   integer;
   v_name    text;
   v_service text;
@@ -906,6 +1151,18 @@ begin
   end if;
   if not exists (select 1 from public.ad_accounts a where a.id = p_account_id and a.tenant_id = p_tenant_id) then
     return jsonb_build_object('kept', false, 'draft_id', null, 'rung', 0);
+  end if;
+  -- A keep that names the draft it read writes nothing over another kept since, nor brings back one gone since
+  -- (turned on): it says newer, and the dashboard puts what its writer made into the draft as it now stands.
+  if p_read_at is not null then
+    select d.id, d.updated_at into v_id, v_at
+      from public.ad_drafts d
+     where d.tenant_id = p_tenant_id
+       for update;
+    if (v_id is null and p_read_at <> '-infinity'::timestamptz) or (v_id is not null and v_at is distinct from p_read_at)
+    then
+      return jsonb_build_object('kept', false, 'draft_id', v_id, 'rung', 0, 'newer', true);
+    end if;
   end if;
   insert into public.ad_drafts as d (tenant_id, account_id, draft, kept_by)
   values (p_tenant_id, p_account_id, p_draft, v_actor)
@@ -954,10 +1211,95 @@ end $$;
 
 
 --
--- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) IS 'A member''s door (00659; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. Answers {kept, draft_id, rung}; kept false, and nothing written, for an account not of this workspace.';
+COMMENT ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) IS 'A member''s door (00659, 00672; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. With p_read_at, the kept draft''s updated_at as it was read (''-infinity'' where none was kept): where the draft kept now is another, or is gone, nothing is written and the answer says newer. Answers {kept, draft_id, rung}, with newer true where it was refused so; kept false, and nothing written, for an account not of this workspace.';
+
+
+--
+-- Name: ad_draft_writing(uuid, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_ask   uuid;
+  v_for   text;
+  v_until timestamptz;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Whoever may keep the draft may ask for its words (0050, call 2).
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- A mark outlives its request by little: its time is within the route's own minute, with room.
+  if p_ask is null or nullif(btrim(p_for), '') is null or char_length(p_for) > 1000 or p_until is null
+     or p_until <= now() or p_until > now() + interval '2 minutes' then
+    raise exception 'A writer is marked by its ask, the words it writes, and a time within two minutes.'
+      using errcode = '22023';
+  end if;
+  select d.id, d.writing_ask, d.writing_for, d.writing_until into v_id, v_ask, v_for, v_until
+    from public.ad_drafts d
+   where d.tenant_id = p_tenant_id
+     for update;
+  if v_id is null then
+    -- No draft kept: nothing to mark, and nothing to wait for.
+    return jsonb_build_object('held', false, 'ask', null, 'until', null);
+  end if;
+  if v_ask is not null and v_ask <> p_ask and v_for = p_for and v_until > now() then
+    -- Another ask is out for the same words, in its time: this one waits for it.
+    return jsonb_build_object('held', false, 'ask', v_ask, 'until', v_until);
+  end if;
+  update public.ad_drafts d
+     set writing_ask = p_ask, writing_for = p_for, writing_until = p_until
+   where d.id = v_id;
+  return jsonb_build_object('held', true, 'ask', p_ask, 'until', p_until);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) IS 'A member''s door (00672; the Ads plan''s G18): an ask for the kept draft''s words marks itself its writer, until p_until (within two minutes), for the words p_for names. Where another ask is out for the same words in its time, nothing is marked and the answer names that one, which the ask waits for; an ask for other words takes the mark over. An acting member alone (is_acting_member). Answers {held, ask, until}; held false with no ask where no draft is kept. Moves nothing of the draft.';
+
+
+--
+-- Name: ad_draft_written(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_gone integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.ad_drafts d
+     set writing_ask = null, writing_for = null, writing_until = null
+   where d.tenant_id = p_tenant_id and d.writing_ask = p_ask;
+  get diagnostics v_gone = row_count;
+  return v_gone > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_draft_written(p_tenant_id uuid, p_ask uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) IS 'A member''s door (00672): the ad writer an ask marked with ad_draft_writing is back, and the mark goes, where it is still that ask''s (an ask for other words may have taken it over). An acting member alone. True where a mark went.';
 
 
 --
@@ -1207,6 +1549,51 @@ $$;
 --
 
 COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; 00646, 00651): its platform, and its name. An ad Chanlytics holds (ads, 00648) says its own name, the one its owner gave it at the platform, and an ad made here says it for each version of its words (ad_held_for, 00666); one it does not hold says the headline the newest entry kept for it (ad_entries.said, 00644), or null where none did: an ad Chanlytics cannot name yet. The reference is read by ad_ref_parts. The one place an ad gets its name, so a person''s page, the people report and the Ads page cannot call one ad two things. Names nobody and counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+
+
+--
+-- Name: ad_pause_all(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_press jsonb;
+  v_ad    uuid;
+  v_kept  jsonb;
+  v_out   jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200 then
+    raise exception 'ad_pause_all: between 1 and 200 ads' using errcode = '22023';
+  end if;
+  -- The owner alone pauses an ad (0050, call 2): asked once here before anything is kept, and by the door for each ad.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- In the ads' own order, as ids and not as text in any collation: two presses over the same ads lock them in the same
+  -- order, so neither waits on the other. An id that is not one refuses the whole set before anything is kept.
+  for v_press in
+    select p.value from jsonb_array_elements(p_presses) p order by (p.value ->> 'ad_id')::uuid
+  loop
+    v_ad := (v_press ->> 'ad_id')::uuid;
+    v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, (v_press ->> 'version')::integer, 'paused');
+    -- A pause Meta is to be told of goes at Meta's pace, by its account's read, as one Meta would not take at once.
+    if v_kept ->> 'outcome' = 'asked' and coalesce((v_kept ->> 'tell')::boolean, false) then
+      perform public.ad_tell_ask(p_tenant_id, v_ad);
+    end if;
+    v_out := v_out || jsonb_build_array(v_kept || jsonb_build_object('ad_id', v_ad));
+  end loop;
+  return jsonb_build_object('outcome', 'kept', 'ads', v_out);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) IS 'Service-role only: an owner pauses every ad of a set at once (00671; the Ads plan''s G17, decision 0050 calls 1 and 2). Each ad ({ad_id, version}, 1 to 200 of them) is paused through ad_set_intent, in one transaction, in the ads'' own order; each kept pause the platform is to be told of asks for its account''s read (ad_tell_ask), which tells the platform at its pace. The platform is asked nothing here. Answers outcome kept with ads, what ad_set_intent answered for each with its ad_id; not_allowed for anyone but the owner (has_permission ads), with nothing kept.';
 
 
 --
@@ -10225,10 +10612,10 @@ COMMENT ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) IS '
 
 
 --
--- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: files_found(uuid, text, integer, integer, boolean, text[], boolean, text, timestamp with time zone, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer DEFAULT 0, p_made boolean DEFAULT NULL::boolean, p_shows text[] DEFAULT NULL::text[], p_or_unsorted boolean DEFAULT false, p_words text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer DEFAULT 0, p_made boolean DEFAULT NULL::boolean, p_shows text[] DEFAULT NULL::text[], p_or_unsorted boolean DEFAULT false, p_words text DEFAULT NULL::text, p_before_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_before_id uuid DEFAULT NULL::uuid, p_kind text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE sql STABLE
     SET search_path TO 'public'
     AS $$
@@ -10256,6 +10643,7 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
        and (f.media_status is null or f.media_status <> 'uploading')
        and f.status = p_status
        and (p_made is null or (f.source = 'made') = p_made)
+       and (p_kind is null or f.kind = p_kind)
        and (p_shows is null or f.shows = any (p_shows) or (coalesce(p_or_unsorted, false) and f.shows is null))
   ),
   matched as (
@@ -10268,6 +10656,8 @@ CREATE FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit inte
   page as (
     select m.id, m.created_at
       from matched m
+     -- After the file the last page ended on, by its time and then its id, where one is named.
+     where p_before_at is null or (m.created_at, m.id) < (p_before_at, p_before_id)
      order by m.created_at desc, m.id desc
      offset greatest(coalesce(p_offset, 0), 0)
      limit least(greatest(coalesce(p_limit, 1), 1), 1000)
@@ -10280,10 +10670,10 @@ $$;
 
 
 --
--- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. At most 1,000 a page. Under the caller''s row security.';
+COMMENT ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) IS 'One page of one shelf of a workspace''s files, newest first, and how many in all (00597, 00612, 00668): {ids, total}. The shelf is contracts'' shelfFilterOf as its parts (status, made, kind, shows, or unsorted). Every word given (split at anything not a letter or a digit, the first twelve) is found anywhere in file_search_words, case and Latin accents aside (search_fold); left out or blank, every file on the shelf. Given p_before_at and p_before_id, the page ends just before that file, by its time and then its id, as the plain list''s does; the total is every match still. At most 1,000 a page. Under the caller''s row security.';
 
 
 --
@@ -42256,6 +42646,9 @@ CREATE TABLE public.ad_drafts (
     kept_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    writing_ask uuid,
+    writing_for text,
+    writing_until timestamp with time zone,
     CONSTRAINT ad_drafts_draft_check CHECK (((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 20000)))
 );
 
@@ -42279,6 +42672,27 @@ COMMENT ON COLUMN public.ad_drafts.draft IS 'What New ad chose, as server/ads/dr
 --
 
 COMMENT ON COLUMN public.ad_drafts.kept_by IS 'The member who kept it last (auth.uid() at ad_draft_keep): the owner, or someone who left it for the owner.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_ask; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_ask IS 'The ask out for the draft''s words, while one is (00672): written by ad_draft_writing, let go by ad_draft_written. Null where no writer is out.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_for; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_for IS 'The words that ask writes, as the dashboard names them (00672; server/ads/writer.ts): the service, the picture, and whether they say the price. Another ask for the same words waits for it.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_until IS 'Until when another ask for the same words waits for the one out (00672): within the words route''s own minute. Past it, the next ask writes its own.';
 
 
 --
@@ -42402,12 +42816,16 @@ CREATE TABLE public.ads (
     approved jsonb,
     launch jsonb,
     shown_on text[],
+    change jsonb,
+    amounts_at timestamp with time zone[],
+    CONSTRAINT ads_amounts_at_check CHECK (((amounts_at IS NULL) OR (cardinality(amounts_at) <= 20))),
     CONSTRAINT ads_approved_check CHECK (((approved IS NULL) OR ((jsonb_typeof(approved) = 'object'::text) AND (octet_length((approved)::text) <= 20000)))),
     CONSTRAINT ads_budget_at_check CHECK ((budget_at = ANY (ARRAY['campaign'::text, 'set'::text]))),
     CONSTRAINT ads_budget_is_whole CHECK (((budget_kind IS NULL) = (budget_minor IS NULL))),
     CONSTRAINT ads_budget_kind_check CHECK ((budget_kind = ANY (ARRAY['total'::text, 'daily'::text]))),
     CONSTRAINT ads_budget_left_minor_check CHECK ((budget_left_minor >= 0)),
     CONSTRAINT ads_budget_minor_check CHECK ((budget_minor >= 0)),
+    CONSTRAINT ads_change_check CHECK (((change IS NULL) OR ((jsonb_typeof(change) = 'object'::text) AND (octet_length((change)::text) <= 2000)))),
     CONSTRAINT ads_door_check CHECK ((door = ANY (ARRAY['whatsapp'::text, 'instagram'::text, 'messenger'::text, 'call'::text, 'form'::text, 'website'::text, 'other'::text]))),
     CONSTRAINT ads_intent_check CHECK ((intent = ANY (ARRAY['on'::text, 'paused'::text, 'ended'::text]))),
     CONSTRAINT ads_launch_check CHECK (((launch IS NULL) OR ((jsonb_typeof(launch) = 'object'::text) AND (octet_length((launch)::text) <= 4000)))),
@@ -42488,6 +42906,20 @@ COMMENT ON COLUMN public.ads.launch IS 'Where the launch of an ad made here stan
 --
 
 COMMENT ON COLUMN public.ads.shown_on IS 'Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known.';
+
+
+--
+-- Name: COLUMN ads.change; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.change IS 'A change of the owner''s to a running ad made here, on its way to the platform (00673; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account''s zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told.';
+
+
+--
+-- Name: COLUMN ads.amounts_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.amounts_at IS 'When the ad''s amount was lately sent to the platform (00673): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
 
 
 --
@@ -43577,7 +44009,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text, 'ad_account'::text, 'ad'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text, 'turn_on_ad'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text, 'turn_on_ad'::text, 'change_ad'::text, 'end_ad'::text])))
 );
 
 
@@ -52873,7 +53305,7 @@ CREATE TRIGGER ad_accounts_stop_launches AFTER UPDATE OF status ON public.ad_acc
 -- Name: ad_drafts ad_drafts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW WHEN (((old.draft IS DISTINCT FROM new.draft) OR (old.account_id IS DISTINCT FROM new.account_id))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -54525,7 +54957,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, standing, con
 -- Name: ads workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at, launch, shown_on ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at) OR (old.launch IS DISTINCT FROM new.launch) OR (old.shown_on IS DISTINCT FROM new.shown_on))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at, launch, shown_on, change ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at) OR (old.launch IS DISTINCT FROM new.launch) OR (old.shown_on IS DISTINCT FROM new.shown_on) OR (old.change IS DISTINCT FROM new.change))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -59157,6 +59589,22 @@ GRANT ALL ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many inte
 
 
 --
+-- Name: FUNCTION ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_change_keep(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_change jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outcome text, p_said text) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_credentials_drop(p_account_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59181,12 +59629,30 @@ GRANT ALL ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret json
 
 
 --
--- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO authenticated;
-GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_draft_written(p_tenant_id uuid, p_ask uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) TO service_role;
 
 
 --
@@ -59229,6 +59695,14 @@ GRANT ALL ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text,
 REVOKE ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO authenticated;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) TO service_role;
 
 
 --
@@ -60799,12 +61273,12 @@ GRANT ALL ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) TO
 
 
 --
--- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO authenticated;
-GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text) TO service_role;
+REVOKE ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) TO authenticated;
+GRANT ALL ON FUNCTION public.files_found(p_tenant_id uuid, p_status text, p_limit integer, p_offset integer, p_made boolean, p_shows text[], p_or_unsorted boolean, p_words text, p_before_at timestamp with time zone, p_before_id uuid, p_kind text) TO service_role;
 
 
 --

@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { ActWords } from "../../../kit/head/act-words";
-import { askAbout, gate, navigate } from "../../../frame-verbs";
+import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
@@ -28,6 +28,7 @@ import { LiveBody } from "./live-page";
 import { liveModel, sheetModel } from "./model";
 import { StopNotice } from "./stop-notice";
 import type { StopHere } from "./stop-notice";
+import { useAdChanges } from "./use-change";
 import { useAdPresses } from "./use-press";
 
 interface LiveAdsProps {
@@ -52,10 +53,17 @@ interface LiveAdsProps {
 
 export function LiveAds(p: LiveAdsProps) {
   const { dto, address, phone } = p;
-  const said = { timezone: dto.account.timezone ?? p.timezone };
+  const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now() };
   const vm = liveModel(dto, said);
   const sheet = sheetModel(dto, address.ad, said);
-  const acts = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  const presses = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  const changes = useAdChanges({
+    ads: dto.ads,
+    currency: dto.account.currency,
+    again: p.again,
+    flash: p.flash,
+    onGo: p.nav.push,
+  });
   // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
   useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
   const sentence = (
@@ -127,7 +135,13 @@ export function LiveAds(p: LiveAdsProps) {
         stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
         onOpen={p.nav.push}
       />
-      <AdSheet vm={sheet} timezone={said.timezone} acts={acts} onClose={p.nav.close} onGo={p.nav.push} />
+      <AdSheet
+        vm={sheet}
+        timezone={said.timezone}
+        acts={{ ...presses, ...changes }}
+        onClose={p.nav.close}
+        onGo={p.nav.push}
+      />
       <NewAd
         open={address.compose !== null}
         source={LIVE_AD_SOURCE}
@@ -139,6 +153,8 @@ export function LiveAds(p: LiveAdsProps) {
           p.again();
           p.nav.push(adRoute(adId));
         }}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {p.toast}
     </div>

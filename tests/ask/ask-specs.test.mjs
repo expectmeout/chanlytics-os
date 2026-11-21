@@ -708,7 +708,11 @@ const SHAPES = {
     }),
   ],
   bring_in: [card("bring_in", { link: "instagram.com/harborsalon" })],
-  ad_draft: [card("ad_draft", { service: "Balayage", most: 300 }), card("ad_draft", { service: null, most: null })],
+  ad_draft: [
+    card("ad_draft", { service: "Balayage", most: 300 }),
+    card("ad_draft", { service: null, most: null }),
+    card("ad_draft", { service: null, most: null, picture: FILE_ID }),
+  ],
   file_yes: [
     card("file_yes", {
       file_id: FILE_ID,
@@ -1421,4 +1425,27 @@ test("a playbook card (A0, the landing rule): a starter it names is committed in
   assert.doesNotMatch(submitted, /Meta/);
   assert.doesNotMatch(spec.receipt(onStarter, { name: "Win-back" }), /WhatsApp/);
   assert.match(spec.receipt(onStarter, { name: "Win-back" }), /^“Win-back” is on\./);
+});
+
+test("an ad card (the Ads plan's 6.3, 6.8 join 3): New ad's own route with the service, the owner's most and the piece, each only where the card carries it, and New ad opened on the draft it kept", () => {
+  const spec = PROPOSAL_SPECS.ad_draft;
+  const all = card("ad_draft", { service: " Balayage ", most: 300, picture: FILE_ID });
+  assert.deepEqual(spec.commit(all, TAB), {
+    route: "POST ads/draft",
+    body: { service: "Balayage", most: 300, picture: FILE_ID },
+  });
+  // The piece alone: a fresh draft around it, its service the one its name says, else the draft's own pick.
+  assert.deepEqual(spec.commit(card("ad_draft", { service: null, most: null, picture: FILE_ID }), TAB), {
+    route: "POST ads/draft",
+    body: { picture: FILE_ID },
+  });
+  // A card from before the piece rode on it, or one that names none: the route's own pick, as it was.
+  for (const none of [{ service: null, most: null }, { picture: null }, { picture: "" }, { picture: 7 }])
+    assert.deepEqual(
+      spec.commit(card("ad_draft", none), TAB),
+      { route: "POST ads/draft", body: {} },
+      JSON.stringify(none),
+    );
+  // New ad opens on the draft the press kept, never on the piece's own address, which would draft it a second time.
+  assert.equal(spec.open(all, null), "campaigns/ads:new");
 });

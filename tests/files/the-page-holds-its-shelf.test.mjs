@@ -127,6 +127,27 @@ test("the next page comes after what is there, and a read again then asks for al
   assert.deepEqual(asked, [{ shelf: "work", limit: "3" }], "one read, and nothing scrolled through is lost");
 });
 
+test("more of a search reads on with its words, and a read again asks for the same words, as long as it now is", async () => {
+  const found = (ids, next = null) => ({ ...pageOf("all", ids, next), kind: null, about: "dusk" });
+  answerTo = () => found(["a", "b"], "cursor-1");
+  await showFiles({ shelf: "all", kind: null, about: "dusk" });
+  asked.length = 0;
+  answerTo = () => found(["c"]);
+  await showMoreFiles();
+  assert.deepEqual(
+    asked,
+    [{ shelf: "all", about: "dusk", before: "cursor-1" }],
+    "never the whole shelf after a search",
+  );
+  assert.deepEqual(idsHeld(), ["a", "b", "c"]);
+  assert.equal(held().about, "dusk", "the find line keeps its words");
+  asked.length = 0;
+  answerTo = () => found(["a", "b", "c"]);
+  await filesOverride.apply();
+  assert.deepEqual(asked, [{ shelf: "all", about: "dusk", limit: "3" }]);
+  assert.equal(held().about, "dusk");
+});
+
 test("with no next page there is nothing to read", async () => {
   answerTo = () => pageOf("work", ["a"]);
   await showShelf("work");

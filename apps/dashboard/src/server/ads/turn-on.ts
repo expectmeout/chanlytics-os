@@ -19,7 +19,7 @@ import { deployment } from "../shared/env";
 import type { Member } from "../shared/route";
 import { readerContext } from "../shared/reader";
 import type { RouteContext } from "../shared/with-route";
-import { adDraftAnswer, requireAdsOffered } from "./draft";
+import { AD_ACCOUNT_NOT_CONNECTED, adDraftAnswer, requireAdsOffered } from "./draft";
 import { readAdDraftFacts } from "./draft-facts";
 import type { AdDraftAnswer, AdWideArea } from "./draft-shape";
 
@@ -109,8 +109,7 @@ function turnOnRefusal(answer: Answer): AppError {
       "Turning an ad on from here isn't on in this workspace yet. Nothing was made.",
       409,
     );
-  if (code === "nothing_to_do")
-    return new AppError("conflict", "Your ad account isn't connected right now. Connect it again first.", 409);
+  if (code === "nothing_to_do") return new AppError("conflict", AD_ACCOUNT_NOT_CONNECTED, 409);
   return new AppError("upstream_provider", "Couldn't turn it on just now. Nothing was made. Try again.");
 }
 
@@ -158,7 +157,16 @@ export async function requestTurnOn(
         picture: draft.picture.id,
         picture_kind: draft.picture.kind,
         miles: draft.miles,
-        ...(draft.area ? { area: { kind: draft.area.kind, key: draft.area.key } } : { address: facts.address ?? "" }),
+        ...(draft.area
+          ? {
+              area: {
+                kind: draft.area.kind,
+                key: draft.area.key,
+                name: draft.area.name,
+                country: draft.area.country,
+              },
+            }
+          : { address: facts.address ?? "" }),
         total_minor: draft.total_minor,
         most_minor: adMostOf(draft),
         end_day: draft.end_day,
@@ -166,6 +174,7 @@ export async function requestTurnOn(
         whatsapp: facts.whatsappNumber,
         declared: "none",
       },
+      ...(draft.fixes ? { fixes: draft.fixes.id } : {}),
     },
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: TURN_ON_WAIT_MS },
   );

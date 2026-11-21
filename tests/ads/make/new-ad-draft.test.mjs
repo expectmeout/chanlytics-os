@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { until } from "../../shared/_until.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -34,6 +35,8 @@ const { readerContext, readerCache } = await import(at("apps/dashboard/src/serve
 const { AD_SKILL } = await import(at("apps/dashboard/src/server/ask/skills/ad/skill.ts"));
 const { forgetFeeds } = await import(at("apps/dashboard/src/server/calendar/openings.ts"));
 const { adDraftAct } = await import(at("apps/dashboard/src/server/ask/tools/act/ads/draft.ts"));
+const { readPieceAd } = await import(at("apps/dashboard/src/server/content/ad-pictures.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/shared/service-db.ts"));
 const C = await import("@chanlytics/contracts");
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -155,6 +158,8 @@ beforeEach(() => {
   calls = [];
   readerCache.clear();
   forgetFeeds();
+  // The service role's client, which a test of made pieces hands in (seatedMade): built from the environment again.
+  setServiceClient(null);
   globalThis.fetch = async (url) => {
     // The calendar a business links (calendar.ical_url): nothing on it is taken, so every hour it offers is open.
     if (String(url).startsWith("https://cal.example/"))
@@ -175,6 +180,7 @@ beforeEach(() => {
 after(() => {
   globalThis.fetch = real;
   setModelStream(null);
+  setServiceClient(null);
 });
 
 /** The model, answering `answer` (or throwing `refused`), one text event and a stop, as the gateway streams them. */
@@ -189,21 +195,47 @@ const modelSays = (answer, refused = null) =>
 /** An empty calendar: what the business's hours offer is all open. */
 const OPEN_CALENDAR = ["BEGIN:VCALENDAR", "END:VCALENDAR"].join("\r\n");
 
+/** No writer out for the draft's words. */
+const NO_WRITER = { writing_ask: null, writing_for: null, writing_until: null };
+
 /**
- * The two doors of 00659 as the database answers them, over the tables in memory: a draft kept as the workspace's one
- * (by whoever is signed in, each keep written down), and the owner's most kept on the connected account. Who may, and
- * the owner's bell, are the database's own (a-draft-is-kept-and-left-for-the-owner.db.test.mjs).
+ * The doors of 00659 and 00672 as the database answers them, over the tables in memory: a draft kept as the workspace's
+ * one (by whoever is signed in, each keep written down, each at a moment of its own), and nothing written over a newer
+ * one by a keep that names the draft it read; the writer out for its words, marked once for the same words; and the
+ * owner's most kept on the connected account. Who may, and the owner's bell, are the database's own
+ * (a-draft-is-kept-and-left-for-the-owner.db.test.mjs).
  */
-function draftDoors(tables, userId, keeps) {
+function draftDoors(tables, userId, keeps, writers) {
+  const draftOf = (tenantId) => tables.ad_drafts?.find((row) => row.tenant_id === tenantId);
   return {
-    ad_draft_keep: ({ p_tenant_id, p_account_id, p_draft }) => {
+    ad_draft_keep: ({ p_tenant_id, p_account_id, p_draft, p_read_at }) => {
       tables.ad_drafts ??= [];
-      const had = tables.ad_drafts.find((row) => row.tenant_id === p_tenant_id);
-      const row = { id: had?.id ?? `dddddddd-dddd-4ddd-8ddd-${String(keeps.length + 1).padStart(12, "0")}` };
+      const had = draftOf(p_tenant_id);
+      if (p_read_at !== undefined && p_read_at !== null && (had?.updated_at ?? "-infinity") !== p_read_at)
+        return { kept: false, draft_id: had?.id ?? null, rung: 0, newer: true };
+      const row = { ...NO_WRITER, ...had };
+      row.id ??= `dddddddd-dddd-4ddd-8ddd-${String(keeps.length + 1).padStart(12, "0")}`;
       Object.assign(row, { tenant_id: p_tenant_id, account_id: p_account_id, draft: p_draft, kept_by: userId });
-      tables.ad_drafts = [...tables.ad_drafts.filter((one) => one !== had), { ...row, updated_at: NOW.toISOString() }];
+      row.updated_at = new Date(NOW.getTime() + keeps.length + 1).toISOString();
+      tables.ad_drafts = [...tables.ad_drafts.filter((one) => one !== had), row];
       keeps.push({ by: userId, draft: p_draft });
       return { kept: true, draft_id: row.id, rung: 0 };
+    },
+    ad_draft_writing: ({ p_tenant_id, p_ask, p_for, p_until }) => {
+      writers.push({ ask: p_ask, for: p_for });
+      const row = draftOf(p_tenant_id);
+      if (!row) return { held: false, ask: null, until: null };
+      const out = row.writing_ask && row.writing_ask !== p_ask && row.writing_for === p_for;
+      if (out && Date.parse(row.writing_until) > Date.now())
+        return { held: false, ask: row.writing_ask, until: row.writing_until };
+      Object.assign(row, { writing_ask: p_ask, writing_for: p_for, writing_until: p_until });
+      return { held: true, ask: p_ask, until: p_until };
+    },
+    ad_draft_written: ({ p_tenant_id, p_ask }) => {
+      const row = draftOf(p_tenant_id);
+      if (row?.writing_ask !== p_ask) return false;
+      Object.assign(row, NO_WRITER);
+      return true;
     },
     ad_account_most: ({ p_tenant_id, p_most_minor }) => {
       const account = tables.ad_accounts.find((one) => one.tenant_id === p_tenant_id && one.status === "connected");
@@ -220,17 +252,20 @@ function seated(tables, role = "owner", { counts = NO_COUNTS, userId = USER } = 
   const tenantId = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seat).padStart(12, "0")}`;
   const mine = JSON.parse(JSON.stringify(tables).replaceAll(A, tenantId));
   const keeps = [];
-  const db = fakeDb(mine, {}, { ads_page_counts: () => counts, ...draftDoors(mine, userId, keeps) });
+  const writers = [];
+  const db = fakeDb(mine, {}, { ads_page_counts: () => counts, ...draftDoors(mine, userId, keeps, writers) });
   const ctx = { supabase: db, userId, email: "ada@example.com", params: {} };
-  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId, tables: mine, keeps, tenantId };
+  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId, tables: mine, keeps, writers, tenantId };
 }
 /** The same workspace, another member signed in to it. */
 function alsoSeated(who, role, userId) {
-  const keeps = who.keeps;
-  const db = fakeDb(who.tables, {}, { ads_page_counts: () => NO_COUNTS, ...draftDoors(who.tables, userId, keeps) });
+  const { keeps, writers } = who;
+  const doors = draftDoors(who.tables, userId, keeps, writers);
+  const db = fakeDb(who.tables, {}, { ads_page_counts: () => NO_COUNTS, ...doors });
   const ctx = { supabase: db, userId, email: "sam@example.com", params: {} };
   readerCache.clear();
-  return { rc: readerContext(ctx, { tenantId: who.tenantId, role }, NOW), userId, tables: who.tables, keeps };
+  const rc = readerContext(ctx, { tenantId: who.tenantId, role }, NOW);
+  return { rc, userId, tables: who.tables, keeps, writers, tenantId: who.tenantId };
 }
 const fresh = (tables = world(), role = "owner") => {
   const who = seated(tables, role);
@@ -682,6 +717,9 @@ test("what the routes take: a draft's own shape, and nothing else", () => {
   assert.equal(AdDraftBodySchema.safeParse({ draft, act: "turn_on" }).success, false);
   // AI's card: a service by its name, and the owner's most in whole units.
   assert.equal(AdDraftBodySchema.safeParse({ service: "Consultation", most: 300 }).success, true);
+  // Run as an ad, in Content: a picture by its file's id, and nothing else in its place.
+  assert.equal(AdDraftBodySchema.safeParse({ picture: FILE(1) }).success, true);
+  assert.equal(AdDraftBodySchema.safeParse({ picture: "front-desk-1" }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ most: 0 }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ most: 2.5 }).success, false);
   assert.equal(AdDraftBodySchema.safeParse({ draft: { ...draft, picture: "not-an-id" } }).success, false);
@@ -885,6 +923,172 @@ test("a draft an operator leaves: the owner opens it as left, by name, and it is
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Two asks at once: a reload, a second device, another member (00672)
+
+/** The model, its answer (or `refused`) held until the test lets it go: a writer out for as long as a test needs. */
+function modelHeld(answer, refused = null) {
+  let go = () => {};
+  const gate = new Promise((resolve) => {
+    go = resolve;
+  });
+  setModelStream(async function* (call) {
+    calls.push(call);
+    await gate;
+    if (refused) throw refused;
+    yield { type: "text", index: 0, text: JSON.stringify(answer) };
+    yield { type: "stop", stopReason: "end_turn" };
+  });
+  return go;
+}
+
+test("reloaded while the writer is out: the second ask waits for the first one's words, and the writer is asked once", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // Reloaded, or opened on another device: the kept draft holds no words yet, so the screen asks for them.
+  const reopened = await draftAd(who.rc, {});
+  assert.deepEqual(reopened.draft.versions, []);
+  const second = writeAdWords(who, { job: "write", draft: sent(reopened) });
+  await until(() => who.writers.length === 2 || calls.length === 2, "the second ask to be out");
+  go();
+  const [one, two] = await Promise.all([first, second]);
+  assert.equal(calls.length, 1, "REGRESSION: the writer was asked twice for one draft");
+  assert.deepEqual([one.wrote, one.draft.versions], [{ ok: true }, VERSIONS]);
+  assert.deepEqual([two.wrote, two.draft.versions], [{ ok: true }, VERSIONS], "the words the first one kept");
+  assert.equal(who.tables.ad_drafts[0].writing_ask, null, "back, the writer is no longer marked out");
+});
+
+test("an ask that waited for a writer who came to nothing, or who is out past its time, writes the words itself", async () => {
+  const go = modelHeld(null, new Error("the stream broke"));
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  const second = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => who.writers.length === 2, "the second ask to find the writer out");
+  modelSays(wrote());
+  go();
+  assert.deepEqual((await first).wrote, { ok: false, why: "other" });
+  const written = await second;
+  assert.deepEqual([written.wrote, written.draft.versions, calls.length], [{ ok: true }, VERSIONS, 2]);
+  // A writer out past its time (its request gone with it) is not waited for.
+  const stuck = modelHeld(wrote());
+  const lost = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 3, "a writer to be out");
+  who.tables.ad_drafts[0].writing_until = new Date(Date.now() - 1).toISOString();
+  const next = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 4, "the next ask to write its own");
+  stuck();
+  await Promise.all([lost, next]);
+});
+
+test("a writer out for other words is not waited for: Take the price out, or another picture, is written for itself", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE, tables: { files: [file(1), file(2)] } }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  const unpriced = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 2, "the words without the price to be asked for themselves");
+  const pictured = writeAdWords(who, { job: "write", draft: sent(answer, { picture: FILE(2) }) });
+  await until(() => calls.length === 3, "the next picture's words to be asked for themselves");
+  go();
+  await Promise.all([first, unpriced, pictured]);
+});
+
+test("words that land after the draft was changed on another device are put into it: what was set there stands", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // In those seconds, an operator sets the amount and the miles on their own device.
+  const operator = alsoSeated(who, "operator", OPERATOR);
+  await draftAd(operator.rc, { draft: sent(answer, { total_minor: 9000, miles: 8 }) });
+  go();
+  const landed = await writing;
+  const { draft } = who.tables.ad_drafts[0];
+  assert.deepEqual(
+    [draft.total_minor, draft.miles, draft.versions],
+    [9000, 8, VERSIONS],
+    "REGRESSION: the words were kept over the amount and the miles set meanwhile",
+  );
+  assert.deepEqual(
+    [landed.wrote, landed.draft.total_minor, landed.draft.miles, landed.draft.versions],
+    [{ ok: true }, 9000, 8, VERSIONS],
+    "the answer is the draft as it now stands",
+  );
+});
+
+test("words for a service the draft no longer offers are not put into it: the draft stands as changed", async () => {
+  const both = { services: [...ONE_SERVICE.services, { name: "Consultation", duration_min: 30 }] };
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: both }));
+  assert.equal(answer.draft.service, "First appointment");
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  await draftAd(who.rc, { draft: sent(answer, { service: "Consultation" }) });
+  go();
+  const landed = await writing;
+  const { draft } = who.tables.ad_drafts[0];
+  assert.deepEqual([draft.service, draft.versions], ["Consultation", []], "REGRESSION: another service's words kept");
+  assert.deepEqual(
+    [landed.draft.service, landed.draft.versions, landed.wrote],
+    ["Consultation", [], { ok: false, why: "other" }],
+  );
+});
+
+test("a change of AI's that lands after the same thing was set on another device is not made; one of another thing is", async () => {
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const held = sent(answer, { versions: VERSIONS });
+  await draftAd(who.rc, { draft: held });
+  const tell = async (asked, change, meanwhile) => {
+    const go = modelHeld({ versions: [], change: { ...NO_CHANGE, ...change }, could_not: "" });
+    const asking = writeAdWords(who, { job: "change", draft: held, asked });
+    await until(() => calls.length > 0, "AI to be told");
+    await draftAd(who.rc, { draft: sent(answer, { versions: VERSIONS, ...meanwhile }) });
+    go();
+    calls = [];
+    return asking;
+  };
+  const amount = await tell("make it 120 dollars", { kind: "amount", amount: 120 }, { total_minor: 9000 });
+  assert.equal(who.tables.ad_drafts[0].draft.total_minor, 9000, "REGRESSION: AI's amount kept over the one set");
+  assert.deepEqual([amount.draft.total_minor, amount.changed], [9000, { kind: "none", fault: null }]);
+  const area = await tell("reach ten miles", { kind: "area", miles: 10 }, { total_minor: 8000 });
+  assert.deepEqual(
+    [who.tables.ad_drafts[0].draft.miles, who.tables.ad_drafts[0].draft.total_minor],
+    [10, 8000],
+    "REGRESSION: AI's miles kept over the amount set meanwhile",
+  );
+  assert.deepEqual([area.draft.miles, area.draft.total_minor, area.changed], [10, 8000, { kind: "area" }]);
+});
+
+test("words that land after the draft was turned on bring no draft back", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // Turned on from another device: the draft becomes the ad, and goes (00666 ad_turn_on).
+  who.tables.ad_drafts = [];
+  go();
+  await writing;
+  assert.deepEqual(who.tables.ad_drafts, [], "REGRESSION: a draft turned on came back with its words");
+});
+
+test("words that land over a draft kept meanwhile for another ad account take its place, as before", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  Object.assign(who.tables.ad_drafts[0], {
+    account_id: "cccccccc-cccc-4ccc-8ccc-000000000000",
+    updated_at: new Date(NOW.getTime() + 60_000).toISOString(),
+  });
+  go();
+  const landed = await writing;
+  const [row] = who.tables.ad_drafts;
+  assert.deepEqual([row.account_id, row.draft.versions, landed.wrote], [ACCOUNT, VERSIONS, { ok: true }]);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
 // AI's own turn drafts an ad (6.3, 6.7)
 
 test("AI's card drafts on New ad's own route: the service it named, with that service's own picture, kept", async () => {
@@ -904,12 +1108,21 @@ test("AI's card drafts on New ad's own route: the service it named, with that se
     route: "POST ads/draft",
     body: {},
   });
+  // The piece the owner asked about rides beside them, as Run as an ad's press sends it; the route takes the body whole.
+  const around = spec.commit(
+    { payload: { service: "Consultation", most: null, picture: FILE(7) } },
+    { settings: null },
+  );
+  assert.deepEqual(around.body, { service: "Consultation", picture: FILE(7) });
+  assert.deepEqual(AdDraftBodySchema.parse(around.body), around.body);
   assert.deepEqual([spec.needs, spec.open({ payload: {} }, null)], ["operator", "campaigns/ads:new"]);
 });
 
-/** AI's tool, built as a turn builds it: the member, their question, and the workspace. */
-function toolOf(tables, role = "owner", question = "Make me an ad") {
-  const who = seated(tables, role);
+/**
+ * AI's tool, built as a turn builds it: the member, their question, and the workspace; `about`, the file the question is
+ * asked about (Content's line to AI on an open piece), and `who`, a workspace already seated.
+ */
+function toolOf(tables, role = "owner", question = "Make me an ad", { who = seated(tables, role), about } = {}) {
   const { build } = adDraftAct.actions[""];
   const toolContext = {
     ctx: who.rc.ctx,
@@ -919,6 +1132,7 @@ function toolOf(tables, role = "owner", question = "Make me an ad") {
     question,
     now: NOW,
     timezone: TZ,
+    ...(about ? { subjectFile: about } : {}),
   };
   return (input) => build(toolContext, input);
 }
@@ -928,7 +1142,7 @@ test("AI's tool proposes the card and decides none of the draft; the most is onl
   const card = await owner({ service: "First Appointment", most: 1200 });
   assert.equal(card.isError, false);
   assert.equal(card.proposal.kind, "ad_draft");
-  assert.deepEqual(card.proposal.payload, { service: "First appointment", most: 1200 });
+  assert.deepEqual(card.proposal.payload, { service: "First appointment", most: 1200, picture: null });
   assert.equal(card.proposal.title, "New ad for First appointment");
   assert.match(card.proposal.summary, /From now on, no ad costs more than 1200 USD\.$/);
   assert.equal(card.proposal.needs, "operator");
@@ -987,4 +1201,245 @@ test("a service named in a sentence: the writer names it in a few words, kept wi
   }
   // The writer is told to answer it, as its schema requires.
   assert.ok(C.AD_CRAFT_JSON_SCHEMA.required.includes("label"));
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Run as an ad, on a made piece in Content (the plan's 6.8, join 3, with G13 and G15)
+
+/** A post AI made of the front desk: nobody in it, the feed's portrait shape. */
+const piece = (n, over = {}) =>
+  file(n, {
+    source: "made",
+    name: `post-${n}`,
+    width: 1080,
+    height: 1350,
+    look: { line: "A post of the front desk.", people: { count: 0, recognizable: 0 }, issues: [] },
+    ...over,
+  });
+/** A video AI made, ready to play. */
+const pieceVideo = (over = {}) =>
+  piece(7, { kind: "video", mime: "video/mp4", seconds: 20, media_status: "ready", ...over });
+/** What a made piece was drawn from, as files_drawn_from answers it: the photo or the clips it shows. */
+const drawnFrom = (from) => ({ file_id: FILE(7), from_id: from });
+/** Someone at the chair, whom someone who knows them could recognize. */
+const AT_THE_CHAIR = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
+/** A video's sound, heard whole: with music, or with none. */
+const HEARD = (music) => ({
+  note: {
+    speech: false,
+    music: music ? { present: true, kind: "pop" } : { present: false },
+    voices: [],
+    sounds: [],
+    feel: music ? "bright" : "calm",
+    unsure: false,
+  },
+});
+
+/**
+ * A workspace whose made pieces say what they were drawn from. The service role reads that (files_drawn_from), so its
+ * client is this workspace's database in memory, as the session's is.
+ */
+function seatedMade(tables, drawn = [], role = "owner") {
+  const who = seated(tables, role);
+  const db = fakeDb(
+    who.tables,
+    {},
+    {
+      ads_page_counts: () => NO_COUNTS,
+      ...draftDoors(who.tables, who.userId, who.keeps, who.writers),
+      files_drawn_from: ({ p_ids }) => drawn.filter((row) => p_ids.includes(row.file_id)),
+    },
+  );
+  setServiceClient(db);
+  const ctx = { supabase: db, userId: who.userId, email: "ada@example.com", params: {} };
+  return { ...who, rc: readerContext(ctx, { tenantId: who.tenantId, role }, NOW) };
+}
+
+test("Run as an ad: a fresh draft around the piece Content chose, kept, and never 'gone' for being older than the newest read", async () => {
+  // Thirty newer posts, each fine in ads, fill the shelf a draft reads: the one chosen is older than all of them.
+  const id = (n) => `f${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
+  const newer = (n) => `2026-11-19T${String(10 + (n % 10)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}:00Z`;
+  const others = Array.from({ length: 30 }, (_, n) =>
+    piece(1, { id: id(300 + n), name: `post-new-${n}`, created_at: newer(n), updated_at: newer(n) }),
+  );
+  const chosen = piece(7, { created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-01T10:00:00Z" });
+  const who = seatedMade(world({ tables: { files: [...others, chosen, file(1)] } }));
+  const plain = await draftAd(who.rc, {});
+  assert.notEqual(plain.draft.picture.id, FILE(7), "+ New picks by its own rule: the newest piece AI made");
+  const ran = await draftAd(who.rc, { picture: FILE(7) });
+  assert.equal(ran.can, true);
+  assert.deepEqual(ran.draft.picture, { id: FILE(7), kind: "photo", name: "post-7", made: true });
+  // Files says no service a picture is about: the draft's own pick, said as it is for + New.
+  assert.deepEqual([ran.draft.service, ran.picked, ran.draft.versions, ran.checks], ["Consultation", "first", [], []]);
+  assert.equal(who.keeps.at(-1).draft.picture, FILE(7), "kept in place of the draft there was");
+  // Judged again as the screen sends it, opened again from the kept draft, and written: still its picture.
+  const judged = await draftAd(who.rc, { draft: sent(ran) });
+  assert.deepEqual([judged.draft.picture.id, judged.checks], [FILE(7), []]);
+  const reopened = await draftAd(who.rc, {});
+  assert.deepEqual([reopened.draft.picture.id, reopened.checks], [FILE(7), []]);
+  modelSays(
+    wrote([
+      { headline: "Consultation", text: "A consultation at Harbor Studio. Message us on WhatsApp to pick a time." },
+      { headline: "Harbor Studio", text: "Consultations at Harbor Studio. Message us on WhatsApp for a time." },
+      { headline: "A consultation", text: "Message Harbor Studio on WhatsApp to book a consultation." },
+    ]),
+  );
+  const words = await writeAdWords(who, { job: "write", draft: sent(ran) });
+  assert.deepEqual([words.wrote, words.draft.picture.id, words.checks], [{ ok: true }, FILE(7), []]);
+  // Nothing is made at Meta by drafting: this file's fetch answers the edge's word on Ads alone, and refuses the rest.
+});
+
+test("Run as an ad offers the service the piece is about, where its name says one, as a calendar title names one", async () => {
+  const offered = async (name, tables = {}) => {
+    const who = seatedMade(world({ tables: { files: [file(1), piece(7, { name })], ...tables } }));
+    const answer = await draftAd(who.rc, { picture: FILE(7) });
+    return [answer.draft.service, answer.picked];
+  };
+  // A post named for its headline: the service it names, said with no "why this service", since the piece says it.
+  assert.deepEqual(await offered("Autumn FIRST appointment"), ["First appointment", null]);
+  // A name that names none, or a service an ad made here already runs for: the draft's own pick, and why.
+  assert.deepEqual(await offered("The front desk"), ["Consultation", "first"]);
+  const running = {
+    id: "d0000000-0000-4000-8000-000000000002",
+    tenant_id: A,
+    account_id: ACCOUNT,
+    platform: "meta",
+    origin: "chanlytics",
+    name: "First appointment",
+    door: "whatsapp",
+    status: "made",
+    intent: "on",
+    platform_state: "ACTIVE",
+    platform_ad_id: "23850000000000002",
+    budget_kind: "total",
+    budget_minor: 12000,
+    budget_left_minor: 9000,
+    ends_at: "2026-12-10T22:00:00Z",
+    version: 1,
+    created_at: "2026-11-10T10:00:00Z",
+  };
+  assert.deepEqual(await offered("Autumn first appointment", { ads: [running] }), ["Consultation", "first"]);
+  // AI's card named one: the card's, whatever the piece is named.
+  const who = seatedMade(world({ tables: { files: [file(1), piece(7, { name: "Autumn first appointment" })] } }));
+  const both = await draftAd(who.rc, { picture: FILE(7), service: "Consultation" });
+  assert.deepEqual([both.draft.service, both.draft.picture.id, both.picked], ["Consultation", FILE(7), null]);
+});
+
+test("Run as an ad on a piece that may not run: the one thing missing for it, never another picture, and nothing kept", async () => {
+  const ranOn = async (files, drawn = [], tables = {}) => {
+    const who = seatedMade(world({ tables: { files: [file(1), ...files], ...tables } }), drawn);
+    const answer = await draftAd(who.rc, { picture: FILE(7) });
+    return { got: answer.can ? answer.draft.picture.id : answer.missing, kept: who.keeps.length };
+  };
+  // Fine: drawn from a photo whose person said yes to ads.
+  const yes = file(2, { look: AT_THE_CHAIR, yes_for: ["ad", "post"] });
+  assert.deepEqual(await ranOn([piece(7), yes], [drawnFrom(FILE(2))]), { got: FILE(7), kept: 1 });
+  // Someone shown, on the piece or on the photo it was drawn from with a yes for posts alone. The front desk photo,
+  // fine in ads, stands beside it the whole time, and is never offered in its place.
+  assert.deepEqual(await ranOn([piece(7, { look: AT_THE_CHAIR })]), { got: "picture_person", kept: 0 });
+  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
+  assert.deepEqual(await ranOn([piece(7), postsOnly], [drawnFrom(FILE(2))]), { got: "picture_person", kept: 0 });
+  // A video with music, or not heard yet; a quiet square one runs; a story's tall shape is not a feed's.
+  assert.equal((await ranOn([pieceVideo({ sound: HEARD(true) })])).got, "picture_music");
+  assert.equal((await ranOn([pieceVideo({ sound: null })])).got, "picture_music");
+  assert.equal((await ranOn([pieceVideo({ sound: HEARD(false), width: 1080, height: 1080 })])).got, FILE(7));
+  assert.equal((await ranOn([piece(7, { width: 1080, height: 1920 })])).got, "picture");
+  // Deleted, or set aside, since the press: gone, said as such; an ad account not connected is said first.
+  assert.equal((await ranOn([piece(7, { removed_at: "2026-11-19T14:00:00Z" })])).got, "picture_gone");
+  assert.equal((await ranOn([piece(7, { status: "set_aside" })])).got, "picture_gone");
+  assert.equal((await ranOn([])).got, "picture_gone");
+  assert.equal((await ranOn([piece(7)], [], { ad_accounts: [] })).got, "account");
+});
+
+test("a made piece says as it opens whether it may run as an ad: Content's one rule, where Ads is on and an account connected", async () => {
+  const standsOf = async (row, { drawn = [], others = [], tables = {} } = {}) => {
+    const who = seatedMade(world({ tables: { files: [row, ...others], ...tables } }), drawn);
+    return readPieceAd(
+      who.rc,
+      who.tables.files.find((one) => one.id === row.id),
+    );
+  };
+  assert.deepEqual(await standsOf(piece(7)), { is: "may" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR })), { is: "wont", why: "person" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR, yes_for: ["ad"] })), { is: "may" });
+  assert.deepEqual(
+    await standsOf(piece(7), {
+      drawn: [drawnFrom(FILE(2))],
+      others: [file(2, { look: AT_THE_CHAIR, yes_for: ["post"] })],
+    }),
+    { is: "wont", why: "person" },
+    "a piece shows who its photo shows: a yes for posts doesn't cover an ad",
+  );
+  // Music, and a video not heard yet: both held back, each said as what it is.
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(true) })), { is: "wont", why: "music" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: null })), { is: "wont", why: "unheard" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), width: 1080, height: 1080 })), { is: "may" });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), width: 1080, height: 1920 })), {
+    is: "wont",
+    why: "shape",
+  });
+  assert.deepEqual(await standsOf(pieceVideo({ sound: HEARD(false), seconds: 90 })), { is: "wont", why: "length" });
+  // No ad account connected yet: that is what it says, whatever the picture.
+  assert.deepEqual(await standsOf(piece(7), { tables: { ad_accounts: [] } }), { is: "no_account" });
+  assert.deepEqual(await standsOf(piece(7, { look: AT_THE_CHAIR }), { tables: { ad_accounts: [] } }), {
+    is: "no_account",
+  });
+  // Nothing said: a photo of the Library, a video not ready to play, and Ads not on in this workspace here.
+  assert.equal(await standsOf(file(1)), null);
+  assert.equal(await standsOf(pieceVideo({ media_status: "processing" })), null);
+  offered = false;
+  assert.equal(await standsOf(piece(7)), null);
+});
+
+// AI's card around the piece the owner asks about (6.3 with 6.8, join 3)
+
+/** A workspace no seat rewrites: a piece of its own is never this one's. */
+const ELSEWHERE = "99999999-9999-4999-8999-999999999999";
+
+/** AI's tool in a workspace of made pieces, the question asked about `about` (a file's id; Content's line on a piece). */
+function pieceToolOf(files, { drawn = [], about = FILE(7), question = "Run this as an ad" } = {}) {
+  const who = seatedMade(world({ tables: { files: [file(1), ...files] } }), drawn);
+  return { who, tool: toolOf(null, "owner", question, { who, ...(about ? { about } : {}) }) };
+}
+
+test("AI's tool asked about a made piece: a card drafted around it where Content's rule lets it run, and why not where it doesn't", async () => {
+  // The piece open in Content, left out of the call: the card carries it, and its press drafts around it on New ad's route.
+  const { who, tool } = pieceToolOf([piece(7)]);
+  const card = await tool({});
+  assert.deepEqual(card.proposal.payload, { service: null, most: null, picture: FILE(7) });
+  assert.equal(card.proposal.title, "Run Post 7 as an ad");
+  const pressed = await draftAd(who.rc, C.PROPOSAL_SPECS.ad_draft.commit(card.proposal, { settings: null }).body);
+  assert.deepEqual([pressed.can, pressed.draft.picture.id], [true, FILE(7)]);
+  assert.equal(who.keeps.at(-1).draft.picture, FILE(7), "kept, so New ad opens on it");
+  // Named by its name in a turn about nothing, beside a service: both ride, and the card says the piece once.
+  const named = await pieceToolOf([piece(7)], { about: null }).tool({ file: "post-7", service: "consultation" });
+  assert.deepEqual(named.proposal.payload, { service: "Consultation", most: null, picture: FILE(7) });
+  assert.equal(named.proposal.title, "New ad for Consultation");
+  assert.match(named.proposal.summary, /^Shows Post 7\. AI drafts it in New ad/);
+  // Where it may not run: why, by Content's one rule, so AI says it; and no card.
+  const refusedFor = async (files, drawn = []) => {
+    const answer = await pieceToolOf(files, { drawn }).tool({});
+    assert.equal(answer.proposal, null, "no card");
+    return answer.refusal;
+  };
+  assert.match(await refusedFor([piece(7, { look: AT_THE_CHAIR })]), /hasn't said yes to ads/);
+  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
+  assert.match(await refusedFor([piece(7), postsOnly], [drawnFrom(FILE(2))]), /hasn't said yes to ads/);
+  assert.match(await refusedFor([pieceVideo({ sound: HEARD(true) })]), /has music/);
+  assert.match(await refusedFor([pieceVideo({ sound: null })]), /isn't heard yet/);
+  assert.match(await refusedFor([piece(7, { width: 1080, height: 1920 })]), /shape doesn't fit/);
+  assert.match(await refusedFor([pieceVideo({ sound: HEARD(false), seconds: 90 })]), /too long or too short/);
+  assert.match(await refusedFor([pieceVideo({ media_status: "processing" })]), /can't be played yet/);
+  assert.match(await refusedFor([piece(7, { status: "set_aside" })]), /is set aside/);
+  // Only a piece AI made, and only this workspace's: a photo the question is about is no piece, so the draft's own pick.
+  const library = pieceToolOf([piece(7)], { about: FILE(1) }).tool;
+  assert.equal((await library({})).proposal.payload.picture, null);
+  assert.match((await library({ file: "front-desk-1" })).refusal, /isn't a piece AI made/);
+  const theirs = piece(8, { tenant_id: ELSEWHERE, name: "post-elsewhere" });
+  const notHere = pieceToolOf([piece(7), theirs], { about: null }).tool;
+  assert.match((await notHere({ file: "post-elsewhere" })).refusal, /No file named post-elsewhere/);
+  // The piece the question was about, deleted since: said as gone, its id never told.
+  const gone = await pieceToolOf([piece(7, { removed_at: "2026-11-19T14:00:00Z" })]).tool({});
+  assert.match(gone.refusal, /isn't in Files any more/);
+  assert.doesNotMatch(gone.refusal, new RegExp(FILE(7)));
 });

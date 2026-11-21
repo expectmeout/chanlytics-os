@@ -16,9 +16,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { META_PREVIEW_PLACES, metaPreviewFrameSrc, metaPreviewRequest, parseMetaPreview } = await import(
-  at("packages/channels/src/ads/meta-preview.ts")
-);
+const {
+  META_PREVIEW_PLACES,
+  metaPreviewFrameSrc,
+  metaPreviewNamedSize,
+  metaPreviewRequest,
+  metaPreviewShape,
+  parseMetaPreview,
+} = await import(at("packages/channels/src/ads/meta-preview.ts"));
 const { META_OWN_CHANGES, metaCreativeSpec } = await import(at("packages/channels/src/ads/meta-make.ts"));
 
 const TOKEN = "token-for-this-file";
@@ -104,13 +109,40 @@ test("a picture's address that is not https, or words Meta would refuse, build n
   assert.throws(() => metaPreviewRequest(TOKEN, SECRET, { ...ASK, pageId: "a page" }));
 });
 
-test("Meta's answer: the address of its own preview page and the size it drew, read out of its HTML", () => {
-  assert.deepEqual(parseMetaPreview(answerWith(META_BODY)), { src: FRAME, width: 335, height: 580 });
-  // An address written plainly reads the same; a size Meta did not write, or one that is not one, is not guessed.
+test("Meta's answer: the address of its own preview page, read out of its HTML, and the size to frame it at", () => {
+  // The feed's page is as tall as its ad, 628 on a real account where Meta named its frame 335 × 450 and cut off the
+  // headline and the button (21 November 2026): the frame is as wide as Meta wrote and never shorter than 650.
+  assert.deepEqual(parseMetaPreview(answerWith(META_BODY), "feed"), { src: FRAME, width: 335, height: 650 });
+  const named = (width, height) => `<iframe src="${FRAME}" width="${width}" height="${height}"></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(named(335, 450)), "feed"), { src: FRAME, width: 335, height: 650 });
+  assert.deepEqual(parseMetaPreview(answerWith(named(360, 720)), "feed"), { src: FRAME, width: 360, height: 720 });
+  // An address written plainly reads the same; a size Meta did not write, or one that is not one, is the page's own.
   const plain = `<iframe src="${FRAME}" scrolling="yes"></iframe>`;
-  assert.deepEqual(parseMetaPreview(answerWith(plain)), { src: FRAME, width: null, height: null });
+  assert.deepEqual(parseMetaPreview(answerWith(plain), "feed"), { src: FRAME, width: 320, height: 650 });
   const odd = `<iframe src="${FRAME}" width="wide" height="9"></iframe>`;
-  assert.deepEqual(parseMetaPreview(answerWith(odd)), { src: FRAME, width: null, height: null });
+  assert.deepEqual(parseMetaPreview(answerWith(odd), "feed"), { src: FRAME, width: 320, height: 650 });
+});
+
+test("the size Meta wrote on its frame is said for the log as it came, with nothing of its address", () => {
+  assert.equal(metaPreviewNamedSize(answerWith(META_BODY)), "335x580");
+  assert.equal(metaPreviewNamedSize(answerWith(`<iframe src="${FRAME}" height="213"></iframe>`)), "?x213");
+  assert.equal(metaPreviewNamedSize(answerWith(`<iframe src="${FRAME}"></iframe>`)), "?x?");
+  assert.equal(metaPreviewNamedSize({ data: [] }), "?x?");
+  assert.equal(metaPreviewNamedSize(null), "?x?");
+});
+
+test("a story's and a Reel's frame is never smaller than Meta's page draws them, whatever size Meta names", () => {
+  // Meta's page draws a Reel 320 × 567 and a story 320 × 568. On a real account it named the Reel's frame 274 × 213,
+  // which showed the top of the ad alone, and the story's 320 × 567, which drew scroll bars over it (21 November 2026).
+  const named = (width, height) => `<iframe src="${FRAME}" width="${width}" height="${height}"></iframe>`;
+  const reel = parseMetaPreview(answerWith(named(274, 213)), "reel");
+  assert.deepEqual(reel, { src: FRAME, width: 320, height: 567 });
+  assert.deepEqual(parseMetaPreview(answerWith(named(320, 567)), "story"), { src: FRAME, width: 320, height: 568 });
+  // A size Meta names larger is kept, and one it names not at all is the page's own.
+  assert.deepEqual(parseMetaPreview(answerWith(named(360, 640)), "reel"), { src: FRAME, width: 360, height: 640 });
+  const unnamed = `<iframe src="${FRAME}"></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(unnamed), "story"), { src: FRAME, width: 320, height: 568 });
+  assert.deepEqual(parseMetaPreview(answerWith(unnamed), "reel"), { src: FRAME, width: 320, height: 567 });
 });
 
 test("anything but a frame of Meta's own preview page is refused, and nothing of it is drawn", () => {
@@ -122,13 +154,60 @@ test("anything but a frame of Meta's own preview page is refused, and nothing of
     `<iframe src="javascript:alert(1)"></iframe>`,
     `<script>alert(1)</script>`,
   ];
-  for (const body of elsewhere) assert.throws(() => parseMetaPreview(answerWith(body)), /not a frame/, body);
+  for (const body of elsewhere) assert.throws(() => parseMetaPreview(answerWith(body), "feed"), /not a frame/, body);
   assert.equal(metaPreviewFrameSrc("https://www.facebook.com.example.com/ads/api/preview_iframe.php?d=1"), null);
   assert.equal(metaPreviewFrameSrc(FRAME), FRAME);
 });
 
 test("an answer with no preview says Meta's own words where it gave some", () => {
-  assert.throws(() => parseMetaPreview({ data: [] }), /did not answer a preview/);
-  assert.throws(() => parseMetaPreview({ error: { message: "Invalid parameter", code: 100 } }), /Invalid parameter/);
-  assert.throws(() => parseMetaPreview(null), /did not answer a preview/);
+  assert.throws(() => parseMetaPreview({ data: [] }, "feed"), /did not answer a preview/);
+  assert.throws(
+    () => parseMetaPreview({ error: { message: "Invalid parameter", code: 100 } }, "feed"),
+    /Invalid parameter/,
+  );
+  assert.throws(() => parseMetaPreview(null, "feed"), /did not answer a preview/);
+});
+
+test("Meta's answer read in every shape it may come in: escaped, in single quotes, with no scheme, or on Meta's other hosts", () => {
+  const frame = { src: FRAME, width: 335, height: 650 };
+  // The tag itself escaped, as some answers carry HTML.
+  const escaped = META_BODY.replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+  assert.deepEqual(parseMetaPreview(answerWith(escaped), "feed"), frame);
+  // Single quotes, and space around the equals sign.
+  const single = `<iframe src = '${FRAME.replace("&", "&amp;")}' width='335' height='580'></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(single), "feed"), frame);
+  // An address with no scheme of its own is taken over https.
+  const bare = `<iframe src="${FRAME.replace("https:", "")}" width="335" height="580"></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(bare), "feed"), frame);
+  // Meta's preview page on its other hosts, each one New ad's page lets a frame open.
+  for (const host of ["web.facebook.com", "business.facebook.com"]) {
+    const there = FRAME.replace("www.facebook.com", host);
+    assert.equal(parseMetaPreview(answerWith(`<iframe src="${there}"></iframe>`), "feed").src, there, host);
+  }
+  // Never any other host, a port, or plain http.
+  for (const odd of [
+    FRAME.replace("www.facebook.com", "m.facebook.com"),
+    FRAME.replace("www.facebook.com", "www.facebook.com:8443"),
+    FRAME.replace("https:", "http:"),
+  ])
+    assert.equal(metaPreviewFrameSrc(odd), null, odd);
+});
+
+test("an answer that can't be read is described for the log with no address and no value in it", () => {
+  const described = (json) => metaPreviewShape(json);
+  assert.equal(described({ error: { message: "x" } }), "no data; keys error");
+  assert.equal(described({ data: [] }), "data 0; first holds nothing");
+  assert.equal(described({ data: [{ html: "<div></div>" }] }), "data 1; first holds html");
+  assert.equal(described(answerWith("<div>Preview</div>")), "data 1; body 18 chars, div, no src");
+  const elsewhere = '<iframe src="https://example.com/ads/x.php?d=SECRET&amp;t=ALSO"></iframe>';
+  const said = described(answerWith(elsewhere));
+  assert.equal(said, "data 1; iframe src https://example.com/ads/x.php params d,t");
+  assert.ok(!/SECRET|ALSO/.test(said), "no value of the address is said");
+  assert.equal(
+    described(answerWith(META_BODY)),
+    "data 1; iframe src https://www.facebook.com/ads/api/preview_iframe.php params d,t",
+  );
 });

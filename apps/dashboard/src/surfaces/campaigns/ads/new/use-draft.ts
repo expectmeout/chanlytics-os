@@ -13,6 +13,8 @@
  *  - Opened, on this device or another, by + New, by the bell's row for a draft someone left, or by AI's card, it is
  *    the workspace's kept draft, words and all, and the writer is not asked twice. Nothing is held in the tab: a draft
  *    held there could put an older one back over what someone else changed since.
+ *  - Opened by "Run as an ad" on a made piece in Content (the plan's 6.8, join 3), it asks once for a fresh draft around
+ *    that piece, which the server keeps as the workspace's; from then on it is the kept draft, like any other.
  *  - Turn on carries what it shows (decision 0050, call 3): where the owner set something the server has not judged
  *    yet, it is judged (and kept) first, so the press never names a number the server would not. It goes under a key
  *    of its own, kept until an answer comes, so a press sent again after no answer makes one ad.
@@ -59,6 +61,8 @@ const sentDraft = (held: Pick<Held, "answer" | "local">): AdDraftState => ({
   picture: held.answer.draft.picture.id,
   versions: held.answer.draft.versions,
   ...(held.answer.draft.label ? { label: held.answer.draft.label } : {}),
+  // Fix it's draft says which ad Meta turned down it takes the place of, all the way to Turn on.
+  ...(held.answer.draft.fixes ? { fixes: held.answer.draft.fixes } : {}),
   // A wider place rides back as the server found it: the owner changes it by telling AI, never by typing.
   ...(held.answer.draft.area ? { area: held.answer.draft.area } : {}),
   ...held.local,
@@ -96,6 +100,16 @@ interface Asking {
   tellingNow: { current: boolean };
   /** The draft is being read: one read at a time, however many times the screen is opened meanwhile. */
   opening: { current: boolean };
+  /**
+   * Where the screen was opened from: a piece Run as an ad chose, the one it last drafted around, and what follows; and
+   * whether the screen is still open, since an answer that lands after it closed moves no address.
+   */
+  from: {
+    piece: { current: string | null };
+    drafted: { current: string | null };
+    done: { current: () => void };
+    open: { current: boolean };
+  };
   /** Turn on is on its way; and its key, kept until an answer comes. */
   turningNow: { current: boolean };
   pressKey: { current: string | null };
@@ -162,21 +176,35 @@ async function judgeDraft(io: Asking, held: Held, act?: "next_picture"): Promise
   io.show({ at: "draft", ...next });
 }
 
+/** The piece Run as an ad chose, until its draft is made: then the screen opens on the kept draft, as any other. */
+const pieceToDraft = (io: Asking): string | null => {
+  const { piece, drafted } = io.from;
+  return piece.current !== drafted.current ? piece.current : null;
+};
+
 /**
- * The workspace's draft: the kept one, or a fresh one where none is kept. The sentence is there the moment the server
- * answers; words it does not hold yet are asked for once.
+ * The workspace's draft: the kept one, or a fresh one where none is kept, or one around the piece Run as an ad chose.
+ * The sentence is there the moment the server answers; words it does not hold yet are asked for once.
  */
 async function openDraft(io: Asking): Promise<void> {
   const turn = ++io.turns.current;
   io.tried.current = 0;
   io.show({ at: "opening" });
   io.opening.current = true;
-  const first = standOf(
-    await io.source.draft({}).finally(() => {
-      io.opening.current = false;
-    }),
-  );
+  const piece = pieceToDraft(io);
+  const answer = await io.source.draft(piece ? { picture: piece } : {}).finally(() => {
+    io.opening.current = false;
+  });
+  // Drafted and kept around the piece: asked once, whatever the screen does next. One thing missing keeps nothing, so
+  // Look again asks around the piece again; and a screen closed meanwhile moves no address.
+  if (piece && answer?.can && io.from.open.current) {
+    io.from.drafted.current = piece;
+    io.from.done.current();
+  }
+  const first = standOf(answer);
   if (turn !== io.turns.current) return;
+  // Closed meanwhile: nothing is held for it and AI is asked for no words; opened again, it asks afresh.
+  if (!io.from.open.current) return io.show({ at: "opening" });
   io.show(first);
   if (first.at === "draft" && first.words.at === "writing") return writeWords(io, first);
 }
@@ -372,8 +400,17 @@ function useAfterTyping(): (run: () => void) => void {
   };
 }
 
+/** Where New ad was opened from: the piece Run as an ad chose (null for any other way in), and what follows its draft. */
+interface AdOpenedFrom {
+  piece: string | null;
+  /** Its draft is made and kept: the address can say New ad alone, so a reload opens the kept draft. */
+  drafted: () => void;
+}
+
+const FROM_NOWHERE: AdOpenedFrom = { piece: null, drafted: () => undefined };
+
 /** The draft, while `open` says the screen is. */
-export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
+export function useAdDraft(open: boolean, source: AdSource, from: AdOpenedFrom = FROM_NOWHERE): AdDraftHereNow {
   const [stand, setStand] = useState<AdStand>({ at: "opening" });
   const [isTelling, setTelling] = useState(false);
   const [outcome, setOutcome] = useState<AdTellResult | null>(null);
@@ -384,6 +421,12 @@ export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
   const sets = useRef(0);
   const tellingNow = useRef(false);
   const opening = useRef(false);
+  const piece = useRef(from.piece);
+  piece.current = from.piece;
+  const drafted = useRef<string | null>(null);
+  const done = useRef(from.drafted);
+  done.current = from.drafted;
+  const shown = useRef(false);
   const [isTurning, setTurning] = useState(false);
   const [refused, setRefused] = useState<AdTurnRefused | null>(null);
   const turningNow = useRef(false);
@@ -410,6 +453,7 @@ export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
       sets,
       tellingNow,
       opening,
+      from: { piece, drafted, done, open: shown },
       turningNow,
       pressKey,
       setTurning: turnIs,
@@ -421,7 +465,16 @@ export function useAdDraft(open: boolean, source: AdSource): AdDraftHereNow {
 
   useEffect(() => {
     if (open) reopenDraft(io);
+    // Closed: Run as an ad, pressed again on the same piece, drafts around it afresh.
+    else drafted.current = null;
   }, [open, io]);
+  // Open and on the page: an answer that lands once it is closed, or gone with its view, is no longer this screen's.
+  useEffect(() => {
+    shown.current = open;
+    return () => {
+      shown.current = false;
+    };
+  }, [open]);
 
   const afterTyping = useAfterTyping();
   return {

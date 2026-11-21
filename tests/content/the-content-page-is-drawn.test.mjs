@@ -37,7 +37,7 @@ const out = await build({
       'export { ContentViewRow } from "../../apps/dashboard/src/surfaces/campaigns/content/views.tsx";\n' +
       'export { campaignsChrome } from "../../apps/dashboard/src/surfaces/campaigns/routes.ts";\n' +
       'export { setSurfaceValue, surfaceValue } from "../../apps/dashboard/src/surfaces/surface-values.ts";\n' +
-      'export { readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
+      'export { contentOverride, readMoreContent } from "../../apps/dashboard/src/surfaces/campaigns/content/surface.ts";\n' +
       'export { onSurfaceMoved } from "../../apps/dashboard/src/bridge/surface-status.ts";\n' +
       'export { renderToStaticMarkup } from "react-dom/server";\n' +
       'export { createElement } from "react";\n',
@@ -260,6 +260,81 @@ test("more of what was made is read after what is there, and whoever draws it is
   // With nothing more, a press asks for nothing.
   await S.readMoreContent();
   assert.equal(asked.length, 1);
+});
+
+/** Pieces by their numbers, as a page holds them. */
+const piecesNumbered = (from, to) =>
+  Array.from({ length: to - from + 1 }, (_, i) => ({ file: fileOf(from + i), posts: [] }));
+
+/**
+ * The route as the surface asks it, from a found list of `found` pieces: each read answers the page its query names, from the
+ * piece after `before` (the cursor is the last piece's number here), `limit` long, and the asks it heard.
+ */
+function answerFound(found) {
+  const asked = [];
+  globalThis.window.fetch = async (url) => {
+    const query = new URL(String(url), "http://localhost").searchParams;
+    asked.push(query);
+    const from = query.get("before") ? Number(query.get("before")) + 1 : 1;
+    const limit = Number(query.get("limit") ?? 24);
+    const to = Math.min(from + limit - 1, found);
+    const data = page({
+      made: piecesNumbered(from, to),
+      next: to < found ? String(to) : null,
+      about: query.get("about"),
+    });
+    return new Response(JSON.stringify({ ok: true, data }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  return asked;
+}
+
+test("more of a search is read with its words, and a read again asks for the same words, as long as it is", async () => {
+  S.setSurfaceValue("content", { dto: page({ made: piecesNumbered(1, 24), next: "24", about: "dusk" }), fetchedAt: 1 });
+  const asked = answerFound(60);
+  await S.readMoreContent();
+  assert.equal(asked[0].get("about"), "dusk", "Show more reads on in what was found, never the whole list");
+  assert.equal(asked[0].get("before"), "24");
+  assert.equal(S.surfaceValue("content").dto.made.length, 48);
+  assert.equal(S.surfaceValue("content").dto.about, "dusk");
+  // The feed, a change in an open piece, or the page aging reads it again: the same words, and everything shown kept.
+  await S.contentOverride.apply();
+  assert.equal(asked.length, 2);
+  assert.equal(asked[1].get("about"), "dusk");
+  assert.equal(asked[1].get("limit"), "48");
+  assert.equal(asked[1].get("before"), null);
+  const now = S.surfaceValue("content").dto;
+  assert.equal(now.about, "dusk", "the find line keeps its words");
+  assert.equal(now.made.length, 48);
+  assert.equal(now.next, "48");
+});
+
+test("a read again past the most one read answers reads on a page at a time and keeps every piece shown", async () => {
+  // 144 found pieces on screen once more is read (more than CONTENT_MAX, 96): one read can answer 96 of them.
+  S.setSurfaceValue("content", {
+    dto: page({ made: piecesNumbered(1, 120), next: "120", about: "dusk" }),
+    fetchedAt: 1,
+  });
+  const asked = answerFound(200);
+  await S.readMoreContent();
+  asked.length = 0;
+  await S.contentOverride.apply();
+  assert.deepEqual(
+    asked.map((q) => [q.get("about"), q.get("limit"), q.get("before")]),
+    [
+      ["dusk", "96", null],
+      ["dusk", "48", "96"],
+    ],
+  );
+  const now = S.surfaceValue("content").dto;
+  assert.deepEqual(
+    now.made.map((m) => m.file.name),
+    piecesNumbered(1, 144).map((m) => m.file.name),
+    "every piece once, in its order",
+  );
+  assert.equal(now.next, "144", "and Show more reads on from the last of them");
 });
 
 /** The settings read as the surface holds it, with these features in the workspace's stored config. */

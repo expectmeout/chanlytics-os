@@ -319,7 +319,8 @@ test("a draft shown across a wider place is pressed with that place, and no stre
   const shown = { ...SHOWN, area: { kind: "region", key: "3847" } };
   assert.equal((await press(wide)(shown)).outcome, "kept");
   const body = handed.at(-1);
-  assert.deepEqual(body.ad.area, { kind: "region", key: "3847" });
+  // Its name and country ride with its key, so the ad's drawer says the place and Fix it can draft it again.
+  assert.deepEqual(body.ad.area, { kind: "region", key: "3847", name: "Florida", country: "US" });
   assert.equal(body.ad.address, undefined, "a wider place is named by itself");
   // A press drawn before the place was chosen showed the circle: it is the older one.
   const said = await refusal(press(wide)(SHOWN));

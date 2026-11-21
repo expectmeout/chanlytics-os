@@ -54,6 +54,8 @@ const VERSION = {
 const SIGNED = `https://project.example.com/storage/v1/object/sign/files/${T}/${FILE}.png?token=a-day`;
 const frameOf = (place) => `https://www.facebook.com/ads/api/preview_iframe.php?d=${place}-drawn&t=AQJ`;
 const FORMATS = { MOBILE_FEED_STANDARD: "feed", FACEBOOK_STORY_MOBILE: "story", FACEBOOK_REELS_MOBILE: "reel" };
+/** The size Meta wrote on each place's frame on a real account (21 November 2026). */
+const NAMED_SIZE = { feed: [335, 450], story: [320, 567], reel: [274, 213] };
 
 /** Meta, as the preview meets it: each call kept as asked, each place answered by its frame or as a test sets it. */
 const asked = [];
@@ -70,8 +72,10 @@ globalThis.fetch = async (url, init) => {
   if (set === "slowed") return reply(400, { error: { message: "Too many calls to this ad-account", code: 80004 } });
   if (set === "revoked") return reply(400, { error: { message: "Error validating access token", code: 190 } });
   if (set === "refused") return reply(400, { error: { message: "Invalid parameter: the picture", code: 100 } });
-  if (set === "elsewhere") return reply(200, { data: [{ body: '<iframe src="https://example.com/x?d=1"></iframe>' }] });
-  const html = `<iframe src="${frameOf(place).replace("&", "&amp;")}" width="335" height="580" scrolling="yes"></iframe>`;
+  if (set === "elsewhere")
+    return reply(200, { data: [{ body: '<iframe src="https://example.com/x?d=SECRET"></iframe>' }] });
+  const [width, height] = NAMED_SIZE[place];
+  const html = `<iframe src="${frameOf(place).replace("&", "&amp;")}" width="${width}" height="${height}" scrolling="yes"></iframe>`;
   return reply(200, { data: [{ body: html }] });
 };
 after(() => {
@@ -187,9 +191,10 @@ test("each place is asked once, all at once, every one a read, with the picture'
   }
   assert.equal(body.outcome, "drawn");
   assert.deepEqual(body.places, [
-    { place: "feed", src: frameOf("feed"), width: 335, height: 580, fault: null },
-    { place: "story", src: frameOf("story"), width: 335, height: 580, fault: null },
-    { place: "reel", src: frameOf("reel"), width: 335, height: 580, fault: null },
+    // Meta named the feed 335 × 450, the story 320 × 567 and the Reel 274 × 213: each frame is the size its page draws.
+    { place: "feed", src: frameOf("feed"), width: 335, height: 650, fault: null },
+    { place: "story", src: frameOf("story"), width: 320, height: 568, fault: null },
+    { place: "reel", src: frameOf("reel"), width: 320, height: 567, fault: null },
   ]);
 });
 
@@ -233,7 +238,8 @@ test("a place Meta did not draw says what stood in its way, and the outcome says
     [{ feed: "slowed", story: "silent", reel: "silent" }, "slowed"],
     [{ feed: "revoked", story: "revoked", reel: "revoked" }, "signed_out"],
     [{ feed: "refused", story: "silent", reel: "refused" }, "refused"],
-    [{ feed: "elsewhere", story: "elsewhere", reel: "elsewhere" }, "refused"],
+    // Meta answered every place, and nothing of it was a frame of its own preview page: its own outcome.
+    [{ feed: "elsewhere", story: "elsewhere", reel: "elsewhere" }, "unread"],
   ];
   for (const [set, outcome] of outcomes) {
     answerFor = set;
@@ -258,4 +264,30 @@ test("Meta's own words reach the log and never the answer; the picture's address
   assert.ok(line, "one line for the preview");
   assert.match(line, /Invalid parameter: the picture/);
   assert.ok(!lines.some((one) => one.includes("a-day")), "the picture's address is in no line");
+});
+
+test("an answer of Meta's that can't be read is said in the log by its shape, with no address or value of it", async () => {
+  const w = world();
+  answerFor = { feed: "elsewhere", story: "elsewhere", reel: "elsewhere" };
+  const { value, lines } = await logsOf(async () => heard(await w.ask()));
+  assert.equal(value[1].outcome, "unread");
+  const line = JSON.parse(lines.find((one) => one.includes('"ads_previewed"')));
+  assert.equal(line.unread_shape, "data 1; iframe src https://example.com/x params d");
+  assert.ok(!lines.some((one) => one.includes("SECRET")), "no value of Meta's address is logged");
+  // Read in full, the shape is not logged.
+  answerFor = {};
+  const drawn = await logsOf(async () => heard(await w.ask()));
+  assert.equal(JSON.parse(drawn.lines.find((one) => one.includes('"ads_previewed"'))).unread_shape, undefined);
+});
+
+test("the log says the size Meta wrote on each place's frame, which the frame's own size is not taken from", async () => {
+  const w = world();
+  answerFor = { story: "refused" };
+  const { value, lines } = await logsOf(async () => heard(await w.ask()));
+  const line = JSON.parse(lines.find((one) => one.includes('"ads_previewed"')));
+  assert.deepEqual(line.named, ["335x450", "none", "274x213"], "the feed, a place Meta did not draw, the Reel");
+  // What is framed is the size each page draws, never smaller than Meta wrote.
+  const sizeOf = (place) => value[1].places.find((one) => one.place === place);
+  assert.deepEqual([sizeOf("feed").width, sizeOf("feed").height], [335, 650]);
+  assert.deepEqual([sizeOf("reel").width, sizeOf("reel").height], [320, 567]);
 });

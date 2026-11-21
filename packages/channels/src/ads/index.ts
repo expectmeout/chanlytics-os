@@ -19,7 +19,8 @@ export {
 export type { MetaAdAccount, MetaPage } from "./meta-account";
 export { callMetaAds, metaConfirmed } from "./meta-call";
 export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta-call";
-export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
+export { metaAdSetChangeRequest, metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
+export type { MetaAdSetChange } from "./meta-change";
 export {
   metaAccountInstagramRequest,
   metaAdImageRemoveRequest,
@@ -63,7 +64,14 @@ export type {
 } from "./meta-make";
 export { META_CITY_MILES, metaAreaSent, metaPlacesRequest, parseMetaPlaces } from "./meta-place";
 export type { MetaPlace, MetaPlaceKind } from "./meta-place";
-export { META_PREVIEW_PLACES, metaPreviewFrameSrc, metaPreviewRequest, parseMetaPreview } from "./meta-preview";
+export {
+  META_PREVIEW_PLACES,
+  metaPreviewFrameSrc,
+  metaPreviewNamedSize,
+  metaPreviewRequest,
+  metaPreviewShape,
+  parseMetaPreview,
+} from "./meta-preview";
 export type { MetaPreviewAsk, MetaPreviewFrame, MetaPreviewPlace } from "./meta-preview";
 export {
   META_ADS_PAGE,

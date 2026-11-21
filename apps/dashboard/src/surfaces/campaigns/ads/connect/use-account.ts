@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HOUR_MS, type AdAccountDto } from "@chanlytics/contracts";
 import { api, read } from "@/bridge/api";
+import { adsFirstAnswer } from "@/bridge/surfaces/ads-first-reads";
+import { getActiveWorkspace } from "@/bridge/workspace";
 import type { Disconnected } from "./disconnect-sheet";
 import { DISCONNECT } from "./words";
 
@@ -172,9 +174,24 @@ function returnsOf(io: LookIo): { leave: () => void; back: () => void } {
   };
 }
 
+/**
+ * What the card starts from: the account the Ads view opened on, where the boot read it (bridge/surfaces/ads-first-reads.ts),
+ * drawn at once so the page is the one it is from its first frame, and whether it stands with no read behind it (one read
+ * this recently does; one older is read again behind it).
+ */
+function openingAccount(on: boolean): { dto: AdAccountDto | null; stands: boolean } {
+  const first = on ? adsFirstAnswer(Date.now(), getActiveWorkspace()) : null;
+  return { dto: first?.held.account ?? null, stands: first?.recent === true };
+}
+
+/** Whether the card reads now: once it is drawn, unless what it opened on stands and nothing has asked since. */
+const accountReadsNow = (on: boolean, askedCount: number, stands: boolean): boolean =>
+  on && (askedCount > 0 || !stands);
+
 /** The workspace's ad account, where `on` says the page draws its card. */
 export function useAdAccount(on: boolean): AdAccountHere {
-  const [dto, setDto] = useState<AdAccountDto | null>(null);
+  const [opening] = useState(() => openingAccount(on));
+  const [dto, setDto] = useState<AdAccountDto | null>(opening.dto);
   const [failed, setFailed] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -189,7 +206,7 @@ export function useAdAccount(on: boolean): AdAccountHere {
   }, [on]);
 
   useEffect(() => {
-    if (!on) return undefined;
+    if (!accountReadsNow(on, asked, opening.stands)) return undefined;
     let live = true;
     read("GET ads/account").then(
       (answer) => {
@@ -207,7 +224,7 @@ export function useAdAccount(on: boolean): AdAccountHere {
     return () => {
       live = false;
     };
-  }, [on, asked]);
+  }, [on, asked, opening.stands]);
 
   const again = useCallback(() => setAsked((count) => count + 1), []);
 
