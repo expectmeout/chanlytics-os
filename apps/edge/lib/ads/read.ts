@@ -35,6 +35,7 @@ import type { MetaApp } from "@chanlytics/channels/meta";
 import {
   findAdAccount,
   keepAdsRead,
+  listAdsMadeHere,
   listHeldAdIds,
   markAdAccountRevoked,
   type AdAccountRow,
@@ -69,6 +70,8 @@ import {
   type Asked,
   type MetaSignIn,
 } from "./meta-facts.js";
+import { foldAds, foldDays, foldOf } from "./fold.js";
+import { runLaunches } from "./launch.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
 import { adsWrites, tellPending } from "./tell.js";
 
@@ -77,6 +80,8 @@ type Log = ReturnType<typeof logger>;
 
 /** No call is started with less than this left of a job: its answer and the one write end inside it. */
 const CALL_ROOM_MS = 25 * SECOND_MS;
+/** What a read needs left of the job after a launch: its four calls, each with room for its answer. */
+const READ_ROOM_MS = 40 * SECOND_MS;
 /** How lately an account was read that a read asked for only to send a press reads nothing more. */
 const FRESH_MS = 2 * MIN_MS;
 /** The soonest, and the latest, an account whose read stopped is tried again. */
@@ -210,6 +215,9 @@ async function daysOver(
   return { rows: days, whole };
 }
 
+/** How every id a sandbox launch makes up begins (launch.ts): Meta gives none like it. */
+const SANDBOX_IDS = "0000";
+
 /** The most ads asked for by name in one read: two of Meta's calls. */
 const NAMED_MAX = 2 * META_IDS_MAX;
 
@@ -234,16 +242,22 @@ async function learn(
   const listed = list.rows;
   const dayList = await daysOver(reading, rangeOf(depth, described.timezone, nowMs));
   if (stopped(dayList)) return dayList;
-  const days = dayList.rows;
 
   // The ads this workspace holds, and the ones a day names, that Meta's list did not: asked for by name, so one
   // archived since still says so, and one that ran in the window is adopted (the plan's G3).
   const seen = new Set(listed.map((ad) => ad.id));
   const held = await listHeldAdIds(db, tenantId, account.id);
-  const unlisted = [...new Set([...held, ...days.map((day) => day.adId)])].filter((id) => !seen.has(id));
+  // An id a sandbox launch made up (beginning 0000, launch.ts) is no ad of Meta's: never asked for by name.
+  const unlisted = [...new Set([...held, ...dayList.rows.map((day) => day.adId)])].filter(
+    (id) => !seen.has(id) && !id.startsWith(SANDBOX_IDS),
+  );
   const named = unlisted.length > 0 ? await namedAds(reading, unlisted.slice(0, NAMED_MAX)) : [];
   if (stopped(named)) return named;
-  const ads = [...listed, ...named];
+  // An ad made here is three ads at Meta, one a version of its words: folded into the one the owner made, and a
+  // launch's own parts never adopted (fold.ts).
+  const fold = foldOf(await listAdsMadeHere(db, tenantId, account.id));
+  const ads = foldAds([...listed, ...named], fold);
+  const days = foldDays(dayList.rows, [...listed, ...named], fold);
 
   // Once a day: the Page as Meta describes it now, and Meta's notices subscribed where they are not.
   const daily = depth !== "recent";
@@ -343,23 +357,35 @@ export async function runAdRead(
     log.error("ads_revoked", { how: "no_token" });
     return out("revoked", 0);
   }
+  const revokedAfter = async (calls: number) => {
+    await markAdAccountRevoked(db, tenantId, account.id, "read");
+    log.info("ads_revoked", { how: "read" });
+    return out("revoked", calls);
+  };
+  // An ad the owner turned on goes first (00666): its launch is this account's job's first work, one call after another.
+  const launched = await runLaunches(db, log, {
+    tenantId,
+    signIn,
+    writes: adsWrites(),
+    account: { id: account.id, externalId, currency },
+    deadline,
+  });
+  if (launched.revoked) return revokedAfter(launched.calls);
+  // A launch that took the job's time leaves the read to the next turn, brought within a minute (ad_launch_keep): a
+  // read cut short here would say the account could not be updated.
+  if (launched.ran > 0 && Date.now() > deadline - READ_ROOM_MS) return out("launched", launched.calls);
+  // The owner's presses still on their way go next: a pause must not wait behind a read (00652).
+  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, { accountId: account.id, nowMs });
+  if (sent.revoked) return revokedAfter(launched.calls);
   const reading: Reading = {
     log,
     signIn,
     account: { ...account, external_id: externalId, currency },
     deadline,
-    calls: 0,
-    usage: null,
+    calls: launched.calls,
+    usage: sent.usage ?? launched.usage,
   };
-  const revoked = async () => {
-    await markAdAccountRevoked(db, tenantId, account.id, "read");
-    log.info("ads_revoked", { how: "read" });
-    return out("revoked", reading.calls);
-  };
-  // The owner's presses still on their way go first: a pause must not wait behind a read (00652).
-  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, { accountId: account.id, nowMs });
-  reading.usage = sent.usage;
-  if (sent.revoked) return revoked();
+  const revoked = () => revokedAfter(reading.calls);
   // A read asked for only to send a press, moments after the account's last read, has nothing new to read.
   if (sent.told > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
     return out("told", sent.told);

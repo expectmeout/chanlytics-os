@@ -37,6 +37,18 @@ const META_LISTED_STATES = [
   "WITH_ISSUES",
 ] as const;
 
+/** What a list asks of the ad set above each ad: its budget and run, what a tap opens, and where it shows. */
+const SET_FIELDS = [
+  "id",
+  "daily_budget",
+  "lifetime_budget",
+  "budget_remaining",
+  "start_time",
+  "end_time",
+  "destination_type",
+  "targeting{publisher_platforms}",
+].join(",");
+
 const AD_FIELDS = [
   "id",
   "name",
@@ -45,7 +57,7 @@ const AD_FIELDS = [
   "created_time",
   "issues_info",
   "ad_review_feedback",
-  "adset{id,daily_budget,lifetime_budget,budget_remaining,start_time,end_time,destination_type}",
+  `adset{${SET_FIELDS}}`,
   "campaign{id,daily_budget,lifetime_budget,budget_remaining}",
   "creative{title,body,thumbnail_url}",
 ].join(",");
@@ -110,6 +122,8 @@ export interface MetaAd {
   name: string;
   /** What its owner set it to: Meta's `status`. Null for a word Chanlytics does not know. */
   configured: "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED" | null;
+  /** Where it shows: the platforms its ad set names, as Meta names them; null where Meta named none. */
+  shownOn: string[] | null;
   /** Meta's own word for where it stands, as given (`effective_status`). */
   state: string;
   /** Why Meta will not run it, in Meta's words; null where it gave none. */
@@ -179,6 +193,13 @@ function adOf(row: unknown, currency: string): MetaAd | null {
   const campaign = metaObject(valueAt(ad, "campaign"));
   const creative = metaObject(valueAt(ad, "creative"));
   const configured = metaText(valueAt(ad, "status"));
+  const platforms = valueAt(metaObject(valueAt(set, "targeting")), "publisher_platforms");
+  const shownOn = Array.isArray(platforms)
+    ? platforms
+        .map(metaText)
+        .filter((word) => /^[a-z_]{1,40}$/.test(word))
+        .slice(0, 10)
+    : [];
   const headline = metaText(valueAt(creative, "title")).slice(0, 300);
   const body = metaText(valueAt(creative, "body")).slice(0, 2000);
   const thumbnail = metaText(valueAt(creative, "thumbnail_url"));
@@ -186,6 +207,7 @@ function adOf(row: unknown, currency: string): MetaAd | null {
     id,
     name: metaText(valueAt(ad, "name")).slice(0, 500) || id,
     configured: isConfigured(configured) ? configured : null,
+    shownOn: shownOn.length > 0 ? shownOn : null,
     state: metaText(valueAt(ad, "effective_status")).slice(0, 100) || "UNKNOWN",
     issue: issueOf(ad),
     createdAt: instantOf(valueAt(ad, "created_time")),

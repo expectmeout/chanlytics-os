@@ -111,3 +111,51 @@ export const ADS_PRESS_DOOR = edgeDoor(
   }),
   answerFields({ outcome: z.string(), version: z.number() }),
 );
+
+/**
+ * POST /api/admin/ads/turn-on: an owner turns an ad on (decision 0050, calls 3 and 5; the Ads plan's 4.7). The dashboard
+ * judged the workspace's kept draft at the press and hands on what the owner approved, with the press's own key and the
+ * moment the draft was kept (`draft_at`): a draft changed since is refused. The edge keeps the ad, setting up, and asks
+ * for the account's job, which makes it at Meta paused, reads it back and compares, then switches it on. `outcome` is
+ * kept, or same for the same press again; `ad_id` is the ad either way.
+ */
+export const ADS_TURN_ON_DOOR = edgeDoor(
+  "/api/admin/ads/turn-on",
+  z.object({
+    tenant_id: DOOR_ID.optional(),
+    user_id: DOOR_ID.optional(),
+    /** The press's own key: the same press twice makes one ad. */
+    key: DOOR_ID.optional(),
+    /** When the kept draft was kept, as the press read it. */
+    draft_at: z.string().min(1).max(64).optional(),
+    ad: z
+      .object({
+        /** The service in a few words, as New ad says it: the ad's name here. */
+        name: z.string().trim().min(1).max(200),
+        service: z.string().trim().min(1).max(200),
+        /** The picture it shows: a file's id, and whether it is a photo or a video. */
+        picture: DOOR_ID,
+        picture_kind: z.enum(["photo", "video"]),
+        miles: z.number().int().min(1).max(50),
+        /** A place wider than the circle, by Meta's key, where the owner chose one: shown across it in its place. */
+        area: z
+          .object({ kind: z.enum(["city", "region", "country"]), key: z.string().trim().min(1).max(40) })
+          .optional(),
+        total_minor: z.number().int().positive(),
+        most_minor: z.number().int().positive(),
+        end_day: z.string().regex(DAY_KEY),
+        /** The three versions of its words, each a text and a headline. */
+        versions: z
+          .array(z.object({ text: z.string().trim().min(1).max(1024), headline: z.string().trim().min(1).max(255) }))
+          .min(1)
+          .max(3),
+        /** The business's street address (none where a wider place is chosen), and the number AI answers on WhatsApp. */
+        address: z.string().trim().min(1).max(500).optional(),
+        whatsapp: z.string().trim().min(7).max(32),
+        /** What the press tells Meta of its kind: never a special kind here (the plan's G7). */
+        declared: z.literal("none"),
+      })
+      .optional(),
+  }),
+  answerFields({ outcome: z.string(), ad_id: z.string() }),
+);

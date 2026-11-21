@@ -127,6 +127,7 @@ export const WORDS: Record<string, string> = {
   disconnect_ad_account: "Disconnected an ad account",
   pause_ad: "Paused an ad",
   resume_ad: "Turned an ad back on",
+  turn_on_ad: "Turned an ad on",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -240,6 +241,9 @@ export const WORDS: Record<string, string> = {
   "ad.paused": "An ad was paused",
   "ad.resumed": "An ad was turned back on",
   "ad.press_refused": "Meta didn't take a change to an ad",
+  "ad.turned_on": "An ad was turned on",
+  "ad.made": "An ad was set up at Meta",
+  "ad.setup_stopped": "Couldn't finish setting up an ad",
   "google.disconnected": "Google Business Profile was disconnected",
   "google.replied": "A Google review was answered",
   "google.reply_held": "A review reply was written and not posted",

@@ -20,6 +20,12 @@ import { LENS, LIVE, SHEET } from "./words";
 /** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
 const counted = (ad: Pick<AdLiveDto, "opens">): boolean => AD_DOORS_COUNTED.includes(ad.opens);
 
+/** The standings a row is drawn in amber for: each needs the owner to know it, or to do one thing. */
+const WARN_STATES: readonly AdLiveDto["state"][] = ["needs-you", "couldnt-finish", "unconfirmed"];
+
+/** The standings a drawer says in its row's own line alone: nothing is running yet that money or an end would describe. */
+const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "couldnt-finish", "unconfirmed"];
+
 /** Whether an ad's run is over. */
 const over = (ad: Pick<AdLiveDto, "state">): boolean => ad.state === "ended" || ad.state === "finished";
 
@@ -111,6 +117,9 @@ function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
 function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
   const ends = dayOf(ad.ends_at, said);
   if (dto.account.status !== "connected") return stoppedLineOf(ad, dto, said);
+  if (ad.state === "setting-up") return LIVE.settingUp;
+  if (ad.state === "couldnt-finish") return LIVE.couldntFinish(LIVE.stoppedWhy[ad.launch?.stopped ?? "unanswered"]);
+  if (ad.state === "unconfirmed") return LIVE.unconfirmed;
   if (ad.pending === "pausing") return LIVE.pausing;
   if (ad.pending === "resuming") return LIVE.resuming;
   if (ad.state === "review") return LIVE.checking;
@@ -136,7 +145,7 @@ function rowOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): Li
     open: adRoute(ad.id),
     line: lineOf(ad, dto, said, currency),
     badge: !stopped && ad.pending === null && ad.state === "review" ? LIVE.state.review : null,
-    tone: ad.state === "needs-you" && !stopped ? "warn" : ad.state === "on" && !stopped ? "ok" : "plain",
+    tone: WARN_STATES.includes(ad.state) && !stopped ? "warn" : ad.state === "on" && !stopped ? "ok" : "plain",
     endTop: counted(ad)
       ? LIVE.bookedCell(ad.booked)
       : ad.spend_minor > 0
@@ -272,12 +281,14 @@ export type SheetFootVM =
   | { kind: "pause"; body: string }
   | { kind: "resume"; ask: string; body: string; press: string }
   | { kind: "in-meta"; head: string; body: string }
+  | { kind: "check"; line: string }
+  | { kind: "left"; line: string }
   | { kind: "none"; line: string | null };
 
 export interface SheetVM {
   id: string;
   version: number;
-  /** `Facebook and Instagram · WhatsApp`. */
+  /** Where it shows, then what a tap opens: `Facebook · WhatsApp`. */
   over: string;
   name: string;
   line: string;
@@ -294,7 +305,7 @@ export interface SheetVM {
 
 /** The drawer's first line: where the ad stands, when it ends, and what is left or what it may spend a day. */
 function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
-  if (dto.account.status !== "connected" || ad.pending !== null || over(ad) || ad.state === "review")
+  if (dto.account.status !== "connected" || ad.pending !== null || over(ad) || LINE_ALONE.includes(ad.state))
     return lineOf(ad, dto, said, currency);
   const ends = dayOf(ad.ends_at, said);
   const budget = ad.budget;
@@ -314,17 +325,28 @@ function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: strin
     : [word, end, money].filter(Boolean).join(" · ");
 }
 
+/** The foot of an ad made here while Turn on's job has it, or after it stopped part way; null for any other. */
+function launchFootOf(ad: AdLiveDto): SheetFootVM | null {
+  if (ad.state === "setting-up") return { kind: "none", line: SHEET.settingUp };
+  if (ad.state !== "couldnt-finish") return null;
+  const left = ad.launch?.left ?? [];
+  return left.length > 0
+    ? { kind: "left", line: SHEET.couldntFinish(left) }
+    : { kind: "none", line: SHEET.couldntFinish(left) };
+}
+
 /** What the drawer's foot offers this member for this ad. */
 function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): SheetFootVM {
   if (dto.account.status === "revoked") return { kind: "none", line: SHEET.signedOut };
   if (dto.account.status === "disconnected") return { kind: "none", line: SHEET.leftInMeta };
+  const launching = launchFootOf(ad);
+  if (launching) return launching;
   if (over(ad) || ad.pending !== null) return { kind: "none", line: null };
   if (!dto.can_press) return { kind: "none", line: SHEET.ownerOnly };
+  // Its last switch went unanswered: nothing is sent again, and Check asks Meta what stands (the plan's 4.7, 7).
+  if (ad.state === "unconfirmed") return { kind: "check", line: SHEET.unconfirmed };
   if (ad.state !== "paused") return { kind: "pause", body: SHEET.pauseBody };
-  if (!ad.resume.ok) {
-    if (ad.resume.why === "made_here") return { kind: "none", line: null };
-    return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
-  }
+  if (!ad.resume.ok) return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
   // While AI is stopped no ad is turned on from here (the Ads plan's G17).
   if (dto.stopped_at) return { kind: "none", line: SHEET.stopped };
   const left = moneyOf(ad.resume.left_minor, currency);
@@ -337,6 +359,21 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
   };
 }
 
+/** Where an ad shows, as Meta holds it: "Facebook", "Facebook and Instagram"; "Meta" where that is not known yet. */
+function shownOnOf(shownOn: readonly string[] | null): string {
+  const named = (shownOn ?? []).map((place) => SHEET.places[place]).filter((word) => word !== undefined);
+  if (named.length === 0) return SHEET.platform;
+  return named.length === 1
+    ? (named[0] ?? SHEET.platform)
+    : `${named.slice(0, -1).join(", ")} and ${named.at(-1) ?? ""}`;
+}
+
+/** Meta's own words where it turned down a step of an ad made here, in quotes in the drawer. */
+function launchReasonOf(ad: AdLiveDto): SheetVM["reason"] {
+  const quoted = ad.state === "couldnt-finish" ? (ad.launch?.said ?? null) : null;
+  return quoted ? { label: SHEET.metasReason, words: quoted, note: SHEET.neverRan } : null;
+}
+
 /** An ad's drawer; null where the page holds no ad of that id. */
 export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): SheetVM | null {
   const ad = adId === null ? undefined : dto.ads.find((one) => one.id === adId);
@@ -347,16 +384,17 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
   return {
     id: ad.id,
     version: ad.version,
-    over: `${SHEET.platform} · ${LIVE.opens[ad.opens].replace(/^[a-z]/, (first) => first.toUpperCase())}`,
+    over: `${shownOnOf(ad.shown_on)} · ${LIVE.opens[ad.opens].replace(/^[a-z]/, (first) => first.toUpperCase())}`,
     name: ad.name,
     line: sheetLineOf(ad, dto, said, currency),
     made: ad.made_in_platform ? SHEET.madeInMeta : null,
     reason:
-      ad.needs === "refused" && ad.issue
+      launchReasonOf(ad) ??
+      (ad.needs === "refused" && ad.issue
         ? { label: SHEET.metasReason, words: ad.issue, note: ad.spend_minor === 0 ? SHEET.neverRan : null }
         : ad.issue && ad.state === "needs-you"
           ? { label: SHEET.metasReason, words: ad.issue, note: null }
-          : null,
+          : null),
     ours: counted(ad)
       ? [
           { label: SHEET.cameLabel, value: String(ad.people) },

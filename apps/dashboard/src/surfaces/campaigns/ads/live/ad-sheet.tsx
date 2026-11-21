@@ -75,6 +75,8 @@ function People({ adId, timezone, onGo }: { adId: string; timezone: string; onGo
 export interface SheetActs {
   pause: (id: string, version: number) => void;
   resume: (id: string, version: number) => void;
+  /** Ask Meta what stands of an ad whose last switch it never answered. */
+  check: (id: string, version: number) => void;
   /** A press is on its way: the foot waits. */
   busy: boolean;
 }
@@ -116,6 +118,24 @@ function footOf(vm: SheetVM, acts: SheetActs, onClose: () => void): ReactNode {
         {SHEET.inMeta} <Icon name="chevron" size={12} />
       </LinkButton>
     );
+  if (foot.kind === "check")
+    return (
+      <Button
+        variant="primary"
+        disabled={acts.busy}
+        onClick={() => acts.check(vm.id, vm.version)}
+        data-testid="ads-live-check"
+        {...gate("approve", GATE.change)}
+      >
+        {SHEET.check}
+      </Button>
+    );
+  if (foot.kind === "left")
+    return (
+      <LinkButton href={ADS_MANAGER} {...META_TAB} data-testid="ads-live-left">
+        {SHEET.openMeta} <Icon name="chevron" size={12} />
+      </LinkButton>
+    );
   return null;
 }
 
@@ -123,6 +143,12 @@ function footOf(vm: SheetVM, acts: SheetActs, onClose: () => void): ReactNode {
 function Above({ vm }: { vm: SheetVM }) {
   const { foot } = vm;
   if (foot.kind === "pause") return <p className="ads-conn-says">{foot.body}</p>;
+  if (foot.kind === "check" || foot.kind === "left")
+    return (
+      <div className="ads-conn-need" data-tone="warn" data-testid="ads-live-launch">
+        <span>{foot.line}</span>
+      </div>
+    );
   if (foot.kind === "resume" || foot.kind === "in-meta")
     return (
       <div className="ads-conn-need" data-tone="calm" data-testid="ads-live-ask">
