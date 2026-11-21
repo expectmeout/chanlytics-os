@@ -22,7 +22,7 @@
  * the left, the day and the rest on the right (D7); the head's four figures are the day's one line now. The head over it
  * is the frame's (head.tsx): the greeting, one sentence, Listen. The layout is calm/calm.css's.
  */
-import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import type { ColdEmailNote } from "@chanlytics/contracts";
 import { ColdEmailLine, useColdEmailNote } from "./cold-email-note";
 import { TodayContentLine } from "../content-note";
@@ -40,11 +40,10 @@ import { drawnByToday, type SeeRef } from "../../see/over";
 import { useSeeOver } from "../../see/see-mount";
 import { useToast } from "../shell";
 import { useKeepsTheLook } from "../ai/looked";
-import { AiSheet } from "../ai/sheet";
 import { HeldSheet } from "../calm/held";
+import { useAiSheetOpen } from "../ai/open";
 import { MorningFold, TonightLine } from "../calm/evening";
 import { WeekLead, useWeekMoment } from "../calm/week";
-import { LetAiDoMore } from "../calm/more";
 import { TodayKeys } from "../calm/keys";
 
 /**
@@ -110,6 +109,37 @@ const theRest = (at: TodayArrangement, setupLater: ReactNode) =>
 
 /** What is left to set up, at the page's foot by day; once the day is over it waits for morning in the fold. */
 const setupAfter = (at: TodayArrangement, setupLater: ReactNode) => (at.morning ? null : setupLater);
+
+/**
+ * AI's sheet (ai/sheet.tsx) and Let AI do more (calm/more.tsx), each its own chunk: they read Autonomy's rows and its
+ * verbs, which no first draw of Today needs. The sheet is asked for as it first opens; the line as the page draws, and
+ * says nothing until its read is in anyway.
+ */
+const AiSheetCode = lazy(() => import("../ai/sheet").then((m) => ({ default: m.AiSheet })));
+const MoreCode = lazy(() => import("../calm/more").then((m) => ({ default: m.LetAiDoMore })));
+
+/** AI's sheet, loaded the first time it opens and kept from then on, so it shuts whole. */
+function AiSheet() {
+  const open = useAiSheetOpen();
+  const [asked, setAsked] = useState(false);
+  useEffect(() => {
+    if (open) setAsked(true);
+  }, [open]);
+  return asked || open ? (
+    <Suspense fallback={null}>
+      <AiSheetCode />
+    </Suspense>
+  ) : null;
+}
+
+/** Let AI do more (W10), from its own chunk. */
+function LetAiDoMore() {
+  return (
+    <Suspense fallback={null}>
+      <MoreCode />
+    </Suspense>
+  );
+}
 
 /** What opens over Today, its own chunk, asked for as a visit or a conversation opens (today/over/mount.tsx). */
 const TodayOver = lazy(() => import("../over/mount").then((m) => ({ default: m.TodayOver })));

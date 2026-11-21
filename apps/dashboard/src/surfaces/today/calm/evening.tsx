@@ -13,7 +13,7 @@ import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
 import { useSurface } from "../../use-surface";
-import { nextRuns } from "../ai/sheet";
+import { nextRuns } from "../ai/runs";
 import { openAiSheet } from "../ai/open";
 import { AI_WORDS } from "../model/ai";
 import { TODAY_LINE_WORDS } from "../model/lines";

@@ -7,7 +7,6 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  DAY_MS,
   DEFAULT_TIMEZONE,
   LIFECYCLE_WORDS,
   POLICY_MODE_WORDS,
@@ -37,11 +36,9 @@ import { AI_WORDS } from "../model/ai";
 import { goFromToday } from "../over/open";
 import { useToast, workspaceClock } from "../shell";
 import { closeAiSheet, useAiSheetOpen } from "./open";
+import { nextRuns } from "./runs";
 
 const SHEET_WORDS = AI_WORDS.sheet;
-
-/** What goes out next: runs set to go on their own within a day. */
-const NEXT_WITHIN_MS = DAY_MS;
 
 /** The most rows of how AI works the sheet names: Replies, and the kinds that ask you first. */
 const RULES_SHOWN = 3;
@@ -157,16 +154,6 @@ function Did({ ai }: { ai: TodayAiVM }) {
       )}
     </Part>
   );
-}
-
-/** The runs set to go on their own within a day, soonest first: the sheet's Next, and tonight's line (tonight.tsx). */
-export function nextRuns(rows: readonly BroadcastVM[] | undefined, nowMs: number): BroadcastVM[] {
-  return (rows ?? [])
-    .filter((r) => {
-      const at = r.scheduled_for ? Date.parse(r.scheduled_for) : Number.NaN;
-      return r.state === "scheduled" && at >= nowMs && at - nowMs <= NEXT_WITHIN_MS;
-    })
-    .sort((a, b) => Date.parse(a.scheduled_for ?? "") - Date.parse(b.scheduled_for ?? ""));
 }
 
 /** What goes out next, each with its Stop (W3); nothing where nothing is set to go. */
