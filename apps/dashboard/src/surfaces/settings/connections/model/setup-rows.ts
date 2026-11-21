@@ -273,11 +273,15 @@ const DRIVE_DISCONNECT: ConnectionVerb = {
   danger: true,
 };
 
-/** Where each standing puts the row: joined and well, joined and asking for someone, joined with nothing watched, or not joined. */
-const DRIVE_STATE: Record<FootageStandingKey, ConnectionDraft["state"]> = {
+/**
+ * Where each standing puts the row: joined and well, joined and asking for someone, or not joined. Never off, a line
+ * switched off, which loses what reaches it: joined with nothing watched loses nothing, so it is joined and well, its
+ * badge grey, and Connections' head does not count it as needing attention.
+ */
+const DRIVE_STATE: Record<FootageStandingKey, Exclude<ConnectionDraft["state"], "off">> = {
   not_connected: "none",
   blocked: "attention",
-  not_watching: "off",
+  not_watching: "connected",
   looking: "connected",
   bringing_in: "connected",
   waits_tomorrow: "connected",
