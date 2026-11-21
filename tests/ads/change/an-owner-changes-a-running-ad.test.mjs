@@ -371,8 +371,9 @@ test("a change under Meta's least, or under a tenth over what was spent, is refu
   // $20 spent: Meta keeps a total of at least $22.
   const under = { what: "total", total_minor: 2100, from_minor: 7000 };
   assert.deepEqual((await heard(await w.press(under)))[1].error, "ad_stale");
-  // A last day tomorrow's tomorrow is fine; today is not a whole day.
-  const today = { what: "end_day", end_day: new Date().toISOString().slice(0, 10), from_ends_at: w.row.ends_at };
+  // A last day tomorrow's tomorrow is fine; today, in the account's own zone, is not a whole day.
+  const accountToday = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+  const today = { what: "end_day", end_day: accountToday, from_ends_at: w.row.ends_at };
   assert.deepEqual((await heard(await w.press(today)))[1].error, "ad_stale");
   assert.deepEqual([asked, w.kept.decisions], [[], []]);
 });
