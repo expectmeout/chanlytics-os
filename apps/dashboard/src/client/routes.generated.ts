@@ -35,6 +35,7 @@ export const ROUTES = {
   "GET ads/connect/callback": { method: "GET", path: "/api/v1/ads/connect/callback" },
   "GET ads/page": { method: "GET", path: "/api/v1/ads/page" },
   "GET ads/people": { method: "GET", path: "/api/v1/ads/people" },
+  "GET ads/preview": { method: "GET", path: "/api/v1/ads/preview" },
   "GET ask/follow-ups": { method: "GET", path: "/api/v1/ask/follow-ups" },
   "GET ask/memory": { method: "GET", path: "/api/v1/ask/memory" },
   "GET ask/morning": { method: "GET", path: "/api/v1/ask/morning" },
@@ -473,6 +474,7 @@ export type Routes = {
   "GET ads/connect/callback": typeof import("../../app/api/v1/ads/connect/callback/route").GET;
   "GET ads/page": typeof import("../../app/api/v1/ads/page/route").GET;
   "GET ads/people": typeof import("../../app/api/v1/ads/people/route").GET;
+  "GET ads/preview": typeof import("../../app/api/v1/ads/preview/route").GET;
   "GET ask/follow-ups": typeof import("../../app/api/v1/ask/follow-ups/route").GET;
   "GET ask/memory": typeof import("../../app/api/v1/ask/memory/route").GET;
   "GET ask/morning": typeof import("../../app/api/v1/ask/morning/route").GET;

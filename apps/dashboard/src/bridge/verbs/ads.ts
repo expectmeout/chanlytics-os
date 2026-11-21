@@ -6,8 +6,11 @@
 import { api } from "@/bridge/api";
 import type { AdDraftState, AdWideArea } from "@/server/ads/draft-shape";
 
-/** A fresh draft where none is sent; else that draft as it stands now, after the one act a check offers where named. */
-export const askAdDraft = (body: { draft?: AdDraftState; act?: "next_picture" }) =>
+/**
+ * A fresh draft where none is sent (around a picture, where Run as an ad named one); else that draft as it stands now,
+ * after the one act a check offers where named.
+ */
+export const askAdDraft = (body: { draft?: AdDraftState; act?: "next_picture"; picture?: string }) =>
   api()("POST ads/draft", { body }).catch(() => null);
 
 /** The ad writer: three versions of a draft's words, or the one change the owner told AI to make. */

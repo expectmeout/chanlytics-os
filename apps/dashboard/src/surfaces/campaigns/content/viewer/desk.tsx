@@ -26,6 +26,7 @@ import { ViewerFacts } from "./details";
 import { ViewerActs, ViewerStatus, statusOpensOf, viewerHasStatus, viewerLeadOf } from "./foot";
 import { ViewerMore } from "./more";
 import { ViewerPicture } from "./picture";
+import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
 import { byHandOffered, removeAsk, type ViewerHands } from "./viewer";
@@ -342,13 +343,16 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
               />
             )}
             {presses.asking ? null : (
-              <PostedByHand
-                press={hands.byHand}
-                may={hands.may}
-                offered={byHandOffered(file)}
-                clock={clock}
-                busy={presses.busy}
-              />
+              <>
+                <PostedByHand
+                  press={hands.byHand}
+                  may={hands.may}
+                  offered={byHandOffered(file)}
+                  clock={clock}
+                  busy={presses.busy}
+                />
+                <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} />
+              </>
             )}
             <ViewerFacts
               shown={says.details}

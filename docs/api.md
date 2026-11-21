@@ -118,6 +118,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `draft` | object | no |  |
 | `act` | one of `"next_picture"` | no |  |
 | `service` | string | no | at least 1 characters; at most 200 characters |
+| `picture` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `most` | integer | no | ≤ 100000000 |
 
 ### `GET /api/v1/ads/page`
@@ -142,6 +143,14 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `ad` | `"unnamed"` or string | yes |  |
 | `offset` | integer | no | ≥ 0; ≤ 100000 |
+
+### `GET /api/v1/ads/preview`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 0; ≤ 2 |
 
 ### `POST /api/v1/ads/turn-on`
 
@@ -3857,7 +3866,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-63 doors.
+64 doors.
 
 ### `POST /api/admin/ads/account`
 
@@ -3891,6 +3900,14 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `ad_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `version` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
 | `ads` | array of object | no | at most 200 |
+
+### `POST /api/admin/ads/preview`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `preview` | object | no |  |
 
 ### `POST /api/admin/ads/turn-on`
 

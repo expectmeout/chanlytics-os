@@ -5,10 +5,20 @@ import {
   fileAdRightsOf,
   fileSoundOf,
   type AdPicture,
+  type AdPictureIssue,
   type FileDto,
   type FileYesFacts,
 } from "@chanlytics/contracts";
-import { listFilesForAds, listFilesOnShelf, readFileSound, type FileMemberRow } from "@chanlytics/db/files";
+import { findLiveAdAccount } from "@chanlytics/db/ads";
+import { logAndGoOn } from "@chanlytics/log";
+import {
+  listFilesByIds,
+  listFilesForAds,
+  listFilesOnShelf,
+  readFileSound,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
+import { readAdsOffered } from "../connections/ads-ready";
 import { fileDtoOf } from "../readers/files";
 import { readDrawnFrom } from "../posts/made-as";
 import type { ReaderContext } from "../shared/reader";
@@ -26,7 +36,8 @@ import type { ReaderContext } from "../shared/reader";
  *
  * Ads never crops: the shape is the file's own, and the rule that judges it is contracts adPictureIssue.
  *
- * New ad's draft asks it (server/ads/draft-facts.ts).
+ * New ad's draft asks it (server/ads/draft-facts.ts), and so does a made piece as it opens in Content, whose "Run as an
+ * ad" says what the same rule answers of it (readPieceAd, the plan's 6.8, join 3).
  */
 
 /**
@@ -102,10 +113,28 @@ async function listNewestOnShelves(rc: AdReader): Promise<AdPicture[]> {
 }
 
 /**
- * The pictures a draft may be offered, in the order Files offers them: what AI made first, then what the business
- * keeps, each newest first. A video's sound is read only where everything else about it is fine, and for a few.
+ * The pictures a request names (a piece "Run as an ad" chose, the picture of a draft sent or kept), read wherever they
+ * stand: one older than the few each shelf is read for is still the draft's, never "gone". Only what is filed: a piece
+ * set aside, or deleted, is not offered.
  */
-export async function listAdPictures(rc: AdReader): Promise<AdPictures> {
+async function listNamedPictures(
+  rc: AdReader,
+  named: readonly (string | null | undefined)[],
+): Promise<FileMemberRow[]> {
+  const ids = [...new Set(named.filter((id): id is string => typeof id === "string" && id !== ""))];
+  const rows = await listFilesByIds(rc.ctx.supabase, rc.tenantId, ids);
+  return rows.filter((row) => row.status === "filed");
+}
+
+/**
+ * The pictures a draft may be offered, in the order Files offers them: what AI made first, then what the business
+ * keeps, each newest first, and after them any picture the request names that the shelves did not hold. A video's
+ * sound is read only where everything else about it is fine: for a few, and for each one named.
+ */
+export async function listAdPictures(
+  rc: AdReader,
+  named: readonly (string | null | undefined)[] = [],
+): Promise<AdPictures> {
   const { supabase } = rc.ctx;
   const shelf = async (madeByAi: boolean): Promise<FileMemberRow[]> => {
     const [images, videos] = await Promise.all([
@@ -117,13 +146,20 @@ export async function listAdPictures(rc: AdReader): Promise<AdPictures> {
       (first, second) => second.created_at.localeCompare(first.created_at) || second.id.localeCompare(first.id),
     );
   };
-  const [byAi, byBusiness] = await Promise.all([shelf(true), shelf(false)]);
-  const files = [...byAi, ...byBusiness].map(fileDtoOf).filter(playable);
+  const [byAi, byBusiness, asked] = await Promise.all([shelf(true), shelf(false), listNamedPictures(rc, named)]);
+  const shelved = new Set([...byAi, ...byBusiness].map((row) => row.id));
+  const offShelf = asked.filter((row) => !shelved.has(row.id));
+  const files = [...byAi, ...byBusiness, ...offShelf].map(fileDtoOf).filter(playable);
   const from = await readPiecesDrawnFrom(rc, files);
   const fromOf = (file: FileDto) => from.get(file.id) ?? [];
-  const unheard = files
-    .filter((file) => file.kind === "video" && adPictureIssue(adPictureOfFile(file, fromOf(file), false)) === null)
-    .slice(0, AD_SOUNDS_READ);
+  const isNamed = new Set(asked.map((row) => row.id));
+  const hearable = files.filter(
+    (file) => file.kind === "video" && adPictureIssue(adPictureOfFile(file, fromOf(file), false)) === null,
+  );
+  const unheard = [
+    ...hearable.filter((file) => isNamed.has(file.id)),
+    ...hearable.filter((file) => !isNamed.has(file.id)).slice(0, AD_SOUNDS_READ),
+  ];
   const sounds = new Map<string, HeardSound>(
     await Promise.all(
       unheard.map(async (file): Promise<[string, HeardSound]> => [
@@ -139,3 +175,37 @@ export async function listAdPictures(rc: AdReader): Promise<AdPictures> {
     files: new Map(files.map((file) => [file.id, file])),
   };
 }
+
+/**
+ * Where a made piece stands for an ad, as Content's open piece says it with "Run as an ad" (the plan's 6.8, join 3, and
+ * G13): it may run (`may`), no ad account is connected (`no_account`), or why it may not (`wont`), by the same rule New
+ * ad's draft asks of every picture. A video not heard yet is `unheard`, apart from one heard with music: the rule holds
+ * both back, and the owner is told which.
+ */
+export type PieceAdStands = { is: "may" } | { is: "no_account" } | { is: "wont"; why: AdPictureIssue | "unheard" };
+
+async function pieceAdStandsOf(rc: AdReader, row: FileMemberRow): Promise<PieceAdStands | null> {
+  const file = fileDtoOf(row);
+  if (file.source !== "made" || !playable(file)) return null;
+  if (!(await readAdsOffered(rc.tenantId))) return null;
+  const video = file.kind === "video";
+  const [account, from, sound] = await Promise.all([
+    findLiveAdAccount(rc.ctx.supabase, rc.tenantId, "meta"),
+    readPiecesDrawnFrom(rc, [file]),
+    video ? readFileSound(rc.ctx.supabase, file.id) : null,
+  ]);
+  if (account?.status !== "connected") return { is: "no_account" };
+  const music = video ? musicIn(fileSoundOf(sound)) : false;
+  const issue = adPictureIssue(adPictureOfFile(file, from.get(file.id) ?? [], music));
+  if (issue === null) return { is: "may" };
+  return { is: "wont", why: issue === "music" && music === null ? "unheard" : issue };
+}
+
+/**
+ * A made piece's standing for an ad, read as it opens (GET files/[id]). Null where nothing is said of it: anything AI
+ * did not make, a video not ready to play, and a workspace where no ad can be drafted on this deployment (the draft's
+ * own gate, server/ads/draft.ts requireAdsOffered), which is where Ads is not shown, or is shown only so an owner sees
+ * what runs and can let the account go. A read that fails says nothing, and costs the piece's record nothing.
+ */
+export const readPieceAd = (rc: AdReader, row: FileMemberRow): Promise<PieceAdStands | null> =>
+  pieceAdStandsOf(rc, row).catch(logAndGoOn("a made piece's standing for an ad", null));

@@ -243,17 +243,31 @@ function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
   };
 }
 
-/** What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed. */
-export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
+/** The picture a kept draft shows, as its row holds it: read with the shelves, wherever it stands on them. */
+const keptPictureOf = (row: AdDraftRow | null): string | null => {
+  const picture = recordOrEmpty(row?.draft).picture;
+  return typeof picture === "string" ? picture : null;
+};
+
+/**
+ * What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed.
+ * `shown` are the pictures the request names (a piece "Run as an ad" chose, a draft's own), read with the kept draft's
+ * wherever they stand, so a draft's own picture is never "gone" for being older than the few each shelf is read for.
+ */
+export async function readAdDraftFacts(
+  rc: ReaderContext,
+  shown: readonly (string | undefined)[] = [],
+): Promise<AdDraftFacts> {
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
+  const keptRead = findAdDraft(supabase, rc.tenantId);
   const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow, listing] = await Promise.all([
     getTenantFacts(supabase, rc.tenantId),
     findConfigRow(supabase, rc.tenantId),
     getAppointmentWord(rc.ctx, rc.tenantId),
     findAdAccountForPage(supabase, rc.tenantId, "meta"),
     findChannelNumber(supabase, rc.tenantId, "whatsapp"),
-    listAdPictures(rc),
+    keptRead.then((kept) => listAdPictures(rc, [...shown, keptPictureOf(kept)])),
     readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
     listServicesBookedSince(
       supabase,
@@ -261,7 +275,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
       new Date(nowMs - BOOKED_LOOKBACK_DAYS * DAY_MS).toISOString(),
       BOOKED_READ,
     ),
-    findAdDraft(supabase, rc.tenantId),
+    keptRead,
     findGoogleListingFacts(supabase, rc.tenantId),
   ]);
   if (number.error) throw new DbFailure(number.error, "the number AI answers");

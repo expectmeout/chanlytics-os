@@ -13,6 +13,7 @@ import type {
   PiecePlan,
   PostDto,
 } from "@chanlytics/contracts";
+import type { PieceAdStands } from "@/server/content/ad-pictures";
 import { fileVerbs } from "./verbs";
 
 /**
@@ -30,6 +31,9 @@ export function usePostRecord(file: FileDto, moved = "") {
   const [posts, setPosts] = useState<PostDto[] | null>(null);
   // A video Ask made: the plan it was drawn by, which Campaigns › Content makes it again from.
   const [video, setVideo] = useState<PiecePlan | null>(null);
+  // A made piece's standing for an ad, where Ads is on: what Content's Run as an ad says. Kept with the file it was read
+  // for, so the piece beside never says this one's word while its own record is on its way.
+  const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
   // Read again when asked: a post on its way to Instagram says where it stands as it moves.
   const [asked, setAsked] = useState(0);
   const reread = useCallback(() => setAsked((n) => n + 1), []);
@@ -50,10 +54,12 @@ export function usePostRecord(file: FileDto, moved = "") {
       setPosts(data.posts ?? data.instagram?.posts ?? null);
       setSound(data.sound ?? null);
       setVideo(data.video?.plan ?? null);
+      setAd({ id: file.id, stands: data.ad ?? null });
     });
     return () => {
       live = false;
     };
   }, [file.id, isPost, isVideo, heard, asked, moved]);
-  return { made, connected, posted, setPosted, sound, instagram, posts, video, reread };
+  const adHere = ad?.id === file.id ? ad.stands : null;
+  return { made, connected, posted, setPosted, sound, instagram, posts, video, ad: adHere, reread };
 }

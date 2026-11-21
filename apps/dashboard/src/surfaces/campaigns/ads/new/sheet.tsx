@@ -16,7 +16,7 @@ import "./new.css";
 import "../connect/connect.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, isUuid, type AdStart } from "@chanlytics/contracts";
 import type { AdCantDraft } from "@/server/ads/draft-shape";
 import { MASCOT } from "@/bridge/mascot";
 import { Button } from "../../../kit/button/button";
@@ -45,6 +45,7 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   picture_none: CONTENT_LIBRARY_ROUTE,
   picture_person: CONTENT_LIBRARY_ROUTE,
   picture_music: CONTENT_LIBRARY_ROUTE,
+  picture_gone: CONTENT_ROUTE,
   account: null,
   account_reading: null,
   stopped: null,
@@ -143,10 +144,12 @@ interface DraftProps {
   acts: AdDraftActs;
   telling: boolean;
   onConnect: () => void;
+  /** Meta's own preview of a version, where the source asks for one. */
+  preview: AdSource["preview"];
 }
 
 /** The draft's body: the sentence, the word being changed, why that amount, the one line, and the ad as it will look. */
-function DraftBody({ stand, vm, acts, telling, onConnect }: DraftProps) {
+function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps) {
   const [editing, setEditing] = useState<AdEditing>(null);
   const act = (line: LineAct) => {
     if (line.kind === "rewrite") return acts.write();
@@ -173,7 +176,7 @@ function DraftBody({ stand, vm, acts, telling, onConnect }: DraftProps) {
       ) : null}
       <NewWhy lines={vm.why} />
       {vm.line ? <NewAdLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
-      <AdShown shown={vm.shown} onNext={acts.nextVersion} />
+      <AdShown shown={vm.shown} onNext={acts.nextVersion} preview={preview} />
     </div>
   );
 }
@@ -202,6 +205,12 @@ interface NewAdProps {
   onGo: (route: string) => void;
   /** After Turn on: open the ad it made, which is being set up at Meta. */
   onSee: (adId: string) => void;
+  /**
+   * What the address says New ad starts from: a piece Run as an ad chose in Content is drafted around once, and the
+   * address then says New ad alone (`onDrafted`), so a reload opens the kept draft. Anything else opens the kept draft.
+   */
+  start?: { how: AdStart; id: string } | null;
+  onDrafted?: () => void;
 }
 
 /** The sheet's parts for where the screen stands: its head's words, its body and its foot. */
@@ -225,7 +234,16 @@ function newAdParts(
     return {
       title: vm.title,
       sub: vm.kicker,
-      body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
+      body: (
+        <DraftBody
+          stand={stand}
+          vm={vm}
+          acts={acts}
+          telling={here.telling}
+          onConnect={props.onConnect}
+          preview={props.source.preview}
+        />
+      ),
       foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={acts.turnOn} />,
       fit: false,
     };
@@ -276,7 +294,11 @@ function newAdParts(
 }
 
 export function NewAd(props: NewAdProps) {
-  const here = useAdDraft(props.open, props.source);
+  const here = useAdDraft(props.open, props.source, {
+    // An address naming no file's id is New ad on its kept draft: a link never lands on a refusal.
+    piece: props.start?.how === "piece" && isUuid(props.start.id) ? props.start.id : null,
+    drafted: props.onDrafted ?? (() => undefined),
+  });
   const { stand } = here;
   useAiAtWork(props.open && ((stand.at === "draft" && stand.words.at === "writing") || here.telling));
   const parts = newAdParts(props, here);
