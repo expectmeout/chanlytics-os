@@ -1,0 +1,106 @@
+/*
+ * AI's work on Today (Working for you, 21 Nov 2026, W1 to W3, W13, W21): its state, a press of its own under the head's
+ * sentence, and its sheet over Today. Layout alone: the press is the kit's button, the lines are Today's calm lines, the
+ * sheet is the kit's sheet. One moving thing: the three in the press, while AI is in a conversation (pill.tsx).
+ */
+
+/* The press stands on its own row under the sentence, as wide as its words. */
+.calm-ai {
+  display: flex;
+  width: fit-content;
+  margin-top: var(--space-3);
+  gap: var(--space-2);
+}
+/* The three while AI is in a conversation: the size of the still mark it stands in for. */
+.calm-ai-three {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+/* The sheet's name for AI's state, the sentence under it, and its parts a rhythm apart, each named small over it. */
+.calm-ai-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.calm-ai-sub {
+  margin-top: var(--space-1);
+  font-size: var(--text-read);
+  color: var(--ink-muted);
+}
+.calm-ai-part {
+  margin-top: var(--space-5);
+}
+.calm-ai-head {
+  padding-bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.calm-ai-none {
+  padding: var(--space-2) 0;
+  font-size: var(--text-read);
+  color: var(--ink-muted);
+}
+/* How AI works for you: each Autonomy row's name and what it does, a line apiece, and the door to them under. */
+.calm-ai-rules {
+  display: flex;
+  flex-direction: column;
+}
+.calm-ai-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-read);
+}
+.calm-ai-rule:first-child {
+  border-top: 0;
+}
+.calm-ai-rule > b {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+.calm-ai-rule > span {
+  color: var(--ink-muted);
+  text-align: right;
+}
+/* Why, a tap away (W13): its sentence, and the door under it. */
+.calm-ai-why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-aside);
+  line-height: var(--leading-snug);
+  color: var(--ink-muted);
+}
+.calm-ai-door {
+  margin-top: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  text-decoration: none;
+}
+/* Stop everything, at the sheet's foot, centred over the sentence that says what it does. */
+.calm-ai-stop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+.calm-ai-stop-note {
+  text-align: center;
+  font-size: var(--text-aside);
+  color: var(--ink-dim);
+}

@@ -7,10 +7,17 @@ import {
   type LeadSearchDto,
   type MetricsSummaryDto,
   type PreviewTriedDto,
+  type TodayAiReadDto,
   type TodayPeopleDto,
+  lookedAtOf,
+  parseTenantConfigResult,
   todayPeopleOf,
 } from "@chanlytics/contracts";
+import { listBookedByAiSince } from "@chanlytics/db/calendar";
 import { getTodayDoneCount } from "@chanlytics/db/people";
+import { findConfigRow } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
+import { memberViews } from "./notifications";
 import type { GoingRunRow, WaitingRunRow } from "@chanlytics/db/campaigns";
 import { load, readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 import { goingRuns, waitingRuns } from "./broadcasts";
@@ -44,6 +51,35 @@ interface TodayRead {
   going: GoingRunRow[] | null;
   /** The leads who tried their own receptionist lately (decision 0079); null where the read failed. */
   previewsTried: PreviewTriedDto[] | null;
+  /** What Today says of AI beside the day (Working for you, W1 to W3): each part null where its read failed. */
+  ai: TodayAiReadDto;
+}
+
+/** The most visits AI booked today that Today carries: the AI sheet names the newest, and counts since a look. */
+const BOOKED_BY_AI_MAX = 50;
+
+/**
+ * What Today says of AI beside the day's read (contracts today/ai.ts): the visits AI booked since the business's midnight,
+ * whether Stop everything is on, and when this member last looked at Today. Each is additive: one that fails is null and
+ * logged, and the day stands.
+ */
+async function aiBeside(rc: ReaderContext, since: string): Promise<TodayAiReadDto> {
+  const db = rc.ctx.supabase;
+  const [booked, stopped, looked] = await Promise.all([
+    listBookedByAiSince(db, rc.tenantId, since, BOOKED_BY_AI_MAX)
+      .then((rows) => rows.map(({ client_name, ...row }) => ({ ...row, who: client_name })))
+      .catch(logAndGoOn("today's AI bookings", null)),
+    findConfigRow(db, rc.tenantId)
+      .then(({ data }) => {
+        const parsed = parseTenantConfigResult(data?.config ?? null);
+        return parsed.ok ? !!parsed.config.ask?.stopped : null;
+      })
+      .catch(logAndGoOn("today's stop", null)),
+    load(rc, memberViews, undefined)
+      .then((views) => lookedAtOf(views.data))
+      .catch(logAndGoOn("today's last look", null)),
+  ]);
+  return { booked, stopped, looked_at: looked };
 }
 
 /**
@@ -105,7 +141,10 @@ export const today: Reader<undefined, TodayRead> = {
         return null;
       }),
     ]);
-    const held = await findHeldThreadsBeyond(rc, c.data.conversations, e.data.escalations);
+    const [held, ai] = await Promise.all([
+      findHeldThreadsBeyond(rc, c.data.conversations, e.data.escalations),
+      aiBeside(rc, m.data.metrics.window.since),
+    ]);
     if (held.threads === null) log.error("today_held_threads_fetch_failed", { asked: held.missing.length });
     return {
       data: {
@@ -118,6 +157,7 @@ export const today: Reader<undefined, TodayRead> = {
         heldThreads: held.threads,
         going: g ? g.data.runs : null,
         previewsTried: t ? t.data.previews : null,
+        ai,
       },
       rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],
       stamp: readerStamp(),

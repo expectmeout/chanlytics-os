@@ -130,6 +130,41 @@ const ESCALATION_REASON_WHY: Record<EscalationReason, string> = {
   wrote_while_held: "because they wrote while your team had it",
 };
 
+/**
+ * Why AI did not finish it, as Today's card says it first (Working for you, W20, 21 Nov 2026): "AI held it: booking a time
+ * needs you." The card answers three things, what happened (their words, its title), why AI did not finish it (this), and
+ * what your press does; each reason's clause is what AI could not do, or what keeps it for you.
+ */
+const ESCALATION_REASON_HELD: Record<EscalationReason, string> = {
+  human_token: "they asked for a person",
+  refusal: "it chose not to answer this one",
+  brain_error: "it couldn't find an answer",
+  non_text: "it can't read a voice note or a photo",
+  send_failed: "the reply didn't reach them",
+  policy_block: "your reply setting keeps these for you",
+  policy_ask: "this kind of question is set to ask you first",
+  person_hold: "you answer this person yourself",
+  rate_cap: "they wrote faster than it may reply",
+  deadman: "nobody picked it up in time",
+  manual: "it was flagged by hand",
+  opt_out: `they ${STOP_WORDS.short}`,
+  state_unavailable: "it couldn't read this conversation",
+  stale: "too long had passed to answer",
+  budget: "today's AI limit is reached",
+  callback: "they need a call back",
+  paused: "the workspace is paused",
+  carriers: "texting isn't approved for this number yet",
+  email_review: "email replies wait for you",
+  booking_request: "booking a time needs you",
+  booking_reply: "booking a time needs you",
+  wrote_while_held: "your team has this conversation",
+};
+
+/** The card's first sentence for a hold: "AI held it: …". A reason the set does not know is said by its clause. */
+export function reasonHeld(reason: string): string {
+  return `AI held it: ${entryOf(ESCALATION_REASON_HELD, reason) ?? reasonShort(reason)}.`;
+}
+
 /** Why a reason handed a conversation over; a reason the set does not know is said by its clause. */
 export function reasonWhy(reason: string): string {
   return entryOf(ESCALATION_REASON_WHY, reason) ?? `because ${reasonShort(reason)}`;

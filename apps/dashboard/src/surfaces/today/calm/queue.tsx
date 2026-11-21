@@ -13,7 +13,9 @@ import { Face, type FaceProps } from "../../kit/face/face";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { Done } from "../need-you/parts";
 import { openInThread, VerbWords, type NeedYouRowsCtx } from "../need-you/people-rows";
-import { answersInThread, shortLabel, workOf, worksInPlace } from "../need-you/rows";
+import { useDraft } from "../need-you/drafts";
+import { answersInThread, draftWantOf, shortLabel, workOf, worksInPlace } from "../need-you/rows";
+import { TODAY_LINE_WORDS } from "../model/lines";
 import { rowWords } from "../need-you/sheet/row-words";
 import { useTodayOnPhone } from "../phone";
 import { Lead, CardActs } from "./lead";
@@ -29,6 +31,9 @@ function queueSaidOf(row: TodayQueueRowVM): string {
   const line = words.quoted ? `“${words.sentence}”` : words.sentence;
   return words.lead ? `${words.lead}: ${line}` : line;
 }
+
+/** The card's words for what its press does. */
+const CARD = TODAY_LINE_WORDS.card;
 
 /** The dot between two facts of a row's sentence, as the rows' words join them. */
 const FACT_DOT = " · ";
@@ -57,6 +62,17 @@ const queueThreadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null
  */
 const lateOf = (row: TodayQueueRowVM): string | null =>
   row.kind === "step" && row.warn ? (row.step?.late ?? null) : null;
+
+/**
+ * Why the card is yours and what its press does (Working for you, W20): why AI did not finish it ("AI held it: booking a
+ * time needs you.", contracts held_because; else the row's own few words), then, where AI wrote the reply, that it is
+ * there to read, and on a call back, that AI cannot make the call. What happened is the card's title. Null with neither.
+ */
+function cardWhyOf(row: TodayQueueRowVM, drafted: boolean): string | null {
+  const press = row.kind === "callback" ? CARD.cantCall : drafted && !row.failed ? CARD.drafted : null;
+  const held = row.failed ? (row.why ?? null) : (row.held_because ?? row.why ?? null);
+  return [held, press].filter(Boolean).join(" ") || null;
+}
 
 /**
  * A row of Need you as a line: who, what they said, how long. Its press is the row's own: their conversation, with AI's
@@ -188,7 +204,10 @@ export function QueueLead({
       ) : null}
     </>
   );
-  const reason = todo ? toned(queueSaidOf(row), words.saidToneOn, words.saidTone) : (row.why ?? null);
+  const draft = useDraft(draftWantOf(row));
+  const reason = todo
+    ? toned(queueSaidOf(row), words.saidToneOn, words.saidTone)
+    : cardWhyOf(row, draft?.state === "ready");
   return (
     <Lead
       holder={holder}

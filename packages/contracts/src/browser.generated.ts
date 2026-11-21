@@ -530,6 +530,7 @@ export { openReads, PREFETCH_BESIDE, PREFETCH_OPEN, PREFETCH_READS, PREFETCH_SLO
 export { leadMapLegend, leadPinTone, stateLabel, stateOf, stateTone, stateWordList, TONES } from "./shell/tone";
 export { PAGE_BUILD, PAGE_VITAL_BANDS, PAGE_VITAL_WORDS, PAGE_VITALS_MIN_LOADS, PAGE_VITALS_READ, PageVitalReport, pageVitalsWords, vitalValueWords, vitalVerdict } from "./shell/vitals";
 export { PAGE_DEVICES, PAGE_METRICS, PAGE_PHONE_QUERY, PAGE_VITALS, PAGE_VITALS_PER_BEACON, PRIMARY_PART, vitalsPageOf } from "./shell/vitals-pages";
+export { lookedAtOf, TODAY_LOOKED_PAGE } from "./today/ai";
 export { BELL_READ_WORDS, bellSections, todayAwayGrouped } from "./today/away";
 export { offerRefusedWords, standingWithRuns, TODAY_PHONE_WORDS, todayDraftsSub, todayHeadLine, todayWentLine, todayAlsoWaiting } from "./today/bands";
 export { toTodayVM } from "./today/brief";

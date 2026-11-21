@@ -5,7 +5,7 @@
  * ear are today/rows.ts's.
  */
 import { addressOf } from "../activity/record-address";
-import { HOLD_ACT_WORDS, holdActOf, reasonLabelOf, reasonShort } from "../conversations/escalations";
+import { HOLD_ACT_WORDS, holdActOf, reasonHeld, reasonLabelOf, reasonShort } from "../conversations/escalations";
 import {
   draftSendsAtMs,
   failedWayOf,
@@ -345,6 +345,8 @@ function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQ
     ...(reasonShort(error.reason) && !(error.reason === "email_review" && escalation.who.includes("@"))
       ? { why: reasonShort(error.reason) }
       : {}),
+    // Why AI did not finish it, the card's first sentence (W20); a reply that never reached them says its own.
+    ...(error.reason === "send_failed" ? {} : { held_because: reasonHeld(error.reason) }),
   };
 }
 

@@ -27,6 +27,7 @@
 import { clearReadCaches } from "./read-cache";
 import { restoreSurfaceValue, surfaceValue } from "../surfaces/surface-values";
 import type { SurfaceKey } from "../surfaces/surface-values";
+import { noteReadAt } from "./surface-status";
 import { clearTabMemory } from "./tab-memory";
 import { getActiveWorkspace, routeOnScreen } from "./workspace";
 import { drawsTheScreen } from "./surface-registry";
@@ -329,6 +330,8 @@ export function hydrateSurfaceCache(): Set<string> {
         else if (name !== KEPT_SLOT) w[name] = value;
       }
       restored.add(key);
+      // How old the rows are, which a page says where its read then fails (surface-status.ts readAtOf).
+      noteReadAt(key, keptStampOf(globals)?.at ?? blob.savedAt);
     } catch {
       /* one bad surface must not stop the others */
     }

@@ -43,6 +43,7 @@ import type { MetricsSummaryDto } from "./metrics";
 import { todayQueue } from "./queue";
 import { todayCallRows, todayCalls, todayNeedsYou, todayNoReply, todayReceipts, todayWindowClosing } from "./rows";
 import type { TodayCalmVM, TodayVM } from "./vm";
+import { todayAiOf, type TodayAiReadDto } from "./ai";
 
 /* ------------------------------ the brief ---------------------------------- */
 
@@ -63,6 +64,8 @@ interface TodayBeside {
   doneToday?: number | null;
   /** What the workspace calls an appointment (TodayVM.word). Null or absent: not read. */
   word?: AppointmentWord | null;
+  /** What GET today says of AI beside the day (TodayVM.ai). Null or absent: not read. */
+  ai?: TodayAiReadDto | null;
 }
 
 /**
@@ -105,6 +108,11 @@ export function toTodayVM(
   // with nothing in it. A search waiting on an answer on a day with no messages was a quiet day, with an empty queue.
   const callRows = todayCallRows(result);
   const queue = todayQueue(result, callRows, empty);
+  // AI's own work, from the same read (ai.ts): today is the business's day, the day's own window.
+  const ai = todayAiOf(
+    { conversations, escalations, ai: beside.ai ?? null },
+    { nowMs: now.getTime(), dayStartMs: Date.parse(metricsSummary.window.since) },
+  );
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (result.traffic === 0 && result.needsYouCount === 0 && !alert && queue.rows.length === 0) {
@@ -146,6 +154,7 @@ export function toTodayVM(
       queue: { rows: [], more: 0, more_people: 0, calls: 0, searches: 0, windows: 0, parts: [], empty },
       calm,
       quiet: todayQuietDay(result, last),
+      ai,
     };
   }
 
@@ -182,5 +191,6 @@ export function toTodayVM(
     queue,
     calm,
     quiet: null,
+    ai,
   };
 }

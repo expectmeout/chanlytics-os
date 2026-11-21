@@ -1,4 +1,6 @@
 /** What needs the owner now: Today's brief, the bell's feed, and the phone it pushes to. */
+export { lookedAtOf, TODAY_LOOKED_PAGE } from "./ai";
+export type { AiBookedDto, AiDidVM, AiTalkingVM, TodayAiReadDto, TodayAiVM } from "./ai";
 export { BELL_READ_WORDS, bellSections, todayAwayGrouped } from "./away";
 export type {
   AwayGroupVM,

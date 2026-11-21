@@ -17,6 +17,8 @@ import { useNeedsYou } from "../../needs-you";
 import { useSurface } from "../../use-surface";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
+import { useTodayQuiet } from "../calm/quiet";
+import { useSinceSaid } from "../ai/since";
 import { borrowed, useMoved } from "../shell";
 import { useDayTurned } from "./head";
 
@@ -51,7 +53,9 @@ export function DayCameTo() {
   const vm = useSurface("today");
   // Once the day has turned the head has said what was booked and what AI answered (head.tsx): this says neither again.
   const turned = useDayTurned();
-  const words = vm ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  // Where the head says what AI did since this member last looked (W2), the day's line steps aside: said once.
+  const since = useSinceSaid(turned);
+  const words = vm && !since ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
   // AI is handed the line's question where AI answered anything (D10).
   const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
   useTodayAsks("did", [words && answered ? todayAskOf(TODAY_LINE_WORDS.asks.did) : null]);
@@ -88,13 +92,24 @@ export function TodayPins() {
   ) : null;
 }
 
-/** The page says it is done: its last line, once nobody waits. */
+/**
+ * The page says it is done: its last line, once nobody waits and the page is sure of it (calm/quiet.ts). While a line is
+ * down it says instead that this may not be everything, whoever waits; while it is checking, behind or could not read a
+ * part, it just ends.
+ */
 export function TodayEnd() {
+  const quiet = useTodayQuiet("end");
+  const waiting = useNeedsYou();
+  // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026), read.
+  const answering = useSurface("setup")?.vm.readiness.answering;
+  if (quiet.kind === "unread" && quiet.line)
+    return (
+      <p className="tz-end calm-done" data-testid="today-end-unsure" {...SAYS_WHEN}>
+        {TODAY_LINE_WORDS.quiet.lineDown}
+      </p>
+    );
   // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
-  const waiting = useNeedsYou() ?? 0;
-  // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026).
-  const answering = useSurface("setup")?.vm.readiness.answering ?? true;
-  if (waiting > 0 || !answering) return null;
+  if (quiet.kind !== "sure" || waiting !== 0 || answering !== true) return null;
   return (
     <p className="tz-end calm-done" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />

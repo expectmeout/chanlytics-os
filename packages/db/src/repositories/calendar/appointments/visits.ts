@@ -362,3 +362,39 @@ export async function listServicesBookedSince(
   if (error) throw new DbFailure(error, "services_booked_since");
   return data.flatMap((row) => (typeof row.service === "string" && row.service.trim() ? [row.service] : []));
 }
+
+/** A visit AI booked, as Today's AI sheet names it (Working for you, W2): who, when it is, what, and when AI booked it. */
+export interface BookedByAiRow {
+  id: string;
+  starts_at: string;
+  service: string | null;
+  client_name: string | null;
+  conversation_id: string | null;
+  timezone: string;
+  created_at: string;
+}
+
+/**
+ * The visits AI booked since a moment (source `receptionist`), newest first, up to `limit`. A visit booked since then
+ * starts after it, so the read walks the tenant's visits from that moment on (appointments_tenant_start) and never its
+ * whole history. Under the caller's RLS; a proposed time or a cancelled visit is no booking.
+ */
+export async function listBookedByAiSince(
+  db: Db,
+  tenantId: TenantId,
+  sinceIso: string,
+  limit: number,
+): Promise<BookedByAiRow[]> {
+  const { data, error } = await db
+    .from("appointments")
+    .select("id, starts_at, service, client_name, conversation_id, timezone, created_at")
+    .eq("tenant_id", tenantId)
+    .gte("starts_at", sinceIso)
+    .eq("source", "receptionist")
+    .in("status", [...BOOKED_STATUSES])
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new DbFailure(error, "booked_by_ai_since");
+  return data;
+}

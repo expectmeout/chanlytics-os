@@ -140,8 +140,8 @@ test("Need you holds each wait to the business's own target, and the card says w
     setSurfaceValue("settings", undefined);
   }
   const card = cardOf(draw(NeedYouOnToday));
-  // Said as a sentence starts, its first letter raised by the card's style (calm.css .calm-why::first-letter).
-  assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), "asked for a person");
+  // Why AI did not finish it, in a sentence (Working for you, W20): what it could not do, as the card says first.
+  assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), "AI held it: they asked for a person.");
   assert.equal(
     find(card, (n) => classes(n).includes("set-mark")),
     null,
@@ -223,7 +223,23 @@ test("how many were done today follows how many need you, where no list head say
     "REGRESSION: it said that was everything while someone waited",
   );
   set(nobodyWaiting());
-  assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
+  // It ends only once it is sure (W18): the runs and setting up read as well, the business answering.
+  assert.equal(
+    byTestId(draw(TodayEnd), "today-end"),
+    null,
+    "REGRESSION: done before the runs and setting up were read",
+  );
+  setSurfaceValue("broadcasts", { rows: [] });
+  setSurfaceValue("setup", { vm: { readiness: { answering: true } } });
+  // Read in this visit, as the runner says once each read lands.
+  const { setStatus } = await import("../../../apps/dashboard/src/bridge/surface-status.ts");
+  for (const key of ["today", "broadcasts", "setup"]) setStatus(key, "live");
+  try {
+    assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
+  } finally {
+    setSurfaceValue("broadcasts", undefined);
+    setSurfaceValue("setup", undefined);
+  }
 });
 
 test("on a phone a run waiting for your OK says so once, in its title, and opens with Review", () => {

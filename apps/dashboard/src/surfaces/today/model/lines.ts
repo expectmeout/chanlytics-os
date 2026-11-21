@@ -71,8 +71,23 @@ export const TODAY_LINE_WORDS = {
     pieces: "What should I post first?",
     did: "What did AI answer today?",
   },
+  /** What the card's press does, after why AI held it (Working for you, W20). */
+  card: {
+    drafted: "Its reply is written for you to read.",
+    cantCall: "AI can’t call them back for you.",
+  },
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
+  /**
+   * What the page says while it cannot be sure it shows everything (Working for you, W18, calm/quiet.ts): still checking,
+   * behind since a time, a read that failed, a line down. A healthy day says none of them.
+   */
+  quiet: {
+    checking: "Checking who needs you.",
+    behind: (time: string | null): string => (time ? `As of ${time}, catching up.` : "Catching up."),
+    unread: "Some of it couldn’t be read, so there may be more.",
+    lineDown: "While a line is down, this may not be everything.",
+  },
 } as const;
 
 /** How many lines of who waits Today names under its card (D16): past them, one line counts what is left. */

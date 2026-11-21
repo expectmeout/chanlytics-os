@@ -39,6 +39,8 @@ import { TodaySetup } from "./setup-card";
 import { drawnByToday, type SeeRef } from "../../see/over";
 import { useSeeOver } from "../../see/see-mount";
 import { useToast } from "../shell";
+import { useKeepsTheLook } from "../ai/looked";
+import { AiSheet } from "../ai/sheet";
 
 /**
  * What is left to set up, and under it the business's history while it is still coming in or a part of it stopped
@@ -110,6 +112,8 @@ function TodayOverHere() {
 export function TodayZones() {
   // Today left: the next visit's first draw moves nothing (D14).
   useEffect(() => forgetTodayMotion, []);
+  // This member's look at Today is kept as they put it away, for the next look's "since" (W2).
+  useKeepsTheLook();
   const at = useTodayArrangement();
   const phone = useTodayOnPhone();
   // Cold email's note joins what is left to set up (D21); where setting up holds the card, it is a line of its own.
@@ -124,6 +128,7 @@ export function TodayZones() {
         {theRest(at)}
         {setupLater}
         <TodayOverHere />
+        <AiSheet />
         <TodayEnd />
       </div>
     );
@@ -142,6 +147,7 @@ export function TodayZones() {
         </div>
       </div>
       <TodayOverHere />
+      <AiSheet />
       <TodayEnd />
     </div>
   );

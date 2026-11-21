@@ -36,6 +36,6 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   sequences: "096993fcb9b22d25",
   settings: "db78fffd31a17975",
   setup: "fb2470f3609076cc",
-  today: "921d6cae6c8f1972",
+  today: "8d39dff4f0f6f7a7",
   today_pins: "d3fd87a670594687",
 };
