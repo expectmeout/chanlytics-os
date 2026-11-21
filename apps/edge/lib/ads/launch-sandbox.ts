@@ -35,7 +35,7 @@ export function sandboxAnswer(request: MetaRequest, seed: string): MetaAdsAnswer
         : edge === "adimages"
           ? { images: { bytes: { hash: `sandbox${sandboxIdOf(seed)}` } } }
           : { id: sandboxIdOf(seed) };
-  return { outcome: "ok", status: 200, json, fault: null, said: null, usage: null };
+  return { outcome: "ok", status: 200, json, list: null, fault: null, said: null, usage: null };
 }
 
 /** What Meta holds of the campaign, as sandbox makes it up: every part as approved, at the moment asked. */
