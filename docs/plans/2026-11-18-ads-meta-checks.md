@@ -465,3 +465,53 @@ shown its preview. Meta's live answer is not shaped as its page's example, and n
 reader now takes every shape Meta may answer in (escaped, single quotes, no scheme, its business host), says plainly
 when it still can't read one, and the log describes what Meta sent with no address in it. Still to see: the frame's
 size, a picture given by its address drawn whole, and whether the frame shows to someone not signed in to Facebook.
+
+### Read again once the reader was fixed (21 November, 16:12 UTC)
+
+Both hosts on `02ca516f82`. Asked once more for the kept draft's first version, from your signed-in tab: Meta's own
+preview came back for all three places, and New ad shows Meta's frame in each, with no line of its own. Each frame's
+page is on Meta's business host. Opened afterwards in a browser signed in to nothing, at a phone size and a desk size,
+every frame showed the ad, never a Facebook sign-in, so a member with no role on the ad account sees Meta's drawing too.
+
+| Place | Size Meta gives | What the frame shows |
+|---|---|---|
+| Feed | 335 × 450 | The top of the ad: the Page's name and "Ad", the words, the picture whole. Meta's page is 628 tall for this ad, so its headline, its WhatsApp button and Like, Comment and Share are reached by scrolling inside the frame |
+| Stories | 320 × 567 | The whole ad: the name, the picture whole, "Chat on WhatsApp". Meta's page is 568 tall, one pixel more, so on a desk the frame draws two scroll bars over the ad |
+| Reels | 274 × 213 | Cut off. Meta's own page draws the reel 320 × 567, as tall as a story, but names 274 × 213, so the frame shows its top: a black band and part of the picture, with no name, words or button |
+
+What it settles: the business's sign-in is taken for a preview, a picture given by its address is drawn whole, and the
+frame needs no Facebook sign-in. What it changes: a frame can't be sized from what Meta names; it needs the size its
+page draws at. Screenshots: the walk folder's `signed-out-2026-11-21`.
+
+Measured the same afternoon, signed out, in Chrome's engine and Safari's (the walk folder's `review-2026-11-21`):
+
+- Meta's Reel page draws the ad 320 × 567 and its story page 320 × 568, in a frame of any size.
+- The feed's page is as tall as its ad: 628 here, for a picture four wide by five tall under three lines of words. It
+  follows its frame's width down to 320, and is white below a shorter ad.
+- None of the three pages narrows below 320. New ad's sheet leaves a frame 330 on a phone 390 wide, 315 at 375 and
+  300 at 360, so on the narrower two a frame's right edge was cut: no way to close a story, half a button.
+- Inside a page that carries production's own response headers, at production's address, all three frames loaded and
+  the browser refused nothing.
+- The three frames together: 284 requests and about 4.4 MB, loaded in about three seconds on a desk. No frame's page
+  holds a link, and a press on the name or the WhatsApp button in the feed and the Reel opened nothing and moved
+  nothing.
+
+### What it changes in the build (21 November)
+
+- **A frame is the size its page draws, never the size Meta names.** The feed's is as wide as Meta names and at least
+  650 tall, the ad seen and one more line of words; a story's is at least 320 × 568 and a Reel's 320 × 567; each is
+  larger only where Meta names larger (`packages/channels/src/ads/meta-preview.ts`). The log's `ads_previewed` line
+  says the size Meta named for each place (`named`), so the day Meta's pages change shows there first.
+- **A frame is shrunk whole to the room it has.** Where New ad's sheet is narrower than the frame, the frame is drawn
+  smaller, the ad in it as Meta drew it, never cut at its edge (`new/meta-frame.tsx`, `new/new.css`).
+- **The place on show loads first.** The other two begin once it has loaded or run late, so a phone draws the one
+  being looked at before it fetches the rest, and a frame that has begun stays (`new/shown.tsx`).
+
+Seen after it, with nothing pushed: Meta's real frames at those sizes and that fit, signed out, in Chrome's engine and
+Safari's, at 360, 375, 390 and 430 wide and on a desk, thirty frames in all: every one whole, none with a scroll bar
+(`fit-2026-11-21`). And New ad itself in the real app, Meta's frame stood in for, at 360, 375 and 390 wide and on a
+desk: each frame inside its room, the feed's asked for alone until it had loaded, no page error
+(`app-fit-2026-11-21`).
+
+Not seen: Meta's page as someone signed in to Facebook sees it; a feed ad with a wide or a square picture, or with
+more words than three lines; and New ad on your account once this is live.

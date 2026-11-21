@@ -10,7 +10,7 @@ export type AdPreviewPlace = "feed" | "story" | "reel";
 /** GET ads/preview?version=: which of the kept draft's versions, from 0. */
 export const AdPreviewQuery = z.object({ version: z.coerce.number().int().min(0).max(2) });
 
-/** Meta's own frame of one place: its preview page, and the size Meta drew it at where it said one. */
+/** Meta's own frame of one place: its preview page, and the size its page draws the place at, where that is known. */
 export interface AdPreviewFrame {
   src: string;
   width: number | null;
