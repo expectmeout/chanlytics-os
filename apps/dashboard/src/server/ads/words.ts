@@ -4,19 +4,23 @@ import { adWordIssues } from "../ask/skills/ad/brief";
 import type { AdIssue, AdIssueCode } from "../ask/skills/ad/checks";
 import type { CraftKept } from "../ask/skills/craft";
 import { writeAd } from "../ask/skills/ad/write";
-import type { ReaderContext } from "../shared/reader";
-import { adDraftAnswer, adDraftBrief, keepDraftAnswer, nextAdPicture, requireAdsOffered } from "./draft";
+import { stableJson, type ReaderContext } from "../shared/reader";
+import { adDraftAnswer, adDraftBrief, nextAdPicture, requireAdsOffered } from "./draft";
 import { findAdPlace } from "./area";
 import { readAdDraftFacts, type AdDraftFacts } from "./draft-facts";
 import type { AdDraftState, AdNoWords, AdWordsAnswer, AdWordsFault } from "./draft-shape";
+import { keepWrittenAnswer } from "./kept-over";
+import { adWordsFor, holdAdWriter, letGoAdWriter, newAdWriting, waitForAdWriter } from "./writer";
 
 /**
  * The ad writer, asked from New ad (POST ads/words; the Ads plan's 6.3 and 6.7): the words of a draft, three versions
  * of them, and "Tell AI what to change", which answers with one change from the plan's closed list (G8) and never
  * with free text. The one route of Ads that spends Chanlytics' own money, counted against the workspace's daily AI
  * limit. Every answer is the whole draft as it now stands, judged again, so a change of AI's meets the same checks as
- * one of the owner's, and kept as the workspace's draft with its words (draft.ts keepDraftAnswer), so the writer is
- * not asked for them again on another device. Nothing here calls Meta, and AI turns nothing on.
+ * one of the owner's, and kept as the workspace's draft with its words, so the writer is not asked for them again on
+ * another device. Asked for words another ask is already out for (a reload, a second device), it waits for that one's
+ * (writer.ts); kept after another device or member changed the draft meanwhile, what the writer made is put into the
+ * draft as it now stands (kept-over.ts). Nothing here calls Meta, and AI turns nothing on.
  */
 
 /** How long one request gives the writer: inside the route's own minute, with room left to answer. */
@@ -45,10 +49,15 @@ interface AdWordsCaller {
   userId: string;
 }
 
-const writerOf = (caller: AdWordsCaller) => ({
+/** The member's ask, and when its answer must be in: one moment for the whole request, a wait for a writer included. */
+interface AdWordsAsking extends AdWordsCaller {
+  deadline: number;
+}
+
+const writerOf = (caller: AdWordsAsking) => ({
   tenantId: caller.rc.tenantId,
   userId: caller.userId,
-  deadline: Date.now() + WORDS_WAIT_MS,
+  deadline: caller.deadline,
 });
 
 /** The most a service's name as the writer says it may run: a few words, never the whole of a long name again. */
@@ -96,7 +105,7 @@ function changedDraft(
  * it (area.ts); null where Meta knows no such place, and the change is not made. The miles stay, for a circle again.
  */
 async function placedDraft(
-  caller: AdWordsCaller,
+  caller: AdWordsAsking,
   draft: AdDraftState,
   place: Extract<AdChange, { kind: "place" }>["place"],
 ): Promise<AdDraftState | null> {
@@ -105,7 +114,7 @@ async function placedDraft(
 }
 
 /** `write`: three versions of the draft's words, or why there are none. */
-async function writeWords(caller: AdWordsCaller, facts: AdDraftFacts, draft: AdDraftState, noPrice: boolean) {
+async function writeWords(caller: AdWordsAsking, facts: AdDraftFacts, draft: AdDraftState, noPrice: boolean) {
   const judged = adDraftAnswer(facts, draft);
   if (!judged.can || facts.account === null) return judged;
   // The draft as it was judged: a service Services no longer lists is the rule's own pick again.
@@ -119,7 +128,7 @@ async function writeWords(caller: AdWordsCaller, facts: AdDraftFacts, draft: AdD
 }
 
 /** `change`: the one change the owner asked AI for, made where it is one a draft may take. */
-async function changeDraft(caller: AdWordsCaller, facts: AdDraftFacts, draft: AdDraftState, wanted: string) {
+async function changeDraft(caller: AdWordsAsking, facts: AdDraftFacts, draft: AdDraftState, wanted: string) {
   const judged = adDraftAnswer(facts, draft);
   if (!judged.can || facts.account === null) return judged;
   const others = facts.services
@@ -153,6 +162,40 @@ async function changeDraft(caller: AdWordsCaller, facts: AdDraftFacts, draft: Ad
   return { ...adDraftAnswer(facts, next), changed: { kind: change.kind === "place" ? "area" : change.kind } };
 }
 
+/**
+ * The words a writer this ask waited for kept, judged as the draft now stands: none where they are not the words this
+ * ask would have written (another service or picture), or none new came.
+ */
+function landedWords(facts: AdDraftFacts, sent: AdDraftState, noPrice: boolean): AdWordsAnswer | null {
+  const kept = facts.kept?.draft;
+  if (!kept || kept.versions.length === 0 || stableJson(kept.versions) === stableJson(sent.versions)) return null;
+  if (adWordsFor(kept, noPrice) !== adWordsFor(sent, noPrice)) return null;
+  const answer = adDraftAnswer(facts, kept);
+  return answer.can ? { ...answer, wrote: { ok: true } } : null;
+}
+
+/**
+ * `write`, asked once for a draft's words: where another ask is out for the same words, its words, waited for; where
+ * it came to nothing, or is out past its time, this ask writes them. The writer's mark goes once it is back.
+ */
+async function writeOnce(asking: AdWordsAsking, read: AdDraftFacts, draft: AdDraftState, noPrice: boolean) {
+  const writing = newAdWriting(draft, noPrice);
+  let facts = read;
+  let held = await holdAdWriter(asking.rc, writing);
+  if (held.out) {
+    await waitForAdWriter(asking.rc, held.out, asking.deadline);
+    facts = await readAdDraftFacts(asking.rc, [draft.picture]);
+    const landed = landedWords(facts, draft, noPrice);
+    if (landed) return landed;
+    held = await holdAdWriter(asking.rc, writing);
+  }
+  try {
+    return await keepWrittenAnswer(asking.rc, facts, draft, await writeWords(asking, facts, draft, noPrice));
+  } finally {
+    if (held.held) await letGoAdWriter(asking.rc, writing.ask);
+  }
+}
+
 /** POST ads/words: the writer's job on a draft, and the draft as it stands after it. */
 export async function writeAdWords(
   caller: AdWordsCaller,
@@ -161,10 +204,8 @@ export async function writeAdWords(
     | { job: "change"; draft: AdDraftState; asked: string },
 ): Promise<AdWordsAnswer> {
   await requireAdsOffered(caller.rc);
+  const asking = { ...caller, deadline: Date.now() + WORDS_WAIT_MS };
   const facts = await readAdDraftFacts(caller.rc, [body.draft.picture]);
-  const answer =
-    body.job === "write"
-      ? await writeWords(caller, facts, body.draft, body.no_price === true)
-      : await changeDraft(caller, facts, body.draft, body.asked);
-  return keepDraftAnswer(caller.rc, facts, answer);
+  if (body.job === "write") return writeOnce(asking, facts, body.draft, body.no_price === true);
+  return keepWrittenAnswer(caller.rc, facts, body.draft, await changeDraft(asking, facts, body.draft, body.asked));
 }

@@ -83,7 +83,7 @@
     "00662": "left empty by Turn on's lane (cm-ads-turn-on), which claimed it and moved its own file to 00666 when 00664 went on production above it (21 Nov 2026)",
     "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
     "00667": "left empty by Pause all's lane (cm-ads-pause-all), which claimed it and moved its own file to 00671 when 00668 went on production above it (21 Nov 2026)",
-    "00669": "claimed by New ad's draft races (cm-ads-draft-races): its file lands with that lane's pull request",
+    "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
     "00670": "claimed by Change a running ad (cm-ads-change, #2491): its file lands with that pull request"
   },
   "migrations": {
@@ -673,6 +673,7 @@
     "00665_a_yes_is_kept_for_each_use.sql": "80ed699f369467515dbaca915a66fecf52625556ecdec7119d3bf66cb4a26b65",
     "00666_an_owner_turns_an_ad_on.sql": "7743f51cf4101d2e53282d18d94ff2c7961096d2ce454ce826f79c2cf2a11ad1",
     "00668_a_search_reads_on_from_where_its_page_ended.sql": "c7588b39a3b2ac05376061093cfff61f2e24cb159bacfc3b6eb089f691c11b89",
-    "00671_an_owner_pauses_every_ad_at_once.sql": "9765224526a988e26735dc0d27dc0d1f18b7e780ca289d7aef85303b3a8cd36a"
+    "00671_an_owner_pauses_every_ad_at_once.sql": "9765224526a988e26735dc0d27dc0d1f18b7e780ca289d7aef85303b3a8cd36a",
+    "00672_a_draft_ad_s_words_are_asked_for_once.sql": "8c56a5f7d21e098e50e090ec3d62d8646d45c1c8bc8fdd404ce3d7ce35e67bb2"
   }
 }
