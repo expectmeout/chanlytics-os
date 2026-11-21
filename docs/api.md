@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-429 handlers in 60 domains.
+431 handlers in 60 domains.
 
 ## activity
 
@@ -1163,7 +1163,7 @@ Writes; for a member of the row's own workspace, partner or above; counts agains
 | --- | --- | --- | --- |
 | `name` | string | no | at most 120 characters |
 | `shows` | one of `"storefront"`, `"interior"`, `"work"`, `"team"`, `"product"`, `"menu"`, `"logo"`, `"graphic"`, `"other"` | no |  |
-| `who_in_it` | one of `"no_one"`, `"agreed"` | no |  |
+| `who_in_it` | one of `"no_one"` | no |  |
 | `status` | one of `"filed"`, `"set_aside"` | no |  |
 | `caption` | string | no | at most 4400 characters |
 | `posted` | object or null | no |  |
@@ -1260,6 +1260,24 @@ Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/ap
 Reads; for a member of the row's own workspace; no rate bucket; spends nothing.
 
 Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/files/[id]/view/route.ts`).
+
+### `POST /api/v1/files/[id]/yes`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | yes | at least 1; at most 4 |
+| `who` | string | yes | at least 1 characters; at most 120 characters |
+| `thread_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+
+### `POST /api/v1/files/[id]/yes/back`
+
+Writes; for a member of the row's own workspace, partner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `uses` | array of one of `"post"`, `"ad"`, `"reply"`, `"cold_email"` | no | at most 4 |
 
 ### `POST /api/v1/files/keep`
 

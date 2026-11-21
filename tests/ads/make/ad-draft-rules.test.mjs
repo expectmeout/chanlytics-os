@@ -15,8 +15,7 @@ const picture = (over = {}) => ({
   width: 1440,
   height: 1800,
   seconds: null,
-  people: false,
-  music: null,
+  rights: null,
   beforeAfter: false,
   made: false,
   ...over,
@@ -42,21 +41,19 @@ test("5.1, a picture: only one that shows nobody, has no music, is no before and
   assert.equal(C.adPictureIssue(picture()), null, "4:5, wide enough, nobody in it");
   assert.equal(C.adPictureIssue(picture({ width: 1080, height: 1080 })), null, "square");
   assert.equal(C.adPictureIssue(picture({ width: 1200, height: 628 })), null, "1.91:1");
-  // Until Content answers who said yes to ads (its step L4), a person shown stops it, and so does not knowing.
-  assert.equal(C.adPictureIssue(picture({ people: true })), "person");
-  assert.equal(C.adPictureIssue(picture({ people: null })), "person");
+  // Content's answer on the rights (its step L4, contracts files/yes.ts) comes first, as it said it: someone shown with no
+  // yes for ads, or music. Ads keeps no rule of its own on either (content/yes/a-person-with-no-recorded-yes.test.mjs).
+  assert.equal(C.adPictureIssue(picture({ rights: "person" })), "person");
+  assert.equal(C.adPictureIssue(picture({ rights: "music" })), "music");
   assert.equal(C.adPictureIssue(picture({ beforeAfter: true })), "before_after");
   assert.equal(C.adPictureIssue(picture({ width: 480, height: 600 })), "small");
   // One picture is shown in every place, so it is the feed's shape: a tall one for stories alone is not offered yet.
   assert.equal(C.adPictureIssue(picture({ width: 1080, height: 1920 })), "shape");
   assert.equal(C.adPictureIssue(picture({ width: 2400, height: 800 })), "shape");
 
-  const video = (over) => picture({ kind: "video", seconds: 20, music: false, ...over });
+  const video = (over) => picture({ kind: "video", seconds: 20, ...over });
   assert.equal(C.adPictureIssue(video()), null);
-  // Music runs in an ad only with a licence of the advertiser's own: with music, or not known, it is not offered.
-  assert.equal(C.adPictureIssue(video({ music: true })), "music");
-  assert.equal(C.adPictureIssue(video({ music: null })), "music");
-  assert.equal(C.adPictureIssue(picture({ music: true })), null, "a photo has no sound");
+  assert.equal(C.adPictureIssue(video({ rights: "music" })), "music");
   for (const seconds of [2, 61, null]) assert.equal(C.adPictureIssue(video({ seconds })), "length", String(seconds));
   assert.equal(C.adPictureIssue(video({ seconds: 3 })), null);
   assert.equal(C.adPictureIssue(video({ seconds: 60 })), null);
@@ -120,7 +117,7 @@ test("a draft says the one thing missing, in the order an owner can mend them (G
   assert.deepEqual(missing({ address: "  " }), { ok: false, missing: "address" });
   assert.deepEqual(missing({ whatsapp: false }), { ok: false, missing: "whatsapp" });
   assert.deepEqual(missing({ pictures: [] }), { ok: false, missing: "picture" });
-  assert.deepEqual(missing({ pictures: [picture({ people: true })] }), { ok: false, missing: "picture" });
+  assert.deepEqual(missing({ pictures: [picture({ rights: "person" })] }), { ok: false, missing: "picture" });
 });
 
 test("the service: never one with an ad, never one with no picture fine in ads, then the most booked (G5)", () => {
@@ -155,13 +152,13 @@ test("the picture: one about the service before a general one, a video before a 
     const draft = C.adDraftOf(inputs({ services: [inputs().services[0]], pictures }));
     return draft.ok ? draft.parts.pictureId : draft.missing;
   };
-  const clip = picture({ id: "clip", kind: "video", seconds: 20, music: false });
+  const clip = picture({ id: "clip", kind: "video", seconds: 20 });
   assert.equal(picked([picture({ id: "kept" }), clip]), "clip");
   assert.equal(picked([picture({ id: "kept" }), picture({ id: "made", made: true })]), "made");
   assert.equal(picked([picture({ id: "general", serviceId: null, made: true }), picture({ id: "own" })]), "own");
   assert.equal(picked([picture({ id: "first" }), picture({ id: "second" })]), "first", "Files' own order");
   assert.equal(
-    picked([picture({ id: "loud", kind: "video", seconds: 20, music: true }), picture({ id: "quiet" })]),
+    picked([picture({ id: "loud", kind: "video", seconds: 20, rights: "music" }), picture({ id: "quiet" })]),
     "quiet",
   );
 });

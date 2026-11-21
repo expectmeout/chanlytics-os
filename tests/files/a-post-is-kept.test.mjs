@@ -137,6 +137,10 @@ function world({
           asked.changed.push(a);
           return null;
         },
+        file_yes_record: (a) => {
+          asked.changed.push(a);
+          return { kept: ["post"], again: [], ids: ["y1"], yes_for: ["post"], yes_back: [] };
+        },
       },
     ),
     userId: USER,
@@ -356,12 +360,20 @@ test("a library at its cap is told so at the start, with nothing drawn, stored o
   assert.deepEqual([asked.downloaded, asked.uploaded, asked.changed, asked.made], [[], [], [], []]);
 });
 
-test("the owner's word that those in the photo agreed goes on the photo, and on the post", async () => {
-  const { asked, ctx } = world();
+test("the owner's word that those in the photo agreed is kept as a yes for posts on the photo, never as the post's word", async () => {
+  const face = { line: "A client in the chair.", people: { count: 1, recognizable: 1 }, subject: [0.2, 0.2, 0.8, 0.8] };
+  const { asked, ctx } = world({ rows: [fileRow({ look: face })] });
   await save.POST.run(post({ ...PLAN, people_agreed: true }), ctx);
-  assert.equal(asked.changed[0].p_who_in_it, "agreed");
-  assert.equal(asked.changed[0].p_id, F);
-  assert.equal(asked.made[0].p_who_in_it, "agreed");
+  assert.deepEqual(
+    [asked.changed[0].p_file_id, asked.changed[0].p_uses, asked.changed[0].p_who],
+    [F, ["post"], "The people in it"],
+    "a yes for posts alone (00665): never for an ad",
+  );
+  assert.equal(asked.made[0].p_who_in_it, "not_asked", "the post keeps the photo's own word; the yes is the photo's");
+  // A photo nobody could recognize anyone in needs no yes: nothing is kept for it.
+  const clear = world();
+  await save.POST.run(post({ ...PLAN, people_agreed: true }), clear.ctx);
+  assert.deepEqual(clear.asked.changed, []);
 });
 
 /* ------------------------------------------------------------------------- as a file */

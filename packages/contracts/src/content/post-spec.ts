@@ -5,7 +5,8 @@
  */
 import { asText, rec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
 import { postPlanOf, postWordsIn } from "../files/post";
-import { CONTENT_ROUTE } from "./address";
+import { fileYesReceiptOf, fileYesUsesIn } from "../files/yes";
+import { CONTENT_ROUTE, contentRouteOf } from "./address";
 
 const postSaysOf = (p: { payload: Record<string, unknown> }) => postWordsIn(postPlanOf(p.payload).language);
 
@@ -30,4 +31,49 @@ export const postSpec: ProposalSpecAboveOperator = {
     receipt: (_data, record) => postWordsIn(postPlanOf(record).language).removed,
   },
   open: () => CONTENT_ROUTE,
+};
+
+/**
+ * AI's card for a yes said to it (00665; files/yes.ts holds the rule and its words): the owner told AI, in a conversation
+ * or on the file's own line, that the people in a photo or video said yes to a use, or took a yes back. A card in their
+ * own words is kept as the turn is saved (the dashboard's ask/tools/act/files/yes.ts); any other waits for their press.
+ * Its press is POST files/[id]/yes, or POST files/[id]/yes/back for a take-back, which holds every post of it still
+ * waiting. A yes kept has an Undo for ten minutes, which takes it back; a take-back has none: a yes is given again by
+ * telling AI. Its Open is the file, where the Library says what it has and needs.
+ */
+export const fileYesSpec: ProposalSpecAboveOperator = {
+  needs: "partner",
+  doing: "keep a yes for a photo or a video",
+  gate: "settings",
+  commit: ({ payload }) => {
+    const id = asText(payload.file_id);
+    const uses = fileYesUsesIn(payload.uses);
+    if (payload.back === true)
+      return { route: "POST files/[id]/yes/back", params: { id }, body: uses.length ? { uses } : {} };
+    const thread = asText(payload.thread_id);
+    return {
+      route: "POST files/[id]/yes",
+      params: { id },
+      body: { uses, who: asText(payload.who), ...(thread ? { thread_id: thread } : {}) },
+    };
+  },
+  receipt: ({ payload }, data) => fileYesReceiptOf({ back: payload.back === true, who: asText(payload.who) }, data),
+  undo: {
+    label: ({ payload }) => (payload.back === true ? null : "Undo"),
+    window: "ten_minutes",
+    record: ({ payload }, data) => {
+      const kept = fileYesUsesIn(rec(data).kept);
+      return payload.back !== true && kept.length ? { file_id: asText(payload.file_id), uses: kept } : null;
+    },
+    call: (kept) => ({
+      route: "POST files/[id]/yes/back",
+      params: { id: asText(kept.file_id) },
+      body: { uses: fileYesUsesIn(kept.uses) },
+    }),
+    receipt: () => "Taken back",
+  },
+  open: ({ payload }) => {
+    const id = asText(payload.file_id);
+    return id ? contentRouteOf({ list: "library", view: "all", open: id }) : null;
+  },
 };

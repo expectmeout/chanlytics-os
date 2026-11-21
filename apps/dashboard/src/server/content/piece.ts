@@ -25,7 +25,7 @@ import {
   postWordsIn,
   resolveFacts,
   videoPreviewOf,
-  whoStandsOf,
+  fileUseOf,
   type PieceLookKept,
   type PiecePlan,
   type PieceRefused,
@@ -33,11 +33,11 @@ import {
   type PieceTimeline,
   type TenantId,
 } from "@chanlytics/contracts";
-import { beginPiece, findFile, updateFileRow, type FileMemberRow } from "@chanlytics/db/files";
+import { beginPiece, findFile, type FileMemberRow } from "@chanlytics/db/files";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import { asJson } from "@chanlytics/db/shared";
-import { fileDoorRefusal } from "@/server/files/file";
 import { postBandOf, postUndrawable } from "@/server/files/post-check";
+import { keepCardYes } from "@/server/files/yes";
 import { colourOnDark } from "@/server/posts/layout";
 import { postPhoneOf } from "@/server/posts/phone";
 import * as readers from "@/server/readers/facts";
@@ -170,7 +170,7 @@ const pieceSourceOf = (file: FileMemberRow): PieceSource => ({
   source: file.source,
   media_status: file.media_status,
   seconds: file.seconds === null ? null : Number(file.seconds),
-  people_unasked: whoStandsOf(fileDtoOf(file)).is === "ask",
+  people_unasked: ["ask", "taken_back"].includes(fileUseOf("post", fileDtoOf(file)).is),
 });
 
 /** A plan that passed: the timeline it draws, the look it was drawn in, and its clips. */
@@ -243,8 +243,9 @@ export const pieceSecondsOf = (timeline: PieceTimeline): number =>
   Math.round((timeline.frames / PIECE_FRAME.fps) * 10) / 10;
 
 /**
- * POST files/video: the press. The plan is checked afresh, a person's word that those in the clips agreed goes on each clip through
- * its own door, and the video's row is written with the first step of the job that makes it. Kept once by the card's key.
+ * POST files/video: the press. The plan is checked afresh, a person's word that those in the clips agreed is kept as a yes for
+ * posts on each clip that needs one (files/yes.ts keepCardYes), and the video's row is written with the first step of the job
+ * that makes it. Kept once by the card's key.
  */
 export async function beginPieceFor(
   ctx: RouteContext,
@@ -254,17 +255,7 @@ export async function beginPieceFor(
   const { key, ...kept } = input;
   const plan = piecePlanOf(kept);
   const checked = await checkPiecePlan(ctx, member, plan);
-  if (plan.people_agreed) {
-    for (const file of checked.files) {
-      if (file.who_in_it === "agreed") continue;
-      const { error } = await updateFileRow(ctx.supabase, {
-        tenantId: member.tenantId,
-        id: file.id,
-        whoInIt: "agreed",
-      });
-      if (error) throw fileDoorRefusal(error);
-    }
-  }
+  if (plan.people_agreed) await keepCardYes(ctx, member, checked.files.map(fileDtoOf));
   const begun = await beginPiece(ctx.supabase, {
     tenantId: member.tenantId,
     // As its card sent it: a row holds either shape (00615), and every reader reads it as blocks.

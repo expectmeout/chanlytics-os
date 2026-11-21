@@ -101,23 +101,35 @@ function qualitySaid(q: FileForAsk["quality"]): string | null {
   return words.length ? words.join(", ") : null;
 }
 
+/** The yeses kept for a picture, each for its use, or that none is. */
+function yesesSaid(file: Pick<FileDto, "yes_for" | "yes_back">): string[] {
+  const parts = [
+    file.yes_for?.length ? `yes to ${file.yes_for.join(", ")}` : null,
+    file.yes_back?.length ? `yes taken back for ${file.yes_back.join(", ")}` : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length ? parts : ["no yes kept"];
+}
+
 /**
- * Who is in a picture, as a line says it, from the one place that reads a person's word beside the look's. "Not asked" is what
- * keeps a recognizable person out of what Ask suggests: it is the owner's to say, not Ask's to assume.
+ * Who is in a picture, as a line says it, from the one place that reads a person's word beside the look's, and the yeses
+ * kept for it, each for its use (00665). "No yes kept" is what keeps a recognizable person out of what Ask suggests: it is
+ * the owner's to say, not Ask's to assume, and a yes for posts never covers an ad.
  */
-export function fileWhoSaid(file: Pick<FileDto, "who_in_it" | "look_status" | "people">): string {
+export function fileWhoSaid(
+  file: Pick<FileDto, "who_in_it" | "look_status" | "people" | "yes_for" | "yes_back">,
+): string {
   const stands = whoStandsOf(file);
   const count = file.people?.count ?? null;
   const people = count === null ? "people" : `${count} ${count === 1 ? "person" : "people"}`;
   switch (stands.is) {
     case "said":
-      return stands.who === "agreed" ? `${people}, agreed to be shown` : "no one in it";
+      return "no one in it";
     case "looking":
       return "not looked at yet";
     case "clear":
       return count === 0 ? "no people" : `${people}, none recognizable`;
     case "ask":
-      return `${people}, not asked`;
+      return [people, ...yesesSaid(file)].join(", ");
   }
 }
 
