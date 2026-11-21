@@ -30,8 +30,11 @@ const counts = (over = {}) => ({
   in: 46,
   coming: 0,
   landed: 0,
+  away: 0,
+  processing: 0,
   ...over,
   waits: { budget: 0, room: 0, library_full: 0, videos_off: 0, ...(over.waits ?? {}) },
+  missed: { failed: 0, too_long: 0, too_large: 0, ...(over.missed ?? {}) },
 });
 const folder = (over = {}) => ({
   id: "s",

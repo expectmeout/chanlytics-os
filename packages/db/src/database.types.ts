@@ -10014,6 +10014,10 @@ export type Database = {
         }
         Returns: Json
       }
+      file_copy_comes_back: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       file_copy_gone: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: boolean
@@ -11953,6 +11957,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      platform_health_footage: { Args: never; Returns: Json }
       platform_health_parts: { Args: { p_days?: number }; Returns: Json }
       platform_health_previews: { Args: { p_days?: number }; Returns: Json }
       platform_metrics_read: {

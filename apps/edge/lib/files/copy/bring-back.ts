@@ -5,8 +5,9 @@
  *
  * It goes by the road the clip first came by: the video platform fetches it again from the relay's address, under a
  * ticket that names the clip's item, so its bytes never pass through the app. Before anything is asked of the
- * platform: the clip's folder is opened through the sync (a folder that is not being read gives nothing back, and the
- * copy waits for it); the item's own record is read, and bytes that are no longer the ones this file is of are never
+ * platform: the clip's folder is opened through the sync for a return (one watched, or stopped while its account reads;
+ * one whose account needs connecting again, or that Drive can't open, gives nothing back, and the copy says which); the
+ * item's own record is read, and bytes that are no longer the ones this file is of are never
  * fetched into it; then the return is judged and begun in one place (file_copy_return_begin): room for its own length,
  * found by letting the least recently used copies go where there is none, and the day's budgets. Begun, the copy is
  * `returning` and its length is held in the minutes.
@@ -213,18 +214,20 @@ async function bringCopyBack(
   // Without the road nothing is asked of the provider: the workspace takes no videos, or this deployment has no relay.
   const road = await findVideoRoad(db, tenantId);
   if (!road) return leaveAway(returning, "videos_off");
-  const key = await run.sync.open(db, { tenantId, sourceId: origin.source_id }, log);
+  // Opened for a return, which a folder that was stopped gives too while its account reads (the PRD's F1).
+  const key = await run.sync.open(db, { tenantId, sourceId: origin.source_id }, log, "return");
   if (!key.ok) {
-    await leaveAway(returning, "folder");
+    // Whose it is to mend, in its own word: the account (connect it again) or the folder (Drive can't open it).
+    await leaveAway(returning, key.cause === "account" ? "connection" : "cant_open");
     return { skipped: key.skipped };
   }
   try {
     return await returnOpened(returning, road, { accessToken: key.accessToken, sync: run.sync });
   } catch (error) {
     // A key its provider refused is the sync's to settle; where the account is now signed out, the copy waits for
-    // its folder. Anything else is thrown on, and the ledger tries the job again.
+    // it to be connected again. Anything else is thrown on, and the ledger tries the job again.
     const left = await key.refused(error);
-    await leaveAway(returning, "folder");
+    await leaveAway(returning, "connection");
     return left;
   }
 }

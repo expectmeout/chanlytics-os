@@ -32,7 +32,16 @@ const folder = (over = {}) => ({
   held: null,
   over_listed: false,
   updated_at: "2026-11-19T19:14:00.000Z",
-  counts: { found: 258, in: 46, coming: 0, landed: 0, waits: { budget: 0, room: 0, library_full: 0, videos_off: 0 } },
+  counts: {
+    found: 258,
+    in: 46,
+    away: 0,
+    coming: 0,
+    landed: 0,
+    processing: 0,
+    waits: { budget: 0, room: 0, library_full: 0, videos_off: 0 },
+    missed: { failed: 0, too_long: 0, too_large: 0 },
+  },
   ...over,
 });
 const footage = (over = {}) => ({ offered: true, can_change: true, account: account(), folder: folder(), ...over });
@@ -48,9 +57,12 @@ test("a watched folder is one line: which folder, whose Drive, and where it stan
         counts: {
           found: 258,
           in: 100,
+          away: 0,
           coming: 0,
           landed: 0,
+          processing: 0,
           waits: { budget: 40, room: 0, library_full: 0, videos_off: 0 },
+          missed: { failed: 0, too_long: 0, too_large: 0 },
         },
       }),
     }),

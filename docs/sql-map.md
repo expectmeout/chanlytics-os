@@ -19,11 +19,11 @@ nothing calls is neither named below with why nor dropped.
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
 | door | 194 | 194 |
-| reader | 88 | 0 |
-| the server's | 411 | 343 |
+| reader | 89 | 0 |
+| the server's | 412 | 344 |
 | computed column | 3 | 0 |
 | trigger | 113 | 83 |
-| all | 809 | 620 |
+| all | 811 | 621 |
 
 ## Called by nothing
 
@@ -217,6 +217,7 @@ being read is dropped by a migration.
 | `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
 | `file_copies_free_at` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | When a copy that may not be let go yet could be (00654): |
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
+| `file_copy_comes_back` | reader | a signed-in person, the server | SQL `file_copies_free_at`, `file_copies_let_go` and 1 more | Whether a watched clip's copy can be fetched again by itself (00674, the content loop PRD's F1): |
 | `file_copy_gone` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy marked going was deleted at the video platform (00654): |
 | `file_copy_origin` | the server's | the server | SQL `file_copy_settle`, `file_copy_standing` | The item a file's copy can be fetched from again (00654): |
 | `file_copy_return_begin` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A copy's return judged and begun in one place (00654, the footage sources plan's Availability and D15). |
@@ -543,6 +544,7 @@ being read is dropped by a migration.
 | `platform_answer_silence` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | The active customers' workspaces whose answer rate was zero on the day (00277; |
 | `platform_clocks` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every registered clock (sweep_status) with its pg_cron schedule and, over the last p_days (at most 14, the history kept), how many times it ran, how many of those failed, and the newest failure's word |
 | `platform_find` | door | a signed-in person, the server | code `packages/db/src/repositories/console/staff.ts` | The Console's Find (00467, decision 0066): |
+| `platform_health_footage` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Health's read of watched folders today (00674, the content loop PRD's 14.3): |
 | `platform_health_parts` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Every part the Console's Health draws, over the last p_days (at most 90; |
 | `platform_health_previews` | the server's | the server | code `packages/db/src/repositories/console/health.ts` | Health's read of leads' previews over the last p_days (1 to 90; |
 | `platform_metrics_read` | the server's | the server | code `packages/db/src/repositories/ops/console.ts` | The back office's read of platform_metrics (00277): |
@@ -781,7 +783,7 @@ being read is dropped by a migration.
 | `source_items_passed` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | What a watched folder holds that is not in the Library (00655), by its state and cause: |
 | `source_items_ring_full` | trigger | the server | trigger `source_items_ring_full on source_items` | A trigger on source_items (00657, the footage screens' call 3): |
 | `source_items_stamp_left` | trigger | the server | trigger `source_items_stamp_left on source_items` | A trigger on source_items (00657): |
-| `source_items_tally` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A watched folder's files counted where they stand (00655, the footage sources plan's screens): |
+| `source_items_tally` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/source-standing.ts` | A watched folder's files counted where they stand (00655, the footage sources plan's screens; |
 | `source_take_spend` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A take's budget, spent or refused (00643, the footage sources plan's D15): |
 | `source_takes_hand_out` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | The takes' hand-out (00643, decision 0115): |
 | `source_takes_release` | trigger | the server | trigger `source_takes_release on files` | A trigger on files (00643): |

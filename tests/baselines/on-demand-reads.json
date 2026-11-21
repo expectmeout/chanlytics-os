@@ -480,14 +480,14 @@
     "fresh": "Read as the folder chooser opens a level (the three places a Google account keeps folders, then each folder a person opens), a page at a time; nothing of it is kept once the sheet goes.",
     "why": "It lists what Google Drive holds at that moment, for a choice made in the same sitting. Nothing the app keeps is drawn from it: the folder chosen is read again by the server before it is watched."
   },
-  "apps/dashboard/src/surfaces/files/footage/line.tsx GET sources/contents": {
+  "apps/dashboard/src/surfaces/files/footage/contents.tsx GET sources/contents": {
     "kind": "on-open",
-    "fresh": "Read as the folder's sheet opens from the Library's line: what the watched folder holds that is not in the Library, counted by its reason; nothing of it is kept once the sheet goes.",
+    "fresh": "Read as the folder's sheet opens, from the Library's line or with See which in Settings: what the watched folder holds that is not in the Library, counted by its reason; nothing of it is kept once the sheet goes.",
     "why": "The counts are made from the folder's own list as the sheet opens, and the line it was opened from reads the folder again by itself while files are on their way (use-footage.ts)."
   },
   "apps/dashboard/src/surfaces/files/footage/sheets.tsx GET sources/leaving": {
     "kind": "on-open",
-    "fresh": "Read as Stop watching's or Disconnect's sheet opens: how many photos and videos came from the folder and how many clips are kept in Drive, said before the press; nothing of it is kept once the sheet goes.",
+    "fresh": "Read as Stop watching's or Disconnect's sheet opens: how many clips every watched folder of the account keeps in Drive, which Disconnect says, and how many files a removal would reach and leave, said before the press (Stop's own counts are the page's one read, 00674); nothing of it is kept once the sheet goes.",
     "why": "A count for one question, asked at the moment it is put. The press itself is what changes anything, and the folder is read again once it answers."
   },
   "apps/dashboard/src/surfaces/files/footage/use-footage.ts GET sources": {

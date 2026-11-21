@@ -20,8 +20,10 @@ type Db = SupabaseClient<Database>;
 export interface SourceItemsTally {
   /** Photos and videos its listing has found and that are still where they were. */
   found: number;
-  /** Those in the Library. */
+  /** Its files in the Library, each once, as the Library holds them (00674). */
   in: number;
+  /** Of them, the clips kept in Drive just now. */
+  away: number;
   /** Those on their way now: being taken, or waiting for nothing but their turn. */
   coming: number;
   /** Of the files that began coming with those still on their way, how many are in. */
@@ -31,6 +33,12 @@ export interface SourceItemsTally {
   room: number;
   libraryFull: number;
   videosOff: number;
+  /** Videos Google Drive is still processing: they wait for their length, and are not counted as coming (00674). */
+  waitingLength: number;
+  /** What could not come in, by its one reason: tried and failed, longer than AI can watch, too large (00674). */
+  failed: number;
+  tooLong: number;
+  tooLarge: number;
 }
 
 const TallyAnswer = z.object({
@@ -42,6 +50,13 @@ const TallyAnswer = z.object({
   room: z.number(),
   library_full: z.number(),
   videos_off: z.number(),
+  // 00674's: a database before it answers none of them, read as none (either deploy order). The answer is read as it
+  // came (readAnswer is report-only), so a missing one is made none where it is read.
+  away: z.number().optional(),
+  waiting_length: z.number().optional(),
+  failed: z.number().optional(),
+  too_long: z.number().optional(),
+  too_large: z.number().optional(),
 });
 
 /** A folder's files counted from its own list (source_items_tally). */
@@ -52,12 +67,17 @@ export async function countFolderStanding(db: Db, ref: SourceRef): Promise<Sourc
   return {
     found: answer.found,
     in: answer.in,
+    away: answer.away ?? 0,
     coming: answer.coming,
     landed: answer.landed,
     budget: answer.budget,
     room: answer.room,
     libraryFull: answer.library_full,
     videosOff: answer.videos_off,
+    waitingLength: answer.waiting_length ?? 0,
+    failed: answer.failed ?? 0,
+    tooLong: answer.too_long ?? 0,
+    tooLarge: answer.too_large ?? 0,
   };
 }
 

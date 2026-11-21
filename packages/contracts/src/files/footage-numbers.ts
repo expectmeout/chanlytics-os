@@ -5,6 +5,9 @@
  * the code has left. A module of its own: a page that says one of them carries nothing else. `graceDays` alone the
  * edge reads from here (takes/budgets.ts SOURCE_GRACE), since the capacity page reads none of the cleanup's numbers.
  */
+/** A million of Google's units: its quota is written in them, as the edge writes it (takes/budgets.ts). */
+const MILLION_UNITS = 1_000_000;
+
 export const FOOTAGE_NUMBERS = {
   /** What a first watch brings in first: the newest of the last `firstDays` days, `firstItems` at most (D11). */
   firstItems: 50,
@@ -18,4 +21,7 @@ export const FOOTAGE_NUMBERS = {
   returnsADay: 20,
   /** Days a file whose original left its folder stays in the Library, unused, before it leaves (the plan's D3). */
   graceDays: 7,
+  /** Google's units and the bytes the whole platform's takes and returns may spend in a day: Health says how near. */
+  unitsADay: 300 * MILLION_UNITS,
+  platformBytesADay: 800_000_000_000,
 } as const;

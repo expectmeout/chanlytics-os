@@ -322,6 +322,7 @@ export { emailTextOf } from "./email/text";
 export { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./files/copy";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files/files";
 export { FOOTAGE_WORDS, footageLineOf, footageSheetOf, footageStandingOf } from "./files/footage";
+export { footageAsidesOf } from "./files/footage-asides";
 export { FOOTAGE_NUMBERS } from "./files/footage-numbers";
 export { connectStoppedOf, FOOTAGE_SETUP } from "./files/footage-setup";
 export { FILE_IMAGE_MIMES, FILE_KINDS, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX, fileFramePathOf, fileKindOf, fileMadePathOf, isVideoMime } from "./files/kinds";

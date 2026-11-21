@@ -114,8 +114,8 @@ export const SCHEMA_SETS = {
   "file_consents.use": ["post", "ad", "reply", "cold_email"],
   "files.copy_state": ["here", "going", "away", "returning", "lost"],
   "files.copy_why": [
-    "room", "budget", "folder", "videos_off", "busy", "stream_full", "unreadable", "changed", "failed",
-    "stopped", "gone", "outside", "not_found", "no_access", "no_origin",
+    "room", "budget", "connection", "cant_open", "videos_off", "busy", "stream_full", "unreadable",
+    "changed", "failed", "stopped", "gone", "outside", "not_found", "no_access", "no_origin",
   ],
   "files.kind": ["image", "video"],
   "files.look_status": ["waiting", "done", "refused", "failed"],

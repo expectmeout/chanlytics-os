@@ -19,6 +19,7 @@ import {
   getHealthClientErrors,
   getHealthClocks,
   getHealthFailedJobs,
+  getHealthFootage,
   getHealthLedger,
   getHealthPages,
   getHealthDraftUses,
@@ -223,6 +224,23 @@ async function ledgerRead(office: BackOffice): Promise<LedgerNowDto> {
   };
 }
 
+/** Watched folders today (00674 platform_health_footage), read figure by figure: one that is not a number is none. */
+async function footageRead(office: BackOffice): Promise<NonNullable<HealthDto["footage"]>> {
+  const record = recordOrNull(healthRowsOf(await getHealthFootage(office.db))) ?? {};
+  const figure = (key: string) => Number(record[key] ?? 0) || 0;
+  const workspaces = Array.isArray(record.stream_full_workspaces) ? record.stream_full_workspaces : [];
+  return {
+    day: typeof record.day === "string" ? record.day : "",
+    units: figure("units"),
+    bytes: figure("bytes"),
+    takes: figure("takes"),
+    returns: figure("returns"),
+    stream_full: figure("stream_full"),
+    stream_full_workspaces: workspaces.filter((id): id is string => typeof id === "string"),
+    stream_full_since: typeof record.stream_full_since === "string" ? record.stream_full_since : null,
+  };
+}
+
 async function backlogRead(office: BackOffice): Promise<number> {
   const due = healthRowsOf(await getHealthBacklog(office.db));
   return Number(due);
@@ -255,6 +273,7 @@ export async function getConsoleHealth(office: BackOffice, days: HealthWindow, n
     vitals,
     speed,
     profiles,
+    footage,
   ] = await Promise.all([
     readSide("health_workspaces", () => workspacesRead(office)),
     readSide("health_clocks", () => clocksRead(office, days)),
@@ -268,6 +287,7 @@ export async function getConsoleHealth(office: BackOffice, days: HealthWindow, n
     listPlatformVitals(office),
     findPlatformSpeed(office),
     readSide("health_anthropic_profiles", () => getHealthAnthropicProfiles(office.db)),
+    readSide("health_footage", () => footageRead(office)),
   ]);
   return {
     days,
@@ -284,6 +304,7 @@ export async function getConsoleHealth(office: BackOffice, days: HealthWindow, n
     vitals,
     speed,
     anthropic_profiles: profiles,
+    footage,
   };
 }
 

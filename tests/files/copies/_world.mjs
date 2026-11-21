@@ -101,11 +101,22 @@ export const driveOf = (...clips) =>
     ]),
   );
 
-/** The world: the takes' tables and doors, and the copies' beside them. */
-export function world({ files = [], items = [], pieces = [], posts = [], sourceState = "watching" } = {}) {
+/**
+ * The world: the takes' tables and doors, and the copies' beside them. `sourceState` is the folder's, and
+ * `connectionHealth` its Google account's (a stopped folder's clips step aside only while it reads: F1).
+ */
+export function world({
+  files = [],
+  items = [],
+  pieces = [],
+  posts = [],
+  sourceState = "watching",
+  connectionHealth = "ok",
+} = {}) {
   const tables = {
     tenants: [{ id: T, name: "Harbor Salon", timezone: "America/New_York", status: "active" }],
     tenant_config: [{ tenant_id: T, config: { features: { video_preview: true } } }],
+    source_connections: [{ id: CONNECTION, tenant_id: T, provider: "google", health: connectionHealth }],
     media_sources: [
       {
         id: SOURCE,
