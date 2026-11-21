@@ -128,6 +128,8 @@ const FRESH = [
   "POST team/partner",
   "DELETE team/partner",
   "POST handovers/[id]/accept",
+  // Turn on (decision 0050, Routes): the press that spends the owner's money at Meta.
+  "POST ads/turn-on",
 ];
 /** Every change made from the Console, as the routes declare them. */
 const CONSOLE_WRITES = Object.entries(declared)

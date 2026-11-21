@@ -19,9 +19,19 @@ export { findAdDraft, keepAdDraft, keepAdMost } from "./drafts";
 export type { AdDraftKept, AdDraftRow } from "./drafts";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
+export { keepAdLaunch, keepTurnOn, listAdLaunches, listAdsLeftParts, listAdsMadeHere } from "./launches";
+export type { AdLaunchAfter, AdLaunchRow, AdLaunchStep, AdMadeHereRow, AdPartKept, AdTurnOnKept } from "./launches";
 export { findAd, listAdPeople, listAdsByIds, listAdsOfAccount, readAdsPageCounts } from "./page";
 export type { AdPersonRow, AdRow, AdsPageCounts } from "./page";
-export { askAdTell, listMadeAds, listPendingAds, markAdTold, setAdIntent } from "./presses";
+export {
+  adSwitchIdOf,
+  askAdTell,
+  findAdSwitchId,
+  listMadeAds,
+  listPendingAds,
+  markAdTold,
+  setAdIntent,
+} from "./presses";
 export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept } from "./presses";
 export { askAdRead, handOutAdReads, keepAdsRead, listHeldAdIds } from "./reads";
 export type { AdDayReadRow, AdReadRow, AdsReadKept, AdsReadOutcome } from "./reads";

@@ -11,6 +11,7 @@ import {
   DAY_MS,
   FILE_VIDEO_MINUTES_MAX,
   FOOTAGE_NUMBERS,
+  VIDEO_TILE_WORDS,
   type FileCopyState,
   type FileCopyWhy,
   type FileDto,
@@ -36,6 +37,8 @@ export interface CopyFacts {
   leaves: string | null;
   /** Whether a Google Drive is connected to the workspace at all. */
   connected: boolean;
+  /** Whether its owner added the clip themselves (FileDto owner_uploaded): on its way back, it comes from what they added. */
+  uploaded: boolean;
 }
 
 export const COPY_WORDS = {
@@ -55,6 +58,8 @@ export const COPY_WORDS = {
   /** A row's one line, where a clip is coming back or can't: every other clip kept in Drive looks like any other. */
   row: {
     returning: "Getting it from Google Drive…",
+    /** Coming back from what its owner added: the Library's own words for a video it is making ready. */
+    fromUpload: VIDEO_TILE_WORDS.gettingReady,
     lost: "Original is not in Drive",
     binned: (leaves: string | null) => (leaves ? `Deleted in Drive · leaves ${leaves}` : "Deleted in Drive"),
     moved: (folder: string | null, leaves: string | null) =>
@@ -77,6 +82,15 @@ const KEPT_IN_DRIVE: CopySaid = {
   body: "Play brings it back in about 2 minutes.",
   act: "play",
   mends: false,
+};
+
+/** Coming back from what its owner added (an upload that met the clip): their video is being made ready, not fetched. */
+const FROM_UPLOAD: CopySaid = {
+  mark: "ring",
+  head: VIDEO_TILE_WORDS.gettingReady,
+  body: "From the video you added. It plays by itself, here or when you come back.",
+  act: null,
+  mends: true,
 };
 
 const SLOW: CopySaid = {
@@ -201,26 +215,29 @@ function lossSaidOf(reason: FileCopyWhy | null, facts: CopyFacts): CopySaid {
  */
 export function copySaidOf(copy: FileCopyState, reason: FileCopyWhy | null, facts: CopyFacts): CopySaid | null {
   if (copy === "here") return null;
-  if (copy === "returning" || copy === "going") return RETURNING;
+  if (copy === "returning" || copy === "going") return facts.uploaded ? FROM_UPLOAD : RETURNING;
   if (copy === "lost") return lossSaidOf(reason, facts);
   return reason ? waitSaidOf(reason, facts) : KEPT_IN_DRIVE;
 }
 
 /**
  * The day a file whose original left its folder leaves the Library, as a row says it ("Nov 26") in the workspace's own
- * zone; null while it stays.
+ * zone; null while it stays, and for one its owner added themselves, which the cleanup never takes.
  */
-export function leavesOn(file: Pick<FileDto, "origin_left_at">, zone: string): string | null {
-  if (!file.origin_left_at) return null;
+export function leavesOn(file: Pick<FileDto, "origin_left_at" | "owner_uploaded">, zone: string): string | null {
+  if (!file.origin_left_at || file.owner_uploaded) return null;
   const at = Date.parse(file.origin_left_at) + FOOTAGE_NUMBERS.graceDays * DAY_MS;
   return Number.isFinite(at)
     ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: zone }).format(new Date(at))
     : null;
 }
 
-/** Why a row speaks of its original: the copy's own loss, or, for a file still here, its original having left. */
-export const rowReasonOf = (file: Pick<FileDto, "copy_why" | "origin_left">): FileCopyWhy | null =>
-  file.copy_why ?? file.origin_left ?? null;
+/**
+ * Why a row speaks of its original: the copy's own loss, or, for a file still here, its original having left. A file its
+ * owner added themselves is theirs, so its original leaving is nothing to say.
+ */
+export const rowReasonOf = (file: Pick<FileDto, "copy_why" | "origin_left" | "owner_uploaded">): FileCopyWhy | null =>
+  file.copy_why ?? (file.owner_uploaded ? null : file.origin_left) ?? null;
 
 /**
  * A row's one line for a clip that is coming back or can't, or a file whose original left its folder ("Deleted in Drive
@@ -230,9 +247,10 @@ export const rowReasonOf = (file: Pick<FileDto, "copy_why" | "origin_left">): Fi
 export function copyRowLineOf(
   copy: FileCopyState,
   reason: FileCopyWhy | null,
-  facts: Pick<CopyFacts, "folder" | "leaves">,
+  facts: Pick<CopyFacts, "folder" | "leaves" | "uploaded">,
 ): { line: string; tone: "live" | "you"; alone: boolean } | null {
-  if (copy === "returning" || copy === "going") return { line: COPY_WORDS.row.returning, tone: "live", alone: true };
+  if (copy === "returning" || copy === "going")
+    return { line: facts.uploaded ? COPY_WORDS.row.fromUpload : COPY_WORDS.row.returning, tone: "live", alone: true };
   if (copy !== "lost" && reason !== "gone" && reason !== "outside") return null;
   if (reason === "gone") return { line: COPY_WORDS.row.binned(facts.leaves), tone: "you", alone: true };
   if (reason === "outside") return { line: COPY_WORDS.row.moved(facts.folder, facts.leaves), tone: "you", alone: true };

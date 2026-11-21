@@ -68,13 +68,18 @@ interface AdKept {
   totalMinor: number | null;
   /** What it has spent in all, in minor units. */
   spentMinor: number;
+  /**
+   * For an ad made here whose last switch was sent and never answered, and that no read has spoken of since: `lately`
+   * while it is still being followed, `long` once that has taken longer than a few minutes. Null otherwise.
+   */
+  unanswered: "lately" | "long" | null;
 }
 
 /**
  * An ad's badge, at `today` (an ISO day in the account's zone). In order: what Chanlytics is still doing; a run that is
- * over (its total spent, then ended by its owner, its platform or its last day); what the platform will not run until
- * the owner acts; and then what the platform says against what the owner asked. A word Chanlytics does not know is
- * never read as On.
+ * over (its total spent, then ended by its owner, its platform or its last day); a last switch not yet confirmed; what
+ * the platform will not run until the owner acts; and then what the platform says against what the owner asked. A word
+ * Chanlytics does not know is never read as On.
  */
 export function adStateOf(ad: AdKept, today: string): AdState | "draft" {
   if (ad.status === "draft") return "draft";
@@ -83,6 +88,9 @@ export function adStateOf(ad: AdKept, today: string): AdState | "draft" {
   const says = ad.platformWord === null ? null : (PLATFORM_SAYS[ad.platform].get(ad.platformWord) ?? null);
   if (ad.totalMinor !== null && ad.spentMinor >= ad.totalMinor) return "finished";
   if (ad.intent === "ended" || says === "removed" || (ad.endDay !== null && ad.endDay < today)) return "ended";
+  // Its last switch went unanswered: followed until a read says, and past a few minutes said as not confirmed.
+  if (ad.unanswered === "long") return "unconfirmed";
+  if (ad.unanswered === "lately") return "setting-up";
   if (says === "refused" || says === "unpaid" || says === "troubled") return "needs-you";
   // The platform's word on whether it runs wins over what was asked: an ad resumed there is spending.
   if (says === "running") return "on";

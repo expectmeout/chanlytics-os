@@ -9,6 +9,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "POST ads/[id]/check": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST ads/[id]/pause": {
       "kind": "write",
       "scope": "row",
@@ -91,6 +98,14 @@
       "scope": "workspace",
       "role": null,
       "rate": "aggregate",
+      "spend": false
+    },
+    "POST ads/turn-on": {
+      "kind": "write",
+      "fresh": true,
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
       "spend": false
     },
     "POST ads/words": {

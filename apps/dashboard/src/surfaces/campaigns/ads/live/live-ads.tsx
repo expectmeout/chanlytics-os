@@ -6,7 +6,7 @@
  * each open by the address, so Back closes it. While AI is stopped with ads still on, the page says so at its top, with
  * the owner's press that pauses them all (stop-notice.tsx; the Ads plan's G17).
  */
-import { ADS_WORDS, newAdRoute } from "@chanlytics/contracts";
+import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
@@ -135,8 +135,10 @@ export function LiveAds(p: LiveAdsProps) {
         onClose={p.nav.close}
         onConnect={p.connect.press}
         onGo={navigate}
-        // The job that makes an ad at Meta is not built yet: the press is drawn, and cannot be pressed (new/model.ts).
-        onTurnOn={() => undefined}
+        onSee={(adId) => {
+          p.again();
+          p.nav.push(adRoute(adId));
+        }}
       />
       {p.toast}
     </div>
