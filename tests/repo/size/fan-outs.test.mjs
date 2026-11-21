@@ -33,6 +33,7 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/workspace/billing.ts|list": "the workspaces one person's deletion emptied",
   "apps/dashboard/src/server/workspace/page-open.ts|tier": "a page's fixed first reads",
   "apps/dashboard/src/server/workspace/team.ts|seated": "one person's open invitations",
+  "apps/edge/lib/ads/preview.ts|META_PREVIEW_PLACES": "a fixed list: the three places an ad made here shows",
   "apps/edge/lib/files/copies.ts|ids": "COPIES_AT_ONCE: the door refuses more",
   "apps/edge/lib/files/found.ts|part": "FETCHES_AT_ONCE: a found batch is read a few at a time",
   "apps/edge/lib/imports/website-read.ts|reads": "a site's linked pages, already capped",

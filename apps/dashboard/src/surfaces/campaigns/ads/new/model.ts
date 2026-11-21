@@ -120,6 +120,8 @@ export interface NewAdVM {
     waiting: "writing" | "none" | null;
     /** Where the picture is read from; null where the draft has no file of its own (the example). */
     picture: { src: string | null; alt: string; video: boolean };
+    /** The version on show and its picture, as Meta's own preview of it is asked for; null while there are no words. */
+    asks: { version: number; picture: string } | null;
   };
   tell: { busy: boolean; status: string | null };
   facts: { label: string; value: string }[];
@@ -349,6 +351,7 @@ export function newAdView(here: NewAdHere): NewAdVM {
         alt: picture.kind === "video" ? NEW.shown.video(picture.name) : NEW.shown.picture(picture.name),
         video: picture.kind === "video",
       },
+      asks: version && picture.id ? { version: shownAt, picture: picture.id } : null,
     },
     tell: { busy: here.telling, status: here.telling ? NEW.tell.changing : tellStatusOf(here.told) },
     facts: [

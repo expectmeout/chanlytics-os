@@ -100,6 +100,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET ads/preview": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST ads/turn-on": {
       "kind": "write",
       "fresh": true,

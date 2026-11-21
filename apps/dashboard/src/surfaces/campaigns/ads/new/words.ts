@@ -95,6 +95,18 @@ export const NEW = {
     picture: (name: string) => `The ad's picture, ${name}`,
     video: (name: string) => `The ad's video, ${name}`,
     drawn: "Drawn by Chanlytics, not Meta's own preview. Your picture is shown whole, never cropped.",
+    /** Meta's own preview, once the ad account is connected (the plan's 4.6), and the frame's name to a screen reader. */
+    meta: "Meta's own preview, as people will see it on a phone.",
+    metaFrame: (place: string) => `Meta's own preview of the ad, in the ${place.toLowerCase()}`,
+    asking: "Asking Meta for its own preview…",
+    /** Where Meta's own can't be had, Chanlytics' drawing stands in its place, and says why in one line. */
+    not: {
+      not_connected: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected.",
+      signed_out: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected again.",
+      video: "Drawn by Chanlytics: Meta's own preview is shown for a photo.",
+      busy: "Drawn by Chanlytics: Meta didn't answer. New ad asks it again next time it opens.",
+      refused: "Drawn by Chanlytics: Meta didn't show its own preview of this version.",
+    },
   },
 
   /** Tell AI what to change. */

@@ -38,6 +38,7 @@ export const ROUTE_KEYS = [
   "GET ads/connect/callback",
   "GET ads/page",
   "GET ads/people",
+  "GET ads/preview",
   "GET ask/follow-ups",
   "GET ask/memory",
   "GET ask/morning",

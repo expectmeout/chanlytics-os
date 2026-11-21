@@ -2,8 +2,10 @@
  * Where New ad's answers come from: the workspace's own two routes (bridge/verbs/ads.ts), handed to the screen as one
  * source, so a test can answer it by hand. An answer that never came is null: the screen says so, and nothing is guessed.
  */
+import type { AdPreviewAnswer } from "@/server/ads/preview-shape";
 import type { AdDraftAnswer, AdDraftState, AdWordsAnswer } from "@/server/ads/draft-shape";
 import { askAdDraft, askAdWords, pressTurnOn, type TurnOnPressed } from "@/bridge/verbs/ads";
+import { askAdPreview } from "./meta-preview";
 
 /** What the screen asks the ad writer for. */
 type AdWordsAsk =
@@ -15,6 +17,8 @@ export interface AdSource {
    * named one; else that draft as it stands now.
    */
   draft: (body: { draft?: AdDraftState; act?: "next_picture"; picture?: string }) => Promise<AdDraftAnswer | null>;
+  /** Meta's own preview of one version of the kept draft; a source with none draws Chanlytics' own and says so. */
+  preview?: (version: number) => Promise<AdPreviewAnswer | null>;
   /** The ad writer's words, or the one change AI was told to make. */
   words: (body: AdWordsAsk) => Promise<AdWordsAnswer | null>;
   /** Turn on, under the press's own key, carrying what the press showed: the ad, or the server's words for no. */
@@ -27,6 +31,7 @@ export const LIVE_AD_SOURCE: AdSource = {
     const answer = await askAdDraft(body);
     return answer?.ok ? answer.data : null;
   },
+  preview: askAdPreview,
   words: async (body) => {
     const answer = await askAdWords(body);
     return answer?.ok ? answer.data : null;
