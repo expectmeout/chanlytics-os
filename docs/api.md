@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-440 handlers in 60 domains.
+442 handlers in 60 domains.
 
 ## activity
 
@@ -54,6 +54,12 @@ Writes; for a member of the row's own workspace, owner or above; counts against 
 | `total_minor` | integer | yes | ≤ 9007199254740991 |
 | `from_minor` | integer | yes | ≥ 0; ≤ 9007199254740991 |
 | `expect_max_minor` | integer or null | yes |  |
+
+### `POST /api/v1/ads/[id]/cancel`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ads/[id]/cancel/route.ts`).
 
 ### `POST /api/v1/ads/[id]/check`
 
@@ -195,6 +201,14 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | Query field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `version` | integer | yes | ≥ 0; ≤ 2 |
+
+### `POST /api/v1/ads/resume-stopped`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `ads` | array of object | yes | at least 1; at most 200 |
 
 ### `POST /api/v1/ads/turn-on`
 

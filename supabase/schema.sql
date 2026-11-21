@@ -464,7 +464,8 @@ begin
     update public.ads a
        set status = 'failed',
            launch = coalesce(a.launch, '{}'::jsonb)
-                    || jsonb_build_object('stopped', case new.status when 'revoked' then 'signed_out' else 'disconnected' end)
+                    || jsonb_build_object('stopped', case new.status when 'revoked' then 'signed_out' else 'disconnected' end,
+                                          'stopped_at', now())
      where a.tenant_id = new.tenant_id and a.account_id = new.id and a.status = 'sending'
     returning a.id, a.platform, a.name
   ), left_there as (
@@ -487,7 +488,7 @@ end $$;
 -- Name: FUNCTION ad_accounts_stop_launches(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00666): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
+COMMENT ON FUNCTION public.ad_accounts_stop_launches() IS 'Trigger (00666, 00676): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. The ad is failed with why (disconnected, signed_out) and when (stopped_at), every part it made is kept as left at the platform (named and paused there), and an ad.setup_stopped event says so. Nothing is sent to the platform after.';
 
 
 --
@@ -532,7 +533,7 @@ CREATE FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at 
       from public.ad_accounts a
      where a.id = p_account_id and a.tenant_id = p_tenant_id
   ), held as (
-    select d.id, d.platform, d.platform_ad_id, d.platform_state, d.intent, d.door, account.zone,
+    select d.id, d.platform, d.platform_ad_id, d.platform_state, d.intent, d.door, d.origin, d.launch, account.zone,
            public.ad_bell_cause('ad_refused', d.id, d.account_id, d.budget_at, d.platform_set_id,
                                 d.platform_campaign_id) as own_key,
            public.ad_bell_cause('ad_unpaid', d.id, d.account_id, d.budget_at, d.platform_set_id,
@@ -594,6 +595,21 @@ CREATE FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at 
                                                         and o.kind = 'ad' and o.platform_id is not null))
                         and e.created_at >= ((a.today - 7)::timestamp at time zone a.zone)
                         and e.created_at < p_at)
+  union all
+  -- An ad made here whose last switch went unanswered, and no read has said since, past the few minutes the page
+  -- follows it before it says "Couldn't confirm it's on" (contracts live.ts UNCONFIRMED_AFTER_MS).
+  select 'ad_unconfirmed', a.own_key, a.id
+    from ad a
+   where a.origin = 'chanlytics' and not a.run_over
+     and (a.launch ->> 'unknown_at')::timestamptz <= p_at - interval '5 minutes'
+  union all
+  -- A launch that stopped part way, in its last 30 days, but where its owner cancelled it: they know (00676).
+  select 'ad_unfinished', d.id::text, d.id
+    from public.ads d
+   where d.tenant_id = p_tenant_id and d.account_id = p_account_id and d.origin = 'chanlytics' and d.status = 'failed'
+     and coalesce(d.launch -> 'cancel' ->> 'by', '') <> 'owner'
+     and (d.launch ->> 'stopped_at')::timestamptz <= p_at
+     and (d.launch ->> 'stopped_at')::timestamptz > p_at - interval '30 days'
 $$;
 
 
@@ -601,7 +617,7 @@ $$;
 -- Name: FUNCTION ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every made ad of one ad account under each of the bell''s five ad causes at a moment, with the cause''s key (00658): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it, or from any version of an ad made here, since the first of them; 00666). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
+COMMENT ON FUNCTION public.ad_bell_causes(p_tenant_id uuid, p_account_id uuid, p_at timestamp with time zone) IS 'Every ad of one ad account under each of the bell''s ad causes at a moment, with the cause''s key (00658, 00666, 00676): ad_refused (the platform''s word DISAPPROVED, its run not over), ad_unpaid (PENDING_BILLING_INFO, its run not over; and the account itself, with no ad, where its standing says the platform can''t charge it), ad_spent (its total spent), ad_ended (on, and past its last day with money left), ad_quiet (running, opening a chat Chanlytics receives, spending on each of the seven days before today in the account''s zone, and nobody wrote from it, or from any version of an ad made here, since the first of them), ad_unconfirmed (an ad made here whose last switch went unanswered five minutes or more before the moment), ad_unfinished (a launch here that stopped part way at or before the moment, in the 30 days before it, not cancelled by its owner). A run is over as contracts adStateOf says. Read from the rows as they stand; the read''s door asks it before and after it keeps.';
 
 
 --
@@ -624,6 +640,51 @@ $$;
 --
 
 COMMENT ON FUNCTION public.ad_bell_hearers(p_tenant_id uuid) IS 'Who hears the bell''s five ad notices (00658): the members who may run ads (has_permission ads: the owner alone, decision 0050 call 2). A partner, an operator or a viewer is never told.';
+
+
+--
+-- Name: ad_bell_paused(uuid, uuid, uuid[], text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_first public.ads;
+  v_said  jsonb;
+  v_rung  integer;
+begin
+  if p_why not in ('stop', 'remediation') then
+    raise exception 'ad_bell_paused: the stop or a remediation' using errcode = '22023';
+  end if;
+  if coalesce(cardinality(p_ads), 0) = 0 then
+    return 0;
+  end if;
+  select * into v_first from public.ads a
+   where a.tenant_id = p_tenant_id and a.id = any (p_ads)
+   order by a.name, a.id
+   limit 1;
+  if not found then
+    return 0;
+  end if;
+  v_said := public.ad_bell_words('ads_paused_' || p_why, v_first.name, cardinality(p_ads), null, null, null);
+  insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id, recipient_user_id,
+                                    mail_due_at)
+  select p_tenant_id, 'ads_paused', v_said ->> 'title', v_said ->> 'body', 'campaigns/ads:ad:' || v_first.id::text,
+         'ad', v_first.id::text, h.user_id, now()
+    from public.ad_bell_hearers(p_tenant_id) as h(user_id)
+   where h.user_id is distinct from p_actor;
+  get diagnostics v_rung = row_count;
+  return v_rung;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text) IS 'The bell''s ads_paused row (00676; the content loop PRD''s 12.5): the ads Chanlytics paused for the stop or a remediation, told to each member who may run ads but the one who acted, naming the first and how many more, opening that ad, its mail owed at once. Answers how many rows it wrote. Called by ad_pause_all.';
 
 
 --
@@ -652,13 +713,14 @@ begin
                    from public.ad_bell_causes(p_tenant_id, p_account_id, now()) c);
 
   -- A row whose cause no longer stands closes, for everyone: the ad fixed, paid for, turned back on, written from,
-  -- paused, or its total raised. Through the one door that closes rows (00421).
+  -- paused, or its total raised; a switch confirmed. Through the one door that closes rows (00421).
   for v_gone in
     select distinct n.kind, n.subject_id
       from public.notifications n
       join public.ads d on d.id::text = n.subject_id
      where n.tenant_id = p_tenant_id
-       and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet'])
+       and n.kind = any (array['ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet', 'ad_unconfirmed',
+                               'ad_unfinished'])
        and n.closed_at is null
        and n.created_at >= now() - interval '30 days'
        and n.subject_type = 'ad'
@@ -739,7 +801,7 @@ end $$;
 -- Name: FUNCTION ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) IS 'The bell''s five ad notices for one ad account, after a good read (00658, decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone; the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. The rows of ad_refused and ad_unpaid are written owing their mail (mail_due_at, 00664), which the account''s read sends once. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
+COMMENT ON FUNCTION public.ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]) IS 'The bell''s ad notices for one ad account, after a good read (00658, 00664, 00676; decision 0050 call 15): each cause that stands now (ad_bell_causes) and was not among p_before rings once, a row for each member who may run ads (ad_bell_hearers), naming its first ad and how many more and opening that ad; each open row whose cause no longer stands closes for everyone (ad_unconfirmed once a read settles the switch, ad_unfinished after 30 days); the account''s own payment row closes once its card cause has, and its signed-out row once it is read again. p_before null is the first look after a connect: nothing rings. An ad first seen by this read rings only ad_refused and ad_unpaid; a card the account''s standing tells of is the account''s own row. The rows of ad_refused and ad_unpaid are written owing their mail (mail_due_at, 00664), which the account''s read sends once. Closes through notifications_close_about. Answers {rung, closed}. Service role; called by ads_read_keep, which stamps ad_accounts.rung_at once it has rung.';
 
 
 --
@@ -776,6 +838,22 @@ CREATE FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p
            when 'ad_quiet' then jsonb_build_object(
              'title', n.named || ' brought no one in 7 days',
              'body', 'It ran all 7 days, and Meta charges while it runs. Pause it, or change it in Meta.')
+           when 'ad_unconfirmed' then jsonb_build_object(
+             'title', n.named || ': couldn''t confirm it''s on',
+             'body', 'Meta didn''t answer when Chanlytics turned it on, so it may be on or still paused. Open it and press Check.')
+           when 'ad_unfinished' then jsonb_build_object(
+             'title', n.named || ' couldn''t finish',
+             'body', 'Chanlytics stopped setting it up before it ran, so nothing was spent. Open it to see why.')
+           when 'ads_paused_stop' then jsonb_build_object(
+             'title', n.named || case when n.several then ' paused' else ' paused' end,
+             'body', case when n.several
+                          then 'AI was stopped, so Chanlytics paused them: nobody would answer the people they bring. Turn them back on from Ads once AI runs again.'
+                          else 'AI was stopped, so Chanlytics paused it: nobody would answer the people it brings. Turn it back on from Ads once AI runs again.' end)
+           when 'ads_paused_remediation' then jsonb_build_object(
+             'title', n.named || ' paused',
+             'body', case when n.several
+                          then 'Someone in their picture took back their yes for ads, so Chanlytics paused them. They run again only with another picture.'
+                          else 'Someone in its picture took back their yes for ads, so Chanlytics paused it. It runs again only with another picture.' end)
          end
     from n
 $$;
@@ -785,7 +863,7 @@ $$;
 -- Name: FUNCTION ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) IS 'The title and body of one of the bell''s five ad notices (00658): which ad, quoted and cut to fit, with how many more a cause holds; what happened, Meta''s own words in quotes where it refused one; and the one thing to do.';
+COMMENT ON FUNCTION public.ad_bell_words(p_kind text, p_name text, p_many integer, p_said text, p_ends_at timestamp with time zone, p_zone text) IS 'The title and body of one of the bell''s ad notices (00658, 00676): which ad, quoted and cut to fit, with how many more a cause holds; what happened, Meta''s own words in quotes where it refused one; and the one thing to do. ads_paused_stop and ads_paused_remediation word the ads_paused row (ad_bell_paused). ad_way_in''s words are the read''s (ad_way_in_keep), since they say an amount in the account''s own money.';
 
 
 --
@@ -1406,6 +1484,65 @@ COMMENT ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_plat
 
 
 --
+-- Name: ad_launch_cancel(uuid, uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text DEFAULT 'owner'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ad public.ads;
+  v_by text := coalesce(p_by, 'owner');
+begin
+  if v_by not in ('owner', 'remediation') then
+    raise exception 'ad_launch_cancel: by the owner or a remediation' using errcode = '22023';
+  end if;
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, case v_by when 'owner' then 'ads' else 'settings' end),
+                  false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  select * into v_ad from public.ads a
+   where a.id = p_ad_id and a.tenant_id = p_tenant_id and a.origin = 'chanlytics'
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+  -- Made already: it is the ad now, and its Pause stops it. Stopped already: there is nothing left to cancel.
+  if v_ad.status = 'made' then
+    return jsonb_build_object('outcome', 'made', 'version', v_ad.version);
+  end if;
+  if v_ad.status <> 'sending' then
+    return jsonb_build_object('outcome', 'stopped', 'version', v_ad.version);
+  end if;
+  if v_ad.launch ? 'cancel' then
+    return jsonb_build_object('outcome', 'same', 'version', v_ad.version);
+  end if;
+  update public.ads a
+     set launch = coalesce(a.launch, '{}'::jsonb)
+                  || jsonb_build_object('cancel', jsonb_build_object('at', now(), 'by', v_by)),
+         version = a.version + 1
+   where a.id = p_ad_id
+  returning * into v_ad;
+  insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
+  values (p_tenant_id, 'ad', p_ad_id, 'cancel_ad', 'user', p_actor,
+          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', v_by));
+  -- Its account's job takes it up within a minute: the launch stops at its next step and removes what it made.
+  update public.ad_accounts c
+     set next_read_at = least(coalesce(c.next_read_at, 'infinity'::timestamptz), now() + interval '1 minute')
+   where c.id = v_ad.account_id and c.tenant_id = p_tenant_id;
+  return jsonb_build_object('outcome', 'asked', 'version', v_ad.version);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text) IS 'Service-role only: an ad made here cancelled while it is set up (00676; the Ads plan''s 4.7, point 8), by its owner (has_permission ads) or by a remediation (has_permission settings). Keeps {at, by} as the launch''s cancel, bumps the version, writes the decision cancel_ad and brings its account''s job within a minute; the job stops the launch at its next step and before any switch, and removes what it made, or leaves it named and paused (ad_launch_keep). Nothing is sent to the platform here. Answers outcome: asked; same (asked already); made (too late: it is made, and Pause stops it); stopped (its launch ended already); not_found; not_allowed.';
+
+
+--
 -- Name: ad_launch_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1446,7 +1583,8 @@ begin
            sent_at = coalesce(o.sent_at, excluded.sent_at);
   end loop;
 
-  -- Where it ends, once: a launch made or stopped stays so. Its platform ids and word come with a made one.
+  -- Where it ends, once: a launch made or stopped stays so. Its platform ids and word come with a made one; a stopped
+  -- one keeps when it stopped, which the bell reads (00676).
   if v_status is not null and v_ad.status = 'sending' then
     update public.ads a
        set status = v_status,
@@ -1454,7 +1592,9 @@ begin
            platform_set_id = coalesce(nullif(p_kept ->> 'set_id', ''), a.platform_set_id),
            platform_ad_id = coalesce(nullif(p_kept ->> 'platform_ad_id', ''), a.platform_ad_id),
            platform_state = coalesce(nullif(left(p_kept ->> 'platform_state', 100), ''), a.platform_state),
-           launch = coalesce(a.launch, '{}'::jsonb) || coalesce(p_kept -> 'launch', '{}'::jsonb),
+           launch = coalesce(a.launch, '{}'::jsonb) || coalesce(p_kept -> 'launch', '{}'::jsonb)
+                    || case when v_status = 'failed' then jsonb_build_object('stopped_at', now())
+                            else '{}'::jsonb end,
            read_at = case when v_status = 'made' then now() else a.read_at end
      where a.id = p_ad_id
     returning * into v_ad;
@@ -1464,6 +1604,21 @@ begin
                                'why', v_ad.launch ->> 'stopped', 'said', v_ad.launch ->> 'said',
                                'left', (select count(*) from public.ad_objects o
                                          where o.ad_id = p_ad_id and o.state = 'left')));
+    -- Made all the same after it was cancelled (the cancel came after its last switch went): it is paused at once, by
+    -- whoever cancelled it, and Meta is told at its pace. Nothing the owner cancelled is left running.
+    if v_status = 'made' and v_ad.launch ? 'cancel' then
+      update public.ads a
+         set intent = 'paused', intent_at = now(),
+             paused_by = case when v_ad.launch -> 'cancel' ->> 'by' = 'remediation' then 'remediation' else 'owner' end,
+             paused_at = now(), version = a.version + 1
+       where a.id = p_ad_id
+      returning * into v_ad;
+      insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+      values (p_tenant_id, 'ad.paused', 'ads', 'ad', p_ad_id,
+              jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'paused_by', v_ad.paused_by,
+                                 'cancelled', true));
+      perform public.ad_tell_ask(p_tenant_id, p_ad_id);
+    end if;
   elsif p_kept ? 'launch' then
     update public.ads a
        set launch = coalesce(a.launch, '{}'::jsonb) || (p_kept -> 'launch')
@@ -1486,7 +1641,7 @@ end $$;
 -- Name: FUNCTION ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) IS 'Service-role only: what the launch of an ad made here came to, step by step (00666; decision 0050, calls 5 and 6). objects: each part as the job saw it (ad_objects: written sent before its make goes, then made with the platform''s id, refused, removed or left); a part made after the launch stopped is kept as left. status: made (with campaign_id, set_id, platform_ad_id and the platform''s word) or failed, once, from sending, with the event ad.made or ad.setup_stopped. launch: merged into ads.launch (step, unknown_at, stopped, said). While the launch is still on its way, and once it is made, its account''s next read is brought within a minute, so the job takes it up again and the page says what the platform says. Answers {status, intent, launch}; status not_found for an ad that is not one made here.';
+COMMENT ON FUNCTION public.ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb) IS 'Service-role only: what the launch of an ad made here came to, step by step (00666, 00676; decision 0050, calls 5 and 6). objects: each part as the job saw it (ad_objects: written sent before its make goes, then made with the platform''s id, refused, removed or left); a part made after the launch stopped is kept as left. status: made (with campaign_id, set_id, platform_ad_id and the platform''s word) or failed, once, from sending, with the event ad.made or ad.setup_stopped; a failed one keeps launch.stopped_at; one made after its cancel (ad_launch_cancel) is paused at once by whoever cancelled it, told at the platform''s pace. launch: merged into ads.launch (step, unknown_at, stopped, said). While the launch is still on its way, and once it is made, its account''s next read is brought within a minute. Answers {status, intent, launch}; status not_found for an ad that is not one made here.';
 
 
 --
@@ -1552,48 +1707,74 @@ COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a f
 
 
 --
--- Name: ad_pause_all(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ad_pause_all(uuid, uuid, jsonb, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) RETURNS jsonb
+CREATE FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text DEFAULT 'owner_all'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
-  v_press jsonb;
-  v_ad    uuid;
-  v_kept  jsonb;
-  v_out   jsonb := '[]'::jsonb;
+  v_by      text := coalesce(p_by, 'owner_all');
+  v_ad      uuid;
+  v_version integer;
+  v_kept    jsonb;
+  v_out     jsonb := '[]'::jsonb;
+  v_paused  uuid[] := '{}';
 begin
-  if jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200 then
+  if v_by not in ('owner_all', 'stop', 'remediation') then
+    raise exception 'ad_pause_all: by owner_all, stop or remediation' using errcode = '22023';
+  end if;
+  -- The owner's press and a remediation name their ads; the stop names none, since it pauses every one made here.
+  if v_by <> 'stop'
+     and (jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200) then
     raise exception 'ad_pause_all: between 1 and 200 ads' using errcode = '22023';
   end if;
-  -- The owner alone pauses an ad (0050, call 2): asked once here before anything is kept, and by the door for each ad.
-  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+  -- Asked once here before anything is kept, and by the door for each ad: the owner alone pauses ads with a press
+  -- (0050, call 2); a stop is any acting member's; a remediation is the member's who took back a yes.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id,
+                                        case v_by when 'stop' then 'autonomy' when 'remediation' then 'settings'
+                                                  else 'ads' end), false) then
     return jsonb_build_object('outcome', 'not_allowed');
   end if;
   -- In the ads' own order, as ids and not as text in any collation: two presses over the same ads lock them in the same
   -- order, so neither waits on the other. An id that is not one refuses the whole set before anything is kept.
-  for v_press in
-    select p.value from jsonb_array_elements(p_presses) p order by (p.value ->> 'ad_id')::uuid
+  for v_ad, v_version in
+    select (p.value ->> 'ad_id')::uuid, (p.value ->> 'version')::integer
+      from jsonb_array_elements(case when v_by = 'stop' then '[]'::jsonb else p_presses end) p
+    union all
+    -- The stop: every ad made here that is on, of every connected account. An ad made in Meta is told of, never paused.
+    select a.id, a.version
+      from public.ads a
+      join public.ad_accounts c on c.id = a.account_id
+     where v_by = 'stop' and a.tenant_id = p_tenant_id and a.origin = 'chanlytics' and a.status = 'made'
+       and a.intent = 'on' and c.status = 'connected'
+    order by 1
   loop
-    v_ad := (v_press ->> 'ad_id')::uuid;
-    v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, (v_press ->> 'version')::integer, 'paused');
+    v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, v_version, 'paused',
+                                   case v_by when 'owner_all' then 'owner_all' else v_by end);
     -- A pause Meta is to be told of goes at Meta's pace, by its account's read, as one Meta would not take at once.
     if v_kept ->> 'outcome' = 'asked' and coalesce((v_kept ->> 'tell')::boolean, false) then
       perform public.ad_tell_ask(p_tenant_id, v_ad);
     end if;
+    if v_kept ->> 'outcome' = 'asked' then
+      v_paused := v_paused || v_ad;
+    end if;
     v_out := v_out || jsonb_build_array(v_kept || jsonb_build_object('ad_id', v_ad));
   end loop;
+  -- What Chanlytics paused for the workspace is told to the owner, who may not be who pressed the stop.
+  if v_by in ('stop', 'remediation') then
+    perform public.ad_bell_paused(p_tenant_id, p_actor, v_paused, v_by);
+  end if;
   return jsonb_build_object('outcome', 'kept', 'ads', v_out);
 end $$;
 
 
 --
--- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) IS 'Service-role only: an owner pauses every ad of a set at once (00671; the Ads plan''s G17, decision 0050 calls 1 and 2). Each ad ({ad_id, version}, 1 to 200 of them) is paused through ad_set_intent, in one transaction, in the ads'' own order; each kept pause the platform is to be told of asks for its account''s read (ad_tell_ask), which tells the platform at its pace. The platform is asked nothing here. Answers outcome kept with ads, what ad_set_intent answered for each with its ad_id; not_allowed for anyone but the owner (has_permission ads), with nothing kept.';
+COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text) IS 'Service-role only: ads paused together, each through ad_set_intent, in one transaction, in the ads'' own order (00671, 00676; the content loop PRD''s 14.1, call 21). p_by: owner_all (the default: the owner''s one press, p_presses naming each {ad_id, version}, 1 to 200), stop (Stop everything: every ad made here that is on, of every connected account, whoever pressed it; p_presses unread) or remediation (the ads p_presses names). Each kept pause the platform is to be told of asks for its account''s read (ad_tell_ask), which tells the platform at its pace; the stop and a remediation tell the owner on the bell (ad_bell_paused). The platform is asked nothing here. Answers outcome kept with ads, what ad_set_intent answered for each with its ad_id; not_allowed, with nothing kept.';
 
 
 --
@@ -1722,10 +1903,76 @@ COMMENT ON FUNCTION public.ad_ref_parts(p_ref text) IS 'A first touch''s referen
 
 
 --
--- Name: ad_set_intent(uuid, uuid, uuid, integer, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ad_resume_stopped(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) RETURNS jsonb
+CREATE FUNCTION public.ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_press jsonb;
+  v_ad    uuid;
+  v_row   public.ads;
+  v_kept  jsonb;
+  v_out   jsonb := '[]'::jsonb;
+  v_gone  record;
+begin
+  if jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200 then
+    raise exception 'ad_resume_stopped: between 1 and 200 ads' using errcode = '22023';
+  end if;
+  -- Turning ads back on spends: the owner's alone (0050, call 2), asked here before anything is kept.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- Never while AI is stopped: nobody would answer the people an ad brings.
+  if exists (select 1 from public.tenants t where t.id = p_tenant_id and t.sending_stopped_at is not null) then
+    return jsonb_build_object('outcome', 'stopped');
+  end if;
+  for v_press in
+    select p.value from jsonb_array_elements(p_presses) p order by (p.value ->> 'ad_id')::uuid
+  loop
+    v_ad := (v_press ->> 'ad_id')::uuid;
+    select * into v_row from public.ads a
+     where a.id = v_ad and a.tenant_id = p_tenant_id
+     for update;
+    -- Only an ad the stop paused, and still so: one the owner paused since, or a remediation did, is theirs to say.
+    if not found or v_row.intent <> 'paused' or v_row.paused_by is distinct from 'stop' then
+      v_kept := jsonb_build_object('outcome', 'not_stopped', 'version', v_row.version);
+    else
+      v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, (v_press ->> 'version')::integer, 'on');
+      if v_kept ->> 'outcome' = 'asked' and coalesce((v_kept ->> 'tell')::boolean, false) then
+        perform public.ad_tell_ask(p_tenant_id, v_ad);
+      end if;
+    end if;
+    v_out := v_out || jsonb_build_array(v_kept || jsonb_build_object('ad_id', v_ad));
+  end loop;
+  -- A row about an ad that is no longer paused has nothing left to tell: it closes, for everyone.
+  for v_gone in
+    select distinct n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
+     where n.tenant_id = p_tenant_id and n.kind = 'ads_paused' and n.closed_at is null and n.subject_type = 'ad'
+       and d.tenant_id = p_tenant_id and d.intent <> 'paused'
+  loop
+    perform public.notifications_close_about(p_tenant_id, array['ads_paused'], 'ad', v_gone.subject_id);
+  end loop;
+  return jsonb_build_object('outcome', 'kept', 'ads', v_out);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb) IS 'Service-role only: the owner turns back on the ads Stop everything paused, after Resume, as a press of its own that names them (00676; the content loop PRD''s 14.1, call 21: Resume never turns an ad on). Each ad ({ad_id, version}, 1 to 200) that the stop paused and that stands so is turned on through ad_set_intent, in the ads'' own order, its account''s read asked to tell the platform at its pace; any other answers not_stopped. An ads_paused row about an ad no longer paused closes. Answers outcome kept with ads; stopped while AI is stopped and not_allowed for anyone but the owner, each with nothing kept.';
+
+
+--
+-- Name: ad_set_intent(uuid, uuid, uuid, integer, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1733,12 +1980,22 @@ declare
   v_ad      public.ads;
   v_status  text;
   v_pending boolean;
+  v_by      text := coalesce(p_by, 'owner');
+  -- The stop and a remediation pause for the workspace, not as a press drawn from a page: at the version the ad is at.
+  v_for_all boolean := coalesce(p_by in ('stop', 'remediation'), false);
 begin
   if p_intent not in ('on', 'paused') then
     raise exception 'ad_set_intent: intent is on or paused' using errcode = '22023';
   end if;
-  -- The owner alone pauses an ad or turns one back on (0050, call 2): asked here again, whoever knocked.
-  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+  if v_by not in ('owner', 'owner_all', 'stop', 'remediation') or (v_for_all and p_intent <> 'paused') then
+    raise exception 'ad_set_intent: the owner turns an ad on; the owner, the stop or a remediation pauses one'
+      using errcode = '22023';
+  end if;
+  -- The owner alone pauses an ad or turns one back on (0050, call 2), asked here again whoever knocked. A stop is any
+  -- acting member's, since a stop is always free; a remediation is the member's who took back a yes.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id,
+                                        case v_by when 'stop' then 'autonomy' when 'remediation' then 'settings'
+                                                  else 'ads' end), false) then
     return jsonb_build_object('outcome', 'not_allowed');
   end if;
   -- One press at a time for an ad: two that arrive together are taken in turn, and the second sees the first.
@@ -1748,6 +2005,10 @@ begin
   if not found then
     return jsonb_build_object('outcome', 'not_found');
   end if;
+  -- Only what Chanlytics made is paused for the workspace: an ad made in Meta is told of, never paused by itself.
+  if v_for_all and v_ad.origin <> 'chanlytics' then
+    return jsonb_build_object('outcome', 'not_made', 'version', v_ad.version);
+  end if;
   select a.status into v_status from public.ad_accounts a where a.id = v_ad.account_id;
   if v_status is distinct from 'connected' then
     return jsonb_build_object('outcome', 'not_connected');
@@ -1756,13 +2017,24 @@ begin
     return jsonb_build_object('outcome', 'not_made');
   end if;
   v_pending := v_ad.intent_at is not null and (v_ad.told_at is null or v_ad.told_at < v_ad.intent_at);
-  -- The same press again: what was asked already stands. Answered once, changed once.
+  -- The same press again: what was asked already stands. Answered once, changed once. A pause a remediation reaches
+  -- stands for the remediation from now on, so it is never turned back on with this picture.
   if v_ad.intent = p_intent then
+    if v_by = 'remediation' and v_ad.paused_by is distinct from 'remediation' then
+      update public.ads a
+         set paused_by = 'remediation', paused_at = now(), version = a.version + 1
+       where a.id = p_ad_id
+      returning * into v_ad;
+    end if;
     return jsonb_build_object('outcome', 'same', 'version', v_ad.version, 'pending', v_pending,
                               'account_id', v_ad.account_id, 'platform_ad_id', v_ad.platform_ad_id);
   end if;
-  if v_ad.version <> p_version then
+  if not v_for_all and v_ad.version is distinct from p_version then
     return jsonb_build_object('outcome', 'stale', 'version', v_ad.version);
+  end if;
+  -- An ad a remediation paused runs again only with another picture (the Ads plan's G16): never from here.
+  if p_intent = 'on' and v_ad.paused_by = 'remediation' then
+    return jsonb_build_object('outcome', 'cant_resume', 'version', v_ad.version, 'why', 'picture');
   end if;
   -- Turning back on an ad the platform holds paused is the press that can spend: the rule decides it. Taking back a
   -- pause the platform was never told of spends nothing new, and is always the owner's.
@@ -1777,17 +2049,19 @@ begin
          intent_at = now(),
          -- A press that takes back one the platform was never told of leaves nothing to tell.
          told_at = case when v_pending then now() else a.told_at end,
+         paused_by = case when p_intent = 'paused' then v_by end,
+         paused_at = case when p_intent = 'paused' then now() end,
          version = a.version + 1
    where a.id = p_ad_id;
 
   insert into public.decisions (tenant_id, subject_type, subject_id, verb, actor_type, actor_user_id, payload)
   values (p_tenant_id, 'ad', p_ad_id, case p_intent when 'paused' then 'pause_ad' else 'resume_ad' end, 'user', p_actor,
-          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'took_back', v_pending,
+          jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'took_back', v_pending, 'by', v_by,
                              'left_minor', v_ad.budget_left_minor, 'ends_at', v_ad.ends_at));
   if p_intent = 'paused' then
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (p_tenant_id, 'ad.paused', 'ads', 'ad', p_ad_id,
-            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', p_actor));
+            jsonb_build_object('platform', v_ad.platform, 'name', v_ad.name, 'by', p_actor, 'paused_by', v_by));
   else
     insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
     values (p_tenant_id, 'ad.resumed', 'ads', 'ad', p_ad_id,
@@ -1801,10 +2075,10 @@ end $$;
 
 
 --
--- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) IS 'Service-role only: an owner pauses an ad or turns it back on (00652; decision 0050 calls 1, 2 and 9, the Ads plan''s C1). Keeps what was asked with when, bumps the ad''s version, and writes the decision (pause_ad, resume_ad) and the event (ad.paused, ad.resumed) in one transaction. Answers outcome: asked, with the new version and whether the platform is to be told (tell: false where the press took back one it was never told of); same where what was asked already stands (a repeated press, changed once); stale for a press drawn from an old version; cant_resume where ad_may_resume says no; not_allowed for anyone but the owner (has_permission ads, asked here); not_connected, not_made, not_found.';
+COMMENT ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text) IS 'Service-role only: an ad paused or turned back on (00652, 00676; decision 0050 calls 1, 2 and 9, the Ads plan''s C1 and G16). p_by says who: owner (the default: the owner''s press, with the version it was drawn from), owner_all (the owner''s one press for them all), stop (Stop everything, any acting member''s: has_permission autonomy) or remediation (a yes taken back: has_permission settings); the stop and a remediation pause only ads made here, at the version they stand at. Keeps what was asked with when and, for a pause, paused_by and paused_at; bumps the version; writes the decision (pause_ad, resume_ad, with by) and the event (ad.paused with paused_by, ad.resumed) in one transaction. An ad a remediation paused is refused cant_resume with why picture. Answers outcome: asked, with the new version and whether the platform is to be told; same where what was asked already stands (a remediation still marks a standing pause its own); stale; cant_resume; not_allowed; not_connected; not_made (also an ad made at the platform, for the stop or a remediation); not_found.';
 
 
 --
@@ -2036,6 +2310,93 @@ COMMENT ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid
 
 
 --
+-- Name: ad_way_in_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_moved  integer;
+  v_rung   integer := 0;
+  v_closed integer := 0;
+  v_gone   record;
+begin
+  if jsonb_typeof(p_ways) is distinct from 'array' then
+    raise exception 'ad_way_in_keep: the ways are an array' using errcode = '22023';
+  end if;
+  -- Each ad as the read judged it: what stands in the way, or nothing (null) where AI answers it or it does not run.
+  -- Since when is kept only where it moved, so an unknown word keeps the moment it was first not known.
+  with given as (
+    select (w.value ->> 'ad_id')::uuid as ad_id, nullif(w.value ->> 'way_in', '') as way_in
+      from jsonb_array_elements(p_ways) w
+  ), moved as (
+    update public.ads a
+       set way_in = g.way_in,
+           way_in_at = case when g.way_in is null then null else now() end
+      from given g
+     where a.id = g.ad_id and a.tenant_id = p_tenant_id and a.account_id = p_account_id
+       and a.origin = 'chanlytics' and a.way_in is distinct from g.way_in
+    returning a.id
+  )
+  select count(*) into v_moved from moved;
+
+  -- A row whose way in opened again, or whose ad stopped running, closes for everyone.
+  for v_gone in
+    select distinct n.subject_id
+      from public.notifications n
+      join public.ads d on d.id::text = n.subject_id
+     where n.tenant_id = p_tenant_id and n.kind = 'ad_way_in' and n.closed_at is null and n.subject_type = 'ad'
+       and n.created_at >= now() - interval '30 days'
+       and d.tenant_id = p_tenant_id and d.account_id = p_account_id
+       and (d.way_in is null or d.intent <> 'on' or d.status <> 'made')
+  loop
+    v_closed := v_closed + public.notifications_close_about(p_tenant_id, array['ad_way_in'], 'ad', v_gone.subject_id);
+  end loop;
+
+  -- A way in that closed rings once, for each member who may run ads, in the words the read handed (they say how much
+  -- the ad can still spend, in its account's own money). Meta's word on the number not known rings only once it has
+  -- stood an hour, so one read that could not tell wakes nobody. Never a second open row for one ad.
+  with said as (
+    select (w.value ->> 'ad_id')::uuid as ad_id,
+           nullif(left(btrim(coalesce(w.value ->> 'title', '')), 200), '') as title,
+           nullif(left(btrim(coalesce(w.value ->> 'body', '')), 600), '') as body
+      from jsonb_array_elements(p_ways) w
+  ), owed as (
+    select d.id, s.title, s.body
+      from said s
+      join public.ads d on d.id = s.ad_id
+     where d.tenant_id = p_tenant_id and d.account_id = p_account_id and d.origin = 'chanlytics'
+       and d.status = 'made' and d.intent = 'on' and d.way_in is not null
+       and s.title is not null and s.body is not null
+       and d.way_in_at <= now() - case when d.way_in = 'unread' then interval '1 hour' else interval '0 seconds' end
+  ), rung as (
+    insert into public.notifications (tenant_id, kind, title, body, route, subject_type, subject_id,
+                                      recipient_user_id, mail_due_at)
+    select p_tenant_id, 'ad_way_in', o.title, o.body, 'campaigns/ads:ad:' || o.id::text, 'ad', o.id::text, h.user_id,
+           now()
+      from owed o
+     cross join public.ad_bell_hearers(p_tenant_id) as h(user_id)
+     where not exists (select 1 from public.notifications x
+                        where x.tenant_id = p_tenant_id and x.kind = 'ad_way_in' and x.recipient_user_id = h.user_id
+                          and x.subject_type = 'ad' and x.subject_id = o.id::text and x.closed_at is null
+                          and x.created_at >= now() - interval '30 days')
+    returning 1
+  )
+  select count(*) into v_rung from rung;
+  return jsonb_build_object('moved', v_moved, 'rung', v_rung, 'closed', v_closed);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) IS 'Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; decision 0050 call 11; contracts adWayInOf). p_ways: [{ad_id, way_in (null where AI answers it or it does not run), title, body}]; way_in and way_in_at are kept where they moved. An ad on whose way in is closed rings the bell''s ad_way_in once for each member who may run ads, in the words handed (which say what it can still spend), its mail owed at once; unread rings only once it has stood an hour. A row closes once its way in opened or its ad stopped running. Answers {moved, rung, closed}.';
+
+
+--
 -- Name: add_person(uuid, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2196,6 +2557,30 @@ $$;
 --
 
 COMMENT ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p_end date) IS 'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; and spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling). The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';
+
+
+--
+-- Name: ads_paused_by_holds(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ads_paused_by_holds() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.intent <> 'paused' then
+    new.paused_by := null;
+    new.paused_at := null;
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION ads_paused_by_holds(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ads_paused_by_holds() IS 'Trigger (00676): an ad that is not paused holds no paused_by: whatever moves its intent off paused clears why it was paused.';
 
 
 --
@@ -2408,6 +2793,133 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) IS 'Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). account: handed to ad_account_read_keep (its standing and facts, or that the read failed). ads: each made on first sight as an adopted ad (origin platform) or written over by its platform id, with the budget it sits under and where it shows (00666); a read of an ad made here settles a launch whose last switch went unanswered; what the owner asked of an adopted ad follows the platform unless a press of theirs is still on its way; an ad.state_changed event only where the platform''s word moved. days: each made or written over until settled, for ads this workspace holds. settled_before: the account''s days before it are marked settled. Then, for a read that did not fail, the bell: what stood at its last look (ad_bell_causes, measured before anything is written) is handed to ad_bell_ring, and a bell that fails is a warning, never the read''s failure. next_read_at, settle_at and notices are kept on the account, and rung_at where the bell rang. Answers {outcome, adopted, moved, days}; outcome not_connected, and nothing written, for an account that is not connected.';
+
+
+--
+-- Name: ads_remediate_files(uuid, uuid, text, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_rem     uuid;
+  v_ad      public.ads;
+  v_kept    jsonb;
+  v_act     text;
+  v_outcome text;
+  v_pause   jsonb := '[]'::jsonb;
+  v_out     jsonb := '[]'::jsonb;
+  v_one     jsonb;
+begin
+  if p_cause not in ('yes_taken_back', 'person_erased') then
+    raise exception 'ads_remediate_files: a yes taken back or a person erased' using errcode = '22023';
+  end if;
+  -- Every ad made here that shows one of the files and has not ended: running or paused, or still being set up.
+  for v_ad in
+    select * from public.ads a
+     where a.tenant_id = p_tenant_id and a.origin = 'chanlytics' and a.status in ('sending', 'made')
+       and a.intent in ('on', 'paused')
+       and a.approved ->> 'picture' = any (array(select f::text from unnest(p_files) f))
+     order by a.id
+  loop
+    if v_rem is null then
+      insert into public.remediations (tenant_id, cause, subject_type, subject_id, actor_user_id)
+      values (p_tenant_id, p_cause, 'file', p_subject_id, p_actor)
+      returning id into v_rem;
+    end if;
+    if v_ad.status = 'sending' then
+      -- Still being set up: its launch is cancelled, stops at its next step, and removes what it made.
+      v_act := 'cancel';
+      v_kept := public.ad_launch_cancel(p_tenant_id, p_actor, v_ad.id, 'remediation');
+      v_outcome := case when v_kept ->> 'outcome' in ('asked', 'same') then 'pending' else 'not_possible' end;
+    else
+      v_act := 'pause';
+      v_pause := public.ad_pause_all(p_tenant_id, p_actor,
+                                     jsonb_build_array(jsonb_build_object('ad_id', v_ad.id, 'version', v_ad.version)),
+                                     'remediation') -> 'ads';
+      v_kept := coalesce(v_pause -> 0, '{}'::jsonb);
+      v_outcome := case
+        -- Paused now: pending until Meta's word says so (a pause Meta was never told the undoing of stands at once).
+        when v_kept ->> 'outcome' = 'asked' then
+          case when coalesce((v_kept ->> 'tell')::boolean, false) then 'pending' else 'done' end
+        -- Paused already: done where Meta was told, else pending with that pause.
+        when v_kept ->> 'outcome' = 'same' then
+          case when coalesce((v_kept ->> 'pending')::boolean, false) then 'pending' else 'done' end
+        -- Its account is not connected: Chanlytics can no longer pause it, and the owner pauses it in Meta.
+        when v_kept ->> 'outcome' = 'not_connected' then 'needs_person'
+        else 'not_possible'
+      end;
+    end if;
+    insert into public.remediation_actions (tenant_id, remediation_id, target_type, target_id, act, outcome,
+                                            finished_at)
+    values (p_tenant_id, v_rem, 'ad', v_ad.id, v_act, v_outcome,
+            case when v_outcome <> 'pending' then now() end);
+    v_one := jsonb_build_object('ad_id', v_ad.id, 'name', v_ad.name, 'act', v_act, 'outcome', v_outcome);
+    v_out := v_out || jsonb_build_array(v_one);
+  end loop;
+  if v_rem is not null
+     and not exists (select 1 from public.remediation_actions r where r.remediation_id = v_rem and r.outcome = 'pending')
+  then
+    update public.remediations m set finished_at = now() where m.id = v_rem;
+  end if;
+  return v_out;
+end $$;
+
+
+--
+-- Name: FUNCTION ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back starts on ads (00676; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by file_yes_take_back.';
+
+
+--
+-- Name: ads_settle_remediation(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ads_settle_remediation() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_settled integer;
+begin
+  -- An ad's action stays pending until the platform's word says what came of it (the content loop PRD's 8.3): a pause
+  -- is done once the platform holds the ad paused, or removed; a cancel once its launch stopped, or the ad it made all
+  -- the same is held paused. A pause the platform refused put the ad back on: blocked, in the platform's words.
+  update public.remediation_actions r
+     set outcome = case when new.status = 'made' and new.intent = 'on' and r.act = 'pause' then 'blocked' else 'done' end,
+         said = case when new.status = 'made' and new.intent = 'on' and r.act = 'pause'
+                     then nullif(left(btrim(coalesce(new.platform_issue, '')), 300), '') else r.said end,
+         finished_at = now()
+   where r.tenant_id = new.tenant_id and r.target_type = 'ad' and r.target_id = new.id and r.outcome = 'pending'
+     and (   (r.act = 'pause' and new.status = 'made' and new.intent = 'on')
+          or (r.act = 'cancel' and new.status = 'failed')
+          or (new.status = 'made' and new.intent = 'paused'
+              and upper(coalesce(new.platform_state, '')) in ('PAUSED', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'ARCHIVED',
+                                                              'DELETED')));
+  get diagnostics v_settled = row_count;
+  -- A remediation is finished once none of its actions is pending.
+  if v_settled > 0 then
+    update public.remediations m
+       set finished_at = now()
+     where m.tenant_id = new.tenant_id and m.finished_at is null
+       and m.id in (select r.remediation_id from public.remediation_actions r
+                     where r.tenant_id = new.tenant_id and r.target_type = 'ad' and r.target_id = new.id)
+       and not exists (select 1 from public.remediation_actions x
+                        where x.remediation_id = m.id and x.outcome = 'pending');
+  end if;
+  return new;
+end $$;
+
+
+--
+-- Name: FUNCTION ads_settle_remediation(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ads_settle_remediation() IS 'Trigger (00676; the content loop PRD''s 8.3): an ad''s pending remediation actions settled as its row learns what the platform holds. A pause is done once the platform''s word says paused or removed, or blocked (with the platform''s words) where the platform put it back on; a cancel is done once its launch stopped, or the ad it made is held paused. A remediation is finished once none of its actions is pending. The time Chanlytics started each and the time it was settled are kept apart.';
 
 
 --
@@ -10476,6 +10988,7 @@ declare
   v_back  integer;
   v_held  jsonb := '[]'::jsonb;
   v_live  jsonb := '[]'::jsonb;
+  v_ads   jsonb := '[]'::jsonb;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -10530,10 +11043,13 @@ begin
      where p.tenant_id = p_tenant_id and p.file_id = any (v_files)
        and p.status = any (array['publishing', 'checking', 'published']);
   end if;
-  -- G16 (the Ads plan): once the record of ads made here exists, every running ad that shows one of v_files is paused
-  -- here, in this same transaction, and answered under `ads`. Until then no ad is made here, so there is none to pause.
+  -- 3. G16 (the Ads plan): every ad made here that shows one of them is paused, in this same transaction, or cancelled
+  -- while it is set up, as a remediation, and the owner is told (00676). It runs again only with another picture.
+  if 'ad' = any (v_uses) then
+    v_ads := public.ads_remediate_files(p_tenant_id, v_actor, 'yes_taken_back', p_file_id::text, v_files);
+  end if;
   return jsonb_build_object('taken_back', v_back, 'uses', to_jsonb(v_uses), 'files', to_jsonb(v_files),
-                            'held', v_held, 'live', v_live, 'ads', '[]'::jsonb);
+                            'held', v_held, 'live', v_live, 'ads', v_ads);
 end $$;
 
 
@@ -10541,7 +11057,7 @@ end $$;
 -- Name: FUNCTION file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads (G16: empty until the record of ads made here exists)}.';
+COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665, 00676; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (ads_remediate_files, the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads ([{ad_id, name, act, outcome}])}.';
 
 
 --
@@ -42818,6 +43334,10 @@ CREATE TABLE public.ads (
     shown_on text[],
     change jsonb,
     amounts_at timestamp with time zone[],
+    paused_by text,
+    paused_at timestamp with time zone,
+    way_in text,
+    way_in_at timestamp with time zone,
     CONSTRAINT ads_amounts_at_check CHECK (((amounts_at IS NULL) OR (cardinality(amounts_at) <= 20))),
     CONSTRAINT ads_approved_check CHECK (((approved IS NULL) OR ((jsonb_typeof(approved) = 'object'::text) AND (octet_length((approved)::text) <= 20000)))),
     CONSTRAINT ads_budget_at_check CHECK ((budget_at = ANY (ARRAY['campaign'::text, 'set'::text]))),
@@ -42832,6 +43352,8 @@ CREATE TABLE public.ads (
     CONSTRAINT ads_made_names_its_platform_id CHECK (((status <> 'made'::text) OR (platform_ad_id IS NOT NULL))),
     CONSTRAINT ads_name_check CHECK (((char_length(name) >= 1) AND (char_length(name) <= 500))),
     CONSTRAINT ads_origin_check CHECK ((origin = ANY (ARRAY['chanlytics'::text, 'platform'::text]))),
+    CONSTRAINT ads_paused_by_check CHECK ((paused_by = ANY (ARRAY['stop'::text, 'remediation'::text, 'owner'::text, 'owner_all'::text]))),
+    CONSTRAINT ads_paused_by_when CHECK (((paused_by IS NULL) = (paused_at IS NULL))),
     CONSTRAINT ads_platform_ad_id_check CHECK (((char_length(platform_ad_id) >= 1) AND (char_length(platform_ad_id) <= 200))),
     CONSTRAINT ads_platform_campaign_id_check CHECK (((char_length(platform_campaign_id) >= 1) AND (char_length(platform_campaign_id) <= 200))),
     CONSTRAINT ads_platform_check CHECK ((platform = ANY (ARRAY['meta'::text, 'google'::text, 'tiktok'::text]))),
@@ -42841,7 +43363,9 @@ CREATE TABLE public.ads (
     CONSTRAINT ads_said_check CHECK (((said IS NULL) OR (jsonb_typeof(said) = 'object'::text))),
     CONSTRAINT ads_shown_on_check CHECK (((shown_on IS NULL) OR (cardinality(shown_on) <= 10))),
     CONSTRAINT ads_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'sending'::text, 'failed'::text, 'made'::text]))),
-    CONSTRAINT ads_version_check CHECK ((version > 0))
+    CONSTRAINT ads_version_check CHECK ((version > 0)),
+    CONSTRAINT ads_way_in_check CHECK ((way_in = ANY (ARRAY['stopped'::text, 'paused'::text, 'no_number'::text, 'unread'::text, 'blocked'::text]))),
+    CONSTRAINT ads_way_in_when CHECK (((way_in IS NULL) = (way_in_at IS NULL)))
 );
 
 
@@ -42920,6 +43444,34 @@ COMMENT ON COLUMN public.ads.change IS 'A change of the owner''s to a running ad
 --
 
 COMMENT ON COLUMN public.ads.amounts_at IS 'When the ad''s amount was lately sent to the platform (00673): Meta changes an ad set''s amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour''s are kept.';
+
+
+--
+-- Name: COLUMN ads.paused_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.paused_by IS 'Why Chanlytics holds this ad paused (00676; the content loop PRD''s section 5.2): stop (Stop everything paused it), remediation (a yes taken back on its picture: it runs again only with another), owner (its owner''s Pause) or owner_all (the owner''s one press for them all). Null while it is not paused, or where it was paused before 00676 or at the platform. Kept by ad_set_intent; cleared the moment it is not paused (ads_paused_by_holds).';
+
+
+--
+-- Name: COLUMN ads.paused_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.paused_at IS 'When Chanlytics paused it, for paused_by (00676). Null with paused_by.';
+
+
+--
+-- Name: COLUMN ads.way_in; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.way_in IS 'What stands between a running ad made here and AI answering the WhatsApp chat it opens, as the account''s read last worked it out (00676; decision 0050 call 11; contracts adWayInOf): stopped (AI is stopped), paused (billing paused), no_number (the number it names is not the active one), unread (Meta''s word on the number is not known) or blocked (Meta stops the number sending). Null while AI answers it, or where it is not running. Kept by ad_way_in_keep.';
+
+
+--
+-- Name: COLUMN ads.way_in_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ads.way_in_at IS 'Since when way_in has stood as it is (00676): the bell rings for unread only once it has stood an hour.';
 
 
 --
@@ -44009,7 +44561,7 @@ CREATE TABLE public.decisions (
     CONSTRAINT decisions_actor_type_check CHECK ((actor_type = ANY (ARRAY['user'::text, 'ai'::text, 'system'::text, 'owner_phone'::text]))),
     CONSTRAINT decisions_actor_user_id_check CHECK (((actor_type = 'user'::text) OR (actor_user_id IS NULL))),
     CONSTRAINT decisions_subject_type_check CHECK ((subject_type = ANY (ARRAY['conversation'::text, 'escalation'::text, 'draft'::text, 'lead'::text, 'message'::text, 'agent'::text, 'membership'::text, 'invitation'::text, 'contact'::text, 'call'::text, 'channel'::text, 'broadcast'::text, 'playbook'::text, 'review'::text, 'workspace'::text, 'deal'::text, 'list'::text, 'appointment'::text, 'sequence'::text, 'ad_account'::text, 'ad'::text]))),
-    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text, 'turn_on_ad'::text, 'change_ad'::text, 'end_ad'::text])))
+    CONSTRAINT decisions_verb_check CHECK ((verb = ANY (ARRAY['approve'::text, 'edit'::text, 'decline'::text, 'snooze'::text, 'wake'::text, 'take_over'::text, 'hand_back'::text, 'resolve'::text, 'archive'::text, 'reply'::text, 'cancel_send'::text, 'pause_agent'::text, 'resume_agent'::text, 'invite'::text, 'revoke_invite'::text, 'change_role'::text, 'remove_member'::text, 'erase'::text, 'whisper'::text, 'connect_channel'::text, 'consent_change'::text, 'send_broadcast'::text, 'cancel_broadcast'::text, 'start_playbook'::text, 'pause_playbook'::text, 'reply_review'::text, 'export'::text, 'end_call'::text, 'record_deal'::text, 'make_list'::text, 'rename_list'::text, 'change_list_rule'::text, 'add_to_list'::text, 'drop_from_list'::text, 'archive_list'::text, 'restore_list'::text, 'delete_list'::text, 'import'::text, 'open_recording'::text, 'merge'::text, 'change_playbook'::text, 'mark_visit'::text, 'change_step'::text, 'leave_sequence'::text, 'make_sequence'::text, 'discard_sequence'::text, 'answer_booking_request'::text, 'return_to_sequence'::text, 'not_a_customer'::text, 'reply_anyway'::text, 'connect_ad_account'::text, 'disconnect_ad_account'::text, 'pause_ad'::text, 'resume_ad'::text, 'turn_on_ad'::text, 'change_ad'::text, 'end_ad'::text, 'cancel_ad'::text])))
 );
 
 
@@ -46608,7 +47160,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -47713,6 +48265,62 @@ CREATE TABLE public.rehearsals (
 --
 
 COMMENT ON TABLE public.rehearsals IS 'A conversation the owner rehearsed (spoken in the browser, or typed) or a real call reviewed (decision 0069): what it ran on, what was said, how long, how it did, and what was fixed from it. Members read their workspace''s; the doors write. A spoken one''s seconds are the free minutes counted.';
+
+
+--
+-- Name: remediation_actions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.remediation_actions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    remediation_id uuid NOT NULL,
+    target_type text NOT NULL,
+    target_id uuid NOT NULL,
+    act text NOT NULL,
+    outcome text NOT NULL,
+    said text,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT remediation_actions_act_check CHECK ((act = ANY (ARRAY['cancel'::text, 'pause'::text, 'take_down'::text]))),
+    CONSTRAINT remediation_actions_outcome_check CHECK ((outcome = ANY (ARRAY['done'::text, 'pending'::text, 'blocked'::text, 'not_possible'::text, 'needs_person'::text]))),
+    CONSTRAINT remediation_actions_said_check CHECK (((char_length(said) >= 1) AND (char_length(said) <= 300))),
+    CONSTRAINT remediation_actions_settled CHECK (((outcome = 'pending'::text) = (finished_at IS NULL))),
+    CONSTRAINT remediation_actions_target_type_check CHECK ((target_type = ANY (ARRAY['post'::text, 'ad'::text, 'scheduled_post'::text])))
+);
+
+
+--
+-- Name: TABLE remediation_actions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.remediation_actions IS 'One action a remediation started on one thing it reached (00676; the content loop PRD''s 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place''s own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad''s is settled by ads_settle_remediation as its row learns what the platform holds. Members read.';
+
+
+--
+-- Name: remediations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.remediations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    cause text NOT NULL,
+    subject_type text NOT NULL,
+    subject_id text NOT NULL,
+    actor_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT remediations_cause_check CHECK ((cause = ANY (ARRAY['yes_taken_back'::text, 'person_erased'::text, 'owner_removed'::text, 'stop'::text, 'claim_withdrawn'::text, 'connection_lost'::text, 'claim_expired'::text]))),
+    CONSTRAINT remediations_subject_id_check CHECK (((char_length(subject_id) >= 1) AND (char_length(subject_id) <= 200))),
+    CONSTRAINT remediations_subject_type_check CHECK ((subject_type = ANY (ARRAY['file'::text, 'person'::text, 'post'::text, 'workspace'::text])))
+);
+
+
+--
+-- Name: TABLE remediations; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.remediations IS 'A cause and what it started (00676; the content loop PRD''s section 5.3): a yes taken back, a person erased, a take-down the owner asked for, the stop, a claim withdrawn or expired, a connection lost; what it is about, who started it, and when its last action stopped being pending. Kept as the proof a yes was honoured, never what the person wrote. Members read; the doors that start one write it.';
 
 
 --
@@ -50157,6 +50765,38 @@ ALTER TABLE ONLY public.rehearsals
 
 
 --
+-- Name: remediation_actions remediation_actions_one_each; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediation_actions
+    ADD CONSTRAINT remediation_actions_one_each UNIQUE (tenant_id, remediation_id, target_type, target_id);
+
+
+--
+-- Name: remediation_actions remediation_actions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediation_actions
+    ADD CONSTRAINT remediation_actions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: remediations remediations_id_same_workspace; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediations
+    ADD CONSTRAINT remediations_id_same_workspace UNIQUE (tenant_id, id);
+
+
+--
+-- Name: remediations remediations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediations
+    ADD CONSTRAINT remediations_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: reply_turns reply_turns_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52574,6 +53214,20 @@ CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (te
 
 
 --
+-- Name: remediation_actions_pending_by_target; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX remediation_actions_pending_by_target ON public.remediation_actions USING btree (tenant_id, target_type, target_id) WHERE (outcome = 'pending'::text);
+
+
+--
+-- Name: remediations_actor_user_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX remediations_actor_user_id ON public.remediations USING btree (actor_user_id) WHERE (actor_user_id IS NOT NULL);
+
+
+--
 -- Name: reply_turns_tenant; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -53316,10 +53970,24 @@ CREATE TRIGGER ad_objects_set_updated_at BEFORE UPDATE ON public.ad_objects FOR 
 
 
 --
+-- Name: ads ads_paused_by_holds; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ads_paused_by_holds BEFORE INSERT OR UPDATE OF intent, paused_by ON public.ads FOR EACH ROW EXECUTE FUNCTION public.ads_paused_by_holds();
+
+
+--
 -- Name: ads ads_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER ads_set_updated_at BEFORE UPDATE ON public.ads FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: ads ads_settle_remediation; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER ads_settle_remediation AFTER UPDATE OF intent, status, platform_state, told_at ON public.ads FOR EACH ROW WHEN (((old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.told_at IS DISTINCT FROM new.told_at))) EXECUTE FUNCTION public.ads_settle_remediation();
 
 
 --
@@ -54957,7 +55625,7 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, standing, con
 -- Name: ads workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at, launch, shown_on, change ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at) OR (old.launch IS DISTINCT FROM new.launch) OR (old.shown_on IS DISTINCT FROM new.shown_on) OR (old.change IS DISTINCT FROM new.change))) EXECUTE FUNCTION public.workspace_tell_row_change();
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF name, intent, status, platform_state, platform_issue, budget_kind, budget_minor, budget_left_minor, budget_shared, ends_at, intent_at, told_at, launch, shown_on, change, paused_by, way_in ON public.ads FOR EACH ROW WHEN (((old.name IS DISTINCT FROM new.name) OR (old.intent IS DISTINCT FROM new.intent) OR (old.status IS DISTINCT FROM new.status) OR (old.platform_state IS DISTINCT FROM new.platform_state) OR (old.platform_issue IS DISTINCT FROM new.platform_issue) OR (old.budget_kind IS DISTINCT FROM new.budget_kind) OR (old.budget_minor IS DISTINCT FROM new.budget_minor) OR (old.budget_left_minor IS DISTINCT FROM new.budget_left_minor) OR (old.budget_shared IS DISTINCT FROM new.budget_shared) OR (old.ends_at IS DISTINCT FROM new.ends_at) OR (old.intent_at IS DISTINCT FROM new.intent_at) OR (old.told_at IS DISTINCT FROM new.told_at) OR (old.launch IS DISTINCT FROM new.launch) OR (old.shown_on IS DISTINCT FROM new.shown_on) OR (old.change IS DISTINCT FROM new.change) OR (old.paused_by IS DISTINCT FROM new.paused_by) OR (old.way_in IS DISTINCT FROM new.way_in))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -56909,6 +57577,38 @@ ALTER TABLE ONLY public.rehearsals
 
 ALTER TABLE ONLY public.rehearsals
     ADD CONSTRAINT rehearsals_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: remediation_actions remediation_actions_remediation_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediation_actions
+    ADD CONSTRAINT remediation_actions_remediation_same_workspace FOREIGN KEY (tenant_id, remediation_id) REFERENCES public.remediations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: remediation_actions remediation_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediation_actions
+    ADD CONSTRAINT remediation_actions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: remediations remediations_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediations
+    ADD CONSTRAINT remediations_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: remediations remediations_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.remediations
+    ADD CONSTRAINT remediations_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -59064,6 +59764,36 @@ CREATE POLICY rehearsals_member_select ON public.rehearsals FOR SELECT TO authen
 
 
 --
+-- Name: remediation_actions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.remediation_actions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: remediation_actions remediation_actions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY remediation_actions_member_select ON public.remediation_actions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: remediations; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.remediations ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: remediations remediations_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY remediations_member_select ON public.remediations FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: reply_turns; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -59573,6 +60303,14 @@ GRANT ALL ON FUNCTION public.ad_bell_hearers(p_tenant_id uuid) TO service_role;
 
 
 --
+-- Name: FUNCTION ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_bell_paused(p_tenant_id uuid, p_actor uuid, p_ads uuid[], p_why text) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_bell_ring(p_tenant_id uuid, p_account_id uuid, p_before text[]); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59673,6 +60411,14 @@ GRANT ALL ON FUNCTION public.ad_held_for(p_tenant_id uuid, p_platform text, p_pl
 
 
 --
+-- Name: FUNCTION ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_launch_cancel(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_by text) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_launch_keep(p_tenant_id uuid, p_ad_id uuid, p_kept jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59698,11 +60444,11 @@ GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_r
 
 
 --
--- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb, p_by text) TO service_role;
 
 
 --
@@ -59733,11 +60479,19 @@ GRANT ALL ON FUNCTION public.ad_ref_parts(p_ref text) TO service_role;
 
 
 --
--- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text) TO service_role;
+REVOKE ALL ON FUNCTION public.ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_resume_stopped(p_tenant_id uuid, p_actor uuid, p_presses jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_set_intent(p_tenant_id uuid, p_actor uuid, p_ad_id uuid, p_version integer, p_intent text, p_by text) TO service_role;
 
 
 --
@@ -59762,6 +60516,14 @@ GRANT ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked tex
 
 REVOKE ALL ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_turn_on(p_tenant_id uuid, p_actor uuid, p_key uuid, p_draft_at timestamp with time zone, p_ad jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_way_in_keep(p_tenant_id uuid, p_account_id uuid, p_ways jsonb) TO service_role;
 
 
 --
@@ -59791,6 +60553,14 @@ GRANT ALL ON FUNCTION public.ads_page_counts(p_tenant_id uuid, p_days integer, p
 
 
 --
+-- Name: FUNCTION ads_paused_by_holds(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ads_paused_by_holds() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ads_paused_by_holds() TO service_role;
+
+
+--
 -- Name: FUNCTION ads_read_ask(p_platform text, p_external_id text); Type: ACL; Schema: public; Owner: -
 --
 
@@ -59804,6 +60574,22 @@ GRANT ALL ON FUNCTION public.ads_read_ask(p_platform text, p_external_id text) T
 
 REVOKE ALL ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ads_read_keep(p_tenant_id uuid, p_account_id uuid, p_read jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) TO service_role;
+
+
+--
+-- Name: FUNCTION ads_settle_remediation(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ads_settle_remediation() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ads_settle_remediation() TO service_role;
 
 
 --
@@ -68540,6 +69326,22 @@ GRANT ALL ON TABLE public.reach_out_check_spend TO service_role;
 
 GRANT SELECT ON TABLE public.rehearsals TO authenticated;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.rehearsals TO service_role;
+
+
+--
+-- Name: TABLE remediation_actions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.remediation_actions TO authenticated;
+GRANT ALL ON TABLE public.remediation_actions TO service_role;
+
+
+--
+-- Name: TABLE remediations; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.remediations TO authenticated;
+GRANT ALL ON TABLE public.remediations TO service_role;
 
 
 --

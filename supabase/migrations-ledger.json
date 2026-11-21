@@ -84,7 +84,9 @@
     "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
     "00667": "left empty by Pause all's lane (cm-ads-pause-all), which claimed it and moved its own file to 00671 when 00668 went on production above it (21 Nov 2026)",
     "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
-    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)"
+    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)",
+    "00674": "a working number of the footage fixes lane (cm-footage-fixes), not claimed: this lane's file takes its number at its push (21 Nov 2026)",
+    "00675": "left for the lanes waiting for a number beside this one (forms F0, footage fixes): this lane's working 00676 is renumbered at its push (21 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -675,6 +677,7 @@
     "00668_a_search_reads_on_from_where_its_page_ended.sql": "c7588b39a3b2ac05376061093cfff61f2e24cb159bacfc3b6eb089f691c11b89",
     "00671_an_owner_pauses_every_ad_at_once.sql": "9765224526a988e26735dc0d27dc0d1f18b7e780ca289d7aef85303b3a8cd36a",
     "00672_a_draft_ad_s_words_are_asked_for_once.sql": "8c56a5f7d21e098e50e090ec3d62d8646d45c1c8bc8fdd404ce3d7ce35e67bb2",
-    "00673_an_owner_changes_a_running_ad.sql": "60946aceaca12e426a983a1e450f8915689e29647cf182fc3b61f6ec33f1b343"
+    "00673_an_owner_changes_a_running_ad.sql": "60946aceaca12e426a983a1e450f8915689e29647cf182fc3b61f6ec33f1b343",
+    "00676_the_stop_pauses_the_ads_made_here.sql": "1c01a6b6d2fb38197ce4a07e980030de5f8a14f38e86a17de261072d17fd9f94"
   }
 }

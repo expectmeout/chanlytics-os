@@ -126,6 +126,8 @@ what the script writes.
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`rehearsals`](#rehearsals) | `packages/db/src/repositories/facts/rehearsals.ts` | on, 1 policy |
+| [`remediation_actions`](#remediation_actions) | none | on, 1 policy |
+| [`remediations`](#remediations) | none | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 4 policies |
@@ -371,6 +373,10 @@ An ad as its owner thinks of it (decision 0049, 00648): its account and platform
 | `shown_on` | text[] | yes |  | Where the ad shows, as the platform holds it (00666): the platforms its ad set names (facebook, instagram, and the rest), as the read found them or a launch named them. Null where it is not known. |
 | `change` | jsonb | yes |  | A change of the owner's to a running ad made here, on its way to the platform (00673; decision 0050, Routes): what (total, end_day, miles, end), to what (total_minor; end_day with ends_at, its last moment in the account's zone; miles), what the platform held when it was pressed (from_minor, from_ends_at, from_miles), asked_at, by, and sent_at where it was sent and no answer came (followed by a read back, never sent again). Null where none is on its way. Written by ad_change_keep and ad_change_told. |
 | `amounts_at` | timestamp with time zone[] | yes |  | When the ad's amount was lately sent to the platform (00673): Meta changes an ad set's amount at most four times an hour, so a fifth is refused at the press with when the next is taken. The last hour's are kept. |
+| `paused_by` | text | yes |  | Why Chanlytics holds this ad paused (00676; the content loop PRD's section 5.2): stop (Stop everything paused it), remediation (a yes taken back on its picture: it runs again only with another), owner (its owner's Pause) or owner_all (the owner's one press for them all). Null while it is not paused, or where it was paused before 00676 or at the platform. Kept by ad_set_intent; cleared the moment it is not paused (ads_paused_by_holds). |
+| `paused_at` | timestamp with time zone | yes |  | When Chanlytics paused it, for paused_by (00676). Null with paused_by. |
+| `way_in` | text | yes |  | What stands between a running ad made here and AI answering the WhatsApp chat it opens, as the account's read last worked it out (00676; decision 0050 call 11; contracts adWayInOf): stopped (AI is stopped), paused (billing paused), no_number (the number it names is not the active one), unread (Meta's word on the number is not known) or blocked (Meta stops the number sending). Null while AI answers it, or where it is not running. Kept by ad_way_in_keep. |
+| `way_in_at` | timestamp with time zone | yes |  | Since when way_in has stood as it is (00676): the bell rings for unread only once it has stood an hour. |
 
 Foreign keys:
 
@@ -3651,6 +3657,64 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `rehearsals_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### remediation_actions
+
+One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. Members read.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `remediation_id` | uuid | no |  |  |
+| `target_type` | text | no |  |  |
+| `target_id` | uuid | no |  |  |
+| `act` | text | no |  |  |
+| `outcome` | text | no |  |  |
+| `said` | text | yes |  |  |
+| `started_at` | timestamp with time zone | no | `now()` |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id`, `remediation_id` → [`remediations`](#remediations) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `remediation_actions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### remediations
+
+A cause and what it started (00676; the content loop PRD's section 5.3): a yes taken back, a person erased, a take-down the owner asked for, the stop, a claim withdrawn or expired, a connection lost; what it is about, who started it, and when its last action stopped being pending. Kept as the proof a yes was honoured, never what the person wrote. Members read; the doors that start one write it.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `cause` | text | no |  |  |
+| `subject_type` | text | no |  |  |
+| `subject_id` | text | no |  |  |
+| `actor_user_id` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `finished_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `actor_user_id` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `remediations_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### reply_turns
 

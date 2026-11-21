@@ -231,6 +231,10 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(withPerson("erase_contact"), "transcript", "instructions", "review", "fixes"),
     ...all(NOT_PERSONAL, "retell_call_id", "agent_id", "end_reason"),
   },
+  // What a cause started (00676; the content loop PRD's 5.3), kept as the proof a yes taken back was honoured: what it is
+  // about is a file's id, and an action's words are the platform's. Never what the person wrote.
+  remediations: { ...all(NOT_PERSONAL, "subject_id") },
+  remediation_actions: { ...all(NOT_PERSONAL, "said") },
   contacts: {
     phone_e164: scrubbedBy("erase_contact"),
     display_name: scrubbedBy("erase_contact"),

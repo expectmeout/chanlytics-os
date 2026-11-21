@@ -3127,6 +3127,66 @@
       "where": null
     },
     {
+      "table": "remediation_actions",
+      "name": "remediation_actions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "remediation_actions",
+      "name": "remediation_actions_one_each",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "remediation_id"
+        },
+        {
+          "column": "target_type"
+        },
+        {
+          "column": "target_id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "remediations",
+      "name": "remediations_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "remediations",
+      "name": "remediations_id_same_workspace",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "reply_turns",
       "name": "reply_turns_pkey",
       "primary": true,

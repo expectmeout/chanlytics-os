@@ -407,6 +407,21 @@ before(async () => {
   // What a launch made at Meta for an ad made here (00666): members read the workspace's parts, its doors write them.
   await seed("ad_objects", { tenant_id: A, ad_id: ctx.ad, kind: "campaign", name: "Tenancy campaign", state: "made" });
   await seed("ad_days", { tenant_id: A, ad_id: ctx.ad, day: "2026-11-01" }, null);
+  // A yes taken back, walked on an ad (00676): members read what was done; its doors write it.
+  ctx.remediation = await seed("remediations", {
+    tenant_id: A,
+    cause: "yes_taken_back",
+    subject_type: "file",
+    subject_id: "tenancy-file",
+  });
+  await seed("remediation_actions", {
+    tenant_id: A,
+    remediation_id: ctx.remediation,
+    target_type: "ad",
+    target_id: ctx.ad,
+    act: "pause",
+    outcome: "pending",
+  });
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -1052,6 +1067,21 @@ const TENANT_TABLES = {
   ad_objects: [
     "member",
     () => ({ tenant_id: A, ad_id: ctx.ad, kind: "ad", version: 2, name: "Stranger ad", state: "sent" }),
+  ],
+  remediations: [
+    "member",
+    () => ({ tenant_id: A, cause: "stop", subject_type: "workspace", subject_id: "stranger-stop" }),
+  ],
+  remediation_actions: [
+    "member",
+    () => ({
+      tenant_id: A,
+      remediation_id: ctx.remediation,
+      target_type: "post",
+      target_id: ctx.ad,
+      act: "take_down",
+      outcome: "pending",
+    }),
   ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
