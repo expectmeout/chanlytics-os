@@ -85,7 +85,7 @@ const clipRow = (over = {}) => ({
   width: 720,
   height: 1280,
   seconds: 11.8,
-  who_in_it: "agreed",
+  who_in_it: "not_asked",
   look: null,
   look_status: "done",
   removed_at: null,

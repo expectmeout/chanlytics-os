@@ -238,10 +238,13 @@ test("the same routes still record what is theirs to record: a no, and a reset",
   );
 });
 
-test("Ask has no act that could record a yes: the only way in is a route, and every route is above", () => {
+test("Ask has no act that could record a yes to messages: the only way in is a route, and every route is above", () => {
+  // The one act with yes in its name keeps a different yes (00665): the owner's word that the people in a photo or a
+  // video of the business's own agreed to be shown, kept only from the owner's own words in their question. It takes no
+  // consent value and reaches no person's answer to messages (tests/content/yes/ai-keeps-a-yes.test.mjs holds it).
   assert.deepEqual(
     ACT_TOOLS.map((t) => t.name).filter((n) => /consent|yes|opt/i.test(n)),
-    [],
+    ["keep_yes"],
   );
   const args = (t) => JSON.stringify(t.input_schema?.properties ?? {});
   assert.deepEqual(

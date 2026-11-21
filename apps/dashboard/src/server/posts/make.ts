@@ -29,12 +29,14 @@ import {
 } from "@chanlytics/contracts";
 import { postBandOf, postUndrawable } from "../files/post-check";
 import { fileFingerprintOf, FINGERPRINT_BYTES } from "@chanlytics/channels/files";
-import { updateFileRow, recordFileMade, findFile, startFile, type FileMemberRow } from "@chanlytics/db/files";
+import { recordFileMade, findFile, startFile, type FileMemberRow } from "@chanlytics/db/files";
 import { log } from "@/server/shared/log";
 import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket, fileDoorRefusal } from "../files/file";
+import { keepCardYes } from "../files/yes";
+import { fileDtoOf } from "../readers/files";
 import { composePost } from "./compose";
 import { POST_SIZES } from "./layout";
 import { getMaterial, type PostMaterial } from "./material";
@@ -159,7 +161,7 @@ const letShapesGo = async (tenantId: TenantId, id: string): Promise<void> => {
 
 /**
  * POST files/post: the post kept, a shape each, as a file like any other. The same picture pressed twice is the one file. A
- * person's word that those in the photo agreed goes on the photo first, through its own door.
+ * person's word that those in the photo agreed is kept first, as a yes for posts on the photo (files/yes.ts keepCardYes).
  */
 export async function makePost(
   ctx: RouteContext,
@@ -172,10 +174,7 @@ export async function makePost(
   // a function that dies between storing the shapes and the door below can't take them back itself.
   const started = await startFile(ctx.supabase, member.tenantId, id);
   if (started.error) throw fileDoorRefusal(started.error);
-  if (plan.people_agreed) {
-    const { error } = await updateFileRow(ctx.supabase, { tenantId: member.tenantId, id: file.id, whoInIt: "agreed" });
-    if (error) throw fileDoorRefusal(error);
-  }
+  if (plan.people_agreed) await keepCardYes(ctx, member, [fileDtoOf(file)]);
   const material = await getMaterial(ctx, member, { file, at: plan.at });
   const [portrait, square, story, wide] = await Promise.all([
     postDrawn(plan, material, "portrait", false),
@@ -199,7 +198,7 @@ export async function makePost(
       text_seen: [plan.over, plan.line, plan.under].filter((w): w is string => !!w),
       ...(look?.people ? { people: asJson(look.people) } : {}),
     },
-    whoInIt: plan.people_agreed ? "agreed" : file.who_in_it,
+    whoInIt: file.who_in_it,
     made: { from: file.id, plan },
     actor: ctx.userId,
   }).catch(async (e: unknown) => {

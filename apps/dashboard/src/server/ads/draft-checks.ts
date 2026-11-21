@@ -12,7 +12,7 @@
  *   a price          any price while AI never quotes one, or one Services does not say
  *   the amount       under Meta's least for the run, over the most the owner said, or not a whole amount
  *   the end          a run of less than a whole day
- *   the area         outside the miles Meta takes
+ *   the area         outside the miles Meta takes, for a circle (a wider place is one Meta found by its key)
  *
  * Two of the plan's rows have no rule here, by what they are. An ad of one of Meta's special kinds is a question the
  * draft asks its owner (adKindsOf, the plan's G7), never a check a rewrite clears. And what Meta lets a new account
@@ -87,7 +87,7 @@ function wordChecks(versions: readonly AdVersion[], adBrief: AdBrief): AdCheckDt
 
 /** Everything that stops a draft before Turn on, in the order a draft says it. Empty where nothing does. */
 export function adDraftChecks(
-  draft: Pick<AdDraftState, "miles" | "total_minor" | "end_day" | "versions">,
+  draft: Pick<AdDraftState, "miles" | "area" | "total_minor" | "end_day" | "versions">,
   facts: AdCheckFacts,
 ): AdCheckDto[] {
   const out: AdCheckDto[] = facts.account.checks
@@ -106,7 +106,8 @@ export function adDraftChecks(
   if (amount) out.push({ code: "amount", fault: amount.code, nearest_minor: amount.nearestMinor });
   const end = adEndIssue(facts.today, draft.end_day);
   if (end) out.push({ code: "end", nearest_day: end.nearestDay });
-  if (!(draft.miles >= AD_MILES.least && draft.miles <= AD_MILES.most))
+  // A wider place is one Meta found by its key (area.ts); the miles are the circle's alone.
+  if (draft.area === undefined && !(draft.miles >= AD_MILES.least && draft.miles <= AD_MILES.most))
     out.push({ code: "area", nearest_miles: Math.min(AD_MILES.most, Math.max(AD_MILES.least, draft.miles)) });
   return out;
 }

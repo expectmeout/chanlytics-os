@@ -46,8 +46,8 @@ export function NewSentence({ vm, editing, still, onEdit }: SentenceProps) {
     <div className="cm-recipe ads-sentence" data-readonly={still ? "" : undefined} data-testid="ads-sentence">
       {NEW.sentence.show}
       <span className="ads-word">{sentence.service}</span>
-      {NEW.sentence.within}
-      {word("area", sentence.miles, "miles")}
+      {sentence.within}
+      {sentence.areaTaps ? word("area", sentence.miles, "miles") : <span className="ads-word">{sentence.miles}</span>}
       {NEW.sentence.so}
       {word("amount", sentence.amount, "amount")}
       {NEW.sentence.until}

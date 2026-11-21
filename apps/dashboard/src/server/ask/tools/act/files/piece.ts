@@ -12,7 +12,7 @@ import {
   pieceWordsIn,
   secondsOf,
   videoPreviewOf,
-  whoStandsOf,
+  fileUseOf,
   type PiecePlan,
   type PieceWont,
 } from "@chanlytics/contracts";
@@ -218,7 +218,7 @@ const WONT_TO_MODEL: Readonly<Record<PieceWont, string>> = {
   block_length: `it runs shorter or longer than its kind may: a clip's moment ${PIECE_LIMITS.cutMinS} to ${PIECE_LIMITS.cutMaxS} seconds, a photo ${PIECE_LIMITS.photoMinS} to ${PIECE_LIMITS.photoMaxS}, a pair ${PIECE_LIMITS.pairMinS} to ${PIECE_LIMITS.pairMaxS}, a words card ${PIECE_LIMITS.cardMinS} to ${PIECE_LIMITS.cardMaxS}, a quote ${PIECE_LIMITS.quoteMinS} to ${PIECE_LIMITS.quoteMaxS}`,
   length: `the blocks together run ${PIECE_LIMITS.reelMinS} to ${PIECE_LIMITS.reelMaxS} seconds`,
   people:
-    "its file shows someone recognizable, and no one has said they agreed to be shown. Ask the owner in a sentence; if they say yes, call again with people_agreed true",
+    "its file shows someone recognizable, and no yes to posts is kept for it. Ask the owner in a sentence; if they say yes, call again with people_agreed true",
   lines: `a video that opens on a picture has opening words: one or two lines of at most ${PIECE_LIMITS.line} characters each`,
   opens_on_card:
     "the opening words sit over a picture, and this video opens on a card: leave lines empty, or open on a clip, a photo or a pair",
@@ -233,6 +233,10 @@ function blockMomentOf(moment: z.infer<typeof time>): number | null {
   return second === null || second < 0 ? null : Math.round(second * 100) / 100;
 }
 
+/** A file whose yes to posts was taken back: no card made before or after brings it back but a new yes. */
+const PEOPLE_TAKEN_BACK =
+  "someone in its file took back their yes to posts. Use another file; if they say yes again, keep it with keep_yes first";
+
 /** What a block is built from: the files its plan names, and whether the owner said those in them agreed. */
 interface Building {
   files: readonly FileForAsk[];
@@ -243,7 +247,9 @@ interface Building {
 function fileFor(building: Building, name: string): FileForAsk | string {
   const file = filesNamed(building.files, [name]).found.at(0);
   if (!file) return `no file named ${name}; names come from files with action list`;
-  return whoStandsOf(file).is === "ask" && !building.agreed ? WONT_TO_MODEL.people : file;
+  const shown = fileUseOf("post", file).is;
+  if (shown === "taken_back") return PEOPLE_TAKEN_BACK;
+  return shown === "ask" && !building.agreed ? WONT_TO_MODEL.people : file;
 }
 
 /** A picture held still: a photo, or one moment of a clip, which `at` says. `field` is the input that names its file. */

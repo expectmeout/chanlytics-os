@@ -151,13 +151,10 @@ export const FILE_WORDS = {
   who: {
     not_asked: "Not asked",
     no_one: "No one's in it",
-    agreed: "They agreed",
   } satisfies Record<FileWhoInIt, string>,
   whoClear: "No one you could recognize",
   whoAsk: (seen: number | null) =>
-    seen === null
-      ? "Did everyone in this photo agree to be shown?"
-      : `AI saw ${seen} ${seen === 1 ? "person" : "people"}. Did they agree to be shown?`,
+    seen === null ? "Someone may be in it." : `AI saw ${seen} ${seen === 1 ? "person" : "people"}.`,
   whoChange: "Change",
   sources: {
     upload: "Added by you",

@@ -11,7 +11,7 @@
  * total for the whole run. Money is converted here from Meta's own units, as an account's is (meta-account.ts).
  */
 import { isDayKey, recordOrEmpty, valueAt } from "@chanlytics/contracts";
-import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { META_GRAPH, metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { metaAccountId, metaDecimalToMinor, metaUnitsToMinor } from "./meta-account";
 
@@ -70,12 +70,25 @@ export function metaAdsRequest(token: string, appSecret: string, accountId: stri
 /** The most ads asked for by id in one call (Meta's own bound for `ids`). */
 export const META_IDS_MAX = 50;
 
-/** Ads by their ids, whatever state each is in: the ones a list no longer names, or never did. */
+/**
+ * Ads by their ids, whatever state each is in: the ones a list no longer names, or never did. One of Meta's batches,
+ * each ad its own GET inside it, posted to the Graph's root with the token and its proof on the batch itself. Meta
+ * answers a root `GET /?ids=` with an error since v26.0 ("Use per-object requests or supported batching", its v26.0
+ * changelog, in force for every version since 27 October 2026), and a removed ad is read only by its own id (its page on
+ * an ad object's status). A batch holds up to fifty, and each request in it counts against the account's allowance.
+ */
 export function metaAdsByIdRequest(token: string, appSecret: string, adIds: readonly string[]): MetaRequest {
   const ids = adIds.filter((id) => ID.test(id)).slice(0, META_IDS_MAX);
+  const batch = ids.map((id) => ({ method: "GET", relative_url: `${id}?fields=${encodeURIComponent(AD_FIELDS)}` }));
   return {
-    url: metaGraphUrl("", { ids: ids.join(","), fields: AD_FIELDS, ...metaProofQuery(token, appSecret) }),
-    method: "GET",
+    url: META_GRAPH,
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      batch: JSON.stringify(batch),
+      include_headers: "false",
+      ...metaProofQuery(token, appSecret),
+    }).toString(),
   };
 }
 
@@ -207,10 +220,24 @@ export function parseMetaAds(json: unknown, currency: string): { ads: MetaAd[]; 
 
 /** Ads asked for by id: the ones Meta described. One it would not describe is simply absent. */
 export function parseMetaAdsById(json: unknown, currency: string): MetaAd[] {
-  const answered = metaObject(json);
-  if (!answered || valueAt(answered, "error"))
-    throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the ads");
-  return Object.values(answered).flatMap((row) => adOf(row, currency) ?? []);
+  if (!Array.isArray(json)) throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the ads");
+  const bodies = json.map((item) => {
+    const one = metaObject(item);
+    const body = valueAt(one, "body");
+    if (typeof body !== "string") return { ok: false, body: null };
+    try {
+      return { ok: valueAt(one, "code") === 200, body: JSON.parse(body) as unknown };
+    } catch {
+      // Not JSON: it describes no ad.
+      return { ok: false, body: null };
+    }
+  });
+  // An ad Meta would not describe is left as it stands until a later read; where it described none, the read says why.
+  if (bodies.length > 0 && bodies.every((one) => !one.ok)) {
+    const first = bodies.find((one) => one.body !== null)?.body;
+    throw new Error(metaErrorOf(first)?.message ?? "Meta did not describe the ads");
+  }
+  return bodies.flatMap((one) => (one.ok ? (adOf(one.body, currency) ?? []) : []));
 }
 
 /* --------------------------------------------------------------- their days */

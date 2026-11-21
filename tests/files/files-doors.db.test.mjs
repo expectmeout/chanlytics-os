@@ -412,24 +412,29 @@ test("what the look says fills what no one has said, and a person's word stays o
   let row = await rowOf(id);
   assert.equal(row.name, `storefront-${stamp}`);
   assert.equal(row.shows, "storefront");
-  assert.equal(row.who_in_it, "not_asked", "the look counts people, and only a person says who agreed");
+  assert.equal(row.who_in_it, "not_asked", "the look counts people, and only a person says no one is in it");
   assert.equal(row.look_status, "done");
-  ok(await change(id, { p_name: `my-word-${stamp}`, p_shows: "team", p_who_in_it: "agreed" }), "the owner's word");
+  ok(await change(id, { p_name: `my-word-${stamp}`, p_shows: "team", p_who_in_it: "no_one" }), "the owner's word");
   ok(await keepLook(id, { p_name: "other-name", p_shows: "work" }), "second look");
   row = await rowOf(id);
   assert.equal(row.name, `my-word-${stamp}`);
   assert.equal(row.shows, "team");
-  assert.equal(row.who_in_it, "agreed");
+  assert.equal(row.who_in_it, "no_one");
   const [said] = (await eventsOf("file.changed", id)).slice(-1);
-  assert.deepEqual(said.data.said, { name: `my-word-${stamp}`, shows: "team", who_in_it: "agreed" });
+  assert.deepEqual(said.data.said, { name: `my-word-${stamp}`, shows: "team", who_in_it: "no_one" });
   assert.equal(said.data.by, as.owner.id);
 });
 
-test("not asked is where a file starts, never what a person says", { skip }, async () => {
-  const id = randomUUID();
-  ok(await uploaded("owner", id, `fp-${id}`), "made");
-  assert.equal((await change(id, { p_who_in_it: "not_asked" })).error?.code, "22023");
-});
+test(
+  "not asked is where a file starts, never what a person says; a yes is its own record, never this word (00665)",
+  { skip },
+  async () => {
+    const id = randomUUID();
+    ok(await uploaded("owner", id, `fp-${id}`), "made");
+    assert.equal((await change(id, { p_who_in_it: "not_asked" })).error?.code, "22023");
+    assert.equal((await change(id, { p_who_in_it: "agreed" })).error?.code, "22023");
+  },
+);
 
 test("a later look renames nothing, and a failed try leaves a good look as it was", { skip }, async () => {
   const id = randomUUID();

@@ -1,7 +1,7 @@
 {
-  "rows": 182,
+  "rows": 184,
   "same": 10,
-  "differ": 172,
+  "differ": 174,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1286,6 +1286,21 @@
         "notifications": "every page"
       }
     },
+    "POST files/[id]/yes": {
+      "changes": "file_consents INSERT · files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "missing": {
+        "calendar_runs": "calendar",
+        "notifications": "every page"
+      }
+    },
+    "POST files/[id]/yes/back": {
+      "changes": "file_consents UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · source_items UPDATE",
+      "tells": "files · notifications",
+      "missing": {
+        "notifications": "every page"
+      }
+    },
     "POST files/keep": {
       "changes": "files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
@@ -1296,7 +1311,7 @@
       }
     },
     "POST files/post": {
-      "changes": "files INSERT UPDATE · notifications INSERT UPDATE · source_items UPDATE",
+      "changes": "file_consents INSERT · files INSERT UPDATE · notifications INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",
@@ -1304,7 +1319,7 @@
       }
     },
     "POST files/video": {
-      "changes": "files UPDATE · notifications INSERT UPDATE · pieces INSERT UPDATE · source_items UPDATE",
+      "changes": "file_consents INSERT · files UPDATE · notifications INSERT UPDATE · pieces INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "missing": {
         "calendar_runs": "calendar",

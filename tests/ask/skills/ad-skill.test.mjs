@@ -25,7 +25,7 @@ const brief = (over = {}) => ({
   service: { name: "First appointment", price: "$45", ...over.service },
   facts: over.facts ?? ["Open Saturdays.", "First appointments take 45 minutes."],
   picture: "the front desk, nobody in it",
-  area: { place: "Miami", miles: 5 },
+  area: over.area ?? { place: "Miami", miles: 5, wide: null },
   language: over.language ?? "en",
   places: over.places ?? ["facebook"],
   ...(over.job ? { job: over.job } : {}),
@@ -120,6 +120,11 @@ test("the brief says the business, the service, the facts fenced, the price rule
   assert.match(text, /Its price, in the business's own words: \$45/);
   assert.match(text, /<record>\n- Open Saturdays\.\n- First appointments take 45 minutes\.\n<\/record>/);
   assert.match(text, /adults within 5 miles of Miami, on facebook/);
+  // A wider place (settled 20 Nov 2026): a city with its ring, or across a state or a country.
+  const city = C.adBriefText(brief({ area: { place: "Austin, Texas", miles: 5, wide: "city" } }));
+  assert.match(city, /adults in and around Austin, Texas, on facebook/);
+  const state = C.adBriefText(brief({ area: { place: "Texas", miles: 5, wide: "region" } }));
+  assert.match(state, /adults across Texas, on facebook/);
   assert.match(text, /A text is at most 125 characters.*A headline is at most 27\./);
   assert.match(text, /Write 3 versions/);
   // Instagram alone gives a headline more room; with Facebook among the places its 27 holds.
@@ -267,7 +272,11 @@ test("5.1, the shape of the answer: how many versions, none empty, none the same
   assert.deepEqual(codes([{ ...GOOD[0], headline }, GOOD[1], GOOD[2]], { places: ["instagram"] }), []);
 });
 
-const ANSWER = { versions: [], change: { kind: "none", service: "", miles: 0, amount: 0, end: "" }, could_not: "" };
+const ANSWER = {
+  versions: [],
+  change: { kind: "none", service: "", miles: 0, place_kind: "none", place: "", within: "", amount: 0, end: "" },
+  could_not: "",
+};
 const CHANGE = {
   versions: GOOD,
   asked: "make it 15 miles",

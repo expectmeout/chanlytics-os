@@ -94,7 +94,14 @@ test("the sentence is there before any words: the service, the area, the amount 
   const vm = view({ answer: answerOf(), words: { at: "writing" } });
   assert.equal(vm.title, "First appointment");
   assert.equal(vm.kicker, "New ad · drafted by AI");
-  assert.deepEqual(vm.sentence, { service: "First appointment", miles: "5 miles", amount: "$70", end: dayWord(END) });
+  assert.deepEqual(vm.sentence, {
+    service: "First appointment",
+    within: " to people within ",
+    miles: "5 miles",
+    areaTaps: true,
+    amount: "$70",
+    end: dayWord(END),
+  });
   assert.deepEqual(vm.why, [
     "A starting amount. There is no history yet to say what a booking costs.",
     "It offers what people booked most in the last 90 days.",
@@ -155,7 +162,9 @@ test("the amount, the miles and the date follow what is typed at once, and the p
   const vm = view({ typed: { total_minor: 14000, miles: 1, end_day: "2031-03-22" } });
   assert.deepEqual(vm.sentence, {
     service: "First appointment",
+    within: " to people within ",
     miles: "1 mile",
+    areaTaps: true,
     amount: "$140",
     end: dayWord("2031-03-22"),
   });

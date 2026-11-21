@@ -59,13 +59,15 @@ export {
   FILE_TYPES,
   FILE_UPLOADS_AT_ONCE,
   FILE_WHO_IN_IT,
+  FILE_YES_SAID_IN,
+  FILE_YES_USES,
   filePathOf,
   FILES_BUCKET,
   FILES_MAX,
   FILES_PAGE,
   isFileMime,
 } from "./limits";
-export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt } from "./limits";
+export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt, FileYesUse } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,
@@ -209,5 +211,16 @@ export type {
   FilesTally,
   FileWhoStands,
 } from "./views";
+export {
+  FILE_YES_ASK,
+  fileAdRightsOf,
+  fileUseMay,
+  fileUseOf,
+  fileYesReceiptOf,
+  fileYesSaidOf,
+  fileYesTitleOf,
+  fileYesUsesIn,
+} from "./yes";
+export type { FileUseStands, FileYesFacts, FileYesPost, FileYesTakenBack } from "./yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";
 export type { ZoomBox, ZoomSize, ZoomWont } from "./zoom";

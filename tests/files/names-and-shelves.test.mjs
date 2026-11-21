@@ -127,10 +127,14 @@ test("the page counts what is kept, says what waits, and what AI has still to lo
 
 const file = (over) => ({ who_in_it: "not_asked", look_status: "done", people: null, ...over });
 
-test("who is in it: a person's word stands first, whatever the look saw", () => {
+test("who is in it: a person's word stands first, whatever the look saw; a yes is its own record (00665)", () => {
   const seen = { people: { count: 3, recognizable: 3 } };
-  assert.deepEqual(whoStandsOf(file({ who_in_it: "agreed", ...seen })), { is: "said", who: "agreed" });
   assert.deepEqual(whoStandsOf(file({ who_in_it: "no_one", ...seen })), { is: "said", who: "no_one" });
+  assert.deepEqual(
+    whoStandsOf(file({ yes_for: ["post", "ad"], ...seen })),
+    { is: "ask", seen: 3 },
+    "who is in it still",
+  );
 });
 
 test("who is in it: nothing is asked while the look is still looking, so no question flashes up and goes", () => {

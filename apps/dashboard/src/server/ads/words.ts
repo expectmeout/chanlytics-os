@@ -6,6 +6,7 @@ import type { CraftKept } from "../ask/skills/craft";
 import { writeAd } from "../ask/skills/ad/write";
 import type { ReaderContext } from "../shared/reader";
 import { adDraftAnswer, adDraftBrief, keepDraftAnswer, nextAdPicture, requireAdsOffered } from "./draft";
+import { findAdPlace } from "./area";
 import { readAdDraftFacts, type AdDraftFacts } from "./draft-facts";
 import type { AdDraftState, AdNoWords, AdWordsAnswer, AdWordsFault } from "./draft-shape";
 
@@ -81,9 +82,26 @@ function changedDraft(
     const next = nextAdPicture(facts, draft.picture);
     return next === draft.picture ? null : { ...draft, picture: next };
   }
-  if (change.kind === "area") return { ...draft, miles: change.miles };
+  if (change.kind === "area") {
+    const { area: _wide, ...circle } = draft;
+    return { ...circle, miles: change.miles };
+  }
+  if (change.kind === "place") return null;
   if (change.kind === "amount") return { ...draft, total_minor: change.units * minorPerUnit(currency) };
   return { ...draft, end_day: change.day };
+}
+
+/**
+ * The draft shown across the wider place the owner named (the plan's G8, as settled 20 November 2026), where Meta knows
+ * it (area.ts); null where Meta knows no such place, and the change is not made. The miles stay, for a circle again.
+ */
+async function placedDraft(
+  caller: AdWordsCaller,
+  draft: AdDraftState,
+  place: Extract<AdChange, { kind: "place" }>["place"],
+): Promise<AdDraftState | null> {
+  const found = await findAdPlace({ tenantId: caller.rc.tenantId, userId: caller.userId }, { ...place, strict: false });
+  return found ? { ...draft, area: found } : null;
 }
 
 /** `write`: three versions of the draft's words, or why there are none. */
@@ -122,12 +140,17 @@ async function changeDraft(caller: AdWordsCaller, facts: AdDraftFacts, draft: Ad
     return { ...judged, wrote: { ok: false as const, why: noWordsOf(written.kept) } };
   }
   const change = adChangeOf(written.answer, brief);
-  const next = change ? changedDraft(held, change, facts, facts.account.currency) : null;
+  const next =
+    change?.kind === "place"
+      ? await placedDraft(caller, held, change.place)
+      : change
+        ? changedDraft(held, change, facts, facts.account.currency)
+        : null;
   if (!change || !next) return { ...judged, changed: { kind: "none" as const, fault: null } };
   // Changed words are judged once more against the draft's own brief, as every change is.
   const faults = change.kind === "words" ? adWordIssues(next.versions, adDraftBrief(facts, facts.account, next)) : [];
   if (faults.length) return { ...judged, changed: { kind: "none" as const, fault: faultOf(faults) } };
-  return { ...adDraftAnswer(facts, next), changed: { kind: change.kind } };
+  return { ...adDraftAnswer(facts, next), changed: { kind: change.kind === "place" ? "area" : change.kind } };
 }
 
 /** POST ads/words: the writer's job on a draft, and the draft as it stands after it. */

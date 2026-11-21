@@ -62,9 +62,12 @@ export interface AdPicture {
   height: number;
   /** A video's length in seconds; null for a photo, or where it is not known. */
   seconds: number | null;
-  /** Whether anyone is shown, and whether it has music. Null is not noted yet, which is read as yes. */
-  people: boolean | null;
-  music: boolean | null;
+  /**
+   * Content's answer to "may this run as an ad?" on the rights (contracts files/yes.ts fileAdRightsOf, the plan's 6.8
+   * join 1): null where it may, else why not, someone shown who has not said yes to ads, or music. Ads keeps no rule of
+   * its own on either.
+   */
+  rights: "person" | "music" | null;
   /** Whether it sets a before beside an after. */
   beforeAfter: boolean;
   /** Whether AI made it: offered before one the business only kept. */
@@ -87,8 +90,7 @@ export type AdPictureIssue = "person" | "music" | "before_after" | "small" | "sh
 
 /** What stops a picture from being offered for an ad; null where it is fine in ads. */
 export function adPictureIssue(adPicture: AdPicture): AdPictureIssue | null {
-  if (adPicture.people !== false) return "person";
-  if (adPicture.kind === "video" && adPicture.music !== false) return "music";
+  if (adPicture.rights !== null) return adPicture.rights;
   if (adPicture.beforeAfter) return "before_after";
   if (!(adPicture.width >= PICTURE_MIN_WIDTH)) return "small";
   const shape = adPicture.width / adPicture.height;
@@ -180,6 +182,11 @@ export interface AdDraftInputs {
   /** In the order Files offers them. */
   pictures: readonly AdPicture[];
   address: string | null;
+  /**
+   * Whether the draft is shown across a place wider than the circle around the business (a city, a state or region,
+   * the whole country), which needs no street address: the owner chose one, or the business goes to its customers.
+   */
+  wide: boolean;
   /** Whether AI answers a WhatsApp number the ad can open. */
   whatsapp: boolean;
   account: { currency: string; minDailyMinor: number };
@@ -289,7 +296,8 @@ export function adDraftOf(
 ): { ok: true; parts: AdDraftParts } | { ok: false; missing: AdDraftMissing } {
   const open = inputs.services.filter((service) => !service.advertised);
   if (open.length === 0) return { ok: false, missing: "service" };
-  if (!inputs.address?.trim()) return { ok: false, missing: "address" };
+  // A circle needs its centre; a wider place is named by itself.
+  if (!inputs.wide && !inputs.address?.trim()) return { ok: false, missing: "address" };
   if (!inputs.whatsapp) return { ok: false, missing: "whatsapp" };
   const shown = open.flatMap((service) => {
     const picture = pictureFor(service.id, inputs.pictures);

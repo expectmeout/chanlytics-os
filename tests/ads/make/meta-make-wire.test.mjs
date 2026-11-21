@@ -22,14 +22,18 @@ const {
   metaCreativeSpec,
 } = await import(at("packages/channels/src/ads/meta-make.ts"));
 const {
+  metaAdReadBackRequest,
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
+  metaCreativeRemoveRequest,
+  parseMetaAdHeld,
   parseMetaCampaignHeld,
   parseMetaMadeId,
   parseMetaRefusal,
   parseMetaRemoved,
 } = await import(at("packages/channels/src/ads/meta-made.ts"));
 const { minorToMetaUnits } = await import(at("packages/channels/src/ads/meta-account.ts"));
+const { metaAdImageRemoveRequest } = await import(at("packages/channels/src/ads/meta-library.ts"));
 
 const TOKEN = "token-for-this-file";
 const SECRET = "app-secret-for-this-file";
@@ -439,6 +443,7 @@ test("the read back asks for a campaign whole, in one call, with the token's pro
   const fields = url.searchParams.get("fields");
   for (const field of [
     "account_id",
+    "effective_object_story_id",
     "special_ad_categories",
     "adsets{",
     "lifetime_budget",
@@ -472,6 +477,7 @@ test("the read back is read into what a launch compares: paused, the total, the 
       whatsappNumber: "13055550142",
       youngest: 18,
       miles: 5,
+      area: "circle:5",
       places: [
         "facebook:facebook_reels",
         "facebook:feed",
@@ -560,4 +566,54 @@ test("a removal is Meta's DELETE on the campaign, with the token's proof and not
     { error: { message: "Unsupported delete request." } },
   ])
     assert.equal(parseMetaRemoved(answer), false, JSON.stringify(answer));
+});
+
+test("one ad is read by its id with its creative, which names its picture and the Page post it made", () => {
+  const AD = "23850000000000003";
+  const request = metaAdReadBackRequest(TOKEN, SECRET, AD);
+  assert.equal(request.method, "GET");
+  const url = new URL(request.url);
+  assert.equal(url.pathname, `/v27.0/${AD}`);
+  assert.equal(url.searchParams.get("appsecret_proof"), PROOF);
+  for (const field of ["account_id", "creative{", "object_story_spec", "effective_object_story_id"])
+    assert.ok(url.searchParams.get("fields").includes(field), field);
+  assert.throws(() => metaAdReadBackRequest(TOKEN, SECRET, `act_${ACCOUNT}`), /ad/);
+
+  const [row] = HELD.ads.data;
+  const story = `${PAGE}_200000000000001`;
+  const ad = parseMetaAdHeld({
+    ...row,
+    account_id: ACCOUNT,
+    creative: { ...row.creative, effective_object_story_id: story },
+  });
+  assert.deepEqual(
+    [ad.id, ad.accountId, ad.creativeId, ad.imageHash, ad.storyId, ad.paused],
+    [AD, ACCOUNT, "120000000000009", CREATIVE_ASK.picture.hash, story, true],
+  );
+  // A video's creative names no picture, and an answer that is no ad is never read as one.
+  const video = parseMetaAdHeld({
+    ...row,
+    creative: { id: "120000000000010", object_story_spec: { page_id: PAGE, video_data: { video_id: "1" } } },
+  });
+  assert.equal(video.imageHash, null);
+  assert.throws(() => parseMetaAdHeld({ error: { message: "Unsupported get request." } }), /Unsupported get/);
+  assert.throws(() => parseMetaAdHeld({}), /did not describe the ad/);
+});
+
+test("a creative and a picture are removed with Meta's DELETE, the token's proof and nothing else", () => {
+  const creative = metaCreativeRemoveRequest(TOKEN, SECRET, "120000000000009");
+  assert.deepEqual([creative.method, creative.body], ["DELETE", undefined]);
+  const creativeUrl = new URL(creative.url);
+  assert.equal(creativeUrl.pathname, "/v27.0/120000000000009");
+  assert.deepEqual([...creativeUrl.searchParams.keys()].sort(), ["access_token", "appsecret_proof"]);
+  assert.throws(() => metaCreativeRemoveRequest(TOKEN, SECRET, "120000000000009/adcreatives"), /creative/);
+
+  const hash = CREATIVE_ASK.picture.hash;
+  const picture = metaAdImageRemoveRequest(TOKEN, SECRET, ACCOUNT, hash);
+  assert.deepEqual([picture.method, picture.body], ["DELETE", undefined]);
+  const pictureUrl = new URL(picture.url);
+  assert.equal(pictureUrl.pathname, `/v27.0/act_${ACCOUNT}/adimages`);
+  assert.equal(pictureUrl.searchParams.get("hash"), hash);
+  assert.equal(pictureUrl.searchParams.get("appsecret_proof"), PROOF);
+  assert.throws(() => metaAdImageRemoveRequest(TOKEN, SECRET, ACCOUNT, "not a hash!"), /hash/);
 });

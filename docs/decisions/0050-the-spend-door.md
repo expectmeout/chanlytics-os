@@ -1,8 +1,9 @@
 # 0050 · The spend door
 
 **Status:** Decided on 11 October 2026 (Ruben: the review's fourteen calls, approved as recommended), and built in part. Four
-things stay open and are named under "Not decided here": the price, health and cosmetic businesses, which notices also
-email, and the consent line's wording, which is counsel's. This is the spending half of Campaigns › Ads; 0049 decides
+things stayed open, named under "Not decided here": the price, health and cosmetic businesses, which notices also
+email, and the consent line's wording, which is counsel's. The first three were settled on 20 November 2026 ("Settled
+20 November 2026", below); the consent line stays counsel's. This is the spending half of Campaigns › Ads; 0049 decides
 the records and how a person is counted, and this note leans on it. It also leans on 0035 (a keyed write is answered
 once), 0040 (each alert says where it goes) and 0018 (a reply goes first, each workspace takes its turn), and on 0047 and
 0048, both drafted in another lane and not on main when this was written (#1564 built both, 12 October 2026); each
@@ -236,11 +237,35 @@ the suite's own workspace, never a customer's.
 
 ## Not decided here
 
-- The price of Ads, and whether it is part of a plan.
-- Health and cosmetic businesses: whether Ads is offered to them at all, and on which doors. TikTok already needs a sales
-  representative for cosmetic procedures, so there is no one-press Turn on there.
-- Which of the five notices in 15 also email. The review proposes mail always for the first two and a choice for the rest.
-- The wording of the form's consent line, which is counsel's. Nothing ships past a draft.
+- The wording of the form's consent line, which is counsel's. Nothing ships past a draft, and forms are not in the first
+  version.
+
+The three others first named here (the price, health and cosmetic businesses, which notices also email) were settled
+on 20 November 2026: see below.
+
+## Settled 20 November 2026 · the calls left open, and three more
+
+Ruben, 20 November 2026, to the open calls and three found while building Ads: "go with whatever you truly suggest".
+The Ads plan's section 12 lists the same, and says where each applies.
+
+- **The price.** Ads has no price of its own at launch: Meta bills the spend to the owner directly. The price is
+  revisited once a month of the ad writer's own cost line (the plan's G19) shows what Ads costs Chanlytics for each
+  business.
+- **Health and cosmetic businesses** may run ads in the first version, under the plan's 5.1 checks: no before and after,
+  never about the reader, no claim the owner hasn't stood behind. Chanlytics never tells Meta who booked for them, so
+  call 16's two steps stay off for them, and the click id is never kept for them.
+- **Which notices also email** (call 15): the two that stop an ad, an ad Meta didn't approve and a card Meta couldn't
+  charge for one. Once a cause, never again while the bell row is open, to the addresses Settings › Notifications names,
+  as a choice the business may turn off. Ended, spent and quiet stay on the bell. Built the same day: see "As built,
+  20 November 2026, later still" below.
+- **The consent line for forms** stays counsel's.
+- **Disconnect stays as built** (call 8, and "Amended here · Disconnect does not ask Meta to withdraw", below): Chanlytics
+  forgets its sign-in and says where to remove it in Meta, and never asks Meta to withdraw access, because the same Meta
+  app carries the business's Instagram and WhatsApp.
+- **The sign-in asks for the five permissions the plan's 5.3 lists, and nothing more.**
+- **The ad account's card counts only what Chanlytics can read** (the plan's G2 and 4.3): the account is active, a
+  payment method, the Page. The Page's link to the WhatsApp number is a quiet line, since Meta shares it only with an
+  app holding Page Public Content or Metadata Access, and the ad's own check at Meta settles it when an ad is made.
 
 ## Amended 18 November 2026 · Pause, Resume and Disconnect say what is true
 
@@ -326,6 +351,8 @@ The two presses call 9 leaves an owner on an ad made in Meta, and call 8's Disco
   before the one question is answered, its row goes with its token, and the bell says nothing of it.
 
 ### Amended here · Disconnect does not ask Meta to withdraw
+
+_Settled on 20 November 2026: it stays as built (above)._
 
 Call 8 says Disconnect "drops" Chanlytics' tokens, and the plan's C2 adds that Meta is asked to withdraw the sign-in
 and asked again until it confirms. This step does the first and not the second. The token is dropped the moment the
@@ -421,8 +448,8 @@ worked out from what the hourly read already keeps, so an ad made in Meta rings 
 - **Not as call 15 drew it.** Call 15 declares each as a topic in Settings › Notifications, with the phone told. They are
   lines on the bell alone for now (`BELL_LINE_KINDS`), as the account's two rows are: a topic would show on every
   workspace's Settings while Ads is on for one (D7). Joining a topic is one change, with `PUSH_KINDS` and a push for
-  each row, when Ads opens to more workspaces. **Which of the five also email is still Ruben's** (Not decided here,
-  above): none does yet; the review proposed mail always for the first two.
+  each row, when Ads opens to more workspaces. Which of the five also email was settled on 20 November: the two that
+  stop an ad (below).
 - **"Your ad account was disconnected"** is call 15's third Needs you. A sign-out by Meta is the account's row of 00653;
   an owner's own disconnect is their press, and rings nothing.
 
@@ -460,3 +487,32 @@ Built with nothing sent to Meta. One migration is written and not applied: `0065
   it; it never makes an ad at a platform, holds no token and spends nothing there.
 - **The owner's most** (the plan's G6) is kept on the account (`ad_accounts.most_minor`, the owner's door
   `ad_account_most`), and every draft's amount is held to it.
+
+## As built, 20 November 2026, later still · The calls settled that day
+
+Built with nothing sent to Meta. One migration is written and not applied: `00664`
+(`supabase/migrations/00664_an_ad_that_can_t_run_is_mailed_once.sql`).
+
+- **The card counts three** (contracts `AD_CARD_CHECKS`: the account is active, a payment method, the Page), each read
+  from what is kept of the account, and says "Ready" when all three are met. The Page's link to the number AI answers is
+  `whatsapp_link` on the card's read (`server/readers/ad-account.ts`): AI's own number named on the Page, AI answering
+  none, or unsaid, drawn as one quiet line under the checks. Coming back to the tab asks Meta again only where one of
+  the three is not met: before, the two WhatsApp checks were never met, so every come-back cost a read at Meta.
+- **The two that stop an ad are mailed** (`ad_refused`, `ad_unpaid`; contracts `NOTIFICATION_DELIVERY`). `ad_bell_ring`
+  writes their rows owing their mail (`mail_due_at`, 00409), in the statement that rings them; after each good read the
+  account's job sends what is owed (the edge's `lib/ads/mail.ts`) through the one mail every notice takes, to the
+  addresses Settings › Notifications names, and marks the rows: one mail a cause, whatever number of owners hears it,
+  at most one mail a read, naming each cause where there are several. A cause that cleared first, a business that turned
+  the mail off, or one with no address of its own is owed nothing; a mail that failed stays owed for the next read. In
+  Settings › Notifications the two are one topic under Needs you, "An ad can't run", drawn only where Ads is. The other
+  three stay on the bell's own line. `notifications_kind_check` is untouched.
+- **A wider area** (the plan's 4.6 and G8). A draft may hold, in the circle's stead, a city (with Meta's least ring of
+  10 miles), a state or region, or the whole country, by Meta's own key (`packages/channels/src/ads/meta-place.ts`). A
+  place is only ever one Meta's location search found (the account door's `place` op, any member who may draft), picked
+  by its name and by where the words around it place it (`server/ads/area.ts`), so a name Meta does not know is a change
+  not made. "Tell AI what to change" names a wider place by its kind, its name and where it is; miles take it back to the
+  circle. Where Google's listing says the business goes to its customers (`service_area_only`), a fresh draft proposes
+  the city the listing names in the address's stead, where the rest of it names that city's region, else that region,
+  and its line says why; where neither is sure, the circle stays. Nothing in Chanlytics says a business serves online,
+  and no field was added for it. The request builder sends the place in the circle's stead, and what Meta holds reads
+  back as the same word (`metaAreaWord`), which the paused check compares; the launch is to compare the same.

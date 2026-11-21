@@ -6,8 +6,9 @@
  *
  * Only a draft that could be turned on is sent: written, with three versions of words that passed, nothing that would
  * stop it but the account having no card yet, and no special kind (decision 0050, calls 3 and 7). The first version is
- * the one sent. In place of a draft, Meta's id for a campaign an earlier check left is handed on to be removed; the edge
- * removes only one a check made. The owner alone, as every press that makes something at Meta is.
+ * the one sent. In place of a draft, Meta's id for a campaign an earlier check left is handed on to be removed, or for an
+ * ad a check made whose campaign is gone, to have its creative and picture removed; the edge removes only what a check
+ * made. The owner alone, as every press that makes something at Meta is.
  */
 import "server-only";
 import { AppError, ROLE_PERMS } from "@chanlytics/contracts";
@@ -43,11 +44,13 @@ interface SentDraft {
   service: string;
   picture: string;
   miles: number;
+  /** A place wider than the circle, by Meta's key, where the draft holds one: then no street address is sent. */
+  area?: { kind: "city" | "region" | "country"; key: string };
   total_minor: number;
   end_day: string;
   text: string;
   headline: string;
-  address: string;
+  address?: string;
   whatsapp: string;
 }
 
@@ -73,31 +76,32 @@ async function draftToSend(rc: ReaderContext, draft: AdDraftState): Promise<Sent
   const reason = unsendable(answer);
   if (reason || !answer.can) throw new AppError("conflict", reason ?? "A draft can't be written yet.", 409);
   const [version] = answer.draft.versions;
-  if (!version || !facts.address || !facts.whatsappNumber)
+  const { area } = answer.draft;
+  if (!version || !(area || facts.address) || !facts.whatsappNumber)
     throw new AppError("conflict", "The draft has no words, address or number yet.", 409);
   return {
     service: answer.draft.service,
     picture: answer.draft.picture.id,
     miles: answer.draft.miles,
+    ...(area ? { area: { kind: area.kind, key: area.key } } : { address: facts.address ?? "" }),
     total_minor: answer.draft.total_minor,
     end_day: answer.draft.end_day,
     text: version.text,
     headline: version.headline,
-    address: facts.address,
     whatsapp: facts.whatsappNumber,
   };
 }
 
-/** `POST ads/check`: the draft sent to Meta once, made paused, and read back; or a campaign a check left, removed. */
+/** `POST ads/check`: the draft sent to Meta once, made paused, and read back; or what a check left, removed. */
 export async function runPausedAdCheck(
   ctx: RouteContext,
   member: Member,
-  input: { draft?: AdDraftState; remove?: string },
+  input: { draft?: AdDraftState; remove?: string; tidy?: string },
 ): Promise<PausedCheckAnswer> {
   if (!ROLE_PERMS[member.role].ads) throw new AppError("forbidden", "Only the owner can make an ad.", 403);
   const rc = readerContext(ctx, member);
   await requireAdsOffered(rc);
-  const ask = input.draft ? { draft: await draftToSend(rc, input.draft) } : { remove: input.remove };
+  const ask = input.draft ? { draft: await draftToSend(rc, input.draft) } : { remove: input.remove, tidy: input.tidy };
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("upstream_provider", "Meta can't be reached from here.");
   const sent = await callEdge(

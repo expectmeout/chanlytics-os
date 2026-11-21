@@ -22,6 +22,7 @@ export type { MetaAdsAnswer, MetaAdsDeps, MetaAdsFault, MetaUsage } from "./meta
 export { metaAdStandingRequest, metaAdSwitchRequest, parseMetaAdStanding } from "./meta-change";
 export {
   metaAccountInstagramRequest,
+  metaAdImageRemoveRequest,
   metaAdImageRequest,
   metaMinimumBudgetsRequest,
   parseMetaAccountInstagram,
@@ -29,8 +30,11 @@ export {
   parseMetaLeastADay,
 } from "./meta-library";
 export {
+  metaAdReadBackRequest,
   metaCampaignReadBackRequest,
   metaCampaignRemoveRequest,
+  metaCreativeRemoveRequest,
+  parseMetaAdHeld,
   parseMetaCampaignHeld,
   parseMetaMadeId,
   parseMetaRefusal,
@@ -55,6 +59,8 @@ export type {
   MetaCreativePicture,
   MetaMakeHow,
 } from "./meta-make";
+export { META_CITY_MILES, metaAreaSent, metaPlacesRequest, parseMetaPlaces } from "./meta-place";
+export type { MetaPlace, MetaPlaceKind } from "./meta-place";
 export {
   META_ADS_PAGE,
   META_DAYS_PAGE,
