@@ -428,8 +428,10 @@ const NeedYouList = ({
   const inCard = heldLead ? null : next;
   const free = entries.filter((x) => x.key !== inCard);
   const named = new Set(free.slice(0, TODAY_NAMED_MAX).map((x) => x.key));
-  // Someone new folds into their place (W7).
-  const arriving = useFoldsIn(entries.map((x) => x.key));
+  // Someone new folds into their place (W7): a person or an ask the day's own read brings, which Today hears live. A
+  // to-do or a run's line comes with a later read of its own as the page opens, and stands at once (D14).
+  const people = new Set(order.map((r) => r.id));
+  const arriving = useFoldsIn(entries.flatMap((x) => (people.has(x.key) ? [x.key] : [])));
   const also = alsoLeftOf({ entries, next, model, waits, todo });
   const { doors } = also;
   const left = evening ? { ...also.left, toDo: 0, toMark: 0 } : also.left;

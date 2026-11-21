@@ -226,6 +226,12 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Ask", keys: ["⌘J"], does: "Earlier conversations" },
   { group: "Ask", keys: ["Space"], does: "Hold on an empty line to talk" },
   { group: "Ask", keys: ["Esc"], does: "Stop an answer, then close" },
+  // Today's lines, on a desk (today/calm/keys.tsx and held.tsx): a held line's acts on a phone, by key.
+  { group: "Today", keys: ["J", "K"], does: "Next and previous line" },
+  { group: "Today", keys: ["↵"], does: "Open the line" },
+  { group: "Today", keys: ["E"], does: "Done" },
+  { group: "Today", keys: ["N"], does: "Not now" },
+  { group: "Today", keys: ["/"], does: "Ask AI about the line" },
   { group: "People", keys: ["/"], does: "Search People" },
   { group: "People", keys: ["J", "K", "↓", "↑"], does: "Next and previous person" },
   { group: "People", keys: ["X", "Space"], does: "Select the person" },

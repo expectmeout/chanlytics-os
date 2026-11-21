@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AskFace } from "../../kit/face/ask-face";
 import { Panel } from "../../kit/panel/panel";
 import { TODAY_LINE_WORDS } from "../model/lines";
-import { CLEARED_BEAT_MS, cardPressed, useCardGone, useCardHandOff } from "./motion";
+import { CLEARED_BEAT_MS, cardPressed, cardPressedLately, useCardGone, useCardHandOff } from "./motion";
 
 /**
  * The page's one card, as the arrangement names it (arrangement.ts `todayCardOf`): which part holds it, and which of that
@@ -70,11 +70,14 @@ export function Lead({
  * instead of jumping. Nothing where no card was drawn on this visit.
  */
 export function LeadGone({ cleared = false }: { cleared?: boolean }) {
-  const { room, gone } = useCardGone(cleared ? CLEARED_BEAT_MS : 0);
+  // Only what a press finished is celebrated (W6), and that is decided once, as the room is first drawn: a card that
+  // left because a read moved it (the day closed, someone else answered) just folds.
+  const [said] = useState(() => cleared && cardPressedLately());
+  const { room, gone } = useCardGone(said ? CLEARED_BEAT_MS : 0);
   if (gone) return null;
   return (
     <div ref={room} className="calm-gone" aria-hidden="true">
-      {cleared ? <Cleared /> : null}
+      {said ? <Cleared /> : null}
     </div>
   );
 }

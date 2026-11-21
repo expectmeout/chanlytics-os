@@ -54,7 +54,8 @@ export const AI_WORDS = {
   },
   /** Tonight's sends, a line once the day is over (W5): how many, the first's name and time, and the Stop in AI's sheet. */
   tonight: (n: number): string => `Tonight AI sends ${some(n, "message", "messages")}`,
-  tonightSaid: (title: string, at: string): string => `${title}, at ${at}. Stop any one.`,
+  tonightSaid: (title: string, at: string, more: number): string =>
+    more > 0 ? `${title} first, at ${at}, and ${more} more.` : `${title}, at ${at}.`,
   /** Once a week, what AI did (W9): the card's words, and what Got it says back. */
   week: {
     kind: "AI’s week",
@@ -63,8 +64,8 @@ export const AI_WORDS = {
     reports: "See Reports",
     /** Said back as Got it is pressed: when the next one comes. */
     kept: "Next week’s comes on Monday.",
-    messages: (n: number): string => `${n} ${n === 1 ? "message" : "messages"}`,
-    calls: (n: number): string => `${n} ${n === 1 ? "call" : "calls"}`,
+    answered: (n: number): string => `In the last 7 days AI answered ${some(n, "message", "messages")}.`,
+    calls: (n: number): string => some(n, "call", "calls"),
     booked: (n: number): string => `${n} booked`,
   },
   /** Let AI do more (W10): a kind AI still asks about whose drafts all went as written, and what one press changes. */
