@@ -7,7 +7,7 @@
  * card's (SkipMenu), so the first run's own page never loads the kit's Menu.
  */
 import { useState, type MouseEvent, type ReactNode } from "react";
-import { restEndsDay, type ColdEmailNote, type SetupPutOffWhy } from "@chanlytics/contracts";
+import { LIFECYCLE_WORDS, restEndsDay, type ColdEmailNote, type SetupPutOffWhy } from "@chanlytics/contracts";
 import { FIRST_RUN_HELPERS } from "@/surfaces/setup/first-run/model/first-run-helpers";
 import {
   SETUP_CARD_WORDS,
@@ -21,6 +21,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Menu } from "../../kit/menu/menu";
 import { Meter } from "../../kit/meter/meter";
+import { Sheet } from "../../kit/sheet/sheet";
 import { surfaceValue } from "../../surface-values";
 import { SetupCardRow } from "../../setup/rows/card-row";
 import { SetupRows } from "../../setup/rows/rows";
@@ -286,42 +287,55 @@ function stepsMeter(card: SetupCardVM) {
 
 /**
  * What is left to set up as one line of Today (Today, calm, 19 Nov 2026, D1), where the page's card is someone's who
- * waits: its name, how many are left, and a press that opens the card under the line, with every row and act it has.
- * Cold email's note is setting-up work too (D21): it is counted among what is left and opens with the card, its own
- * line first; with nothing else left to set up it is a line of its own.
+ * waits: its name and how many are left, a quiet line as Also's is (the second look, L4), and a press that opens the card
+ * in a sheet over Today (L7), with every row and act it has: asking a teammate, forwarding the number, choosing a line,
+ * Skip and Hide for a week, each where it is done. Back closes it. Cold email's note is setting-up work too (D21): it is
+ * counted among what is left and opens with the card, its own line first; with nothing else left to set up it is a line
+ * of its own.
  */
 export const TodaySetupLine = ({ S, note }: { S: SetupSurface; note: ColdEmailNote | null }) => {
   const [open, setOpen] = useState(false);
+  // The card's toast is the line's, drawn on Today under the sheet: a Skip or a Hide can take the line and its sheet away
+  // while its Undo is still up.
+  const [toastNode, flash] = useToast();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
-  // The card is one part for as long as the line's place stands, drawn or not: a Skip or a Hide can take the line away
-  // while its Undo is still up, and the Undo is the card's own toast.
   const shown = open && !!card;
   return (
     <>
       {card ? (
         <CalmList label={card.title} testid="today-setup-line">
           <CalmRow
-            first={{ mark: <Icon name="check" size={14} /> }}
+            quiet
             name={card.title}
             said={note ? setupCardLeftWith(card, 1) : card.left}
-            press={() => setOpen(!open)}
-            open={open}
-            under={
-              open && note ? (
-                <div className="calm-subs" role="list">
-                  <ColdEmailRow note={note} />
-                </div>
-              ) : null
-            }
+            press={() => setOpen(true)}
             testid="today-setup-row"
           />
         </CalmList>
       ) : note ? (
         <ColdEmailLine note={note} />
       ) : null}
-      <div className={shown ? "tq tps tz-setup calm-opened" : undefined}>
-        <TodaySetupCard S={S} coral={false} under shown={shown} />
-      </div>
+      <Sheet
+        open={shown}
+        onClose={() => setOpen(false)}
+        title={card?.title ?? ""}
+        close={{ label: LIFECYCLE_WORDS.close, glyph: <Icon name="x" size={13} /> }}
+        kicker
+        fit
+        backCloses
+        className="over-page calm-setup-over"
+        testid="today-setup-sheet"
+      >
+        {note ? (
+          <div className="calm-subs" role="list">
+            <ColdEmailRow note={note} />
+          </div>
+        ) : null}
+        <div className="tq tps tz-setup calm-opened">
+          <TodaySetupCard S={S} coral={false} under lent={flash} />
+        </div>
+      </Sheet>
+      {toastNode}
     </>
   );
 };
@@ -446,24 +460,26 @@ export const TodaySetupCard = ({
   S,
   coral,
   under = false,
-  shown = true,
+  lent = null,
 }: {
   S: SetupSurface;
   coral: boolean;
-  /** Drawn under Today's line for it (TodaySetupLine), which has said its name and how many are left: no head, never folded. */
+  /** Drawn in the sheet Today's line for it opens (TodaySetupLine), which has said its name: no head, never folded. */
   under?: boolean;
-  /** Whether the card is drawn at all: shut under its line it draws only its toast, so an Undo outlives the line. */
-  shown?: boolean;
+  /** The line's toast, where the card stands in its sheet: a Skip or a Hide can close the sheet while its Undo is up. */
+  lent?: ((f: Flash) => void) | null;
 }) => {
   // The card's toast, lent to its rows: a Skip or a Hide can take the card away while its Undo is still up.
-  const [toastNode, flash] = useToast();
+  const [ownToast, ownFlash] = useToast();
+  const flash = lent ?? ownFlash;
+  const toastNode = lent ? null : ownToast;
   const waiting = !coral;
   const [folded, toggle] = useFold();
   // On a phone the head is the card's title on one line with its chevron, and Hide for a week the open card's last row
   // (the phone pass, 3 Nov 2026: beside Hide the title broke onto two lines).
   const phone = useTodayOnPhone();
   const card = FIRST_RUN_HELPERS.todayCard(S.vm, setupWhoOf(S));
-  if (!card || !shown) return toastNode;
+  if (!card) return toastNode;
   const nav = (to: string) => appNavigate(to);
   // The day a week put off now ends, on the business's clock: said in Skip's menu before the press, and after Hide.
   const day = restEndsDay(pageClock().zone(), Date.now());

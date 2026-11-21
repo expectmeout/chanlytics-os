@@ -42,7 +42,8 @@ export function overQuery(word: string): OverQuery {
       : new URL(`${l.pathname || "/"}${l.search || ""}${l.hash || ""}`, "https://app.invalid");
     if (value) url.searchParams.set(word, value);
     else url.searchParams.delete(word);
-    return `${url.pathname}${url.search}${url.hash}`;
+    // A colon stands as it is written (the second look, N4): `?see=run:<id>`, never `run%3A<id>`. A query may hold one.
+    return `${url.pathname}${url.search.replace(/%3A/gi, ":")}${url.hash}`;
   };
   const ownEntry = (): boolean => {
     const s = window.history.state as Partial<OverEntry> | null;

@@ -164,6 +164,18 @@ export function CalmRow({
   );
 }
 
+/**
+ * What a line opens under itself (Also's doors, the rest of what AI found), folding open and shut where it stands as a
+ * line does (the second look, M2): drawn while shut so it can fold, and then out of reach of a press and a reader.
+ */
+export function CalmOpen({ open, children }: { open: boolean; children: ReactNode }) {
+  return (
+    <div className="calm-open" data-shut={open ? undefined : true} aria-hidden={open ? undefined : true} inert={!open}>
+      <div>{children}</div>
+    </div>
+  );
+}
+
 /** The list the lines stand in: a part's lines under its name for a reader, which no line draws. */
 export function CalmList({ label, testid, children }: { label: string; testid: string; children: ReactNode }) {
   return (

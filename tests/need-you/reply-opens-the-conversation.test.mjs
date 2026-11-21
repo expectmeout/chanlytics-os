@@ -23,16 +23,6 @@ test("Reply's ask for AI's draft reaches the conversation it names, by its route
   assert.equal(carried.takeCarriedReply("th-c9"), "Hello");
 });
 
-test("a thread Today opened offers the way back to Today, that thread alone, until Today is drawn again", async () => {
-  const carried = await importSrc("apps/dashboard/src/surfaces/inbox/carried-reply.ts");
-  carried.carryFromToday("inbox/th-c9");
-  assert.equal(carried.cameFromToday("th-c9"), true, "the thread Today opened");
-  assert.equal(carried.cameFromToday("th-c9"), true, "read, not taken: the head says it however often it is drawn");
-  assert.equal(carried.cameFromToday("th-other"), false, "another thread, opened from the list, goes back to the list");
-  carried.forgetFromToday();
-  assert.equal(carried.cameFromToday("th-c9"), false, "back on Today, nothing came from it now");
-});
-
 test("a reply to write, a time they asked for and a call back are answered in their conversation; a reply that never arrived, AI's own countdown and a step are not", async () => {
   const { answersInThread } = await importSrc("apps/dashboard/src/surfaces/today/need-you/rows.tsx");
   const row = (over) => ({ id: "r", kind: "handoff", conversationId: "c1", ...over });

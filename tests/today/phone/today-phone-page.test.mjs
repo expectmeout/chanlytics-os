@@ -116,9 +116,11 @@ test("Need you holds each wait to the business's own target, and the card says w
     [cardOf(tree), ...linesOf(tree)]
       .flatMap((part) => all(part, (n) => classes(n).includes("calm-wait")))
       .map((n) => [textOf(n), !!n.props["data-long"]]);
+  // A to-do past its day says the day where a wait stands, in the wait's amber (the second look, L2).
   assert.deepEqual(waits(draw(NeedYouOnToday)), [
     ["3h", false],
     ["2h", false],
+    ["yesterday", true],
   ]);
   // The owner says an hour (Settings › Autonomy, "Answer people within"): both have waited past it.
   setSurfaceValue("settings", {
@@ -130,6 +132,7 @@ test("Need you holds each wait to the business's own target, and the card says w
       [
         ["3h", true],
         ["2h", true],
+        ["yesterday", true],
       ],
       "REGRESSION: the amber meant past a day, whatever the business promised",
     );

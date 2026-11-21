@@ -16,7 +16,8 @@ import {
   type AppointmentWord,
   type TodayQueueRowVM,
 } from "@chanlytics/contracts";
-import { carryDraft, carryFromToday } from "../../inbox/carried-reply";
+import { carryDraft } from "../../inbox/carried-reply";
+import { openOnToday } from "../over/open";
 import { AttnRow } from "../../kit/attention/attn-row";
 import { Icon } from "../../kit/icon/icon";
 import type { Nav } from "../../waits/wait-rows";
@@ -120,8 +121,8 @@ function shortRow(r: TodayQueueRowVM, c: NeedYouRowsCtx): ReactElement {
 export function openInThread(row: TodayQueueRowVM, conversationId: string, nav: Nav): void {
   const to = addressOf({ kind: "conversation", id: conversationId });
   if (row.kind !== "callback") carryDraft(to);
-  carryFromToday(to);
-  nav(to);
+  // Over Today, its reply box and AI's draft in the sheet (the second look, N3); its page where Today cannot.
+  if (!openOnToday(to)) nav(to);
 }
 
 /**

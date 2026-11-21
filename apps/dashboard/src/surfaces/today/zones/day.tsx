@@ -361,13 +361,16 @@ function drawItem(
 function dayAsksOf(
   zone: TodayZoneDayVM | null,
   runs: { going: GoingTodayRowVM[]; wentOut: ReturnType<typeof runsDoneToday> },
-  at: { tz: string; offered: (l: TodayZoneLineVM) => boolean },
+  at: { tz: string; offered: (l: TodayZoneLineVM) => boolean; onTheLine: readonly TodayZoneLineVM[] },
 ): DayItem[] {
   // On a calendar's day what went out is over, as the visits before now are. With no calendar it is the day's own say.
   const fold = !!zone && !zone.tomorrow;
   const items: DayItem[] = [
-    // An hour already offered (its batch is in the runs) is To decide's or gone: never offered twice.
-    ...(zone?.lines ?? []).filter((l) => !at.offered(l)).map((line) => ({ key: line.key, at: line.at, line })),
+    // An hour already offered (its batch is in the runs) is To decide's or gone: never offered twice. One the day's line
+    // says (`onTheLine`) stands on no line of its own.
+    ...(zone?.lines ?? [])
+      .filter((l) => !at.offered(l) && !at.onTheLine.includes(l))
+      .map((line) => ({ key: line.key, at: line.at, line })),
     ...runs.going.map((g) => ({ key: g.key, at: hoursOnTheClock(at.tz, g.atMs), send: g })),
     ...(fold
       ? []
@@ -375,6 +378,15 @@ function dayAsksOf(
   ].sort((a, b) => a.at - b.at);
   return items.filter(staysOnAPhone);
 }
+
+/**
+ * The open hours the day's line says, where they ask nothing (the second look, L3): an hour with nothing to press, on a
+ * day with visits, is a fact of the line and no line of its own, and the bar shows where it stands. Tomorrow with
+ * nothing booked keeps its open hour's line, which says so ("Nothing booked yet"); an hour a cancellation freed with
+ * Offer it keeps its own.
+ */
+const openSaidOf = (zone: TodayZoneDayVM | null): TodayZoneLineVM[] =>
+  zone && zone.cells.length ? zone.lines.filter((l) => l.kind === "open" && !l.freed) : [];
 
 /**
  * The day's bar, with now on it, and the hours its two ends stand at under it, so it reads as the day it is (his look, 17
@@ -475,12 +487,15 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
     );
   const clock = workspaceClock();
   const offered = offeredHours();
+  const words = dayAsALine(zone, noCalendar);
+  const openHours = openSaidOf(zone);
   const kept = dayAsksOf(zone, runs, {
     tz: clock?.zone() ?? "UTC",
     offered: (l) => !!l.freed && offered.has(l.freed.visitId) && !offeredHere.includes(l.freed.visitId),
+    onTheLine: openHours,
   });
+  const facts = [...(words.said ? words.said.split(" · ") : []), ...openHours.map((l) => L.openAt(l.time, l.title))];
   const onOffered = (visitId: string) => setOfferedHere((was) => (was.includes(visitId) ? was : [...was, visitId]));
-  const words = dayAsALine(zone, noCalendar);
   const rest = dayUnder({
     zone,
     noCalendar,
@@ -498,7 +513,7 @@ export function DayZone({ under = null }: { under?: ReactNode } = {}) {
               {words.name}
             </span>
           }
-          facts={words.said ? words.said.split(" · ").map((fact) => <span {...SAYS_WHEN}>{fact}</span>) : undefined}
+          facts={facts.length ? facts.map((fact) => <span {...SAYS_WHEN}>{fact}</span>) : undefined}
           wait={words.when ? { words: words.when, long: false } : null}
           door={routeDoor("calendar")}
           under={rest}

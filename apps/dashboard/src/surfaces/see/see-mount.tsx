@@ -5,14 +5,14 @@
  * sheet: what an Approve says, with its Stop, outlives the sheet that closed over it (the run review's item 6).
  */
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { seeValueOf, type SeeRef } from "./over";
+import { drawnByToday, seeValueOf, type SeeRef } from "./over";
 import { useFrameToast } from "../frame-verbs";
 import { hearSeeOver, seeOverNow } from "./see-over";
 
 const SeeSheet = lazy(() => import("./see-sheet").then((m) => ({ default: m.SeeSheet })));
 
 /** The thing open over the page, followed as the address moves: a Back, a page's own move, the sheet's own verbs. */
-function useSeeOver(): SeeRef | null {
+export function useSeeOver(): SeeRef | null {
   const [ref, setRef] = useState<SeeRef | null>(() => (typeof window === "undefined" ? null : seeOverNow()));
   useEffect(() => {
     const follow = () => {
@@ -33,7 +33,8 @@ export function SeeOverMount() {
   const shown = ref ?? kept.current;
   return (
     <>
-      {shown ? (
+      {/* A visit and a conversation are Today's to draw (today/over/mount.tsx): the frame loads nothing for them. */}
+      {shown && !drawnByToday(shown) ? (
         <Suspense fallback={null}>
           <SeeSheet seeRef={shown} open={ref !== null} flash={flash} />
         </Suspense>

@@ -156,6 +156,11 @@ export interface TodayQueueRowVM {
     for_user_id: string | null;
     /** The day it was due, as a day key: where the Undo of a Not now puts it back (Today, calm, D25). */
     due_on: string;
+    /**
+     * How late it is, as its line says it at its end where a wait stands: the day it was due, near today ("Sat"), judged
+     * when its words were (the second look of 20 Nov 2026, L2); null while it is not late.
+     */
+    late: string | null;
   };
   /**
    * On a `visit` only: the record's row for the visit, and the presses it is asked with (Kept, then Missed: visitLineOf's

@@ -537,7 +537,7 @@ function headerMain(props: ThreadHeaderProps, facts: HeaderFacts, alsoLeads: Rea
   const personTo = thread.clientId ? `clients/${thread.clientId}` : null;
   return (
     <div className="ix-th-head-main">
-      {threadBack(thread.id, onBack)}
+      {threadBack(onBack)}
       <IxWho
         to={personTo}
         go={() => onOpenClient(thread.clientId)}

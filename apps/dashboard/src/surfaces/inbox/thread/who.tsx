@@ -21,12 +21,11 @@ import { countdownClock, heldPill, personFaceOf, THREAD_PANE_WORDS, threadHeadFa
 import type { PersonRowVM } from "@chanlytics/contracts";
 import { Face } from "../../kit/face/face";
 import { Button } from "../../kit/button/button";
-import { cameFromToday } from "../carried-reply";
 import { Icon } from "../../kit/icon/icon";
 import { StatePill } from "../../kit/pill/state-pill";
 import { holderName } from "../../holder-names";
 import { ixMoveOf, ixMoveWaited, ixWaitSaid } from "../rules";
-import { hasRouteDoor, navigate, routeDoor } from "../shell";
+import { hasRouteDoor, routeDoor } from "../shell";
 import type { RealThread, Thread } from "../types";
 import { channelIconOf } from "./timeline";
 import { visitWordHere } from "../../workspace-word";
@@ -256,23 +255,11 @@ export function headerSub(
   );
 }
 
-/** The head's way back for the thread `threadId`: to Today where Today opened it, else to the list where it has one. */
-export function threadBack(threadId: string, onBack: (() => void) | null): ReactNode {
-  if (cameFromToday(threadId))
-    return (
-      <Button
-        type="button"
-        variant="glass"
-        size="sm"
-        className="ix-from-today"
-        onClick={() => navigate("today")}
-        aria-label={THREAD_PANE_WORDS.backToTodaySaid}
-        data-testid="ix-from-today"
-      >
-        <Icon name="chevron" size={12} className="icon-turned" />
-        {THREAD_PANE_WORDS.backToToday}
-      </Button>
-    );
+/**
+ * The head's way back, to the list where the thread has one. A conversation pressed on Today opens over Today (the second
+ * look, 20 Nov 2026), where the sheet's Close is the way back: no thread page says one to Today now.
+ */
+export function threadBack(onBack: (() => void) | null): ReactNode {
   if (!onBack) return null;
   return (
     <Button

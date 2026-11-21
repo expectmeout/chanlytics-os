@@ -217,3 +217,44 @@ test("a lead's name pressed in a run's sheet over the page opens the lead over t
   assert.equal(q.get("see"), null, "the run's sheet stays with the Inbox, which the move left");
   assert.equal(entries.pushed.length, 2, "one entry for the run's sheet, one for the move");
 });
+
+/* ---------------------------- over Today (the second look, 20 Nov 2026) ---------------------------- */
+
+test("a visit on its day and a conversation are written and read back, and their links name them; a day out of shape names nothing", () => {
+  for (const ref of [
+    { kind: "visit", id: "v-1", day: "2026-11-18" },
+    { kind: "thread", id: "c-1" },
+  ])
+    assert.deepEqual(seeRefOf(seeValueOf(ref)), ref, seeValueOf(ref));
+  for (const nope of ["visit:v-1", "visit:v-1:2026-11", "visit:v-1:tomorrow", "thread:c-1:x", "thread:"])
+    assert.equal(seeRefOf(nope), null, nope);
+  assert.deepEqual(seeRefOfRoute("calendar/2026-11-18:a-v-1"), { kind: "visit", id: "v-1", day: "2026-11-18" });
+  assert.deepEqual(seeRefOfRoute("inbox/th-c-1"), { kind: "thread", id: "c-1" });
+  for (const route of ["calendar", "calendar/2026-11-18", "calendar/a-v-1", "inbox", "inbox/new"])
+    assert.equal(seeRefOfRoute(route), null, `${route}: a page, or a visit with no day to say`);
+  // Each one's door home is its own page.
+  assert.equal(seeHomeOf({ kind: "visit", id: "v-1", day: "2026-11-18" }), "calendar/2026-11-18:a-v-1");
+  assert.equal(seeHomeOf({ kind: "thread", id: "c-1" }), "inbox/th-c-1");
+});
+
+test("Today's own press opens a visit or a conversation over Today, its colons as written; the frame's move never does, on Today either", async () => {
+  const { openOnToday } = await importSrc("apps/dashboard/src/surfaces/today/over/open.ts");
+  openAt("/w/acme/today");
+  assert.equal(see.inPlace("inbox/th-c-1"), false, "a bell row, a push or a link goes to the conversation");
+  assert.equal(see.inPlace("calendar/2026-11-18:a-v-1"), false, "and to the visit");
+  assert.equal(openOnToday("inbox/th-c-1"), true, "Today's own press opens it over Today");
+  assert.equal(win.location.pathname, "/w/acme/today", "Today stays under it");
+  assert.equal(win.location.search, "?see=thread:c-1", "REGRESSION: the address read ?see=run%3A<id>%3A<id>");
+  assert.deepEqual(see.seeOverNow(), { kind: "thread", id: "c-1" });
+  openAt("/w/acme/today");
+  assert.equal(openOnToday("calendar/2026-11-18:a-v-1"), true);
+  assert.equal(win.location.search, "?see=visit:v-1:2026-11-18");
+  assert.equal(entries.pushed.length, 1, "one entry, so Back closes it");
+  // Off Today, or for anything else, it is a move as it was.
+  openAt("/w/acme/inbox");
+  assert.equal(openOnToday("inbox/th-c-1"), false, "the Inbox opens its own");
+  openAt("/w/acme/today");
+  assert.equal(openOnToday("clients/c-1"), false, "a person's page is a page");
+  assert.equal(openOnToday(runRoute("b-1", "q-1")), false, "a run is the frame's to open");
+  assert.equal(entries.pushed.length, 0);
+});
