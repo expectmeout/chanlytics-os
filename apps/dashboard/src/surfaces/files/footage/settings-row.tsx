@@ -22,12 +22,14 @@ import type { FrameFlash } from "../../frame-verbs";
 import { RecordRow } from "../../kit/record/row";
 import type { FolderChoice } from "./chooser";
 import { LazyFolderChooser } from "./chooser-lazy";
+// The folder's own sheet is light and drawn by the Library's line too: imported as it is, never as a chunk of its own
+// (a lazy one regrouped the chunks of pages that never draw it: Inbox and Start each grew about 10 KB, #2501).
+import { FolderSheet } from "./contents";
 import { copyAdminSteps, useFootage } from "./use-footage";
 
 // The sheets are fetched the first time one is opened: a page that only says where the folder stands carries none of them.
 const WatchSheet = lazy(() => import("./sheets").then((m) => ({ default: m.WatchSheet })));
 const LeaveSheet = lazy(() => import("./sheets").then((m) => ({ default: m.LeaveSheet })));
-const FolderSheet = lazy(() => import("./contents").then((m) => ({ default: m.FolderSheet })));
 
 interface FolderRow {
   /** Where the folder stands, for the page's rows; null until it is read. */
