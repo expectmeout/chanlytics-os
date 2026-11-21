@@ -52,7 +52,7 @@ export async function askMetaAds<T>(
     return { ok: false, fault: answer.fault, said: answer.said ?? "", usage: answer.usage };
   }
   try {
-    return { ok: true, value: parse(answer.json), usage: answer.usage };
+    return { ok: true, value: parse(answer.list ?? answer.json), usage: answer.usage };
   } catch (failure) {
     const said = failure instanceof Error ? failure.message : String(failure);
     log.info("ads_meta_refused", { at, fault: "refused", status: answer.status, said: said.slice(0, 300) });
