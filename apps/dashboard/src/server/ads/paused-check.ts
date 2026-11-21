@@ -71,7 +71,7 @@ function unsendable(answer: ReturnType<typeof adDraftAnswer>): string | null {
 
 /** The draft judged as New ad judges it, and its first version, as the edge's door takes it. */
 async function draftToSend(rc: ReaderContext, draft: AdDraftState): Promise<SentDraft> {
-  const facts = await readAdDraftFacts(rc);
+  const facts = await readAdDraftFacts(rc, [draft.picture]);
   const answer = adDraftAnswer(facts, draft);
   const reason = unsendable(answer);
   if (reason || !answer.can) throw new AppError("conflict", reason ?? "A draft can't be written yet.", 409);

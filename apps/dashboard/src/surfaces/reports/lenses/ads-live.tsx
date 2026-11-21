@@ -16,7 +16,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { routeDoor } from "../../frame-verbs";
 import { RptSection } from "../blocks";
 
-const saidOf = (dto: AdsLiveDto) => ({ timezone: dto.account.timezone ?? "UTC" });
+const saidOf = (dto: AdsLiveDto) => ({ timezone: dto.account.timezone ?? "UTC", nowMs: Date.now() });
 
 /** The lens's head: the page's own sentence. */
 export const adsLiveHead = (dto: AdsLiveDto): string => lensModel(dto, saidOf(dto)).head;

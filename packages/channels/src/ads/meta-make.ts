@@ -26,6 +26,8 @@ import { isMetaId, metaAccountPath, minorToMetaUnits } from "./meta-account";
 import { metaPlaceTargeting, type MetaPlace } from "./meta-place";
 
 const MAKE_KEY = /^[A-Za-z0-9_-]{1,128}$/;
+/** Why a request with a total is never built: Meta could not hold it exact in the account's currency. */
+export const NOT_EXACT_TOTAL = "the total is not an amount Meta can hold exact in this currency";
 
 /** How a make is sent: as Meta's dry run, which makes nothing, or for real under a key that makes it safe to repeat. */
 export type MetaMakeHow = { dryRun: true } | { key: string };
@@ -179,8 +181,13 @@ function geoOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide">): Record<str
   return { custom_locations: [{ ...centreOf(ask.centre), radius: ask.miles, distance_unit: "mile" }] };
 }
 
-/** Who sees it: adults in the area, on the places named, with Meta's automatic audience on. */
-function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "instagram">): Record<string, unknown> {
+/**
+ * Who sees it: adults in the area, on the places named, with Meta's automatic audience on. The ad set's make sends it,
+ * and a change of its miles sends it again whole (meta-change.ts), so the two can never name different places.
+ */
+export function metaAdSetTargeting(
+  ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "instagram">,
+): Record<string, unknown> {
   return {
     age_min: ADULT,
     geo_locations: {
@@ -203,7 +210,7 @@ function targetingOf(ask: Pick<MetaAdSetAsk, "centre" | "miles" | "wide" | "inst
  */
 export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSetAsk, how: MetaMakeHow): MetaRequest {
   const total = minorToMetaUnits(ask.totalMinor, ask.currency);
-  if (total === null) throw new Error("the total is not an amount Meta can hold exact in this currency");
+  if (total === null) throw new Error(NOT_EXACT_TOTAL);
   const endsAt = momentSent(ask.endsAt, "the end");
   const startsAt = ask.startsAt === undefined ? null : momentSent(ask.startsAt, "the start");
   if (startsAt !== null && startsAt >= endsAt) throw new Error("the end comes after the start");
@@ -226,7 +233,7 @@ export function metaAdSetRequest(token: string, appSecret: string, ask: MetaAdSe
         page_id: metaIdOf(ask.pageId, "the Page"),
         whatsapp_phone_number: number,
       }),
-      targeting: JSON.stringify(targetingOf(ask)),
+      targeting: JSON.stringify(metaAdSetTargeting(ask)),
     },
     { token, appSecret },
     how,
@@ -273,6 +280,15 @@ export const META_OWN_CHANGES = [
 export type MetaCreativePicture =
   { kind: "image"; hash: string } | { kind: "video"; videoId: string; thumbnailHash: string };
 
+/**
+ * A picture by its address, which Meta fetches to draw a preview (meta-preview.ts), so nothing is placed in the
+ * account's library. Only a preview names one: an ad made here shows a picture from the library.
+ */
+interface MetaPreviewPicture {
+  kind: "link";
+  url: string;
+}
+
 /** One version of an ad: its picture and its words, as the Page says them. */
 export interface MetaCreativeAsk {
   name: string;
@@ -284,6 +300,9 @@ export interface MetaCreativeAsk {
   headline: string;
   picture: MetaCreativePicture;
 }
+
+/** A version as a preview asks for it: the same creative, its picture given by its address. */
+type MetaCreativeShown = Omit<MetaCreativeAsk, "picture"> & { picture: MetaCreativePicture | MetaPreviewPicture };
 
 const HASH = /^[A-Za-z0-9]{8,64}$/;
 const wordsSent = (words: string, label: string, most: number): string => {
@@ -302,18 +321,27 @@ const whatsappButton = (link: boolean): Record<string, unknown> => ({
   value: { app_destination: "WHATSAPP", ...(link ? { link: WHATSAPP_LINK } : {}) },
 });
 
+/** A picture's address as Meta fetches it: over https, and nothing else. */
+const pictureLinkOf = (url: string): string => {
+  const parsed = URL.canParse(url) ? new URL(url) : null;
+  if (parsed?.protocol !== "https:") throw new Error("the picture's address is not one Meta can fetch");
+  return parsed.toString();
+};
+
 /** The post an ad is: a picture with a link, or a video, each with its words and the button. */
-function storyOf(ask: MetaCreativeAsk): Record<string, unknown> {
+function storyOf(ask: MetaCreativeShown): Record<string, unknown> {
   // Meta's hard lengths for a text and a headline. What reads well in each place is the ad writer's to hold.
   const message = wordsSent(ask.text, "the text", 1024);
   const headline = wordsSent(ask.headline, "the headline", 255);
-  if (ask.picture.kind === "image")
+  if (ask.picture.kind !== "video")
     return {
       link_data: {
         link: WHATSAPP_LINK,
         message,
         name: headline,
-        image_hash: imageHashOf(ask.picture.hash),
+        ...(ask.picture.kind === "image"
+          ? { image_hash: imageHashOf(ask.picture.hash) }
+          : { picture: pictureLinkOf(ask.picture.url) }),
         call_to_action: whatsappButton(false),
       },
     };
@@ -331,9 +359,9 @@ function storyOf(ask: MetaCreativeAsk): Record<string, unknown> {
 /**
  * A creative as Meta takes it, whether sent alone or inside the ad that uses it: the Page it is said as, the Instagram
  * account where one is known, the post, every one of Meta's own changes switched off, and not shown beside other
- * advertisers' ads.
+ * advertisers' ads. A preview hands it a picture by its address in place of one from the library.
  */
-export function metaCreativeSpec(ask: MetaCreativeAsk): Record<string, unknown> {
+export function metaCreativeSpec(ask: MetaCreativeShown): Record<string, unknown> {
   return {
     name: namedAs(ask.name, "a creative"),
     object_story_spec: {

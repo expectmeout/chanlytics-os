@@ -34,8 +34,10 @@
  *   img / media  signed URLs from the private media bucket (inbound photos,
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
- *   frame-src    Meta's SDK plants a hidden iframe under its root element; Stripe's embedded Checkout is a frame of
- *                its own, and a bank's check one more (0073); a business's video plays in Stream's player (0099).
+ *   frame-src    Meta's SDK plants a hidden iframe under its root element, and New ad shows Meta's own preview of an
+ *                ad as a frame of Meta's preview page, on www., web. or business.facebook.com (the channels
+ *                package's meta-preview.ts holds it to that page); Stripe's embedded Checkout is a frame of its own, and a bank's
+ *                check one more (0073); a business's video plays in Stream's player (0099).
  *   stream       a video goes from the browser straight to Stream's upload host (connect), and plays in its frame.
  *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
  *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
@@ -71,6 +73,8 @@ const META = [
   "https://web.facebook.com",
   "https://graph.facebook.com",
 ] as const;
+/** Meta's business host, where its preview of an ad may be served for a business's own sign-in: a frame, nothing else. */
+const META_BUSINESS = "https://business.facebook.com";
 const GOOGLE_PHOTOS = "https://*.googleusercontent.com";
 /**
  * The voice agent (docs/decisions/0026): the browser's WebSocket to ElevenLabs for a conversation's events, and the
@@ -171,7 +175,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
         ...(leadMap ? [leadMap] : []),
       ],
     ],
-    ["frame-src", [META[1], META[2], ...STRIPE.frame, ...STREAM.frame]],
+    ["frame-src", [META[1], META[2], META_BUSINESS, ...STRIPE.frame, ...STREAM.frame]],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],

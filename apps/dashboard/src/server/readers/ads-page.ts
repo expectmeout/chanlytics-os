@@ -3,8 +3,13 @@ import { z } from "zod";
 import {
   ROLE_PERMS,
   UUID,
+  adCardChecksOf,
   recordOrEmpty,
+  adAmountAfter,
+  adApprovedMiles,
+  adChangeOnWayOf,
   adResumeRule,
+  adStandingOf,
   parseTenantConfigResult,
   adStateOfRow,
   metaAdConfigOf,
@@ -12,6 +17,7 @@ import {
   zoneDayKey,
   type AdLaunchLive,
   type AdLiveDto,
+  type AdMadeHereLive,
   type AdOpens,
   type AdStopped,
   type AdPeopleLiveDto,
@@ -28,9 +34,12 @@ import {
   type AdRow,
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
+import { listAdPeopleWaitingOnYou, type AdPersonWaitingRow } from "@chanlytics/db/people";
+import { logAndGoOn } from "@chanlytics/log";
 import { readAdsPressesOn } from "../connections/ads-ready";
+import { isGoing } from "../people/going";
 import { getStoredConfig } from "../workspace/config-row";
-import { readerStamp, type Reader } from "../shared/reader";
+import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
 /** The days the page counts: the same thirty Reports' people lens opens on, and a draft reads its bookings over. */
 export const ADS_PAGE_DAYS = 30;
@@ -86,6 +95,41 @@ function launchOf(row: AdRow, left: ReadonlyMap<string, AdLaunchLive["left"]>): 
   };
 }
 
+const WIDE_PLACE_KINDS = ["city", "region", "country"] as const;
+
+/** The wider place approved for an ad made here, by its kind and its name; null for the circle, or one not named. */
+function widePlaceOf(approved: Record<string, unknown>): AdMadeHereLive["place"] {
+  const area = recordOrEmpty(approved.area);
+  const kind = WIDE_PLACE_KINDS.find((one) => one === area.kind);
+  const name = typeof area.name === "string" ? area.name.trim() : "";
+  return kind && name ? { kind, name } : null;
+}
+
+/**
+ * What an ad made here's drawer changes (the Ads plan's 4.5): where it is shown, its first day, a change on its way,
+ * when Meta takes its next amount, and whether Meta holds a total or a last day other than the one approved here, which
+ * the page says as changed in Meta and never puts back. Null for an ad made at the platform.
+ */
+function madeHereOf(row: AdRow, at: ReadAt): AdMadeHereLive | null {
+  if (row.origin !== "chanlytics") return null;
+  const approved = recordOrEmpty(row.approved);
+  const change = adChangeOnWayOf(row.change);
+  const approvedTotal = typeof approved.total_minor === "number" ? approved.total_minor : null;
+  const approvedDay = typeof approved.end_day === "string" ? approved.end_day : null;
+  const metaDay = row.ends_at === null ? null : zoneDayKey(Date.parse(row.ends_at), at.timezone);
+  const moved =
+    (approvedTotal !== null && row.budget_minor !== null && row.budget_minor !== approvedTotal) ||
+    (approvedDay !== null && metaDay !== null && metaDay !== approvedDay);
+  return {
+    miles: adApprovedMiles(row.approved),
+    place: widePlaceOf(approved),
+    start_day: zoneDayKey(Date.parse(row.starts_at ?? row.created_at), at.timezone),
+    change,
+    amount_after: adAmountAfter(row.amounts_at ?? [], at.nowMs),
+    changed_in_meta: row.status === "made" && change === null && moved,
+  };
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
 function adOf(
   row: AdRow,
@@ -101,6 +145,7 @@ function adOf(
     made_in_platform: row.origin === "platform",
     shown_on: row.shown_on,
     launch: launchOf(row, at.left),
+    made_here: madeHereOf(row, at),
     opens: opensOf(row.door),
     state,
     needs: needsOf(state, row.platform_state),
@@ -169,6 +214,39 @@ export function aiStoppedAt(config: unknown): string | null {
 const statusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
   row.status === "connected" || row.status === "revoked" || row.status === "disconnected" ? row.status : null;
 
+/** Whether every check the account's card counts passes, read from its row as the card reads it (readers/ad-account.ts). */
+const cardReadyOf = (row: AdAccountRow): boolean =>
+  adCardChecksOf({ standing: adStandingOf(row.standing), config: metaAdConfigOf(row.config) }).every(
+    (check) => check.ok === true,
+  );
+
+/** How many of the people an ad brought who need you the page is handed by name: its line names each, and counts the rest. */
+const NEEDS_YOU_NAMED = 2;
+
+/**
+ * Who an ad brought and needs you now, longest waiting first: the first by name, and how many in all. Read beside the
+ * ads, and never at their cost: a read of it that fails is logged and the page says nothing of it, which claims nobody.
+ */
+const readNeedsYou = (rc: ReaderContext, nowMs: number): Promise<AdPersonWaitingRow[]> =>
+  listAdPeopleWaitingOnYou(rc.ctx.supabase, rc.tenantId, nowMs).catch(
+    logAndGoOn<AdPersonWaitingRow[]>("the people from ads who need you", []),
+  );
+
+/** Who an ad brought and needs you now, as the page is handed it. */
+function needsYouOf(rows: readonly AdPersonWaitingRow[], nowMs: number): AdsLiveDto["needs_you"] {
+  // Nobody waits on someone being erased: the Inbox's holds leave them out too (readers/escalations.ts).
+  const listed = rows.filter((row) => !isGoing(row.erasing_since, nowMs));
+  return {
+    count: listed.length,
+    people: listed.slice(0, NEEDS_YOU_NAMED).map((row) => ({
+      id: row.contact_id,
+      name: personName(row),
+      conversation_id: row.conversation_id,
+      since: row.since,
+    })),
+  };
+}
+
 /**
  * GET ads/page, as the route answers it (decision 0049's adsPage): the workspace's ad account once it is or was
  * connected, each ad Chanlytics holds for it with what its platform says it spent and who Chanlytics counts it
@@ -184,11 +262,14 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     const account = await findAdAccountForPage(supabase, rc.tenantId, "meta");
     const status = account ? statusOf(account) : null;
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
-    const [listed, counts, presses, settings] = await Promise.all([
+    // The request's own moment: every state, day and wait on the page is said by one clock.
+    const nowMs = rc.now.getTime();
+    const [listed, counts, presses, settings, waiting] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
       status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
       getStoredConfig(supabase, rc.tenantId),
+      readNeedsYou(rc, nowMs),
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
@@ -198,7 +279,6 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       rc.tenantId,
       rows.filter((row) => row.origin === "chanlytics" && row.status === "failed").map((row) => row.id),
     );
-    const nowMs = Date.now();
     const timezone = account.timezone ?? "UTC";
     const today = zoneDayKey(nowMs, timezone);
     const data: AdsLiveDto = {
@@ -211,6 +291,9 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
         read_failed: account.read_error !== null,
         revoked_at: account.revoked_at,
         disconnected_at: account.disconnected_at,
+        ready: cardReadyOf(account),
+        min_daily_minor: metaAdConfigOf(account.config).min_daily_minor,
+        most_minor: account.most_minor,
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
@@ -219,6 +302,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       elsewhere,
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
       stopped_at: aiStoppedAt(settings),
+      needs_you: needsYouOf(waiting, nowMs),
     };
     return { data, rows: [], stamp: readerStamp() };
   },

@@ -37,12 +37,13 @@ import {
   keepAdsRead,
   listAdsMadeHere,
   listHeldAdIds,
+  listPendingAds,
   markAdAccountRevoked,
   type AdAccountRow,
   type AdsReadKept,
 } from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
-import { DAY_MS, metaAdConfigOf, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
+import { DAY_MS, metaAdConfigOf, MIN_MS, SECOND_MS, type TenantId } from "@chanlytics/contracts";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "../shared/log.js";
@@ -73,7 +74,8 @@ import {
 import { foldAds, foldDays, foldOf } from "./fold.js";
 import { runLaunches } from "./launch.js";
 import { ADS_USAGE_HOLD_PCT, mayAskMeta, readAfterOf } from "./pace.js";
-import { adsWrites, tellPending } from "./tell.js";
+import { runChanges } from "./change.js";
+import { adsWrites, tellPending, type AdsWrites } from "./tell.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;
@@ -84,6 +86,43 @@ const CALL_ROOM_MS = 25 * SECOND_MS;
 const READ_ROOM_MS = 40 * SECOND_MS;
 /** How lately an account was read that a read asked for only to send a press reads nothing more. */
 const FRESH_MS = 2 * MIN_MS;
+/**
+ * How soon an account is read again whose read ends with presses still on their way (more than one read sends, as a pause
+ * of every ad leaves, or pressed while it ran, when no second read can be asked for): the clock's next turn
+ * (ads_sweep_ask), never sooner than Meta allows (ads_read_keep keeps read_after), so each owner's press reaches Meta
+ * within minutes of the last, never at the hour.
+ */
+const PRESSES_LEFT_MS = MIN_MS;
+
+/**
+ * How many of an account's presses are still on their way to Meta as its read ends: counted then, so one pressed while
+ * the read ran is counted too. None while nothing reaches Meta from this deployment: no read brings one nearer.
+ */
+async function countPressesLeft(db: Db, tenantId: TenantId, accountId: string, writes: AdsWrites): Promise<number> {
+  return writes === "off" ? 0 : (await listPendingAds(db, tenantId, accountId)).length;
+}
+
+/**
+ * Whether a read asked only to send presses ends once they are sent: moments after the account's last read, there is
+ * nothing new to read, unless presses are still on their way, whose read's keeping hands them to the clock's next turn.
+ */
+async function endsOnceTold(
+  db: Db,
+  scope: { tenantId: TenantId; writes: AdsWrites },
+  account: Pick<AdAccountRow, "id" | "read_at">,
+  at: { told: number; nowMs: number },
+): Promise<boolean> {
+  if (at.told === 0 || account.read_at === null || at.nowMs - Date.parse(account.read_at) >= FRESH_MS) return false;
+  return (await countPressesLeft(db, scope.tenantId, account.id, scope.writes)) === 0;
+}
+
+/** A read that ends with presses on their way is followed at the clock's next turn, or sooner where it was due sooner. */
+function readAgainFor(read: AdsReadKept, left: number, nowMs: number): AdsReadKept {
+  if (left === 0) return read;
+  const soon = new Date(nowMs + PRESSES_LEFT_MS).toISOString();
+  return { ...read, next_read_at: read.next_read_at < soon ? read.next_read_at : soon };
+}
+
 /** The soonest, and the latest, an account whose read stopped is tried again. */
 const RETRY_SOONEST_MS = 15 * MIN_MS;
 const RETRY_LATEST_MS = DAY_MS;
@@ -375,20 +414,24 @@ export async function runAdRead(
   // read cut short here would say the account could not be updated.
   if (launched.ran > 0 && Date.now() > deadline - READ_ROOM_MS) return out("launched", launched.calls);
   // The owner's presses still on their way go next: a pause must not wait behind a read (00652).
-  const sent = await tellPending(db, log, { tenantId, signIn, writes: adsWrites() }, { accountId: account.id, nowMs });
+  const writes = adsWrites();
+  const sent = await tellPending(db, log, { tenantId, signIn, writes }, { accountId: account.id, nowMs });
   if (sent.revoked) return revokedAfter(launched.calls);
+  // Then the owner's changes to ads made here (00673): one never answered settled from what Meta holds, then the rest.
+  const changed = await runChanges(db, log, { tenantId, signIn, writes, currency }, { accountId: account.id, nowMs });
+  if (changed.revoked) return revokedAfter(launched.calls);
   const reading: Reading = {
     log,
     signIn,
     account: { ...account, external_id: externalId, currency },
     deadline,
     calls: launched.calls,
-    usage: sent.usage ?? launched.usage,
+    usage: changed.usage ?? sent.usage ?? launched.usage,
   };
   const revoked = () => revokedAfter(reading.calls);
   // A read asked for only to send a press, moments after the account's last read, has nothing new to read.
-  if (sent.told > 0 && account.read_at !== null && nowMs - Date.parse(account.read_at) < FRESH_MS)
-    return out("told", sent.told);
+  const toldNow = sent.told + changed.told;
+  if (await endsOnceTold(db, { tenantId, writes }, account, { told: toldNow, nowMs })) return out("told", toldNow);
   const learned = await learn(db, app, reading, { depth, nowMs });
   if (stopped(learned)) {
     if (learned.fault === "revoked") return revoked();
@@ -401,7 +444,8 @@ export async function runAdRead(
     });
     return out("failed", reading.calls);
   }
-  const kept = await keepAdsRead(db, tenantId, account.id, learned.read);
+  const left = await countPressesLeft(db, tenantId, account.id, writes);
+  const kept = await keepAdsRead(db, tenantId, account.id, readAgainFor(learned.read, left, nowMs));
   const read: ReadOut = {
     outcome: kept.outcome,
     depth,

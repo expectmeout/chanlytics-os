@@ -163,6 +163,31 @@ export const LIVE = {
   },
 } as const;
 
+/**
+ * AI's one line on the page (the Ads plan's 6.3; decision 0050, call 12): when it speaks is the model's rules, with no
+ * model asked, and it only proposes. Each sentence is a question its press answers.
+ */
+export const AI_LINE = {
+  /** An account ready and no ad made here yet: the first, opening New ad, where AI writes it. */
+  first: (inMeta: boolean) =>
+    `Make your first ad${inMeta ? " here" : ""}? AI writes it, and nothing runs until you turn it on.`,
+  /** An ad made in Meta that brought people and ends within days: keep it going, in Meta, where it is changed. */
+  extend: (ending: { name: string; people: number; day: string }) =>
+    `${ending.name} brought ${people(ending.people)} and ends ${ending.day}. Keep it going in Meta?`,
+} as const;
+
+/**
+ * Who an ad brought and needs you now (the Ads plan's 4.4): one amber line, how many first, then who, each with how long
+ * they have waited, and how many more. It opens the longest wait's conversation, in the Inbox's Needs you.
+ */
+export const NEEDS_YOU_LINE = {
+  title: (count: number) =>
+    count === 1 ? "1 person from your ads needs you." : `${count} people from your ads need you.`,
+  /** A person and how long they have waited: "Jordan Price 6d". */
+  person: (name: string, waited: string | null) => (waited ? `${name} ${waited}` : name),
+  more: (count: number) => `${count} more`,
+} as const;
+
 /** An ad's drawer (the plan's 4.5). */
 export const SHEET = {
   /** Where an ad shows, by Meta's own names for its places; "Meta" where that is not known yet. */
@@ -278,9 +303,11 @@ export const STOP = {
       : `${n} ads are paused. Meta still bills what they already showed.`,
   pausedSoon: (n: number) =>
     `${adsCount(n)} will pause as soon as Meta takes the change. Meta still bills what they already showed.`,
-  /** Meta gave no answer to some: whether they paused is not known yet. */
-  unsure: (n: number) =>
-    `Meta didn't answer for ${adsCount(n)}, so they may still be on. This page shows what Meta did in a few minutes.`,
+  /** No answer came to the press: whether the pauses were kept is not known yet, and the page reads what stands. */
+  notKnown: (n: number) =>
+    `No answer came, so ${adsCount(n)} may still be on. This page shows what stands in a moment.`,
+  /** Every ad of the press refused on its own (changed since the page was read): the page has read them again. */
+  notTaken: "Nothing was paused: the ads changed since the page was read. Press again.",
   partly: (done: number, of: number) => `${done} of ${of} ads are paused, and the rest couldn't be. Press again.`,
 } as const;
 

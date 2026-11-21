@@ -424,3 +424,44 @@ unset (403) and a notice with no signature (401).
 
 The older `/docs/` pages answer curl with `Accept: text/markdown` and no browser's User-Agent: 200, as markdown. With a
 browser's User-Agent they answer 400. The `/documentation/` pages answer their `.md` form, as before.
+
+## 21 November 2026 · Meta's own preview, read before New ad shows it
+
+Meta's pages for a preview, read without a sign-in: `marketing-api/generatepreview`, the ad account's
+`generatepreviews`, a creative's and an ad's `previews`, Instagram's guide to a preview, and the preview object.
+
+### What they showed
+
+| What | What Meta's pages say |
+|---|---|
+| An ad not made yet | The ad account's `generatepreviews` takes the creative as it would be made, and one place (`ad_format`) a call |
+| Its answer | A list of previews, each one field, `body`: the HTML of a frame on facebook.com. The frame "is only valid for 24 hours" |
+| Whose sign-in | "a user access token, not a Page access token" |
+| The places | Each has its own name: `MOBILE_FEED_STANDARD`, `FACEBOOK_STORY_MOBILE`, `FACEBOOK_REELS_MOBILE` for Facebook's feed, stories and Reels on a phone; Instagram's are asked only with the Page's Instagram account named |
+| The picture | A creative may give its picture by address (`picture`) in place of one in the account's library; Meta's own example of a preview does |
+| What it costs | A read: one point of the account's allowance, like any other. Its error list holds the account's rate limit (80004) |
+
+### What it changes in the build
+
+New ad asks Meta for its own preview of the version on show, in the three places an ad made here shows, once its words
+are written: the creative Turn on makes, every one of Meta's own changes switched off, Facebook alone, the picture given
+by a signed address of the file as Files keeps it, which lasts a day, as the frame does. Nothing is placed in the
+library and no post is left on the Page. Only a photo: Turn on sends no video yet. Nothing of Meta's HTML is drawn as it
+came; the frame's address is held to Meta's own preview page, and the page draws a frame of its own there. Where Meta's
+can't be had, New ad's own drawing stands in its place and says why in one line.
+
+### To see on your account
+
+That the business's own sign-in, which made every part of the paused ad, is taken for a preview; that a picture given
+by its address is drawn as the library's would be, whole and in its own shape; the size Meta draws each place at; and
+that the frame shows to someone not signed in to Facebook.
+
+### Seen on your account (21 November, after it landed)
+
+Asked once for the kept draft's first version, a read that makes nothing: Meta answered all three places, refused none,
+and the account's allowance stood at 1% after it. So the business's own sign-in is taken for a preview. But none of the
+three answers was read as a frame of Meta's preview page, so New ad drew its own, and said wrongly that Meta had not
+shown its preview. Meta's live answer is not shaped as its page's example, and nothing of it was kept to say how. The
+reader now takes every shape Meta may answer in (escaped, single quotes, no scheme, its business host), says plainly
+when it still can't read one, and the log describes what Meta sent with no address in it. Still to see: the frame's
+size, a picture given by its address drawn whole, and whether the frame shows to someone not signed in to Facebook.

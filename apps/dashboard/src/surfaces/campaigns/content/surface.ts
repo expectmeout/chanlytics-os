@@ -7,7 +7,7 @@
  * route every page loads, so it holds the read and the one move that changes what it asks.
  */
 import type { ContentPageDto, ContentView } from "@chanlytics/contracts";
-import { CONTENT_MAX, SECOND_MS } from "@chanlytics/contracts";
+import { CONTENT_MAX, SECOND_MS, contentViewDrawsLines } from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { readAged, type SurfaceOverride } from "@/bridge/surface-data";
 import { DEAR_READ_LONGEST_WAIT_MS } from "@/bridge/surface-realtime";
@@ -24,18 +24,50 @@ export interface ContentSurface {
 }
 
 /**
- * The view of Made asked for, and how far down a person has read. All, from its top, asks with no query at all, which is the
- * read the document's head started (contracts route-prefetch). A new object each move, so a read that answers after a newer
- * move is known by it.
+ * The view of Made asked for, the words All is found by, and how far down a person has read. All, from its top, asks with no
+ * query at all, which is the read the document's head started (contracts route-prefetch). A new object each move, so a read
+ * that answers after a newer move is known by it.
  */
 let contentOnScreen: { view?: ContentView; limit?: number; about?: string } = {};
 
-const readAsked = ({ view, limit, about }: typeof contentOnScreen) =>
-  view || limit || about
-    ? read("GET content", {
-        query: { ...(view ? { view } : {}), ...(limit ? { limit } : {}), ...(about ? { about } : {}) },
-      })
-    : read("GET content");
+type ContentAsk = typeof contentOnScreen;
+
+/** A read's query: the view and the words, how many, and the page it reads on from. */
+const queryOf = ({ view, limit, about }: ContentAsk, before?: string) => ({
+  ...(view ? { view } : {}),
+  ...(limit ? { limit } : {}),
+  ...(about ? { about } : {}),
+  ...(before ? { before } : {}),
+});
+
+/** How much of a view a page holds: its lines where it draws lines, else what was made. */
+const heldIn = (dto: ContentPageDto): number => (contentViewDrawsLines(dto.view) ? dto.lines.length : dto.made.length);
+
+/** A page with the next one after it: what is being made is the first page's, since a later page answers none. */
+const joinedPages = (held: ContentPageDto, more: ContentPageDto): ContentPageDto => ({
+  ...more,
+  making: held.making,
+  made: [...held.made, ...more.made],
+  lines: [...held.lines, ...more.lines],
+});
+
+/**
+ * The view as long as it was read. Past the most one read answers (CONTENT_MAX), the pages after the first are read on from
+ * where each ended, the way Show more reads them, so a list or a search a person has scrolled far down stands as it was: the
+ * piece they opened, and their place, are still there when they come back to it.
+ */
+async function readAsked(ask: ContentAsk): Promise<ContentPageDto> {
+  if (!ask.view && !ask.limit && !ask.about) return read("GET content");
+  const wanted = ask.limit ?? 0;
+  let held = await read("GET content", {
+    query: queryOf(wanted ? { ...ask, limit: Math.min(wanted, CONTENT_MAX) } : ask),
+  });
+  while (held.next && heldIn(held) < wanted) {
+    const rest = Math.min(wanted - heldIn(held), CONTENT_MAX);
+    held = joinedPages(held, await read("GET content", { query: queryOf({ ...ask, limit: rest }, held.next) }));
+  }
+  return held;
+}
 
 /**
  * The view the page's address names, asked for from here on: true where it is not the one asked for already, so the page
@@ -59,24 +91,22 @@ export function askContentFind(about: string | null): boolean {
 }
 
 /**
- * The next page of what is shown (what was made, or a view's lines), after what is there. A read again then asks for all of it
- * at once, as long as it now is.
+ * The next page of what is shown (what was made, what was found by its words, or a view's lines), after what is there. A read
+ * again then asks for all of it, as long as it now is (readAsked).
  */
 export async function readMoreContent(): Promise<void> {
   const held = surfaceValue("content")?.dto;
   if (!held?.next) return;
   const { next, view } = held;
-  const more = await read("GET content", { query: { before: next, ...(view === "all" ? {} : { view }) } });
+  // A search reads on in what it found, as the list reads on in all of it: the same words, from where the page ended.
+  const about = held.about ?? undefined;
+  const asks = { ...(view === "all" ? {} : { view }), ...(about ? { about } : {}) };
+  const more = await read("GET content", { query: queryOf(asks, next) });
   const now = surfaceValue("content")?.dto;
-  if (now?.next !== next || now.view !== view) return;
-  const pieces = [...now.made, ...more.made];
-  const lines = [...now.lines, ...more.lines];
-  // A read again asks for what is held, up to the most one read answers (the route refuses more): past it, the newest stand
-  // fresh and Show more reads on from there, where asking for all of it would fail every read after.
-  const limit = Math.min(Math.max(pieces.length, lines.length), CONTENT_MAX);
-  contentOnScreen = { ...(view === "all" ? {} : { view }), limit };
-  // What is being made is the first page's: a later page answers none, so what stands is kept.
-  setSurfaceValue("content", { dto: { ...more, making: now.making, made: pieces, lines }, fetchedAt: Date.now() });
+  if (now?.next !== next || now.view !== view || (now.about ?? undefined) !== about) return;
+  const joined = joinedPages(now, more);
+  contentOnScreen = { ...asks, limit: heldIn(joined) };
+  setSurfaceValue("content", { dto: joined, fetchedAt: Date.now() });
   // No read of the surface's own landed, so nothing told its page: its rows did land, and whoever draws them is told.
   surfaceMoved("content");
 }

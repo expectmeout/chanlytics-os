@@ -500,14 +500,16 @@ const searchFold = (text) =>
   ).join("");
 
 /**
- * `files_found` (00597, 00612), answered out of the files a fixture holds: one shelf of one workspace (contracts shelfFilterOf as
- * its parts), not removed and not a video still on its way, newest first with the id breaking ties, at most
- * least(greatest(p_limit, 1), 1000) from p_offset: `{ ids, total }`. Every word given (split at anything not a letter or a digit,
- * the first twelve) is found anywhere in file_search_words, both sides folded; blank words find every file on the shelf. No RLS:
- * the double holds one member's view.
+ * `files_found` (00597, 00612, 00668), answered out of the files a fixture holds: one shelf of one workspace (contracts
+ * shelfFilterOf as its parts, p_kind among them), not removed and not a video still on its way, newest first with the id breaking ties, after the
+ * file p_before_at and p_before_id name where they are given, at most least(greatest(p_limit, 1), 1000) from p_offset:
+ * `{ ids, total }`, the total every match whatever the page. Every word given (split at anything not a letter or a digit, the
+ * first twelve) is found anywhere in file_search_words, both sides folded; blank words find every file on the shelf. No RLS: the
+ * double holds one member's view.
  */
 function filesFoundIn(tables, args) {
   const { p_tenant_id, p_status, p_limit, p_offset = 0, p_made = null, p_shows = null, p_or_unsorted = false } = args;
+  const { p_before_at = null, p_before_id = null, p_kind = null } = args;
   const words = searchFold(args.p_words)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
@@ -520,13 +522,22 @@ function filesFoundIn(tables, args) {
         f.media_status !== "uploading" &&
         f.status === p_status &&
         (p_made === null || (f.source === "made") === p_made) &&
+        (p_kind === null || f.kind === p_kind) &&
         (p_shows === null || p_shows.includes(f.shows) || (p_or_unsorted === true && f.shows == null)) &&
         words.every((w) => searchFold(fileSearchWordsOf(f)).includes(w)),
     )
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  // (created_at, id) < (p_before_at, p_before_id), as a row comparison reads it: a null id answers nothing at the same instant.
+  const after =
+    p_before_at === null
+      ? matched
+      : matched.filter((f) => {
+          const gap = Date.parse(f.created_at) - Date.parse(p_before_at);
+          return gap < 0 || (gap === 0 && p_before_id !== null && f.id < p_before_id);
+        });
   const from = Math.max(p_offset ?? 0, 0);
   const cap = Math.min(Math.max(p_limit ?? 1, 1), 1000);
-  return { ids: matched.slice(from, from + cap).map((f) => f.id), total: matched.length };
+  return { ids: after.slice(from, from + cap).map((f) => f.id), total: matched.length };
 }
 
 /** The columns newest_messages answers a message in: the reader's MESSAGE_COLUMNS. */

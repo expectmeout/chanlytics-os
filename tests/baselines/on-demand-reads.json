@@ -24,6 +24,11 @@
     "fresh": "Read as the Ads page comes to what is true of a workspace today, nothing connected, and again each time a person comes back to it; nothing of it is kept once the page goes.",
     "why": "The page says how new people first came over the last 30 days, which moves slowly, and its door goes to Reports › People, whose own surface hears the feed. Reports' surface follows the period Reports shows, which is not this page's."
   },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/meta-preview.ts GET ads/preview": {
+    "kind": "on-open",
+    "fresh": "Read as New ad shows a version whose words are written, once for each picture and words, and held for the tab under an hour; a change of words or picture is a new read.",
+    "why": "Meta's own preview of words not yet made at Meta, which no record of the workspace's moves: Meta's frame lasts a day, and the screen shows it only beside the picture and words it was drawn for."
+  },
   "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]": {
     "kind": "on-open",
     "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",
@@ -429,6 +434,16 @@
     "kind": "on-open",
     "fresh": "Read once as a to-do's sheet opens on the person it is about.",
     "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."
+  },
+  "apps/dashboard/src/bridge/surfaces/ads-first-reads.ts GET ads/account": {
+    "kind": "boot",
+    "fresh": "Read once a tab, as the boot asks for the settings read, and only where the tab opened on Campaigns › Ads: what the document's head started, taken before the boot lets go of it. The card's own read (use-account.ts) starts from it and reads again after it, on each press and on a return to the tab.",
+    "why": "It decides which page Ads is, the ads or the page with nothing connected, before the first draw, so a cold load draws that page once. An answer older than thirty seconds is drawn at once and read again behind it, so nothing it holds stands longer than the page's own read would."
+  },
+  "apps/dashboard/src/bridge/surfaces/ads-first-reads.ts GET ads/page": {
+    "kind": "boot",
+    "fresh": "Read once a tab, beside the ad account, as the boot asks for the settings read, and only where the tab opened on Campaigns › Ads. The page's own read (use-live.ts) starts from it and reads again after it, on each press, a return to the tab and a change the card reads.",
+    "why": "The ads are the page's first draw, read with the account so the page is whole when it is first drawn and never a line that loads. An answer older than thirty seconds is drawn at once and read again behind it, so nothing it holds stands longer than the page's own read would."
   },
   "apps/dashboard/src/surfaces/campaigns/ads/connect/use-account.ts GET ads/account": {
     "kind": "on-open",

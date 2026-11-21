@@ -11,14 +11,22 @@ import "./ads.css";
 import "./drawer/drawer.css";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, adRoute, parseAds } from "@chanlytics/contracts";
+import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, adRoute, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/bridge/surface-data";
 import { HEAD } from "./model/words-page";
 import { nothingConnectedOf } from "./model/page-v0";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { askAbout, askOnScreenKey, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../../frame-verbs";
+import {
+  askAbout,
+  askOnScreenKey,
+  backFrom,
+  navigate,
+  replaceRoute,
+  setAskOnScreen,
+  useFrameToast,
+} from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import { type CmView, useCmPhone } from "../parts/split";
 import { useAdsConnection } from "./connect/use-card";
@@ -36,13 +44,18 @@ import { LIVE_AD_SOURCE } from "./new/source";
  * Opening and closing what the address names: an ad's drawer or New ad. Opening pushes an entry, so Back closes it (a
  * peek's rule: Leads', the Pipeline's, Messages'). A sheet that opened over the page stood on has the page behind it,
  * whoever pushed it: closing goes back. One a link arrived at has no entry of the page's behind it: closing replaces
- * the address with the Ads page itself.
+ * the address with the Ads page itself. New ad that Run as an ad opened from a piece in Content goes back to that piece,
+ * by the frame's own Back (frame-verbs backFrom), where the owner left it.
  */
 function useAdsNav(address: AdsAddress) {
   // How many entries stand over the page: the drawer, and New ad opened over it.
   const pushed = useRef(0);
   const open = address.ad !== null || address.compose !== null;
   const wasOpen = useRef(open);
+  // Opened by Run as an ad: kept while New ad stays open, its address saying New ad alone once the draft is made.
+  const fromPiece = useRef(false);
+  if (address.compose?.from?.how === "piece") fromPiece.current = true;
+  if (address.compose === null) fromPiece.current = false;
   useEffect(() => {
     if (!open) pushed.current = 0;
     else if (!wasOpen.current && pushed.current === 0) pushed.current = 1;
@@ -56,6 +69,9 @@ function useAdsNav(address: AdsAddress) {
     if (pushed.current > 0 && typeof window !== "undefined" && window.history) {
       pushed.current -= 1;
       window.history.back();
+    } else if (fromPiece.current) {
+      fromPiece.current = false;
+      backFrom(ADS_ROUTE, { replace: true });
     } else replaceRoute(ADS_ROUTE);
   };
   return { push, close };
@@ -142,6 +158,23 @@ function HeldLoading({ failed, again, card }: { failed: boolean; again: () => vo
   );
 }
 
+/**
+ * Under the head while it is not known whether an account is held: nothing while the account's read is on its way (the
+ * view opens on it, ./first-reads.ts), so the page is drawn once and as the one it is; where that read failed, that, and the way
+ * to ask again. Never the page with nothing connected, which an account would then replace.
+ */
+function AccountUnread({ failed, again }: { failed: boolean; again: () => void }) {
+  if (!failed) return null;
+  return (
+    <p className="ads-hero-muted" role="alert" data-testid="ads-account-failed">
+      {LIVE.loadFailed}{" "}
+      <LinkButton onClick={again} data-testid="ads-account-again">
+        {V0.again}
+      </LinkButton>
+    </p>
+  );
+}
+
 interface AdsPageProps {
   /** The address's param, `campaigns/<param>`: `ads`, an ad open, or New ad. */
   param: string;
@@ -157,8 +190,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const timezone = zoneHere();
   // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
   const { account, held, live, ...connect } = useAdsConnection(true, timezone, CARD.name, "page");
-  // How new people first came is read while no account is held: the page with nothing connected says it.
-  const touch = useFirstTouch(!held);
+  // Whether an account is held is known once the account's read is in (the view opens on it, ./first-reads.ts). Until then the
+  // page draws its head and nothing under it: never the page with nothing connected, which an account would then replace.
+  const known = account.dto !== null;
+  // How new people first came is read where no account is held, the page with nothing connected saying it; never before
+  // that is known, since it is the dearest read a workspace has and a connected page draws none of it.
+  const touch = useFirstTouch(known && !held);
   useAskKnowsThePage();
   const connectWord = connect.vm?.button ?? null;
   if (held && live.dto)
@@ -203,10 +240,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
         quiet
         allowance={false}
         testid="ads-head"
-        sub={held ? null : sentence}
+        sub={known && !held ? sentence : null}
         right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
       />
-      {held ? (
+      {!known ? (
+        <AccountUnread failed={account.failed} again={account.again} />
+      ) : held ? (
         <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
       ) : (
         <>
@@ -223,15 +262,19 @@ export function AdsPage({ param, view }: AdsPageProps) {
           <V0Page v0={vm.v0} touch={touch} card={connect.card} />
         </>
       )}
-      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. */}
+      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. With one
+          held, New ad is the live page's (live/live-ads.tsx), drawn once its ads are read: one sheet, so a cold open
+          asks for the draft, and AI for its words, once (21 Nov 2026: two sheets one after the other asked twice). */}
       <NewAd
-        open={address.compose !== null && account.dto !== null}
+        open={address.compose !== null && account.dto !== null && !held}
         source={LIVE_AD_SOURCE}
         need={connect.vm?.need ?? null}
         onClose={nav.close}
         onConnect={account.connect}
         onGo={navigate}
         onSee={(adId) => navigate(adRoute(adId))}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {toastNode}
     </div>

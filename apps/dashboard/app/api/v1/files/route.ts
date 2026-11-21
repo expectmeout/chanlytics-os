@@ -16,7 +16,7 @@ const Query = z.object({
  * GET /api/v1/files — Settings › Files: a page of one shelf, newest first, and how the whole library stands (decision 0099).
  * `?shelf=` says which, and left out, or left empty by a change, the page answers where the library opens; `?before=` is the `next`
  * the last page answered; `?limit=` how many, so a page that has scrolled reads what it holds again in one read; `?kind=` one kind
- * alone (Photos, Videos); `?about=` words, found through what Ask's look saw in each file, a page of the best. Every member reads
+ * alone (Photos, Videos); `?about=` words, found through what Ask's look saw in each file, a page at a time as a shelf is. Every member reads
  * it. The body is its reader's (readers/files.ts).
  */
 export const GET = read({

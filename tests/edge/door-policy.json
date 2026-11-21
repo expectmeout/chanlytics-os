@@ -40,6 +40,19 @@
         }
       }
     },
+    "POST /api/admin/ads/preview": {
+      "wrapper": "adminDoor",
+      "knock": "authorizeAdmin",
+      "knock_in": "POST in apps/edge/api/admin/ads/preview.ts",
+      "knock_args": {
+        "aud": "/api/admin/ads/preview",
+        "opts": {
+          "body": {
+            "expr": "raw"
+          }
+        }
+      }
+    },
     "POST /api/admin/ads/turn-on": {
       "wrapper": "adminDoor",
       "knock": "authorizeAdmin",

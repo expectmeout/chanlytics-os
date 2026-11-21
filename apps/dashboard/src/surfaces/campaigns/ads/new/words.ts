@@ -20,6 +20,8 @@ export const NEW = {
   kicker: "New ad · drafted by AI",
   /** A draft someone else left, as they left it. */
   kickerLeft: (name: string) => `New ad · left by ${name}`,
+  /** Fix it's draft of an ad Meta turned down (the Ads plan's 4.5). */
+  kickerFix: (name: string) => `New ad · fixing ${name}`,
   opening: "New ad",
   close: "Close",
 
@@ -51,6 +53,8 @@ export const NEW = {
     heldToLeast: "Kept to the least Meta takes until you tell AI the most an ad may cost.",
     raisedToLeast: (n: number) => `Raised to the least Meta takes for ${days(n)}.`,
     aDay: (money: string, n: number) => `About ${money} a day for ${days(n)}.`,
+    /** Fix it's draft: AI rewrote the words from Meta's reason, and turning it on ends the one Meta turned down. */
+    fixing: (name: string) => `AI rewrote the words from Meta's reason. Turn this on and ${name} ends.`,
     mostBooked: "It offers what people booked most in the last 90 days.",
     /** Google says the business goes to its customers: the ad is shown across the place it serves. */
     goesToCustomers: "You go to your customers, so it shows across the place you serve. Tell AI to change it.",
@@ -95,6 +99,18 @@ export const NEW = {
     picture: (name: string) => `The ad's picture, ${name}`,
     video: (name: string) => `The ad's video, ${name}`,
     drawn: "Drawn by Chanlytics, not Meta's own preview. Your picture is shown whole, never cropped.",
+    /** Meta's own preview, once the ad account is connected (the plan's 4.6), and the frame's name to a screen reader. */
+    meta: "Meta's own preview, as people will see it on a phone.",
+    metaFrame: (place: string) => `Meta's own preview of the ad, in the ${place.toLowerCase()}`,
+    asking: "Asking Meta for its own preview…",
+    /** Where Meta's own can't be had, Chanlytics' drawing stands in its place, and says why in one line. */
+    not: {
+      not_connected: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected.",
+      signed_out: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected again.",
+      video: "Drawn by Chanlytics: Meta's own preview is shown for a photo.",
+      busy: "Drawn by Chanlytics: Meta didn't answer. New ad asks it again next time it opens.",
+      refused: "Drawn by Chanlytics: Meta didn't show its own preview of this version.",
+    },
   },
 
   /** Tell AI what to change. */
@@ -330,6 +346,12 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     body: "Music in an ad needs a licence of your own, and a video is heard before it can run.",
     small: "Add a photo, or a video with no music. AI drafts the ad as soon as one is in.",
     act: "Open Library",
+  },
+  picture_gone: {
+    title: "That piece is no longer in Content",
+    body: "It was deleted or set aside after Run as an ad was pressed.",
+    small: "Open another piece there, and run that one as an ad.",
+    act: "Open Content",
   },
   picture: {
     title: "First, a picture that fits an ad",

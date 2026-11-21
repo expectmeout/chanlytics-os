@@ -48,6 +48,17 @@ export type {
 } from "./ads";
 export { bookedAfterTouch } from "./booked-after-touch";
 export {
+  adAmountAfter,
+  adApprovedMiles,
+  adChangeFactsOf,
+  adChangeIssue,
+  adChangeLeast,
+  adChangeMostOf,
+  adChangeOnWayOf,
+  adChangeSpendsMore,
+} from "./change";
+export type { AdChangeAsk, AdChangeFacts, AdChangeIssue, AdChangeOnWay, AdChangeWhat } from "./change";
+export {
   AD_BEFORE_AFTER,
   AD_BOOKED_TO_FORECAST,
   AD_MILES,
@@ -70,12 +81,20 @@ export type {
   AdServiceFacts,
   AdSpecialKind,
 } from "./draft";
-export { ADS_ACCOUNT_DOOR, ADS_CHECK_DOOR, ADS_PRESS_DOOR, ADS_TURN_ON_DOOR } from "./edge-doors";
+export {
+  AD_PAUSE_ALL_MAX,
+  ADS_ACCOUNT_DOOR,
+  ADS_CHECK_DOOR,
+  ADS_PRESS_DOOR,
+  ADS_PREVIEW_DOOR,
+  ADS_TURN_ON_DOOR,
+} from "./edge-doors";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
 export type {
   AdBudgetLive,
   AdLaunchLive,
   AdLiveDto,
+  AdMadeHereLive,
   AdNeedsLive,
   AdOpens,
   AdPartLeft,

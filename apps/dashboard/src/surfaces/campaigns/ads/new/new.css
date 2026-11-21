@@ -42,6 +42,7 @@
 
 /* ---- The ad as it will look ---- */
 .ads-new-shown {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -72,6 +73,28 @@
 }
 .ads-new-plain {
   aspect-ratio: 4 / 5;
+}
+/* Meta's own preview: its frame at the size Meta drew it, seen once it has loaded. A frame not on show, or still
+   loading, loads out of sight in a box of one pixel, so it takes no room and nothing jumps. */
+.ads-new-meta {
+  max-width: 100%;
+}
+.ads-new-meta[data-on="no"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+.ads-new-meta-frame {
+  display: block;
+  max-width: 100%;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
 }
 /* A story and a Reel: the same picture, whole, centred in their taller frame. */
 .ads-new-tall {

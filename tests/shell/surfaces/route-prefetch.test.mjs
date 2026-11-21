@@ -868,8 +868,14 @@ test("what the head starts for a page is what its surfaces ask for first, no mor
   const { readContentToday } = await importSrc(`${S}/surfaces/today/content-note-read.ts`);
   // And what Ask found's checks and To do's steps read of People, the same way (today/people-read.ts; 13 Nov 2026).
   const { readTodayPeople } = await importSrc(`${S}/surfaces/today/people-read.ts`);
+  // And what Campaigns › Ads opens on, the ad account and its ads, which its first draw waits for where the tab opens on Ads:
+  // asked as the settings read is (bridge/surfaces/ads-first-reads.ts, as bridge/surfaces/settings.ts asks them; 21 Nov 2026).
+  const { readAdsOpening } = await importSrc(`${S}/bridge/surfaces/ads-first-reads.ts`);
+  const { read: bridgeRead } = await importSrc("apps/dashboard/src/bridge/api.ts");
+  const readAdsFirst = () => readAdsOpening({ read: bridgeRead, route: "campaigns/ads", workspace: "harbor" });
   const pageReads = {
     "campaigns/sequences/new": [readSources],
+    "campaigns/ads": [readAdsFirst],
     today: [readColdEmailNote, readContentToday, readTodayPeople],
   };
   // A key with words after its page (`campaigns/sequences/new`) is that page at that address, as the registry reads one

@@ -4,8 +4,9 @@
  * React, over a fetch where the routes would be. A made-up business throughout.
  *
  * What must hold. While AI is stopped, the page says so at its top with how many ads are still on (running, or on
- * while Meta checks them), and the owner's one press pauses every one of them through the pause route, one after
- * another, each with the version it was drawn from; then one toast says what came of it and what Meta still bills. A
+ * while Meta checks them), and the owner's one press pauses every one of them in one request, each with the version
+ * it was drawn from; then one toast says what came of it and what Meta still bills: on its way, part of it refused,
+ * none of it taken, or no answer, which says that whether they were kept is not known. A
  * member who may not press is told who can. An ad already being paused is not counted again. Nothing is said while AI
  * runs, with nothing on, or where Meta signed Chanlytics out (that notice is the page's own). A paused ad's drawer offers
  * no turning back on while AI is stopped. In Settings the card says it, with the same press; on the page the card does
@@ -22,12 +23,12 @@ const S = "../../../apps/dashboard/src";
 const { api } = await import(`${S}/bridge/api.ts`);
 const { aiStopOf: stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
 const { liveModel, sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
-const { LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
+const { AI_LINE, LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { useAdsConnection } = await import(`${S}/surfaces/campaigns/ads/connect/use-card.tsx`);
 
 const TZ = "America/New_York";
-const SAID = { timezone: TZ };
+const SAID = { timezone: TZ, nowMs: Date.parse("2026-11-20T15:00:00Z") };
 const STOPPED_AT = "2026-11-20T14:30:00.000Z";
 const ID = (n) => `adadadad-8888-4000-8000-00000000000${n}`;
 
@@ -61,6 +62,7 @@ const page = (over = {}) => ({
     read_failed: false,
     revoked_at: null,
     disconnected_at: null,
+    ready: true,
   },
   window: { from: "2026-10-22", to: "2026-11-20" },
   today: "2026-11-20",
@@ -69,6 +71,7 @@ const page = (over = {}) => ({
   elsewhere: { people: 0, booked: 0 },
   can_press: true,
   stopped_at: STOPPED_AT,
+  needs_you: { count: 0, people: [] },
   ...over,
 });
 
@@ -165,7 +168,9 @@ const ACCOUNT = {
   },
 };
 
-const route = { page: page(), pressed: [], pageFails: false };
+/** Each ad of a pause of them all as the route answers it: kept, and Meta told at its pace. */
+const KEPT = (one) => ({ id: one.id, outcome: "soon", version: one.version + 1 });
+const route = { page: page(), pressed: [], pageFails: false, pauseAll: (set) => ({ ads: set.map(KEPT) }) };
 /** What the page said in a toast, where the frame would draw it. */
 const flashes = [];
 const realToast = globalThis.window.usePPToast;
@@ -175,11 +180,11 @@ globalThis.fetch = async (input, init) => {
   const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
   const json = (data) =>
     new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-  const pause = url.pathname.match(/^\/api\/v1\/ads\/([^/]+)\/pause$/);
-  if (pause) {
+  if (url.pathname === "/api/v1/ads/pause-all") {
     const body = JSON.parse(String(init?.body ?? (input instanceof Request ? await input.text() : "{}")));
-    route.pressed.push([pause[1], body.version]);
-    return json({ outcome: "told", version: body.version + 1 });
+    route.pressed.push(body.ads);
+    const answer = route.pauseAll(body.ads);
+    return answer instanceof Response ? answer : json(answer);
   }
   if (url.pathname === "/api/v1/ads/account") return json(ACCOUNT);
   if (url.pathname === "/api/v1/ads/page")
@@ -198,6 +203,7 @@ async function heldPage(dto) {
   api().forget();
   route.page = dto;
   route.pressed.length = 0;
+  flashes.length = 0;
   fresh();
   const draw = () => AdsPage({ param: "ads" });
   draw();
@@ -206,7 +212,7 @@ async function heldPage(dto) {
   return redraw;
 }
 
-test("the page says it at its top, and the one press pauses every ad still on through the route, one by one", async () => {
+test("the page says it at its top, and the one press pauses every ad still on in one request", async () => {
   const draw = await heldPage(page());
   const tree = draw();
   const live = byTestId(tree, "ads-live");
@@ -218,14 +224,53 @@ test("the page says it at its top, and the one press pauses every ad still on th
   // On the page the card does not say it a second time.
   assert.equal(byTestId(byTestId(tree, "ads-conn"), "ads-stop"), null);
   press(byTestId(tree, "ads-stop-pause"));
-  await until(() => route.pressed.length === 2, "both ads paused");
-  assert.deepEqual(route.pressed, [
-    [ID(1), 3],
-    [ID(2), 4],
-  ]);
   await until(() => flashes.length > 0, "the toast");
-  assert.deepEqual(flashes, [{ msg: STOP.paused(2) }], "one toast: what is paused, and what Meta still bills");
-  assert.equal(STOP.paused(2), "2 ads are paused. Meta still bills what they already showed.");
+  assert.deepEqual(
+    route.pressed,
+    [
+      [
+        { id: ID(1), version: 3 },
+        { id: ID(2), version: 4 },
+      ],
+    ],
+    "one request: each ad still on, with the version it was drawn from, and not the paused one",
+  );
+  assert.deepEqual(flashes, [{ msg: STOP.pausedSoon(2) }], "one toast: what is on its way, and what Meta still bills");
+  assert.equal(
+    STOP.pausedSoon(2),
+    "2 ads will pause as soon as Meta takes the change. Meta still bills what they already showed.",
+  );
+});
+
+/** Press the stop on a page whose pause of them all answers as `answer` does, and hand back the one toast. */
+async function toastOf(answer) {
+  const draw = await heldPage(page());
+  route.pauseAll = answer;
+  try {
+    press(byTestId(draw(), "ads-stop-pause"));
+    await until(() => flashes.length > 0, "the toast");
+    assert.equal(route.pressed.length, 1, "one request, whatever it came to");
+    return flashes;
+  } finally {
+    route.pauseAll = (set) => ({ ads: set.map(KEPT) });
+  }
+}
+
+test("a pause of them all says what came of it: part refused, none taken, no answer, or the server's own words", async () => {
+  const one = await toastOf((set) => ({ ads: [KEPT(set[0]), { id: set[1].id, outcome: "stale", version: 9 }] }));
+  assert.deepEqual(one, [{ tone: "warn", msg: STOP.partly(1, 2) }]);
+  const none = await toastOf((set) => ({ ads: set.map((ad) => ({ id: ad.id, outcome: "stale", version: 9 })) }));
+  assert.deepEqual(none, [{ tone: "warn", msg: STOP.notTaken }]);
+  // The edge gave no answer in time: the server cannot say whether the pauses were kept, and the page reads what stands.
+  const unknown = await toastOf((set) => ({
+    ads: set.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })),
+  }));
+  assert.deepEqual(unknown, [{ tone: "warn", msg: STOP.notKnown(2) }]);
+  const words = "Only the owner can pause an ad or turn one back on.";
+  const refused = await toastOf(
+    () => new Response(JSON.stringify({ ok: false, error: { code: "forbidden", message: words } }), { status: 403 }),
+  );
+  assert.deepEqual(refused, [{ tone: "warn", msg: words }]);
 });
 
 test("with AI running the page says nothing of a stop, and an account with no ad says so where the ads would be", async () => {
@@ -233,7 +278,13 @@ test("with AI running the page says nothing of a stop, and an account with no ad
   assert.equal(byTestId(running, "ads-stop"), null);
   const empty = (await heldPage(page({ ads: [], stopped_at: null })))();
   assert.match(textOf(byTestId(empty, "ads-live-empty")), new RegExp(LIVE.noAds.rest));
-  assert.ok(byTestId(empty, "ads-live-empty-new"), "with New ad beside it");
+  // On a ready account AI's line proposes the first ad and opens New ad, so the empty line says only what is true.
+  assert.equal(textOf(byTestId(empty, "ads-ai-line")), AI_LINE.first(false));
+  assert.equal(byTestId(empty, "ads-live-empty-new"), null);
+  const notReady = page({ ads: [], stopped_at: null, account: { ...page().account, ready: false } });
+  const waits = (await heldPage(notReady))();
+  assert.equal(byTestId(waits, "ads-ai-line"), null, "AI proposes nothing on a card with a check not met");
+  assert.ok(byTestId(waits, "ads-live-empty-new"), "and the empty line keeps New ad beside it");
 });
 
 test("an account held whose ads did not load says so, and never says nobody came from an ad", async () => {

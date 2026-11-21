@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 192 | 192 |
+| door | 194 | 194 |
 | reader | 88 | 0 |
-| the server's | 408 | 340 |
+| the server's | 411 | 343 |
 | computed column | 3 | 0 |
 | trigger | 113 | 83 |
-| all | 804 | 615 |
+| all | 809 | 620 |
 
 ## Called by nothing
 
@@ -59,20 +59,25 @@ being read is dropped by a migration.
 | `ad_bell_hearers` | the server's | the server | SQL `ad_bell_ring` | Who hears the bell's five ad notices (00658): |
 | `ad_bell_ring` | the server's | the server | SQL `ads_read_keep` | The bell's five ad notices for one ad account, after a good read (00658, decision 0050 call 15): |
 | `ad_bell_words` | the server's | the server | SQL `ad_bell_ring` | The title and body of one of the bell's five ad notices (00658): |
+| `ad_change_keep` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: an owner changes a running ad made here (00673; |
+| `ad_change_told` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: what telling the platform of an owner's change to an ad came to (00673; |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
-| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659; |
+| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659, 00672; |
+| `ad_draft_writing` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672; |
+| `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672): |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00666): |
 | `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666; |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
+| `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses every ad of a set at once (00671; |
 | `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
 | `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
 | `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
-| `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses an ad or turns it back on (00652; |
-| `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner's press that the platform will not take yet (00652). |
+| `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all` | Service-role only: an owner pauses an ad or turns it back on (00652; |
+| `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all` | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
@@ -253,7 +258,7 @@ being read is dropped by a migration.
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
-| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
+| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612, 00668): |
 | `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
 | `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |
 | `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |
@@ -272,7 +277,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 35 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 37 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -282,7 +287,7 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `add_person` and 72 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 74 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |

@@ -22,7 +22,8 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/campaigns/reach-out-replies.ts|candidates": "one page of replies",
   "apps/dashboard/src/server/campaigns/sequences/doors.ts|input.then": "a sequence's steps, in the door's input",
   "apps/dashboard/src/server/connections/email.ts|conversations": "one page of threads",
-  "apps/dashboard/src/server/content/ad-pictures.ts|unheard": "AD_SOUNDS_READ, the videos one draft hears",
+  "apps/dashboard/src/server/content/ad-pictures.ts|unheard":
+    "AD_SOUNDS_READ, the videos one draft hears, and the few pictures a request names",
   "apps/dashboard/src/server/connections/mailbox-connections.ts|rows": "a workspace's mailboxes",
   "apps/dashboard/src/server/console/support.ts|askers .slice(0, ASKER_LOOKUPS)": "ASKER_LOOKUPS",
   "apps/dashboard/src/server/leads/send.ts|rows": "a workspace's mailboxes",
@@ -32,6 +33,7 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/workspace/billing.ts|list": "the workspaces one person's deletion emptied",
   "apps/dashboard/src/server/workspace/page-open.ts|tier": "a page's fixed first reads",
   "apps/dashboard/src/server/workspace/team.ts|seated": "one person's open invitations",
+  "apps/edge/lib/ads/preview.ts|META_PREVIEW_PLACES": "a fixed list: the three places an ad made here shows",
   "apps/edge/lib/files/copies.ts|ids": "COPIES_AT_ONCE: the door refuses more",
   "apps/edge/lib/files/found.ts|part": "FETCHES_AT_ONCE: a found batch is read a few at a time",
   "apps/edge/lib/imports/website-read.ts|reads": "a site's linked pages, already capped",

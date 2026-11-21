@@ -372,6 +372,10 @@ export const EVENT_KINDS = [
   "ad.turned_on",
   "ad.made",
   "ad.setup_stopped",
+  /** An owner changed a running ad made here (Meta took its new total, last day or miles), or ended it for good. */
+  "ad.change_asked",
+  "ad.changed",
+  "ad.ended",
   "file.added",
   "file.changed",
   "file.kept",
@@ -921,6 +925,8 @@ export const DECISION_VERBS = [
   "pause_ad",
   "resume_ad",
   "turn_on_ad",
+  "change_ad",
+  "end_ad",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

@@ -359,6 +359,42 @@ test("of the presses on their way, a pause goes before a turning back on, and of
   assert.deepEqual(order, ["23850000000000093 PAUSED", "23850000000000092 PAUSED", "23850000000000091 ACTIVE"]);
 });
 
+test("one read sends five of the presses on their way, the oldest first, and leaves the rest and one inside its thirty seconds", async () => {
+  const w = world();
+  const long = new Date(Date.now() - 3_600_000).toISOString();
+  const waiting = (n, toldAt) => ({
+    ...w.row,
+    id: `adadadad-6666-4000-8000-0000000000b${n}`,
+    platform_ad_id: `2385000000000010${n}`,
+    intent: "paused",
+    intent_at: new Date(Date.now() - (n + 1) * 1000).toISOString(),
+    told_at: toldAt,
+    platform_state: "ACTIVE",
+  });
+  // Seven pauses that may go, as a pause of every ad leaves them, and one pressed a second ago on an ad Meta took a
+  // change to five seconds ago: it waits its thirty seconds.
+  const ready = [1, 2, 3, 4, 5, 6, 7].map((n) => waiting(n, long));
+  const inside = { ...waiting(8, new Date(Date.now() - 5_000).toISOString()), intent_at: new Date().toISOString() };
+  w.tables.ads.splice(0, 1, ...ready, inside);
+  const switched = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if ((init?.method ?? "GET") === "POST") switched.push(new URL(String(url)).pathname.split("/").pop());
+    return realFetch(url, init);
+  };
+  try {
+    const sent = await tellPending(w.db, logger({ tenant_id: T }), who(), { accountId: ACCOUNT, nowMs: Date.now() });
+    assert.deepEqual([sent.told, sent.revoked], [5, false]);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  // The five pressed longest ago; the two after them, and the one inside its thirty seconds, wait for the next read.
+  assert.deepEqual(
+    switched,
+    [7, 6, 5, 4, 3].map((n) => `2385000000000010${n}`),
+  );
+});
+
 test("a change Meta refuses puts the ad back as Meta holds it, and the owner is told it did not take", async () => {
   const w = world();
   answers.set = [400, { error: { message: "(#100) This ad cannot be edited.", code: 100 } }];

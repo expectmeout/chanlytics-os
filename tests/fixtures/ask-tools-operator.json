@@ -1467,6 +1467,10 @@
             "type": "string",
             "description": "A service by its name in Services, where they named one."
           },
+          "file": {
+            "type": "string",
+            "description": "A piece AI made, by its name in files, where they named one. The piece the question is about needs none."
+          },
           "most": {
             "type": "integer",
             "description": "Only where the owner said in this question the most any ad may cost: whole units of their currency.",
@@ -4001,6 +4005,10 @@
           "service": {
             "type": "string",
             "description": "A service by its name in Services, where they named one."
+          },
+          "file": {
+            "type": "string",
+            "description": "A piece AI made, by its name in files, where they named one. The piece the question is about needs none."
           },
           "most": {
             "type": "integer",
@@ -7165,6 +7173,10 @@
           "service": {
             "type": "string",
             "description": "A service by its name in Services, where they named one."
+          },
+          "file": {
+            "type": "string",
+            "description": "A piece AI made, by its name in files, where they named one. The piece the question is about needs none."
           },
           "most": {
             "type": "integer",

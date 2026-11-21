@@ -135,14 +135,15 @@ const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts
 
 /**
  * The services of the ads made here that still run, or are still being set up: a service one of them offers is not
- * offered again (G5). An ad made here is named in a few words; the service it offers is what its owner approved.
+ * offered again (G5). One Meta turned down runs nowhere, so its service is offered again, by Fix it or by + New. An ad
+ * made here is named in a few words; the service it offers is what its owner approved.
  */
 function runningHereOf(rows: readonly AdRow[], at: { today: string; timezone: string; nowMs: number }): string[] {
   return rows
     .filter((row) => row.origin === "chanlytics" && (row.status === "made" || row.status === "sending"))
     .filter((row) => {
       const state = adStateOfRow(row, at);
-      return state !== "ended" && state !== "finished";
+      return state !== "ended" && state !== "finished" && row.platform_state !== "DISAPPROVED";
     })
     .map((row) => {
       const service = recordOrEmpty(row.approved).service;
@@ -199,6 +200,20 @@ async function keptDraftOf(
   return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team", at };
 }
 
+/**
+ * The draft kept now, and when it was kept: what an ad writer's answer is put into where another was kept while it
+ * wrote (kept-over.ts). Its draft is null where it is another account's or no longer reads as one; null where none is.
+ */
+export async function readKeptDraft(
+  rc: ReaderContext,
+  accountId: string,
+): Promise<{ draft: AdDraftState | null; at: string } | null> {
+  const row = await findAdDraft(rc.ctx.supabase, rc.tenantId);
+  if (row === null) return null;
+  const parsed = row.account_id === accountId ? AdDraftStateSchema.safeParse(row.draft) : null;
+  return { draft: parsed?.success ? parsed.data : null, at: row.updated_at };
+}
+
 /** The business an ad is written for, as its settings say it. */
 function businessOf(settings: TenantConfig, named: { name: string }, word: AppointmentWord): AdBusinessFacts {
   const profile = settings.brain?.profile;
@@ -243,17 +258,31 @@ function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
   };
 }
 
-/** What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed. */
-export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
+/** The picture a kept draft shows, as its row holds it: read with the shelves, wherever it stands on them. */
+const keptPictureOf = (row: AdDraftRow | null): string | null => {
+  const picture = recordOrEmpty(row?.draft).picture;
+  return typeof picture === "string" ? picture : null;
+};
+
+/**
+ * What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed.
+ * `shown` are the pictures the request names (a piece "Run as an ad" chose, a draft's own), read with the kept draft's
+ * wherever they stand, so a draft's own picture is never "gone" for being older than the few each shelf is read for.
+ */
+export async function readAdDraftFacts(
+  rc: ReaderContext,
+  shown: readonly (string | undefined)[] = [],
+): Promise<AdDraftFacts> {
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
+  const keptRead = findAdDraft(supabase, rc.tenantId);
   const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow, listing] = await Promise.all([
     getTenantFacts(supabase, rc.tenantId),
     findConfigRow(supabase, rc.tenantId),
     getAppointmentWord(rc.ctx, rc.tenantId),
     findAdAccountForPage(supabase, rc.tenantId, "meta"),
     findChannelNumber(supabase, rc.tenantId, "whatsapp"),
-    listAdPictures(rc),
+    keptRead.then((kept) => listAdPictures(rc, [...shown, keptPictureOf(kept)])),
     readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
     listServicesBookedSince(
       supabase,
@@ -261,7 +290,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
       new Date(nowMs - BOOKED_LOOKBACK_DAYS * DAY_MS).toISOString(),
       BOOKED_READ,
     ),
-    findAdDraft(supabase, rc.tenantId),
+    keptRead,
     findGoogleListingFacts(supabase, rc.tenantId),
   ]);
   if (number.error) throw new DbFailure(number.error, "the number AI answers");
