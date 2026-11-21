@@ -24,6 +24,11 @@
     "fresh": "Read as the Ads page comes to what is true of a workspace today, nothing connected, and again each time a person comes back to it; nothing of it is kept once the page goes.",
     "why": "The page says how new people first came over the last 30 days, which moves slowly, and its door goes to Reports › People, whose own surface hears the feed. Reports' surface follows the period Reports shows, which is not this page's."
   },
+  "apps/dashboard/src/surfaces/campaigns/ads/new/meta-preview.ts GET ads/preview": {
+    "kind": "on-open",
+    "fresh": "Read as New ad shows a version whose words are written, once for each picture and words, and held for the tab under an hour; a change of words or picture is a new read.",
+    "why": "Meta's own preview of words not yet made at Meta, which no record of the workspace's moves: Meta's frame lasts a day, and the screen shows it only beside the picture and words it was drawn for."
+  },
   "apps/dashboard/src/surfaces/files/verbs.ts GET files/[id]": {
     "kind": "on-open",
     "fresh": "Read as a post's sheet opens, for the photo it came from and what it was asked to be; nothing of it is kept once the sheet goes.",

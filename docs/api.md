@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-433 handlers in 60 domains.
+434 handlers in 60 domains.
 
 ## activity
 
@@ -134,6 +134,14 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `ad` | `"unnamed"` or string | yes |  |
 | `offset` | integer | no | ≥ 0; ≤ 100000 |
+
+### `GET /api/v1/ads/preview`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 0; ≤ 2 |
 
 ### `POST /api/v1/ads/turn-on`
 
@@ -3849,7 +3857,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-63 doors.
+64 doors.
 
 ### `POST /api/admin/ads/account`
 
@@ -3882,6 +3890,14 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `ad_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `version` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
+
+### `POST /api/admin/ads/preview`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `preview` | object | no |  |
 
 ### `POST /api/admin/ads/turn-on`
 

@@ -215,11 +215,21 @@ function answerKindQuestion(io: Asking, about: AdSpecialKind, answer: "no" | "ye
   if (next && next.words.at !== "writing") void judgeDraft(io, next);
 }
 
-/** "Tell AI what to change": the one change it made, or none, said under the line. */
+/** Whether a change of AI's is one the owner set over while it was out: the amount, the end, or the miles they set. */
+const setOverByOwner = (answer: AdDraftHere, change: AdTellResult): boolean =>
+  change.kind === "changed" &&
+  (change.what === "amount" || change.what === "end" || (change.what === "area" && !answer.draft.area));
+
+/**
+ * "Tell AI what to change": the one change it made, or none, said under the line. Its answer brings the draft as it was
+ * sent: what the owner set while it was out stays theirs, is judged with AI's change, and a change of AI's they set
+ * over is not said as made.
+ */
 async function tellAiToChange(io: Asking, words: string): Promise<void> {
   const held = draftNow(io);
   if (!held || io.tellingNow.current) return;
   const turn = ++io.turns.current;
+  const setsAt = io.sets.current;
   io.setTelling(true);
   io.setOutcome(null);
   const answer = await io.source.words({ job: "change", draft: sentDraft(held), asked: words });
@@ -231,11 +241,15 @@ async function tellAiToChange(io: Asking, words: string): Promise<void> {
     return held.words.at === "writing" ? writeWords(io, held) : undefined;
   }
   if (!answer.can) return io.show(standOf(answer));
-  io.setOutcome(tellOutcome(answer));
-  const next: Held = { answer, local: localOf(answer), words: draftWords(answer), version: 0 };
-  // A new service waits for its own words: the writer is asked for them next.
+  const setSince = io.sets.current !== setsAt;
+  const change = tellOutcome(answer);
+  io.setOutcome(setSince && setOverByOwner(answer, change) ? null : change);
+  const next: Held = { answer, local: localAfter(io, answer, setsAt), words: draftWords(answer), version: 0 };
+  // A new service waits for its own words: the writer is asked for them next, with what the owner set.
   if (next.words.at === "writing") return writeWords(io, next);
   io.show({ at: "draft", ...next });
+  // What the owner set while AI was out is judged now, with AI's change.
+  if (setSince) return judgeDraft(io, next);
 }
 
 /** What Turn on's press shows: the draft as the server judged it, with the amount, miles and date the owner set. */
