@@ -64,11 +64,11 @@ export function metaPreviewRequest(token: string, appSecret: string, ask: MetaPr
   };
 }
 
-/** Meta's frame: the address of its own preview page, and the size Meta drew it at, where it said one. */
+/** Meta's frame: the address of its own preview page, and the size to frame it at, which its page draws the place in. */
 export interface MetaPreviewFrame {
   src: string;
-  width: number | null;
-  height: number | null;
+  width: number;
+  height: number;
 }
 
 /** Meta's own preview page: the hosts it is served from, each one New ad's page lets a frame open (csp.ts frame-src). */
@@ -99,6 +99,31 @@ function frameSizeOf(html: string, name: "width" | "height"): number | null {
   return Number.isInteger(pixels) && pixels >= 50 && pixels <= 4000 ? pixels : null;
 }
 
+/**
+ * The least each place's frame may be: the size Meta's page draws it at, whatever size its frame says. No page of the
+ * three narrows below 320. Measured on a real account, signed out, in Chrome's engine and Safari's, 21 November 2026:
+ *
+ * - The feed. Meta named its frame 335 × 450, and its page drew the ad 628 tall (a picture four wide by five tall
+ *   under three lines of words): a frame that size cut off the headline and the WhatsApp button, reached only by
+ *   scrolling inside it. The least is that ad and one more line of words; the page is white below a shorter ad.
+ * - A story. Meta named 320 × 567, one pixel short of its page: a frame that size on a desk drew two scroll bars.
+ * - A Reel. Meta named 274 × 213, and its page draws 320 × 567: a frame that size showed the top of the ad alone.
+ */
+const LEAST_PAGE: Record<MetaPreviewPlace, { width: number; height: number }> = {
+  feed: { width: 320, height: 650 },
+  story: { width: 320, height: 568 },
+  reel: { width: 320, height: 567 },
+};
+
+/** The size to frame a place at: the size Meta wrote, and never smaller than the place's page draws. */
+function frameSizeFor(place: MetaPreviewPlace, html: string): { width: number; height: number } {
+  const least = LEAST_PAGE[place];
+  return {
+    width: Math.max(frameSizeOf(html, "width") ?? 0, least.width),
+    height: Math.max(frameSizeOf(html, "height") ?? 0, least.height),
+  };
+}
+
 /** The frame's address, held to Meta's own preview page over https; null for anything else. */
 export function metaPreviewFrameSrc(src: string): string | null {
   const url = URL.canParse(src) ? new URL(src) : null;
@@ -116,16 +141,26 @@ function previewBodyOf(json: unknown): { count: number; body: string | null; key
 }
 
 /**
- * Meta's answer, read: the frame of its first preview. Throws, with Meta's words where it gave some, where the answer
- * holds no preview, or a frame whose address is not Meta's own preview page.
+ * Meta's answer for one place, read: the frame of its first preview, sized as the place's page draws it. Throws, with
+ * Meta's words where it gave some, where the answer holds no preview, or a frame whose address is not Meta's own
+ * preview page.
  */
-export function parseMetaPreview(json: unknown): MetaPreviewFrame {
+export function parseMetaPreview(json: unknown, place: MetaPreviewPlace): MetaPreviewFrame {
   const html = markupOf(previewBodyOf(json)?.body ?? "");
   if (!html) throw new Error(metaErrorOf(json)?.message ?? "Meta did not answer a preview");
   const written = attributeOf(html, "src");
   const src = written === null ? null : metaPreviewFrameSrc(frameAddressOf(written));
   if (!src) throw new Error("Meta's preview is not a frame of its own preview page");
-  return { src, width: frameSizeOf(html, "width"), height: frameSizeOf(html, "height") };
+  return { src, ...frameSizeFor(place, html) };
+}
+
+/**
+ * The size Meta wrote on its frame, said for the log as "335x450", a side it wrote none for as "?": what the frame's
+ * size is read against the day Meta's pages change, with nothing of its address in it.
+ */
+export function metaPreviewNamedSize(json: unknown): string {
+  const html = markupOf(previewBodyOf(json)?.body ?? "");
+  return `${frameSizeOf(html, "width") ?? "?"}x${frameSizeOf(html, "height") ?? "?"}`;
 }
 
 /**

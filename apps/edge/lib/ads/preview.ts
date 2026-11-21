@@ -22,6 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   callMetaAds,
   META_PREVIEW_PLACES,
+  metaPreviewNamedSize,
   metaPreviewRequest,
   metaPreviewShape,
   parseMetaPreview,
@@ -102,7 +103,13 @@ async function pictureLink(db: Db, tenantId: TenantId, fileId: string): Promise<
 async function askEachPlace(
   signIn: MetaSignIn,
   ask: Omit<Parameters<typeof metaPreviewRequest>[2], "place">,
-): Promise<{ shown: PlaceShown[]; said: (string | null)[]; unread: string | null; usage: number | null }> {
+): Promise<{
+  shown: PlaceShown[];
+  said: (string | null)[];
+  named: string[];
+  unread: string | null;
+  usage: number | null;
+}> {
   const answers = await Promise.all(
     META_PREVIEW_PLACES.map(async (place) => ({
       place,
@@ -114,7 +121,7 @@ async function askEachPlace(
   const shown = answers.map(({ place, answer }): PlaceShown => {
     if (answer.fault !== null) return { place, src: null, width: null, height: null, fault: answer.fault };
     try {
-      return { place, ...parseMetaPreview(answer.json), fault: null };
+      return { place, ...parseMetaPreview(answer.json, place), fault: null };
     } catch {
       // Meta answered something that is not a frame of its own preview page: nothing of it is drawn.
       return { place, src: null, width: null, height: null, fault: "unread" };
@@ -126,6 +133,8 @@ async function askEachPlace(
   return {
     shown,
     said: answers.map(({ answer }) => answer.said),
+    // The size Meta wrote on each place's frame, in the places' order: a frame is sized by its page, not by this.
+    named: answers.map(({ answer }) => (answer.fault === null ? metaPreviewNamedSize(answer.json) : "none")),
     unread: unreadAt < 0 ? null : metaPreviewShape(answers[unreadAt]?.answer.json),
     usage: usages.length > 0 ? Math.max(...usages) : null,
   };
@@ -174,7 +183,7 @@ export async function answerAdPreview(auth: Admitted, body: Partial<AdPreviewBod
   if (!signIn) return noneAnswer("signed_out");
   const picture = await pictureLink(db, tenantId, ask.picture);
   if ("none" in picture) return noneAnswer(picture.none);
-  const { shown, said, unread, usage } = await askEachPlace(signIn, {
+  const { shown, said, named, unread, usage } = await askEachPlace(signIn, {
     accountId: live.external_id,
     pageId,
     text: ask.text,
@@ -185,6 +194,7 @@ export async function answerAdPreview(auth: Admitted, body: Partial<AdPreviewBod
   logger({ tenant_id: tenantId, account_id: live.id }).info("ads_previewed", {
     outcome,
     faults: shown.map((one) => one.fault ?? "ok"),
+    named,
     // Meta's own words for a place it did not draw: for support, never for a screen.
     ...(outcome === "drawn" ? {} : { said: said.filter((words) => words !== null) }),
     ...(unread === null ? {} : { unread_shape: unread }),
