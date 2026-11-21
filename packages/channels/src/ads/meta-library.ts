@@ -86,3 +86,20 @@ export function parseMetaImageHash(json: unknown): string {
   if (!/^[A-Za-z0-9]{8,64}$/.test(hash)) throw new Error(metaErrorOf(json)?.message ?? "Meta did not keep the picture");
   return hash;
 }
+
+/**
+ * A picture taken out of the account's library by its hash: Meta's DELETE on the account's images, which answers `success`
+ * and takes only a picture no creative uses (its image reference, read on 20 November 2026).
+ */
+export function metaAdImageRemoveRequest(
+  token: string,
+  appSecret: string,
+  accountId: string,
+  hash: string,
+): MetaRequest {
+  if (!/^[A-Za-z0-9]{8,64}$/.test(hash)) throw new Error("the picture's hash is not one");
+  return {
+    url: metaGraphUrl(`${metaAccountPath(accountId)}/adimages`, { hash, ...metaProofQuery(token, appSecret) }),
+    method: "DELETE",
+  };
+}

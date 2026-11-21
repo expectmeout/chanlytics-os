@@ -51,7 +51,8 @@ export const ADS_ACCOUNT_DOOR = edgeDoor(
 /**
  * POST /api/admin/ads/check: the paused-ad check on an owner's own ad account (the Ads plan's step 4, "Checking against
  * Meta without spending"): the draft the owner approved, judged by the dashboard, sent to Meta once as dry runs, then
- * made paused and read back; or, with `remove` in place of a draft, a campaign an earlier check left, removed.
+ * made paused and read back; or, with `remove` in place of a draft, a campaign an earlier check left, removed; or, with
+ * `tidy`, what an ad a check made left once its campaign is gone.
  * `outcome` is what it came to; `steps` says what Meta did at each one, in Meta's own words where it refused; `differs`
  * names what Meta holds that is not what was sent.
  */
@@ -83,6 +84,8 @@ export const ADS_CHECK_DOOR = edgeDoor(
       .optional(),
     /** Meta's id for a campaign an earlier check made and left, to remove: the edge checks it is one. */
     remove: z.string().trim().min(5).max(32).optional(),
+    /** Meta's id for an ad a check made whose campaign is gone: its creative and picture are removed. */
+    tidy: z.string().trim().min(5).max(32).optional(),
   }),
   answerFields({
     outcome: z.string(),

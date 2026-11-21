@@ -80,20 +80,22 @@ export const AdDraftBodySchema = z.object({
   most: z.number().int().positive().max(100_000_000).optional(),
 });
 
+/** Meta's id for something it made: digits alone. */
+const MetaObjectId = z
+  .string()
+  .trim()
+  .regex(/^\d{5,32}$/);
+
 /**
  * POST ads/check: the draft New ad holds, sent to Meta once, made paused and read back; or, in its place, Meta's id for
- * a campaign an earlier check left, to remove. One of the two.
+ * a campaign an earlier check left, to remove, or for an ad a check made whose campaign is gone, to tidy. One alone.
  */
 export const AdPausedCheckBodySchema = z
-  .object({
-    draft: AdDraftStateSchema.optional(),
-    remove: z
-      .string()
-      .trim()
-      .regex(/^\d{5,32}$/)
-      .optional(),
-  })
-  .refine((body) => (body.draft === undefined) !== (body.remove === undefined), "A draft, or a campaign to remove.");
+  .object({ draft: AdDraftStateSchema.optional(), remove: MetaObjectId.optional(), tidy: MetaObjectId.optional() })
+  .refine(
+    (body) => [body.draft, body.remove, body.tidy].filter((part) => part !== undefined).length === 1,
+    "A draft, a campaign to remove, or an ad to tidy.",
+  );
 
 /** POST ads/words: the writer's two jobs on a draft. */
 export const AdWordsBodySchema = z.discriminatedUnion("job", [
