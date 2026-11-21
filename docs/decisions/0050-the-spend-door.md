@@ -573,3 +573,18 @@ with a card limit he sets.
 - **Not built here:** a video sent to Meta (Turn on sends a photo for now, and says so); Cancel during Setting up; the
   bell's rows for Couldn't finish and Couldn't confirm it's on (the page and the drawer say both); and the owner's
   changes to a running ad made here (the plan's step 4, item 6).
+
+## Settled 21 November 2026 · staging, and pausing when the way in closes
+
+Ruben, 21 November 2026: "everything you recommend". The Ads plan's section 12 says the same.
+
+- **Call 13: no staging deployment is built for Ads.** What it was for is proven without it: the paused-ad check on
+  Ruben's own account made every part of an ad at Meta with nothing spent (20 November), `ADS_WRITES=sandbox` walks
+  every step of a launch with Meta's answers made up, and Meta's pages no longer hold a test ad account ("As built,
+  19 November 2026", above). So the first spend goes as the Ads plan's step 4, item 9 says: Ruben's own account with
+  every ad paused, then with a hard card limit, then pilots. Call 13's text and P2's "it waits for staging and the
+  sandboxes" stand as history.
+- **Call 11's owner setting, "Pause my ads when the way in closes", is left for later.** The first version tells the
+  owner and pauses nothing by itself. Of the telling, AI's stop is built (the page says how many ads are still on, with
+  one press to pause them all); the sweep's check of each running ad's way in (WhatsApp disconnected or blocked, the
+  line off, billing paused) with its badge, bell row and Today line is not built yet.
