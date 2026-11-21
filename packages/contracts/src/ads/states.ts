@@ -57,11 +57,7 @@ interface AdKept {
    * itself is `made` from its first read.
    */
   status: "draft" | "sending" | "failed" | "made";
-  /**
-   * What the owner last asked of it. For an ad made at the platform itself, what its switches say there: on only where
-   * its own switch and the two above it (its ad set and its campaign) are all on, so an ad paused at any of the three
-   * is paused here, whatever the platform's word for its review (the read folds the three, apps/edge/lib/ads/adopt.ts).
-   */
+  /** What the owner last asked of it. */
   intent: "on" | "paused" | "ended";
   platform: AdPlatform;
   /** The platform's own word for it, as the platform gave it; null until the platform has been read. */
@@ -83,7 +79,7 @@ interface AdKept {
  * An ad's badge, at `today` (an ISO day in the account's zone). In order: what Chanlytics is still doing; a run that is
  * over (its total spent, then ended by its owner, its platform or its last day); a last switch not yet confirmed; what
  * the platform will not run until the owner acts; and then what the platform says against what the owner asked. A word
- * Chanlytics does not know is never read as On, and an ad paused by any of its three switches is never offered Pause.
+ * Chanlytics does not know is never read as On.
  */
 export function adStateOf(ad: AdKept, today: string): AdState | "draft" {
   if (ad.status === "draft") return "draft";

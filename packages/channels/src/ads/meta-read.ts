@@ -37,10 +37,9 @@ const META_LISTED_STATES = [
   "WITH_ISSUES",
 ] as const;
 
-/** What a list asks of the ad set above each ad: its switch, its budget and run, what a tap opens, and where it shows. */
+/** What a list asks of the ad set above each ad: its budget and run, what a tap opens, and where it shows. */
 const SET_FIELDS = [
   "id",
-  "status",
   "daily_budget",
   "lifetime_budget",
   "budget_remaining",
@@ -59,7 +58,7 @@ const AD_FIELDS = [
   "issues_info",
   "ad_review_feedback",
   `adset{${SET_FIELDS}}`,
-  "campaign{id,status,daily_budget,lifetime_budget,budget_remaining}",
+  "campaign{id,daily_budget,lifetime_budget,budget_remaining}",
   "creative{title,body,thumbnail_url}",
 ].join(",");
 
@@ -110,11 +109,6 @@ export interface MetaAd {
   name: string;
   /** What its owner set it to: Meta's `status`. Null for a word Chanlytics does not know. */
   configured: "ACTIVE" | "PAUSED" | "ARCHIVED" | "DELETED" | null;
-  /**
-   * What its owner set the two parts above it to, each Meta's `status`: an ad whose ad set or campaign is paused does
-   * not run, whatever its own switch and Meta's word for its review say. Null for a word Chanlytics does not know.
-   */
-  above: { set: MetaAd["configured"]; campaign: MetaAd["configured"] };
   /** Where it shows: the platforms its ad set names, as Meta names them; null where Meta named none. */
   shownOn: string[] | null;
   /** Meta's own word for where it stands, as given (`effective_status`). */
@@ -186,10 +180,6 @@ function adOf(row: unknown, currency: string): MetaAd | null {
   const campaign = metaObject(valueAt(ad, "campaign"));
   const creative = metaObject(valueAt(ad, "creative"));
   const configured = metaText(valueAt(ad, "status"));
-  const switchOf = (part: Record<string, unknown> | null): MetaAd["configured"] => {
-    const word = metaText(valueAt(part, "status"));
-    return isConfigured(word) ? word : null;
-  };
   const platforms = valueAt(metaObject(valueAt(set, "targeting")), "publisher_platforms");
   const shownOn = Array.isArray(platforms)
     ? platforms
@@ -204,7 +194,6 @@ function adOf(row: unknown, currency: string): MetaAd | null {
     id,
     name: metaText(valueAt(ad, "name")).slice(0, 500) || id,
     configured: isConfigured(configured) ? configured : null,
-    above: { set: switchOf(set), campaign: switchOf(campaign) },
     shownOn: shownOn.length > 0 ? shownOn : null,
     state: metaText(valueAt(ad, "effective_status")).slice(0, 100) || "UNKNOWN",
     issue: issueOf(ad),

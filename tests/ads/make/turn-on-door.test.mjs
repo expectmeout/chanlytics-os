@@ -172,7 +172,6 @@ const metaAd = (id, over = {}) => ({
   id,
   name: launchNameOf({ id: MADE_HERE, name: "First visit" }, { at: 1, of: 3 }),
   configured: "ACTIVE",
-  above: { set: "ACTIVE", campaign: "ACTIVE" },
   shownOn: ["facebook"],
   state: "PENDING_REVIEW",
   issue: null,

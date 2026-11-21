@@ -265,20 +265,13 @@ test("what a tap opens, and what the owner has the ad set to, in Chanlytics' wor
     ].map(doorOf),
     ["whatsapp", "whatsapp", "instagram", "messenger", "call", "form", "website", "other", "other"],
   );
-  const above = { set: null, campaign: null };
-  assert.deepEqual(
-    ["ACTIVE", "PAUSED", "ARCHIVED", "DELETED", null].map((configured) => intentOf({ configured, above })),
-    ["on", "paused", "ended", "ended", "paused"],
-  );
-  // An ad whose ad set or campaign is paused runs nowhere, whatever its own switch and its review say (the paused-ad
-  // check's own ad, 20 November 2026): it is paused here, and never offered Pause.
-  for (const held of [
-    { set: "PAUSED", campaign: "ACTIVE" },
-    { set: "ACTIVE", campaign: "PAUSED" },
-    { set: "PAUSED", campaign: "PAUSED" },
-  ])
-    assert.equal(intentOf({ configured: "ACTIVE", above: held }), "paused", JSON.stringify(held));
-  assert.equal(intentOf({ configured: "ACTIVE", above: { set: "ACTIVE", campaign: "ACTIVE" } }), "on");
+  assert.deepEqual(["ACTIVE", "PAUSED", "ARCHIVED", "DELETED", null].map(intentOf), [
+    "on",
+    "paused",
+    "ended",
+    "ended",
+    "paused",
+  ]);
 });
 
 test("a budget two ads spend from is shared; an ad that is gone spends from none", () => {

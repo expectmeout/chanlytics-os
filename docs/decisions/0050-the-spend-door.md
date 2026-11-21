@@ -504,10 +504,10 @@ with a card limit he sets.
   page's counts and the bell's "nobody wrote".
 - **Pause and turning back on, for an ad made here,** switch its own campaign, which holds its versions and nothing
   else; it turns back on here with what is left and its end named (`adResumeRule`), never while AI is stopped.
-- **Three things seen on the paused-ad check's ad, mended here.** An ad's name never shows its tag (the read keeps the
-  name as an owner reads it); an ad whose ad set or campaign is paused reads as paused, with no Pause offered (the read
-  folds the three switches into what the owner has it set to); and a drawer says where the ad shows, from the ad set's
-  own platforms (`ads.shown_on`), "Facebook" for that one.
+- **Two things seen on the paused-ad check's ad, mended here.** An ad's name never shows its tag (the read keeps the
+  name as an owner reads it), and a drawer says where the ad shows, from the ad set's own platforms (`ads.shown_on`),
+  "Facebook" for that one. A third, Pause offered on that ad while Meta checked it, was right: its own switch was on
+  (step 2's Resume had just reached Meta), so it stands as it was.
 - **`ADS_WRITES`:** `live` sends; `sandbox` walks every step and makes up Meta's answers (ids that begin 0000, which
   the read never asks Meta about); anything else stops a launch before it sends.
 - **Not built here:** a video sent to Meta (Turn on sends a photo for now, and says so); Cancel during Setting up; the
