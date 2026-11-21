@@ -14,6 +14,7 @@ import {
   adStateOfRow,
   adWayInOf,
   adWayInRowOf,
+  repliesGoOf,
   standingFromConfig,
   type AdWayIn,
   type TenantId,
@@ -35,14 +36,17 @@ async function readWayFacts(db: Db, tenantId: TenantId) {
     isSendingStopped(db, tenantId),
   ]);
   return {
-    number: number && { e164: number.number, canSend: standingFromConfig(number.config.standing)?.can_send ?? null },
+    number: number && {
+      e164: number.number,
+      repliesGo: repliesGoOf(standingFromConfig(number.config.standing)?.can_send ?? null),
+    },
     paused,
     stopped,
   };
 }
 
 /** The way in of the chat an ad opens with the number it names, read now. */
-export async function wayInNow(db: Db, tenantId: TenantId, named: string | null): Promise<AdWayIn> {
+export async function readWayIn(db: Db, tenantId: TenantId, named: string | null): Promise<AdWayIn> {
   return adWayInOf({ named, ...(await readWayFacts(db, tenantId)) });
 }
 
@@ -68,21 +72,21 @@ const running = (row: AdMadeRow, at: { nowMs: number; timezone: string }): boole
 export async function keepWaysIn(
   db: Db,
   log: ReturnType<typeof logger>,
-  who: { tenantId: TenantId; account: { id: string; currency: string; timezone: string | null } },
+  scope: { tenantId: TenantId; account: { id: string; currency: string; timezone: string | null } },
 ): Promise<{ moved: number; rung: number; closed: number } | null> {
-  const ads = (await listMadeAds(db, who.tenantId, who.account.id)).filter((row) => row.origin === "chanlytics");
+  const ads = (await listMadeAds(db, scope.tenantId, scope.account.id)).filter((row) => row.origin === "chanlytics");
   if (ads.length === 0) return null;
-  const facts = await readWayFacts(db, who.tenantId);
-  const at = { nowMs: Date.now(), timezone: who.account.timezone ?? "UTC" };
+  const facts = await readWayFacts(db, scope.tenantId);
+  const at = { nowMs: Date.now(), timezone: scope.account.timezone ?? "UTC" };
   const ways = ads.map((row): AdWayInKept => {
     const way = running(row, at) ? adWayInOf({ named: namedOf(row), ...facts }) : "open";
     if (way === "open") return { ad_id: row.id, way_in: null };
     const left = row.budget_kind === "total" ? row.budget_left_minor : null;
-    const said = adWayInRowOf({ name: row.name, wayIn: way, leftMinor: left, currency: who.account.currency });
-    return { ad_id: row.id, way_in: way, ...said };
+    const bell = adWayInRowOf({ name: row.name, wayIn: way, leftMinor: left, currency: scope.account.currency });
+    return { ad_id: row.id, way_in: way, ...bell };
   });
-  const kept = await keepAdWayIns(db, who.tenantId, who.account.id, ways);
+  const kept = await keepAdWayIns(db, scope.tenantId, scope.account.id, ways);
   if (kept && (kept.moved > 0 || kept.rung > 0 || kept.closed > 0))
-    log.info("ads_way_in", { account_id: who.account.id, ...kept, closed_ways: ways.filter((w) => w.way_in).length });
+    log.info("ads_way_in", { account_id: scope.account.id, ...kept, closed_ways: ways.filter((w) => w.way_in).length });
   return kept;
 }

@@ -15,10 +15,13 @@ import * as C from "@chanlytics/contracts";
 
 const NUMBER = "+13055550142";
 
-/** A workspace whose WhatsApp number Meta last said may send, AI running and the workspace on. */
+/**
+ * A workspace whose WhatsApp number Meta last said may send, AI running and the workspace on. Meta's word reaches the rule
+ * read through repliesGoOf, as both its readers hand it (the dashboard's draft facts, the edge's ads/chat/answered.ts).
+ */
 const facts = (over = {}) => ({
   named: NUMBER,
-  number: { e164: NUMBER, canSend: "AVAILABLE" },
+  number: { e164: NUMBER, repliesGo: C.repliesGoOf("AVAILABLE") },
   paused: false,
   stopped: false,
   ...over,
@@ -55,7 +58,7 @@ test("Connections' row says replies still go from the same reading: never of a B
 
 test("a number Meta says may send, named by the ad, AI running and the workspace on, is a way in", () => {
   assert.equal(C.adWayInOf(facts()), "open");
-  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, canSend: "LIMITED" } })), "open");
+  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, repliesGo: C.repliesGoOf("LIMITED") } })), "open");
   // The same number however it is written.
   assert.equal(C.adWayInOf(facts({ named: "+1 (305) 555-0142" })), "open");
 });
@@ -63,7 +66,7 @@ test("a number Meta says may send, named by the ad, AI running and the workspace
 test("the fact is about the number the ad names: none connected, another one, or none named is no way in", () => {
   assert.equal(C.adWayInOf(facts({ number: null })), "no_number", "no active WhatsApp number: off or disconnected");
   assert.equal(
-    C.adWayInOf(facts({ number: { e164: "+13055550199", canSend: "AVAILABLE" } })),
+    C.adWayInOf(facts({ number: { e164: "+13055550199", repliesGo: C.repliesGoOf("AVAILABLE") } })),
     "no_number",
     "another number is connected now: the ad's chats would go to a line that is not it",
   );
@@ -72,14 +75,17 @@ test("the fact is about the number the ad names: none connected, another one, or
 });
 
 test("not known is not open, and Meta stopping the number closes it", () => {
-  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, canSend: null } })), "unread");
-  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, canSend: "UNKNOWN_WORD" } })), "unread");
-  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, canSend: "BLOCKED" } })), "blocked");
+  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, repliesGo: C.repliesGoOf(null) } })), "unread");
+  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, repliesGo: C.repliesGoOf("UNKNOWN_WORD") } })), "unread");
+  assert.equal(C.adWayInOf(facts({ number: { e164: NUMBER, repliesGo: C.repliesGoOf("BLOCKED") } })), "blocked");
 });
 
 test("AI stopped and the workspace paused close it whatever Meta says, AI's stop first", () => {
   assert.equal(C.adWayInOf(facts({ paused: true })), "paused");
   assert.equal(C.adWayInOf(facts({ stopped: true })), "stopped");
   assert.equal(C.adWayInOf(facts({ stopped: true, paused: true, number: null })), "stopped");
-  assert.equal(C.adWayInOf(facts({ paused: true, number: { e164: NUMBER, canSend: "BLOCKED" } })), "paused");
+  assert.equal(
+    C.adWayInOf(facts({ paused: true, number: { e164: NUMBER, repliesGo: C.repliesGoOf("BLOCKED") } })),
+    "paused",
+  );
 });

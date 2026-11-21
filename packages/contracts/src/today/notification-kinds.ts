@@ -232,8 +232,8 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
   {
     key: "ads",
     group: "needs_you",
-    title: "Your ads need you",
-    what: "Meta didn't approve an ad or couldn't charge your card for one, AI can't answer the people one brings, or Chanlytics paused your ads. It says what to do.",
+    title: "An ad needs you",
+    what: "An ad Meta refused or couldn't charge for, one AI can't answer, or ads Chanlytics paused. It says what to do.",
     email: "choice",
     phone: false,
     kinds: ["ad_refused", "ad_unpaid", "ad_way_in", "ads_paused"],

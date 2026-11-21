@@ -89,7 +89,7 @@ export {
   ADS_PREVIEW_DOOR,
   ADS_TURN_ON_DOOR,
 } from "./edge-doors";
-export { AD_DOORS_COUNTED, AD_WAY_IN_UNREAD_MS, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./live";
+export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./live";
 export type {
   AdBudgetLive,
   AdLaunchLive,

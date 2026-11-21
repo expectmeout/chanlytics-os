@@ -1,7 +1,5 @@
-import { z } from "zod";
-import { AD_PAUSE_ALL_MAX, UUID } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/shared/route";
-import { resumeStoppedAds } from "@/server/ads/presses";
+import { AdSetPressBodySchema, resumeStoppedAds } from "@/server/ads/presses";
 
 /**
  * POST /api/v1/ads/resume-stopped — the owner turns back on the ads Stop everything paused (the content loop PRD's 14.1,
@@ -13,12 +11,6 @@ export const POST = write({
   scope: workspace,
   role: "owner",
   rate: "settings",
-  input: z.object({
-    ads: z
-      .array(z.object({ id: z.string().regex(UUID), version: z.number().int().min(1) }))
-      .min(1)
-      .max(AD_PAUSE_ALL_MAX)
-      .refine((ads) => new Set(ads.map((ad) => ad.id)).size === ads.length, "Each ad once."),
-  }),
+  input: AdSetPressBodySchema,
   handle: ({ ctx, member, input }) => resumeStoppedAds(ctx, member, input.ads),
 });

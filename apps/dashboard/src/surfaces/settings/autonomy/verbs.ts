@@ -36,7 +36,7 @@ async function stopAll(stopped: boolean): Promise<{ ok: true; answer: StopPresse
  * The owner's own press after a Resume: the ads the stop paused, turned back on (the content loop PRD's 14.1, call 21).
  * What came of it, as how many were taken, or why it was refused.
  */
-async function resumeStoppedAds(
+async function turnStoppedAdsOn(
   ads: readonly { id: string; version: number }[],
 ): Promise<{ ok: true; taken: number } | { ok: false; message: string }> {
   const r = await apiFor(window)("POST ads/resume-stopped", {
@@ -46,4 +46,4 @@ async function resumeStoppedAds(
   return { ok: true, taken: r.data.ads.filter((one) => ["soon", "same", "took_back"].includes(one.outcome)).length };
 }
 
-export const autonomyVerbs = { setPolicy, answerFact, setAskAlone, stopAll, resumeStoppedAds };
+export const autonomyVerbs = { setPolicy, answerFact, setAskAlone, stopAll, turnStoppedAdsOn };

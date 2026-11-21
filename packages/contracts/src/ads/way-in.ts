@@ -11,13 +11,13 @@
  *   unread     what Meta holds about the number is not known: never read, or a word of Meta's that is none of its three.
  *              Not known is not open: Turn on is refused until it is read, and a running ad is told only once it stays so.
  *   blocked    Meta says the number may not send, replies included (lines/number-standing.ts repliesGoOf, the one reading
- *              of Meta's word that Connections' row says too).
+ *              of Meta's word that Connections' row says too, which the caller hands here read).
  *
  * The order is the one an owner mends them in, AI's own stop first. New ad says the first as the one thing missing, Turn on
  * refuses on it at the press and again just before the ad is switched on, and the read of a running ad's way in says it
  * as Needs you. Nothing here reads a database or asks Meta: it is given what was read.
  */
-import { repliesGoOf } from "../lines/number-standing";
+import { samePhone } from "../shared/phone";
 import { numberFormat } from "../shared/time";
 import { minorPerUnit } from "./money";
 
@@ -28,28 +28,25 @@ export interface AdWayInFacts {
   /** The number the ad names, as dialled (any punctuation); null for an ad that names none. */
   named: string | null;
   /**
-   * The workspace's active WhatsApp number, and Meta's word for whether it may send (`can_send`) as it was last read; null
-   * with no active number. `canSend` null: nothing was read.
+   * The workspace's active WhatsApp number, and whether a reply goes out from it: Meta's word (`can_send`) as it was last
+   * read, through lines' one reading of it (repliesGoOf). Null with no active number; `repliesGo` null: not known, from
+   * nothing read or a word of Meta's that is none of its three.
    */
-  number: { e164: string | null; canSend: string | null } | null;
+  number: { e164: string | null; repliesGo: boolean | null } | null;
   /** The workspace's billing is paused (tenants.status). */
   paused: boolean;
   /** AI is stopped. */
   stopped: boolean;
 }
 
-/** A number as its digits, so "+1 (305) 555-0142" and "+13055550142" are one. */
-const digitsOf = (number: string | null): string => (number ?? "").replace(/\D/g, "");
-
 /** The ad's way in: `open` where AI answers the chat it opens, else the first thing that stops it. */
 export function adWayInOf(facts: AdWayInFacts): AdWayIn {
   if (facts.stopped) return "stopped";
   if (facts.paused) return "paused";
-  const named = digitsOf(facts.named);
-  if (!facts.number || named === "" || digitsOf(facts.number.e164) !== named) return "no_number";
-  const goes = repliesGoOf(facts.number.canSend);
-  if (goes === null) return "unread";
-  return goes ? "open" : "blocked";
+  // One number however it is written: "+1 (305) 555-0142" is "+13055550142"; nothing named is never a match.
+  if (!facts.number || !samePhone(facts.named, facts.number.e164)) return "no_number";
+  if (facts.number.repliesGo === null) return "unread";
+  return facts.number.repliesGo ? "open" : "blocked";
 }
 
 /** Why AI can't answer a running ad's chat, as the bell's row and the ad's drawer say it, in the owner's words. */

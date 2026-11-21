@@ -290,37 +290,42 @@ async function pauseAll(db: Db, by: PressedBy, presses: readonly AdPause[]): Pro
   return json(200, { ok: true, outcome: "kept", ads });
 }
 
+/** The ops on a set of ads: pause_all and resume_all, each ad named with the version it was drawn from, once. */
+async function runSetPress(tenantId: string, userId: string, body: Partial<AdsPressBody>): Promise<Response> {
+  const presses = pausesOf(body.ads);
+  if (!isTenantId(tenantId) || !UUID.test(userId) || presses === null)
+    return refuse(400, "bad_request", "tenant_id, user_id and ads (each an ad_id and its version, once) required");
+  return admitted({ tenantId, userId }, (db, by) =>
+    body.op === "resume_all" ? resumeAll(db, by, presses) : pauseAll(db, by, presses),
+  );
+}
+
+/** `cancel` on one ad while it is set up: no version, since a cancel is kept whatever was drawn. */
+async function runCancelPress(tenantId: string, userId: string, adId: string): Promise<Response> {
+  if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId))
+    return refuse(400, "bad_request", "tenant_id, user_id and ad_id required");
+  return admitted({ tenantId, userId }, (db, by) => cancelOne(db, by, adId));
+}
+
+/** The ops that name no intent: check, change and cancel on one ad, and pause_all and resume_all on a set of them. */
+const OTHER_OPS: readonly string[] = ["check", "change", "cancel", "pause_all", "resume_all"];
+
 /** The door's ops: pause, resume, check, change and cancel on one ad, and pause_all and resume_all on a set of them. */
 export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): Promise<Response> {
   const intent: AdIntent | null = body.op === "pause" ? "paused" : body.op === "resume" ? "on" : null;
-  const all = body.op === "pause_all" || body.op === "resume_all";
-  const change = body.op === "change";
-  const cancel = body.op === "cancel";
-  if (intent === null && body.op !== "check" && !all && !change && !cancel)
+  if (intent === null && !OTHER_OPS.includes(body.op ?? ""))
     return refuse(400, "unknown_op", "op is pause, resume, check, change, cancel, pause_all or resume_all");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
   const userId = personFor(auth, body.user_id) ?? "";
-  if (all) {
-    const presses = pausesOf(body.ads);
-    if (!isTenantId(tenantId) || !UUID.test(userId) || presses === null)
-      return refuse(400, "bad_request", "tenant_id, user_id and ads (each an ad_id and its version, once) required");
-    return admitted({ tenantId, userId }, (db, by) =>
-      body.op === "resume_all" ? resumeAll(db, by, presses) : pauseAll(db, by, presses),
-    );
-  }
-  if (cancel) {
-    const adId = String(body.ad_id ?? "");
-    if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId))
-      return refuse(400, "bad_request", "tenant_id, user_id and ad_id required");
-    return admitted({ tenantId, userId }, (db, by) => cancelOne(db, by, adId));
-  }
+  if (body.op === "pause_all" || body.op === "resume_all") return runSetPress(tenantId, userId, body);
+  if (body.op === "cancel") return runCancelPress(tenantId, userId, String(body.ad_id ?? ""));
   const adId = String(body.ad_id ?? "");
   const version = typeof body.version === "number" && Number.isInteger(body.version) ? body.version : 0;
   if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId) || version < 1)
     return refuse(400, "bad_request", "tenant_id, user_id, ad_id and version required");
-  if (change)
+  if (body.op === "change")
     return admitted({ tenantId, userId }, (db, by) => runAdChange(db, by, { adId, version, change: body.change }));
   return admitted({ tenantId, userId }, (db, by) => pressOne(db, by, { adId, version, intent }));
 }

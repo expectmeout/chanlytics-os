@@ -283,16 +283,16 @@ function AskOnItsOwn({
   const adsLine = stopped === null ? stoppedAdsLineOf(waiting) : null;
   const turnBackOn = async () => {
     setBusy(true);
-    const r = await autonomyVerbs.resumeStoppedAds(waiting);
+    const answer = await autonomyVerbs.turnStoppedAdsOn(waiting);
     setBusy(false);
-    if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!answer.ok) return flash({ tone: "danger", msg: <>{answer.message}</> });
     setWaiting([]);
     flash({
       msg: (
         <>
-          {r.taken === 1
+          {answer.taken === 1
             ? "1 ad turns back on as soon as Meta takes the change."
-            : `${r.taken} ads turn back on as soon as Meta takes the change.`}
+            : `${answer.taken} ads turn back on as soon as Meta takes the change.`}
         </>
       ),
     });

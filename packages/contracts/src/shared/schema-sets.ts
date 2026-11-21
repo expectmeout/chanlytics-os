@@ -33,15 +33,9 @@ import type {
   MESSAGE_SENDERS,
   MESSAGE_STATUSES,
   MESSAGE_TYPES,
-  REMEDIATION_ACTS,
-  REMEDIATION_CAUSES,
-  REMEDIATION_OUTCOMES,
-  REMEDIATION_SUBJECTS,
-  REMEDIATION_TARGETS,
   TEMPLATE_STATUSES,
   TENANT_STATUSES,
 } from "./enums";
-import type { AdPausedBy, AdWayClosed } from "../ads/live";
 import type { CAPABILITY_KINDS } from "../setup/capabilities";
 import type { ANTHROPIC_ENFORCEMENT_STATUSES, ANTHROPIC_PROFILE_KINDS } from "../ai/anthropic-enforcement";
 import type { AI_USAGE_PORTS, AI_USAGE_PURPOSES } from "../ai/hearing";
@@ -336,13 +330,4 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof SOURCE_ITEM_KINDS>, SchemaSet<"source_items.kind">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_STATES>, SchemaSet<"source_items.state">>>,
   Holds<Exactly<Of<typeof SOURCE_ITEM_WHYS>, SchemaSet<"source_items.why">>>,
-  // Why Chanlytics holds an ad paused, and what stands in a running ad's way in (00676).
-  Holds<Exactly<AdPausedBy, SchemaSet<"ads.paused_by">>>,
-  Holds<Exactly<AdWayClosed, SchemaSet<"ads.way_in">>>,
-  // A remediation and its actions (00676; the content loop PRD's 5.3 and 5.4).
-  Holds<Exactly<Of<typeof REMEDIATION_CAUSES>, SchemaSet<"remediations.cause">>>,
-  Holds<Exactly<Of<typeof REMEDIATION_SUBJECTS>, SchemaSet<"remediations.subject_type">>>,
-  Holds<Exactly<Of<typeof REMEDIATION_TARGETS>, SchemaSet<"remediation_actions.target_type">>>,
-  Holds<Exactly<Of<typeof REMEDIATION_ACTS>, SchemaSet<"remediation_actions.act">>>,
-  Holds<Exactly<Of<typeof REMEDIATION_OUTCOMES>, SchemaSet<"remediation_actions.outcome">>>,
 ];

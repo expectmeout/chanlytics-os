@@ -10,9 +10,12 @@
  * is turned back on, or given more to spend, from here (the Ads plan's G17); a pause, a cut and an end always go.
  */
 import "server-only";
+import { z } from "zod";
 import {
+  AD_PAUSE_ALL_MAX,
   AppError,
   SECOND_MS,
+  UUID,
   adAmountAfter,
   adChangeFactsOf,
   adChangeIssue,
@@ -272,6 +275,18 @@ export async function changeAd(
 }
 
 /** What pausing every ad of a set came to, ad by ad, in the order asked. */
+/**
+ * What a press on a set of ads takes (`POST ads/pause-all`, `POST ads/resume-stopped`): one to AD_PAUSE_ALL_MAX ads, each
+ * an id and the version it was drawn from, and none twice.
+ */
+export const AdSetPressBodySchema = z.object({
+  ads: z
+    .array(z.object({ id: z.string().regex(UUID), version: z.number().int().min(1) }))
+    .min(1)
+    .max(AD_PAUSE_ALL_MAX)
+    .refine((ads) => new Set(ads.map((ad) => ad.id)).size === ads.length, "Each ad once."),
+});
+
 interface AdsPausedAll {
   ads: AdPausedOne[];
 }
@@ -289,12 +304,25 @@ export async function pauseAllAds(
   member: Member,
   ads: readonly { id: string; version: number }[],
 ): Promise<AdsPausedAll> {
+  return pressAdSet({ ctx, member, ads }, "pause_all", PAUSED_ONE);
+}
+
+/**
+ * A press on a set of ads at the edge, each with the version it was drawn from, kept there in one transaction before it
+ * answers: what each came to, one of `words`, or `unknown` where the edge gave no answer in time or named none for it.
+ */
+async function pressAdSet<Word extends string>(
+  press: { ctx: RouteContext; member: Member; ads: readonly { id: string; version: number }[] },
+  op: "pause_all" | "resume_all",
+  words: readonly Word[],
+): Promise<{ ads: { id: string; outcome: Word | "unknown"; version: number | null }[] }> {
+  const { ctx, member, ads } = press;
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
   const answer: Answer = await callEdge(
     "/api/admin/ads/press",
     {
-      op: "pause_all",
+      op,
       tenant_id: member.tenantId,
       user_id: ctx.userId,
       ads: ads.map((ad) => ({ ad_id: ad.id, version: ad.version })),
@@ -304,14 +332,14 @@ export async function pauseAllAds(
   const body = answer.body ?? {};
   if (body.error === "edge_timeout")
     return { ads: ads.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })) };
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "pause_all");
+  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, op);
   const answered = new Map((body.ads ?? []).map((one) => [one.ad_id, one]));
   return {
     ads: ads.map((ad) => {
       const one = answered.get(ad.id);
       return {
         id: ad.id,
-        outcome: PAUSED_ONE.find((word) => word === one?.outcome) ?? "unknown",
+        outcome: words.find((word) => word === one?.outcome) ?? "unknown",
         version: one?.version ?? null,
       };
     }),
@@ -338,33 +366,7 @@ export async function resumeStoppedAds(
   member: Member,
   ads: readonly { id: string; version: number }[],
 ): Promise<{ ads: AdResumedOne[] }> {
-  if (!edgeConfigured() || !deployment.providersLive)
-    throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
-  const answer: Answer = await callEdge(
-    "/api/admin/ads/press",
-    {
-      op: "resume_all",
-      tenant_id: member.tenantId,
-      user_id: ctx.userId,
-      ads: ads.map((ad) => ({ ad_id: ad.id, version: ad.version })),
-    },
-    { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
-  );
-  const body = answer.body ?? {};
-  if (body.error === "edge_timeout")
-    return { ads: ads.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })) };
-  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "resume_all");
-  const answered = new Map((body.ads ?? []).map((one) => [one.ad_id, one]));
-  return {
-    ads: ads.map((ad) => {
-      const one = answered.get(ad.id);
-      return {
-        id: ad.id,
-        outcome: RESUMED_ONE.find((word) => word === one?.outcome) ?? "unknown",
-        version: one?.version ?? null,
-      };
-    }),
-  };
+  return pressAdSet({ ctx, member, ads }, "resume_all", RESUMED_ONE);
 }
 
 /** What a Cancel came to: on its way to the job setting it up, asked already, too late (made), or over. */

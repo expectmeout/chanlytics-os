@@ -72,7 +72,7 @@ import type { Database } from "@chanlytics/db/types";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { logger } from "../shared/log.js";
-import { wayInNow } from "./chat/answered.js";
+import { readWayIn } from "./chat/answered.js";
 import { approvedOf, launchDiffers, type LaunchApproved, type LaunchMoment } from "./launch-parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { ADS_USAGE_HOLD_PCT } from "./pace.js";
@@ -168,7 +168,7 @@ async function keepStep(pass: Stopping, step: AdLaunchStep): Promise<"going" | "
 }
 
 /** A launch its door let go of stops, for the door's reason. */
-const letGo = (why: "cancelled" | "disconnected"): Step => ({ stop: why, said: null });
+const letGoFor = (reason: "cancelled" | "disconnected"): Step => ({ stop: reason, said: null });
 
 /** A launch's write went unanswered: when, kept, so it is followed and never sent again. */
 const unanswered = (pass: Pass) =>
@@ -204,7 +204,7 @@ async function followPart(pass: Pass, ask: PartAsk & { edge: MetaPartEdge }): Pr
     // Found: Meta made it after all, and the launch goes on from it. Nothing of it is unanswered now.
     const part = { kind: ask.kind, version: ask.version, name: ask.name, state: "made" as const, platform_id: id };
     const kept = await keepStep(pass, { objects: [part], launch: { unknown_at: null } });
-    return kept === "going" ? { id } : letGo(kept);
+    return kept === "going" ? { id } : letGoFor(kept);
   }
   // A make kept as sent whose pass ended before its answer was kept has no moment yet: its following starts now.
   if (typeof pass.launch.unknown_at !== "string") {
@@ -227,7 +227,7 @@ async function partMadeOf(pass: Pass, ask: PartAsk, answer: MetaAdsAnswer): Prom
   const id = answer.fault === null ? ask.idOf(answer.json) : null;
   if (id !== null) {
     const kept = await keepStep(pass, { objects: [{ ...part, state: "made", platform_id: id }] });
-    return kept === "going" ? { id } : letGo(kept);
+    return kept === "going" ? { id } : letGoFor(kept);
   }
   // Meta made nothing: refused, or held this account back. Held back, it is sent on a later pass.
   await keepStep(pass, { objects: [{ ...part, state: "refused" }] });
@@ -253,7 +253,7 @@ async function makePart(pass: Pass, ask: PartAsk): Promise<Step> {
   const sent = await keepStep(pass, {
     objects: [{ kind: ask.kind, version: ask.version, name: ask.name, state: "sent" }],
   });
-  if (sent !== "going") return letGo(sent);
+  if (sent !== "going") return letGoFor(sent);
   return partMadeOf(pass, ask, await send(pass, `${ask.kind}_${ask.version}`, ask.make(randomUUID())));
 }
 
@@ -387,6 +387,20 @@ async function campaignReadBack(
   }
 }
 
+/**
+ * What stops the next switch, read fresh before each one: no room left in this pass; AI stopped, since nobody would answer
+ * the people it brings (0050, call 11); a cancel its owner pressed meanwhile, so none goes after they said stop; and, just
+ * before the first, a way in that closed since the press, of the exact number the ad names (call 11). Null: switch it.
+ */
+async function checkBeforeSwitch(pass: Pass, first: boolean): Promise<Step | null> {
+  if (!hasRoom(pass)) return { wait: true };
+  if (await isSendingStopped(pass.db, pass.who.tenantId)) return { stop: "ai_stopped", said: null };
+  if (await isAdLaunchCancelled(pass.db, pass.who.tenantId, pass.ad.id)) return { stop: "cancelled", said: null };
+  if (first && (await readWayIn(pass.db, pass.who.tenantId, pass.approved.whatsapp)) !== "open")
+    return { stop: "way_in", said: null };
+  return null;
+}
+
 /** Every part switched on from the bottom, each once: the ads, the ad set, the campaign. How the pass ended, or done. */
 async function switchAll(pass: Pass, built: { campaign: string; set: string; ads: string[] }): Promise<Step | null> {
   const done = new Set(Array.isArray(pass.launch.switched) ? pass.launch.switched.map(String) : []);
@@ -398,14 +412,8 @@ async function switchAll(pass: Pass, built: { campaign: string; set: string; ads
   const { token, appSecret } = pass.who.signIn;
   for (const part of order) {
     if (done.has(part.key)) continue;
-    if (!hasRoom(pass)) return { wait: true };
-    // While AI is stopped no ad is turned on: nobody would answer the people it brings (0050, call 11).
-    if (await isSendingStopped(pass.db, pass.who.tenantId)) return { stop: "ai_stopped", said: null };
-    // A cancel is read fresh before every switch: none goes after its owner said stop.
-    if (await isAdLaunchCancelled(pass.db, pass.who.tenantId, pass.ad.id)) return { stop: "cancelled", said: null };
-    // Just before the first switch, the way in once more, of the exact number the ad names (call 11).
-    if (done.size === 0 && (await wayInNow(pass.db, pass.who.tenantId, pass.approved.whatsapp)) !== "open")
-      return { stop: "way_in", said: null };
+    const held = await checkBeforeSwitch(pass, done.size === 0);
+    if (held) return held;
     const answer = await send(pass, `switch_${part.key}`, metaAdSwitchRequest(token, appSecret, part.id, "ACTIVE"));
     if (answer.fault === "revoked") return { revoked: true };
     if (answer.fault === "slowed") return { wait: true };
@@ -417,7 +425,7 @@ async function switchAll(pass: Pass, built: { campaign: string; set: string; ads
     // The last switch went before its cancel was seen: the ad is made and paused at once (ad_launch_keep), so its own
     // pause, followed at Meta's pace, stops it, never a removal that may not land while it runs.
     if (kept === "cancelled" && part.key === "campaign") return null;
-    if (kept !== "going") return letGo(kept);
+    if (kept !== "going") return letGoFor(kept);
   }
   return null;
 }

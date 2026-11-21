@@ -63,13 +63,13 @@ export function aiStopOf(dto: AdsLiveDto | null | undefined): StopVM | null {
       ownerOnly: null,
     };
   }
-  const told = STOP.on(
+  const stillOn = STOP.on(
     on.length,
     on.every((ad) => ad.made_in_platform),
   );
   return {
     title: STOP.title,
-    body: here > 0 ? `${STOP.pausedHere(here)} ${told}` : told,
+    body: here > 0 ? `${STOP.pausedHere(here)} ${stillOn}` : stillOn,
     press: dto.can_press ? STOP.press(on.length) : null,
     act: "pause",
     ownerOnly: dto.can_press ? null : STOP.ownerOnly,

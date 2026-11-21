@@ -82,7 +82,7 @@ export interface AdLaunchAfter {
 }
 
 /** Whether an ad's launch, as its row keeps it, holds a cancel (ad_launch_cancel, 00676). */
-export const launchCancelledOf = (launch: unknown): boolean => recordOrEmpty(launch).cancel != null;
+const launchCancelledOf = (launch: unknown): boolean => recordOrEmpty(launch).cancel != null;
 
 /** One step of a launch kept (ad_launch_keep, 00666). */
 export async function keepAdLaunch(

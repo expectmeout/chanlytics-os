@@ -16,7 +16,7 @@ import { fakeDb } from "../../_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { keepWaysIn, wayInNow } = await import(at("apps/edge/lib/ads/chat/answered.ts"));
+const { keepWaysIn, readWayIn } = await import(at("apps/edge/lib/ads/chat/answered.ts"));
 const { logger } = await import(at("apps/edge/lib/shared/log.ts"));
 
 const T = "abababab-7777-4000-8000-000000000001";
@@ -115,7 +115,7 @@ test("billing paused and AI stopped close it too, in the one rule's order; the l
   const stopped = world({ canSend: "AVAILABLE", stopped: "2026-11-21T10:00:00Z" });
   await stopped.keep();
   assert.equal(stopped.handed[0].find((way) => way.ad_id === AD(1)).way_in, "stopped");
-  assert.equal(await wayInNow(world({ canSend: "AVAILABLE" }).db, T, "+1 (305) 555-0142"), "open");
-  assert.equal(await wayInNow(world({ canSend: "LIMITED" }).db, T, "13055550142"), "open");
-  assert.equal(await wayInNow(world().db, T, "+1 (305) 555-0142"), "blocked");
+  assert.equal(await readWayIn(world({ canSend: "AVAILABLE" }).db, T, "+1 (305) 555-0142"), "open");
+  assert.equal(await readWayIn(world({ canSend: "LIMITED" }).db, T, "13055550142"), "open");
+  assert.equal(await readWayIn(world().db, T, "+1 (305) 555-0142"), "blocked");
 });

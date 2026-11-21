@@ -10,6 +10,7 @@
  */
 import { zoneDayKey } from "../shared/clock";
 import { recordOrEmpty } from "../shared/unknown";
+import type { SchemaSet } from "../shared/schema-sets";
 import { HOUR_MS, MIN_MS } from "../shared/time";
 import type { AdState } from "./ads";
 import type { AdChangeOnWay } from "./change";
@@ -42,7 +43,7 @@ export type AdNeedsLive = "refused" | "unpaid" | "troubled" | "way_in" | "paused
  * Why Chanlytics holds an ad paused (ads.paused_by, 00676): Stop everything paused it; a remediation did (a yes taken
  * back on its picture, so it runs again only with another); its owner's own Pause; or the owner's one press for them all.
  */
-export type AdPausedBy = "stop" | "remediation" | "owner" | "owner_all";
+export type AdPausedBy = SchemaSet<"ads.paused_by">;
 
 /** What stands between AI and the chat a running ad opens, as the ad's row keeps it: one of adWayInOf's, never open. */
 export type AdWayClosed = Exclude<AdWayIn, "open">;
@@ -51,7 +52,7 @@ export type AdWayClosed = Exclude<AdWayIn, "open">;
  * How long Meta's word on an ad's number may stay unknown before a running ad says so and rings (00676 ad_way_in_keep
  * waits the same hour): one read that could not tell wakes nobody.
  */
-export const AD_WAY_IN_UNREAD_MS = HOUR_MS;
+const AD_WAY_IN_UNREAD_MS = HOUR_MS;
 
 /**
  * Why the launch of an ad made here stopped part way: Meta refused a step (in its own words); what Meta held was not

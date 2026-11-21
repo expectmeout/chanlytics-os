@@ -184,9 +184,9 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
     [again, flash],
   );
   const together = useCallback(
-    async (said: () => Promise<FrameFlash>): Promise<void> => {
+    async (pressing: () => Promise<FrameFlash>): Promise<void> => {
       setBusy(true);
-      const flashed = await said();
+      const flashed = await pressing();
       setBusy(false);
       again();
       flash(flashed);

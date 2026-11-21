@@ -13,6 +13,7 @@ import {
   metaAdConfigOf,
   parseTenantConfigResult,
   recordOrEmpty,
+  repliesGoOf,
   standingFromConfig,
   zoneDayKey,
   type AdAccountCard,
@@ -275,7 +276,7 @@ function draftWayInOf(
   const canSend = number ? (standingFromConfig(number.config.standing)?.can_send ?? null) : null;
   return adWayInOf({
     named: number?.number ?? null,
-    number: number ? { e164: number.number, canSend } : null,
+    number: number ? { e164: number.number, repliesGo: repliesGoOf(canSend) } : null,
     ...workspace,
   });
 }

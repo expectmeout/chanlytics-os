@@ -1409,7 +1409,7 @@ test("where Campaigns › Ads is drawn, an ad that needs its owner is a topic un
   alertsRead({ push_off: [], phones: [], choosable: true });
   const grid = byTestId(settings("notifications"), "ntf-grid");
   const row = byTestId(byTestId(grid, "ntf-group-needs_you"), "ntf-topic-ads");
-  assert.ok(textOf(row).startsWith("Your ads need you"));
+  assert.ok(textOf(row).startsWith("An ad needs you"));
   assert.equal(byTestId(row, "ntf-email-ads").props["aria-pressed"], true, "mailed until turned off");
   const ads = ALERT_TOPICS.find((t) => t.key === "ads");
   // An ad on that AI can't answer, and ads Chanlytics paused for the workspace, are mailed the same way (00676).

@@ -272,7 +272,7 @@ export const SHEET = {
   /** The Cancel came as its last switch went: the ad is made, and paused at once. */
   cancelledLate: (name: string) => `${name} was made just as you cancelled, so Chanlytics is pausing it now.`,
   /** Its owner has it on and AI can't answer the people it brings (call 11): why, and the press that stops the spend. */
-  wayIn: (why: string) => `${why} Pause it, and Meta stops charging while nobody answers.`,
+  wayIn: (reason: string) => `${reason} Pause it, and Meta stops charging while nobody answers.`,
   /** Its launch stopped part way: what Meta was left holding, or that nothing was. */
   couldntFinish: (left: readonly AdPartLeft[]) =>
     left.length === 0
@@ -316,17 +316,17 @@ export const STOP = {
       ? "Chanlytics paused 1 ad made here, so nothing is spent while nobody answers."
       : `Chanlytics paused ${n} ads made here, so nothing is spent while nobody answers.`,
   /** Still on: made in Meta's own tools (never paused by the stop), or any whose pause could not be kept. */
-  on: (n: number, inMeta: boolean) => {
-    const what = inMeta
-      ? n === 1
+  on: (count: number, inMeta: boolean) => {
+    const onesOn = inMeta
+      ? count === 1
         ? "1 ad made in Meta is"
-        : `${n} ads made in Meta are`
-      : n === 1
+        : `${count} ads made in Meta are`
+      : count === 1
         ? "1 ad is"
-        : `${n} ads are`;
-    return n === 1
-      ? `${what} still on, and Meta keeps charging for it while it runs.`
-      : `${what} still on, and Meta keeps charging for them while they run.`;
+        : `${count} ads are`;
+    return count === 1
+      ? `${onesOn} still on, and Meta keeps charging for it while it runs.`
+      : `${onesOn} still on, and Meta keeps charging for them while they run.`;
   },
   pausing: (n: number) => `Pausing ${adsCount(n)}…`,
   press: (n: number) => `Pause ${adsCount(n)}`,
