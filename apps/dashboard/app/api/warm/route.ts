@@ -2,6 +2,8 @@ import { PREFETCH_OPEN, openReads } from "@chanlytics/contracts";
 import { routesWarmed } from "@/server/workspace/routes-warm";
 import * as open from "../v1/open/route";
 import * as activity from "../v1/activity/route";
+import * as adsAccount from "../v1/ads/account/route";
+import * as adsPage from "../v1/ads/page/route";
 import * as askMemory from "../v1/ask/memory/route";
 import * as billing from "../v1/billing/route";
 import * as calendarRuns from "../v1/calendar/runs/route";
@@ -37,6 +39,8 @@ import * as teamPartner from "../v1/team/partner/route";
 const HELD = {
   open,
   activity,
+  "ads/account": adsAccount,
+  "ads/page": adsPage,
   "ask/memory": askMemory,
   billing,
   "calendar/runs": calendarRuns,

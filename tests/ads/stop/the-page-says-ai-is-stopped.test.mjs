@@ -23,12 +23,12 @@ const S = "../../../apps/dashboard/src";
 const { api } = await import(`${S}/bridge/api.ts`);
 const { aiStopOf: stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
 const { liveModel, sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
-const { LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
+const { AI_LINE, LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { useAdsConnection } = await import(`${S}/surfaces/campaigns/ads/connect/use-card.tsx`);
 
 const TZ = "America/New_York";
-const SAID = { timezone: TZ };
+const SAID = { timezone: TZ, nowMs: Date.parse("2026-11-20T15:00:00Z") };
 const STOPPED_AT = "2026-11-20T14:30:00.000Z";
 const ID = (n) => `adadadad-8888-4000-8000-00000000000${n}`;
 
@@ -62,6 +62,7 @@ const page = (over = {}) => ({
     read_failed: false,
     revoked_at: null,
     disconnected_at: null,
+    ready: true,
   },
   window: { from: "2026-10-22", to: "2026-11-20" },
   today: "2026-11-20",
@@ -70,6 +71,7 @@ const page = (over = {}) => ({
   elsewhere: { people: 0, booked: 0 },
   can_press: true,
   stopped_at: STOPPED_AT,
+  needs_you: { count: 0, people: [] },
   ...over,
 });
 
@@ -276,7 +278,13 @@ test("with AI running the page says nothing of a stop, and an account with no ad
   assert.equal(byTestId(running, "ads-stop"), null);
   const empty = (await heldPage(page({ ads: [], stopped_at: null })))();
   assert.match(textOf(byTestId(empty, "ads-live-empty")), new RegExp(LIVE.noAds.rest));
-  assert.ok(byTestId(empty, "ads-live-empty-new"), "with New ad beside it");
+  // On a ready account AI's line proposes the first ad and opens New ad, so the empty line says only what is true.
+  assert.equal(textOf(byTestId(empty, "ads-ai-line")), AI_LINE.first(false));
+  assert.equal(byTestId(empty, "ads-live-empty-new"), null);
+  const notReady = page({ ads: [], stopped_at: null, account: { ...page().account, ready: false } });
+  const waits = (await heldPage(notReady))();
+  assert.equal(byTestId(waits, "ads-ai-line"), null, "AI proposes nothing on a card with a check not met");
+  assert.ok(byTestId(waits, "ads-live-empty-new"), "and the empty line keeps New ad beside it");
 });
 
 test("an account held whose ads did not load says so, and never says nobody came from an ad", async () => {

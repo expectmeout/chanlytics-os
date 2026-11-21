@@ -151,11 +151,14 @@ export const PREFETCH_READS: Readonly<Record<string, readonly string[]>> = {
   messages: ["sequences", "settings", "team", "policies", "templates?all=1"],
   "campaigns/messages": ["sequences", "settings", "team", "policies", "templates?all=1"],
   // Campaigns › Ads (`campaigns/ads…`, where it is drawn; an ad, New ad and Results among its addresses): the settings read, which
-  // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw. What
-  // a workspace's page counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what
-  // the head started once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the
-  // dearest of the reports would be read twice.
-  "campaigns/ads": SETTINGS_READ,
+  // says whether it is drawn and whose business it is, and nothing of Sequences. It waited for Sequences' list it does not draw.
+  // And its own first reads, the ad account and its ads (campaigns/ads/first-reads.ts), which the boot takes as it asks for the
+  // settings read and the view's first draw waits for: asked only once the page's code was in, a cold load drew the page with
+  // nothing connected, then a line that loads, then the ads (110, 780 and 1,100 ms on a live account, 21 Nov 2026). What a workspace with nothing connected
+  // counts is the page's own read, made as its code is in (campaigns/ads/first-touch.ts): the boot lets go of what the head started
+  // once its own reads are in (api.ts dropPrefetched), before a page that loads on demand could take it, so the dearest of the
+  // reports would be read twice.
+  "campaigns/ads": [...SETTINGS_READ, "ads/account", "ads/page"],
   // Campaigns › Content (`campaigns/content`, where it is drawn): the settings read, which says whether it is, and its own
   // first page (campaigns/content/surface.ts asks with no query, so the page takes this one). Its address had no word in the
   // head's script, so a load there opened on Campaigns' list, which Content never draws, and read Content itself only once
