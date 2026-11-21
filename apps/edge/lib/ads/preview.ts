@@ -15,13 +15,15 @@
  * Meta slowed says so, and the account's next read or press keeps the pace from its own answer.
  *
  * `outcome`: drawn (every place), partly (some), or why none was: not_connected, slowed, signed_out, video, no_picture,
- * silent (no answer came) or refused (Meta said no, in its own words in the log, never on a screen).
+ * silent (no answer came), refused (Meta said no, in its own words in the log, never on a screen) or unread (Meta
+ * answered, and nothing in it was a frame of its own preview page: the log says what it held, with no address in it).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   callMetaAds,
   META_PREVIEW_PLACES,
   metaPreviewRequest,
+  metaPreviewShape,
   parseMetaPreview,
   type MetaAdsFault,
   type MetaPreviewPlace,
@@ -73,7 +75,7 @@ interface PlaceShown {
 }
 
 /** Why Meta drew no place: asked, or not asked at all. */
-type NoneWhy = "not_connected" | "slowed" | "signed_out" | "video" | "no_picture" | "silent" | "refused";
+type NoneWhy = "not_connected" | "slowed" | "signed_out" | "video" | "no_picture" | "silent" | "refused" | "unread";
 
 /** How long Meta may take over one place: a preview is waited for by someone looking at New ad. */
 const PREVIEW_CALL_MS = 9 * SECOND_MS;
@@ -100,7 +102,7 @@ async function pictureLink(db: Db, tenantId: TenantId, fileId: string): Promise<
 async function askEachPlace(
   signIn: MetaSignIn,
   ask: Omit<Parameters<typeof metaPreviewRequest>[2], "place">,
-): Promise<{ shown: PlaceShown[]; said: (string | null)[]; usage: number | null }> {
+): Promise<{ shown: PlaceShown[]; said: (string | null)[]; unread: string | null; usage: number | null }> {
   const answers = await Promise.all(
     META_PREVIEW_PLACES.map(async (place) => ({
       place,
@@ -119,9 +121,12 @@ async function askEachPlace(
     }
   });
   const usages = answers.flatMap(({ answer }) => (answer.usage ? [answer.usage.pct] : []));
+  // What the first answer no one could read held, with no address in it: what reading Meta's answer must meet next.
+  const unreadAt = shown.findIndex((one) => one.fault === "unread");
   return {
     shown,
     said: answers.map(({ answer }) => answer.said),
+    unread: unreadAt < 0 ? null : metaPreviewShape(answers[unreadAt]?.answer.json),
     usage: usages.length > 0 ? Math.max(...usages) : null,
   };
 }
@@ -134,6 +139,8 @@ function previewOutcomeOf(shown: readonly PlaceShown[]): "drawn" | "partly" | No
   const faults = shown.map((one) => one.fault);
   if (faults.includes("revoked")) return "signed_out";
   if (faults.includes("slowed")) return "slowed";
+  // Meta answered, and nothing of what it answered was a frame of its own preview page.
+  if (faults.every((fault) => fault === "unread")) return "unread";
   return faults.every((fault) => fault === "silent") ? "silent" : "refused";
 }
 
@@ -167,7 +174,7 @@ export async function answerAdPreview(auth: Admitted, body: Partial<AdPreviewBod
   if (!signIn) return noneAnswer("signed_out");
   const picture = await pictureLink(db, tenantId, ask.picture);
   if ("none" in picture) return noneAnswer(picture.none);
-  const { shown, said, usage } = await askEachPlace(signIn, {
+  const { shown, said, unread, usage } = await askEachPlace(signIn, {
     accountId: live.external_id,
     pageId,
     text: ask.text,
@@ -180,6 +187,7 @@ export async function answerAdPreview(auth: Admitted, body: Partial<AdPreviewBod
     faults: shown.map((one) => one.fault ?? "ok"),
     // Meta's own words for a place it did not draw: for support, never for a screen.
     ...(outcome === "drawn" ? {} : { said: said.filter((words) => words !== null) }),
+    ...(unread === null ? {} : { unread_shape: unread }),
     ...(usage === null ? {} : { usage_pct: usage }),
   });
   return json(200, { ok: true, outcome, places: shown });

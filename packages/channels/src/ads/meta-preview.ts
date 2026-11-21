@@ -13,7 +13,7 @@
  * of that HTML is ever drawn as it came: its frame's address is read out of it, held to Meta's own preview page, and the
  * page draws a frame of its own at that address.
  */
-import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
+import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { valueAt } from "@chanlytics/contracts";
 import { metaAccountPath } from "./meta-account";
@@ -71,8 +71,8 @@ export interface MetaPreviewFrame {
   height: number | null;
 }
 
-/** Meta's own preview page, the one address a frame may open. */
-const FRAME_ORIGIN = "https://www.facebook.com";
+/** Meta's own preview page: the hosts it is served from, each one New ad's page lets a frame open (csp.ts frame-src). */
+const FRAME_HOSTS: readonly string[] = ["www.facebook.com", "web.facebook.com", "business.facebook.com"];
 const FRAME_PATH = "/ads/api/preview_iframe.php";
 
 /** The characters HTML escapes inside an attribute, read back. */
@@ -80,9 +80,18 @@ const ENTITIES: Record<string, string> = { amp: "&", quot: '"', "#039": "'", "#3
 const unescaped = (value: string): string =>
   value.replace(/&(amp|quot|#039|#39|lt|gt);/g, (_, name: string) => ENTITIES[name] ?? "");
 
-/** An attribute of the frame's tag, read as it came. */
+/** Meta's answer as markup: read back where Meta sent the tag itself escaped. */
+const markupOf = (body: string): string => (/^\s*&lt;/.test(body) ? unescaped(body) : body);
+
+/** An attribute of the frame's tag, in either quote, as it was written. */
 const attributeOf = (html: string, name: string): string | null =>
-  new RegExp(`\\s${name}="([^"]*)"`, "i").exec(html)?.[1] ?? null;
+  new RegExp(String.raw`\s${name}\s*=\s*(["'])(.*?)\1`, "is").exec(html)?.[2] ?? null;
+
+/** A frame's address as written, read: its escapes undone, and one with no scheme of its own taken over https. */
+const frameAddressOf = (written: string): string => {
+  const plain = unescaped(written).trim();
+  return plain.startsWith("//") ? `https:${plain}` : plain;
+};
 
 /** A size Meta wrote on its frame, in pixels; null where it wrote none that is one. */
 function frameSizeOf(html: string, name: "width" | "height"): number | null {
@@ -93,8 +102,17 @@ function frameSizeOf(html: string, name: "width" | "height"): number | null {
 /** The frame's address, held to Meta's own preview page over https; null for anything else. */
 export function metaPreviewFrameSrc(src: string): string | null {
   const url = URL.canParse(src) ? new URL(src) : null;
-  if (!url || url.origin !== FRAME_ORIGIN || url.pathname !== FRAME_PATH || !url.searchParams.has("d")) return null;
-  return url.toString();
+  if (!url || url.protocol !== "https:" || url.port !== "" || !FRAME_HOSTS.includes(url.hostname)) return null;
+  return url.pathname === FRAME_PATH && url.searchParams.has("d") ? url.toString() : null;
+}
+
+/** The first preview's body in Meta's answer; null where it holds none. */
+function previewBodyOf(json: unknown): { count: number; body: string | null; keys: string[] } | null {
+  const rows: unknown = valueAt(metaObject(json), "data");
+  if (!Array.isArray(rows)) return null;
+  const first = metaObject(rows[0]);
+  const body: unknown = valueAt(first, "body");
+  return { count: rows.length, body: typeof body === "string" ? body : null, keys: Object.keys(first ?? {}) };
 }
 
 /**
@@ -102,12 +120,29 @@ export function metaPreviewFrameSrc(src: string): string | null {
  * holds no preview, or a frame whose address is not Meta's own preview page.
  */
 export function parseMetaPreview(json: unknown): MetaPreviewFrame {
-  const rows: unknown = valueAt(metaObject(json), "data");
-  const first: unknown = Array.isArray(rows) ? rows[0] : null;
-  const html = metaText(valueAt(metaObject(first), "body"));
+  const html = markupOf(previewBodyOf(json)?.body ?? "");
   if (!html) throw new Error(metaErrorOf(json)?.message ?? "Meta did not answer a preview");
   const written = attributeOf(html, "src");
-  const src = written === null ? null : metaPreviewFrameSrc(unescaped(written));
+  const src = written === null ? null : metaPreviewFrameSrc(frameAddressOf(written));
   if (!src) throw new Error("Meta's preview is not a frame of its own preview page");
   return { src, width: frameSizeOf(html, "width"), height: frameSizeOf(html, "height") };
+}
+
+/**
+ * What an answer of Meta's held, said with no address and no value of it, for the log where a preview could not be read:
+ * how many previews, what the first holds, and its frame's host, path and the names of its parameters.
+ */
+export function metaPreviewShape(json: unknown): string {
+  const found = previewBodyOf(json);
+  if (!found) return `no data; keys ${Object.keys(metaObject(json) ?? {}).join(",") || "none"}`;
+  if (found.body === null) return `data ${found.count}; first holds ${found.keys.join(",") || "nothing"}`;
+  const html = markupOf(found.body);
+  const written = attributeOf(html, "src");
+  const tag = /^\s*<\s*([a-z]+)/i.exec(html)?.[1] ?? "no tag";
+  if (written === null) return `data ${found.count}; body ${found.body.length} chars, ${tag}, no src`;
+  const address = frameAddressOf(written);
+  const url = URL.canParse(address) ? new URL(address) : null;
+  if (!url) return `data ${found.count}; ${tag} src is no address (${address.length} chars)`;
+  const params = [...new Set(url.searchParams.keys())].join(",") || "none";
+  return `data ${found.count}; ${tag} src ${url.protocol}//${url.host}${url.pathname} params ${params}`;
 }
