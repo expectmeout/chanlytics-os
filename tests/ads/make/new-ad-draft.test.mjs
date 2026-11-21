@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
+import { until } from "../../shared/_until.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -182,21 +183,47 @@ const modelSays = (answer, refused = null) =>
 /** An empty calendar: what the business's hours offer is all open. */
 const OPEN_CALENDAR = ["BEGIN:VCALENDAR", "END:VCALENDAR"].join("\r\n");
 
+/** No writer out for the draft's words. */
+const NO_WRITER = { writing_ask: null, writing_for: null, writing_until: null };
+
 /**
- * The two doors of 00659 as the database answers them, over the tables in memory: a draft kept as the workspace's one
- * (by whoever is signed in, each keep written down), and the owner's most kept on the connected account. Who may, and
- * the owner's bell, are the database's own (a-draft-is-kept-and-left-for-the-owner.db.test.mjs).
+ * The doors of 00659 and 00669 as the database answers them, over the tables in memory: a draft kept as the workspace's
+ * one (by whoever is signed in, each keep written down, each at a moment of its own), and nothing written over a newer
+ * one by a keep that names the draft it read; the writer out for its words, marked once for the same words; and the
+ * owner's most kept on the connected account. Who may, and the owner's bell, are the database's own
+ * (a-draft-is-kept-and-left-for-the-owner.db.test.mjs).
  */
-function draftDoors(tables, userId, keeps) {
+function draftDoors(tables, userId, keeps, writers) {
+  const draftOf = (tenantId) => tables.ad_drafts?.find((row) => row.tenant_id === tenantId);
   return {
-    ad_draft_keep: ({ p_tenant_id, p_account_id, p_draft }) => {
+    ad_draft_keep: ({ p_tenant_id, p_account_id, p_draft, p_read_at }) => {
       tables.ad_drafts ??= [];
-      const had = tables.ad_drafts.find((row) => row.tenant_id === p_tenant_id);
-      const row = { id: had?.id ?? `dddddddd-dddd-4ddd-8ddd-${String(keeps.length + 1).padStart(12, "0")}` };
+      const had = draftOf(p_tenant_id);
+      if (p_read_at !== undefined && p_read_at !== null && (had?.updated_at ?? "-infinity") !== p_read_at)
+        return { kept: false, draft_id: had?.id ?? null, rung: 0, newer: true };
+      const row = { ...NO_WRITER, ...had };
+      row.id ??= `dddddddd-dddd-4ddd-8ddd-${String(keeps.length + 1).padStart(12, "0")}`;
       Object.assign(row, { tenant_id: p_tenant_id, account_id: p_account_id, draft: p_draft, kept_by: userId });
-      tables.ad_drafts = [...tables.ad_drafts.filter((one) => one !== had), { ...row, updated_at: NOW.toISOString() }];
+      row.updated_at = new Date(NOW.getTime() + keeps.length + 1).toISOString();
+      tables.ad_drafts = [...tables.ad_drafts.filter((one) => one !== had), row];
       keeps.push({ by: userId, draft: p_draft });
       return { kept: true, draft_id: row.id, rung: 0 };
+    },
+    ad_draft_writing: ({ p_tenant_id, p_ask, p_for, p_until }) => {
+      writers.push({ ask: p_ask, for: p_for });
+      const row = draftOf(p_tenant_id);
+      if (!row) return { held: false, ask: null, until: null };
+      const out = row.writing_ask && row.writing_ask !== p_ask && row.writing_for === p_for;
+      if (out && Date.parse(row.writing_until) > Date.now())
+        return { held: false, ask: row.writing_ask, until: row.writing_until };
+      Object.assign(row, { writing_ask: p_ask, writing_for: p_for, writing_until: p_until });
+      return { held: true, ask: p_ask, until: p_until };
+    },
+    ad_draft_written: ({ p_tenant_id, p_ask }) => {
+      const row = draftOf(p_tenant_id);
+      if (row?.writing_ask !== p_ask) return false;
+      Object.assign(row, NO_WRITER);
+      return true;
     },
     ad_account_most: ({ p_tenant_id, p_most_minor }) => {
       const account = tables.ad_accounts.find((one) => one.tenant_id === p_tenant_id && one.status === "connected");
@@ -213,17 +240,20 @@ function seated(tables, role = "owner", { counts = NO_COUNTS, userId = USER } = 
   const tenantId = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seat).padStart(12, "0")}`;
   const mine = JSON.parse(JSON.stringify(tables).replaceAll(A, tenantId));
   const keeps = [];
-  const db = fakeDb(mine, {}, { ads_page_counts: () => counts, ...draftDoors(mine, userId, keeps) });
+  const writers = [];
+  const db = fakeDb(mine, {}, { ads_page_counts: () => counts, ...draftDoors(mine, userId, keeps, writers) });
   const ctx = { supabase: db, userId, email: "ada@example.com", params: {} };
-  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId, tables: mine, keeps, tenantId };
+  return { rc: readerContext(ctx, { tenantId, role }, NOW), userId, tables: mine, keeps, writers, tenantId };
 }
 /** The same workspace, another member signed in to it. */
 function alsoSeated(who, role, userId) {
-  const keeps = who.keeps;
-  const db = fakeDb(who.tables, {}, { ads_page_counts: () => NO_COUNTS, ...draftDoors(who.tables, userId, keeps) });
+  const { keeps, writers } = who;
+  const doors = draftDoors(who.tables, userId, keeps, writers);
+  const db = fakeDb(who.tables, {}, { ads_page_counts: () => NO_COUNTS, ...doors });
   const ctx = { supabase: db, userId, email: "sam@example.com", params: {} };
   readerCache.clear();
-  return { rc: readerContext(ctx, { tenantId: who.tenantId, role }, NOW), userId, tables: who.tables, keeps };
+  const rc = readerContext(ctx, { tenantId: who.tenantId, role }, NOW);
+  return { rc, userId, tables: who.tables, keeps, writers, tenantId: who.tenantId };
 }
 const fresh = (tables = world(), role = "owner") => {
   const who = seated(tables, role);
@@ -846,6 +876,172 @@ test("a draft an operator leaves: the owner opens it as left, by name, and it is
   assert.equal(changed.left_by, null, "changed, it is the owner's");
   assert.deepEqual(operator.keeps.at(-1).by, USER);
   assert.equal(calls.length, 1);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Two asks at once: a reload, a second device, another member (00669)
+
+/** The model, its answer (or `refused`) held until the test lets it go: a writer out for as long as a test needs. */
+function modelHeld(answer, refused = null) {
+  let go = () => {};
+  const gate = new Promise((resolve) => {
+    go = resolve;
+  });
+  setModelStream(async function* (call) {
+    calls.push(call);
+    await gate;
+    if (refused) throw refused;
+    yield { type: "text", index: 0, text: JSON.stringify(answer) };
+    yield { type: "stop", stopReason: "end_turn" };
+  });
+  return go;
+}
+
+test("reloaded while the writer is out: the second ask waits for the first one's words, and the writer is asked once", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // Reloaded, or opened on another device: the kept draft holds no words yet, so the screen asks for them.
+  const reopened = await draftAd(who.rc, {});
+  assert.deepEqual(reopened.draft.versions, []);
+  const second = writeAdWords(who, { job: "write", draft: sent(reopened) });
+  await until(() => who.writers.length === 2 || calls.length === 2, "the second ask to be out");
+  go();
+  const [one, two] = await Promise.all([first, second]);
+  assert.equal(calls.length, 1, "REGRESSION: the writer was asked twice for one draft");
+  assert.deepEqual([one.wrote, one.draft.versions], [{ ok: true }, VERSIONS]);
+  assert.deepEqual([two.wrote, two.draft.versions], [{ ok: true }, VERSIONS], "the words the first one kept");
+  assert.equal(who.tables.ad_drafts[0].writing_ask, null, "back, the writer is no longer marked out");
+});
+
+test("an ask that waited for a writer who came to nothing, or who is out past its time, writes the words itself", async () => {
+  const go = modelHeld(null, new Error("the stream broke"));
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  const second = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => who.writers.length === 2, "the second ask to find the writer out");
+  modelSays(wrote());
+  go();
+  assert.deepEqual((await first).wrote, { ok: false, why: "other" });
+  const written = await second;
+  assert.deepEqual([written.wrote, written.draft.versions, calls.length], [{ ok: true }, VERSIONS, 2]);
+  // A writer out past its time (its request gone with it) is not waited for.
+  const stuck = modelHeld(wrote());
+  const lost = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 3, "a writer to be out");
+  who.tables.ad_drafts[0].writing_until = new Date(Date.now() - 1).toISOString();
+  const next = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 4, "the next ask to write its own");
+  stuck();
+  await Promise.all([lost, next]);
+});
+
+test("a writer out for other words is not waited for: Take the price out, or another picture, is written for itself", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE, tables: { files: [file(1), file(2)] } }));
+  const first = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  const unpriced = writeAdWords(who, { job: "write", draft: sent(answer), no_price: true });
+  await until(() => calls.length === 2, "the words without the price to be asked for themselves");
+  const pictured = writeAdWords(who, { job: "write", draft: sent(answer, { picture: FILE(2) }) });
+  await until(() => calls.length === 3, "the next picture's words to be asked for themselves");
+  go();
+  await Promise.all([first, unpriced, pictured]);
+});
+
+test("words that land after the draft was changed on another device are put into it: what was set there stands", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // In those seconds, an operator sets the amount and the miles on their own device.
+  const operator = alsoSeated(who, "operator", OPERATOR);
+  await draftAd(operator.rc, { draft: sent(answer, { total_minor: 9000, miles: 8 }) });
+  go();
+  const landed = await writing;
+  const { draft } = who.tables.ad_drafts[0];
+  assert.deepEqual(
+    [draft.total_minor, draft.miles, draft.versions],
+    [9000, 8, VERSIONS],
+    "REGRESSION: the words were kept over the amount and the miles set meanwhile",
+  );
+  assert.deepEqual(
+    [landed.wrote, landed.draft.total_minor, landed.draft.miles, landed.draft.versions],
+    [{ ok: true }, 9000, 8, VERSIONS],
+    "the answer is the draft as it now stands",
+  );
+});
+
+test("words for a service the draft no longer offers are not put into it: the draft stands as changed", async () => {
+  const both = { services: [...ONE_SERVICE.services, { name: "Consultation", duration_min: 30 }] };
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: both }));
+  assert.equal(answer.draft.service, "First appointment");
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  await draftAd(who.rc, { draft: sent(answer, { service: "Consultation" }) });
+  go();
+  const landed = await writing;
+  const { draft } = who.tables.ad_drafts[0];
+  assert.deepEqual([draft.service, draft.versions], ["Consultation", []], "REGRESSION: another service's words kept");
+  assert.deepEqual(
+    [landed.draft.service, landed.draft.versions, landed.wrote],
+    ["Consultation", [], { ok: false, why: "other" }],
+  );
+});
+
+test("a change of AI's that lands after the same thing was set on another device is not made; one of another thing is", async () => {
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const held = sent(answer, { versions: VERSIONS });
+  await draftAd(who.rc, { draft: held });
+  const tell = async (asked, change, meanwhile) => {
+    const go = modelHeld({ versions: [], change: { ...NO_CHANGE, ...change }, could_not: "" });
+    const asking = writeAdWords(who, { job: "change", draft: held, asked });
+    await until(() => calls.length > 0, "AI to be told");
+    await draftAd(who.rc, { draft: sent(answer, { versions: VERSIONS, ...meanwhile }) });
+    go();
+    calls = [];
+    return asking;
+  };
+  const amount = await tell("make it 120 dollars", { kind: "amount", amount: 120 }, { total_minor: 9000 });
+  assert.equal(who.tables.ad_drafts[0].draft.total_minor, 9000, "REGRESSION: AI's amount kept over the one set");
+  assert.deepEqual([amount.draft.total_minor, amount.changed], [9000, { kind: "none", fault: null }]);
+  const area = await tell("reach ten miles", { kind: "area", miles: 10 }, { total_minor: 8000 });
+  assert.deepEqual(
+    [who.tables.ad_drafts[0].draft.miles, who.tables.ad_drafts[0].draft.total_minor],
+    [10, 8000],
+    "REGRESSION: AI's miles kept over the amount set meanwhile",
+  );
+  assert.deepEqual([area.draft.miles, area.draft.total_minor, area.changed], [10, 8000, { kind: "area" }]);
+});
+
+test("words that land after the draft was turned on bring no draft back", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  // Turned on from another device: the draft becomes the ad, and goes (00666 ad_turn_on).
+  who.tables.ad_drafts = [];
+  go();
+  await writing;
+  assert.deepEqual(who.tables.ad_drafts, [], "REGRESSION: a draft turned on came back with its words");
+});
+
+test("words that land over a draft kept meanwhile for another ad account take its place, as before", async () => {
+  const go = modelHeld(wrote());
+  const { answer, who } = await fresh(world({ profile: ONE_SERVICE }));
+  const writing = writeAdWords(who, { job: "write", draft: sent(answer) });
+  await until(() => calls.length === 1, "the writer to be asked");
+  Object.assign(who.tables.ad_drafts[0], {
+    account_id: "cccccccc-cccc-4ccc-8ccc-000000000000",
+    updated_at: new Date(NOW.getTime() + 60_000).toISOString(),
+  });
+  go();
+  const landed = await writing;
+  const [row] = who.tables.ad_drafts;
+  assert.deepEqual([row.account_id, row.draft.versions, landed.wrote], [ACCOUNT, VERSIONS, { ok: true }]);
 });
 
 // ---------------------------------------------------------------------------------------------------------------------

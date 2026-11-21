@@ -108,9 +108,10 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
     ...all(NOT_PERSONAL, "currency", "timezone", "standing", "read_error"),
   },
   // A draft of a new ad (00659): what New ad chose and the ad writer's words, the business's own advertising for the
-  // public, never a person it serves (an ad says nothing of a person: the writer's checks hold it to the service). It
-  // leaves with the workspace.
-  ad_drafts: all(WITH_WORKSPACE, "draft"),
+  // public, never a person it serves (an ad says nothing of a person: the writer's checks hold it to the service), and
+  // the words a writer out for it writes (00669: the service, the picture, the price or none). It leaves with the
+  // workspace.
+  ad_drafts: all(WITH_WORKSPACE, "draft", "writing_for"),
   // An ad (00648): its name and what it says are the business's own advertising, written by the owner for the public,
   // and leave with the workspace, and so does what the owner approved at Turn on (00666: the words, the area's address
   // and the number a tap opens, all the business's own). The platform's ids for it, the platform's own words about it,

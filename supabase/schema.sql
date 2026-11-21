@@ -878,16 +878,17 @@ COMMENT ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret jsonb)
 
 
 --
--- Name: ad_draft_keep(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+-- Name: ad_draft_keep(uuid, uuid, jsonb, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) RETURNS jsonb
+CREATE FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
 declare
   v_actor   uuid := auth.uid();
   v_id      uuid;
+  v_at      timestamptz;
   v_words   integer;
   v_name    text;
   v_service text;
@@ -906,6 +907,18 @@ begin
   end if;
   if not exists (select 1 from public.ad_accounts a where a.id = p_account_id and a.tenant_id = p_tenant_id) then
     return jsonb_build_object('kept', false, 'draft_id', null, 'rung', 0);
+  end if;
+  -- A keep that names the draft it read writes nothing over another kept since, nor brings back one gone since
+  -- (turned on): it says newer, and the dashboard puts what its writer made into the draft as it now stands.
+  if p_read_at is not null then
+    select d.id, d.updated_at into v_id, v_at
+      from public.ad_drafts d
+     where d.tenant_id = p_tenant_id
+       for update;
+    if (v_id is null and p_read_at <> '-infinity'::timestamptz) or (v_id is not null and v_at is distinct from p_read_at)
+    then
+      return jsonb_build_object('kept', false, 'draft_id', v_id, 'rung', 0, 'newer', true);
+    end if;
   end if;
   insert into public.ad_drafts as d (tenant_id, account_id, draft, kept_by)
   values (p_tenant_id, p_account_id, p_draft, v_actor)
@@ -954,10 +967,95 @@ end $$;
 
 
 --
--- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: COMMENT; Schema: public; Owner: -
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) IS 'A member''s door (00659; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. Answers {kept, draft_id, rung}; kept false, and nothing written, for an account not of this workspace.';
+COMMENT ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) IS 'A member''s door (00659, 00669; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. With p_read_at, the kept draft''s updated_at as it was read (''-infinity'' where none was kept): where the draft kept now is another, or is gone, nothing is written and the answer says newer. Answers {kept, draft_id, rung}, with newer true where it was refused so; kept false, and nothing written, for an account not of this workspace.';
+
+
+--
+-- Name: ad_draft_writing(uuid, uuid, text, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id    uuid;
+  v_ask   uuid;
+  v_for   text;
+  v_until timestamptz;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  -- Whoever may keep the draft may ask for its words (0050, call 2).
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- A mark outlives its request by little: its time is within the route's own minute, with room.
+  if p_ask is null or nullif(btrim(p_for), '') is null or char_length(p_for) > 1000 or p_until is null
+     or p_until <= now() or p_until > now() + interval '2 minutes' then
+    raise exception 'A writer is marked by its ask, the words it writes, and a time within two minutes.'
+      using errcode = '22023';
+  end if;
+  select d.id, d.writing_ask, d.writing_for, d.writing_until into v_id, v_ask, v_for, v_until
+    from public.ad_drafts d
+   where d.tenant_id = p_tenant_id
+     for update;
+  if v_id is null then
+    -- No draft kept: nothing to mark, and nothing to wait for.
+    return jsonb_build_object('held', false, 'ask', null, 'until', null);
+  end if;
+  if v_ask is not null and v_ask <> p_ask and v_for = p_for and v_until > now() then
+    -- Another ask is out for the same words, in its time: this one waits for it.
+    return jsonb_build_object('held', false, 'ask', v_ask, 'until', v_until);
+  end if;
+  update public.ad_drafts d
+     set writing_ask = p_ask, writing_for = p_for, writing_until = p_until
+   where d.id = v_id;
+  return jsonb_build_object('held', true, 'ask', p_ask, 'until', p_until);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) IS 'A member''s door (00669; the Ads plan''s G18): an ask for the kept draft''s words marks itself its writer, until p_until (within two minutes), for the words p_for names. Where another ask is out for the same words in its time, nothing is marked and the answer names that one, which the ask waits for; an ask for other words takes the mark over. An acting member alone (is_acting_member). Answers {held, ask, until}; held false with no ask where no draft is kept. Moves nothing of the draft.';
+
+
+--
+-- Name: ad_draft_written(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_gone integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not public.is_acting_member(p_tenant_id) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.ad_drafts d
+     set writing_ask = null, writing_for = null, writing_until = null
+   where d.tenant_id = p_tenant_id and d.writing_ask = p_ask;
+  get diagnostics v_gone = row_count;
+  return v_gone > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION ad_draft_written(p_tenant_id uuid, p_ask uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) IS 'A member''s door (00669): the ad writer an ask marked with ad_draft_writing is back, and the mark goes, where it is still that ask''s (an ask for other words may have taken it over). An acting member alone. True where a mark went.';
 
 
 --
@@ -42256,6 +42354,9 @@ CREATE TABLE public.ad_drafts (
     kept_by uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    writing_ask uuid,
+    writing_for text,
+    writing_until timestamp with time zone,
     CONSTRAINT ad_drafts_draft_check CHECK (((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 20000)))
 );
 
@@ -42279,6 +42380,27 @@ COMMENT ON COLUMN public.ad_drafts.draft IS 'What New ad chose, as server/ads/dr
 --
 
 COMMENT ON COLUMN public.ad_drafts.kept_by IS 'The member who kept it last (auth.uid() at ad_draft_keep): the owner, or someone who left it for the owner.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_ask; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_ask IS 'The ask out for the draft''s words, while one is (00669): written by ad_draft_writing, let go by ad_draft_written. Null where no writer is out.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_for; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_for IS 'The words that ask writes, as the dashboard names them (00669; server/ads/writer.ts): the service, the picture, and whether they say the price. Another ask for the same words waits for it.';
+
+
+--
+-- Name: COLUMN ad_drafts.writing_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.ad_drafts.writing_until IS 'Until when another ask for the same words waits for the one out (00669): within the words route''s own minute. Past it, the next ask writes its own.';
 
 
 --
@@ -52873,7 +52995,7 @@ CREATE TRIGGER ad_accounts_stop_launches AFTER UPDATE OF status ON public.ad_acc
 -- Name: ad_drafts ad_drafts_set_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
-CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+CREATE TRIGGER ad_drafts_set_updated_at BEFORE UPDATE ON public.ad_drafts FOR EACH ROW WHEN (((old.draft IS DISTINCT FROM new.draft) OR (old.account_id IS DISTINCT FROM new.account_id))) EXECUTE FUNCTION extensions.moddatetime('updated_at');
 
 
 --
@@ -59181,12 +59303,30 @@ GRANT ALL ON FUNCTION public.ad_credentials_put(p_account_id uuid, p_secret json
 
 
 --
--- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb); Type: ACL; Schema: public; Owner: -
+-- Name: FUNCTION ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone); Type: ACL; Schema: public; Owner: -
 --
 
-REVOKE ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO authenticated;
-GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_keep(p_tenant_id uuid, p_account_id uuid, p_draft jsonb, p_read_at timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_writing(p_tenant_id uuid, p_ask uuid, p_for text, p_until timestamp with time zone) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_draft_written(p_tenant_id uuid, p_ask uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_draft_written(p_tenant_id uuid, p_ask uuid) TO service_role;
 
 
 --

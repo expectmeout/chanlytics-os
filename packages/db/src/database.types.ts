@@ -195,6 +195,9 @@ export type Database = {
           kept_by: string | null
           tenant_id: string
           updated_at: string
+          writing_ask: string | null
+          writing_for: string | null
+          writing_until: string | null
         }
         Insert: {
           account_id: string
@@ -204,6 +207,9 @@ export type Database = {
           kept_by?: string | null
           tenant_id: string
           updated_at?: string
+          writing_ask?: string | null
+          writing_for?: string | null
+          writing_until?: string | null
         }
         Update: {
           account_id?: string
@@ -213,6 +219,9 @@ export type Database = {
           kept_by?: string | null
           tenant_id?: string
           updated_at?: string
+          writing_ask?: string | null
+          writing_for?: string | null
+          writing_until?: string | null
         }
         Relationships: [
           {
@@ -9169,8 +9178,26 @@ export type Database = {
         Returns: string
       }
       ad_draft_keep: {
-        Args: { p_account_id: string; p_draft: Json; p_tenant_id: string }
+        Args: {
+          p_account_id: string
+          p_draft: Json
+          p_read_at?: string
+          p_tenant_id: string
+        }
         Returns: Json
+      }
+      ad_draft_writing: {
+        Args: {
+          p_ask: string
+          p_for: string
+          p_tenant_id: string
+          p_until: string
+        }
+        Returns: Json
+      }
+      ad_draft_written: {
+        Args: { p_ask: string; p_tenant_id: string }
+        Returns: boolean
       }
       ad_entry_keep: {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
