@@ -670,6 +670,7 @@
     "00664_an_ad_that_can_t_run_is_mailed_once.sql": "3a777d6760e1811cb50bdffc91bf3db25766232965b0d2f984e911e09fb999e2",
     "00665_a_yes_is_kept_for_each_use.sql": "80ed699f369467515dbaca915a66fecf52625556ecdec7119d3bf66cb4a26b65",
     "00666_an_owner_turns_an_ad_on.sql": "7743f51cf4101d2e53282d18d94ff2c7961096d2ce454ce826f79c2cf2a11ad1",
-    "00668_a_search_reads_on_from_where_its_page_ended.sql": "c7588b39a3b2ac05376061093cfff61f2e24cb159bacfc3b6eb089f691c11b89"
+    "00668_a_search_reads_on_from_where_its_page_ended.sql": "c7588b39a3b2ac05376061093cfff61f2e24cb159bacfc3b6eb089f691c11b89",
+    "00669_a_draft_ad_s_words_are_asked_for_once.sql": "b0e495d6da564c33734841a6f605eaaa474faf21342d3e3c04ea658353e46c92"
   }
 }

@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 192 | 192 |
+| door | 194 | 194 |
 | reader | 88 | 0 |
 | the server's | 408 | 340 |
 | computed column | 3 | 0 |
 | trigger | 113 | 83 |
-| all | 804 | 615 |
+| all | 806 | 617 |
 
 ## Called by nothing
 
@@ -62,7 +62,9 @@ being read is dropped by a migration.
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
-| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659; |
+| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659, 00669; |
+| `ad_draft_writing` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00669; |
+| `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00669): |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00666): |
 | `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666; |
@@ -282,7 +284,7 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `add_person` and 72 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 74 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
