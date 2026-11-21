@@ -97,8 +97,16 @@ export const ADS_CHECK_DOOR = edgeDoor(
 );
 
 /**
- * POST /api/admin/ads/press: an owner pauses an ad (`pause`) or turns one back on (`resume`), carrying the version the
- * press was drawn from. `outcome` says what it came to: told, sent, soon, took_back or same.
+ * The most ads one press pauses at once (`pause_all`): what the database's door takes (ad_pause_all, 00671), far past
+ * the ads a business runs, and the most a page lists.
+ */
+export const AD_PAUSE_ALL_MAX = 200;
+
+/**
+ * POST /api/admin/ads/press: an owner pauses an ad (`pause`), turns one back on (`resume`) or asks Meta what stands of one
+ * (`check`), carrying the version the press was drawn from; or pauses every ad of a set at once (`pause_all`, `ads`), each
+ * with its own version, kept together before the door answers. `outcome` says what it came to: told, sent, soon, took_back
+ * or same, and for `pause_all` kept, with what each ad came to in `ads`.
  */
 export const ADS_PRESS_DOOR = edgeDoor(
   "/api/admin/ads/press",
@@ -108,8 +116,16 @@ export const ADS_PRESS_DOOR = edgeDoor(
     user_id: DOOR_ID.optional(),
     ad_id: DOOR_ID.optional(),
     version: z.number().int().optional(),
+    ads: z
+      .array(z.object({ ad_id: DOOR_ID, version: z.number().int() }))
+      .max(AD_PAUSE_ALL_MAX)
+      .optional(),
   }),
-  answerFields({ outcome: z.string(), version: z.number() }),
+  answerFields({
+    outcome: z.string(),
+    version: z.number(),
+    ads: z.array(z.object({ ad_id: z.string(), outcome: z.string(), version: z.number().nullable() })),
+  }),
 );
 
 /**

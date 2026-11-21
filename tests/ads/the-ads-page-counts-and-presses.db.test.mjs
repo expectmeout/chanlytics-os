@@ -428,3 +428,51 @@ test(
     ]);
   },
 );
+
+test(
+  "every ad of a set is paused in one transaction, in the ads' own order: a stale one and a paused one say so, and nothing is kept for anyone but the owner or of a set that cannot be read",
+  { skip },
+  async () => {
+    const ws = await workspace("pause-all");
+    const running = await adopt(ws, "23850000000000851");
+    const stale = await adopt(ws, "23850000000000852");
+    const before = await adopt(ws, "23850000000000853");
+    const paused = await press(ws, before, "paused");
+    const all = (presses, actor = ws.owner.id) =>
+      db.rpc("ad_pause_all", { p_tenant_id: ws.tenant, p_actor: actor, p_presses: presses });
+
+    // Anyone but the owner: nothing of the set is kept.
+    assert.deepEqual(ok(await all([{ ad_id: running.id, version: running.version }], ws.operator.id)), {
+      outcome: "not_allowed",
+    });
+    // A set that cannot be read whole is refused whole, in one transaction: nothing of it is kept.
+    const bad = await all([
+      { ad_id: running.id, version: running.version },
+      { ad_id: "not-an-ad", version: 1 },
+    ]);
+    assert.ok(bad.error, "refused");
+    assert.equal((await adNow(running)).intent, "on", "one transaction: nothing of it was kept");
+
+    const kept = ok(
+      await all([
+        { ad_id: stale.id, version: stale.version + 7 },
+        { ad_id: running.id, version: running.version },
+        { ad_id: before.id, version: paused.version },
+      ]),
+    );
+    assert.equal(kept.outcome, "kept");
+    assert.deepEqual(
+      kept.ads.map((one) => one.ad_id),
+      [running.id, stale.id, before.id].sort(),
+      "taken in the ads' own order, so two presses over the same ads never wait on each other",
+    );
+    const said = Object.fromEntries(kept.ads.map((one) => [one.ad_id, [one.outcome, one.tell ?? null]]));
+    assert.deepEqual(said[running.id], ["asked", true]);
+    assert.deepEqual(said[stale.id], ["stale", null]);
+    assert.deepEqual(said[before.id][0], "same");
+    assert.deepEqual([(await adNow(running)).intent, (await adNow(stale)).intent], ["paused", "on"]);
+    assert.equal((await decisionsOf(ws, "pause_ad")).length, 2, "the one before, and the one this kept");
+    const reads = ok(await db.from("jobs").select("kind").eq("tenant_id", ws.tenant).eq("kind", "ad_read"));
+    assert.ok(reads.length >= 1, "the account's read is asked for: it tells Meta at Meta's pace");
+  },
+);

@@ -81,7 +81,11 @@
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00662": "left empty by Turn on's lane (cm-ads-turn-on), which claimed it and moved its own file to 00666 when 00664 went on production above it (21 Nov 2026)",
-    "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it"
+    "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
+    "00667": "left empty by Pause all's lane (cm-ads-pause-all), which claimed it and moved its own file to 00671 when 00668 went on production above it (21 Nov 2026)",
+    "00668": "Content's search (cm-content-search, #2488), on production since 21 Nov 2026 ahead of its merge: its file lands with that pull request",
+    "00669": "claimed by New ad's draft races (cm-ads-draft-races): its file lands with that lane's pull request",
+    "00670": "claimed by Change a running ad (cm-ads-change, #2491): its file lands with that pull request"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -668,6 +672,7 @@
     "00661_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "4865a03c5690725e969859b056ddcefeca2194b49bc5e76ce96b8ed5a66dc862",
     "00664_an_ad_that_can_t_run_is_mailed_once.sql": "3a777d6760e1811cb50bdffc91bf3db25766232965b0d2f984e911e09fb999e2",
     "00665_a_yes_is_kept_for_each_use.sql": "80ed699f369467515dbaca915a66fecf52625556ecdec7119d3bf66cb4a26b65",
-    "00666_an_owner_turns_an_ad_on.sql": "7743f51cf4101d2e53282d18d94ff2c7961096d2ce454ce826f79c2cf2a11ad1"
+    "00666_an_owner_turns_an_ad_on.sql": "7743f51cf4101d2e53282d18d94ff2c7961096d2ce454ce826f79c2cf2a11ad1",
+    "00671_an_owner_pauses_every_ad_at_once.sql": "9765224526a988e26735dc0d27dc0d1f18b7e780ca289d7aef85303b3a8cd36a"
   }
 }

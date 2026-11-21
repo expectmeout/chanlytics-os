@@ -9200,6 +9200,10 @@ export type Database = {
         Returns: boolean
       }
       ad_named: { Args: { p_ref: string; p_tenant_id: string }; Returns: Json }
+      ad_pause_all: {
+        Args: { p_actor: string; p_presses: Json; p_tenant_id: string }
+        Returns: Json
+      }
       ad_people: {
         Args: {
           p_ad_id?: string
