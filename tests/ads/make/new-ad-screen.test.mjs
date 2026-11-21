@@ -647,6 +647,8 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     service: "admin/business",
     address: "admin/business",
     whatsapp: "admin/integrations",
+    whatsapp_blocked: "admin/integrations",
+    paused: "admin/billing",
     picture: CONTENT_LIBRARY_ROUTE,
     picture_none: CONTENT_LIBRARY_ROUTE,
     picture_person: CONTENT_LIBRARY_ROUTE,
@@ -678,6 +680,20 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
   assert.match(reading.said("ads-new-short"), /Nothing is needed from you\./);
   press(byTestId(reading.draw(), "ads-new-missing-act"));
   assert.deepEqual((await reading.asked(2, "the draft to be read again")).body, {});
+  // WhatsApp hasn't said whether the number can answer: Check again asks it, then reads the draft again, whatever it said.
+  const unheard = world();
+  let checked = 0;
+  unheard.props.source.checkWhatsApp = async () => {
+    checked += 1;
+    return false;
+  };
+  unheard.asks[0].land({ can: false, missing: "whatsapp_unread" });
+  await unheard.shows("ads-new-short", "the unheard number to be said");
+  assert.equal(unheard.said("ads-new-missing-act"), "Check again");
+  press(byTestId(unheard.draw(), "ads-new-missing-act"));
+  assert.deepEqual((await unheard.asked(2, "the draft to be read again")).body, {});
+  assert.equal(checked, 1, "WhatsApp was asked once, before the draft was read again");
+  assert.deepEqual(unheard.went, [], "nothing is opened: the press asks here");
   // No answer at all: it says so in its own words, and reads again at a press.
   const none = world();
   none.asks[0].land(null);

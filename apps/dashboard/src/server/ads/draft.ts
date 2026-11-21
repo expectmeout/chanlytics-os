@@ -7,8 +7,10 @@ import {
   daysBetween,
   minorPerUnit,
   type AdDraftInputs,
+  type AdDraftMissing,
   type AdDraftParts,
   type AdPicture,
+  type AdWayIn,
 } from "@chanlytics/contracts";
 import { keepAdDraft, keepAdMost } from "@chanlytics/db/ads";
 import { logAndGoOn } from "@chanlytics/log";
@@ -49,7 +51,7 @@ const inputsOf = (facts: AdDraftFacts, account: AdDraftAccount, wide: boolean): 
   pictures: facts.pictures.pictures,
   address: facts.address,
   wide,
-  whatsapp: facts.whatsapp,
+  whatsapp: facts.wayIn === "open",
   account,
   history: facts.history,
   ownerMostMinor: facts.ownerMostMinor,
@@ -127,6 +129,25 @@ function pictureMissing(pictures: readonly AdPicture[]): Extract<AdDraftAnswer, 
   return issues.has("music") ? "picture_music" : "picture";
 }
 
+/**
+ * Why AI can't answer the chat an ad opens, as the one thing missing says it: no number (or not the one connected), what
+ * Meta holds not known yet, Meta stopping the number, the workspace paused, or AI stopped.
+ */
+const WAY_IN_MISSING: Record<Exclude<AdWayIn, "open">, Extract<AdDraftAnswer, { can: false }>["missing"]> = {
+  no_number: "whatsapp",
+  unread: "whatsapp_unread",
+  blocked: "whatsapp_blocked",
+  paused: "paused",
+  stopped: "stopped",
+};
+
+/** The one thing missing the rule found, said as precisely as the draft's facts know it. */
+function missingOf(facts: AdDraftFacts, missing: AdDraftMissing): Extract<AdDraftAnswer, { can: false }>["missing"] {
+  // What was offered and the shelves' newest, which hold what was never offered: someone shown, or not looked at.
+  if (missing === "picture") return pictureMissing([...facts.pictures.pictures, ...facts.pictures.newest]);
+  return missing === "whatsapp" && facts.wayIn !== "open" ? WAY_IN_MISSING[facts.wayIn] : missing;
+}
+
 /** Why the rule proposes its amount, as the wire says it. */
 function basisDto(basis: AdDraftParts["basis"]): AdAmountBasisDto {
   if (basis.kind === "starting") return basis;
@@ -162,15 +183,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
   if ("missing" in account) return { can: false, missing: account.missing };
   const wide = sent ? sent.area !== undefined : facts.proposedArea !== null;
   const fresh = adDraftOf(inputsOf(facts, account, wide));
-  if (!fresh.ok)
-    return {
-      can: false,
-      // What was offered and the shelves' newest, which hold what was never offered: someone shown, or not looked at.
-      missing:
-        fresh.missing === "picture"
-          ? pictureMissing([...facts.pictures.pictures, ...facts.pictures.newest])
-          : fresh.missing,
-    };
+  if (!fresh.ok) return { can: false, missing: missingOf(facts, fresh.missing) };
   const { parts } = fresh;
   const draft = sent ? heldDraft(sent, facts, parts.serviceId) : freshDraft(parts, facts.proposedArea);
   const days = daysBetween(facts.today, draft.end_day);

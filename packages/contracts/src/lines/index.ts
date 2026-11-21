@@ -65,6 +65,7 @@ export {
   numberHealthOfConfig,
   numberHealthWithStanding,
   PAYMENT_HOLD_WORD,
+  repliesGoOf,
   standingAfterNameDecision,
   standingAlertWords,
   standingFromConfig,

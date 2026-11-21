@@ -181,6 +181,16 @@ async function openDraft(io: Asking): Promise<void> {
   if (first.at === "draft" && first.words.at === "writing") return writeWords(io, first);
 }
 
+/**
+ * Check again, where WhatsApp has not said whether the number can answer an ad's chat: WhatsApp is asked now, and the draft
+ * read again whatever it answered, so the screen says what is kept, never what the press hoped.
+ */
+async function checkWhatsAppAgain(io: Asking): Promise<void> {
+  io.show({ at: "opening" });
+  await io.source.checkWhatsApp?.();
+  await openDraft(io);
+}
+
 /** Opened: the workspace's draft as it is kept now, judged again as the business stands. */
 function reopenDraft(io: Asking): void {
   // Still on the page with its writer out, or its read: the answer on its way is this draft's, and nothing is asked
@@ -305,6 +315,8 @@ export interface AdDraftActs {
   nextVersion: () => void;
   /** Read the draft again: after the one thing missing was added, or an answer that never came. */
   again: () => void;
+  /** Ask WhatsApp now whether the number can answer an ad's chat, then read the draft again. */
+  checkWhatsApp: () => void;
   /** Turn on, as the press shows it. */
   turnOn: () => void;
 }
@@ -330,6 +342,10 @@ const draftActs = (io: Asking, afterTyping: (run: () => void) => void): AdDraftA
   again: () => {
     io.setOutcome(null);
     void openDraft(io);
+  },
+  checkWhatsApp: () => {
+    io.setOutcome(null);
+    void checkWhatsAppAgain(io);
   },
   turnOn: () => void turnOnDraft(io),
 });

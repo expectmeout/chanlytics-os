@@ -4,7 +4,7 @@
  * Meta is named where its bill, its check or its own rule is meant, and nothing here is a system's word. The model
  * (model.ts) chooses among these and writes none of its own.
  */
-import type { AdCardCheckId, AdPictureIssue, AdSpecialKind } from "@chanlytics/contracts";
+import { WORKSPACE_PAUSED, type AdCardCheckId, type AdPictureIssue, type AdSpecialKind } from "@chanlytics/contracts";
 import type { AdCantDraft, AdWordsFault } from "@/server/ads/draft-shape";
 
 /** A line that stops the ad, or asks: what is so, what it means, and the words of its one act. */
@@ -324,6 +324,24 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     body: "A tap on the ad opens a WhatsApp chat that AI answers. No WhatsApp number is connected yet.",
     small: "AI drafts the ad as soon as one is.",
     act: "Open Connections",
+  },
+  whatsapp_unread: {
+    title: "WhatsApp hasn't said if your number can answer",
+    body: "A tap on the ad opens a WhatsApp chat that AI answers. Chanlytics asks WhatsApp first, and no answer is in yet.",
+    small: "AI drafts the ad as soon as WhatsApp says it can.",
+    act: "Check again",
+  },
+  whatsapp_blocked: {
+    title: "WhatsApp can't send from your number",
+    body: "A tap on the ad opens a WhatsApp chat, and WhatsApp isn't letting your number answer it right now.",
+    small: "Connections says why and what to do. AI drafts the ad as soon as it can send again.",
+    act: "Open Connections",
+  },
+  paused: {
+    title: "This workspace is paused",
+    body: `A tap on the ad opens a WhatsApp chat. While the workspace is paused, ${WORKSPACE_PAUSED.gets}.`,
+    small: "AI drafts the ad once the workspace is on again.",
+    act: "Open Billing",
   },
   picture_none: {
     title: "First, a photo or a video",

@@ -104,7 +104,14 @@ const world = (over = {}) => ({
     },
   ],
   tenant_channels: [
-    { id: "ch-wa", tenant_id: A, kind: "whatsapp", status: "active", number_e164: "+13055550142", config: {} },
+    {
+      id: "ch-wa",
+      tenant_id: A,
+      kind: "whatsapp",
+      status: "active",
+      number_e164: "+13055550142",
+      config: { standing: { can_send: "AVAILABLE", problems: [] } },
+    },
   ],
   ad_accounts: [
     {
@@ -354,6 +361,35 @@ test("where a draft cannot be written, the one thing missing is said: a service,
     await missing(world({ config: { ask: { stopped: { at: "2026-11-19T12:00:00Z", playbooks: [], reply: null } } } })),
     "stopped",
   );
+});
+
+test("a WhatsApp chat AI couldn't answer is said for what it is: switched off, not heard from, blocked, or paused", async () => {
+  const missing = async (tables) => {
+    const { answer } = await fresh(tables);
+    return answer.can ? null : answer.missing;
+  };
+  const line = (over) => ({
+    id: "ch-wa",
+    tenant_id: A,
+    kind: "whatsapp",
+    status: "active",
+    number_e164: "+13055550142",
+    config: { standing: { can_send: "AVAILABLE", problems: [] } },
+    ...over,
+  });
+  // The number switched off is no number to name: Connections is where it is turned back on.
+  assert.equal(await missing(world({ tables: { tenant_channels: [line({ status: "disabled" })] } })), "whatsapp");
+  // Never read, or read as a word that is none of Meta's three: not known, so no ad is drafted on it.
+  assert.equal(await missing(world({ tables: { tenant_channels: [line({ config: {} })] } })), "whatsapp_unread");
+  // Meta says the number may not send: a tap on the ad would open a chat nobody answers.
+  const blocked = line({ config: { standing: { can_send: "BLOCKED", problems: [] } } });
+  assert.equal(await missing(world({ tables: { tenant_channels: [blocked] } })), "whatsapp_blocked");
+  // A limit, or no card on file, still lets a reply to someone who wrote first go: the draft is written.
+  const limited = line({ config: { standing: { can_send: "LIMITED", problems: [], has_payment_method: false } } });
+  assert.equal(await missing(world({ tables: { tenant_channels: [limited] } })), null);
+  // The workspace's billing paused: new messages wait for a person.
+  const paused = [{ id: A, name: "Harbor", timezone: TZ, appointment_word: "appointment", status: "paused" }];
+  assert.equal(await missing(world({ tables: { tenants: paused } })), "paused");
 });
 
 test("a folder of clips nobody has looked at, or a run of photos of people, never buries the one picture fine in ads", async () => {

@@ -5,12 +5,15 @@
  * workspace's kept draft is judged afresh as the business stands now, and every check before Turn on runs again; a
  * press that showed anything but what the draft holds now is refused, so the owner can only press the number the
  * server would have named. Then the edge keeps the ad, setting up, and the account's job makes it at Meta, paused,
- * reads it back, compares it, and only then switches it on (apps/edge/lib/ads/launch.ts). Nothing here calls Meta.
+ * reads it back, compares it, and only then switches it on (apps/edge/lib/ads/launch.ts). Nothing here makes anything
+ * at Meta: the one thing asked of it is what it holds about the WhatsApp number the ad opens a chat with, fresh at each
+ * press, so an ad is never turned on to bring people AI couldn't answer (decision 0050, call 11).
  *
  * The owner alone, while AI runs, on a deployment whose switch turns ads on in the workspace.
  */
 import "server-only";
-import { AppError, ROLE_PERMS, adMostOf, SECOND_MS } from "@chanlytics/contracts";
+import { AppError, ROLE_PERMS, adMostOf, SECOND_MS, type AdWayIn } from "@chanlytics/contracts";
+import { checkWhatsAppStanding } from "../connections/whatsapp";
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import type { Member } from "../shared/route";
@@ -77,6 +80,19 @@ function turnOnBlockedBy(answer: Judged): string | null {
   return null;
 }
 
+/** The press's words where Meta could not be asked about the number just now: nothing is made on an old answer. */
+const WAY_IN_UNHEARD =
+  "WhatsApp didn't say if your number can answer this ad's chats, so nothing was made. Check again in a moment.";
+
+/** The press's words where AI couldn't answer the chat the ad opens (contracts ads/way-in.ts), each with what to do. */
+const WAY_IN_CLOSED: Record<Exclude<AdWayIn, "open">, string> = {
+  stopped: "AI is stopped, so no ad is turned on. Start AI again first.",
+  paused: "This workspace is paused, so no ad is turned on. Nothing was made.",
+  no_number: "Connect WhatsApp first: the ad opens a chat with your number. Nothing was made.",
+  unread: WAY_IN_UNHEARD,
+  blocked: "WhatsApp can't send from your number, so nothing was made. Connections says why.",
+};
+
 /** The words a refusal of the edge's is said in. */
 function turnOnRefusal(answer: Answer): AppError {
   const code = answer.body?.error;
@@ -110,8 +126,12 @@ export async function requestTurnOn(
   // A preview never reaches Meta under a business's name, as no provider door does.
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("conflict", "Turning an ad on isn't available here. Nothing was made.", 409);
+  // Meta is asked now what it holds about the number the ad names, and keeps its word on the channel, where the facts
+  // read it next: a word kept earlier is never trusted past it (decision 0050, call 11). No answer is no Turn on.
+  const heard = await checkWhatsAppStanding(member.tenantId, ctx.userId);
+  if (!heard.ok && heard.reason !== "no_channel") throw new AppError("conflict", WAY_IN_UNHEARD, 409);
   const facts = await readAdDraftFacts(rc);
-  if (facts.stopped) throw new AppError("conflict", "AI is stopped, so no ad is turned on. Start AI again first.", 409);
+  if (facts.wayIn !== "open") throw new AppError("conflict", WAY_IN_CLOSED[facts.wayIn], 409);
   const kept = facts.kept;
   if (!kept) throw new AppError("conflict", "This draft is no longer here. Open New ad again.", 409);
   const answer = adDraftAnswer(facts, kept.draft);

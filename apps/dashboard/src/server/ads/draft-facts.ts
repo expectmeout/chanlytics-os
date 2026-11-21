@@ -3,21 +3,23 @@ import {
   AD_BOOKED_TO_FORECAST,
   AppError,
   DAY_MS,
-  DbFailure,
   ROLE_PERMS,
   adCardChecksOf,
   adStandingOf,
   adStateOfRow,
+  adWayInOf,
   guardrailsInForce,
   listingFactsOf,
   metaAdConfigOf,
   parseTenantConfigResult,
   recordOrEmpty,
+  standingFromConfig,
   zoneDayKey,
   type AdAccountCard,
   type AdDraftInputs,
   type AdPlace,
   type AdServiceFacts,
+  type AdWayIn,
   type AppointmentWord,
   type TenantConfig,
 } from "@chanlytics/contracts";
@@ -33,7 +35,7 @@ import {
 } from "@chanlytics/db/ads";
 import { findProfileName } from "@chanlytics/db/auth";
 import { listServicesBookedSince } from "@chanlytics/db/calendar";
-import { findChannelNumber } from "@chanlytics/db/channels";
+import { findWhatsappChannelFacts, isWorkspacePaused } from "@chanlytics/db/campaigns";
 import { findGoogleListingFacts } from "@chanlytics/db/google";
 import { logAndGoOn } from "@chanlytics/log";
 import type { AdBusinessFacts } from "../ask/skills/ad/brief";
@@ -93,8 +95,11 @@ export interface AdDraftFacts {
   servesAt: string | null;
   /** The wider place found for a fresh draft where the business goes to its customers; null until one is found. */
   proposedArea: AdWideArea | null;
-  /** Whether AI answers a WhatsApp number an ad can open. */
-  whatsapp: boolean;
+  /**
+   * Whether AI answers the WhatsApp chat an ad opens, from the workspace's active number, what Meta last said of it, the
+   * workspace's billing and AI's stop (contracts ads/way-in.ts): `open`, or the first thing that stops it.
+   */
+  wayIn: AdWayIn;
   /** That number, as dialled: the one an ad must name, since a Page can hold several (meta-make.ts). Null with none. */
   whatsappNumber: string | null;
   /** Null where no account is connected, or where Meta has not yet said the least it takes a day. */
@@ -247,24 +252,25 @@ function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
 export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
-  const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow, listing] = await Promise.all([
-    getTenantFacts(supabase, rc.tenantId),
-    findConfigRow(supabase, rc.tenantId),
-    getAppointmentWord(rc.ctx, rc.tenantId),
-    findAdAccountForPage(supabase, rc.tenantId, "meta"),
-    findChannelNumber(supabase, rc.tenantId, "whatsapp"),
-    listAdPictures(rc),
-    readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
-    listServicesBookedSince(
-      supabase,
-      rc.tenantId,
-      new Date(nowMs - BOOKED_LOOKBACK_DAYS * DAY_MS).toISOString(),
-      BOOKED_READ,
-    ),
-    findAdDraft(supabase, rc.tenantId),
-    findGoogleListingFacts(supabase, rc.tenantId),
-  ]);
-  if (number.error) throw new DbFailure(number.error, "the number AI answers");
+  const [named, settings, word, row, number, paused, pictures, counts, bookedNames, keptRow, listing] =
+    await Promise.all([
+      getTenantFacts(supabase, rc.tenantId),
+      findConfigRow(supabase, rc.tenantId),
+      getAppointmentWord(rc.ctx, rc.tenantId),
+      findAdAccountForPage(supabase, rc.tenantId, "meta"),
+      findWhatsappChannelFacts(supabase, rc.tenantId),
+      isWorkspacePaused(supabase, rc.tenantId),
+      listAdPictures(rc),
+      readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
+      listServicesBookedSince(
+        supabase,
+        rc.tenantId,
+        new Date(nowMs - BOOKED_LOOKBACK_DAYS * DAY_MS).toISOString(),
+        BOOKED_READ,
+      ),
+      findAdDraft(supabase, rc.tenantId),
+      findGoogleListingFacts(supabase, rc.tenantId),
+    ]);
   const parsed = parseTenantConfigResult(settings?.config ?? null);
   if (!parsed.ok)
     throw new AppError(
@@ -276,7 +282,8 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
   const timezone = live?.timezone ?? named.timezone;
   const today = zoneDayKey(nowMs, timezone);
   const ads = live ? await listAdsOfAccount(supabase, rc.tenantId, live.id) : [];
-  const aiNumber = number.data?.number_e164 ?? null;
+  const aiNumber = number?.number ?? null;
+  const stopped = aiStoppedAt(settings?.config) !== null;
   const account = draftAccountOf(live);
   const history = adHistoryOf(ads, counts);
   // The calendar is read only where the amount can lean on it (contracts ads/draft.ts amountFor).
@@ -293,7 +300,13 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     // A listing that could not be read says nothing of where the business serves: the draft keeps its circle.
     servesAt: listing.error ? null : servesAtOf(listing.data),
     proposedArea: null,
-    whatsapp: aiNumber !== null,
+    // What Meta last said of the number, as its channel keeps it; Turn on asks Meta again at the press (turn-on.ts).
+    wayIn: adWayInOf({
+      named: aiNumber,
+      number: number && { e164: number.number, canSend: standingFromConfig(number.config.standing)?.can_send ?? null },
+      paused,
+      stopped,
+    }),
     whatsappNumber: aiNumber,
     account,
     accountReading: live !== null && account === null,
@@ -303,7 +316,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     // Before 00659 an account row holds no most: none said.
     ownerMostMinor: (account ? live?.most_minor : null) ?? null,
     kept,
-    stopped: aiStoppedAt(settings?.config) !== null,
+    stopped,
     presses: live !== null && ROLE_PERMS[rc.role].ads ? await readAdsPressesOn(rc.tenantId) : false,
     owner: ROLE_PERMS[rc.role].ads,
   };
