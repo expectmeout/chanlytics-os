@@ -48,6 +48,8 @@ const sentDraft = (held: Pick<Held, "answer" | "local">): AdDraftState => ({
   picture: held.answer.draft.picture.id,
   versions: held.answer.draft.versions,
   ...(held.answer.draft.label ? { label: held.answer.draft.label } : {}),
+  // A wider place rides back as the server found it: the owner changes it by telling AI, never by typing.
+  ...(held.answer.draft.area ? { area: held.answer.draft.area } : {}),
   ...held.local,
 });
 

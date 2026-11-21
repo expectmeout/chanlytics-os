@@ -6,7 +6,9 @@
  * nothing: the Ads page and Settings › Connections draw the same model, so the two cards cannot disagree.
  *
  * One thing at a time. Of several checks not met, the card says the first, in the card's own order; the rest fold into
- * "3 of 5 ready", and the opened card lists all five.
+ * "2 of 3 ready", and the opened card lists them all. It counts only what Chanlytics can read (contracts
+ * AD_CARD_CHECKS): the Page's link to the number AI answers is a quiet line under the checks, never a count that could
+ * not be finished.
  */
 import { AD_CARD_CHECKS, formatPhoneDisplay, numberFormat } from "@chanlytics/contracts";
 import type { AdAccountCard, AdAccountDto, AdCardCheckId } from "@chanlytics/contracts";
@@ -25,6 +27,7 @@ import {
   QUESTION,
   UNSETTLED,
   needOf,
+  whatsAppLine,
   type NeedWords,
 } from "./words";
 
@@ -46,9 +49,8 @@ export interface CheckVM {
   id: AdCardCheckId;
   label: string;
   neededFor: string;
-  /** ok, missing, or not known yet (the platform has not said, or the card is still checking). */
-  /** `unknown` while the card checks (its dot turns); `unsaid` where Meta does not say, and the dot is still. */
-  state: "ok" | "missing" | "unknown" | "unsaid";
+  /** ok, missing, or not known yet: the card is still checking, or Meta has not said yet (its dot turns). */
+  state: "ok" | "missing" | "unknown";
 }
 
 export interface ConnectCardVM {
@@ -59,7 +61,7 @@ export interface ConnectCardVM {
   says: { text: string; strong: boolean }[];
   /** Who Meta charges, the Page, and Meta's own limit, once an account is connected. */
   facts: { label: string; value: string; door: { words: string; href: string } | null }[];
-  /** "4 of 5 ready", where a check is not met. */
+  /** "2 of 3 ready", where a check is not met. */
   ready: string | null;
   need: NeedVM | null;
   question: null | {
@@ -72,6 +74,8 @@ export interface ConnectCardVM {
   /** The opened card's head line and its quiet line. */
   connectedOn: string | null;
   quiet: string;
+  /** The Page's link to the number AI answers, said under the checks once an account is connected; null before. */
+  whatsapp: string | null;
   /** The line that says the newest look failed and when the card was last brought up to date. */
   stale: string | null;
   /** The coral button: Connect, Connect again, or none. */
@@ -96,23 +100,17 @@ const actOf = (need: NeedWords, how: NeedHow | null): NeedAct | null =>
 function needOfChecks(card: AdAccountCard): NeedVM | null {
   const missing = card.checks.find((check) => check.ok === false);
   if (!missing) return null;
-  const number = formatPhoneDisplay(card.ai_number);
   if (missing.id === "account-active" && card.standing === "unsettled")
     return {
       ...UNSETTLED,
       tone: "warn",
       act: actOf(UNSETTLED, { kind: "meta", href: META_DOOR.billing(card.external_id) }),
     };
-  const words = needOf(missing.id, number);
+  const words = needOf(missing.id);
   const how: Record<AdCardCheckId, NeedHow | null> = {
     "account-active": { kind: "meta", href: META_DOOR.quality(card.business_id, card.external_id) },
     payment: { kind: "meta", href: META_DOOR.billing(card.external_id) },
     "page-linked": null,
-    "whatsapp-linked": { kind: "meta", href: META_DOOR.whatsapp },
-    "chanlytics-whatsapp":
-      card.ai_number === null
-        ? { kind: "route", to: "admin/integrations" }
-        : { kind: "meta", href: META_DOOR.whatsapp },
   };
   return { ...words, tone: "warn", act: actOf(words, how[missing.id]) };
 }
@@ -133,7 +131,7 @@ const checksOf = (card: AdAccountCard | null, checking: boolean): CheckVM[] =>
   AD_CARD_CHECKS.map((id) => {
     if (checking || card === null) return { id, ...CHECK[id], state: "unknown" };
     const ok = card.checks.find((check) => check.id === id)?.ok ?? null;
-    return { id, ...CHECK[id], state: ok === null ? "unsaid" : ok ? "ok" : "missing" };
+    return { id, ...CHECK[id], state: ok === null ? "unknown" : ok ? "ok" : "missing" };
   });
 
 /** Who Meta charges, the Page, and Meta's own limit. */
@@ -160,7 +158,16 @@ interface CardMoment {
   timezone: string;
 }
 
-const BASE = { says: [], facts: [], ready: null, need: null, question: null, connectedOn: null, stale: null };
+const BASE = {
+  says: [],
+  facts: [],
+  ready: null,
+  need: null,
+  question: null,
+  connectedOn: null,
+  whatsapp: null,
+  stale: null,
+};
 
 /** The card with nothing connected: what connecting does, who is charged, and what the last try came to. */
 function cardBefore(dto: AdAccountDto, moment: CardMoment): ConnectCardVM {
@@ -205,6 +212,7 @@ function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMomen
     checks: checksOf(card, false),
     connectedOn: connected === null ? null : CARD.connectedOn(connected),
     quiet: quietLineOf(card),
+    whatsapp: whatsAppLine(card.whatsapp_link, formatPhoneDisplay(card.ai_number)),
     stale: card.read_failed && updated !== null ? CARD.couldntUpdate(updated) : null,
     button: null,
   };

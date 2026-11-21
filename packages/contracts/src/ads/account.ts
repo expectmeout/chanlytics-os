@@ -8,7 +8,6 @@
  *
  * Both are read defensively: a part that is odd is left out alone, so one bad value never empties the card.
  */
-import { samePhone } from "../shared/phone";
 import { isOneOf, recordOrEmpty } from "../shared/unknown";
 
 /** Where an ad account stands at its platform, in Chanlytics' words. */
@@ -155,8 +154,15 @@ export interface AdAccountCard {
   instagram_handle: string | null;
   /** The number AI answers on WhatsApp, as dialled; null where the workspace has none. */
   ai_number: string | null;
-  /** The five checks, in the card's order. `ok` is null where the platform has not said yet. */
+  /** The three checks, in the card's order. `ok` is null where the platform has not said yet. */
   checks: { id: AdCardCheckId; ok: boolean | null }[];
+  /**
+   * The Page's link to the number AI answers, as far as Chanlytics can know it: a quiet line, never a check. `ai_number`
+   * where Meta named that number on the Page; `no_number` where AI answers no WhatsApp number; else `unsaid`, since Meta
+   * shares a Page's numbers only with an app holding its Page Public Content or Metadata Access, and the ad's own check
+   * at Meta settles it when an ad is made.
+   */
+  whatsapp_link: "ai_number" | "no_number" | "unsaid";
   /** Whether the sign-in may pause and resume an ad. */
   can_pause: boolean;
   /** Whether the sign-in may read the Page's Instagram account: where not, the card says nothing of one. */
@@ -165,38 +171,29 @@ export interface AdAccountCard {
   choices: AdAccountChoice[];
 }
 
-/** The five checks an account's card draws (the Ads plan's G2), in its order. */
-export const AD_CARD_CHECKS = [
-  "account-active",
-  "payment",
-  "page-linked",
-  "whatsapp-linked",
-  "chanlytics-whatsapp",
-] as const;
+/**
+ * The checks an account's card counts, in its order: only what Chanlytics can read (the Ads plan's G2, as settled on
+ * 20 November 2026). The Page's link to a WhatsApp number was two checks more, and Meta answers neither to an app like
+ * Chanlytics, so the card said "3 of 5 ready" forever. It is a quiet line now (`whatsapp_link`): the ad's own check at
+ * Meta settles it when an ad is made, and New ad asks for a number where AI answers none (contracts adDraftOf).
+ */
+export const AD_CARD_CHECKS = ["account-active", "payment", "page-linked"] as const;
 export type AdCardCheckId = (typeof AD_CARD_CHECKS)[number];
 
 /**
- * The five checks, read from what is kept of an account and the number AI answers. An account that still shows ads
- * while a payment settles is active; a Page with no number, and a number that is not AI's, are each their own line.
+ * The card's checks, read from what is kept of an account. An account that still shows ads while a payment settles is
+ * active; a standing not read yet is not known (null), never missing.
  */
 export function adCardChecksOf(kept: {
   standing: AdStanding;
-  config: Pick<MetaAdConfig, "page_id" | "page_whatsapp">;
-  aiNumber: string | null;
+  config: Pick<MetaAdConfig, "page_id">;
 }): AdAccountCard["checks"] {
-  const { standing, config, aiNumber } = kept;
-  const linked = config.page_whatsapp;
-  // Meta names a Page's WhatsApp number only to an app with its Page Public Content or Metadata Access, and one at most
-  // of the fifty a Page may hold. So a number named settles both checks; none named settles neither (null, "Meta doesn't
-  // share this"), and a number named that is not AI's leaves AI's own unknown: it may be linked beside it. Only a
-  // workspace whose AI answers no WhatsApp number is known to miss the last.
+  const { standing, config } = kept;
   const answers: Record<AdCardCheckId, boolean | null> = {
     "account-active":
       standing.account === undefined ? null : standing.account === "active" || standing.account === "grace",
     payment: standing.funding === undefined ? null : standing.funding === "ok",
     "page-linked": config.page_id !== null,
-    "whatsapp-linked": linked !== null ? true : null,
-    "chanlytics-whatsapp": aiNumber === null ? false : samePhone(linked, aiNumber) ? true : null,
   };
   return AD_CARD_CHECKS.map((id) => ({ id, ok: answers[id] }));
 }

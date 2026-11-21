@@ -304,7 +304,7 @@ test("5.1 row 10, an end date too close to its start: a whole day at least, with
   assert.deepEqual(checks({ end_day: C.addDays(TODAY, 1), total_minor: 1000 }), []);
 });
 
-test("5.1 row 11, the Page, the WhatsApp number, the payment method and the account's standing: the card's own checks, each its own line", () => {
+test("5.1 row 11, the Page, the payment method and the account's standing: the card's own checks, each its own line", () => {
   const card = (over) => C.AD_CARD_CHECKS.map((id) => ({ id, ok: id in over ? over[id] : true }));
   assert.deepEqual(checks({}, { account: { currency: "USD", minDailyMinor: 500, checks: card({ payment: false }) } }), [
     { code: "account", check: "payment" },
@@ -325,11 +325,13 @@ test("5.1 row 11, the Page, the WhatsApp number, the payment method and the acco
       { code: "account", check: "page-linked" },
     ],
   );
-  // What Meta does not say is not known, and stops nothing.
+  // What Meta has not said yet is not known, and stops nothing.
   assert.deepEqual(
-    checks({}, { account: { currency: "USD", minDailyMinor: 500, checks: card({ "whatsapp-linked": null }) } }),
+    checks({}, { account: { currency: "USD", minDailyMinor: 500, checks: card({ payment: null }) } }),
     [],
   );
+  // The Page's WhatsApp number is no check of the card's (Meta doesn't share it): only the three it can read.
+  assert.deepEqual(C.AD_CARD_CHECKS, ["account-active", "payment", "page-linked"]);
 });
 
 test("the area is whole miles inside what Meta takes, and a draft says the nearest", () => {

@@ -35,7 +35,8 @@ export interface AdOfferFacts {
   facts: readonly string[];
   /** What the picture shows, in a line; null where nothing is noted. */
   picture: string | null;
-  area: { place: string | null; miles: number };
+  /** The miles around the business, or a wider place (`wide` its kind, `place` its name): AdBrief's area. */
+  area: { place: string | null; miles: number; wide: "city" | "region" | "country" | null };
   places: readonly AdPlace[];
   /** The owner asked for the price to be left out of this ad. */
   noPrice?: boolean | undefined;
@@ -86,7 +87,11 @@ export function adBriefOf(business: AdBusinessFacts, offer: AdOfferFacts, ask: A
       .filter(Boolean)
       .slice(0, AD_FACTS.most),
     picture: offer.picture ? oneLine(offer.picture) || null : null,
-    area: { place: offer.area.place ? oneLine(offer.area.place) || null : null, miles },
+    area: {
+      place: offer.area.place ? oneLine(offer.area.place) || null : null,
+      miles,
+      wide: offer.area.place ? offer.area.wide : null,
+    },
     language: business.language,
     places: offer.places,
     ...(ask.job === "rewrite" ? { refused: ask.refused } : {}),

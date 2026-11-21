@@ -109,6 +109,49 @@ export async function recordMailSent(
   if (error) throw new DbFailure(error, "cannot record that the notice was mailed");
 }
 
+/** A kept notice whose mail is still owed, as its sender reads it. */
+export interface MailOwed {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  route: string | null;
+  subjectId: string | null;
+  /** Whether its cause has cleared since it was kept: a row that is closed is owed no mail. */
+  closed: boolean;
+}
+
+/**
+ * The workspace's notices of these kinds whose mail is still owed (`mail_due_at`, 00409), oldest first, at most
+ * `limit`: for news a database function writes and marks owed in the act that rings it (an ad that can't run, 00664),
+ * which the edge then mails once and says so (recordMailSent). Since `since`, so a row nothing will ever send is not
+ * read for ever. A read that fails throws.
+ */
+export async function listMailOwed(
+  db: Db,
+  params: { tenantId: TenantId; kinds: readonly SchemaSet<"notifications.kind">[]; since: string; limit: number },
+): Promise<MailOwed[]> {
+  const { data, error } = await db
+    .from("notifications")
+    .select("id, kind, title, body, route, subject_id, closed_at")
+    .eq("tenant_id", params.tenantId)
+    .in("kind", [...params.kinds])
+    .not("mail_due_at", "is", null)
+    .gte("created_at", params.since)
+    .order("created_at", { ascending: true })
+    .limit(params.limit);
+  if (error) throw new DbFailure(error, "cannot read the notices whose mail is owed");
+  return data.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    route: row.route,
+    subjectId: row.subject_id,
+    closed: row.closed_at !== null,
+  }));
+}
+
 /**
  * Whether the workspace has already kept a notice of this kind about this subject (`subject_type`, `subject_id`). The
  * notification door keeps no memory of what it told, so news owed once a day -- a playbook that could not run, said at the
