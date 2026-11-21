@@ -97,6 +97,43 @@ export const ADS_CHECK_DOOR = edgeDoor(
 );
 
 /**
+ * POST /api/admin/ads/preview: Meta's own preview of one version of New ad's draft (the Ads plan's 4.6, "The ad as Meta
+ * draws it"), in each place the ad shows. A read: it makes nothing at Meta and spends nothing, so any member who may
+ * draft asks it. `outcome` is what it came to: drawn, partly, or why Meta drew none; `places` holds Meta's frame for
+ * each place it drew, and for the others what stood in the way.
+ */
+export const ADS_PREVIEW_DOOR = edgeDoor(
+  "/api/admin/ads/preview",
+  z.object({
+    tenant_id: DOOR_ID.optional(),
+    user_id: DOOR_ID.optional(),
+    preview: z
+      .object({
+        /** The picture it shows: a file's id. */
+        picture: DOOR_ID,
+        /** One version of its words. */
+        text: z.string().trim().min(1).max(1024),
+        headline: z.string().trim().min(1).max(255),
+      })
+      .optional(),
+  }),
+  answerFields({
+    outcome: z.string(),
+    places: z.array(
+      z.object({
+        place: z.enum(["feed", "story", "reel"]),
+        /** Meta's own preview page for it, and the size Meta drew it at; null where Meta drew none. */
+        src: z.string().nullable(),
+        width: z.number().nullable(),
+        height: z.number().nullable(),
+        /** What stood in the way where Meta drew none; null where it drew one. */
+        fault: z.string().nullable(),
+      }),
+    ),
+  }),
+);
+
+/**
  * POST /api/admin/ads/press: an owner pauses an ad (`pause`) or turns one back on (`resume`), carrying the version the
  * press was drawn from. `outcome` says what it came to: told, sent, soon, took_back or same.
  */

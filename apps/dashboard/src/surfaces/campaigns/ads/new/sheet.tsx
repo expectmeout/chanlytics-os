@@ -143,10 +143,12 @@ interface DraftProps {
   acts: AdDraftActs;
   telling: boolean;
   onConnect: () => void;
+  /** Meta's own preview of a version, where the source asks for one. */
+  preview: AdSource["preview"];
 }
 
 /** The draft's body: the sentence, the word being changed, why that amount, the one line, and the ad as it will look. */
-function DraftBody({ stand, vm, acts, telling, onConnect }: DraftProps) {
+function DraftBody({ stand, vm, acts, telling, onConnect, preview }: DraftProps) {
   const [editing, setEditing] = useState<AdEditing>(null);
   const act = (line: LineAct) => {
     if (line.kind === "rewrite") return acts.write();
@@ -173,7 +175,7 @@ function DraftBody({ stand, vm, acts, telling, onConnect }: DraftProps) {
       ) : null}
       <NewWhy lines={vm.why} />
       {vm.line ? <NewAdLine line={vm.line} onAct={act} onConnect={onConnect} /> : null}
-      <AdShown shown={vm.shown} onNext={acts.nextVersion} />
+      <AdShown shown={vm.shown} onNext={acts.nextVersion} preview={preview} />
     </div>
   );
 }
@@ -225,7 +227,16 @@ function newAdParts(
     return {
       title: vm.title,
       sub: vm.kicker,
-      body: <DraftBody stand={stand} vm={vm} acts={acts} telling={here.telling} onConnect={props.onConnect} />,
+      body: (
+        <DraftBody
+          stand={stand}
+          vm={vm}
+          acts={acts}
+          telling={here.telling}
+          onConnect={props.onConnect}
+          preview={props.source.preview}
+        />
+      ),
       foot: <Foot vm={vm} onTell={acts.tell} onTurnOn={acts.turnOn} />,
       fit: false,
     };
