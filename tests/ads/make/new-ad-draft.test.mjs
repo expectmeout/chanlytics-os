@@ -192,7 +192,7 @@ const OPEN_CALENDAR = ["BEGIN:VCALENDAR", "END:VCALENDAR"].join("\r\n");
 const NO_WRITER = { writing_ask: null, writing_for: null, writing_until: null };
 
 /**
- * The doors of 00659 and 00669 as the database answers them, over the tables in memory: a draft kept as the workspace's
+ * The doors of 00659 and 00672 as the database answers them, over the tables in memory: a draft kept as the workspace's
  * one (by whoever is signed in, each keep written down, each at a moment of its own), and nothing written over a newer
  * one by a keep that names the draft it read; the writer out for its words, marked once for the same words; and the
  * owner's most kept on the connected account. Who may, and the owner's bell, are the database's own
@@ -887,7 +887,7 @@ test("a draft an operator leaves: the owner opens it as left, by name, and it is
 });
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Two asks at once: a reload, a second device, another member (00669)
+// Two asks at once: a reload, a second device, another member (00672)
 
 /** The model, its answer (or `refused`) held until the test lets it go: a writer out for as long as a test needs. */
 function modelHeld(answer, refused = null) {

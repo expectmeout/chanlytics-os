@@ -7,7 +7,7 @@ import { stableJson, type ReaderContext } from "../shared/reader";
 import type { AdDraftState } from "./draft-shape";
 
 /**
- * The ad writer, asked once for a draft's words (the Ads plan's G18; 00669). New ad asks for the words of a draft that
+ * The ad writer, asked once for a draft's words (the Ads plan's G18; 00672). New ad asks for the words of a draft that
  * has none, and a reload, a second device or another member opening it while the writer is out sees a draft with no
  * words yet and asks again. So an ask marks itself the kept draft's writer, for the words it writes; an ask for the
  * same words that finds one out waits for it, and answers the words it keeps. The wait is bounded: past it, or once the

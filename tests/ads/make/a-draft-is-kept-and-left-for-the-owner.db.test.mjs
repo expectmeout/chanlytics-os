@@ -9,7 +9,7 @@
  * The most an ad may cost is the owner's alone to say. Runs against the database `supabase start` builds on this
  * machine, never production.
  *
- * And 00669: a keep that names the draft it read writes nothing over another kept since, nor brings back one gone
+ * And 00672: a keep that names the draft it read writes nothing over another kept since, nor brings back one gone
  * since, and says so; the ad writer out for a draft's words is marked once for the same words, its mark moves nothing
  * of the draft (Turn on and a keep still read it as the one they read), and goes when it is back.
  */
@@ -204,7 +204,7 @@ test(
 );
 
 // ---------------------------------------------------------------------------------------------------------------------
-// 00669: a keep names the draft it read, and the writer out for its words is marked
+// 00672: a keep names the draft it read, and the writer out for its words is marked
 
 const rowOf = async (ws) =>
   ok(

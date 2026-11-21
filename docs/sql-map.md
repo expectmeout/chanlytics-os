@@ -62,9 +62,9 @@ being read is dropped by a migration.
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
-| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659, 00669; |
-| `ad_draft_writing` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00669; |
-| `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00669): |
+| `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659, 00672; |
+| `ad_draft_writing` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672; |
+| `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672): |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00666): |
 | `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666; |

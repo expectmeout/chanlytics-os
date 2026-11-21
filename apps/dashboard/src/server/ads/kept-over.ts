@@ -7,7 +7,7 @@ import { readKeptDraft, type AdDraftFacts } from "./draft-facts";
 import type { AdDraftState, AdWordsAnswer } from "./draft-shape";
 
 /**
- * What the ad writer made, kept into the draft as it now stands (the Ads plan's 4.6, 6.2 and G18; 00669). The words
+ * What the ad writer made, kept into the draft as it now stands (the Ads plan's 4.6, 6.2 and G18; 00672). The words
  * route reads the kept draft, and the writer takes ten to twenty seconds: in them another device or another member may
  * keep a change of their own, and the owner may turn the draft on. So the writer's answer is kept naming the draft it
  * was made from (ad_draft_keep's p_read_at), and where another was kept since, what the writer made is put into that

@@ -1,4 +1,4 @@
--- 00669 · A draft ad's words are asked for once, and what the ad writer made is kept into the draft as it now stands
+-- 00672 · A draft ad's words are asked for once, and what the ad writer made is kept into the draft as it now stands
 -- (the Ads plan's 4.6, 6.2 and G18; follows 00659).
 --
 -- Two races New ad's screen could not mend, since the kept draft held no mark of a writer at work and a keep could not
@@ -41,11 +41,11 @@ alter table public.ad_drafts
   add column if not exists writing_until timestamptz;
 
 comment on column public.ad_drafts.writing_ask is
-  'The ask out for the draft''s words, while one is (00669): written by ad_draft_writing, let go by ad_draft_written. Null where no writer is out.';
+  'The ask out for the draft''s words, while one is (00672): written by ad_draft_writing, let go by ad_draft_written. Null where no writer is out.';
 comment on column public.ad_drafts.writing_for is
-  'The words that ask writes, as the dashboard names them (00669; server/ads/writer.ts): the service, the picture, and whether they say the price. Another ask for the same words waits for it.';
+  'The words that ask writes, as the dashboard names them (00672; server/ads/writer.ts): the service, the picture, and whether they say the price. Another ask for the same words waits for it.';
 comment on column public.ad_drafts.writing_until is
-  'Until when another ask for the same words waits for the one out (00669): within the words route''s own minute. Past it, the next ask writes its own.';
+  'Until when another ask for the same words waits for the one out (00672): within the words route''s own minute. Past it, the next ask writes its own.';
 
 -- A mark is not a change of the draft: updated_at moves only with what was chosen, or its account.
 drop trigger if exists ad_drafts_set_updated_at on public.ad_drafts;
@@ -101,7 +101,7 @@ end $$;
 revoke all on function public.ad_draft_writing(uuid, uuid, text, timestamptz) from public, anon;
 grant execute on function public.ad_draft_writing(uuid, uuid, text, timestamptz) to authenticated, service_role;
 comment on function public.ad_draft_writing(uuid, uuid, text, timestamptz) is
-  'A member''s door (00669; the Ads plan''s G18): an ask for the kept draft''s words marks itself its writer, until p_until (within two minutes), for the words p_for names. Where another ask is out for the same words in its time, nothing is marked and the answer names that one, which the ask waits for; an ask for other words takes the mark over. An acting member alone (is_acting_member). Answers {held, ask, until}; held false with no ask where no draft is kept. Moves nothing of the draft.';
+  'A member''s door (00672; the Ads plan''s G18): an ask for the kept draft''s words marks itself its writer, until p_until (within two minutes), for the words p_for names. Where another ask is out for the same words in its time, nothing is marked and the answer names that one, which the ask waits for; an ask for other words takes the mark over. An acting member alone (is_acting_member). Answers {held, ask, until}; held false with no ask where no draft is kept. Moves nothing of the draft.';
 
 create or replace function public.ad_draft_written(p_tenant_id uuid, p_ask uuid)
 returns boolean
@@ -128,7 +128,7 @@ end $$;
 revoke all on function public.ad_draft_written(uuid, uuid) from public, anon;
 grant execute on function public.ad_draft_written(uuid, uuid) to authenticated, service_role;
 comment on function public.ad_draft_written(uuid, uuid) is
-  'A member''s door (00669): the ad writer an ask marked with ad_draft_writing is back, and the mark goes, where it is still that ask''s (an ask for other words may have taken it over). An acting member alone. True where a mark went.';
+  'A member''s door (00672): the ad writer an ask marked with ad_draft_writing is back, and the mark goes, where it is still that ask''s (an ask for other words may have taken it over). An acting member alone. True where a mark went.';
 
 /* ------------------------------------------------------------------------- 2. a keep names the draft it read -- */
 
@@ -224,4 +224,4 @@ end $$;
 revoke all on function public.ad_draft_keep(uuid, uuid, jsonb, timestamptz) from public, anon;
 grant execute on function public.ad_draft_keep(uuid, uuid, jsonb, timestamptz) to authenticated, service_role;
 comment on function public.ad_draft_keep(uuid, uuid, jsonb, timestamptz) is
-  'A member''s door (00659, 00669; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. With p_read_at, the kept draft''s updated_at as it was read (''-infinity'' where none was kept): where the draft kept now is another, or is gone, nothing is written and the answer says newer. Answers {kept, draft_id, rung}, with newer true where it was refused so; kept false, and nothing written, for an account not of this workspace.';
+  'A member''s door (00659, 00672; decision 0050, call 2): the workspace''s draft of a new ad kept for an ad account of its own, in place of the one before. An acting member alone (is_acting_member: an owner, an operator, a partner whose session showed its second factor). Kept with its words by a member who may not run ads, it rings each owner''s bell (kind ad_draft, opening New ad), once while their row is open; kept by an owner, those rows close. With p_read_at, the kept draft''s updated_at as it was read (''-infinity'' where none was kept): where the draft kept now is another, or is gone, nothing is written and the answer says newer. Answers {kept, draft_id, rung}, with newer true where it was refused so; kept false, and nothing written, for an account not of this workspace.';

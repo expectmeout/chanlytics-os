@@ -1,9 +1,9 @@
 /**
  * A workspace's draft of a new ad (ad_drafts, 00659; the Ads plan's 4.6, 6.2 and G18): the one place the table is
- * typed, the ad writer out for its words (00669), and the owner's most an ad may cost (G6), kept on the ad account. A
+ * typed, the ad writer out for its words (00672), and the owner's most an ad may cost (G6), kept on the ad account. A
  * member reads their workspace's draft under its row rules; each write is a member's door, called as the member signed
  * in, which decides who may. A database that has not run 00659 keeps no draft and holds none, which is how New ad stood
- * before it; one that has not run 00669 marks no writer and keeps as before (either deploy order).
+ * before it; one that has not run 00672 marks no writer and keeps as before (either deploy order).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
@@ -28,7 +28,7 @@ export async function findAdDraft(db: Db, tenantId: TenantId): Promise<AdDraftRo
     .select(`${DRAFT_COLUMNS}, writing_ask, writing_until`)
     .maybeSingle();
   if (!error) return data ?? null;
-  // A database that has not run 00659 keeps none; one before 00669 has no writer to say.
+  // A database that has not run 00659 keeps none; one before 00672 has no writer to say.
   if (error.code === "42P01" || error.code === "PGRST205") return null;
   if (error.code !== "42703") throw new DbFailure(error, "ad draft");
   const before = await tenantDb(db, tenantId).from("ad_drafts").select(DRAFT_COLUMNS).maybeSingle();
@@ -59,7 +59,7 @@ export async function keepAdDraft(
   const args = { p_tenant_id: tenantId, p_account_id: draft.accountId, p_draft: draft.draft };
   const named = draft.readAt === undefined ? args : { ...args, p_read_at: draft.readAt ?? "-infinity" };
   let { data, error } = await db.rpc("ad_draft_keep", named);
-  // A database before 00669 takes no p_read_at: kept as before.
+  // A database before 00672 takes no p_read_at: kept as before.
   if (error && isMissingDoor(error) && named !== args) ({ data, error } = await db.rpc("ad_draft_keep", args));
   if (error) {
     if (isMissingDoor(error)) return null;
@@ -85,7 +85,7 @@ export interface AdDraftWriting {
 export type AdDraftWriter = { held: true } | { held: false; out: { ask: string; until: string } | null };
 
 /**
- * An ask marks itself the kept draft's writer (ad_draft_writing, 00669), unless another is out for the same words in
+ * An ask marks itself the kept draft's writer (ad_draft_writing, 00672), unless another is out for the same words in
  * its time, which it answers. Null where the door is not there yet: no writer is marked, and none waited for.
  */
 export async function markAdDraftWriting(
@@ -112,7 +112,7 @@ export async function markAdDraftWriting(
   return { held: false, out };
 }
 
-/** The writer an ask marked is back: its mark goes, where it is still that ask's (ad_draft_written, 00669). */
+/** The writer an ask marked is back: its mark goes, where it is still that ask's (ad_draft_written, 00672). */
 export async function endAdDraftWriting(db: Db, tenantId: TenantId, ask: string): Promise<void> {
   const { error } = await db.rpc("ad_draft_written", { p_tenant_id: tenantId, p_ask: ask });
   if (error && !isMissingDoor(error)) throw new DbFailure(error, "ad_draft_written");
