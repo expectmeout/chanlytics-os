@@ -11,7 +11,8 @@ import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import { WEBSITE_FORM_WORDS as W, keyHint, keyName, keyUsed, type SaysWhen, type WebsiteKey } from "./words";
 
-const KEY_SHEET_CLOSE = { label: W.close, glyph: <Icon name="x" size={13} /> };
+/** A sheet's Close, made as it is drawn: nothing here draws while the module loads. */
+const keySheetClose = () => ({ label: W.close, glyph: <Icon name="x" size={13} /> });
 
 /** A key made for a site: its name asked, then the press. */
 export function MakeKeySheet(props: {
@@ -27,7 +28,7 @@ export function MakeKeySheet(props: {
       open={props.open}
       onClose={props.onClose}
       title={W.makeSheet.title}
-      close={KEY_SHEET_CLOSE}
+      close={keySheetClose()}
       flatFoot
       fit
       testid="wf-make"
@@ -85,7 +86,7 @@ export function MadeKeySheet(props: {
       open={made !== null}
       onClose={props.onClose}
       title={W.madeSheet.title(made?.name ?? "")}
-      close={KEY_SHEET_CLOSE}
+      close={keySheetClose()}
       flatFoot
       fit
       testid="wf-made"
@@ -152,7 +153,7 @@ export function KeySheet(props: {
       open={key !== null}
       onClose={close}
       title={key ? keyName(key) : ""}
-      close={KEY_SHEET_CLOSE}
+      close={keySheetClose()}
       flatFoot
       fit
       testid="wf-key"

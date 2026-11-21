@@ -19,13 +19,16 @@ export function useWebsiteForms(): WebsiteFormsRead & {
 } {
   const [state, setState] = useState<WebsiteFormsRead>({ dto: null, failed: false });
   const live = useRef(true);
+  // What the last read that answered said: a read that fails keeps it on screen.
+  const known = useRef<WebsiteFormsDto | null>(null);
   const again = useCallback(async () => {
     try {
       const dto = await read("GET website-forms");
+      known.current = dto;
       if (live.current) setState({ dto, failed: false });
     } catch {
       // What was known stays on screen; only a page that knows nothing says it could not read.
-      if (live.current) setState((was) => ({ dto: was.dto, failed: was.dto === null }));
+      if (live.current) setState({ dto: known.current, failed: known.current === null });
     }
   }, []);
   useEffect(() => {
