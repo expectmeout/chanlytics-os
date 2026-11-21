@@ -8,12 +8,12 @@
  */
 import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { ActWords } from "../../../kit/head/act-words";
-import { askAbout, gate, navigate } from "../../../frame-verbs";
+import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
@@ -53,11 +53,9 @@ interface LiveAdsProps {
 
 export function LiveAds(p: LiveAdsProps) {
   const { dto, address, phone } = p;
-  const said = { timezone: dto.account.timezone ?? p.timezone };
+  const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now() };
   const vm = liveModel(dto, said);
-  // The moment the page opened: when Meta takes an ad's next amount is the server's to say, read again on each read.
-  const [openedMs] = useState(() => Date.now());
-  const sheet = sheetModel(dto, address.ad, { ...said, nowMs: openedMs });
+  const sheet = sheetModel(dto, address.ad, said);
   const presses = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
   const changes = useAdChanges({
     ads: dto.ads,
@@ -155,6 +153,8 @@ export function LiveAds(p: LiveAdsProps) {
           p.again();
           p.nav.push(adRoute(adId));
         }}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {p.toast}
     </div>

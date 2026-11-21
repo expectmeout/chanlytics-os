@@ -107,16 +107,21 @@ export async function readFilesWaiting(): Promise<FilesPageDto> {
   return dto;
 }
 
-/** The next page of the view on show, after what is there. A read again then asks for all of it at once, as long as it now is. */
+/**
+ * The next page of the view on show, after what is there: a search reads on in what it found, with the same words, as a shelf
+ * reads on in all of it. A read again then asks for all of it at once, as long as it now is.
+ */
 export async function showMoreFiles(): Promise<void> {
   const held = surfaceValue("files")?.dto;
   if (!held?.next) return;
-  const { shelf, kind, next } = held;
-  const more = await read("GET files", { query: { shelf, ...(kind ? { kind } : {}), before: next } });
+  const { shelf, kind, about, next } = held;
+  const more = await read("GET files", {
+    query: { shelf, ...(kind ? { kind } : {}), ...(about ? { about } : {}), before: next },
+  });
   const now = surfaceValue("files")?.dto;
-  if (now?.shelf !== shelf || now.kind !== kind || now.next !== next) return;
+  if (now?.shelf !== shelf || now.kind !== kind || now.about !== about || now.next !== next) return;
   const files = [...now.files, ...more.files];
-  onScreen = { shelf, kind, about: null, limit: files.length };
+  onScreen = { shelf, kind, about, limit: files.length };
   show({ dto: { ...more, files }, fetchedAt: Date.now() });
 }
 

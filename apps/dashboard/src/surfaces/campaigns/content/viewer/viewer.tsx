@@ -23,6 +23,7 @@ import { useSave } from "../piece-foot";
 import type { PieceFootActs } from "../piece-foot";
 import type { PiecePresses, usePieceDrafts } from "../piece-presses";
 import { pieceNextOf, type PieceTakes } from "../model/piece-open";
+import type { RunAsAdLine } from "../model/run-as-ad";
 import { viewerSaidOf, type ViewerRecord } from "../model/viewer-line";
 import type { PlaceDoors } from "../post-both";
 import { PostedByHand, type ByHandPress } from "./by-hand";
@@ -32,6 +33,7 @@ import { ViewerFoot, statusOpensOf } from "./foot";
 import { shrinkIntoTile } from "./into-tile";
 import { ViewerMore, type PieceMoreActs } from "./more";
 import { ViewerPicture } from "./picture";
+import { RunAsAd, type RunAsAdActs } from "./run-as-ad";
 import { ViewerAskChange, ViewerDrafts, ViewerRename } from "./sheets";
 
 /** Every press the viewer hands on: the pane's own (piece.tsx), the walk to the piece beside, and close. */
@@ -59,6 +61,8 @@ export interface ViewerHands {
   doors: PlaceDoors;
   /** "I posted it", and where it stands once said (by-hand.tsx). */
   byHand: ByHandPress;
+  /** "Run as an ad", or why not with its one act (run-as-ad.tsx); its line is null where it says nothing. */
+  runAsAd: { line: RunAsAdLine | null; acts: RunAsAdActs };
 }
 
 /** Whether "I posted it" is offered: a video Ask made, which nothing posts from here (decision 0121). */
@@ -218,13 +222,16 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
           save={save}
           caption={file.kind === "video" ? says.words : null}
           byHand={
-            <PostedByHand
-              press={hands.byHand}
-              may={hands.may}
-              offered={byHandOffered(file)}
-              clock={clock}
-              busy={presses.busy}
-            />
+            <>
+              <PostedByHand
+                press={hands.byHand}
+                may={hands.may}
+                offered={byHandOffered(file)}
+                clock={clock}
+                busy={presses.busy}
+              />
+              <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} />
+            </>
           }
           asking={removeAsk(hands)}
           problem={presses.problem ?? save.said}

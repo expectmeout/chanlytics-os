@@ -82,9 +82,8 @@
     "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00662": "left empty by Turn on's lane (cm-ads-turn-on), which claimed it and moved its own file to 00666 when 00664 went on production above it (21 Nov 2026)",
     "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
-    "00667": "claimed by Pause all (cm-ads-pause-all), not on main when this was recorded",
-    "00668": "Content's search (#2488), on production and not on main when this was recorded",
-    "00669": "claimed by New ad's draft races (cm-ads-draft-races), not on main when this was recorded"
+    "00667": "claimed by the Pause all lane (cm-ads-pause-all) for its own file, not on main yet: a search reading on took 00668",
+    "00669": "claimed by New ad's draft races (cm-ads-draft-races, #2493), not on main when this was recorded"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -672,6 +671,7 @@
     "00664_an_ad_that_can_t_run_is_mailed_once.sql": "3a777d6760e1811cb50bdffc91bf3db25766232965b0d2f984e911e09fb999e2",
     "00665_a_yes_is_kept_for_each_use.sql": "80ed699f369467515dbaca915a66fecf52625556ecdec7119d3bf66cb4a26b65",
     "00666_an_owner_turns_an_ad_on.sql": "7743f51cf4101d2e53282d18d94ff2c7961096d2ce454ce826f79c2cf2a11ad1",
+    "00668_a_search_reads_on_from_where_its_page_ended.sql": "c7588b39a3b2ac05376061093cfff61f2e24cb159bacfc3b6eb089f691c11b89",
     "00670_an_owner_changes_a_running_ad.sql": "abc317979238d1edcf099aa97899876a133e093e8bea5651425895077c16ea8f"
   }
 }

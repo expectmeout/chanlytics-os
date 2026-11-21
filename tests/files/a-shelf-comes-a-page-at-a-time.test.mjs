@@ -174,6 +174,91 @@ test("a page that has scrolled reads what it holds again in one read", async () 
   assert.ok(said.next);
 });
 
+/* ------------------------------------------------------------------------- found by its words, a page at a time (00668) */
+
+/** A file its words find ("dusk"): the look's sentence says it, its name does not. */
+const atDusk = (n, over = {}) => row(n, { look: { line: "The shop front at dusk." }, ...over });
+
+/** Every page of a search, following `next` until it is null: the ids, in the order the pages said them. */
+async function idsOfEveryPage(rows, query) {
+  const ids = [];
+  let next = null;
+  let pages = 0;
+  do {
+    const said = await read(rows, `${query}${next ? `&before=${encodeURIComponent(next)}` : ""}`);
+    ids.push(...said.files.map((f) => f.id));
+    assert.equal(said.about, "dusk");
+    next = said.next;
+    pages += 1;
+    assert.ok(pages < 50, "the pages end");
+  } while (next);
+  return { ids, pages };
+}
+
+test("a search finds every match a page at a time, past what one page holds, newest first as the shelf is", async () => {
+  // 100 found among 150: the search once answered the best page of them (FILES_PAGE) and said nothing more was there.
+  const rows = Array.from({ length: 150 }, (_, i) => (i % 3 === 2 ? row(i + 1) : atDusk(i + 1)));
+  const found = rows
+    .filter((r) => r.look.line.includes("dusk"))
+    .map((r) => r.id)
+    .reverse();
+  assert.equal(found.length, 100);
+  const first = await read(rows, "about=dusk");
+  assert.equal(first.files.length, FILES_PAGE);
+  assert.equal(
+    first.next,
+    fileCursorOf(first.files.at(-1)),
+    "a page that is not the last says so, as the shelf's does",
+  );
+  const { ids, pages } = await idsOfEveryPage(rows, "about=dusk");
+  assert.deepEqual(ids, found, "every match, once, newest first");
+  assert.equal(pages, 2);
+});
+
+test("a file kept between two pages of a search is neither read twice nor skipped", async () => {
+  const rows = Array.from({ length: FILES_PAGE + 10 }, (_, i) => atDusk(i + 1));
+  const first = await read(rows, "about=dusk");
+  const later = [...rows, atDusk(9_000)];
+  const second = await read(later, `about=dusk&before=${encodeURIComponent(first.next)}`);
+  assert.deepEqual(
+    [...first.files, ...second.files].map((f) => f.id),
+    rows.map((r) => r.id).reverse(),
+  );
+  assert.equal(second.next, null);
+  assert.equal((await read(later, "about=dusk")).files[0].id, idOf(9_000), "it leads a search read again");
+});
+
+test("a search of one kind holds that kind alone, a page at a time, however few of the best it is among", async () => {
+  // The videos are the oldest: the best page of all that was found held none of them, so Videos once showed nothing.
+  const rows = [
+    ...Array.from({ length: 70 }, (_, i) => atDusk(i + 1, { kind: "video", mime: "video/mp4" })),
+    ...Array.from({ length: 80 }, (_, i) => atDusk(i + 71, { kind: "image" })),
+  ];
+  const { ids } = await idsOfEveryPage(rows, "about=dusk&kind=video");
+  assert.deepEqual(
+    ids,
+    rows
+      .slice(0, 70)
+      .map((r) => r.id)
+      .reverse(),
+  );
+});
+
+test("a search that ends on its page says so, and a next page whose matches went is empty and the last", async () => {
+  const exact = await read(
+    Array.from({ length: FILES_PAGE }, (_, i) => atDusk(i + 1)),
+    "about=dusk",
+  );
+  assert.equal(exact.files.length, FILES_PAGE);
+  assert.equal(exact.next, null, "no more to read that would read nothing");
+  const rows = Array.from({ length: FILES_PAGE + 2 }, (_, i) => atDusk(i + 1));
+  const first = await read(rows, "about=dusk");
+  for (const r of rows.slice(0, 2)) r.removed_at = "2026-11-02T00:00:00Z";
+  const after = await read(rows, `about=dusk&before=${encodeURIComponent(first.next)}`);
+  assert.deepEqual(after.files, []);
+  assert.equal(after.next, null);
+});
+
 test("a shelf holds what stands on it, and only that", async () => {
   const rows = [
     row(1),

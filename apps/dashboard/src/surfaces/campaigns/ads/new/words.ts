@@ -347,6 +347,12 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     small: "Add a photo, or a video with no music. AI drafts the ad as soon as one is in.",
     act: "Open Library",
   },
+  picture_gone: {
+    title: "That piece is no longer in Content",
+    body: "It was deleted or set aside after Run as an ad was pressed.",
+    small: "Open another piece there, and run that one as an ad.",
+    act: "Open Content",
+  },
   picture: {
     title: "First, a picture that fits an ad",
     body: "An ad shows a photo or a video at least 600 pixels wide, from square to wide. None of yours fits yet.",

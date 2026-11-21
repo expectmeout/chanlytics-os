@@ -24,6 +24,9 @@ test("an Ads address says the page, an ad open, or the composer on a door or fro
   assert.deepEqual(ads.parseAds("ads:new:copy:abc").compose, { door: "whatsapp", from: { how: "copy", id: "abc" } });
   assert.deepEqual(ads.parseAds("ads:new:again:abc").compose?.from, { how: "again", id: "abc" });
   assert.deepEqual(ads.parseAds("ads:new:google:abc").compose, { door: "call", from: { how: "google", id: "abc" } });
+  // Run as an ad on a made piece in Content: New ad drafted around that piece, by its file.
+  assert.deepEqual(ads.parseAds("ads:new:piece:abc").compose, { door: "whatsapp", from: { how: "piece", id: "abc" } });
+  assert.equal(ads.newAdFromRoute("piece", "abc"), "campaigns/ads:new:piece:abc");
   // A word the view does not know is the page: a link never lands on nothing.
   // The Results sheet went with the mockup (20 Nov 2026): its old address is the page.
   for (const odd of ["ads:surprise", "ads:ad:", "ads:results", "ads:new:copy", "ads:new:elsewhere"])

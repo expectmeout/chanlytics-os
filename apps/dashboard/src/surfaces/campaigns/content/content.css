@@ -766,7 +766,8 @@
 }
 /* "I posted it" (viewer/by-hand.tsx): one quiet press under the acts; once said, where it stands with its door and the way
    back, on one line that wraps. On the glass over the picture on a phone, on the pane's own ground on a desk. */
-.cnv-byhand {
+.cnv-byhand,
+.cnv-ad {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
@@ -776,7 +777,8 @@
   font-size: var(--text-sm);
   color: var(--viewer-ink-dim);
 }
-.cnv-desk-body .cnv-byhand {
+.cnv-desk-body .cnv-byhand,
+.cnv-desk-body .cnv-ad {
   justify-content: flex-start;
   color: var(--ink-dim);
 }
@@ -806,6 +808,14 @@
 }
 .cnv-desk-body .cnv-byhand-problem {
   color: var(--warn-ink);
+}
+/* "Run as an ad" (viewer/run-as-ad.tsx) stands as "I posted it" does (.cnv-ad beside .cnv-byhand above): one quiet press
+   under the acts, or why not with its one act, on one line that wraps. */
+.cnv-ad-said {
+  text-align: center;
+}
+.cnv-desk-body .cnv-ad-said {
+  text-align: start;
 }
 /* Delete, asked in place of the acts, on the glass so its words read over the picture. */
 .cnv-viewer-ask {

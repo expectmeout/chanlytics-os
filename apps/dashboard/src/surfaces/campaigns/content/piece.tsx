@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef } from "react";
 import { FILE_WORDS, MAKE_POST_ASK, type ContentMadeDto } from "@chanlytics/contracts";
-import { askAbout, canDo, type FrameFlash } from "../../frame-verbs";
+import { askAbout, canDo, navigate, type FrameFlash } from "../../frame-verbs";
 import { PostOnGoogle } from "../../files/places/post-google";
 import { PostOnInstagram } from "../../files/places/post-instagram";
 import { usePostRecord } from "../../files/post-record";
@@ -18,8 +18,10 @@ import type { PieceFootActs } from "./piece-foot";
 import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type PiecePresses } from "./piece-presses";
 import { readAhead } from "./read-ahead";
 import type { PieceNext } from "./model/piece-open";
+import { runAsAdOf } from "./model/run-as-ad";
 import type { PlaceDoors } from "./post-both";
 import { byHandPressOf } from "./viewer/by-hand";
+import { runAsAdActsOf } from "./viewer/run-as-ad";
 import { PieceDesk } from "./viewer/desk";
 import type { PieceMoreActs } from "./viewer/more";
 import { PieceViewer } from "./viewer/viewer";
@@ -135,8 +137,10 @@ export function ContentPiece({
   flash: (f: FrameFlash) => void;
 }) {
   const { file } = made;
-  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says.
-  const record = usePostRecord(file, made.posts.map((p) => `${p.id}:${p.status}`).join());
+  // Read again as the page says its posts moved (one landed, one stopped), so the sheet says what the tile says; and as a
+  // yes on it is said or taken back, so Run as an ad says what its record now says.
+  const yeses = `${(file.yes_for ?? []).join()}|${(file.yes_back ?? []).join()}`;
+  const record = usePostRecord(file, `${made.posts.map((p) => `${p.id}:${p.status}`).join()}|${yeses}`);
   const hands: PieceHands = { made, record, reread, open, onClose, flash };
   const at = usePiecePosts(made, record);
   const { posts, takes } = at;
@@ -153,6 +157,7 @@ export function ContentPiece({
   }, [post, both]);
   // Where its owner said they posted it themselves: the page's, or its record's where the piece was read on its own.
   const byHand = made.by_hand ?? null;
+  const acts = pieceActsOf({ ...hands, beside }, { drafts, presses });
   const shown = {
     made: { file, posts, by_hand: byHand },
     byHand: byHandPressOf(byHand, presses.change, flash),
@@ -162,8 +167,13 @@ export function ContentPiece({
     beside,
     presses,
     drafts,
-    acts: pieceActsOf({ ...hands, beside }, { drafts, presses }),
+    acts,
     doors: postedDoorsOf(hands),
+    // New ad's route drafts for whoever may approve: an operator and above (server/ads/draft.ts).
+    runAsAd: {
+      line: runAsAdOf(record.ad, file, canDo("approve")),
+      acts: runAsAdActsOf(file.id, navigate, { ask: acts.onAsk, makePost: acts.onMakePost }),
+    },
   };
   // A phone opens the canvas's viewer, full screen and dark, in the split's open slot; a desk the pane beside the grid.
   return phone ? <PieceViewer hands={shown} over={over} /> : <PieceDesk hands={shown} over={over} />;
