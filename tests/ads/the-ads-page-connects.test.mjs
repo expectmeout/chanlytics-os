@@ -183,6 +183,7 @@ test("Reports › Ads draws its four figures as every lens draws its strip: the 
       read_failed: false,
       revoked_at: null,
       disconnected_at: null,
+      ready: true,
     },
     window: { from: "2031-02-14", to: "2031-03-15" },
     today: "2031-03-15",
@@ -190,6 +191,8 @@ test("Reports › Ads draws its four figures as every lens draws its strip: the 
     unnamed: { people: 0, booked: 0 },
     elsewhere: { people: 0, booked: 0 },
     can_press: true,
+    stopped_at: null,
+    needs_you: { count: 0, people: [] },
   };
   fresh();
   const strip = byTestId(

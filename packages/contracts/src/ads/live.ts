@@ -104,6 +104,8 @@ export interface AdsLiveDto {
     read_failed: boolean;
     revoked_at: string | null;
     disconnected_at: string | null;
+    /** Every check the account's card counts passes (adCardChecksOf, as the card reads them): an ad may be made on it. */
+    ready: boolean;
   };
   /** The days the page counts, in the workspace's zone (ISO days), and today in the account's. */
   window: { from: string; to: string };
@@ -125,6 +127,21 @@ export interface AdsLiveDto {
    * plan's G17).
    */
   stopped_at: string | null;
+  /**
+   * The people an ad brought who need you now, longest waiting first (the Ads plan's 4.4): each judged by the one
+   * standing rule over their latest conversation (contracts standingOfThread), so they are people the Inbox's Needs you
+   * and Today hold, found from the holds that wait as they read them (the newest of them, as many as they read).
+   * Whoever first came through an ad, whenever, since what they wait for is now. The longest waits by name, and how many
+   * in all; none where the read of them failed, which the page then says nothing of.
+   */
+  needs_you: {
+    count: number;
+    /**
+     * Each: their id in People, their name, the conversation they wait in (it opens in the Inbox), and when their wait
+     * began (ISO): the hold's moment, else their conversation's last message; null where neither is.
+     */
+    people: Array<{ id: string; name: string; conversation_id: string; since: string | null }>;
+  };
 }
 
 /** One person an ad brought. */

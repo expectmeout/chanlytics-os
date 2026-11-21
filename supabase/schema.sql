@@ -1308,6 +1308,51 @@ COMMENT ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) IS 'The ad a f
 
 
 --
+-- Name: ad_pause_all(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_press jsonb;
+  v_ad    uuid;
+  v_kept  jsonb;
+  v_out   jsonb := '[]'::jsonb;
+begin
+  if jsonb_typeof(p_presses) is distinct from 'array' or jsonb_array_length(p_presses) not between 1 and 200 then
+    raise exception 'ad_pause_all: between 1 and 200 ads' using errcode = '22023';
+  end if;
+  -- The owner alone pauses an ad (0050, call 2): asked once here before anything is kept, and by the door for each ad.
+  if not coalesce(public.has_permission(p_actor, p_tenant_id, 'ads'), false) then
+    return jsonb_build_object('outcome', 'not_allowed');
+  end if;
+  -- In the ads' own order, as ids and not as text in any collation: two presses over the same ads lock them in the same
+  -- order, so neither waits on the other. An id that is not one refuses the whole set before anything is kept.
+  for v_press in
+    select p.value from jsonb_array_elements(p_presses) p order by (p.value ->> 'ad_id')::uuid
+  loop
+    v_ad := (v_press ->> 'ad_id')::uuid;
+    v_kept := public.ad_set_intent(p_tenant_id, p_actor, v_ad, (v_press ->> 'version')::integer, 'paused');
+    -- A pause Meta is to be told of goes at Meta's pace, by its account's read, as one Meta would not take at once.
+    if v_kept ->> 'outcome' = 'asked' and coalesce((v_kept ->> 'tell')::boolean, false) then
+      perform public.ad_tell_ask(p_tenant_id, v_ad);
+    end if;
+    v_out := v_out || jsonb_build_array(v_kept || jsonb_build_object('ad_id', v_ad));
+  end loop;
+  return jsonb_build_object('outcome', 'kept', 'ads', v_out);
+end $$;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) IS 'Service-role only: an owner pauses every ad of a set at once (00671; the Ads plan''s G17, decision 0050 calls 1 and 2). Each ad ({ad_id, version}, 1 to 200 of them) is paused through ad_set_intent, in one transaction, in the ads'' own order; each kept pause the platform is to be told of asks for its account''s read (ad_tell_ask), which tells the platform at its pace. The platform is asked nothing here. Answers outcome kept with ads, what ad_set_intent answered for each with its ad_id; not_allowed for anyone but the owner (has_permission ads), with nothing kept.';
+
+
+--
 -- Name: ad_people(uuid, uuid, integer, date, integer, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -59372,6 +59417,14 @@ GRANT ALL ON FUNCTION public.ad_may_resume(p_origin text, p_platform_state text,
 REVOKE ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO authenticated;
 GRANT ALL ON FUNCTION public.ad_named(p_tenant_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_pause_all(p_tenant_id uuid, p_actor uuid, p_presses jsonb) TO service_role;
 
 
 --

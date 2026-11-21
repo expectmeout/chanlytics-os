@@ -35,6 +35,15 @@ export interface TurnOnPressed {
 export const pressTurnOn = (key: string, expect: TurnOnPressed) =>
   api()("POST ads/turn-on", { body: { key, expect }, idempotencyKey: key }).catch(() => null);
 
+/**
+ * Pause all: every ad still on paused in one press, each with the version it was drawn from (the Ads plan's G17). The
+ * server keeps every pause before it answers; null where no answer came at all.
+ */
+export const pressPauseAll = (ads: readonly { id: string; version: number }[]) =>
+  api()("POST ads/pause-all", { body: { ads: ads.map((ad) => ({ id: ad.id, version: ad.version })) } }).catch(
+    () => null,
+  );
+
 /** Check: Meta is asked at once what stands of an ad whose last switch it never answered. */
 export const pressAdCheck = (id: string, version: number) =>
   api()("POST ads/[id]/check", { params: { id }, body: { version } }).catch(() => null);
