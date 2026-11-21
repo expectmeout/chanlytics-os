@@ -527,8 +527,8 @@ test("each role is offered its tools, sorted by name, the tool search last: a vi
   assert.deepEqual(
     acts("partner").filter((n) => !acts("operator").includes(n)),
     // A video made from the business's clips is a partner's to ask for, as a post is (decision 0122), and photos and videos
-    // brought in from a link, as the Library's Keep is.
-    ["propose_bring_in", "propose_lead_search", "propose_piece", "propose_post", "propose_publish"],
+    // brought in from a link, as the Library's Keep is, and a yes for a photo or a video (00663).
+    ["keep_yes", "propose_bring_in", "propose_lead_search", "propose_piece", "propose_post", "propose_publish"],
   );
   assert.deepEqual(
     acts("owner").filter((n) => !acts("partner").includes(n)),

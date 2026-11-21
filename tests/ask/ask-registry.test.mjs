@@ -271,6 +271,8 @@ const OPERATOR_ACTS = [
  */
 const PARTNER_ACTS = [
   ...OPERATOR_ACTS,
+  // A yes for a photo or a video, kept or taken back (00663): a partner's, as every change to a file is.
+  "keep_yes",
   "propose_bring_in",
   "propose_lead_search",
   "propose_piece",
@@ -309,8 +311,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 30, 35, 35],
-    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
+    [14, 30, 36, 36],
+    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, bringing in what a link holds and a yes for a file too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

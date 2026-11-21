@@ -18,7 +18,14 @@ import {
   type PiecePlan,
   type TenantId,
 } from "@chanlytics/contracts";
-import { findFile, findPiecePlanOfFile, getFileMade, listFilesByIds } from "@chanlytics/db/files";
+import {
+  findFile,
+  findPiecePlanOfFile,
+  getFileMade,
+  listFilesByIds,
+  listFilesDrawnFrom,
+  type FileMemberRow,
+} from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
@@ -186,4 +193,21 @@ export async function readKeptWords(db: Db, tenantId: TenantId, fileId: string):
 export function readMadeAs(db: Db, tenantId: TenantId, file: { id: string; kind: string }): Promise<MadeAs | null> {
   const made = file.kind === "video" ? pieceMadeAs(db, tenantId, file.id) : postMadeAs(db, tenantId, file.id);
   return made.catch(logAndGoOn("how a piece was made", null));
+}
+
+/**
+ * What each made piece named was drawn from, its photo or its clips, that is still here and this person can see: what the
+ * rule of who may be shown reads of a piece (contracts files/yes.ts fileUseOf). Found in `made` by 00663's
+ * files_drawn_from, which a member's session does not read; read back as the member reads them. A piece whose files are
+ * all gone has none, and is judged as it is.
+ */
+export async function readDrawnFrom(
+  db: Db,
+  tenantId: TenantId,
+  ids: readonly string[],
+): Promise<Map<string, FileMemberRow[]>> {
+  const drawn = await listFilesDrawnFrom(serviceDb(), tenantId, ids);
+  const rows = await listFilesByIds(db, tenantId, [...new Set([...drawn.values()].flat())]);
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return new Map([...drawn].map(([id, from]) => [id, from.flatMap((fromId) => byId.get(fromId) ?? [])]));
 }

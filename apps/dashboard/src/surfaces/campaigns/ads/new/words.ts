@@ -309,9 +309,9 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     act: "Open Library",
   },
   picture_person: {
-    title: "First, a picture with nobody in it",
-    body: "Each of your photos shows someone, or nobody has said who is in it. A yes for posts doesn't cover an ad.",
-    small: "In the Library, say nobody is in a photo, or add one with nobody in it.",
+    title: "First, a yes for ads",
+    body: "Each picture shows someone with no yes for ads yet. A yes for posts doesn't cover an ad.",
+    small: "In the Library, open a photo and tell AI who said yes, or add one with nobody in it.",
     act: "Open Library",
   },
   picture_music: {

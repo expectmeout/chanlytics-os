@@ -103,7 +103,7 @@ export async function changeFile(
   input: {
     name?: string | undefined;
     shows?: FileShows | undefined;
-    who_in_it?: "no_one" | "agreed" | undefined;
+    who_in_it?: "no_one" | undefined;
     status?: "filed" | "set_aside" | undefined;
   },
 ): Promise<{ ok: true; stopped: PostPlace[] }> {

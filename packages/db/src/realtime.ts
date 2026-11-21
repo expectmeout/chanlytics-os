@@ -156,6 +156,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
   // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
   // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
   // Where a watched clip's copy stands (00655): a clip coming back plays by itself, and its row says so meanwhile.
+  // A yes given or taken back (00663): the Library's line, and what New ad may show.
   files: [
     "status",
     "name",
@@ -168,6 +169,8 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
     "sound_said",
     "copy_state",
     "copy_why",
+    "yes_for",
+    "yes_back",
   ],
   // A notice closed when what it asked for ended (00421): the bell reads it as read, on every tab. A notice counted up in
   // place (00657, a watched folder's new photos and videos): the bell redraws its title.

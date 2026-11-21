@@ -127,6 +127,8 @@ const KINDS = [
   "bring_in",
   // A new ad drafted on New ad's own route, and New ad opened on it (the Ads plan's 6.3, 20 Nov 2026).
   "ad_draft",
+  // A yes for a photo or a video, kept or taken back (00663).
+  "file_yes",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -222,6 +224,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     bring_in: "settings",
     // Drafting an ad is an operator's, as New ad's own route is: the approve permission's. Turn on is the owner's.
     ad_draft: "approve",
+    // A yes for a photo or a video is the settings permission's, as every change to a file is.
+    file_yes: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -476,6 +480,8 @@ const CHANGE = {
   run_waits: false,
   timezone: "America/New_York",
 };
+/** A file a yes is kept for (00663). */
+const FILE_ID = "f11e0000-0000-4000-8000-000000000001";
 /** A card of every shape each kind makes: each thread verb, a lead search new and answering, a deal with its step. */
 const SHAPES = {
   reply: [card("reply", { conversation_id: "c1", text: "On our way.", who: "Rosa" })],
@@ -703,6 +709,16 @@ const SHAPES = {
   ],
   bring_in: [card("bring_in", { link: "instagram.com/harborsalon" })],
   ad_draft: [card("ad_draft", { service: "Balayage", most: 300 }), card("ad_draft", { service: null, most: null })],
+  file_yes: [
+    card("file_yes", {
+      file_id: FILE_ID,
+      file: "chair-by-the-window",
+      uses: ["post", "ad"],
+      who: "Ana",
+      thread_id: FILE_ID,
+    }),
+    card("file_yes", { file_id: FILE_ID, file: "chair-by-the-window", uses: [], back: true }),
+  ],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -1001,6 +1017,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     piece: ["POST files/video"],
     bring_in: ["POST content/bring-in"],
     ad_draft: ["POST ads/draft"],
+    file_yes: ["POST files/[id]/yes", "POST files/[id]/yes/back"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],
@@ -1040,6 +1057,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
     [
       ["bring_in", "partner"],
       ["fact_suggestion", "partner"],
+      ["file_yes", "partner"],
       ["invite", "owner"],
       ["lead_addressee", "partner"],
       ["lead_mark", "partner"],

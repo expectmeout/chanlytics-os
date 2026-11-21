@@ -6,12 +6,20 @@
  * status row's list alone (foot.tsx ViewerStatus, post-both.tsx): said once. Every line is the records': a video's words come
  * with Ask's caption (Part D), and none is made up meanwhile.
  */
-import { CONTENT_WORDS as W, fileViewOf } from "@chanlytics/contracts";
+import {
+  CONTENT_WORDS as W,
+  FILE_YES_ASK,
+  fileSaidOf,
+  fileViewOf,
+  fileYesSaidOf,
+  type FileDto,
+} from "@chanlytics/contracts";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { FileChoices, FileWho } from "../../../files/file-fields";
 import type { FileChange } from "../../../files/verbs";
 import type { ViewerDetailsShown } from "../model/viewer-line";
+import { AskLine } from "../sheets/ask-change";
 import { CaptionInPlace } from "./caption";
 
 /** What Details holds, in the phone's sheet and under the acts in the desk's pane (desk.tsx). */
@@ -53,6 +61,19 @@ function FactWords({
       <p data-testid="cnv-words">{shown.words}</p>
     </div>
   );
+}
+
+/** Asking AI changes nothing on this sheet: the conversation opens beside it. */
+const STAYS_OPEN = (): void => undefined;
+
+/**
+ * The line to AI on a photo or video of the Library that shows someone (00663): where a yes is said, or taken back, on the
+ * file itself. AI keeps who said it and for what; nothing here is a press.
+ */
+function YesToAi({ file }: { file: FileDto }) {
+  const about = { kind: "file", id: file.id, label: fileSaidOf(file.name) } as const;
+  const placeholder = fileYesSaidOf(file)?.needs ? FILE_YES_ASK.give : FILE_YES_ASK.takeBack;
+  return <AskLine about={about} onAsked={STAYS_OPEN} placeholder={placeholder} />;
 }
 
 /** What it was made from, its pictures small, and when, said once on one line. */
@@ -107,7 +128,7 @@ export function ViewerFacts(props: ViewerFactsProps) {
       {file.source !== "made" && may ? (
         <>
           <FileChoices file={file} busy={props.busy} say={props.say} />
-          <FileWho file={file} busy={props.busy} say={props.say} />
+          <FileWho file={file} busy={props.busy} say={props.say} tell={<YesToAi file={file} />} />
         </>
       ) : null}
       <dl className="cnv-fact-rows">

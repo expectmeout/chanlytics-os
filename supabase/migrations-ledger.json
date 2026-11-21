@@ -79,7 +79,8 @@
     "00601": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00602": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
     "00603": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
-    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)"
+    "00604": "reserved for cm-cold-alone (cold email runs itself, #2227), which took 00606-00610 instead when 00605 went on production above them first (10 Nov 2026)",
+    "00662": "claimed by cm-ads-turn-on (Turn on and after, the Ads plan's step 4) on 20 Nov 2026 while 00663 was written beside it; this line goes when its file lands"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -663,6 +664,7 @@
     "00658_the_bell_rings_for_an_owner_s_ads.sql": "869b5b39d7c0e49ccc481b95b09d76472dff19ea423190c949ffe9ccf4059757",
     "00659_a_draft_ad_is_kept_and_left_for_the_owner.sql": "3f5a97ae4427a20290f57122b490870431d3af02506d1b58bce94a122eec0b01",
     "00660_each_small_draft_is_counted_apart.sql": "7868e94b9d1dd90d0239cb7eb3813926f5b8c39c146b5c6c816e7391b1684925",
-    "00661_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "4865a03c5690725e969859b056ddcefeca2194b49bc5e76ce96b8ed5a66dc862"
+    "00661_a_member_reads_what_fills_the_videos_and_one_bell_a_day.sql": "4865a03c5690725e969859b056ddcefeca2194b49bc5e76ce96b8ed5a66dc862",
+    "00663_a_yes_is_kept_for_each_use.sql": "b52b224cf2c7c46b65d402596917cbf7b46aa7e3ceef6e2bdb73bf0e93e58594"
   }
 }

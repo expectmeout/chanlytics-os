@@ -1458,6 +1458,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.deepEqual(
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
+      ["keep_yes", ["give", "take_back"]],
       ["press_card", ["yes", "stop"]],
       ["propose_ad", []],
       ["propose_bring_in", []],

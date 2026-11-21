@@ -193,3 +193,5 @@ export {
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
 export { followPostCaption, movePostTime } from "./waiting-posts";
+export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
+export type { FileYesKept } from "./yes";

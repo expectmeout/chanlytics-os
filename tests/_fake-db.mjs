@@ -297,6 +297,17 @@ function matches(row, filters, defaults = {}) {
                               // once. NULL is in no list.
                               if (o === "in")
                                 return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
+                              // An array that holds each of a set, `cs.{a,b}`: a file's yes for ads (db listFilesForAds, 00663).
+                              if (o === "cs") {
+                                const have = cell(row, c);
+                                return (
+                                  Array.isArray(have) &&
+                                  v
+                                    .slice(1, -1)
+                                    .split(",")
+                                    .every((w) => have.includes(w))
+                                );
+                              }
                               throw new Error(`fakeDb: or() clause ${clause} is not modelled`);
                             })
                           : // PostgREST's `.like(col, "r%")`: modelled for the lead sweep, which reads a run's

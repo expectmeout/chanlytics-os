@@ -128,8 +128,8 @@ test("every kind has its row in the one table, and a press that says what it doe
     assert.ok(traits.shape && traits.reach && traits.alone && traits.press, kind);
     assert.equal(typeof askPressOf({ kind, payload: {} }), "string", kind);
   }
-  // 80 since a new ad drafted from AI's card (ad_draft, 20 Nov 2026).
-  assert.equal(Object.keys(ASK_KIND_TRAITS).length, 80);
+  // 81 since a yes for a photo or a video (file_yes, 00663).
+  assert.equal(Object.keys(ASK_KIND_TRAITS).length, 81);
   assert.equal(askPressOf({ kind: "playbook_change", payload: { state: "paused" } }), "pause");
   assert.equal(askPressOf({ kind: "run", payload: { verb: "skip" } }), "skip");
   assert.equal(askPressOf({ kind: "booking_request", payload: { booked: false } }), "cant");

@@ -139,11 +139,19 @@ interface TableData {
   "mailbox_connection.resumed": { address: string; why: string | null; by: string };
   "mailbox_connection.paused": { address: string; by: string };
   "file.added": { file_id: string; source: string; by?: string };
-  /** What was said, and by whom: "they agreed" is a word someone gave, on a day. */
+  /** What was said, and by whom: "no one is in it", or a yes for its uses and who gave it, or one taken back (00663). */
   "file.changed": {
     file_id: string;
     by: string;
-    said: { name?: string; shows?: string; who_in_it?: string; status?: string };
+    said: {
+      name?: string;
+      shows?: string;
+      who_in_it?: string;
+      status?: string;
+      yes?: string[];
+      who?: string;
+      taken_back?: string[];
+    };
   };
   "file.kept": { count: number; by: string };
   /** A post put on the Google profile: Google's name for it, which is how it comes down. */

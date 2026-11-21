@@ -64,8 +64,7 @@ const picture = (over = {}) => ({
   width: 1440,
   height: 1800,
   seconds: null,
-  people: false,
-  music: false,
+  rights: null,
   beforeAfter: false,
   made: true,
   ...over,
@@ -195,15 +194,13 @@ test("5.1 row 5, music and a person who has not said yes to ads: neither is ever
   // What Files says of a picture is read into these three answers by server/content/ad-pictures.ts; new-ad-draft.test.mjs
   // runs that reading over the database, a file at a time. Here: what each answer does to a draft.
   const fault = (over) => checks({}, { picture: picture(over) });
-  // Nobody: fine. Someone, or not known: never offered. A yes for posts does not cover an ad.
-  assert.deepEqual(fault({ people: false }), []);
-  assert.deepEqual(fault({ people: true }), [{ code: "picture", fault: "person" }]);
-  assert.deepEqual(fault({ people: null }), [{ code: "picture", fault: "person" }], "not looked at yet");
-  // A video: no music is fine. Music, or a sound nobody has heard yet, is not.
+  // Content's answer (contracts files/yes.ts): fine, or someone shown with no yes for ads (a yes for posts does not cover
+  // an ad), or music, heard or not heard yet. Each is never offered.
+  assert.deepEqual(fault({ rights: null }), []);
+  assert.deepEqual(fault({ rights: "person" }), [{ code: "picture", fault: "person" }]);
   const video = { kind: "video", seconds: 20, width: 1080, height: 1080 };
-  assert.deepEqual(fault({ ...video, music: false }), []);
-  assert.deepEqual(fault({ ...video, music: true }), [{ code: "picture", fault: "music" }]);
-  assert.deepEqual(fault({ ...video, music: null }), [{ code: "picture", fault: "music" }], "not heard yet");
+  assert.deepEqual(fault({ ...video, rights: null }), []);
+  assert.deepEqual(fault({ ...video, rights: "music" }), [{ code: "picture", fault: "music" }]);
 });
 test("5.1 row 6, a price: any price while AI never quotes one, and a price Services does not say; each is offered Take the price out", () => {
   // AI is set to never quote prices: the brief hands the writer no price, and a price in the words stops the ad.
@@ -348,7 +345,7 @@ test("several things at once are said in a draft's order: the account, the pictu
     }),
     facts({
       account: { currency: "USD", minDailyMinor: 500, checks: [{ id: "payment", ok: false }] },
-      picture: picture({ people: true }),
+      picture: picture({ rights: "person" }),
     }),
   );
   assert.deepEqual(

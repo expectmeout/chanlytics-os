@@ -390,7 +390,7 @@ test("a folder of clips nobody has looked at, or a run of photos of people, neve
   assert.equal(answer.draft.picture.id, FILE(1), "the one picture fine in ads, however many newer files there are");
 });
 
-test("only a picture that shows nobody and has no music is offered, in a shape the feed takes: never one to crop (G15)", async () => {
+test("only a picture whose people said yes to ads, and with no music, is offered, in a shape the feed takes: never one to crop (G15)", async () => {
   const offeredOf = async (files) => {
     const { answer } = await fresh(world({ tables: { files } }));
     return answer.can ? answer.draft.picture.id : answer.missing;
@@ -399,7 +399,10 @@ test("only a picture that shows nobody and has no music is offered, in a shape t
   assert.equal(
     await offeredOf([
       file(1, { look: { line: "Two stylists at work.", people: { count: 2, recognizable: 2 }, issues: [] } }),
-      file(2, { who_in_it: "agreed" }),
+      file(2, {
+        yes_for: ["post"],
+        look: { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] },
+      }),
       file(3, { look: null, look_status: "waiting" }),
       file(4, { width: 1080, height: 1920 }),
       file(5, { width: 400, height: 500 }),
@@ -418,6 +421,10 @@ test("only a picture that shows nobody and has no music is offered, in a shape t
   );
   // A member's own word that nobody is in it is enough.
   assert.equal(await offeredOf([file(1, { who_in_it: "no_one", look: null, look_status: "waiting" })]), FILE(1));
+  // Someone shown who said yes to ads (00663, Content's step L4): offered, as Content answers it; a yes taken back, not.
+  const said = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
+  assert.equal(await offeredOf([file(1, { look: said, yes_for: ["ad", "post"] })]), FILE(1));
+  assert.equal(await offeredOf([file(1, { look: said, yes_for: ["post"], yes_back: ["ad"] })]), "picture_person");
   // A video before a photo, where its sound was heard and holds no music; one with music is never offered.
   const video = (n, sound) =>
     file(n, { kind: "video", mime: "video/mp4", width: 1080, height: 1080, seconds: 20, media_status: "ready", sound });

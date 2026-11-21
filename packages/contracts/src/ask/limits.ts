@@ -56,10 +56,11 @@ export const ASK_SPOKEN_TURN_BUDGET_MS = 45_000;
  * as cards; 129,976 on 7 November, Cold email, decision 0113; 120,707 on 8 November, the tools' words
  * tightened; 129,996 on main on 12 November, and 131,801 with Ask changing a message on file, four actions whose words
  * were cut to the least that says them, so the ceiling moved from 130,000; 132,513 on 20 November with AI drafting a
- * new ad, propose_ad, its words cut the same way, so it moved from 132,000). The most it may grow to, never a target:
- * tests/ask/tools/ask-tools-size.test.mjs prints each role's.
+ * new ad, propose_ad, its words cut the same way, so it moved from 132,000; 134,158 the same night with a yes for a photo
+ * or a video kept, keep_yes, its words cut the same way, so it moved from 133,000). The most it may grow to, never a
+ * target: tests/ask/tools/ask-tools-size.test.mjs prints each role's.
  */
-export const ASK_TOOLS_CHARS_CEILING = 133_000;
+export const ASK_TOOLS_CHARS_CEILING = 135_000;
 
 /**
  * The most the owner's tools loaded on every question may be (the always-loaded core and the search tool), in characters:
