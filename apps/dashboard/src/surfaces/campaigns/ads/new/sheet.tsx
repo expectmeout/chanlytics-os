@@ -15,7 +15,7 @@ import "./new.css";
 import "../connect/connect.css";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE, isUuid, type AdStart } from "@chanlytics/contracts";
 import type { AdCantDraft } from "@/server/ads/draft-shape";
 import { MASCOT } from "@/bridge/mascot";
 import { Button } from "../../../kit/button/button";
@@ -44,6 +44,7 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   picture_none: CONTENT_LIBRARY_ROUTE,
   picture_person: CONTENT_LIBRARY_ROUTE,
   picture_music: CONTENT_LIBRARY_ROUTE,
+  picture_gone: CONTENT_ROUTE,
   account: null,
   account_reading: null,
   stopped: null,
@@ -201,6 +202,12 @@ interface NewAdProps {
   onGo: (route: string) => void;
   /** Turn on was pressed, where it can be: the example's alone, until the job that makes an ad exists. */
   onTurnOn: () => void;
+  /**
+   * What the address says New ad starts from: a piece Run as an ad chose in Content is drafted around once, and the
+   * address then says New ad alone (`onDrafted`), so a reload opens the kept draft. Anything else opens the kept draft.
+   */
+  start?: { how: AdStart; id: string } | null;
+  onDrafted?: () => void;
 }
 
 /** The sheet's parts for where the screen stands: its head's words, its body and its foot. */
@@ -259,7 +266,11 @@ function newAdParts(
 }
 
 export function NewAd(props: NewAdProps) {
-  const here = useAdDraft(props.open, props.source);
+  const here = useAdDraft(props.open, props.source, {
+    // An address naming no file's id is New ad on its kept draft: a link never lands on a refusal.
+    piece: props.start?.how === "piece" && isUuid(props.start.id) ? props.start.id : null,
+    drafted: props.onDrafted ?? (() => undefined),
+  });
   const { stand } = here;
   useAiAtWork(props.open && ((stand.at === "draft" && stand.words.at === "writing") || here.telling));
   const parts = newAdParts(props, here);

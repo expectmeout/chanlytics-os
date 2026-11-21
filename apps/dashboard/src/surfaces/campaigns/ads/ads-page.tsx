@@ -11,14 +11,22 @@ import "./ads.css";
 import "./drawer/drawer.css";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, parseAds } from "@chanlytics/contracts";
+import { ADS_ROUTE, ADS_WORDS, ASK_ADS_VIEW, newAdRoute, parseAds } from "@chanlytics/contracts";
 import type { AdsAddress } from "@chanlytics/contracts";
 import { workspaceOverride } from "@/bridge/surface-data";
 import { HEAD } from "./model/words-page";
 import { nothingConnectedOf } from "./model/page-v0";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { askAbout, askOnScreenKey, navigate, replaceRoute, setAskOnScreen, useFrameToast } from "../../frame-verbs";
+import {
+  askAbout,
+  askOnScreenKey,
+  backFrom,
+  navigate,
+  replaceRoute,
+  setAskOnScreen,
+  useFrameToast,
+} from "../../frame-verbs";
 import { CmHead } from "../parts/head";
 import { type CmView, useCmPhone } from "../parts/split";
 import { useAdsConnection } from "./connect/use-card";
@@ -36,13 +44,18 @@ import { LIVE_AD_SOURCE } from "./new/source";
  * Opening and closing what the address names: an ad's drawer or New ad. Opening pushes an entry, so Back closes it (a
  * peek's rule: Leads', the Pipeline's, Messages'). A sheet that opened over the page stood on has the page behind it,
  * whoever pushed it: closing goes back. One a link arrived at has no entry of the page's behind it: closing replaces
- * the address with the Ads page itself.
+ * the address with the Ads page itself. New ad that Run as an ad opened from a piece in Content goes back to that piece,
+ * by the frame's own Back (frame-verbs backFrom), where the owner left it.
  */
 function useAdsNav(address: AdsAddress) {
   // How many entries stand over the page: the drawer, and New ad opened over it.
   const pushed = useRef(0);
   const open = address.ad !== null || address.compose !== null;
   const wasOpen = useRef(open);
+  // Opened by Run as an ad: kept while New ad stays open, its address saying New ad alone once the draft is made.
+  const fromPiece = useRef(false);
+  if (address.compose?.from?.how === "piece") fromPiece.current = true;
+  if (address.compose === null) fromPiece.current = false;
   useEffect(() => {
     if (!open) pushed.current = 0;
     else if (!wasOpen.current && pushed.current === 0) pushed.current = 1;
@@ -56,6 +69,9 @@ function useAdsNav(address: AdsAddress) {
     if (pushed.current > 0 && typeof window !== "undefined" && window.history) {
       pushed.current -= 1;
       window.history.back();
+    } else if (fromPiece.current) {
+      fromPiece.current = false;
+      backFrom(ADS_ROUTE, { replace: true });
     } else replaceRoute(ADS_ROUTE);
   };
   return { push, close };
@@ -223,15 +239,19 @@ export function AdsPage({ param, view }: AdsPageProps) {
           <V0Page v0={vm.v0} touch={touch} card={connect.card} />
         </>
       )}
-      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. */}
+      {/* New ad on an address with no account held says the one thing missing: an ad account, and Connect. With one
+          held, New ad is the live page's (live/live-ads.tsx), drawn once its ads are read: one sheet, so a cold open
+          asks for the draft, and AI for its words, once (21 Nov 2026: two sheets one after the other asked twice). */}
       <NewAd
-        open={address.compose !== null && account.dto !== null}
+        open={address.compose !== null && account.dto !== null && !held}
         source={LIVE_AD_SOURCE}
         need={connect.vm?.need ?? null}
         onClose={nav.close}
         onConnect={account.connect}
         onGo={navigate}
         onTurnOn={() => undefined}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {toastNode}
     </div>

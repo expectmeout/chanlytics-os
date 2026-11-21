@@ -161,7 +161,7 @@ export async function writeAdWords(
     | { job: "change"; draft: AdDraftState; asked: string },
 ): Promise<AdWordsAnswer> {
   await requireAdsOffered(caller.rc);
-  const facts = await readAdDraftFacts(caller.rc);
+  const facts = await readAdDraftFacts(caller.rc, [body.draft.picture]);
   const answer =
     body.job === "write"
       ? await writeWords(caller, facts, body.draft, body.no_price === true)

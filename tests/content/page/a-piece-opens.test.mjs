@@ -233,10 +233,13 @@ const handsOf = ({
   ready = true,
   acts = {},
   byHand = null,
+  runAsAd = null,
 } = {}) => ({
   made: { file: fileOf(kind, over), posts, by_hand: byHand },
   // "I posted it" as piece.tsx hands it (viewer/by-hand.tsx byHandPressOf): where it stands, and its three acts.
   byHand: { kept: byHand, say: noop, keepLink: async () => null, takeBack: noop },
+  // "Run as an ad" as piece.tsx hands it (model/run-as-ad.ts): its line, none where the record says nothing.
+  runAsAd: { line: runAsAd, acts: { run: noop, yes: noop, post: noop, ask: noop, ads: noop } },
   record,
   takes,
   may,
@@ -999,6 +1002,28 @@ test("a video Ask made is marked as posted by its owner in one press, and once s
     assert.equal(count(html, "cnv-byhand-see"), 1);
     assert.equal(count(html, "cnv-byhand-back"), 0);
   }
+});
+
+test("Run as an ad stands under the acts on a desk and a phone: the press where it may run, why with its one act where not", () => {
+  const press = { is: "press", words: "Run as an ad" };
+  for (const html of both({ runAsAd: press })) {
+    assert.equal(saysOf(html, "cnv-ad-run"), "Run as an ad");
+    assert.equal(count(html, "cnv-ad-said"), 0);
+  }
+  const why = {
+    is: "why",
+    why: { is: "wont", why: "person" },
+    said: "Someone in it hasn't said yes to ads",
+    act: { words: "Tell AI who said yes", does: "yes" },
+  };
+  for (const html of both({ runAsAd: why })) {
+    assert.equal(count(html, "cnv-ad-run"), 0, "never offered as if it could run");
+    assert.match(html, /data-testid="cnv-ad-said">Someone in it hasn&#x27;t said yes to ads</);
+    assert.equal(saysOf(html, "cnv-ad-act"), "Tell AI who said yes");
+  }
+  // Where the record says nothing, nothing is drawn; and nothing while Delete asks in place of the acts.
+  for (const html of both({})) assert.equal(count(html, "cnv-ad"), 0);
+  for (const html of both({ runAsAd: press, presses: { asking: true } })) assert.equal(count(html, "cnv-ad-run"), 0);
 });
 
 test("a pasted link is kept as an address a browser opens, with its https where none was pasted", () => {

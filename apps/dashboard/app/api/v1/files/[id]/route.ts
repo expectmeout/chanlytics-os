@@ -1,12 +1,15 @@
 import { z } from "zod";
 import { FILE_NAME_MAX, FILE_SHOWS, HAND_LINK_MAX, POST_CAPTION_MAX } from "@chanlytics/contracts";
 import { read, write } from "@/server/shared/route";
+import { readerContext } from "@/server/shared/reader";
+import { readPieceAd } from "@/server/content/ad-pictures";
 import { fileScope, removeFile } from "@/server/files/file";
 import { changePiece } from "@/server/posts/caption";
 import { readFileRecord } from "@/server/posts/record";
 
 /**
  * GET /api/v1/files/:id — one file, and for a post the photo it came from and what it was asked to be. Every member reads it.
+ * For a made piece, where Ads is on, it says too whether the piece may run as an ad (`ad`: Content's Run as an ad).
  *
  * PATCH /api/v1/files/:id — `{ name?, shows?, who_in_it?, status?, caption?, posted? }`: what a person says of a file. What
  * they name and shelve stays when the look runs again. Who is in it is a person's word that no one is (a yes is POST
@@ -20,7 +23,13 @@ import { readFileRecord } from "@/server/posts/record";
  */
 export const GET = read({
   scope: fileScope,
-  handle: ({ ctx, member, row }) => readFileRecord(ctx, member, row),
+  handle: async ({ ctx, member, row }) => {
+    const [record, ad] = await Promise.all([
+      readFileRecord(ctx, member, row),
+      readPieceAd(readerContext(ctx, member), row),
+    ]);
+    return { ...record, ...(ad === null ? {} : { ad }) };
+  },
 });
 
 export const PATCH = write({

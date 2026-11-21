@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { ActWords } from "../../../kit/head/act-words";
-import { askAbout, gate, navigate } from "../../../frame-verbs";
+import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
@@ -137,6 +137,8 @@ export function LiveAds(p: LiveAdsProps) {
         onGo={navigate}
         // The job that makes an ad at Meta is not built yet: the press is drawn, and cannot be pressed (new/model.ts).
         onTurnOn={() => undefined}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {p.toast}
     </div>

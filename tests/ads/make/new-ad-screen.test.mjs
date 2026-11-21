@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installStubReact, fresh, again, all, byTestId, find, textOf, press } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE } from "@chanlytics/contracts";
 import { dayWord } from "../../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { newAdView } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/model.ts";
 import {
@@ -423,12 +423,22 @@ let worlds = 0;
  * New ad open in a tab of its own, over a source the test answers by hand: every ask waits in `asks` until the test
  * lands it. `same` opens it again in the tab a world before it used.
  */
-function world({ same = false } = {}) {
+function world({ same = false, start = null } = {}) {
   if (!same) worlds += 1;
   globalThis.location.pathname = `/w/screen-${worlds}/campaigns/ads`;
   fresh();
   const asks = [];
-  const ask = (kind) => (body) => new Promise((resolve) => asks.push({ kind, body, land: resolve }));
+  // Each ask says once its answer has been handed back, for a screen that draws nothing of it (a closed one).
+  const ask = (kind) => (body) => {
+    const entry = { kind, body, land: () => undefined, landed: false };
+    asks.push(entry);
+    return new Promise((resolve) => {
+      entry.land = resolve;
+    }).then((answer) => {
+      entry.landed = true;
+      return answer;
+    });
+  };
   const went = [];
   const props = {
     open: true,
@@ -438,6 +448,9 @@ function world({ same = false } = {}) {
     onConnect() {},
     onGo: (route) => went.push(route),
     onTurnOn() {},
+    // Where the address says it starts from: Run as an ad's piece, drafted around once (then the address says New ad).
+    start,
+    onDrafted: () => went.push("drafted"),
   };
   NewAd(props);
   const draw = () => again(() => NewAd(props));
@@ -451,7 +464,7 @@ function world({ same = false } = {}) {
     return asks[n - 1];
   };
   const shows = (id, what) => until(() => byTestId(draw(), id) !== null, what);
-  return { asks, went, draw, said, asked, shows };
+  return { asks, went, draw, said, asked, shows, props };
 }
 /** Type into one of the screen's boxes. */
 const typeInto = (tree, id, value) => {
@@ -616,6 +629,7 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     picture_none: CONTENT_LIBRARY_ROUTE,
     picture_person: CONTENT_LIBRARY_ROUTE,
     picture_music: CONTENT_LIBRARY_ROUTE,
+    picture_gone: CONTENT_ROUTE,
     account: "closed",
     stopped: "closed",
   };
@@ -650,6 +664,48 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
   assert.match(none.said("ads-new-short"), /Couldn't open New ad/);
   press(byTestId(none.draw(), "ads-new-again"));
   assert.deepEqual((await none.asked(2, "the draft to be read again")).body, {});
+});
+
+test("opened by Run as an ad on a made piece: one draft around that piece, then the kept draft like any other (6.8)", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  assert.deepEqual(
+    w.asks.map((one) => [one.kind, one.body]),
+    [["draft", { picture: FILE }]],
+    "the draft is asked for around the piece, once",
+  );
+  w.asks[0].land(
+    answerOf({ picked: "first" }, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }),
+  );
+  // Drafted and kept: the address can say New ad alone, so a reload opens the kept draft and drafts nothing again.
+  await until(() => w.went.includes("drafted"), "the address to be told");
+  const writer = await w.asked(2, "the ad writer to be asked");
+  assert.equal(writer.body.draft.picture, FILE, "its words are written for that piece");
+  assert.deepEqual(w.went, ["drafted"]);
+  // The one thing missing keeps nothing: Look again asks around the piece again.
+  const reading = world({ start: { how: "piece", id: FILE } });
+  reading.asks[0].land({ can: false, missing: "account_reading" });
+  await reading.shows("ads-new-short", "the reading to be said");
+  assert.deepEqual(reading.went, [], "nothing was drafted, so the address keeps the piece");
+  press(byTestId(reading.draw(), "ads-new-missing-act"));
+  assert.deepEqual((await reading.asked(2, "the draft to be read again")).body, { picture: FILE });
+  // An ad's copy, run again, or on Google, opens on the kept draft as + New does; so does an address naming no file.
+  assert.deepEqual(world({ start: { how: "copy", id: OTHER } }).asks[0].body, {});
+  assert.deepEqual(world({ start: { how: "piece", id: "not-a-file" } }).asks[0].body, {});
+});
+
+test("a draft that lands after New ad was closed moves no address and asks AI for no words: nobody has it open", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  w.props.open = false;
+  w.draw();
+  w.asks[0].land(answerOf({}, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }));
+  await until(() => w.asks[0].landed, "the answer to land while it is closed");
+  assert.equal(w.asks.length, 1, "no writer asked for a screen nobody has open");
+  // Opened again: the next ask is the draft's, never the writer's for the screen that was closed.
+  w.props.open = true;
+  w.draw();
+  const next = await w.asked(2, "the draft to be asked for again as it opens");
+  assert.deepEqual([next.kind, next.body], ["draft", { picture: FILE }], "nothing was kept for it: around the piece");
+  assert.deepEqual(w.went, [], "the address was not moved while it was closed");
 });
 
 test("opened again, in the tab or on another device: the workspace's kept draft and its words, and the writer is not asked twice (G18)", async () => {
