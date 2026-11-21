@@ -927,8 +927,34 @@ export const DECISION_VERBS = [
   "turn_on_ad",
   "change_ad",
   "end_ad",
+  /** An ad cancelled while it is set up (00676; the Ads plan's 4.7, point 8): its owner's, or a yes taken back's. */
+  "cancel_ad",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
+
+/**
+ * What a remediation was started by (00676; the content loop PRD's 5.3): a yes taken back, a person erased, a take-down
+ * the owner asked for, the stop, a claim withdrawn, a connection lost, a claim expired. Ads alone write one today.
+ */
+export const REMEDIATION_CAUSES = [
+  "yes_taken_back",
+  "person_erased",
+  "owner_removed",
+  "stop",
+  "claim_withdrawn",
+  "connection_lost",
+  "claim_expired",
+] as const;
+export type RemediationCause = (typeof REMEDIATION_CAUSES)[number];
+/** What a remediation is about: a file whose yes was taken back, a person, a post, or the workspace itself. */
+export const REMEDIATION_SUBJECTS = ["file", "person", "post", "workspace"] as const;
+/** What one of its actions reached: a post up, an ad, a post waiting for its time. */
+export const REMEDIATION_TARGETS = ["post", "ad", "scheduled_post"] as const;
+/** What the action asks of the place. */
+export const REMEDIATION_ACTS = ["cancel", "pause", "take_down"] as const;
+/** What came of it: pending until the place says; done, blocked (the place refused), not possible, or done by hand there. */
+export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person"] as const;
+export type RemediationOutcome = (typeof REMEDIATION_OUTCOMES)[number];
 
 export const DECISION_SUBJECTS = [
   "conversation",

@@ -364,6 +364,13 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   footage_in: { icon: "folder", tone: "", action: "Open Library", to: CONTENT_LIBRARY_ROUTE },
   // A draft ad left for the owner (00659): its row opens New ad on it.
   ad_draft: { icon: "sparkle", tone: "", action: "Open the draft", to: newAdRoute(), own: true },
+  // An ad made here whose launch couldn't finish, or whose switch Meta never answered (00676): each row opens its drawer.
+  ad_unfinished: { icon: "alert", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  ad_unconfirmed: { icon: "alert", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  // An ad on that AI can't answer (00676): it spends for nothing, so it is a warning, and its drawer has Pause.
+  ad_way_in: { icon: "chat", tone: "warn", action: "Open the ad", to: ADS_ROUTE, own: true },
+  // Ads Chanlytics paused for the workspace (00676): news, opening the first of them.
+  ads_paused: { icon: "money", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
   alert: ALERT_LOOK,
 };

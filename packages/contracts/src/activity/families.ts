@@ -113,6 +113,7 @@ const VERB_FAMILY: Record<DecisionVerb, ActivityFamily> = {
   turn_on_ad: "ads",
   change_ad: "ads",
   end_ad: "ads",
+  cancel_ad: "ads",
 };
 
 /** The word an event kind is filed under: `message` of `message.sent`. */

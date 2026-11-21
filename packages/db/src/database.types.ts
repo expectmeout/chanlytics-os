@@ -377,6 +377,8 @@ export type Database = {
           launch: Json | null
           name: string
           origin: string
+          paused_at: string | null
+          paused_by: string | null
           platform: string
           platform_ad_id: string | null
           platform_campaign_id: string | null
@@ -392,6 +394,8 @@ export type Database = {
           told_at: string | null
           updated_at: string
           version: number
+          way_in: string | null
+          way_in_at: string | null
         }
         Insert: {
           account_id: string
@@ -412,6 +416,8 @@ export type Database = {
           launch?: Json | null
           name: string
           origin: string
+          paused_at?: string | null
+          paused_by?: string | null
           platform: string
           platform_ad_id?: string | null
           platform_campaign_id?: string | null
@@ -427,6 +433,8 @@ export type Database = {
           told_at?: string | null
           updated_at?: string
           version?: number
+          way_in?: string | null
+          way_in_at?: string | null
         }
         Update: {
           account_id?: string
@@ -447,6 +455,8 @@ export type Database = {
           launch?: Json | null
           name?: string
           origin?: string
+          paused_at?: string | null
+          paused_by?: string | null
           platform?: string
           platform_ad_id?: string | null
           platform_campaign_id?: string | null
@@ -462,6 +472,8 @@ export type Database = {
           told_at?: string | null
           updated_at?: string
           version?: number
+          way_in?: string | null
+          way_in_at?: string | null
         }
         Relationships: [
           {
@@ -7278,6 +7290,101 @@ export type Database = {
           },
         ]
       }
+      remediation_actions: {
+        Row: {
+          act: string
+          finished_at: string | null
+          id: string
+          outcome: string
+          remediation_id: string
+          said: string | null
+          started_at: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Insert: {
+          act: string
+          finished_at?: string | null
+          id?: string
+          outcome: string
+          remediation_id: string
+          said?: string | null
+          started_at?: string
+          target_id: string
+          target_type: string
+          tenant_id: string
+        }
+        Update: {
+          act?: string
+          finished_at?: string | null
+          id?: string
+          outcome?: string
+          remediation_id?: string
+          said?: string | null
+          started_at?: string
+          target_id?: string
+          target_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediation_actions_remediation_same_workspace"
+            columns: ["tenant_id", "remediation_id"]
+            isOneToOne: false
+            referencedRelation: "remediations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "remediation_actions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remediations: {
+        Row: {
+          actor_user_id: string | null
+          cause: string
+          created_at: string
+          finished_at: string | null
+          id: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          cause: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          cause?: string
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          subject_id?: string
+          subject_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remediations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reply_turns: {
         Row: {
           claimed_at: string
@@ -9162,6 +9269,15 @@ export type Database = {
         }[]
       }
       ad_bell_hearers: { Args: { p_tenant_id: string }; Returns: string[] }
+      ad_bell_paused: {
+        Args: {
+          p_actor: string
+          p_ads: string[]
+          p_tenant_id: string
+          p_why: string
+        }
+        Returns: number
+      }
       ad_bell_ring: {
         Args: { p_account_id: string; p_before: string[]; p_tenant_id: string }
         Returns: Json
@@ -9236,6 +9352,15 @@ export type Database = {
         }
         Returns: string
       }
+      ad_launch_cancel: {
+        Args: {
+          p_actor: string
+          p_ad_id: string
+          p_by?: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       ad_launch_keep: {
         Args: { p_ad_id: string; p_kept: Json; p_tenant_id: string }
         Returns: Json
@@ -9253,7 +9378,12 @@ export type Database = {
       }
       ad_named: { Args: { p_ref: string; p_tenant_id: string }; Returns: Json }
       ad_pause_all: {
-        Args: { p_actor: string; p_presses: Json; p_tenant_id: string }
+        Args: {
+          p_actor: string
+          p_by?: string
+          p_presses: Json
+          p_tenant_id: string
+        }
         Returns: Json
       }
       ad_people: {
@@ -9283,10 +9413,15 @@ export type Database = {
           platform: string
         }[]
       }
+      ad_resume_stopped: {
+        Args: { p_actor: string; p_presses: Json; p_tenant_id: string }
+        Returns: Json
+      }
       ad_set_intent: {
         Args: {
           p_actor: string
           p_ad_id: string
+          p_by?: string
           p_intent: string
           p_tenant_id: string
           p_version: number
@@ -9318,6 +9453,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ad_way_in_keep: {
+        Args: { p_account_id: string; p_tenant_id: string; p_ways: Json }
+        Returns: Json
+      }
       add_person: {
         Args: {
           p_display_name: string
@@ -9339,6 +9478,16 @@ export type Database = {
       }
       ads_read_keep: {
         Args: { p_account_id: string; p_read: Json; p_tenant_id: string }
+        Returns: Json
+      }
+      ads_remediate_files: {
+        Args: {
+          p_actor: string
+          p_cause: string
+          p_files: string[]
+          p_subject_id: string
+          p_tenant_id: string
+        }
         Returns: Json
       }
       ads_sweep_ask: { Args: never; Returns: number }

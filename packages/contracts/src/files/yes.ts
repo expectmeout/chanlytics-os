@@ -80,6 +80,20 @@ export interface FileYesTakenBack {
   files: string[];
   held: FileYesPost[];
   live: FileYesPost[];
+  /**
+   * For a yes for ads taken back (00676; the Ads plan's G16): every ad made here that shows one of the files, paused, or
+   * cancelled while it was set up, each with what came of it so far: `pending` until Meta says, `done` where Meta holds it
+   * paused already, `needs_person` where it can only be paused in Meta now.
+   */
+  ads: FileYesAd[];
+}
+
+/** One ad a yes taken back reached: which, what was asked of it, and what came of it so far. */
+export interface FileYesAd {
+  ad_id: string;
+  name: string;
+  act: "pause" | "cancel";
+  outcome: "done" | "pending" | "blocked" | "not_possible" | "needs_person";
 }
 
 /** One post a take-back held or found up: where, as what, its link once it is up, and when. */

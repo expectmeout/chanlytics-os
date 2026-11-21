@@ -18,6 +18,8 @@
  * as Needs you. Nothing here reads a database or asks Meta: it is given what was read.
  */
 import { repliesGoOf } from "../lines/number-standing";
+import { numberFormat } from "../shared/time";
+import { minorPerUnit } from "./money";
 
 /** Why AI can't answer the chat an ad opens, or `open` where it can. */
 export type AdWayIn = "open" | "stopped" | "paused" | "no_number" | "unread" | "blocked";
@@ -48,4 +50,45 @@ export function adWayInOf(facts: AdWayInFacts): AdWayIn {
   const goes = repliesGoOf(facts.number.canSend);
   if (goes === null) return "unread";
   return goes ? "open" : "blocked";
+}
+
+/** Why AI can't answer a running ad's chat, as the bell's row says it: what happened, in the owner's words. */
+const WAY_IN_SAID: Record<Exclude<AdWayIn, "open">, string> = {
+  stopped: "AI is stopped, so nobody answers the people it brings.",
+  paused: "Billing is paused, so the people it brings wait in the Inbox for a person.",
+  no_number: "The WhatsApp number it opens is no longer the one AI answers.",
+  unread: "WhatsApp hasn't said for an hour whether its number can answer.",
+  blocked: "Meta stopped its WhatsApp number sending, so AI can't reply.",
+};
+
+/** What is left to spend, in the account's own money, exact: "$64.20", "$70", "¥1,284". */
+function leftToSpend(minor: number, currency: string): string {
+  const perUnit = minorPerUnit(currency);
+  const digits = minor % perUnit === 0 ? 0 : String(perUnit).length - 1;
+  const fraction = { minimumFractionDigits: digits, maximumFractionDigits: digits };
+  return /^[A-Za-z]{3}$/.test(currency)
+    ? numberFormat("en-US", { style: "currency", currency, ...fraction }).format(minor / perUnit)
+    : `${numberFormat("en-US", fraction).format(minor / perUnit)} ${currency}`.trim();
+}
+
+/**
+ * The bell's row for a running ad whose way in closed (decision 0050, call 11; the database rings it, 00676
+ * ad_way_in_keep): which ad, why AI can't answer the people it brings, what it can still spend of its total (where Meta
+ * holds one), and the one thing to do.
+ */
+export function adWayInRowOf(ad: {
+  name: string;
+  wayIn: Exclude<AdWayIn, "open">;
+  leftMinor: number | null;
+  currency: string;
+}): { title: string; body: string } {
+  const name = ad.name.length > 80 ? `${ad.name.slice(0, 79)}…` : ad.name;
+  const spends =
+    ad.leftMinor === null
+      ? "Meta charges while it runs."
+      : `It can still spend ${leftToSpend(ad.leftMinor, ad.currency)} of its total.`;
+  return {
+    title: `“${name}” is on, and AI can't answer it`,
+    body: `${WAY_IN_SAID[ad.wayIn]} ${spends} Pause it, or open it to see what to mend.`,
+  };
 }

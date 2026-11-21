@@ -16,9 +16,11 @@
  * it), `took_back` (it undid a press Meta was never told of), `same` (what was asked already stands). A refusal is a
  * code, with Meta's own words for support in `detail`.
  *
- * Two more ops take the same first two steps. `check` asks the account's read of an ad whose last switch Meta never
+ * Four more ops take the same first two steps. `check` asks the account's read of an ad whose last switch Meta never
  * answered, and sends nothing. `pause_all` pauses every ad of a set (below): each kept by the same door, all in one
  * transaction before the door answers, and Meta told at its pace by each account's read, never in this request.
+ * `resume_all` turns back on the ads Stop everything paused, the owner's own press after a Resume, the same way. `cancel`
+ * stops an ad made here while it is set up: kept on its launch, which its account's job stops at its next step (00676).
  */
 import { AD_PAUSE_ALL_MAX, UUID, isTenantId, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
 import {
@@ -29,11 +31,14 @@ import {
   findAdSwitchId,
   keepAdAccountRead,
   markAdAccountRevoked,
+  cancelAdLaunch,
   mayRunAds,
   pauseAdsKept,
+  resumeStoppedAds,
   setAdIntent,
   type AdIntent,
   type AdPressKept,
+  type AdResumedKept,
 } from "@chanlytics/db/ads";
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -234,6 +239,42 @@ function pausesOf(ads: unknown): AdPause[] | null {
   return new Set(out.map((press) => press.adId)).size === out.length ? out : null;
 }
 
+/**
+ * `resume_all`: the ads Stop everything paused, turned back on together on the owner's own press (00676; the content
+ * loop PRD's 14.1, call 21: Resume never turns an ad on). Each kept through the door a single turning back on is kept by,
+ * and Meta told at its pace by each account's read. Refused while AI is stopped. What each came to, as pause_all says it,
+ * and `not_stopped` for one the stop did not pause.
+ */
+async function resumeAll(db: Db, by: PressedBy, presses: readonly AdPause[]): Promise<Response> {
+  const kept = await resumeStoppedAds(db, by, presses);
+  if (kept.outcome === "no_door") return refuse(503, "not_ready", NO_ADS_DOORS);
+  if (kept.outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
+  if (kept.outcome === "stopped") return refuse(409, "ai_stopped");
+  const outcomeOf = (one: AdResumedKept): string => (one.outcome === "not_stopped" ? one.outcome : pauseOutcomeOf(one));
+  const ads = kept.ads.map((one) => ({ ad_id: one.adId, outcome: outcomeOf(one), version: one.version }));
+  logger({ tenant_id: by.tenantId }).info("ads_pressed", {
+    asked: "resume_all",
+    outcome: "kept",
+    ads: ads.length,
+    soon: ads.filter((one) => one.outcome === "soon").length,
+  });
+  return json(200, { ok: true, outcome: "kept", ads });
+}
+
+/**
+ * `cancel`: the owner stops an ad made here while it is set up (the Ads plan's 4.7, point 8). Kept on its launch; its
+ * account's job stops it at its next step and removes what it made. One made already answers `made`, where its Pause
+ * stops it, and one whose launch ended answers `stopped`. Nothing is sent to Meta here.
+ */
+async function cancelOne(db: Db, by: PressedBy, adId: string): Promise<Response> {
+  const kept = await cancelAdLaunch(db, by, adId);
+  if (kept.outcome === "no_door") return refuse(503, "not_ready", NO_ADS_DOORS);
+  if (kept.outcome === "not_allowed") return refuse(403, "ad_account_not_owner");
+  if (kept.outcome === "not_found") return refuse(404, "not_found");
+  logger({ tenant_id: by.tenantId, ad_id: adId }).info("ads_pressed", { asked: "cancel", outcome: kept.outcome });
+  return json(200, { ok: true, outcome: kept.outcome, version: kept.version ?? 0 });
+}
+
 /** Every ad of the set paused, kept together; what each came to. The switch and the owner are asked before this. */
 async function pauseAll(db: Db, by: PressedBy, presses: readonly AdPause[]): Promise<Response> {
   const kept = await pauseAdsKept(db, by, presses);
@@ -249,13 +290,14 @@ async function pauseAll(db: Db, by: PressedBy, presses: readonly AdPause[]): Pro
   return json(200, { ok: true, outcome: "kept", ads });
 }
 
-/** The door's ops: pause, resume, check and change on one ad, and pause_all on a set of them. */
+/** The door's ops: pause, resume, check, change and cancel on one ad, and pause_all and resume_all on a set of them. */
 export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): Promise<Response> {
   const intent: AdIntent | null = body.op === "pause" ? "paused" : body.op === "resume" ? "on" : null;
-  const all = body.op === "pause_all";
+  const all = body.op === "pause_all" || body.op === "resume_all";
   const change = body.op === "change";
-  if (intent === null && body.op !== "check" && !all && !change)
-    return refuse(400, "unknown_op", "op is pause, resume, check, change or pause_all");
+  const cancel = body.op === "cancel";
+  if (intent === null && body.op !== "check" && !all && !change && !cancel)
+    return refuse(400, "unknown_op", "op is pause, resume, check, change, cancel, pause_all or resume_all");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -264,7 +306,15 @@ export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): P
     const presses = pausesOf(body.ads);
     if (!isTenantId(tenantId) || !UUID.test(userId) || presses === null)
       return refuse(400, "bad_request", "tenant_id, user_id and ads (each an ad_id and its version, once) required");
-    return admitted({ tenantId, userId }, (db, by) => pauseAll(db, by, presses));
+    return admitted({ tenantId, userId }, (db, by) =>
+      body.op === "resume_all" ? resumeAll(db, by, presses) : pauseAll(db, by, presses),
+    );
+  }
+  if (cancel) {
+    const adId = String(body.ad_id ?? "");
+    if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId))
+      return refuse(400, "bad_request", "tenant_id, user_id and ad_id required");
+    return admitted({ tenantId, userId }, (db, by) => cancelOne(db, by, adId));
   }
   const adId = String(body.ad_id ?? "");
   const version = typeof body.version === "number" && Number.isInteger(body.version) ? body.version : 0;

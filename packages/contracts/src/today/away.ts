@@ -139,6 +139,10 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   ad_spent: ["ad that spent its total", "ads that spent their total"],
   ad_quiet: ["ad no one wrote from in a week", "ads no one wrote from in a week"],
   ad_draft: ["draft ad left for you", "draft ads left for you"],
+  ad_unfinished: ["ad that couldn't finish", "ads that couldn't finish"],
+  ad_unconfirmed: ["ad Meta didn't confirm is on", "ads Meta didn't confirm are on"],
+  ad_way_in: ["ad AI can't answer", "ads AI can't answer"],
+  ads_paused: ["time Chanlytics paused your ads", "times Chanlytics paused your ads"],
 };
 
 /**

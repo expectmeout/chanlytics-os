@@ -89,7 +89,7 @@ export {
   ADS_PREVIEW_DOOR,
   ADS_TURN_ON_DOOR,
 } from "./edge-doors";
-export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
+export { AD_DOORS_COUNTED, AD_WAY_IN_UNREAD_MS, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./live";
 export type {
   AdBudgetLive,
   AdLaunchLive,
@@ -98,15 +98,17 @@ export type {
   AdNeedsLive,
   AdOpens,
   AdPartLeft,
+  AdPausedBy,
   AdPeopleLiveDto,
   AdPersonLiveDto,
   AdResume,
   AdsLiveDto,
   AdStopped,
+  AdWayClosed,
 } from "./live";
 export { minorPerUnit } from "./money";
 export { AD_TOLD_MAX } from "./said";
 export type { AdSaid } from "./said";
 export { adAccountStateOf, adStateOf } from "./states";
-export { adWayInOf } from "./way-in";
+export { adWayInOf, adWayInRowOf } from "./way-in";
 export type { AdWayIn, AdWayInFacts } from "./way-in";

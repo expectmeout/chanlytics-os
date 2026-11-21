@@ -97,6 +97,14 @@ const NOTIFICATION_DELIVERY = {
   // A draft ad someone left for the owner (00659): a line on the owner's bell, written by the database as it is kept, and
   // closed when the owner keeps it.
   ad_draft: "bell",
+  // A launch here that couldn't finish, or a switch Meta never answered (00676): lines on the owner's bell; nothing was
+  // spent by the first, and the second's drawer has Check.
+  ad_unfinished: "bell",
+  ad_unconfirmed: "bell",
+  // An ad on that AI can't answer, and ads Chanlytics paused for the workspace (00676): both about money, so mailed once,
+  // as the business chooses, under the `ads` topic.
+  ad_way_in: "email",
+  ads_paused: "email",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
@@ -224,11 +232,11 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
   {
     key: "ads",
     group: "needs_you",
-    title: "An ad can't run",
-    what: "Meta didn't approve one of your ads, or couldn't charge your card for one. It says what to fix in Meta.",
+    title: "Your ads need you",
+    what: "Meta didn't approve an ad or couldn't charge your card for one, AI can't answer the people one brings, or Chanlytics paused your ads. It says what to do.",
     email: "choice",
     phone: false,
-    kinds: ["ad_refused", "ad_unpaid"],
+    kinds: ["ad_refused", "ad_unpaid", "ad_way_in", "ads_paused"],
     ads: true,
   },
   {
@@ -396,6 +404,9 @@ export const BELL_LINE_KINDS = [
   "ad_quiet",
   // A draft ad left for the owner (00659).
   "ad_draft",
+  // A launch here that couldn't finish, or a switch Meta never answered (00676).
+  "ad_unfinished",
+  "ad_unconfirmed",
 ] as const satisfies readonly ServerNotificationKind[];
 
 /** The kinds the business may turn off by email: every kind of a topic whose email is a choice. */

@@ -63,6 +63,8 @@ export const LOG_EVENTS = [
   "ads_sweep",
   "ads_sweep_failed",
   "ads_turned_on",
+  "ads_way_in",
+  "ads_way_in_failed",
   "ai_spend_read_failed",
   "ai_usage_purge_failed",
   "ai_usage_write_failed",

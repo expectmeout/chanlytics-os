@@ -9,6 +9,7 @@ import {
   DbFailure,
   fileYesUsesIn,
   recordOrEmpty,
+  type FileYesAd,
   type FileYesTakenBack,
   type FileYesUse,
   type TenantId,
@@ -71,10 +72,29 @@ const postsOf = (raw: unknown): FileYesTakenBack["held"] =>
       : [];
   });
 
+const YES_AD_OUTCOMES: readonly FileYesAd["outcome"][] = ["done", "pending", "blocked", "not_possible", "needs_person"];
+
+/** The ads a take-back reached, as its door answers them; anything else in the answer is left out. */
+const adsOf = (raw: unknown): FileYesAd[] =>
+  (Array.isArray(raw) ? raw : []).flatMap((one): FileYesAd[] => {
+    const ad = recordOrEmpty(one);
+    const outcome = YES_AD_OUTCOMES.find((word) => word === ad.outcome);
+    if (typeof ad.ad_id !== "string" || !outcome) return [];
+    return [
+      {
+        ad_id: ad.ad_id,
+        name: typeof ad.name === "string" ? ad.name : "",
+        act: ad.act === "cancel" ? "cancel" : "pause",
+        outcome,
+      },
+    ];
+  });
+
 /**
  * A member's door (the PRD's section 8): the yes for each use named, every use where none is, taken back on a file and on
- * every piece drawn from it, every post of them still waiting held with `held`'s words, in one transaction. Answers what
- * was held, and every post already up or on its way, for the owner to take down where it is.
+ * every piece drawn from it, every post of them still waiting held with `held`'s words, and every ad made here that shows
+ * one of them paused (00676), in one transaction. Answers what was held, every post already up or on its way, for the
+ * owner to take down where it is, and the ads paused.
  */
 export async function takeBackFileYes(
   db: Db,
@@ -94,6 +114,7 @@ export async function takeBackFileYes(
     files: textsOf(answer.files),
     held: postsOf(answer.held),
     live: postsOf(answer.live),
+    ads: adsOf(answer.ads),
   };
 }
 
