@@ -19,7 +19,9 @@ import { UUID, isTenantId, type TenantId } from "@chanlytics/contracts";
 import {
   askAdRead,
   askAdTell,
+  findAd,
   findAdAccount,
+  findAdSwitchId,
   keepAdAccountRead,
   markAdAccountRevoked,
   mayRunAds,
@@ -84,7 +86,12 @@ async function tellNow(
     db,
     log,
     { tenantId, signIn, writes: who.writes },
-    { id: press.adId, platform_ad_id: kept.platformAdId, intent: press.intent },
+    {
+      id: press.adId,
+      platform_ad_id: kept.platformAdId,
+      switch_id: await findAdSwitchId(db, tenantId, press.adId),
+      intent: press.intent,
+    },
   );
   log.info("ads_pressed", { asked: press.intent, outcome: told.outcome });
   if (told.outcome === "revoked") {
@@ -110,10 +117,25 @@ async function tellNow(
   return answer("sent");
 }
 
-/** The door's ops: pause and resume. */
+/**
+ * `check`: an owner's Check on an ad whose last switch Meta never answered (the Ads plan's 4.7, point 7). Nothing is
+ * sent again: the account's read is asked for, which says what stands at Meta, and the page reads it once it is in.
+ */
+async function checkAd(db: Db, tenantId: TenantId, adId: string): Promise<Response> {
+  const row = await findAd(db, tenantId, adId);
+  if (!row) return refuse(404, "not_found");
+  const account = await findAdAccount(db, tenantId, row.account_id);
+  if (!account || account.status !== "connected" || account.external_id === null)
+    return refuse(409, "nothing_to_do", "No connected ad account.");
+  await askAdRead(db, "meta", account.external_id);
+  logger({ tenant_id: tenantId, ad_id: adId }).info("ads_pressed", { asked: "check", outcome: "asked" });
+  return json(200, { ok: true, outcome: "asked", version: row.version });
+}
+
+/** The door's ops: pause, resume and check. */
 export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): Promise<Response> {
   const intent: AdIntent | null = body.op === "pause" ? "paused" : body.op === "resume" ? "on" : null;
-  if (intent === null) return refuse(400, "unknown_op", "op is pause or resume");
+  if (intent === null && body.op !== "check") return refuse(400, "unknown_op", "op is pause, resume or check");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -129,6 +151,7 @@ export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): P
     return refuse(409, "ads_writes_off", "Changing an ad from here is not turned on in this workspace.");
   // The owner alone, asked before anything is kept or asked of Meta (decision 0050, call 2).
   if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
+  if (intent === null) return checkAd(db, tenantId, adId);
   const kept = await setAdIntent(db, { tenantId, userId }, { adId, version, intent });
   if (kept.outcome === "same")
     return json(200, { ok: true, outcome: kept.pending ? "soon" : "same", version: kept.version ?? version });

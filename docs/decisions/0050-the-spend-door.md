@@ -14,7 +14,8 @@ Built so far: the owner-only `ads` permission (migration 00645); Pause, Resume a
 (19 November 2026, #2443); the requests that make an ad, built and not sent (#2452); New ad's one screen, with the ad
 writer's own purpose (#2456, migration 00656); call 15, the bell's five ad notices to the owner alone (20 November
 2026, #2459, migration 00658); and, while AI is stopped, no ad turned back on from the page and one press that
-pauses every ad still on (20 November 2026). Turn on, the job that makes an ad and never leaves one running, is not.
+pauses every ad still on (20 November 2026). Turn on, the job that makes an ad and never leaves one running, is built
+with migration 00666 (21 November 2026, below), and nothing has been switched on at Meta with it yet.
 
 ## Context
 
@@ -516,3 +517,59 @@ Built with nothing sent to Meta. One migration is written and not applied: `0066
   and its line says why; where neither is sure, the circle stays. Nothing in Chanlytics says a business serves online,
   and no field was added for it. The request builder sends the place in the circle's stead, and what Meta holds reads
   back as the same word (`metaAreaWord`), which the paused check compares; the launch is to compare the same.
+
+## As built, 21 November 2026 · Turn on, and after (the Ads plan's step 4, items 4 and 5)
+
+Built with nothing switched on at Meta and nothing spent. One migration is written and not applied: `00666`
+(`supabase/migrations/00666_an_owner_turns_an_ad_on.sql`). The first live ad waits for Ruben's word, on his own account
+with a card limit he sets.
+
+- **Call 3, the press.** `POST ads/turn-on` (`apps/dashboard/src/server/ads/turn-on.ts`, owner, `fresh`) carries what
+  the press showed: the most the ad can cost, its end, the area, the picture and the words, and a key of its own. The
+  workspace's kept draft is judged afresh and every check of 5.1 runs again; a press that showed anything else is
+  refused ("This ad changed since you saw it"), so the owner can only press the number the server would have named.
+  The most is worked out in one place, contracts `adMostOf`: a total with an end at Meta is the most (call 4). The
+  edge's door (`apps/edge/lib/ads/turn-on.ts`) asks the owner, the switch, the account and AI's stop again, and keeps it
+  through `ad_turn_on`: the draft becomes an `ads` row made here (`status` sending, `approved` what was pressed, `launch`
+  its key), the decision `turn_on_ad` and the event `ad.turned_on` in one transaction, the draft gone and a draft left
+  for the owner seen to. The same key twice is one ad; a draft changed since the press judged it is refused; one launch
+  an account at a time.
+- **Call 5, the job, as the account's own job.** The Shape names a job kind `ad_publish`. It is not one: the launch is
+  the first work of the account's `ad_read` job (`apps/edge/lib/ads/launch.ts`), which `ad_turn_on` asks for at once.
+  Meta keeps one small score an ad account, so one account's calls go one after another, and a launch that cannot
+  finish in one pass is taken up by the next (its door brings the account's next read within a minute). Each part is
+  made paused just after its own dry run, and kept in `ad_objects` as sent before its make goes: the campaign, the ad
+  set, the picture, and an ad for each version of the words. The campaign is read back whole and compared with
+  `approved` (`apps/edge/lib/ads/launch-parts.ts`); then, while AI is not stopped, the ads, the ad set and the campaign
+  are switched on, the campaign last, and read back once more for Meta's word. The page says In review until Meta says
+  ACTIVE.
+- **Call 6, nothing unapproved is switched on.** No stop calls a switch. A stop removes the campaign with everything
+  under it; what cannot be removed stays named and paused at Meta, kept as `left`, and the ad says Couldn't finish with
+  what was left. A make whose answer never came is never sent again: it is found by its tagged name (`[cl:` and the
+  first eight letters of the ad's id) and, unfound past ten minutes, the launch stops. A switch whose answer never came
+  is never sent again either; the ad is made with `launch.unknown_at`, says Setting up for five minutes and then
+  Couldn't confirm it's on with Check, and the account's next read settles it. The one part sent twice is the picture,
+  which Meta's library keeps once by its bytes, and a dry run, which makes nothing.
+- **A disconnect, or a sign-out, stops a launch** (a trigger on `ad_accounts`): the ad fails, what it made is left,
+  and nothing more is sent. While AI is stopped no switch is sent, and the launch stops before its first.
+- **The decision this note left open, whether a create is sent again with its key:** it is not. Call 6 holds for
+  creates as for switches; the key stays on every make, so a create Meta took twice answers once.
+- **Three versions are one ad.** The account's read folds Meta's three ads into the ad made here
+  (`apps/edge/lib/ads/fold.ts`): the best word any version has, their days added; a launch's own parts are never
+  adopted as an ad made in Meta. `ad_held_for` names the one ad for a tap on any version, for a person's page, the Ads
+  page's counts and the bell's "nobody wrote".
+- **Pause and turning back on, for an ad made here,** switch its own campaign, which holds its versions and nothing
+  else; it turns back on here with what is left and its end named (`adResumeRule`), never while AI is stopped.
+- **Two things seen on the paused-ad check's ad, mended here.** An ad's name never shows its tag (the read keeps the
+  name as an owner reads it), and a drawer says where the ad shows, from the ad set's own platforms (`ads.shown_on`),
+  "Facebook" for that one. A third, Pause offered on that ad while Meta checked it, was right: its own switch was on
+  (step 2's Resume had just reached Meta), so it stands as it was.
+- **A wider place goes through Turn on** (the calls settled the same day, above). The press carries it by Meta's key
+  where the draft holds one, and a press that showed another area is refused; `approved` keeps it and no street
+  address; the launch sends it in the circle's stead and compares Meta's word for it (`metaAreaSent`), as the paused
+  check does.
+- **`ADS_WRITES`:** `live` sends; `sandbox` walks every step and makes up Meta's answers (ids that begin 0000, which
+  the read never asks Meta about); anything else stops a launch before it sends.
+- **Not built here:** a video sent to Meta (Turn on sends a photo for now, and says so); Cancel during Setting up; the
+  bell's rows for Couldn't finish and Couldn't confirm it's on (the page and the drawer say both); and the owner's
+  changes to a running ad made here (the plan's step 4, item 6).

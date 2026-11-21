@@ -64,7 +64,7 @@ const answerOf = (over = {}, draft = {}) => ({
   checks: [],
   question: null,
   declared: "none",
-  turn_on: "not_yet",
+  turn_on: "ready",
   owner: true,
   left_by: null,
   ...over,
@@ -83,6 +83,8 @@ const view = (over = {}) => {
     telling: false,
     told: null,
     need: null,
+    turning: false,
+    refused: null,
     ...over,
   });
 };
@@ -144,14 +146,34 @@ test("written: one of three versions, the next at a press and round again; the a
   });
 });
 
-test("Turn on, until the job that makes an ad exists: grey, and it says nothing is made at Meta and nothing is spent", () => {
+test("Turn on: pressed where nothing stops it, naming the most it can cost; grey with why where something does", () => {
   const vm = view();
   assert.equal(vm.line, null, "nothing stops this draft");
   assert.deepEqual(vm.press, {
     words: "Turn on · up to $70",
-    can: false,
-    under: "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent.",
+    can: true,
+    under: "Made paused. Meta checks it first, usually within a day.",
   });
+  // Turning ads on from here is off in this workspace, or the picture is a video: grey, with why.
+  assert.deepEqual(view({ answer: written({ turn_on: "off" }) }).press, {
+    words: "Turn on · up to $70",
+    can: false,
+    under: "Turning an ad on from here isn't on in this workspace yet. Nothing is made at Meta.",
+  });
+  assert.equal(
+    view({ answer: written({ turn_on: "video" }) }).press.under,
+    "Turn on sends a photo for now. Use the next picture to pick a photo.",
+  );
+  // On its way, it waits; refused, it says the server's own words.
+  assert.deepEqual(view({ turning: true }).press, {
+    words: "Turn on · up to $70",
+    can: false,
+    under: "Turning it on…",
+  });
+  assert.equal(
+    view({ refused: "This ad changed since you saw it. Look at it again, then press." }).press.under,
+    "This ad changed since you saw it. Look at it again, then press.",
+  );
   // A member who is not the owner is told that first: only the owner turns an ad on.
   assert.equal(view({ answer: written({ owner: false }) }).press.under, "Only the owner can turn an ad on.");
   // The page's example went with the mockup (20 Nov 2026): New ad is the workspace's own, drafted by AI.
@@ -432,12 +454,12 @@ function world({ same = false } = {}) {
   const went = [];
   const props = {
     open: true,
-    source: { draft: ask("draft"), words: ask("words") },
+    source: { draft: ask("draft"), words: ask("words"), turnOn: (key, expect) => ask("turn_on")({ key, expect }) },
     need: null,
     onClose: () => went.push("closed"),
     onConnect() {},
     onGo: (route) => went.push(route),
-    onTurnOn() {},
+    onSee: (adId) => went.push(`see:${adId}`),
   };
   NewAd(props);
   const draw = () => again(() => NewAd(props));
@@ -703,4 +725,66 @@ test("Tell AI what to change: one line to AI, the one change it made shown, and 
     "That would speak about the person reading, and Meta turns that down. Nothing was changed.",
   );
   assert.equal(w.said("ads-new-text"), THREE[0].text);
+});
+
+test("Turn on: what was typed is judged first; the press goes under its own key with what it shows; then Setting up", async () => {
+  const w = world();
+  w.asks[0].land(written());
+  await w.shows("ads-new-text", "a written draft to open");
+  // Typed, and pressed before the moment the typing is judged: the press judges it first, so it names no number the
+  // server would not.
+  press(byTestId(w.draw(), "ads-chip-amount"));
+  typeInto(w.draw(), "ads-new-amount", "90");
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const judged = await w.asked(2, "what was typed to be judged first");
+  assert.deepEqual([judged.kind, judged.body.draft.total_minor], ["draft", 9000]);
+  assert.equal(w.said("ads-new-under"), "Turning it on…");
+  assert.equal(byTestId(w.draw(), "ads-new-turn-on").props.disabled, true, "pressed once, it waits");
+  judged.land(written({}, { total_minor: 9000 }));
+  const pressed = await w.asked(3, "the press");
+  assert.equal(pressed.kind, "turn_on");
+  assert.match(pressed.body.key, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(pressed.body.expect, {
+    service: "First appointment",
+    picture: FILE,
+    miles: 5,
+    most_minor: 9000,
+    end_day: END,
+    versions: THREE.map((version) => ({ text: version.text, headline: version.headline })),
+  });
+  pressed.land({ ad: "adadadad-0000-4000-8000-000000000001" });
+  await w.shows("ads-new-see", "the screen to say it is being set up");
+  assert.match(w.said("ads-new-short"), /Setting it up at Meta/);
+  assert.match(w.said("ads-new-short"), /Meta checks it before anyone sees it/);
+  press(byTestId(w.draw(), "ads-new-see"));
+  assert.deepEqual(w.went, ["see:adadadad-0000-4000-8000-000000000001"]);
+});
+
+test("Turn on refused: the server's own words under the press, and the draft judged again; no answer keeps the key", async () => {
+  const w = world();
+  w.asks[0].land(written());
+  await w.shows("ads-new-text", "a written draft to open");
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const first = await w.asked(2, "the press");
+  assert.equal(first.kind, "turn_on", "nothing typed: nothing to judge first");
+  // No answer came: the press may go again, under the same key, so it makes one ad.
+  first.land(null);
+  await until(
+    () => w.said("ads-new-under") === "Couldn't reach Chanlytics, so nothing was made. Try again.",
+    "it says so",
+  );
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const second = await w.asked(3, "the press again");
+  assert.equal(second.body.key, first.body.key, "the same press, the same key");
+  second.land({ refused: "This ad changed since you saw it. Look at it again, then press." });
+  const again = await w.asked(4, "the draft judged again");
+  assert.equal(again.kind, "draft");
+  again.land(written());
+  await until(
+    () => w.said("ads-new-under") === "This ad changed since you saw it. Look at it again, then press.",
+    "the refusal's own words",
+  );
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const third = await w.asked(5, "a new press");
+  assert.notEqual(third.body.key, first.body.key, "an answer came: the next press is a new one");
 });

@@ -9,6 +9,8 @@
  * C1): asked by the page that draws the press, by the route that takes it and by the edge before Meta is told.
  */
 import { zoneDayKey } from "../shared/clock";
+import { recordOrEmpty } from "../shared/unknown";
+import { MIN_MS } from "../shared/time";
 import type { AdState } from "./ads";
 import { adStateOf } from "./states";
 
@@ -31,6 +33,25 @@ export interface AdBudgetLive {
 /** Why an ad needs its owner. */
 export type AdNeedsLive = "refused" | "unpaid" | "troubled" | "paused_at_platform";
 
+/**
+ * Why the launch of an ad made here stopped part way: Meta refused a step (in its own words); what Meta held was not
+ * what was approved; a make whose answer never came was never found; AI was stopped; the account was disconnected or
+ * signed out; the picture could not be sent (a video, or one Files no longer holds); what was approved could not be
+ * read whole; or turning ads on from here was switched off on this deployment before it finished.
+ */
+export type AdStopped =
+  "refused" | "differs" | "unanswered" | "ai_stopped" | "disconnected" | "signed_out" | "picture" | "business" | "off";
+
+/** A part of an ad made here that is still at the platform after its launch stopped, named and paused there. */
+export type AdPartLeft = "campaign" | "set" | "picture" | "ad";
+
+/** What an ad made here says of its launch: why it stopped, Meta's own words, and what was left at the platform. */
+export interface AdLaunchLive {
+  stopped: AdStopped | null;
+  said: string | null;
+  left: AdPartLeft[];
+}
+
 /** One ad on the page. */
 export interface AdLiveDto {
   /** Chanlytics' own id (a uuid): the address uses it. */
@@ -38,6 +59,10 @@ export interface AdLiveDto {
   name: string;
   /** Whether the owner made it at the platform itself (adopted: read, paused and, where C1 allows, resumed). */
   made_in_platform: boolean;
+  /** Where it shows, by the platform's own names (facebook, instagram, ...); null where that is not known. */
+  shown_on: string[] | null;
+  /** An ad made here: how its launch went. Null for an ad made at the platform. */
+  launch: AdLaunchLive | null;
   opens: AdOpens;
   /** Its badge, worked out once (adStateOf). */
   state: AdState | "draft";
@@ -129,6 +154,19 @@ interface AdStateFacts {
   budget_kind: string | null;
   budget_minor: number | null;
   budget_left_minor: number | null;
+  /** An ad made here: where its launch stands (ads.launch); absent or null for one made at the platform. */
+  launch?: unknown;
+}
+
+/** How long a last switch that went unanswered is followed before the page says it couldn't confirm it (the plan's 4.7). */
+const UNCONFIRMED_AFTER_MS = 5 * MIN_MS;
+
+/** When a launch's last write went unanswered, as ads.launch keeps it; null where none did, or a read settled it. */
+function unansweredOf(row: AdStateFacts, nowMs: number): "lately" | "long" | null {
+  const at = recordOrEmpty(row.launch).unknown_at;
+  const sinceMs = typeof at === "string" ? Date.parse(at) : NaN;
+  if (row.status !== "made" || !Number.isFinite(sinceMs)) return null;
+  return nowMs - sinceMs >= UNCONFIRMED_AFTER_MS ? "long" : "lately";
 }
 
 /**
@@ -147,6 +185,7 @@ export function adStateOfRow(row: AdStateFacts, at: { nowMs: number; timezone: s
       totalMinor: total,
       // What a total has spent is what the platform says is no longer left of it.
       spentMinor: total !== null && row.budget_left_minor !== null ? total - row.budget_left_minor : 0,
+      unanswered: unansweredOf(row, at.nowMs),
     },
     zoneDayKey(at.nowMs, at.timezone),
   );
@@ -154,18 +193,21 @@ export function adStateOfRow(row: AdStateFacts, at: { nowMs: number; timezone: s
 
 /**
  * Whether an ad is left on: running, or its own switch on while its platform still checks it, so it starts by itself
- * the moment it is approved. What a disconnect offers to pause first, and what it says stays on (the plan's 4.9).
+ * the moment it is approved, or switched on with no answer heard yet, so it may be either. What a disconnect offers to
+ * pause first, and what it says stays on (the plan's 4.9).
  */
-export const adLeftOn = (state: AdState | "draft"): boolean => state === "on" || state === "review";
+export const adLeftOn = (state: AdState | "draft"): boolean =>
+  state === "on" || state === "review" || state === "unconfirmed";
 
 /** Whether an ad may be turned back on from here, and what the press may then cost at most. */
 export type AdResume =
   | { ok: true; left_minor: number; ends_at: string }
-  | { ok: false; why: "made_here" | "not_paused" | "no_total" | "no_end" | "shared" | "nothing_left" | "ended" };
+  | { ok: false; why: "not_paused" | "no_total" | "no_end" | "shared" | "nothing_left" | "ended" };
 
 /** What the rule reads of an ad's row. */
 interface AdResumeFacts {
   origin: string;
+  intent: string;
   platform_state: string | null;
   budget_kind: string | null;
   budget_left_minor: number | null;
@@ -174,15 +216,17 @@ interface AdResumeFacts {
 }
 
 /**
- * Whether an ad the owner made at the platform may be turned back on from here (the plan's C1): only where the
- * platform holds a total with an end date for it, the ad has that budget to itself, something is left of it and its
- * end has not passed. The press then names the most it can cost, which the platform enforces itself. Anything else is
- * turned back on at the platform, where its amount is set. An ad paused by its ad set or its campaign is not paused
- * by its own switch, so turning the ad on here would start nothing: it is `not_paused`.
+ * Whether an ad may be turned back on from here (the plan's C1): only where the platform holds a total with an end
+ * date for it, the ad has that budget to itself, something is left of it and its end has not passed. The press then
+ * names the most it can cost, which the platform enforces itself. Anything else is turned back on at the platform,
+ * where its amount is set. An ad the owner made at the platform and paused by its ad set or its campaign is not paused
+ * by its own switch, so turning the ad on here would start nothing: it is `not_paused`. An ad made here is paused and
+ * turned back on by its own campaign (decision 0050, call 9 holds for it the same way: a total, with an end, its own).
  */
 export function adResumeRule(ad: AdResumeFacts, nowMs: number): AdResume {
-  if (ad.origin !== "platform") return { ok: false, why: "made_here" };
-  if (ad.platform_state !== "PAUSED") return { ok: false, why: "not_paused" };
+  // An ad made here is paused by its own campaign, which holds nothing else: what the owner asked is what stands.
+  const paused = ad.origin === "chanlytics" ? ad.intent === "paused" : ad.platform_state === "PAUSED";
+  if (!paused) return { ok: false, why: "not_paused" };
   if (ad.budget_kind !== "total") return { ok: false, why: "no_total" };
   if (ad.ends_at === null) return { ok: false, why: "no_end" };
   if (ad.budget_shared !== false) return { ok: false, why: "shared" };
