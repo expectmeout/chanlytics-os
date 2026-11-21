@@ -4083,6 +4083,9 @@
     }
   ],
   "defaults": {
+    "ad_objects": {
+      "version": 0
+    },
     "appointments": {
       "status": "booked"
     },
