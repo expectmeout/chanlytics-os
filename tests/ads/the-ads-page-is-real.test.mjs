@@ -31,6 +31,8 @@ const ad = (id, over = {}) => ({
   id,
   name: `Ad ${id}`,
   made_in_platform: true,
+  shown_on: ["facebook", "instagram"],
+  launch: null,
   opens: "whatsapp",
   state: "on",
   needs: null,
@@ -383,6 +385,10 @@ test("the drawer of an ad made in Meta: Pause while it runs, and its two halves 
     [vm.over, vm.name, vm.line],
     ["Facebook and Instagram · WhatsApp", "Spring offer", "On · ends Tue 8 Dec · $308 left"],
   );
+  // Where it shows is what Meta holds: an ad shown on Facebook alone says so, and one not read yet names Meta alone.
+  const only = (shownOn) => sheetModel(page({ ads: [ad("one", { shown_on: shownOn })] }), "one", SAID).over;
+  assert.equal(only(["facebook"]), "Facebook · WhatsApp");
+  assert.equal(only(null), "Meta · WhatsApp");
   assert.equal(vm.made, null, "an ad made here does not say it was made in Meta");
   assert.deepEqual(vm.ours, [
     { label: "Wrote to AI", value: "100" },

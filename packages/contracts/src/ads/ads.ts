@@ -24,9 +24,11 @@ export type AdDoor = "whatsapp" | "call" | "form";
 /**
  * What an ad is doing, in platform-free words. `too-early` is NOT stored: the page's fold reads it from an `on` ad that
  * started fewer than TOO_EARLY_DAYS ago. `setting-up`: Turn on was pressed and Chanlytics is creating it, paused, on the
- * platform; `couldnt-finish`: that failed part way, and what was made stays paused there (named in the drawer).
+ * platform; `couldnt-finish`: that failed part way, and what was made stays paused there (named in the drawer);
+ * `unconfirmed`: the last switch was sent and no answer came, and no read has said since whether the platform took it.
  */
-export type AdState = "setting-up" | "couldnt-finish" | "review" | "on" | "paused" | "needs-you" | "ended" | "finished";
+export type AdState =
+  "setting-up" | "couldnt-finish" | "unconfirmed" | "review" | "on" | "paused" | "needs-you" | "ended" | "finished";
 
 /** Why an ad needs the owner. */
 export type AdNeedsCode =

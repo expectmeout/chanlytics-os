@@ -21,7 +21,16 @@ const { RETURN_BUDGETS, SOURCE_GRACE, TAKE_BUDGETS, TAKE_HAND_OUT } = await impo
   at("apps/edge/lib/files/takes/budgets.ts")
 );
 
-const facts = { folder: "Salon clips", account: "maria@example.com", leaves: "Nov 26", connected: true };
+const { fileDtoOf } = await importSrc("apps/dashboard/src/server/readers/files.ts");
+const { VIDEO_TILE_WORDS } = await importSrc("packages/contracts/src/files/tile-words.ts");
+
+const facts = {
+  folder: "Salon clips",
+  account: "maria@example.com",
+  leaves: "Nov 26",
+  connected: true,
+  uploaded: false,
+};
 const CODES = /_|\b(null|undefined|copy_state|stream|relay|token|quota|budget|job)\b/i;
 
 test("a clip that plays says nothing; one nobody asked for wears Play, as one press", () => {
@@ -138,4 +147,69 @@ test("a file whose original left its folder says the day it leaves, a photo as a
   const back = { copy: "here", copy_why: null, origin_left: null, origin_left_at: null };
   assert.equal(leavesOn(back, "UTC"), null);
   assert.equal(copyRowLineOf(back.copy, rowReasonOf(back), { folder: "Salon clips", leaves: null }), null);
+});
+
+/**
+ * A clip its owner added themselves (files.owner_uploaded: their upload met the folder's file) is theirs: the seven-day
+ * cleanup never takes it (source_items_grace_end), and one that comes back comes from what they added. The watched
+ * folder's live check (21 Nov 2026) found its row saying "Deleted in Drive · leaves Nov 27", and "Getting it from Google
+ * Drive…" while it came back from the owner's upload with its original in Drive's bin.
+ */
+test("a clip its owner added never says it leaves, and coming back from what they added never names Google Drive", () => {
+  const theirs = {
+    copy: "here",
+    copy_why: null,
+    origin_left: "gone",
+    origin_left_at: "2026-11-19T12:00:00.000Z",
+    owner_uploaded: true,
+  };
+  assert.equal(leavesOn(theirs, "UTC"), null, "it stays: no day to leave");
+  assert.equal(rowReasonOf(theirs), null, "its original leaving takes nothing from the Library");
+  assert.equal(copyRowLineOf(theirs.copy, rowReasonOf(theirs), { ...facts, leaves: leavesOn(theirs, "UTC") }), null);
+
+  const fromUpload = { ...facts, uploaded: true };
+  assert.deepEqual(copyRowLineOf("returning", null, fromUpload), {
+    line: VIDEO_TILE_WORDS.gettingReady,
+    tone: "live",
+    alone: true,
+  });
+  const coming = copySaidOf("returning", null, fromUpload);
+  assert.deepEqual(
+    [coming.mark, coming.act, coming.mends],
+    ["ring", null, true],
+    "it ends by itself, nothing to press",
+  );
+  assert.equal(coming.head, VIDEO_TILE_WORDS.gettingReady);
+  assert.ok(!/Google Drive/.test(`${coming.head} ${coming.body}`), `"${coming.head} ${coming.body}" names Drive`);
+  // A clip of the folder's own still comes back from Google Drive, and says so.
+  assert.equal(copySaidOf("returning", null, facts).head, "Getting it from Google Drive…");
+
+  // The page hears whose it is from the file the Library reads.
+  const row = {
+    id: "f1",
+    kind: "video",
+    status: "filed",
+    source: "drive",
+    name: "salon-clip",
+    bytes: 1,
+    width: null,
+    height: null,
+    seconds: 10,
+    media_status: "ready",
+    sound_said: null,
+    copy_state: "here",
+    copy_why: null,
+    origin_left: "gone",
+    origin_left_at: "2026-11-19T12:00:00.000Z",
+    owner_uploaded: true,
+    shows: null,
+    who_in_it: "not_asked",
+    yes_for: [],
+    yes_back: [],
+    look: null,
+    look_status: "done",
+    created_at: "2026-11-19T12:00:00.000Z",
+  };
+  assert.equal(fileDtoOf(row).owner_uploaded, true);
+  assert.equal(fileDtoOf({ ...row, owner_uploaded: false }).owner_uploaded, false);
 });

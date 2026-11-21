@@ -209,6 +209,7 @@ export function FileLines({ files, onOpen }: { files: readonly FileDto[]; onOpen
         const kept = copyRowLineOf(file.copy, rowReasonOf(file), {
           folder,
           leaves: leavesOn(file, knownZone() ?? "UTC"),
+          uploaded: file.owner_uploaded === true,
         });
         const seen = file.line ? `${what} · ${file.line.replace(/\.$/, "")}` : what;
         return (

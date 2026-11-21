@@ -64,6 +64,7 @@ export function fileDtoOf(fileMember: FileMemberRow): FileDto {
     origin_left:
       fileMember.origin_left === "gone" || fileMember.origin_left === "outside" ? fileMember.origin_left : null,
     origin_left_at: fileMember.origin_left_at,
+    owner_uploaded: fileMember.owner_uploaded,
     shows: fileMember.shows,
     who_in_it: fileMember.who_in_it === "no_one" ? "no_one" : "not_asked",
     yes_for: fileYesUsesIn(fileMember.yes_for),

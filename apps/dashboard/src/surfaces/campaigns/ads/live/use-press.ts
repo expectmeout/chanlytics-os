@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { adResumeRule, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 import type { AdLiveDto } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
+import { pressAdCheck } from "@/bridge/verbs/ads";
 import type { FrameFlash } from "../../../frame-verbs";
 import type { SheetActs } from "./ad-sheet";
 import { STOP, SHEET } from "./words";
@@ -27,6 +28,7 @@ const mayUndoPause = (ad: AdLiveDto): boolean =>
   adResumeRule(
     {
       origin: ad.made_in_platform ? "platform" : "chanlytics",
+      intent: "paused",
       platform_state: "PAUSED",
       budget_kind: ad.budget?.kind ?? null,
       budget_left_minor: ad.budget?.left_minor ?? null,
@@ -89,6 +91,24 @@ function pausedAllSaid(tally: PausedAll, of: number): FrameFlash {
 /** When the page looks again after a change Meta gave no answer to: the account's read is asked for two minutes on. */
 const UNSURE_LOOKS_MS: readonly number[] = [30 * SECOND_MS, 150 * SECOND_MS, 5 * MIN_MS];
 
+/**
+ * Check, on an ad whose last switch Meta never answered: Meta is asked what stands, by the account's own read, which a
+ * couple of minutes on at the soonest; the page looks again until that read is in. Nothing is sent to Meta again.
+ */
+async function checkAd(
+  io: { setBusy: (on: boolean) => void; flash: (flash: FrameFlash) => void; again: () => void; looks: number[] },
+  id: string,
+  version: number,
+): Promise<void> {
+  io.setBusy(true);
+  const answer = await pressAdCheck(id, version);
+  io.setBusy(false);
+  if (answer === null) return io.flash({ tone: "warn", msg: SHEET.failed });
+  if (!answer.ok) return io.flash({ tone: "warn", msg: answer.message });
+  io.looks.push(...UNSURE_LOOKS_MS.map((ms) => window.setTimeout(io.again, ms)));
+  return io.flash({ msg: SHEET.checked });
+}
+
 interface PressesOf {
   ads: readonly AdLiveDto[];
   /** Read the page again. */
@@ -138,6 +158,7 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
   );
   return {
     busy,
+    check: (id, version) => void checkAd({ setBusy, flash, again, looks: looks.current }, id, version),
     pause: (id, version) => void press("pause", id, version, true),
     resume: (id, version) => void press("resume", id, version, true),
     pauseAll: (targets) => void pauseAll(targets),

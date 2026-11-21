@@ -196,9 +196,8 @@ function quietLineOf(card: AdAccountCard): string {
 /** The card once an account is connected: who Meta charges, what is ready, and the one thing missing. */
 function cardConnected(dto: AdAccountDto, card: AdAccountCard, moment: CardMoment): ConnectCardVM {
   const met = card.checks.filter((check) => check.ok === true).length;
-  const need = card.can_pause
-    ? needOfChecks(card)
-    : { ...NOT_ALLOWED, tone: "warn" as const, act: actOf(NOT_ALLOWED, { kind: "meta", href: META_DOOR.accounts }) };
+  // A sign-in that may only read stops no read, so it is a fact, not a warning, and has no act that could mend it.
+  const need = card.can_pause ? needOfChecks(card) : { ...NOT_ALLOWED, tone: "calm" as const, act: null };
   const day = (iso: string | null) => (iso === null ? null : dayWord(dayOfIso(iso, moment.timezone)));
   const connected = day(card.connected_at);
   const updated = day(card.read_at);
