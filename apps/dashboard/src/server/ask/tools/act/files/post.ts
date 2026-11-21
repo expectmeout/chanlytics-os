@@ -13,7 +13,7 @@ import {
   parseTenantConfig,
   postWordsIn,
   secondsOf,
-  whoStandsOf,
+  fileUseOf,
   type PostPlan,
 } from "@chanlytics/contracts";
 import { postMomentProblem, postPhotoProblem, postPlanProblem } from "@/server/files/post-check";
@@ -187,9 +187,14 @@ async function postOutcome(toolContext: ToolContext, input: z.infer<typeof postI
   const at = file.kind === "video" && input.at !== undefined ? secondsOf(input.at) : null;
   const photoProblem = postPhotoProblem(file) ?? postMomentProblem(file, at);
   if (photoProblem) return refuse(`${input.file}: ${photoProblem}`);
-  if (whoStandsOf(file).is === "ask" && !input.people_agreed)
+  const shown = fileUseOf("post", file).is;
+  if (shown === "taken_back")
     return refuse(
-      `${input.file} shows someone recognizable, and no one has said they agreed to be shown. Ask the owner in a sentence; if they say yes, call again with people_agreed true.`,
+      `${input.file}: someone in it took back their yes to posts. Use another photo; if they say yes again, keep it with keep_yes first.`,
+    );
+  if (shown === "ask" && !input.people_agreed)
+    return refuse(
+      `${input.file} shows someone recognizable, and no yes to posts is kept for it. Ask the owner in a sentence; if they say yes, call again with people_agreed true.`,
     );
   const words = { line: input.line.trim(), over: input.over?.trim() || null, under: input.under?.trim() || null };
   const wordsProblem = postPlanProblem(words, await ownersWords(toolContext, config));

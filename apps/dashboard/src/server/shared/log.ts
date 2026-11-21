@@ -93,6 +93,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "ask_voice_session_refused",
   "ask_voice_turn",
   "ask_words_rejected",
+  "ask_yes_keep_failed",
   "auth_unavailable",
   "autonomy_evidence_failed",
   "autonomy_held_drafts_failed",

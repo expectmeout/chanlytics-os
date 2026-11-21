@@ -16,6 +16,7 @@ import {
   type FileSource,
   type FileStatus,
   type FileWhoInIt,
+  type FileYesUse,
 } from "./limits";
 
 /** Where a page's <img> points: the route signs a fresh address, for the member's own session, each time it is asked. */
@@ -110,6 +111,12 @@ export interface FileDto {
   origin_left_at?: string | null;
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
+  /**
+   * The uses it has a yes for that stands, and those whose every yes was taken back (00665 files.yes_for, yes_back): what
+   * the rule of who may be shown reads (yes.ts fileUseOf). Absent is none, as on a row read before them.
+   */
+  yes_for?: FileYesUse[];
+  yes_back?: FileYesUse[];
   /** Who the look counted; null until it has, or where it could not say. */
   people: FilePeople | null;
   look_status: FileLookStatus;

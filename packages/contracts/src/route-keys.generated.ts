@@ -258,6 +258,8 @@ export const ROUTE_KEYS = [
   "POST files/[id]/google",
   "POST files/[id]/instagram",
   "POST files/[id]/restore",
+  "POST files/[id]/yes",
+  "POST files/[id]/yes/back",
   "POST files/keep",
   "POST files/post",
   "POST files/post/preview",

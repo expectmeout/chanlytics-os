@@ -477,12 +477,12 @@ test(
   async () => {
     const inBlocks = (...blocks) => making({ shape: "blocks", plan: blocksOf(...blocks) });
     const whoOf = async (pieceId) => (await fileOf((await fileBegun(pieceId)).id)).who_in_it;
-    // An agreed photo beside a clip nobody was asked about: the video is agreed, with nothing said at the press.
-    const agreed = await inBlocks(
-      { is: "photo", file_id: await photo("agreed"), seconds: 2.5, label: null },
+    // A yes is each file's own record (00665), never the video's word: a photo and a clip nobody said no one is in.
+    const asked = await inBlocks(
+      { is: "photo", file_id: await photo("not_asked"), seconds: 2.5, label: null },
       clipBlockOf(await clip("not_asked")),
     );
-    assert.equal(await whoOf(agreed), "agreed");
+    assert.equal(await whoOf(asked), "not_asked");
     // Every file says no one is in it, wherever a block names it: a pair's two pictures and the picture under a quote.
     const noOne = await inBlocks(
       {
@@ -513,26 +513,24 @@ test(
     assert.equal(await whoOf(mixed), "not_asked");
     // Cards of words alone name no file: not asked, and the look that follows counts who it sees.
     assert.equal(await whoOf(await inBlocks(wordsBlockOf("New in town?"), wordsBlockOf("Come see us"))), "not_asked");
-    // The owner's word at the press stands for every file, as it did.
+    // The owner's word at the press is kept as a yes on each file before the press (server/files/yes.ts keepCardYes),
+    // never as the video's word: an old plan that carries it makes no tick.
     const said = await making({
       shape: "blocks",
       plan: { ...blocksOf(wordsBlockOf("One"), wordsBlockOf("Two")), people_agreed: true },
     });
-    assert.equal(await whoOf(said), "agreed");
+    assert.equal(await whoOf(said), "not_asked");
     await endAll();
   },
 );
 
 test(
-  "who is in a made video is its clips' own word: agreed where the owner said so, no one where every clip says so",
+  "who is in a made video is its clips' own word: no one where every clip says so, else not asked; a yes stays the clips'",
   { skip },
   async () => {
-    // The owner's word at the press.
+    // The owner's word at the press is a yes on each clip (00665), never a tick on the video.
     const said = await making({ plan: { ...PLAN, people_agreed: true } });
-    assert.equal((await fileOf((await fileBegun(said)).id)).who_in_it, "agreed");
-    // A clip already said to be agreed: the video made from it is, with nothing said at the press.
-    const agreed = await making({ plan: planOf(await clip("agreed"), await clip("not_asked")) });
-    assert.equal((await fileOf((await fileBegun(agreed)).id)).who_in_it, "agreed");
+    assert.equal((await fileOf((await fileBegun(said)).id)).who_in_it, "not_asked");
     // Every clip says no one is in it: so does the video.
     const noOne = await making({ plan: planOf(await clip("no_one"), await clip("no_one")) });
     assert.equal((await fileOf((await fileBegun(noOne)).id)).who_in_it, "no_one");

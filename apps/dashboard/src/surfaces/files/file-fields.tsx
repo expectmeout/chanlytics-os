@@ -2,13 +2,14 @@
  * What a person says of one file, in its sheet (decision 0099): its name, its shelf, and who is in it. Each is saved as it is said; a
  * member who may not change a file reads the same in words, with nothing dead to press.
  */
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
   FILE_WORDS as W,
   fileNameOf,
   fileSaidOf,
+  fileYesSaidOf,
   whoStandsOf,
   type FileDto,
   type FileMade,
@@ -69,15 +70,36 @@ function NameField({ file, change }: { file: FileDto; change: (body: FileChange)
   );
 }
 
-/** The two answers to who is in it, for what the look left to a person. Nothing is chosen until one is said. */
-function WhoAsked({ question, busy, say }: { question: string; busy: boolean; say: (body: FileChange) => void }) {
+/**
+ * Who is in it where someone may be (00665): the yeses that stand and what it still needs before it is posted or runs as
+ * an ad, said plainly, then the line to AI where a yes is said (`tell`, the page's own: Content's line to AI on this
+ * file), and a quiet "No one's in it" where the look saw someone who is not there. No yes is a press here: it is the
+ * owner's word, said to AI, who keeps who said it and for what.
+ */
+function WhoAsked({
+  file,
+  busy,
+  say,
+  tell,
+}: {
+  file: FileDto;
+  busy: boolean;
+  say: (body: FileChange) => void;
+  tell: ReactNode;
+}) {
+  const yes = fileYesSaidOf(file);
   return (
     <div className="files-who">
-      <p className="files-from">{question}</p>
+      <p className="files-from" data-testid="fl-who-says">
+        {yes?.stands ?? W.whoAsk(file.people?.count ?? null)}
+      </p>
+      {yes?.needs ? (
+        <p className="files-from" data-testid="fl-who-needs">
+          {yes.needs}
+        </p>
+      ) : null}
+      {tell}
       <span className="files-tries">
-        <Button size="sm" onClick={() => say({ who_in_it: "agreed" })} disabled={busy} data-testid="fl-who-agreed">
-          {W.who.agreed}
-        </Button>
         <Button
           size="sm"
           variant="quiet"
@@ -93,11 +115,11 @@ function WhoAsked({ question, busy, say }: { question: string; busy: boolean; sa
 }
 
 /**
- * Who is in it, as it stands: asked only where something is left to ask, else one line and a quiet way to change it. An answer
- * takes the pressed button away, so focus goes to what stands in its place: left to itself it falls to the sheet's first
- * field, and on a phone that is a keyboard nobody asked for.
+ * Who is in it, as it stands: where someone may be, what it needs and the line to AI; else one line and a quiet way to
+ * change it. An answer takes the pressed button away, so focus goes to what stands in its place: left to itself it falls
+ * to the sheet's first field, and on a phone that is a keyboard nobody asked for.
  */
-export function FileWho({ file, busy, say }: Omit<SheetPress, "may">) {
+export function FileWho({ file, busy, say, tell = null }: Omit<SheetPress, "may"> & { tell?: ReactNode }) {
   const [changing, setChanging] = useState(false);
   const changeRef = useRef<HTMLButtonElement>(null);
   const answered = useRef(false);
@@ -113,8 +135,7 @@ export function FileWho({ file, busy, say }: Omit<SheetPress, "may">) {
     say(body);
   };
   if (stands.is === "looking") return null;
-  if (stands.is === "ask") return <WhoAsked question={W.whoAsk(stands.seen)} busy={busy} say={answer} />;
-  if (changing) return <WhoAsked question={W.whoAsk(file.people?.count || null)} busy={busy} say={answer} />;
+  if (stands.is === "ask" || changing) return <WhoAsked file={file} busy={busy} say={answer} tell={tell} />;
   return (
     <div className="files-who-line">
       <p className="files-from" data-testid="fl-who-says">
@@ -160,7 +181,12 @@ export function FileChoices({ file, busy, say }: Omit<SheetPress, "may">) {
 /** The same, for a member who may only read it: words, and why, with nothing to press that does nothing. */
 export function FileReads({ file }: { file: FileDto }) {
   const stands = whoStandsOf(file);
-  const who = stands.is === "said" ? W.who[stands.who] : stands.is === "clear" ? W.whoClear : null;
+  const who =
+    stands.is === "said"
+      ? W.who[stands.who]
+      : stands.is === "clear"
+        ? W.whoClear
+        : (fileYesSaidOf(file)?.stands ?? null);
   return (
     <>
       <p className="files-from">

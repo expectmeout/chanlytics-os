@@ -14,6 +14,7 @@ import { load, readerStamp, type Reader } from "../../shared/reader";
 import * as facts from "../../readers/facts";
 import { log } from "@/server/shared/log";
 import { clip, oneLine } from "../context/rows";
+import { keepYesCards } from "../tools/act/files/yes";
 import type { TenantId } from "@chanlytics/contracts";
 
 /**
@@ -77,7 +78,8 @@ export function rememberedBlock(remembered: Remembered): string {
  * The cards of a turn's `remember` act, kept as the turn is saved (the act itself never acts: tools/act/remember.ts):
  * each line in the member's own words (`theirs`, the act's to say) through the one door, as the member Ask answers, its
  * card then arriving kept with its Undo, or failed with the door's reason in a person's words. A line in other words,
- * and any other card, goes through as it came: a card for the member's press.
+ * and any other card, goes through as it came: a card for the member's press. A yes for a photo or a video said in their
+ * own words is kept the same way, after them (tools/act/files/yes.ts keepYesCards, 00665).
  */
 export async function keepRememberCards(
   ctx: RouteContext,
@@ -85,7 +87,7 @@ export async function keepRememberCards(
   threadId: string,
   proposals: readonly AskProposal[],
 ): Promise<AskProposal[]> {
-  return Promise.all(
+  const kept = await Promise.all(
     proposals.map(async (proposal) => {
       if (proposal.kind !== "memory" || proposal.payload.theirs !== true) return proposal;
       const text = typeof proposal.payload.text === "string" ? proposal.payload.text : "";
@@ -114,4 +116,5 @@ export async function keepRememberCards(
       }
     }),
   );
+  return keepYesCards(ctx, tenantId, threadId, kept);
 }

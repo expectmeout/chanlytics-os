@@ -753,7 +753,7 @@ function pressed(plan, { fate = "begun", ...opts } = {}) {
     {},
     {
       piece_begin: (a) => (knocks.push(["piece_begin", a]), { fate, piece_id: fate === "busy" ? null : "pc-1" }),
-      file_change: (a) => (knocks.push(["file_change", a]), null),
+      file_yes_record: (a) => (knocks.push(["file_yes_record", a]), { kept: ["post"], again: [], ids: ["y1"] }),
     },
   );
   const ctx = { supabase, userId: USER, email: "ada@example.com", params: {} };
@@ -867,16 +867,20 @@ test("a press is checked afresh: a clip gone since the card is refused in a pers
   assert.deepEqual(off.knocks, []);
 });
 
-test("the owner's word that those in the clips agreed goes on each clip first, through its own door", async () => {
+test("the owner's word that those in the clips agreed is kept first as a yes for posts on each clip, through its own door", async () => {
   const { knocks } = await pressed(
     { ...PLAN, people_agreed: true },
     { clip: { look: { people: { count: 1, recognizable: 1 } } } },
   );
   assert.deepEqual(
     knocks.map(([door]) => door),
-    ["file_change", "piece_begin"],
+    ["file_yes_record", "piece_begin"],
   );
-  assert.equal(knocks[0][1].p_id, CLIP);
+  assert.deepEqual(
+    [knocks[0][1].p_file_id, knocks[0][1].p_uses, knocks[0][1].p_who],
+    [CLIP, ["post"], "The people in it"],
+    "a yes for posts alone (00665): never for an ad",
+  );
   // Without their word, a recognizable face stops the press too.
   const unasked = await pressed(PLAN, { clip: { look: { people: { count: 1, recognizable: 1 } } } });
   assert.equal(unasked.refused?.message, PIECE_WORDS.wont.people);

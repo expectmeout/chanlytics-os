@@ -66,6 +66,18 @@ function saidByThem(text: string, question: string): boolean {
   return long.filter((w) => stems.has(wordStem(w))).length * 3 >= long.length * 2;
 }
 
+/**
+ * Whether `quote` is the member's own words in this question, copied, and long enough to state something: what a line,
+ * or a yes for a file (act/files/yes.ts), is kept on as the turn is saved, with no press. A turn Ask asks itself (the
+ * morning's) holds no member's words.
+ */
+export function quotedInQuestion(toolContext: ToolContext, quote: string): boolean {
+  const quoted = comparable(quote);
+  if (quoted.split(" ").filter(Boolean).length < QUOTE_MIN_WORDS || isAskMorningQuestion(toolContext.question))
+    return false;
+  return comparable(toolContext.question ?? "").includes(quoted);
+}
+
 function rememberOutcome(toolContext: ToolContext, input: { text: string; quote: string }): ProposalOutcome {
   const text = memoryText(input.text);
   const problem = memoryTextProblem(text);
@@ -73,7 +85,7 @@ function rememberOutcome(toolContext: ToolContext, input: { text: string; quote:
   const quote = comparable(input.quote);
   const long = quote.split(" ").filter(Boolean).length >= QUOTE_MIN_WORDS;
   const morning = isAskMorningQuestion(toolContext.question);
-  const fromQuestion = long && !morning && comparable(toolContext.question ?? "").includes(quote);
+  const fromQuestion = quotedInQuestion(toolContext, input.quote);
   const fromTheirs = long && !fromQuestion && (toolContext.theirs ?? []).some((w) => comparable(w).includes(quote));
   if (morning && !fromTheirs)
     return refuse(

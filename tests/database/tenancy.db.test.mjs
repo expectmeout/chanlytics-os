@@ -230,6 +230,7 @@ before(async () => {
   // viewer's own morning.
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
   ctx.file = await seed("files", fileRow("seeded"));
+  await seed("file_consents", { tenant_id: A, file_id: ctx.file, use: "post", who: "Tenancy guest", said_in: "ai" });
   // Where a post went, and a send of it (00611): the service role writes both, a member reads where it stands.
   ctx.post = await seed("posts", {
     tenant_id: A,
@@ -806,6 +807,7 @@ const TENANT_TABLES = {
   ask_memory_lines: ["member", () => ({ tenant_id: A, text: "A stranger's line", source: "pane" })],
   files: ["member", () => fileRow("a-strangers")],
   files_let_go: ["none", () => ({ tenant_id: A, fingerprint: "a-strangers" })],
+  file_consents: ["member", () => ({ tenant_id: A, file_id: ctx.file, use: "ad", who: "Stranger", said_in: "ai" })],
   // Where a post went and each send of it (00611): a member reads them, the service role writes them.
   posts: ["member", () => ({ tenant_id: A, file_id: ctx.file, place: "google", kind: "picture", status: "published" })],
   publish_attempts: [

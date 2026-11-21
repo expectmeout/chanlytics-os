@@ -1064,6 +1064,20 @@
       "rate": null,
       "spend": false
     },
+    "POST files/[id]/yes/back": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST files/[id]/yes": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST files/keep": {
       "kind": "write",
       "scope": "workspace",

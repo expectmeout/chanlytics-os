@@ -3174,6 +3174,73 @@ export type Database = {
           },
         ]
       }
+      file_consents: {
+        Row: {
+          created_at: string
+          file_id: string
+          id: string
+          said_at: string
+          said_by: string | null
+          said_in: string
+          taken_back_at: string | null
+          taken_back_by: string | null
+          tenant_id: string
+          thread_id: string | null
+          use: string
+          who: string
+        }
+        Insert: {
+          created_at?: string
+          file_id: string
+          id?: string
+          said_at?: string
+          said_by?: string | null
+          said_in: string
+          taken_back_at?: string | null
+          taken_back_by?: string | null
+          tenant_id: string
+          thread_id?: string | null
+          use: string
+          who: string
+        }
+        Update: {
+          created_at?: string
+          file_id?: string
+          id?: string
+          said_at?: string
+          said_by?: string | null
+          said_in?: string
+          taken_back_at?: string | null
+          taken_back_by?: string | null
+          tenant_id?: string
+          thread_id?: string | null
+          use?: string
+          who?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_consents_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "file_consents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "file_consents_thread_id_same_workspace"
+            columns: ["tenant_id", "thread_id"]
+            isOneToOne: false
+            referencedRelation: "ask_threads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
       files: {
         Row: {
           bytes: number
@@ -3218,6 +3285,8 @@ export type Database = {
           updated_at: string
           who_in_it: string
           width: number | null
+          yes_back: string[]
+          yes_for: string[]
         }
         Insert: {
           bytes: number
@@ -3262,6 +3331,8 @@ export type Database = {
           updated_at?: string
           who_in_it?: string
           width?: number | null
+          yes_back?: string[]
+          yes_for?: string[]
         }
         Update: {
           bytes?: number
@@ -3306,6 +3377,8 @@ export type Database = {
           updated_at?: string
           who_in_it?: string
           width?: number | null
+          yes_back?: string[]
+          yes_for?: string[]
         }
         Relationships: [
           {
@@ -9926,6 +9999,7 @@ export type Database = {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: string
       }
+      file_drawn_from: { Args: { p_made: Json }; Returns: string[] }
       file_found: {
         Args: {
           p_actor?: string
@@ -10122,7 +10196,41 @@ export type Database = {
         Args: { p_file_id: string; p_tenant_id: string }
         Returns: boolean
       }
+      file_yes_record: {
+        Args: {
+          p_file_id: string
+          p_tenant_id: string
+          p_thread_id?: string
+          p_uses: string[]
+          p_who: string
+        }
+        Returns: Json
+      }
+      file_yes_restate: {
+        Args: { p_ids: string[]; p_tenant_id: string }
+        Returns: undefined
+      }
+      file_yes_take_back: {
+        Args: {
+          p_file_id: string
+          p_held?: string
+          p_tenant_id: string
+          p_uses?: string[]
+        }
+        Returns: Json
+      }
+      file_yes_uses: {
+        Args: { p_every: boolean; p_uses: string[] }
+        Returns: string[]
+      }
       files_are_full: { Args: { p_tenant_id: string }; Returns: boolean }
+      files_drawn_from: {
+        Args: { p_ids: string[]; p_tenant_id: string }
+        Returns: {
+          file_id: string
+          from_id: string
+        }[]
+      }
       files_found: {
         Args: {
           p_limit: number

@@ -272,6 +272,7 @@ export { pieceSpec } from "./content/piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
 export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } from "./content/pieces";
+export { fileYesSpec } from "./content/post-spec";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
@@ -323,7 +324,7 @@ export { FOOTAGE_WORDS, footageLineOf, footageSheetOf, footageStandingOf } from 
 export { FOOTAGE_NUMBERS } from "./files/footage-numbers";
 export { connectStoppedOf, FOOTAGE_SETUP } from "./files/footage-setup";
 export { FILE_IMAGE_MIMES, FILE_KINDS, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX, fileFramePathOf, fileKindOf, fileMadePathOf, isVideoMime } from "./files/kinds";
-export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, isFileMime } from "./files/limits";
+export { FILE_BYTES_MAX, FILE_CACHE_S, FILE_LOOK_STATUSES, FILE_MIMES, FILE_NAME_MAX, FILE_NAME_WORDS, FILE_PIXELS_MAX, FILE_SHOWS, FILE_SIDE_MIN, FILE_SOURCES, FILE_STATUSES, FILE_TYPES, FILE_UPLOADS_AT_ONCE, FILE_WHO_IN_IT, FILE_YES_SAID_IN, FILE_YES_USES, filePathOf, FILES_BUCKET, FILES_MAX, FILES_PAGE, isFileMime } from "./files/limits";
 export { FILE_COPY_KEEP_S, FILE_COPY_SIDE, FILE_LOOK_EDITION, FILE_LOOK_PLAIN_HINT, FILE_LOOK_SCHEMA, FILE_LOOK_SYSTEM, FILE_PICTURE_KEEP_S, FILE_VIDEO_LOOK_SCHEMA, fileLookAsked, fileLookOf, fileVideoLookAsked, fileVideoLookOf, VIDEO_LOOK_EDITION } from "./files/look";
 export { POST_LAYOUTS, POST_LIMITS, POST_NO_PHONE, POST_PICTURES, POST_SHAPES, POST_VOICES, POST_WORDS, postMomentWont, postPhotoWont, postPlanOf, postPlanTidied, postSentencesOf, postWordsIn } from "./files/post";
 export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, noteSaidOf, scribeWordsOf, soundNoteOf, soundSaidOf, soundTurnSaidOf, VIDEO_EAR_SCHEMA, VIDEO_EAR_SYSTEM, VIDEO_EAR_WORDS_SCHEMA, videoEarAsked, videoListenAsked, videoSheetAfterOf, vttOf } from "./files/sound";
@@ -331,6 +332,7 @@ export { FOLDER_STOPPED_WHYS, MEDIA_SOURCE_STATES, SOURCE_CONNECTION_HEALTHS, SO
 export { VIDEO_TILE_WORDS } from "./files/tile-words";
 export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
 export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesCountedOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
+export { FILE_YES_ASK, fileAdRightsOf, fileUseMay, fileUseOf, fileYesReceiptOf, fileYesSaidOf, fileYesTitleOf, fileYesUsesIn } from "./files/yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";

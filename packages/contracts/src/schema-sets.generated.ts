@@ -109,6 +109,8 @@ export const SCHEMA_SETS = {
   "event_subscriptions.lane": [],
   "fact_suggestions.source": ["steer", "reply"],
   "fact_suggestions.state": ["nothing", "suggested", "kept", "dismissed"],
+  "file_consents.said_in": ["ai", "before"],
+  "file_consents.use": ["post", "ad", "reply", "cold_email"],
   "files.copy_state": ["here", "going", "away", "returning", "lost"],
   "files.copy_why": [
     "room", "budget", "folder", "videos_off", "busy", "stream_full", "unreadable", "changed", "failed",
@@ -125,7 +127,7 @@ export const SCHEMA_SETS = {
   "files.shows": ["storefront", "interior", "work", "team", "product", "menu", "logo", "graphic", "other"],
   "files.source": ["upload", "google_profile", "google_listing", "website", "instagram", "made", "drive"],
   "files.status": ["inbox", "filed", "set_aside"],
-  "files.who_in_it": ["not_asked", "no_one", "agreed"],
+  "files.who_in_it": ["not_asked", "no_one"],
   "google_reviews.origin": ["places", "profile"],
   "imports.source": [
     "google_reviews", "calendar", "clients_file", "mailbox", "contacts", "whatsapp_contacts",
