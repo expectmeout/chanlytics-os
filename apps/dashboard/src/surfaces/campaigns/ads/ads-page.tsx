@@ -142,6 +142,23 @@ function HeldLoading({ failed, again, card }: { failed: boolean; again: () => vo
   );
 }
 
+/**
+ * Under the head while it is not known whether an account is held: nothing while the account's read is on its way (the
+ * view opens on it, ./first-reads.ts), so the page is drawn once and as the one it is; where that read failed, that, and the way
+ * to ask again. Never the page with nothing connected, which an account would then replace.
+ */
+function AccountUnread({ failed, again }: { failed: boolean; again: () => void }) {
+  if (!failed) return null;
+  return (
+    <p className="ads-hero-muted" role="alert" data-testid="ads-account-failed">
+      {LIVE.loadFailed}{" "}
+      <LinkButton onClick={again} data-testid="ads-account-again">
+        {V0.again}
+      </LinkButton>
+    </p>
+  );
+}
+
 interface AdsPageProps {
   /** The address's param, `campaigns/<param>`: `ads`, an ad open, or New ad. */
   param: string;
@@ -157,8 +174,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
   const timezone = zoneHere();
   // The ad account, its card, and, with an account held, the workspace's own ads read from Meta (live/).
   const { account, held, live, ...connect } = useAdsConnection(true, timezone, CARD.name, "page");
-  // How new people first came is read while no account is held: the page with nothing connected says it.
-  const touch = useFirstTouch(!held);
+  // Whether an account is held is known once the account's read is in (the view opens on it, ./first-reads.ts). Until then the
+  // page draws its head and nothing under it: never the page with nothing connected, which an account would then replace.
+  const known = account.dto !== null;
+  // How new people first came is read where no account is held, the page with nothing connected saying it; never before
+  // that is known, since it is the dearest read a workspace has and a connected page draws none of it.
+  const touch = useFirstTouch(known && !held);
   useAskKnowsThePage();
   const connectWord = connect.vm?.button ?? null;
   if (held && live.dto)
@@ -203,10 +224,12 @@ export function AdsPage({ param, view }: AdsPageProps) {
         quiet
         allowance={false}
         testid="ads-head"
-        sub={held ? null : sentence}
+        sub={known && !held ? sentence : null}
         right={<HeadActs phone={phone} connect={connectWord} onConnect={account.connect} />}
       />
-      {held ? (
+      {!known ? (
+        <AccountUnread failed={account.failed} again={account.again} />
+      ) : held ? (
         <HeldLoading failed={live.failed} again={live.again} card={connect.card} />
       ) : (
         <>

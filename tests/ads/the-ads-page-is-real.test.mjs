@@ -24,7 +24,7 @@ const { firstReadOf, lensModel, liveModel, sheetModel } = await import(
 );
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
 
-const SAID = { timezone: "America/New_York" };
+const SAID = { timezone: "America/New_York", nowMs: Date.parse("2026-11-18T19:10:00Z") };
 const NOW = Date.parse("2026-11-18T19:10:00Z");
 
 const ad = (id, over = {}) => ({
@@ -57,6 +57,7 @@ const page = (over = {}) => ({
     read_failed: false,
     revoked_at: null,
     disconnected_at: null,
+    ready: true,
   },
   window: { from: "2026-10-20", to: "2026-11-18" },
   today: "2026-11-18",
@@ -64,6 +65,8 @@ const page = (over = {}) => ({
   unnamed: { people: 0, booked: 0 },
   elsewhere: { people: 0, booked: 0 },
   can_press: true,
+  stopped_at: null,
+  needs_you: { count: 0, people: [] },
   ...over,
 });
 

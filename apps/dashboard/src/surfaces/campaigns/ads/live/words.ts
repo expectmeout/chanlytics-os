@@ -126,6 +126,31 @@ export const LIVE = {
   },
 } as const;
 
+/**
+ * AI's one line on the page (the Ads plan's 6.3; decision 0050, call 12): when it speaks is the model's rules, with no
+ * model asked, and it only proposes. Each sentence is a question its press answers.
+ */
+export const AI_LINE = {
+  /** An account ready and no ad made here yet: the first, opening New ad, where AI writes it. */
+  first: (inMeta: boolean) =>
+    `Make your first ad${inMeta ? " here" : ""}? AI writes it, and nothing runs until you turn it on.`,
+  /** An ad made in Meta that brought people and ends within days: keep it going, in Meta, where it is changed. */
+  extend: (ending: { name: string; people: number; day: string }) =>
+    `${ending.name} brought ${people(ending.people)} and ends ${ending.day}. Keep it going in Meta?`,
+} as const;
+
+/**
+ * Who an ad brought and needs you now (the Ads plan's 4.4): one amber line, how many first, then who, each with how long
+ * they have waited, and how many more. It opens the longest wait's conversation, in the Inbox's Needs you.
+ */
+export const NEEDS_YOU_LINE = {
+  title: (count: number) =>
+    count === 1 ? "1 person from your ads needs you." : `${count} people from your ads need you.`,
+  /** A person and how long they have waited: "Jordan Price 6d". */
+  person: (name: string, waited: string | null) => (waited ? `${name} ${waited}` : name),
+  more: (count: number) => `${count} more`,
+} as const;
+
 /** An ad's drawer (the plan's 4.5). */
 export const SHEET = {
   platform: "Facebook and Instagram",

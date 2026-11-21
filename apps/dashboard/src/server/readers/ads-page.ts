@@ -3,7 +3,9 @@ import { z } from "zod";
 import {
   ROLE_PERMS,
   UUID,
+  adCardChecksOf,
   adResumeRule,
+  adStandingOf,
   parseTenantConfigResult,
   adStateOfRow,
   metaAdConfigOf,
@@ -24,9 +26,12 @@ import {
   type AdRow,
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
+import { listAdPeopleWaitingOnYou, type AdPersonWaitingRow } from "@chanlytics/db/people";
+import { logAndGoOn } from "@chanlytics/log";
 import { readAdsPressesOn } from "../connections/ads-ready";
+import { isGoing } from "../people/going";
 import { getStoredConfig } from "../workspace/config-row";
-import { readerStamp, type Reader } from "../shared/reader";
+import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
 /** The days the page counts: the same thirty Reports' people lens opens on, and a draft reads its bookings over. */
 export const ADS_PAGE_DAYS = 30;
@@ -135,6 +140,39 @@ export function aiStoppedAt(config: unknown): string | null {
 const statusOf = (row: AdAccountRow): AdsLiveDto["account"]["status"] | null =>
   row.status === "connected" || row.status === "revoked" || row.status === "disconnected" ? row.status : null;
 
+/** Whether every check the account's card counts passes, read from its row as the card reads it (readers/ad-account.ts). */
+const cardReadyOf = (row: AdAccountRow): boolean =>
+  adCardChecksOf({ standing: adStandingOf(row.standing), config: metaAdConfigOf(row.config) }).every(
+    (check) => check.ok === true,
+  );
+
+/** How many of the people an ad brought who need you the page is handed by name: its line names each, and counts the rest. */
+const NEEDS_YOU_NAMED = 2;
+
+/**
+ * Who an ad brought and needs you now, longest waiting first: the first by name, and how many in all. Read beside the
+ * ads, and never at their cost: a read of it that fails is logged and the page says nothing of it, which claims nobody.
+ */
+const readNeedsYou = (rc: ReaderContext, nowMs: number): Promise<AdPersonWaitingRow[]> =>
+  listAdPeopleWaitingOnYou(rc.ctx.supabase, rc.tenantId, nowMs).catch(
+    logAndGoOn<AdPersonWaitingRow[]>("the people from ads who need you", []),
+  );
+
+/** Who an ad brought and needs you now, as the page is handed it. */
+function needsYouOf(rows: readonly AdPersonWaitingRow[], nowMs: number): AdsLiveDto["needs_you"] {
+  // Nobody waits on someone being erased: the Inbox's holds leave them out too (readers/escalations.ts).
+  const listed = rows.filter((row) => !isGoing(row.erasing_since, nowMs));
+  return {
+    count: listed.length,
+    people: listed.slice(0, NEEDS_YOU_NAMED).map((row) => ({
+      id: row.contact_id,
+      name: personName(row),
+      conversation_id: row.conversation_id,
+      since: row.since,
+    })),
+  };
+}
+
 /**
  * GET ads/page, as the route answers it (decision 0049's adsPage): the workspace's ad account once it is or was
  * connected, each ad Chanlytics holds for it with what its platform says it spent and who Chanlytics counts it
@@ -150,15 +188,17 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     const account = await findAdAccountForPage(supabase, rc.tenantId, "meta");
     const status = account ? statusOf(account) : null;
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
-    const [listed, counts, presses, settings] = await Promise.all([
+    // The request's own moment: every state, day and wait on the page is said by one clock.
+    const nowMs = rc.now.getTime();
+    const [listed, counts, presses, settings, waiting] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
       readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
       status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
       getStoredConfig(supabase, rc.tenantId),
+      readNeedsYou(rc, nowMs),
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
-    const nowMs = Date.now();
     const timezone = account.timezone ?? "UTC";
     const today = zoneDayKey(nowMs, timezone);
     const data: AdsLiveDto = {
@@ -171,6 +211,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
         read_failed: account.read_error !== null,
         revoked_at: account.revoked_at,
         disconnected_at: account.disconnected_at,
+        ready: cardReadyOf(account),
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
@@ -179,6 +220,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       elsewhere,
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
       stopped_at: aiStoppedAt(settings),
+      needs_you: needsYouOf(waiting, nowMs),
     };
     return { data, rows: [], stamp: readerStamp() };
   },

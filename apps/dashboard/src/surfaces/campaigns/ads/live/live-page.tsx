@@ -1,7 +1,8 @@
 /**
  * Campaigns › Ads once an account is or was connected: real ads, read from the owner's own Meta account (the Ads
  * plan's 4.4, as the canvas draws it on a phone and on a desk). At the left the notice where AI is stopped with ads
- * still on, or where Chanlytics is signed out or an ad was left running, then "Your ads": each ad with where it stands and what it brought; under them the quiet
+ * still on, or where Chanlytics is signed out or an ad was left running, then AI's one line and who from an ad needs
+ * you, then "Your ads": each ad with where it stands and what it brought; under them the quiet
  * lines (what an ad made in Meta can do here, whose people are not counted, the people from an ad Chanlytics cannot
  * name). At the right, or at the foot on a phone, the ad account's card and the line for the platforms that come
  * later. An ad opens in its drawer (ad-sheet.tsx). Every sentence is the model's (model.ts).
@@ -20,6 +21,7 @@ import { cmRowPress } from "../../parts/head";
 import { CARD } from "../connect/words";
 import { GATE } from "../model/words";
 import { HEAD } from "../model/words-page";
+import { AdsLines } from "./lines";
 import type { LiveNoticeVM, LiveRowVM, LiveVM } from "./model";
 import { ADS_MANAGER, LIVE } from "./words";
 
@@ -97,17 +99,23 @@ export function LiveBody({ vm, card, stop, onOpen }: LiveBodyProps) {
             {vm.stale}
           </p>
         ) : null}
+        <AdsLines ai={vm.ai} needsYou={vm.needsYou} onOpen={onOpen} />
         {vm.empty ? (
           <EmptyState
             kind="line"
             glyph="chat"
             title={vm.empty}
-            action={{
-              label: HEAD.newAd,
-              onClick: () => onOpen(newAdRoute()),
-              testid: "ads-live-empty-new",
-              gate: gate("approve", GATE.turnOn),
-            }}
+            // Where AI's line proposes the first ad, it is the way to New ad: the empty line says only what is true.
+            action={
+              vm.ai?.kind === "first"
+                ? undefined
+                : {
+                    label: HEAD.newAd,
+                    onClick: () => onOpen(newAdRoute()),
+                    testid: "ads-live-empty-new",
+                    gate: gate("approve", GATE.turnOn),
+                  }
+            }
             testid="ads-live-empty"
           />
         ) : null}

@@ -430,6 +430,16 @@
     "fresh": "Read once as a to-do's sheet opens on the person it is about.",
     "why": "Their last words sit over what the owner says to write; a word that lands while the sheet is open is on the thread, one press away."
   },
+  "apps/dashboard/src/bridge/surfaces/ads-first-reads.ts GET ads/account": {
+    "kind": "boot",
+    "fresh": "Read once a tab, as the boot asks for the settings read, and only where the tab opened on Campaigns › Ads: what the document's head started, taken before the boot lets go of it. The card's own read (use-account.ts) starts from it and reads again after it, on each press and on a return to the tab.",
+    "why": "It decides which page Ads is, the ads or the page with nothing connected, before the first draw, so a cold load draws that page once. An answer older than thirty seconds is drawn at once and read again behind it, so nothing it holds stands longer than the page's own read would."
+  },
+  "apps/dashboard/src/bridge/surfaces/ads-first-reads.ts GET ads/page": {
+    "kind": "boot",
+    "fresh": "Read once a tab, beside the ad account, as the boot asks for the settings read, and only where the tab opened on Campaigns › Ads. The page's own read (use-live.ts) starts from it and reads again after it, on each press, a return to the tab and a change the card reads.",
+    "why": "The ads are the page's first draw, read with the account so the page is whole when it is first drawn and never a line that loads. An answer older than thirty seconds is drawn at once and read again behind it, so nothing it holds stands longer than the page's own read would."
+  },
   "apps/dashboard/src/surfaces/campaigns/ads/connect/use-account.ts GET ads/account": {
     "kind": "on-open",
     "fresh": "Read as the ad account's card is drawn (Campaigns › Ads, Settings › Connections), after each press on it (Connect, the one question, Disconnect), and again when the owner comes back to the tab from mending something at Meta; nothing of it is kept once the page goes.",
