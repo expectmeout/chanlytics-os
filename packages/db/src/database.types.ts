@@ -10111,8 +10111,8 @@ export type Database = {
       file_yes_record: {
         Args: {
           p_file_id: string
-          p_thread_id?: string
           p_tenant_id: string
+          p_thread_id?: string
           p_uses: string[]
           p_who: string
         }
