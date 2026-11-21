@@ -303,9 +303,11 @@ export const STOP = {
       : `${n} ads are paused. Meta still bills what they already showed.`,
   pausedSoon: (n: number) =>
     `${adsCount(n)} will pause as soon as Meta takes the change. Meta still bills what they already showed.`,
-  /** Meta gave no answer to some: whether they paused is not known yet. */
-  unsure: (n: number) =>
-    `Meta didn't answer for ${adsCount(n)}, so they may still be on. This page shows what Meta did in a few minutes.`,
+  /** No answer came to the press: whether the pauses were kept is not known yet, and the page reads what stands. */
+  notKnown: (n: number) =>
+    `No answer came, so ${adsCount(n)} may still be on. This page shows what stands in a moment.`,
+  /** Every ad of the press refused on its own (changed since the page was read): the page has read them again. */
+  notTaken: "Nothing was paused: the ads changed since the page was read. Press again.",
   partly: (done: number, of: number) => `${done} of ${of} ads are paused, and the rest couldn't be. Press again.`,
 } as const;
 

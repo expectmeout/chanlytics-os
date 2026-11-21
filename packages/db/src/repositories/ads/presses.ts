@@ -60,9 +60,14 @@ export async function setAdIntent(
     if (isMissingDoor(error)) return { outcome: "no_door", ...none };
     throw new DbFailure(error, "ad_set_intent");
   }
+  return pressKeptOf(data, "ad_set_intent");
+}
+
+/** What ad_set_intent answered for one press, as a caller reads it: the one reading, for a press alone or in a set. */
+function pressKeptOf(data: unknown, door: string): AdPressKept {
   const answer = recordOrEmpty(data);
   const outcome = OUTCOMES.find((one) => one === answer.outcome);
-  if (!outcome) throw new Error("ad_set_intent answered no outcome");
+  if (!outcome) throw new Error(`${door} answered no outcome`);
   return {
     outcome,
     version: typeof answer.version === "number" ? answer.version : null,
@@ -71,6 +76,37 @@ export async function setAdIntent(
     accountId: text(answer.account_id),
     platformAdId: text(answer.platform_ad_id),
     toldAt: text(answer.told_at),
+  };
+}
+
+/**
+ * Every ad of a set paused at once (ad_pause_all, 00671; the Ads plan's G17): each through ad_set_intent, with the
+ * version it was drawn from, all kept in one transaction before this answers; each the platform is to be told of has its
+ * account's read asked for, which tells the platform at its pace. The platform is asked nothing here.
+ */
+export async function pauseAdsKept(
+  db: Db,
+  by: { tenantId: TenantId; userId: string },
+  presses: readonly { adId: string; version: number }[],
+): Promise<
+  // Each ad's press as its door kept it, or the whole refused with nothing kept.
+  { outcome: "kept"; ads: Array<AdPressKept & { adId: string }> } | { outcome: "not_allowed" } | { outcome: "no_door" }
+> {
+  const { data, error } = await db.rpc("ad_pause_all", {
+    p_tenant_id: by.tenantId,
+    p_actor: by.userId,
+    p_presses: presses.map((press) => ({ ad_id: press.adId, version: press.version })),
+  });
+  if (error) {
+    if (isMissingDoor(error)) return { outcome: "no_door" };
+    throw new DbFailure(error, "ad_pause_all");
+  }
+  const answer = recordOrEmpty(data);
+  if (answer.outcome === "not_allowed") return { outcome: "not_allowed" };
+  if (answer.outcome !== "kept" || !Array.isArray(answer.ads)) throw new Error("ad_pause_all answered no outcome");
+  return {
+    outcome: "kept",
+    ads: answer.ads.map((one) => ({ adId: text(recordOrEmpty(one).ad_id) ?? "", ...pressKeptOf(one, "ad_pause_all") })),
   };
 }
 

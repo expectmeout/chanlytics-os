@@ -8,15 +8,15 @@
  * Meta took it, the edge has asked for the account's read, and the page looks again a few times over the next minutes
  * until that read is in. No Undo is offered on it: there is nothing known to undo.
  *
- * While AI is stopped, one press pauses every ad still on (the Ads plan's G17, live/stop.ts): the same route, one ad
- * after another, so each is kept and told at Meta's pace as a press on its own would be, and one toast says what it
- * came to and what Meta still bills.
+ * While AI is stopped, one press pauses every ad still on (the Ads plan's G17, live/stop.ts): one request, which the
+ * server answers only once every pause in it is kept, each told to Meta at Meta's pace after, so a tab closed after the
+ * press leaves none running. One toast says what it came to and what Meta still bills.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { adResumeRule, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 import type { AdLiveDto } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
-import { pressAdCheck } from "@/bridge/verbs/ads";
+import { pressAdCheck, pressPauseAll } from "@/bridge/verbs/ads";
 import type { FrameFlash } from "../../../frame-verbs";
 import type { SheetActs } from "./ad-sheet";
 import { STOP, SHEET } from "./words";
@@ -52,39 +52,43 @@ const sendPress = (kind: Press, id: string, version: number) =>
     body: { version },
   }).catch(() => null);
 
-/** What the presses of a pause-all came to, ad by ad. */
+/** What a pause of them all came to: how many each way, and the server's own words where it refused the whole. */
 interface PausedAll {
-  told: number;
+  /** Paused already, or by a turning back on taken back. */
+  paused: number;
+  /** Kept, and Meta is told at its pace. */
   soon: number;
-  sent: number;
+  /** No answer came: whether they were kept is not known. */
+  unknown: number;
   refused: number;
-  /** The first refusal's own words, where every press was refused. */
+  /** The server's words where it refused the whole press; null where each ad was refused on its own. */
   refusal: string | null;
 }
 
 /**
- * Every ad still on, paused one after another: each is the route's to keep and to tell Meta at its pace, as a press of
- * its own would be.
+ * Every ad still on, paused in one press (`POST ads/pause-all`): the server keeps every pause before it answers, and Meta
+ * is told at its pace, so a tab closed after the press leaves none running. Where no answer came, whether any was kept is
+ * not known, and the page looks again; pressed again, each is kept once.
  */
-async function pauseEach(targets: readonly AdLiveDto[]): Promise<PausedAll> {
-  const tally: PausedAll = { told: 0, soon: 0, sent: 0, refused: 0, refusal: null };
-  for (const ad of targets) {
-    const answer = await sendPress("pause", ad.id, ad.version);
-    if (!answer?.ok) {
-      tally.refused += 1;
-      tally.refusal ??= answer?.message ?? null;
-    } else if (answer.data.outcome === "soon") tally.soon += 1;
-    else if (answer.data.outcome === "sent") tally.sent += 1;
-    else tally.told += 1;
+async function pauseTogether(targets: readonly AdLiveDto[]): Promise<PausedAll> {
+  const tally: PausedAll = { paused: 0, soon: 0, unknown: 0, refused: 0, refusal: null };
+  const answer = await pressPauseAll(targets);
+  if (answer === null) return { ...tally, unknown: targets.length };
+  if (!answer.ok) return { ...tally, refused: targets.length, refusal: answer.message };
+  for (const one of answer.data.ads) {
+    if (one.outcome === "soon") tally.soon += 1;
+    else if (one.outcome === "same" || one.outcome === "took_back") tally.paused += 1;
+    else if (one.outcome === "unknown") tally.unknown += 1;
+    else tally.refused += 1;
   }
   return tally;
 }
 
-/** The one toast a pause-all says: what is paused, what waits for Meta, what is not known, or what was refused. */
+/** The one toast a pause of them all says: what is paused, what waits for Meta, what is not known, or what was refused. */
 function pausedAllSaid(tally: PausedAll, of: number): FrameFlash {
-  if (tally.refused === of) return { tone: "warn", msg: tally.refusal ?? SHEET.failed };
+  if (tally.refused === of) return { tone: "warn", msg: tally.refusal ?? STOP.notTaken };
   if (tally.refused > 0) return { tone: "warn", msg: STOP.partly(of - tally.refused, of) };
-  if (tally.sent > 0) return { tone: "warn", msg: STOP.unsure(tally.sent) };
+  if (tally.unknown > 0) return { tone: "warn", msg: STOP.notKnown(tally.unknown) };
   return { msg: tally.soon > 0 ? STOP.pausedSoon(of) : STOP.paused(of) };
 }
 
@@ -148,10 +152,10 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
     async (targets: readonly AdLiveDto[]): Promise<void> => {
       if (targets.length === 0) return;
       setBusy(true);
-      const tally = await pauseEach(targets);
+      const tally = await pauseTogether(targets);
       setBusy(false);
       again();
-      if (tally.sent > 0) looks.current.push(...UNSURE_LOOKS_MS.map((ms) => window.setTimeout(again, ms)));
+      if (tally.unknown > 0) looks.current.push(...UNSURE_LOOKS_MS.map((ms) => window.setTimeout(again, ms)));
       flash(pausedAllSaid(tally, targets.length));
     },
     [again, flash],

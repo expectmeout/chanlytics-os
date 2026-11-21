@@ -186,6 +186,7 @@ export const ROUTE_KEYS = [
   "POST ads/account/disconnect",
   "POST ads/check",
   "POST ads/draft",
+  "POST ads/pause-all",
   "POST ads/turn-on",
   "POST ads/words",
   "POST ask",
