@@ -135,7 +135,10 @@ export const ADS_PREVIEW_DOOR = edgeDoor(
 
 /**
  * POST /api/admin/ads/press: an owner pauses an ad (`pause`) or turns one back on (`resume`), carrying the version the
- * press was drawn from. `outcome` says what it came to: told, sent, soon, took_back or same.
+ * press was drawn from; or changes a running ad made here (`change`, the Ads plan's step 4, item 6): its total, its last
+ * day, its miles, or ending it, with what Meta held when the press was drawn and the most a raise names. `outcome`
+ * says what it came to: told, sent, soon, took_back or same; `next_at`, where Meta's four changes of an amount an hour
+ * are used, when the next is taken.
  */
 export const ADS_PRESS_DOOR = edgeDoor(
   "/api/admin/ads/press",
@@ -145,8 +148,21 @@ export const ADS_PRESS_DOOR = edgeDoor(
     user_id: DOOR_ID.optional(),
     ad_id: DOOR_ID.optional(),
     version: z.number().int().optional(),
+    change: z
+      .object({
+        what: z.enum(["total", "end_day", "miles", "end"]),
+        total_minor: z.number().int().positive().optional(),
+        end_day: z.string().regex(DAY_KEY).optional(),
+        miles: z.number().int().min(1).max(50).optional(),
+        /** What Meta held when the press was drawn: its total, and its last moment. */
+        from_minor: z.number().int().min(0).optional(),
+        from_ends_at: z.string().min(1).max(64).optional(),
+        /** The most a raise names; none for anything else. */
+        expect_max_minor: z.number().int().positive().optional(),
+      })
+      .optional(),
   }),
-  answerFields({ outcome: z.string(), version: z.number() }),
+  answerFields({ outcome: z.string(), version: z.number(), next_at: z.string() }),
 );
 
 /**
@@ -174,9 +190,20 @@ export const ADS_TURN_ON_DOOR = edgeDoor(
         picture: DOOR_ID,
         picture_kind: z.enum(["photo", "video"]),
         miles: z.number().int().min(1).max(50),
-        /** A place wider than the circle, by Meta's key, where the owner chose one: shown across it in its place. */
+        /**
+         * A place wider than the circle, by Meta's key, where the owner chose one: shown across it in its place. Its name
+         * and country ride with it, so the ad's drawer says the place and Fix it can draft it again.
+         */
         area: z
-          .object({ kind: z.enum(["city", "region", "country"]), key: z.string().trim().min(1).max(40) })
+          .object({
+            kind: z.enum(["city", "region", "country"]),
+            key: z.string().trim().min(1).max(40),
+            name: z.string().trim().min(1).max(200).optional(),
+            country: z
+              .string()
+              .regex(/^[A-Z]{2}$/)
+              .optional(),
+          })
           .optional(),
         total_minor: z.number().int().positive(),
         most_minor: z.number().int().positive(),
@@ -193,6 +220,8 @@ export const ADS_TURN_ON_DOOR = edgeDoor(
         declared: z.literal("none"),
       })
       .optional(),
+    /** The ad Meta turned down that this one is Fix it's draft of: ended once this one is turned on. */
+    fixes: DOOR_ID.optional(),
   }),
   answerFields({ outcome: z.string(), ad_id: z.string() }),
 );

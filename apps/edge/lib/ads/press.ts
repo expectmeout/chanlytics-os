@@ -1,7 +1,8 @@
 /**
  * POST /api/admin/ads/press: an owner pauses an ad, or turns one back on (decision 0050, calls 1, 2 and 9; the Ads
- * plan's step 2, part 6). Signed admin token only: the dashboard's /api/v1/ads/:id routes are the callers, for the
- * owner. In order, and nothing after a step that refuses:
+ * plan's step 2, part 6), or changes a running ad made here (`change`, the plan's step 4, item 6: change.ts). Signed
+ * admin token only: the dashboard's /api/v1/ads/:id routes are the callers, for the owner. In order, and nothing
+ * after a step that refuses:
  *
  *   1. This deployment's switch (`ADS_WRITES`) and its list of workspaces (the plan's 6.2 and D7).
  *   2. The owner alone: `has_permission(…, 'ads')`, asked here before anything is kept or asked of Meta.
@@ -36,6 +37,7 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { NO_ADS_DOORS, adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
+import { runAdChange, type AdsChangeBody } from "./change.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { adsWrites, mayTellNow, tellAd, type AdsWrites } from "./tell.js";
 
@@ -48,6 +50,7 @@ interface AdsPressBody {
   user_id?: string;
   ad_id?: string;
   version?: number;
+  change?: AdsChangeBody;
 }
 
 /** A press its door did not keep, as the refusal the dashboard words. */
@@ -132,10 +135,14 @@ async function checkAd(db: Db, tenantId: TenantId, adId: string): Promise<Respon
   return json(200, { ok: true, outcome: "asked", version: row.version });
 }
 
-/** The door's ops: pause, resume and check. */
+/** What a press's op asks of an ad: a switch set, Check, or a change; null for no op of this door's. */
+const opOf = (op: string | undefined): AdIntent | "check" | "change" | null =>
+  op === "pause" ? "paused" : op === "resume" ? "on" : op === "check" || op === "change" ? op : null;
+
+/** The door's ops: pause, resume, check and change. */
 export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): Promise<Response> {
-  const intent: AdIntent | null = body.op === "pause" ? "paused" : body.op === "resume" ? "on" : null;
-  if (intent === null && body.op !== "check") return refuse(400, "unknown_op", "op is pause, resume or check");
+  const asks = opOf(body.op);
+  if (asks === null) return refuse(400, "unknown_op", "op is pause, resume, check or change");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -151,7 +158,9 @@ export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): P
     return refuse(409, "ads_writes_off", "Changing an ad from here is not turned on in this workspace.");
   // The owner alone, asked before anything is kept or asked of Meta (decision 0050, call 2).
   if (!(await mayRunAds(db, tenantId, userId))) return refuse(403, "ad_account_not_owner");
-  if (intent === null) return checkAd(db, tenantId, adId);
+  if (asks === "change") return runAdChange(db, { tenantId, userId, writes }, { adId, version, change: body.change });
+  if (asks === "check") return checkAd(db, tenantId, adId);
+  const intent = asks;
   const kept = await setAdIntent(db, { tenantId, userId }, { adId, version, intent });
   if (kept.outcome === "same")
     return json(200, { ok: true, outcome: kept.pending ? "soon" : "same", version: kept.version ?? version });

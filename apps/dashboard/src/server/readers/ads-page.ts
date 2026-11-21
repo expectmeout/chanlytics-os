@@ -4,6 +4,9 @@ import {
   ROLE_PERMS,
   UUID,
   recordOrEmpty,
+  adAmountAfter,
+  adApprovedMiles,
+  adChangeOnWayOf,
   adResumeRule,
   parseTenantConfigResult,
   adStateOfRow,
@@ -12,6 +15,7 @@ import {
   zoneDayKey,
   type AdLaunchLive,
   type AdLiveDto,
+  type AdMadeHereLive,
   type AdOpens,
   type AdStopped,
   type AdPeopleLiveDto,
@@ -86,6 +90,41 @@ function launchOf(row: AdRow, left: ReadonlyMap<string, AdLaunchLive["left"]>): 
   };
 }
 
+const WIDE_PLACE_KINDS = ["city", "region", "country"] as const;
+
+/** The wider place approved for an ad made here, by its kind and its name; null for the circle, or one not named. */
+function widePlaceOf(approved: Record<string, unknown>): AdMadeHereLive["place"] {
+  const area = recordOrEmpty(approved.area);
+  const kind = WIDE_PLACE_KINDS.find((one) => one === area.kind);
+  const name = typeof area.name === "string" ? area.name.trim() : "";
+  return kind && name ? { kind, name } : null;
+}
+
+/**
+ * What an ad made here's drawer changes (the Ads plan's 4.5): where it is shown, its first day, a change on its way,
+ * when Meta takes its next amount, and whether Meta holds a total or a last day other than the one approved here, which
+ * the page says as changed in Meta and never puts back. Null for an ad made at the platform.
+ */
+function madeHereOf(row: AdRow, at: ReadAt): AdMadeHereLive | null {
+  if (row.origin !== "chanlytics") return null;
+  const approved = recordOrEmpty(row.approved);
+  const change = adChangeOnWayOf(row.change);
+  const approvedTotal = typeof approved.total_minor === "number" ? approved.total_minor : null;
+  const approvedDay = typeof approved.end_day === "string" ? approved.end_day : null;
+  const metaDay = row.ends_at === null ? null : zoneDayKey(Date.parse(row.ends_at), at.timezone);
+  const moved =
+    (approvedTotal !== null && row.budget_minor !== null && row.budget_minor !== approvedTotal) ||
+    (approvedDay !== null && metaDay !== null && metaDay !== approvedDay);
+  return {
+    miles: adApprovedMiles(row.approved),
+    place: widePlaceOf(approved),
+    start_day: zoneDayKey(Date.parse(row.starts_at ?? row.created_at), at.timezone),
+    change,
+    amount_after: adAmountAfter(row.amounts_at ?? [], at.nowMs),
+    changed_in_meta: row.status === "made" && change === null && moved,
+  };
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
 function adOf(
   row: AdRow,
@@ -101,6 +140,7 @@ function adOf(
     made_in_platform: row.origin === "platform",
     shown_on: row.shown_on,
     launch: launchOf(row, at.left),
+    made_here: madeHereOf(row, at),
     opens: opensOf(row.door),
     state,
     needs: needsOf(state, row.platform_state),
@@ -211,6 +251,8 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
         read_failed: account.read_error !== null,
         revoked_at: account.revoked_at,
         disconnected_at: account.disconnected_at,
+        min_daily_minor: metaAdConfigOf(account.config).min_daily_minor,
+        most_minor: account.most_minor,
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,

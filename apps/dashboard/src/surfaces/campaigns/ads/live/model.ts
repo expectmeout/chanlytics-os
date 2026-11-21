@@ -15,6 +15,8 @@ import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
 import { dayWord } from "../model/words";
+import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
+import { FIX } from "./change-words";
 import { LENS, LIVE, SHEET } from "./words";
 
 /** Whether Chanlytics counts the people of an ad: the tap ends in a message it receives. */
@@ -29,9 +31,10 @@ const LINE_ALONE: readonly AdLiveDto["state"][] = ["review", "setting-up", "coul
 /** Whether an ad's run is over. */
 const over = (ad: Pick<AdLiveDto, "state">): boolean => ad.state === "ended" || ad.state === "finished";
 
-/** What the model reads beside the page's read: the zone its days are said in. */
+/** What the model reads beside the page's read: the zone its days are said in, and the moment, where it is asked. */
 interface Said {
   timezone: string;
+  nowMs?: number;
 }
 
 const dayOf = (iso: string | null, said: Said): string | null => {
@@ -283,6 +286,8 @@ export type SheetFootVM =
   | { kind: "in-meta"; head: string; body: string }
   | { kind: "check"; line: string }
   | { kind: "left"; line: string }
+  /** An ad made here that Meta turned down: Fix it, and a door to ask Meta to look again (the plan's C8). */
+  | { kind: "fix"; body: string }
   | { kind: "none"; line: string | null };
 
 export interface SheetVM {
@@ -300,6 +305,10 @@ export interface SheetVM {
   theirs: FigureVM[];
   /** Whether its people are counted: the list is drawn only where they are. */
   counted: boolean;
+  /** An ad made here: the sentence its owner changes by tapping its words; null for any other, or none to change. */
+  change: ChangeSentenceVM | null;
+  /** Whether End is offered: an ad made here, its owner's, not ending already. */
+  ends: boolean;
   foot: SheetFootVM;
 }
 
@@ -343,6 +352,8 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
   if (launching) return launching;
   if (over(ad) || ad.pending !== null) return { kind: "none", line: null };
   if (!dto.can_press) return { kind: "none", line: SHEET.ownerOnly };
+  // An ad made here that Meta turned down is fixed here, or asked about again in Meta (the plan's 4.5 and C8).
+  if (ad.made_here && ad.needs === "refused") return { kind: "fix", body: FIX.body };
   // Its last switch went unanswered: nothing is sent again, and Check asks Meta what stands (the plan's 4.7, 7).
   if (ad.state === "unconfirmed") return { kind: "check", line: SHEET.unconfirmed };
   if (ad.state !== "paused") return { kind: "pause", body: SHEET.pauseBody };
@@ -414,8 +425,15 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
         : [{ label: ad.opens === "form" ? SHEET.formsLabel : SHEET.chatsLabel, value: String(results) }]),
     ],
     counted: counted(ad),
+    ...sheetChangeOf(ad, dto, said),
     foot: footOf(ad, dto, said, currency),
   };
+}
+
+/** What an ad made here's drawer changes: its sentence where it runs, and whether End is offered. */
+function sheetChangeOf(ad: AdLiveDto, dto: AdsLiveDto, at: Said): Pick<SheetVM, "change" | "ends"> {
+  const change = changeSentenceOf(ad, dto, at.nowMs ?? 0);
+  return { change, ends: change?.ends ?? endsAlone(ad, dto) };
 }
 
 /** One ad as Reports › Ads lists it: Chanlytics' count, then Meta's spend, each a column of its own. */

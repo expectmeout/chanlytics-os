@@ -238,6 +238,10 @@ test("why that amount (4.6, G6): a starting amount and why, or the open times an
   assert.deepEqual(typed.why, ["About $10 a day for 14 days."]);
   // A draft someone else left says who, as they left it.
   assert.equal(view({ answer: written({ left_by: "Maria" }) }).kicker, "New ad · left by Maria");
+  // Fix it's draft of an ad Meta turned down says which, and that turning this one on ends that one.
+  const fixing = view({ answer: written({}, { fixes: { id: FILE, name: "Spring offer" } }) });
+  assert.equal(fixing.kicker, "New ad · fixing Spring offer");
+  assert.equal(fixing.why[0], "AI rewrote the words from Meta's reason. Turn this on and Spring offer ends.");
 });
 
 test("a service named in a sentence: the title and the sentence say the writer's few words, and its whole name before them", () => {

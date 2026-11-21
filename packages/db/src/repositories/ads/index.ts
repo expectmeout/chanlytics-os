@@ -15,6 +15,8 @@ export {
   readAdSecret,
 } from "./accounts";
 export type { AdAccountReadKept, AdAccountRow, AdAccountToConnect, AdConnectOutcome, AdDisconnected } from "./accounts";
+export { keepAdChange, listAdChanges, markAdChangeTold } from "./changes";
+export type { AdChangeKept, AdChangeRow } from "./changes";
 export { findAdDraft, keepAdDraft, keepAdMost } from "./drafts";
 export type { AdDraftKept, AdDraftRow } from "./drafts";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";

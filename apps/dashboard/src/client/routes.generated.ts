@@ -175,7 +175,12 @@ export const ROUTES = {
   "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
+  "POST ads/[id]/area": { method: "POST", path: "/api/v1/ads/[id]/area" },
+  "POST ads/[id]/budget": { method: "POST", path: "/api/v1/ads/[id]/budget" },
   "POST ads/[id]/check": { method: "POST", path: "/api/v1/ads/[id]/check" },
+  "POST ads/[id]/end": { method: "POST", path: "/api/v1/ads/[id]/end" },
+  "POST ads/[id]/end-date": { method: "POST", path: "/api/v1/ads/[id]/end-date" },
+  "POST ads/[id]/fix": { method: "POST", path: "/api/v1/ads/[id]/fix" },
   "POST ads/[id]/pause": { method: "POST", path: "/api/v1/ads/[id]/pause" },
   "POST ads/[id]/resume": { method: "POST", path: "/api/v1/ads/[id]/resume" },
   "POST ads/account/check": { method: "POST", path: "/api/v1/ads/account/check" },
@@ -613,7 +618,12 @@ export type Routes = {
   "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
+  "POST ads/[id]/area": typeof import("../../app/api/v1/ads/[id]/area/route").POST;
+  "POST ads/[id]/budget": typeof import("../../app/api/v1/ads/[id]/budget/route").POST;
   "POST ads/[id]/check": typeof import("../../app/api/v1/ads/[id]/check/route").POST;
+  "POST ads/[id]/end": typeof import("../../app/api/v1/ads/[id]/end/route").POST;
+  "POST ads/[id]/end-date": typeof import("../../app/api/v1/ads/[id]/end-date/route").POST;
+  "POST ads/[id]/fix": typeof import("../../app/api/v1/ads/[id]/fix/route").POST;
   "POST ads/[id]/pause": typeof import("../../app/api/v1/ads/[id]/pause/route").POST;
   "POST ads/[id]/resume": typeof import("../../app/api/v1/ads/[id]/resume/route").POST;
   "POST ads/account/check": typeof import("../../app/api/v1/ads/account/check/route").POST;

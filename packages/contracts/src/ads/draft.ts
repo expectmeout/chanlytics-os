@@ -112,7 +112,8 @@ export const AD_MILES = { draft: 5, least: 1, most: 50 } as const;
 /** Under this many people booked from ads, a draft promises no number of bookings and proposes a starting amount. */
 export const AD_BOOKED_TO_FORECAST = 5;
 
-const wholeUnitsUp = (minor: number, currency: string): number => {
+/** An amount made a whole number of its currency, upward: what an owner approves, and what Meta holds exact. */
+export const wholeUnitsUp = (minor: number, currency: string): number => {
   const unit = minorPerUnit(currency);
   return Math.ceil(minor / unit) * unit;
 };
