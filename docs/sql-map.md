@@ -249,7 +249,7 @@ being read is dropped by a migration.
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
-| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
+| `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612, 00668): |
 | `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
 | `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |
 | `files_toward_cap` | the server's | the server | SQL `file_found`, `file_made` and 4 more | How many of a workspace's files count toward the Library's cap (contracts FILES_MAX): |

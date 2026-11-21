@@ -190,32 +190,19 @@ export const files: Reader<FilesAsked, FilesPageDto> = {
     const shelf = holds && request.shelf ? request.shelf : "all";
     const kind = request.kind ?? null;
     const about = request.about?.trim() || null;
-    if (about) {
-      // Found by its words, a page of the best: what the look saw, what is written on it, what a video says (00612).
-      const found = await listFilesFound(rc.ctx.supabase, rc.tenantId, shelfFilterOf(shelf), {
-        words: about,
-        offset: 0,
-        limit: FILES_PAGE,
-      });
-      const files = found.rows.filter((r) => !kind || r.kind === kind).map(fileDtoOf);
-      return { data: { files, shelf, kind, about, next: null, tally }, rows: [], stamp: readerStamp() };
-    }
     const limit = shelf === "inbox" ? FILES_MAX : Math.min(request.limit ?? FILES_PAGE, FILES_MAX);
-    // One past the page, so its last page says it is its last with no second read.
-    const rows = await listFilesOnShelf(
-      rc.ctx.supabase,
-      rc.tenantId,
-      { ...shelfFilterOf(shelf), ...(kind ? { kind } : {}) },
-      {
-        limit: limit + 1,
-        before,
-      },
-    );
+    const filter = { ...shelfFilterOf(shelf), ...(kind ? { kind } : {}) };
+    // One past the page, so its last page says it is its last with no second read. Found by its words (00612: what the look
+    // saw, what is written on it, what a video says), a search reads on as the shelf does, from the last file shown (00668).
+    const paged = { limit: limit + 1, before };
+    const rows = about
+      ? (await listFilesFound(rc.ctx.supabase, rc.tenantId, filter, { words: about, offset: 0, ...paged })).rows
+      : await listFilesOnShelf(rc.ctx.supabase, rc.tenantId, filter, paged);
     const page = rows.slice(0, limit).map(fileDtoOf);
     const last = page.at(-1);
     // Nothing here at all: where Ask looked for photos and videos, for the empty Library's card (as Made's read says it).
     const sources =
-      tally.total === 0
+      tally.total === 0 && !about
         ? await readContentSources(rc.ctx.supabase, rc.tenantId, rc.now.getTime()).catch(
             logAndGoOn("files: where Ask looked", null),
           )
@@ -225,7 +212,7 @@ export const files: Reader<FilesAsked, FilesPageDto> = {
         files: page,
         shelf,
         kind,
-        about: null,
+        about,
         next: rows.length > limit && last ? fileCursorOf(last) : null,
         tally,
         ...(sources ? { sources } : {}),
