@@ -77,6 +77,10 @@ export function parseMetaRefusal(json: unknown): MetaRefusal | null {
 
 /* ------------------------------------------------------------ the read back */
 
+/** What an ad is read with, by its id or under its campaign: itself, and its creative whole. */
+const AD_FIELDS =
+  "id,name,account_id,status,effective_status,adset_id,creative{id,object_story_spec,effective_object_story_id,degrees_of_freedom_spec,contextual_multi_ads}";
+
 const READ_BACK_FIELDS = [
   "id",
   "name",
@@ -86,7 +90,7 @@ const READ_BACK_FIELDS = [
   "objective",
   "special_ad_categories",
   "adsets{id,name,status,destination_type,optimization_goal,lifetime_budget,daily_budget,start_time,end_time,promoted_object,targeting}",
-  "ads{id,name,status,effective_status,adset_id,creative{id,object_story_spec,degrees_of_freedom_spec,contextual_multi_ads}}",
+  `ads{${AD_FIELDS}}`,
 ].join(",");
 
 /** A campaign made here, read back whole in one call: itself, its ad sets, and its ads with their creatives. */
@@ -127,11 +131,17 @@ export interface MetaAdSetHeld {
 export interface MetaAdHeld {
   id: string;
   name: string;
+  /** The ad account it is in: Meta's id for it, without "act_". */
+  accountId: string | null;
   setId: string | null;
   paused: boolean;
   /** Meta's own word for where it stands (`effective_status`). */
   state: string;
   creativeId: string | null;
+  /** The picture its creative shows, by the hash the account's library keeps it under; null for a video or none. */
+  imageHash: string | null;
+  /** The unpublished Page post its creative made (`effective_object_story_id`), which only the Page can remove. */
+  storyId: string | null;
   pageId: string | null;
   instagramUserId: string | null;
   text: string | null;
@@ -230,6 +240,12 @@ function ownChangesOf(creative: Record<string, unknown> | null): string[] {
     .sort();
 }
 
+/** A hash as the account's library keeps a picture under, or null. */
+const hashOrNull = (value: unknown): string | null => {
+  const hash = metaText(value);
+  return /^[A-Za-z0-9]{8,64}$/.test(hash) ? hash : null;
+};
+
 function adHeld(row: unknown): MetaAdHeld[] {
   const ad = metaObject(row);
   const id = idOrNull(valueAt(ad, "id"));
@@ -243,10 +259,13 @@ function adHeld(row: unknown): MetaAdHeld[] {
     {
       id,
       name: metaText(valueAt(ad, "name")).slice(0, 500) || id,
+      accountId: idOrNull(valueAt(ad, "account_id")),
       setId: idOrNull(valueAt(ad, "adset_id")),
       paused: switchedOff(ad),
       state: metaText(valueAt(ad, "effective_status")).slice(0, 100) || "UNKNOWN",
       creativeId: idOrNull(valueAt(creative, "id")),
+      imageHash: hashOrNull(valueAt(picture, "image_hash")),
+      storyId: metaText(valueAt(creative, "effective_object_story_id")).slice(0, 100) || null,
       pageId: idOrNull(valueAt(story, "page_id")),
       instagramUserId: idOrNull(valueAt(story, "instagram_user_id")),
       text: textKept(valueAt(picture ?? video, "message"), 2000),
@@ -290,6 +309,28 @@ export function parseMetaCampaignHeld(json: unknown, currency: string): MetaCamp
 export function metaCampaignRemoveRequest(token: string, appSecret: string, campaignId: string): MetaRequest {
   if (!isMetaId(campaignId)) throw new Error("Meta's id for the campaign is not one");
   return { url: metaGraphUrl(campaignId, metaProofQuery(token, appSecret)), method: "DELETE" };
+}
+
+/**
+ * One ad read by its id, with its creative whole. An ad whose campaign was removed is read only so: Meta keeps a removed
+ * object's details for its id, never under its removed parent (its page on an ad object's status, read 20 November).
+ */
+export function metaAdReadBackRequest(token: string, appSecret: string, adId: string): MetaRequest {
+  if (!isMetaId(adId)) throw new Error("Meta's id for the ad is not one");
+  return { url: metaGraphUrl(adId, { fields: AD_FIELDS, ...metaProofQuery(token, appSecret) }), method: "GET" };
+}
+
+/** One ad read back by its id. Throws, with Meta's words where it gave some, when the answer names no ad. */
+export function parseMetaAdHeld(json: unknown): MetaAdHeld {
+  const [ad] = adHeld(json);
+  if (!ad) throw new Error(metaErrorOf(json)?.message ?? "Meta did not describe the ad");
+  return ad;
+}
+
+/** A creative removed: Meta's DELETE on it, which answers `success` (its creative reference, read on 20 November). */
+export function metaCreativeRemoveRequest(token: string, appSecret: string, creativeId: string): MetaRequest {
+  if (!isMetaId(creativeId)) throw new Error("Meta's id for the creative is not one");
+  return { url: metaGraphUrl(creativeId, metaProofQuery(token, appSecret)), method: "DELETE" };
 }
 
 /** Whether Meta says a removal took: its answer's `success`, and nothing else. */
