@@ -12,8 +12,11 @@ type AdWordsAsk =
   { job: "write"; draft: AdDraftState; no_price?: boolean } | { job: "change"; draft: AdDraftState; asked: string };
 
 export interface AdSource {
-  /** The workspace's kept draft, or a fresh one, where none is sent; else that draft as it stands now. */
-  draft: (body: { draft?: AdDraftState; act?: "next_picture" }) => Promise<AdDraftAnswer | null>;
+  /**
+   * The workspace's kept draft, or a fresh one, where none is sent; a fresh one around a picture, where Run as an ad
+   * named one; else that draft as it stands now.
+   */
+  draft: (body: { draft?: AdDraftState; act?: "next_picture"; picture?: string }) => Promise<AdDraftAnswer | null>;
   /** Meta's own preview of one version of the kept draft; a source with none draws Chanlytics' own and says so. */
   preview?: (version: number) => Promise<AdPreviewAnswer | null>;
   /** The ad writer's words, or the one change AI was told to make. */

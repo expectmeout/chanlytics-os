@@ -184,7 +184,7 @@ async function writeOnce(asking: AdWordsAsking, read: AdDraftFacts, draft: AdDra
   let held = await holdAdWriter(asking.rc, writing);
   if (held.out) {
     await waitForAdWriter(asking.rc, held.out, asking.deadline);
-    facts = await readAdDraftFacts(asking.rc);
+    facts = await readAdDraftFacts(asking.rc, [draft.picture]);
     const landed = landedWords(facts, draft, noPrice);
     if (landed) return landed;
     held = await holdAdWriter(asking.rc, writing);
@@ -205,7 +205,7 @@ export async function writeAdWords(
 ): Promise<AdWordsAnswer> {
   await requireAdsOffered(caller.rc);
   const asking = { ...caller, deadline: Date.now() + WORDS_WAIT_MS };
-  const facts = await readAdDraftFacts(caller.rc);
+  const facts = await readAdDraftFacts(caller.rc, [body.draft.picture]);
   if (body.job === "write") return writeOnce(asking, facts, body.draft, body.no_price === true);
   return keepWrittenAnswer(caller.rc, facts, body.draft, await changeDraft(asking, facts, body.draft, body.asked));
 }
