@@ -161,16 +161,23 @@ test("why Meta will not run an ad is kept in Meta's words, and nothing odd is gu
     /limit/,
   );
 
+  // A batch's answer: each ad's own, in order, its body JSON in a string.
+  const answered = (code, body) => ({ code, body: JSON.stringify(body) });
+  const refusedOne = { error: { message: "Unsupported get request", code: 100 } };
   assert.deepEqual(
-    parseMetaAdsById({ [AD1]: metaAd(AD1, { effective_status: "ARCHIVED", status: "ARCHIVED" }) }, "USD").map((ad) => [
-      ad.id,
-      ad.state,
-    ]),
+    parseMetaAdsById(
+      [answered(200, metaAd(AD1, { effective_status: "ARCHIVED", status: "ARCHIVED" })), answered(400, refusedOne)],
+      "USD",
+    ).map((ad) => [ad.id, ad.state]),
     [[AD1, "ARCHIVED"]],
+    "an ad Meta would not describe is left out, and the others are read",
   );
+  assert.deepEqual(parseMetaAdsById([], "USD"), []);
+  assert.throws(() => parseMetaAdsById([answered(400, refusedOne), null], "USD"), /Unsupported/, "none described: why");
   assert.throws(
-    () => parseMetaAdsById({ error: { message: "Unsupported get request", code: 100 } }, "USD"),
-    /Unsupported/,
+    () =>
+      parseMetaAdsById({ error: { message: "The ids query parameter is deprecated in v26.0+.", code: 100 } }, "USD"),
+    /deprecated/,
   );
 });
 
@@ -183,8 +190,28 @@ test("the questions name what they ask for: ads that are not gone, and days in t
   assert.deepEqual([list.searchParams.get("after"), list.searchParams.get("limit")], ["CURSOR", "100"]);
   assert.match(list.searchParams.get("appsecret_proof"), /^[0-9a-f]{64}$/, "every call carries the token's proof");
 
-  const byId = new URL(metaAdsByIdRequest("tok", "secret", [AD1, "not-an-id", AD2]).url);
-  assert.equal(byId.searchParams.get("ids"), `${AD1},${AD2}`);
+  // Never Meta's retired `GET /?ids=`: one batch posted to the root, each ad its own GET, the proof on the batch.
+  const byId = metaAdsByIdRequest("tok", "secret", [AD1, "not-an-id", AD2]);
+  assert.equal(byId.method, "POST");
+  assert.equal(new URL(byId.url).pathname, "/v27.0");
+  assert.equal(new URL(byId.url).searchParams.has("ids"), false);
+  const form = new URLSearchParams(byId.body);
+  assert.match(form.get("appsecret_proof"), /^[0-9a-f]{64}$/);
+  assert.equal(form.get("access_token"), "tok");
+  assert.equal(form.get("include_headers"), "false");
+  const batch = JSON.parse(form.get("batch"));
+  assert.deepEqual(
+    batch.map((one) => [one.method, one.relative_url.split("?")[0]]),
+    [
+      ["GET", AD1],
+      ["GET", AD2],
+    ],
+  );
+  assert.match(decodeURIComponent(batch[0].relative_url.split("fields=")[1]), /effective_status/);
+  assert.equal(
+    JSON.parse(new URLSearchParams(metaAdsByIdRequest("t", "s", Array(60).fill(AD1)).body).get("batch")).length,
+    50,
+  );
 
   const days = new URL(metaAdDaysRequest("tok", "secret", EXTERNAL, { since: "2026-11-17", until: "2026-11-19" }).url);
   assert.match(days.pathname, new RegExp(`/act_${EXTERNAL}/insights$`));
@@ -367,7 +394,8 @@ const asked = [];
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const u = new URL(String(url));
-  const what = u.searchParams.has("ids")
+  const form = init?.method === "POST" ? new URLSearchParams(String(init.body ?? "")) : null;
+  const what = form?.has("batch")
     ? "ids"
     : u.pathname.endsWith("/ads")
       ? "ads"
@@ -378,7 +406,15 @@ globalThis.fetch = async (url, init) => {
           : u.pathname.endsWith(`/${PAGE}`)
             ? "page"
             : "account";
-  asked.push({ what, method: init?.method ?? "GET", query: Object.fromEntries(u.searchParams) });
+  // A batch's ads are kept as `ids`, as the retired question named them.
+  const ids = form?.has("batch")
+    ? {
+        ids: JSON.parse(form.get("batch"))
+          .map((one) => one.relative_url.split("?")[0])
+          .join(","),
+      }
+    : {};
+  asked.push({ what, method: init?.method ?? "GET", query: { ...Object.fromEntries(u.searchParams), ...ids } });
   const [status, body, headers = {}] = answers[what] ?? [404, { error: { code: 100, message: "Unknown path" } }];
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } });
 };
@@ -547,10 +583,10 @@ test("an ad the list no longer names is asked for by name: one this workspace ho
   answers.days = [200, { data: [{ ad_id: ran, date_start: "2026-11-18", spend: "3.00", impressions: "40" }] }];
   answers.ids = [
     200,
-    {
-      [AD3]: metaAd(AD3, { status: "ARCHIVED", effective_status: "ARCHIVED" }),
-      [ran]: metaAd(ran, { status: "ARCHIVED", effective_status: "ARCHIVED" }),
-    },
+    [AD3, ran].map((id) => ({
+      code: 200,
+      body: JSON.stringify(metaAd(id, { status: "ARCHIVED", effective_status: "ARCHIVED" })),
+    })),
   ];
   await w.read();
   assert.deepEqual(whats(), ["account", "ads", "days", "ids"]);
