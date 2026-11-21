@@ -16,9 +16,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { META_PREVIEW_PLACES, metaPreviewFrameSrc, metaPreviewRequest, parseMetaPreview } = await import(
-  at("packages/channels/src/ads/meta-preview.ts")
-);
+const { META_PREVIEW_PLACES, metaPreviewFrameSrc, metaPreviewRequest, metaPreviewShape, parseMetaPreview } =
+  await import(at("packages/channels/src/ads/meta-preview.ts"));
 const { META_OWN_CHANGES, metaCreativeSpec } = await import(at("packages/channels/src/ads/meta-make.ts"));
 
 const TOKEN = "token-for-this-file";
@@ -131,4 +130,48 @@ test("an answer with no preview says Meta's own words where it gave some", () =>
   assert.throws(() => parseMetaPreview({ data: [] }), /did not answer a preview/);
   assert.throws(() => parseMetaPreview({ error: { message: "Invalid parameter", code: 100 } }), /Invalid parameter/);
   assert.throws(() => parseMetaPreview(null), /did not answer a preview/);
+});
+
+test("Meta's answer read in every shape it may come in: escaped, in single quotes, with no scheme, or on Meta's other hosts", () => {
+  const frame = { src: FRAME, width: 335, height: 580 };
+  // The tag itself escaped, as some answers carry HTML.
+  const escaped = META_BODY.replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+  assert.deepEqual(parseMetaPreview(answerWith(escaped)), frame);
+  // Single quotes, and space around the equals sign.
+  const single = `<iframe src = '${FRAME.replace("&", "&amp;")}' width='335' height='580'></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(single)), frame);
+  // An address with no scheme of its own is taken over https.
+  const bare = `<iframe src="${FRAME.replace("https:", "")}" width="335" height="580"></iframe>`;
+  assert.deepEqual(parseMetaPreview(answerWith(bare)), frame);
+  // Meta's preview page on its other hosts, each one New ad's page lets a frame open.
+  for (const host of ["web.facebook.com", "business.facebook.com"]) {
+    const there = FRAME.replace("www.facebook.com", host);
+    assert.equal(parseMetaPreview(answerWith(`<iframe src="${there}"></iframe>`)).src, there, host);
+  }
+  // Never any other host, a port, or plain http.
+  for (const odd of [
+    FRAME.replace("www.facebook.com", "m.facebook.com"),
+    FRAME.replace("www.facebook.com", "www.facebook.com:8443"),
+    FRAME.replace("https:", "http:"),
+  ])
+    assert.equal(metaPreviewFrameSrc(odd), null, odd);
+});
+
+test("an answer that can't be read is described for the log with no address and no value in it", () => {
+  const described = (json) => metaPreviewShape(json);
+  assert.equal(described({ error: { message: "x" } }), "no data; keys error");
+  assert.equal(described({ data: [] }), "data 0; first holds nothing");
+  assert.equal(described({ data: [{ html: "<div></div>" }] }), "data 1; first holds html");
+  assert.equal(described(answerWith("<div>Preview</div>")), "data 1; body 18 chars, div, no src");
+  const elsewhere = '<iframe src="https://example.com/ads/x.php?d=SECRET&amp;t=ALSO"></iframe>';
+  const said = described(answerWith(elsewhere));
+  assert.equal(said, "data 1; iframe src https://example.com/ads/x.php params d,t");
+  assert.ok(!/SECRET|ALSO/.test(said), "no value of the address is said");
+  assert.equal(
+    described(answerWith(META_BODY)),
+    "data 1; iframe src https://www.facebook.com/ads/api/preview_iframe.php params d,t",
+  );
 });

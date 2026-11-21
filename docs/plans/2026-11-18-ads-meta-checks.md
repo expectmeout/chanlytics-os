@@ -455,3 +455,13 @@ can't be had, New ad's own drawing stands in its place and says why in one line.
 That the business's own sign-in, which made every part of the paused ad, is taken for a preview; that a picture given
 by its address is drawn as the library's would be, whole and in its own shape; the size Meta draws each place at; and
 that the frame shows to someone not signed in to Facebook.
+
+### Seen on your account (21 November, after it landed)
+
+Asked once for the kept draft's first version, a read that makes nothing: Meta answered all three places, refused none,
+and the account's allowance stood at 1% after it. So the business's own sign-in is taken for a preview. But none of the
+three answers was read as a frame of Meta's preview page, so New ad drew its own, and said wrongly that Meta had not
+shown its preview. Meta's live answer is not shaped as its page's example, and nothing of it was kept to say how. The
+reader now takes every shape Meta may answer in (escaped, single quotes, no scheme, its business host), says plainly
+when it still can't read one, and the log describes what Meta sent with no address in it. Still to see: the frame's
+size, a picture given by its address drawn whole, and whether the frame shows to someone not signed in to Facebook.
