@@ -21,9 +21,11 @@ export type WebsiteForm = (typeof WEBSITE_FORMS)[number];
 const line = (max: number) => z.optional(z.string().trim().max(max));
 
 /**
- * What the site posts (POST /api/website-form): the workspace and its key (websiteFormKeyOf, edge), which form, and what
- * the visitor wrote. `about` is what the site says the request is ("A seat in the spring class"); `at` is when the
- * visitor sent it, which a form re-sent later passes as it was.
+ * What the site posts (POST /api/website-form): the workspace and its key (one of the workspace's own, or the first key
+ * made from the platform's: edge form-key.ts), which form, and what the visitor wrote. `about` is what the site says the
+ * request is ("A seat in the spring class"); `at` is when the visitor sent it, which a form re-sent later passes as it
+ * was. `entry_id` is the site's own name for the entry, where it gives one: the same id again is the same entry
+ * (00674). With none, the same words within ten minutes are the same entry, and later they are a new one.
  */
 export const WebsiteFormBody = z.object({
   workspace: z.uuid(),
@@ -37,8 +39,16 @@ export const WebsiteFormBody = z.object({
   page: line(200),
   lang: line(10),
   at: z.optional(z.iso.datetime({ offset: true })),
+  entry_id: z.optional(z.string().trim().min(1).max(100)),
 });
 export type WebsiteFormInput = z.infer<typeof WebsiteFormBody>;
+
+/**
+ * What a kept entry owes after it, each by its own subscriber (00674, core SUBSCRIBERS): the note that waits on their
+ * page for a member's Keep, the owner's notice, and a sign-up's ask to confirm (signup-confirm, 00489).
+ */
+export const FORM_EFFECTS = ["note", "notice", "confirm"] as const;
+export type FormEffect = (typeof FORM_EFFECTS)[number];
 
 /** Who the form is about, as the person door takes them: a name, and at least one way to reach them; null when none. */
 export function websiteFormPerson(websiteFormInput: Pick<WebsiteFormInput, "name" | "email" | "phone">): {
@@ -88,7 +98,10 @@ export function websiteFormLate(websiteFormInput: Pick<WebsiteFormInput, "at">, 
  * any, and the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are
  * cut, never the line.
  */
-export function websiteFormNote(websiteFormInput: WebsiteFormInput, when: WebsiteFormWhen): string {
+export function websiteFormNote(
+  websiteFormInput: Pick<WebsiteFormInput, "form" | "about" | "note" | "at">,
+  when: WebsiteFormWhen,
+): string {
   const first =
     websiteFormInput.about?.trim() ||
     (websiteFormInput.form === "signup"
@@ -112,7 +125,7 @@ export function websiteFormNote(websiteFormInput: WebsiteFormInput, when: Websit
  * the notice's alone: the note is what they asked, which the receptionist reads once it is kept.
  */
 export function websiteFormNotice(
-  websiteFormInput: WebsiteFormInput,
+  websiteFormInput: Pick<WebsiteFormInput, "form" | "about" | "note" | "at">,
   person: { contactId: string; name: string | null; email: string | null; phone: string | null },
   when: WebsiteFormWhen,
   ask: string | null,

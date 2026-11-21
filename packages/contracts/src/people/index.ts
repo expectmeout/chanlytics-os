@@ -61,13 +61,16 @@ export {
 } from "./doors/signup-confirm";
 export type { ConfirmPageView, SignupAskFacts, SignupAskRefusal } from "./doors/signup-confirm";
 export {
+  FORM_EFFECTS,
   WebsiteFormBody,
   websiteFormLate,
   websiteFormNote,
   websiteFormNotice,
   websiteFormPerson,
 } from "./doors/website-form";
-export type { WebsiteForm, WebsiteFormInput } from "./doors/website-form";
+export type { FormEffect, WebsiteForm, WebsiteFormInput } from "./doors/website-form";
+export { websiteKeyWorks } from "./doors/website-keys";
+export type { WebsiteFormKeyMade, WebsiteFormsDto } from "./doors/website-keys";
 export { hashLegacyErasedEmail, hashLegacyErasedPhone, hashLegacyLeadSuppression } from "./erasure";
 export {
   cannotBeSentWords,

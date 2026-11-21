@@ -1,8 +1,8 @@
 /**
  * A website's sign-up asks its person to confirm (00489, the double opt-in). An address typed into a form proves
- * nothing, so the door (form-door.ts) hands a sign-up here: the address is emailed a link, sealed (channels
- * confirm-token.ts), to the dashboard's page /c/<token>, and only their press there is a yes to offers by email
- * (set_email_offers_yes, confirmed_signup).
+ * nothing, so a sign-up's entry asks here, as a step of its own once the entry is kept (form-effects.ts, 00674): the
+ * address is emailed a link, sealed (channels confirm-token.ts), to the dashboard's page /c/<token>, and only their press
+ * there is a yes to offers by email (set_email_offers_yes, confirmed_signup).
  *
  * The email is the person's own: the first on their one thread, from the workspace's hosted mailbox (the business's
  * name, Reply-To its reply route, so an answer lands in the Inbox), written queued with its request frozen and sent by
@@ -32,7 +32,6 @@ import {
   signupAskRefusal,
   signupConfirmEmail,
   signupConfirmEmailHtml,
-  websiteFormLate,
   workspaceLogoSrc,
   type SignupAskRefusal,
   type WebsiteFormInput,
@@ -45,7 +44,7 @@ import { resolveOutboundTargetForContact } from "@chanlytics/db/channels";
 import { findWorkspaceLook } from "@chanlytics/db/look";
 import type { Json } from "@chanlytics/db/types";
 import { scheduleJob } from "@chanlytics/jobs";
-import { errField, logger, type Logger } from "../shared/log.js";
+import { errField, logger } from "../shared/log.js";
 import { onceKeyId } from "../shared/alerts/notify.js";
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 
@@ -54,8 +53,11 @@ type Db = NonNullable<ReturnType<typeof pg>>;
 /** What asking came to: asked (the email is queued), or why not. */
 type SignupAsked = { asked: true; messageId: string } | { asked: false; why: SignupAskRefusal };
 
+/** What of a form a sign-up's ask reads: what they signed up on. */
+type SignedUpOn = Pick<WebsiteFormInput, "form" | "page" | "about" | "lang" | "at">;
+
 /** What they signed up on, as the email keeps it and the yes's event carries it. */
-const signedUpOn = (f: Pick<WebsiteFormInput, "form" | "page" | "about" | "lang" | "at">) => ({
+const signedUpOn = (f: SignedUpOn) => ({
   form: f.form,
   page: f.page ?? null,
   about: f.about ?? null,
@@ -63,23 +65,23 @@ const signedUpOn = (f: Pick<WebsiteFormInput, "form" | "page" | "about" | "lang"
   at: f.at ?? null,
 });
 
+/** Who asks, and for whom: the form itself (its words kept on the email), or a member asking again from the page. */
+interface AskFor {
+  tenantId: TenantId;
+  contactId: ContactId;
+  typed: string;
+  nowMs: number;
+  from: { form: SignedUpOn } | { member: string | null };
+}
+
 /**
- * Ask the person a sign-up brought to confirm it at `typed`: the email written queued and its send scheduled, or why
- * it was not. `from` is who asks: the form itself (its words kept on the email, meta.signup_confirm.form, which the yes
- * door copies onto the yes's event: what they signed up on, read off the email, never off the press), or a member,
- * whose ask is for someone who signed up on the website alone and keeps the form their last ask carried. Throws when a
- * read or a write fails, for the caller to log: the person is kept either way.
+ * What asking would come to, read and judged and nothing written: the address as one (`typed`, `key`), the facts the
+ * email and its limits are read from, and the mailbox it would come from; or why it would not go (contracts
+ * signupAskRefusal, and not_from_website, no_mailbox). The website form door asks it ahead of the ask itself, which an
+ * entry's own step makes after the entry is kept (form-effects.ts), so the site can still tell its visitor to look for
+ * the email. Throws when a read fails.
  */
-async function askToConfirm(
-  db: Db,
-  params: {
-    tenantId: TenantId;
-    contactId: ContactId;
-    typed: string;
-    nowMs: number;
-    from: { form: WebsiteFormInput } | { member: string | null };
-  },
-): Promise<SignupAsked> {
+async function readAskFacts(db: Db, params: AskFor) {
   const typed = params.typed.trim().toLowerCase();
   const key = signupAddressKey(typed);
   const domain = emailDomain();
@@ -98,9 +100,35 @@ async function askToConfirm(
   const sendsAs = mailbox && domain && emailCanSend() && secret ? { mailbox, domain, secret } : null;
   // A member asks only someone the website brought: the email says they signed up there.
   if ("member" in params.from && facts.person && !facts.person.fromWebsite)
-    return { asked: false, why: "not_from_website" };
+    return { why: "not_from_website" as const, ready: null };
   const reason = signupAskRefusal(typed, { ...facts, mailbox: !!sendsAs });
-  if (reason || !sendsAs) return { asked: false, why: reason ?? "no_mailbox" };
+  if (reason || !sendsAs) return { why: reason ?? ("no_mailbox" as const), ready: null };
+  return { why: null, ready: { typed, key, facts, sendsAs, row } };
+}
+
+/**
+ * Whether a sign-up's person would be asked to confirm at `typed` now: the rules and the limits pass and there is a
+ * mailbox to ask from. Read only: the ask itself is the entry's own step, after the entry is kept.
+ */
+export async function checkSignupWouldAsk(
+  db: Db,
+  params: { tenantId: TenantId; contactId: ContactId; typed: string; form: SignedUpOn; nowMs: number },
+): Promise<boolean> {
+  const reads = await readAskFacts(db, { ...params, from: { form: params.form } });
+  return reads.ready !== null;
+}
+
+/**
+ * Ask the person a sign-up brought to confirm it at `typed`: the email written queued and its send scheduled, or why
+ * it was not. `from` is who asks: the form itself (its words kept on the email, meta.signup_confirm.form, which the yes
+ * door copies onto the yes's event: what they signed up on, read off the email, never off the press), or a member,
+ * whose ask is for someone who signed up on the website alone and keeps the form their last ask carried. Throws when a
+ * read or a write fails, for the caller to say: the person is kept either way.
+ */
+async function askToConfirm(db: Db, params: AskFor): Promise<SignupAsked> {
+  const reads = await readAskFacts(db, params);
+  if (!reads.ready) return { asked: false, why: reads.why };
+  const { typed, key, facts, sendsAs, row } = reads.ready;
 
   const thread = await resolveOutboundTargetForContact(db, {
     tenantId: params.tenantId,
@@ -174,30 +202,23 @@ async function askToConfirm(
 }
 
 /**
- * The website-form door's ask (form-door.ts): a sign-up with an address that arrives as it is sent is asked to confirm,
- * and what came of it is said ("asked", or why not; contracts signupAskLine words it for the owner). Null where nothing
- * was asked: a request, a sign-up with no address, one that arrived late, or an ask that failed, which is logged and
- * costs nothing else, since the person is kept either way.
+ * A website entry's ask (form-effects.ts, the entry's `confirm` step, 00674): a sign-up with an address that arrived
+ * as it was sent asks its person to confirm, and what came of it is said ("asked", or why not; contracts signupAskLine
+ * words it for the owner). Asked twice for one person and address within a link's span of days, the second finds the
+ * first's email (`open`). Throws when a read or a write fails: the step is tried again, and the person is kept either way.
  */
-export async function askIfSignup(
+export async function askEntryToConfirm(
   db: Db,
-  log: Logger,
-  params: { tenantId: TenantId; contactId: ContactId; form: WebsiteFormInput; email: string | null; nowMs: number },
-): Promise<SignupAskRefusal | "asked" | null> {
-  if (params.form.form !== "signup" || !params.email || websiteFormLate(params.form, params.nowMs)) return null;
-  try {
-    const r = await askToConfirm(db, {
-      tenantId: params.tenantId,
-      contactId: params.contactId,
-      typed: params.email,
-      nowMs: params.nowMs,
-      from: { form: params.form },
-    });
-    return r.asked ? "asked" : r.why;
-  } catch (e) {
-    log.error("website_form_failed", { tenant_id: params.tenantId, step: "ask", error: errField(e) });
-    return null;
-  }
+  params: { tenantId: TenantId; contactId: ContactId; form: SignedUpOn; email: string; nowMs: number },
+): Promise<SignupAskRefusal | "asked"> {
+  const r = await askToConfirm(db, {
+    tenantId: params.tenantId,
+    contactId: params.contactId,
+    typed: params.email,
+    nowMs: params.nowMs,
+    from: { form: params.form },
+  });
+  return r.asked ? "asked" : r.why;
 }
 
 /**

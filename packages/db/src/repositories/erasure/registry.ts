@@ -66,6 +66,7 @@ export const ERASURE_LEGS = {
     "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)",
   mailbox_trigger:
     "mailbox_senders_on_erase: their address off the list of what a connected mailbox left, and a person said of it with it, and what Chanlytics read them to be (00495); what was said of a robot stays (00483)",
+  form_entries_trigger: "form_entries_erase_on_contact: every website form entry they sent deleted (00674)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;
@@ -534,6 +535,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },
+  // A website's entries go with their person; a key is the business's own (00674).
+  form_entries: all(withPerson("form_entries_trigger"), "answers", "ref", "words", "effects", "owed"),
+  form_keys: { name: WITH_WORKSPACE, hash: NOT_PERSONAL },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),

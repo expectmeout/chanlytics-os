@@ -24,6 +24,9 @@ export const SUBSCRIBED_EVENTS = {
   "escalation.changed": z.looseObject({ to: z.string() }),
   "escalation.opened": z.looseObject({ reason: z.string() }),
   "escalation.refreshed": z.looseObject({}),
+  // A website's form entry kept with its person, and its sign-up's ask settled (00674): what it owes, never what was typed.
+  "form_entry.accepted": z.looseObject({ form: z.string(), owed: z.array(z.string()) }),
+  "form_entry.asked": z.looseObject({ state: z.string() }),
   "member.joined": z.looseObject({ by: z.string(), role: z.string() }),
   "member.left": z.looseObject({
     by: z.string(),

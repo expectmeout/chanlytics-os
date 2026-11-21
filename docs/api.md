@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-440 handlers in 60 domains.
+442 handlers in 61 domains.
 
 ## activity
 
@@ -3849,6 +3849,34 @@ Writes; for any signed-in person, for themselves; counts against the `vitals` ra
 | `device` | one of `"desk"`, `"phone"` | no |  |
 | `build` | string | no | matches `^[0-9a-z]{3,40}$` |
 | `vitals` | array of object | yes | at least 1; at most 100 |
+
+## website-forms
+
+### `GET /api/v1/website-forms`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/website-forms/route.ts`).
+
+### `POST /api/v1/website-forms`
+
+Writes; for a member of the workspace the request names, partner or above; counts against the `settings` rate; spends nothing.
+
+One of 2 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"make"` | yes |  |
+| `name` | string | yes | at least 1 characters; at most 60 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"change"`, `"end"` | yes |  |
+| `key_id` | string (uuid) | yes |  |
 
 ## workspaces
 

@@ -514,5 +514,10 @@
     "kind": "on-open",
     "fresh": "Read once as Today draws its lines, and again on the next visit.",
     "why": "Let AI do more offers one Autonomy row a step on from 30 days of its drafts, which move over days; the change it offers is the policies route's own write, which refuses a mode the row cannot take and says so."
+  },
+  "apps/dashboard/src/surfaces/settings/website/use-website-forms.ts GET website-forms": {
+    "kind": "on-open",
+    "fresh": "Read as Connections draws its Website forms card, after each press on a key, and when the owner comes back to the tab.",
+    "why": "A key's last use moves when the site sends a form, not when anyone here acts, so the card reads it again when the owner looks. The feed does not tell of form_keys or form_entries: no surface holds them yet (00674)."
   }
 }

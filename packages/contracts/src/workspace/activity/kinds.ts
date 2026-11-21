@@ -233,6 +233,13 @@ const SEND_DECIDED_WORDS: Record<string, string> = {
 /** Which calls a kept number forwards (contracts FORWARDING_MODES), in an owner's words. */
 const FORWARDING_WORDS: Record<string, string> = { unanswered: "the calls not answered", always: "every call" };
 
+/** A website's key, by what was done to it (00674 form_key.set): never the key. */
+const WEBSITE_KEY_WORDS: Record<string, string> = {
+  made: "Made a key for a website",
+  changed: "Changed a website's key",
+  ended: "Ended a website's key",
+};
+
 /** A search removed: how many of its leads were kept, where the door said. */
 function searchRemovedWords(p: Record<string, unknown>, base: string): string {
   const kept = numberAt(p, "kept");
@@ -341,6 +348,7 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["lead.search_renamed", (p, base) => joinBits(base, [textAt(p, "name")])],
   ["lead.search_removed", searchRemovedWords],
   ["line.forwarding_set", (p, base) => joinBits(base, [wordOf(FORWARDING_WORDS, textAt(p, "mode"))])],
+  ["form_key.set", (p, base) => wordOf(WEBSITE_KEY_WORDS, textAt(p, "act")) ?? base],
   ["appointment.booked", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
   ["appointment.moved", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
   ["appointment.cancelled", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],

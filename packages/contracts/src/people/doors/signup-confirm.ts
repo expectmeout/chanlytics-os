@@ -123,10 +123,11 @@ export function signupAskRefusal(typed: string, signupAskFacts: SignupAskFacts):
 }
 
 /**
- * The line a sign-up's note gains (website-form.ts websiteFormNote): whether the person was emailed to confirm, and
- * why not where they were not. Null where there is nothing to say (no address on the form).
+ * The line a sign-up's notice gains (website-form.ts websiteFormNotice): whether the person was emailed to confirm, and
+ * why not where they were not. Null where there is nothing to say: no address on the form, an ask that failed, or a
+ * word this build does not know (an entry keeps the ask's word, 00674, and reads it back as a string).
  */
-export function signupAskLine(outcome: SignupAskRefusal | "asked" | null): string | null {
+export function signupAskLine(outcome: string | null): string | null {
   switch (outcome) {
     case "asked":
       return "We emailed them to confirm. Offers by email start once they do.";

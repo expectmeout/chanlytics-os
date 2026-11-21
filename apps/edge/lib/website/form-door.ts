@@ -1,56 +1,41 @@
 /**
- * POST /api/website-form: someone used a form on the business's own website (00488). The site's server posts the form
- * with its workspace and that workspace's key (form-key.ts); a browser never holds the key.
+ * POST /api/website-form: someone used a form on the business's own website (00488, 00674). The site's server posts the
+ * form with its workspace and one of that workspace's keys (form-key.ts); a browser never holds a key.
  *
- * The door is api/website-form.ts: `door(receiveWebsiteForm)`. In order: the shape (contracts WebsiteFormBody), the key,
- * a way to reach them, then the person through the one door (resolve_person, source 'website', which fills what is
- * empty and never overwrites), what they asked as a note suggested on their page (person_note_suggest: a stranger's
- * words wait for a member's Keep, 0007), and the owner told: by mail and phone as the business chooses (notifyOnce), or
- * on the bell alone for a form that arrives late (websiteFormLate: one re-sent from where it was kept before).
+ * The door is api/website-form.ts: `door(receiveWebsiteForm)`. In order (the Forms plan's 3.2): the shape (contracts
+ * WebsiteFormBody), the key, a way to reach them, then ONE write (form_entry_take): the person through the one door
+ * (resolve_person, source 'website', which fills what is empty and never overwrites), the entry, and its event
+ * (form_entry.accepted), together. The site is answered ok only after that write; a database that fails it is a
+ * refusal (503), so the site sends it again. A person who asked to be forgotten: nothing is written at all, and the
+ * site is answered ok all the same.
  *
- * A sign-up with an address asks its person to confirm it (signup-confirm.ts, 00489): only their press on the link it
- * emails them is a yes to offers by email, since an address typed into a form proves nothing. A sign-up that arrives
- * late is not asked (it is old news, and its person signed up before anything asked them), and the owner's notice
- * says what became of the ask. A failed ask is logged and costs nothing else: the person is kept. The answer says
- * `confirm: "sent"` when the email is on its way, so the site can tell its visitor to look for it; in every other
- * case it says nothing of it, and the site thanks them plainly.
+ * Once: the site's own id for the entry (`entry_id`), where it sends one; with none, the same words within ten minutes
+ * are the same entry, and later they are a new one (Ruben's call 19). The same entry again is answered as before and
+ * starts nothing.
  *
- * Twice is once: the note and the notice are each kept under a name made from the form's own words (onceKeyId), so a
- * site that sends a form again, or a re-sending of old ones, adds no second note and tells nobody twice. The person is
- * the door's own to match. A person who asked to be forgotten is not made again: the form is answered and nothing kept.
+ * Everything an entry owes happens after, each by its own step with its own outcome (form-effects.ts, from the event):
+ * what they asked as a note on their page waiting for a member's Keep (0007), the owner's notice, and a sign-up's ask to
+ * confirm (signup-confirm.ts, 00489). The answer says `confirm: "sent"` when the entry owes that ask and it would go,
+ * so the site can tell its visitor to look for the email; in every other case it says nothing of it.
  *
  * Cross-workspace: the form names its workspace, and the key proves the site was given it.
  */
-import type { ContactId } from "@chanlytics/contracts";
-import { heldTenantId } from "@chanlytics/contracts";
-import { createHash } from "node:crypto";
+import { heldTenantId, WebsiteFormBody, websiteFormPerson, type WebsiteFormInput } from "@chanlytics/contracts";
+import { takeFormEntry, type FormEntryTaken } from "@chanlytics/db/people";
 import { json, refuse } from "../shared/http.js";
-import { errField, logger } from "../shared/log.js";
+import { errField, logger, type Logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import {
-  DEFAULT_TIMEZONE,
-  WebsiteFormBody,
-  websiteFormLate,
-  websiteFormNote,
-  websiteFormNotice,
-  websiteFormPerson,
-  signupAskLine,
-} from "@chanlytics/contracts";
-import { PERSON_FORGOTTEN, resolvePerson } from "@chanlytics/db/people";
-import { suggestPersonNote } from "@chanlytics/db/facts";
-import { findWorkspaceZone } from "@chanlytics/db/workspace";
-import { keepOnce, notifyOnce, onceKeyId } from "../shared/alerts/notify.js";
-import { loadTenantNotifications } from "../shared/tenant-runtime.js";
-import { websiteFormKeyMatches } from "./form-key.js";
-import { askIfSignup } from "./signup-confirm.js";
+import { entryAnswersOf, entryOwes, entryWords } from "./form-entry.js";
+import { checkWebsiteFormKey } from "./form-key.js";
+import { checkSignupWouldAsk } from "./signup-confirm.js";
+
+type Db = NonNullable<ReturnType<typeof pg>>;
 
 /** A form is a few lines a person typed. Anything larger is not one. */
 const MAX_BODY = 16_000;
 
-export async function receiveWebsiteForm(request: Request): Promise<Response> {
-  const log = logger({ door: "website_form" });
-  const raw = await request.text();
-  if (raw.length > MAX_BODY) return refuse(413, "too_large");
+/** The form the site sent, or why it is not one. */
+function formOf(raw: string, log: Logger): WebsiteFormInput | null {
   let body: unknown;
   try {
     body = JSON.parse(raw);
@@ -59,15 +44,52 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     body = null;
   }
   const parsed = WebsiteFormBody.safeParse(body);
-  if (!parsed.success) {
-    log.warn("website_form_refused", { why: "shape" });
-    return refuse(400, "bad_request");
-  }
-  const data = parsed.data;
-  // What it names, which the key checks: a page's own form, signed for this workspace.
+  if (parsed.success) return parsed.data;
+  log.warn("website_form_refused", { why: "shape" });
+  return null;
+}
+
+/**
+ * Whether the visitor will be emailed to confirm: a sign-up kept now, owing the ask, that the rules and the limits let
+ * go. Read only, and never the reason a form is not answered: a read that fails says nothing of it.
+ */
+async function confirmWillGo(
+  db: Db,
+  log: Logger,
+  entry: { taken: FormEntryTaken; owesAsk: boolean; data: WebsiteFormInput; email: string | null; nowMs: number },
+): Promise<boolean> {
+  if (entry.taken.outcome !== "accepted" || !entry.owesAsk || !entry.email) return false;
+  const tenantId = heldTenantId(entry.data.workspace);
+  return checkSignupWouldAsk(db, {
+    tenantId,
+    contactId: entry.taken.contactId,
+    typed: entry.email,
+    form: entry.data,
+    nowMs: entry.nowMs,
+  }).catch((e: unknown) => {
+    log.error("website_form_failed", { tenant_id: tenantId, step: "ask_check", error: errField(e) });
+    return false;
+  });
+}
+
+export async function receiveWebsiteForm(request: Request): Promise<Response> {
+  const log = logger({ door: "website_form" });
+  const raw = await request.text();
+  if (raw.length > MAX_BODY) return refuse(413, "too_large");
+  const data = formOf(raw, log);
+  if (!data) return refuse(400, "bad_request");
+  // What it names, which the key checks: a page's own form, sent with a key this workspace gave its site.
   const tenantId = heldTenantId(data.workspace);
-  if (!websiteFormKeyMatches(tenantId, data.key)) {
-    log.warn("website_form_refused", { why: "key" });
+  const db = pg();
+  if (!db) return refuse(503, "no_database");
+  const nowMs = Date.now();
+  const key = await checkWebsiteFormKey(db, tenantId, data.key, nowMs).catch((e: unknown) => {
+    log.error("website_form_failed", { tenant_id: tenantId, step: "key", error: errField(e) });
+    return null;
+  });
+  if (!key) return refuse(503, "ingest_failed");
+  if (!key.ok) {
+    log.warn("form_key_refused", { tenant_id: tenantId, why: key.why });
     return refuse(401, "bad_signature");
   }
   const person = websiteFormPerson(data);
@@ -75,101 +97,43 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     log.warn("website_form_refused", { tenant_id: tenantId, why: "no_way_to_reach" });
     return refuse(400, "invalid", "An email address or a phone number is needed.");
   }
-  const db = pg();
-  if (!db) return refuse(503, "no_database");
 
-  let contactId: ContactId;
-  let outcome: string;
+  const owed = entryOwes(data, nowMs);
+  let taken: FormEntryTaken;
   try {
-    const created = await resolvePerson(db, {
+    taken = await takeFormEntry(db, {
       tenantId,
-      phone: person.phone,
-      email: person.email,
-      name: person.name,
-      assurance: "found",
-      source: "website",
-      detail: {
-        form: data.form,
-        about: data.about ?? null,
-        page: data.page ?? null,
-        lang: data.lang ?? null,
-        at: data.at ?? null,
+      keyId: key.keyId,
+      form: data.form,
+      answers: entryAnswersOf(data),
+      person: {
+        ...person,
+        detail: {
+          form: data.form,
+          about: data.about ?? null,
+          page: data.page ?? null,
+          lang: data.lang ?? null,
+          at: data.at ?? null,
+        },
       },
+      ref: data.entry_id ?? null,
+      words: entryWords(data, person),
+      owed,
     });
-    contactId = created.contact_id;
-    outcome = created.outcome;
   } catch (e) {
-    if ((e as { code?: string }).code === PERSON_FORGOTTEN) {
-      log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome: "forgotten" });
-      return json(200, { ok: true, kept: false });
-    }
-    log.error("website_form_failed", { tenant_id: tenantId, step: "person", error: errField(e) });
+    // Nothing was kept, so the site is not told it was: it sends the form again.
+    log.error("website_form_failed", { tenant_id: tenantId, step: "entry", error: errField(e) });
     return refuse(503, "ingest_failed");
   }
-
-  // The form's own words name it: the same form sent again is the same note and the same notice.
-  const name = createHash("sha256")
-    .update(
-      JSON.stringify([
-        tenantId,
-        data.form,
-        person.email,
-        person.phone,
-        data.about ?? "",
-        data.note ?? "",
-        data.at ?? "",
-      ]),
-    )
-    .digest("hex");
-  // The day a late form says it was sent is the workspace's own; the default zone where it cannot be read.
-  const tz = (await findWorkspaceZone(db, tenantId).catch(() => null)) || DEFAULT_TIMEZONE;
-  const nowMs = Date.now();
-  let note = "kept";
-  try {
-    const r = await suggestPersonNote(db, {
-      tenantId,
-      contactId,
-      body: websiteFormNote(data, { nowMs, tz }),
-      source: "website",
-      sourceId: onceKeyId(`website_form_note:${name}`),
-    });
-    if ("refused" in r) note = r.refused;
-  } catch (e) {
-    note = "failed";
-    log.error("website_form_failed", { tenant_id: tenantId, step: "note", error: errField(e) });
-  }
-
-  const ask = await askIfSignup(db, log, {
-    tenantId,
-    contactId,
-    form: data,
-    email: person.email,
-    nowMs,
+  log.info("form_entry_accepted", {
+    tenant_id: tenantId,
+    form: data.form,
+    outcome: taken.outcome,
+    entry_id: taken.entryId,
+    owed: owed.join(","),
   });
-  const notice = websiteFormNotice(data, { contactId, ...person }, { nowMs, tz }, signupAskLine(ask));
-  const onceKey = `website_form:${name}`;
-  let noticed = false;
-  try {
-    const addressing = await loadTenantNotifications(db, tenantId);
-    noticed =
-      websiteFormLate(data, nowMs) || addressing.unread
-        ? await keepOnce(
-            tenantId,
-            {
-              kind: notice.kind,
-              title: notice.subject,
-              body: notice.body,
-              route: notice.route,
-              about: notice.about,
-              onceKey,
-            },
-            { push: false },
-            db,
-          )
-        : await notifyOnce({ tenantId, ...addressing }, { ...notice, onceKey }, { db });
-  } catch (e) {
-    log.error("website_form_failed", { tenant_id: tenantId, step: "notice", error: errField(e) });
-  }
-  log.info("website_form_kept", { tenant_id: tenantId, form: data.form, outcome, note, told: noticed, ask });
-  return json(200, { ok: true, kept: true, ...(ask === "asked" ? { confirm: "sent" } : {}) });
+  if (taken.outcome === "forgotten") return json(200, { ok: true, kept: false });
+  const owesAsk = owed.includes("confirm");
+  const confirm = await confirmWillGo(db, log, { taken, owesAsk, data, email: person.email, nowMs });
+  return json(200, { ok: true, kept: true, ...(confirm ? { confirm: "sent" } : {}) });
 }

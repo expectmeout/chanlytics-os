@@ -52,6 +52,8 @@ type WaConfig = SignupDoor | null | undefined;
 
 // The ad account's card is a chunk of its own, fetched only where Ads is drawn here (campaigns/ads/shown.ts).
 const RealAdAccount = lazy(() => import("./ad-account-real").then((m) => ({ default: m.RealAdAccount })));
+// A website's forms and their keys (00674): a chunk of its own, read as the page is reached.
+const WebsiteForms = lazy(() => import("../website/forms").then((m) => ({ default: m.WebsiteForms })));
 
 /**
  * Where the workspace's own ad account goes among the groups (ad-account-real.tsx): the place the pane keeps for it, in
@@ -596,6 +598,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   return (
     <>
       <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} />
+      <Suspense fallback={null}>
+        <WebsiteForms flash={flash} />
+      </Suspense>
       {drive.sheets}
       {toastNode}
     </>
