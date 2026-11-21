@@ -10,7 +10,7 @@ import { Sheet } from "../../kit/sheet/sheet";
 import { TODAY_LINE_WORDS } from "../model/lines";
 import { typing } from "./held";
 
-const WORDS = TODAY_LINE_WORDS.keys;
+const KEY_WORDS = TODAY_LINE_WORDS.keys;
 
 /** The page's lines a key can move to: each line's own press, open and in reach (none folded or shut away). */
 const LINE_PRESS = '.calm .calm-line:not([data-folded]) > .calm-fold > :is(a, [role="button"])';
@@ -51,7 +51,7 @@ export function TodayKeys() {
     <Sheet
       open={shown}
       onClose={() => setShown(false)}
-      title={WORDS.title}
+      title={KEY_WORDS.title}
       close={{ label: TODAY_LINE_WORDS.held.close, glyph: <Icon name="x" size={13} /> }}
       kicker
       fit
@@ -60,7 +60,7 @@ export function TodayKeys() {
       testid="today-keys-sheet"
     >
       <dl className="calm-keys">
-        {WORDS.list.map(([keys, does]) => (
+        {KEY_WORDS.list.map(([keys, does]) => (
           <div key={keys} className="calm-key">
             <dt>
               {keys.split(" ").map((k) => (

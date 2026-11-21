@@ -8,26 +8,16 @@
  */
 import type { ReactNode } from "react";
 import { useState } from "react";
-import {
-  DEFAULT_TIMEZONE,
-  dayInZone,
-  runTitleOf,
-  todayZoneDay,
-  tzClock,
-  type BroadcastVM,
-  type CalendarLike,
-} from "@chanlytics/contracts";
+import { DEFAULT_TIMEZONE, dayInZone, runTitleOf, tzClock, type BroadcastVM } from "@chanlytics/contracts";
 import { Icon } from "../../kit/icon/icon";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { routeDoor } from "../../frame-verbs";
-import { surfaceValue } from "../../surface-values";
 import { useSurface } from "../../use-surface";
 import { nextRuns } from "../ai/sheet";
 import { openAiSheet } from "../ai/open";
 import { AI_WORDS } from "../model/ai";
 import { TODAY_LINE_WORDS } from "../model/lines";
 import { workspaceClock } from "../shell";
-import { useDayVm } from "../zones/day-vm";
 import { CalmList, CalmOpen, CalmRow } from "./lines";
 
 const EVENING = TODAY_LINE_WORDS.evening;
@@ -44,23 +34,11 @@ export interface TodayMorning {
   setup: boolean;
 }
 
-/**
- * Whether the business has closed for the day by its own hours: the day's line has turned to tomorrow, the hours are
- * Settings' own, and today was not a closed day (that turns at once, whatever the hour, and is no evening).
- */
-export function useTodayEvening(): boolean {
-  const day = useDayVm();
-  const cal = surfaceValue("calendar")?.vm;
-  if (!cal?.hoursSet) return false;
-  const zone = todayZoneDay(cal as CalendarLike, day, [], Date.now());
-  return !!zone?.tomorrow && !zone.closedToday;
-}
-
-const zoneOf = (): string => workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
+const businessZoneOf = (): string => workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
 
 /** The runs set to go before the day is out, as the business's zone counts the day: tomorrow's are not tonight's. */
 function tonightRuns(rows: readonly BroadcastVM[] | undefined, nowMs: number): BroadcastVM[] {
-  const tz = zoneOf();
+  const tz = businessZoneOf();
   const today = dayInZone(tz, nowMs).key;
   return nextRuns(rows, nowMs).filter((r) => dayInZone(tz, Date.parse(r.scheduled_for ?? "")).key === today);
 }
@@ -74,7 +52,7 @@ export function TonightLine() {
   const [first] = runs;
   if (!first) return null;
   const people = runs.reduce((n, r) => n + r.recipient_count, 0);
-  const at = tzClock(first.scheduled_for ?? "", zoneOf(), new Date()) ?? first.when;
+  const at = tzClock(first.scheduled_for ?? "", businessZoneOf(), new Date()) ?? first.when;
   return (
     <CalmList label={AI_WORDS.tonight(people)} testid="today-tonight">
       <CalmRow
@@ -103,14 +81,14 @@ function morningSaid(m: TodayMorning): string[] {
  */
 export function MorningFold({ morning, children }: { morning: TodayMorning; children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const said = morningSaid(morning);
-  if (!said.length) return <>{children}</>;
+  const parts = morningSaid(morning);
+  if (!parts.length) return <>{children}</>;
   return (
     <CalmList label={EVENING.morning} testid="today-morning">
       <CalmRow
         first={{ mark: <Icon name="moon" size={14} /> }}
         name={EVENING.morning}
-        said={open ? undefined : said.join(" · ")}
+        said={open ? undefined : parts.join(" · ")}
         press={() => setOpen(!open)}
         open={open}
         under={

@@ -190,7 +190,7 @@ export function useFoldsIn(keys: readonly string[]): ReadonlySet<string> {
   const [, opened] = useState(0);
   const was = seen.current;
   const arriving = was && !still() ? keys.filter((k) => !was.has(k)) : [];
-  const said = keys.join("|");
+  const keyList = keys.join("|");
   useEffect(() => {
     seen.current = new Set(keys);
     if (!arriving.length || typeof requestAnimationFrame !== "function") return undefined;
@@ -204,6 +204,6 @@ export function useFoldsIn(keys: readonly string[]): ReadonlySet<string> {
       cancelAnimationFrame(second);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the list is the same list while its keys are
-  }, [said]);
+  }, [keyList]);
   return arriving.length ? new Set(arriving) : NONE_ARRIVING;
 }

@@ -33,7 +33,7 @@ function queueSaidOf(row: TodayQueueRowVM): string {
 }
 
 /** The card's words for what its press does. */
-const CARD = TODAY_LINE_WORDS.card;
+const CARD_WORDS = TODAY_LINE_WORDS.card;
 
 /** The dot between two facts of a row's sentence, as the rows' words join them. */
 const FACT_DOT = " · ";
@@ -65,12 +65,12 @@ const lateOf = (row: TodayQueueRowVM): string | null =>
 
 /**
  * Why the card is yours and what its press does (Working for you, W20): why AI did not finish it ("AI held it: booking a
- * time needs you.", contracts held_because; else the row's own few words), then, where AI wrote the reply, that it is
+ * time needs you.", contracts heldBecause; else the row's own few words), then, where AI wrote the reply, that it is
  * there to read, and on a call back, that AI cannot make the call. What happened is the card's title. Null with neither.
  */
 function cardWhyOf(row: TodayQueueRowVM, drafted: boolean): string | null {
-  const press = row.kind === "callback" ? CARD.cantCall : drafted && !row.failed ? CARD.drafted : null;
-  const held = row.failed ? (row.why ?? null) : (row.held_because ?? row.why ?? null);
+  const press = row.kind === "callback" ? CARD_WORDS.cantCall : drafted && !row.failed ? CARD_WORDS.drafted : null;
+  const held = row.failed ? (row.why ?? null) : (row.heldBecause ?? row.why ?? null);
   return [held, press].filter(Boolean).join(" ") || null;
 }
 

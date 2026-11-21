@@ -20,7 +20,8 @@
 import { useFirstWait, useWaitsOnToday } from "../needs-you";
 import { useSurface } from "../use-surface";
 import type { TodayCard } from "./calm/lead";
-import { useTodayEvening, type TodayMorning } from "./calm/evening";
+import type { TodayMorning } from "./calm/evening";
+import { useTodayEvening } from "./zones/head";
 import { useWeekMoment } from "./calm/week";
 import { useNeedYouModel } from "./need-you-model";
 import { canDo } from "./shell";
@@ -120,22 +121,23 @@ function todayCardOf(
   return null;
 }
 
+/**
+ * Who holds the page's coral, in the walk's order: who waits, then (by day) a to-do, the week's card, setting up, and what
+ * AI found where it leads. Once the day is over only who waits holds it.
+ */
+function coralOf(reads: ArrangementReads, lead: boolean): CoralHolder {
+  if (reads.queueCoral) return "queue";
+  if (reads.morning) return null;
+  if (reads.todoCoral) return "todo";
+  if (!reads.waiting && reads.week) return "week";
+  if (!reads.waiting && reads.setupActs) return "setup";
+  return lead && reads.found.acts && reads.mayAct ? "found" : null;
+}
+
 /** The arrangement, from what each part will draw. Pure: the page's tests hold the walk here. */
 export function arrangementOf(reads: ArrangementReads): TodayArrangement {
   const lead = reads.read && reads.known && !reads.needYou;
-  const coral: CoralHolder = reads.queueCoral
-    ? "queue"
-    : reads.morning
-      ? null
-      : reads.todoCoral
-        ? "todo"
-        : !reads.waiting && reads.week
-          ? "week"
-          : !reads.waiting && reads.setupActs
-            ? "setup"
-            : lead && reads.found.acts && reads.mayAct
-              ? "found"
-              : null;
+  const coral = coralOf(reads, lead);
   return {
     waiting: reads.waiting,
     lead,

@@ -52,7 +52,7 @@ export function lookedAtOf(views: Readonly<Record<string, unknown>> | null | und
 
 /** Someone AI is in a conversation with now: who, on what, and their last words. */
 export interface AiTalkingVM {
-  conversation_id: string;
+  conversationId: string;
   who: string;
   /** "WhatsApp · “Anything Saturday morning?”" */
   said: string;
@@ -61,15 +61,15 @@ export interface AiTalkingVM {
 /** One thing AI did today, a line of the AI sheet: booked a visit, held a conversation for you, set one aside. */
 export interface AiDidVM {
   kind: "booked" | "held" | "set_aside";
-  at_ms: number;
+  atMs: number;
   who: string;
   /** What it was, in a few words: "Color", "Asked to book a time", "A sales pitch". */
   what: string;
   /** Why, a tap away (W13): a hold's "AI held it: booking a time needs you."; null where nothing more is known. */
   why: string | null;
-  conversation_id: string | null;
+  conversationId: string | null;
   /** A booking's visit, which its line opens on its day. */
-  visit: { id: string; starts_at: string; timezone: string } | null;
+  visit: { id: string; startsAt: string; timezone: string } | null;
 }
 
 /** AI's work as Today draws it: stopped or on, who now, what it did today newest first, and since this member looked. */
@@ -79,7 +79,7 @@ export interface TodayAiVM {
   talking: AiTalkingVM[];
   did: AiDidVM[];
   /** When this member last looked at Today, as an instant; null for a first look. */
-  looked_ms: number | null;
+  lookedMs: number | null;
   /** Since then: the people AI answered and the visits it booked (W2); null with no earlier look today. */
   since: { answered: number; booked: number } | null;
 }
@@ -130,9 +130,7 @@ function talkingOf(conversations: readonly ConversationDto[], nowMs: number): Ai
     if (w.ai === null || w.they === null) return [];
     if (nowMs - w.ai > AI_WROTE_WITHIN_MS || nowMs - w.they > THEY_WROTE_WITHIN_MS) return [];
     const channel = threadChannelWords(conv.messages);
-    return [
-      { conversation_id: conv.id, who: contactName(conv), said: w.words ? `${channel} · “${w.words}”` : channel },
-    ];
+    return [{ conversationId: conv.id, who: contactName(conv), said: w.words ? `${channel} · “${w.words}”` : channel }];
   });
 }
 
@@ -151,55 +149,55 @@ function didOf(
     const conv = id ? byThread.get(id) : undefined;
     return conv ? contactName(conv) : SOMEONE;
   };
-  const bookings = booked.flatMap((b): AiDidVM[] => {
-    const at = msOf(b.created_at);
+  const bookings = booked.flatMap((booking): AiDidVM[] => {
+    const at = msOf(booking.created_at);
     return at === null
       ? []
       : [
           {
             kind: "booked",
-            at_ms: at,
-            who: nameOf(b.conversation_id, b.who),
-            what: b.service ?? "A visit",
+            atMs: at,
+            who: nameOf(booking.conversation_id, booking.who),
+            what: booking.service ?? "A booking",
             why: null,
-            conversation_id: b.conversation_id,
-            visit: { id: b.id, starts_at: b.starts_at, timezone: b.timezone },
+            conversationId: booking.conversation_id,
+            visit: { id: booking.id, startsAt: booking.starts_at, timezone: booking.timezone },
           },
         ];
   });
-  const holds = read.escalations.flatMap((e): AiDidVM[] => {
-    const at = msOf(e.created_at);
+  const holds = read.escalations.flatMap((hold): AiDidVM[] => {
+    const at = msOf(hold.created_at);
     return at === null || at < dayStartMs
       ? []
       : [
           {
             kind: "held",
-            at_ms: at,
-            who: nameOf(e.conversation_id, null),
-            what: reasonLabelOf(e.reason),
-            why: reasonHeld(e.reason),
-            conversation_id: e.conversation_id,
+            atMs: at,
+            who: nameOf(hold.conversation_id, null),
+            what: reasonLabelOf(hold.reason),
+            why: reasonHeld(hold.reason),
+            conversationId: hold.conversation_id,
             visit: null,
           },
         ];
   });
-  const asides = read.conversations.flatMap((c): AiDidVM[] => {
-    const at = msOf(c.set_aside_at);
+  const asides = read.conversations.flatMap((conv): AiDidVM[] => {
+    const at = msOf(conv.set_aside_at);
     return at === null || at < dayStartMs
       ? []
       : [
           {
             kind: "set_aside",
-            at_ms: at,
-            who: contactName(c),
-            what: entryOf(SET_ASIDE_WHAT, c.set_aside_why ?? "") ?? SET_ASIDE_ELSE,
+            atMs: at,
+            who: contactName(conv),
+            what: entryOf(SET_ASIDE_WHAT, conv.set_aside_why ?? "") ?? SET_ASIDE_ELSE,
             why: null,
-            conversation_id: c.id,
+            conversationId: conv.id,
             visit: null,
           },
         ];
   });
-  return [...bookings, ...holds, ...asides].sort((a, b) => b.at_ms - a.at_ms).slice(0, AI_DID_MAX);
+  return [...bookings, ...holds, ...asides].sort((a, b) => b.atMs - a.atMs).slice(0, AI_DID_MAX);
 }
 
 /** How many people AI answered since a moment: the threads it wrote on since then. */
@@ -227,7 +225,7 @@ export function todayAiOf(
     stopped: read.ai?.stopped ?? null,
     talking: talkingOf(read.conversations, at.nowMs),
     did: didOf(read, booked, at.dayStartMs),
-    looked_ms: looked,
+    lookedMs: looked,
     // Said only of a look today: what AI booked is read from the business's midnight, so an older look is the day's to say.
     since:
       looked === null || looked < at.dayStartMs

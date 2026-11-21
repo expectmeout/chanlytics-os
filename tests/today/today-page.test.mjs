@@ -1101,7 +1101,6 @@ test("AI found ranks what the workspace's own counts say first: the first its ca
   assert.equal(textOf(find(card, (n) => classes(n).includes("calm-title"))), ranked[0].head, "its head");
   assert.equal(textOf(find(card, (n) => classes(n).includes("calm-why"))), ranked[0].sub, "its numbers under it");
   assert.equal(textOf(byTestId(card, "today-found-act")).trim(), ranked[0].cta.label, "its one door");
-  // Not today is a menu of times (W22): its trigger carries the id.
   assert.ok(all(card, (n) => n.props?.trigger?.props?.["data-testid"] === "today-found-rest").length, "Not today");
   // Ask why beside it: the row's own words and its arithmetic go to Ask (the AskFound board: "Ask why stays").
   press(byTestId(card, "today-found-ask"));

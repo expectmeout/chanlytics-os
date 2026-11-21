@@ -12,7 +12,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 
 /** A conversation a teammate has: who, and what they last said. */
 export interface TodayTheirsVM {
-  conversation_id: string;
+  conversationId: string;
   who: string;
   initials: string;
   /** Their last words, in quotes; null where none were read. */
@@ -48,7 +48,7 @@ export function todayTheirsOf(
       const conv = byThread.get(e.conversation_id);
       if (!conv || seen.has(conv.id) || standingOfThread(conv, e, nowMs).standing !== "theirs") return [];
       seen.add(conv.id);
-      const who = contactName(conv);
-      return [{ conversation_id: conv.id, who, initials: initialsOf(who), said: lastSaid(conv) }];
+      const name = contactName(conv);
+      return [{ conversationId: conv.id, who: name, initials: initialsOf(name), said: lastSaid(conv) }];
     });
 }

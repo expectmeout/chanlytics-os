@@ -250,7 +250,7 @@ export interface TodayQueueRowVM {
    * On a hold's row: why AI did not finish it, as the card says it first (Working for you, W20): "AI held it: booking a
    * time needs you." Absent on every other row, and on a reply that never reached them, whose own words say why.
    */
-  held_because?: string;
+  heldBecause?: string;
   /**
    * On the row of a reply that never reached them (a hold for a failed send, Today in three zones, 2 Nov 2026): the words
    * that failed, which Try again sends again as written, and why the wire refused them in a sentence (message-words.ts

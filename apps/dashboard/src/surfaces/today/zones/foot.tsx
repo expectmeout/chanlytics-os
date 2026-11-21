@@ -20,8 +20,7 @@ import { CalmList, CalmRow } from "../calm/lines";
 import { useTodayQuiet } from "../calm/quiet";
 import { useSinceSaid } from "../ai/since";
 import { borrowed, useMoved, workspaceClock } from "../shell";
-import { useDayTurned } from "./head";
-import { useTodayEvening } from "../calm/evening";
+import { useDayTurned, useTodayEvening } from "./head";
 
 /** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the pins draw. */
 const listsCode = codeOnce(() => import("../../people/people-lists"));
@@ -72,10 +71,11 @@ export function DayCameTo() {
   const turned = useDayTurned();
   // Where the head says what AI did since this member last looked (W2), the day's line steps aside: said once.
   const since = useSinceSaid(turned);
-  const said = vm && !since ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
+  const cameTo = vm && !since ? dayCameToWords(vm.figures, turned ? SAID_BY_THE_HEAD : []) : null;
   // Once the day is done, against a usual one of its weekday where four weeks back it (W8).
   const usual = useUsualDay(turned);
-  const words = said && usual ? { title: said.title, sub: [said.sub, usual].filter(Boolean).join(" · ") } : said;
+  const words =
+    cameTo && usual ? { title: cameTo.title, sub: [cameTo.sub, usual].filter(Boolean).join(" · ") } : cameTo;
   // AI is handed the line's question where AI answered anything (D10).
   const answered = vm?.figures.find((f) => f.id === "answered")?.value ?? null;
   useTodayAsks("did", [words && answered ? todayAskOf(TODAY_LINE_WORDS.asks.did) : null]);

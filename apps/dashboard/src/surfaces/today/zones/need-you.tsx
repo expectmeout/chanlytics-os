@@ -34,7 +34,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { routeDoor } from "../../frame-verbs";
-import { holdOf, useHandsBusy } from "../calm/held";
+import { holdLineOf, useHandsBusy } from "../calm/held";
 import { heldActsOf } from "../need-you/held-acts";
 import { goFromToday } from "../over/open";
 import { TODAY_LINE_WORDS, TODAY_NAMED_MAX, type TodayAlsoCounts } from "../model/lines";
@@ -247,7 +247,7 @@ const entriesOf = (order: readonly TodayQueueRowVM[], waits: Waits, todo: ToDo, 
     .map((r) => ({
       key: r.id,
       as: "waiting" as const,
-      line: { ...queueLine(r, ctx), hold: holdOf(heldActsOf(r, ctx)) },
+      line: { ...queueLine(r, ctx), hold: holdLineOf(heldActsOf(r, ctx)) },
     })),
   ...waits.parts.map((x) => ({ key: x.key, as: "waiting" as const, line: waitLine(x) })),
   ...todo.rows
@@ -255,7 +255,7 @@ const entriesOf = (order: readonly TodayQueueRowVM[], waits: Waits, todo: ToDo, 
     .map((r) => ({
       key: r.id,
       as: r.kind === "visit" ? ("toMark" as const) : ("toDo" as const),
-      line: { ...queueLine(r, todo.ctx), hold: holdOf(heldActsOf(r, todo.ctx)) },
+      line: { ...queueLine(r, todo.ctx), hold: holdLineOf(heldActsOf(r, todo.ctx)) },
     })),
 ];
 
@@ -273,11 +273,12 @@ function useHeldArrivals(entries: Entry[], flash: NeedYouRowsCtx["flash"]): Entr
   const keys = there.current;
   const shown = keys ? entries.filter((x) => keys.has(x.key)) : entries;
   const arrived = entries.length - shown.length;
-  const said = useRef({ arrived: 0, flash });
-  said.current.flash = flash;
+  const arrivedSeen = useRef({ arrived: 0, flash });
+  arrivedSeen.current.flash = flash;
   useEffect(() => {
-    if (arrived > said.current.arrived) said.current.flash({ msg: <>{TODAY_LINE_WORDS.held.arrived(arrived)}</> });
-    said.current.arrived = arrived;
+    if (arrived > arrivedSeen.current.arrived)
+      arrivedSeen.current.flash({ msg: <>{TODAY_LINE_WORDS.held.arrived(arrived)}</> });
+    arrivedSeen.current.arrived = arrived;
   }, [arrived]);
   return shown;
 }
@@ -291,14 +292,14 @@ function theirsLines(theirs: readonly TodayTheirsVM[]) {
   return (
     <div className="calm-theirs">
       <CalmList label={HELD_WORDS.theirs.pill} testid="today-theirs">
-        {theirs.slice(0, TODAY_NAMED_MAX).map((t) => (
+        {theirs.slice(0, TODAY_NAMED_MAX).map((their) => (
           <CalmRow
-            key={t.conversation_id}
-            first={{ face: { person: { name: t.who, initials: t.initials } } }}
-            name={t.who}
+            key={their.conversationId}
+            first={{ face: { person: { name: their.who, initials: their.initials } } }}
+            name={their.who}
             // Whose it is first, then what they said: one line under the name.
-            facts={t.said ? [HELD_WORDS.theirs.pill, t.said] : [HELD_WORDS.theirs.pill]}
-            door={routeDoor(addressOf({ kind: "conversation", id: t.conversation_id }), goFromToday)}
+            facts={their.said ? [HELD_WORDS.theirs.pill, their.said] : [HELD_WORDS.theirs.pill]}
+            door={routeDoor(addressOf({ kind: "conversation", id: their.conversationId }), goFromToday)}
             testid="today-theirs-line"
           />
         ))}
@@ -354,18 +355,18 @@ function alsoLeftOf(parts: { entries: Entry[]; next: string | null; model: NeedY
  * The card, where this part holds it: a row finished a moment ago, the row it holds, or the run; where nothing holds it,
  * the room it stood in folds shut.
  */
-function cardIn(p: {
+function cardIn(at: {
   heldLead: CardRow | null;
   lead: CardRow | null;
   waitLead: WaitPart | null;
   card: TodayCard;
   cleared: boolean;
 }) {
-  if (p.heldLead) return <QueueLead row={p.heldLead.row} ctx={p.heldLead.ctx} holder={p.heldLead.holder} done />;
-  if (p.lead) return <QueueLead row={p.lead.row} ctx={p.lead.ctx} holder={p.lead.holder} />;
-  if (p.waitLead) return <WaitLead part={p.waitLead} />;
+  if (at.heldLead) return <QueueLead row={at.heldLead.row} ctx={at.heldLead.ctx} holder={at.heldLead.holder} done />;
+  if (at.lead) return <QueueLead row={at.lead.row} ctx={at.lead.ctx} holder={at.lead.holder} />;
+  if (at.waitLead) return <WaitLead part={at.waitLead} />;
   // The last thing waiting done, and nothing else to do: the one celebration, once (W6).
-  return p.card === null ? <LeadGone cleared={p.cleared} /> : null;
+  return at.card === null ? <LeadGone cleared={at.cleared} /> : null;
 }
 
 const NeedYouList = ({

@@ -314,19 +314,23 @@ function markedOf(b: DayBlockLike): TodayDayItemVM["said"] {
  * or before (calendar-person-facts.ts last_visit_at). Nothing where nobody is matched, it is not known whether they were in
  * before, or the board's zone is unknown.
  */
-function visitFactOf(b: DayBlockLike, tz: string | undefined, dayKey: string): string | null {
-  const last = b.person?.facts?.last_visit_at;
-  if (last === undefined || !tz) return null;
+function visitFactOf(
+  block: DayBlockLike,
+  on: { tz: string | undefined; dayKey: string; word: AppointmentWord },
+): string | null {
+  const last = block.person?.facts?.last_visit_at;
+  if (last === undefined || !on.tz) return null;
   if (last === null) return "First time here";
-  const at = Date.parse(last);
-  if (!Number.isFinite(at)) return null;
-  // A client, not a queue (Working for you, W14): back after a long while (from their last visit to this one's day), or
-  // which visit of theirs this is, where the record counted it.
-  const months = Math.floor((Date.parse(`${dayKey}T12:00:00Z`) - at) / MONTH_MS);
-  if (months >= AWHILE_MONTHS) return `First visit in ${months} months`;
-  const number = b.person?.facts?.visit_number;
-  if (number && number >= ORDINAL_FROM) return `${ordinal(number)} visit`;
-  return `Last here ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}`;
+  const lastMs = Date.parse(last);
+  if (!Number.isFinite(lastMs)) return null;
+  // A client, not a queue (Working for you, W14): back after a long while (from their last time to this one's day), or
+  // which of theirs this is, where the record counted it; in the workspace's own word for it.
+  const one = appointmentWords(on.word).one;
+  const months = Math.floor((Date.parse(`${on.dayKey}T12:00:00Z`) - lastMs) / MONTH_MS);
+  if (months >= AWHILE_MONTHS) return `First ${one} in ${months} months`;
+  const number = block.person?.facts?.visit_number;
+  if (number && number >= ORDINAL_FROM) return `${ordinal(number)} ${one}`;
+  return `Last here ${new Intl.DateTimeFormat("en-US", { timeZone: on.tz, month: "short", day: "numeric" }).format(lastMs)}`;
 }
 
 /** A month, as a gap between visits is said in. */
@@ -403,7 +407,7 @@ export function todayDay(
     said: markedOf(dayBlock),
     to: visitDoor(dayKey, dayBlock.visit?.id),
     at: allDay ? null : { from: dayBlock.t, to: dayBlock.t + dayBlock.dur / 60 },
-    fact: visitFactOf(dayBlock, cal.timezone, dayKey),
+    fact: visitFactOf(dayBlock, { tz: cal.timezone, dayKey, word }),
   });
   const frames: TodayDayFrameVM[] = picked.map((otherItem) => {
     // A cancelled visit is none: not listed, not counted, never the next.

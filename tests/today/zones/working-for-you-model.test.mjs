@@ -36,7 +36,7 @@ const day = (convs, escs, aiRead) => toTodayVM(metrics(), convs, escs, [], NOW, 
 test("AI is talking to whoever it wrote to in the last minutes and who wrote back, never to an old thread", () => {
   const vm = day([leo(), mia()], [], { booked: [], stopped: false, looked_at: null });
   assert.deepEqual(
-    vm.ai.talking.map((t) => [t.conversation_id, t.who]),
+    vm.ai.talking.map((t) => [t.conversationId, t.who]),
     [["cv-l", "Leo Morales"]],
   );
   assert.match(vm.ai.talking[0].said, /“Anything Saturday morning\?”/, "their last words, in quotes");
@@ -105,7 +105,7 @@ test("a conversation a teammate has is theirs (W19): said apart, in no count; on
   const theirs = { ...waiting(), assignee_user_id: "u-maya", assignee_is_me: false };
   const vm = day([theirs], [escalation()], null);
   assert.deepEqual(
-    vm.theirs.map((t) => [t.conversation_id, t.who, t.said]),
+    vm.theirs.map((t) => [t.conversationId, t.who, t.said]),
     [["cv-a", "Ana Reyes", "“I'd rather talk to a person about a refund.”"]],
   );
   assert.equal(vm.queue.rows.length, 0, "not one of who needs you");
@@ -115,9 +115,9 @@ test("a conversation a teammate has is theirs (W19): said apart, in no count; on
 
 test("the card says why AI did not finish it (W20): what it could not do, in a sentence; a reply that never reached them says its own", () => {
   const row = day([waiting()], [escalation()], null).queue.rows[0];
-  assert.equal(row.held_because, "AI held it: they asked for a person.");
+  assert.equal(row.heldBecause, "AI held it: they asked for a person.");
   const failed = { ...escalation(), reason: "send_failed" };
-  assert.equal(day([waiting()], [failed], null).queue.rows[0].held_because, undefined);
+  assert.equal(day([waiting()], [failed], null).queue.rows[0].heldBecause, undefined);
 });
 
 test("four kinds of quiet (W18): sure only with every read current, else checking, behind since a time, or unread", () => {

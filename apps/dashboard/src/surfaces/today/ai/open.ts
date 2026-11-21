@@ -5,23 +5,23 @@
 import { useSyncExternalStore } from "react";
 
 let open = false;
-const hearers = new Set<() => void>();
+const sheetHearers = new Set<() => void>();
 
-function told(next: boolean): void {
+function tellSheet(next: boolean): void {
   if (open === next) return;
   open = next;
-  for (const fn of [...hearers]) fn();
+  for (const fn of [...sheetHearers]) fn();
 }
 
 /** Open AI's sheet over Today. */
-export const openAiSheet = (): void => told(true);
+export const openAiSheet = (): void => tellSheet(true);
 
 /** Shut it. */
-export const closeAiSheet = (): void => told(false);
+export const closeAiSheet = (): void => tellSheet(false);
 
-function hear(fn: () => void): () => void {
-  hearers.add(fn);
-  return () => void hearers.delete(fn);
+function hearSheet(fn: () => void): () => void {
+  sheetHearers.add(fn);
+  return () => void sheetHearers.delete(fn);
 }
 
 const isOpen = (): boolean => open;
@@ -29,5 +29,5 @@ const shutOnTheServer = (): boolean => false;
 
 /** Whether AI's sheet is open, drawn again as it opens and shuts. */
 export function useAiSheetOpen(): boolean {
-  return useSyncExternalStore(hear, isOpen, shutOnTheServer);
+  return useSyncExternalStore(hearSheet, isOpen, shutOnTheServer);
 }

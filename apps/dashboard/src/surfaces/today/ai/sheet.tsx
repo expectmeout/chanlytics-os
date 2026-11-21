@@ -38,7 +38,7 @@ import { goFromToday } from "../over/open";
 import { useToast, workspaceClock } from "../shell";
 import { closeAiSheet, useAiSheetOpen } from "./open";
 
-const WORDS = AI_WORDS.sheet;
+const SHEET_WORDS = AI_WORDS.sheet;
 
 /** What goes out next: runs set to go on their own within a day. */
 const NEXT_WITHIN_MS = DAY_MS;
@@ -46,13 +46,13 @@ const NEXT_WITHIN_MS = DAY_MS;
 /** The most rows of how AI works the sheet names: Replies, and the kinds that ask you first. */
 const RULES_SHOWN = 3;
 
-const zone = (): string => workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
-const clockOf = (ms: number): string => tzClock(new Date(ms).toISOString(), zone(), new Date()) ?? "";
+const sheetZone = (): string => workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
+const runClockOf = (ms: number): string => tzClock(new Date(ms).toISOString(), sheetZone(), new Date()) ?? "";
 
 /** Where a thing AI did opens: its visit on its day, else its conversation, over Today where it can be. */
-function doorOf(did: AiDidVM): string | null {
-  if (did.visit) return visitRoute(did.visit.id, zoneDayKey(Date.parse(did.visit.starts_at), did.visit.timezone));
-  return did.conversation_id ? addressOf({ kind: "conversation", id: did.conversation_id }) : null;
+function didDoorOf(did: AiDidVM): string | null {
+  if (did.visit) return visitRoute(did.visit.id, zoneDayKey(Date.parse(did.visit.startsAt), did.visit.timezone));
+  return did.conversationId ? addressOf({ kind: "conversation", id: did.conversationId }) : null;
 }
 
 /** One part of the sheet: its name drawn small over it, as the canvas drew each. */
@@ -75,23 +75,23 @@ const nothing = (words: string, testid: string) => (
 /** Right now: who AI is talking to, a line each, its conversation over Today. */
 function RightNow({ ai }: { ai: TodayAiVM }) {
   return (
-    <Part head={WORDS.now} testid="today-ai-now">
+    <Part head={SHEET_WORDS.now} testid="today-ai-now">
       {ai.talking.length ? (
-        <CalmList label={WORDS.now} testid="today-ai-talking-list">
-          {ai.talking.map((t) => (
+        <CalmList label={SHEET_WORDS.now} testid="today-ai-talking-list">
+          {ai.talking.map((talk) => (
             <CalmRow
-              key={t.conversation_id}
-              first={{ face: { person: { name: t.who, initials: initialsOf(t.who) } } }}
-              name={t.who}
-              said={t.said}
-              wait={{ words: WORDS.nowWord, long: false }}
-              door={routeDoor(addressOf({ kind: "conversation", id: t.conversation_id }), goFromToday)}
+              key={talk.conversationId}
+              first={{ face: { person: { name: talk.who, initials: initialsOf(talk.who) } } }}
+              name={talk.who}
+              said={talk.said}
+              wait={{ words: SHEET_WORDS.nowWord, long: false }}
+              door={routeDoor(addressOf({ kind: "conversation", id: talk.conversationId }), goFromToday)}
               testid="today-ai-talking"
             />
           ))}
         </CalmList>
       ) : (
-        nothing(WORDS.nowNone, "today-ai-now-none")
+        nothing(SHEET_WORDS.nowNone, "today-ai-now-none")
       )}
     </Part>
   );
@@ -100,15 +100,15 @@ function RightNow({ ai }: { ai: TodayAiVM }) {
 /** One thing AI did: what and who, when; pressed, its why opens under it with its door (W13). */
 function DidLine({ did }: { did: AiDidVM }) {
   const [open, setOpen] = useState(false);
-  const to = doorOf(did);
-  const name = `${WORDS.did[did.kind]} ${did.who}`;
+  const to = didDoorOf(did);
+  const name = `${SHEET_WORDS.did[did.kind]} ${did.who}`;
   // A booking has no why to read: its line is its door. A hold or a set-aside opens to say why first.
   if (!did.why) {
     return (
       <CalmRow
         name={name}
         said={did.what}
-        wait={{ words: clockOf(did.at_ms), long: false }}
+        wait={{ words: runClockOf(did.atMs), long: false }}
         door={to ? routeDoor(to, goFromToday) : null}
         testid="today-ai-did"
       />
@@ -118,7 +118,7 @@ function DidLine({ did }: { did: AiDidVM }) {
     <CalmRow
       name={name}
       said={did.what}
-      wait={{ words: clockOf(did.at_ms), long: false }}
+      wait={{ words: runClockOf(did.atMs), long: false }}
       press={() => setOpen(!open)}
       open={open}
       under={
@@ -127,7 +127,7 @@ function DidLine({ did }: { did: AiDidVM }) {
             <p>{did.why}</p>
             {to ? (
               <a className="calm-ai-door" {...routeDoor(to, goFromToday)}>
-                {WORDS.open}
+                {SHEET_WORDS.open}
                 <Icon name="chevron" size={12} />
               </a>
             ) : null}
@@ -141,19 +141,19 @@ function DidLine({ did }: { did: AiDidVM }) {
 
 /** What AI did since you last looked, or today. */
 function Did({ ai }: { ai: TodayAiVM }) {
-  const since = ai.since && ai.looked_ms !== null ? ai.looked_ms : null;
-  const shown = since === null ? ai.did : ai.did.filter((d) => d.at_ms >= since);
-  const head = since === null ? WORDS.todayHead : WORDS.sinceHead(clockOf(since));
+  const since = ai.since && ai.lookedMs !== null ? ai.lookedMs : null;
+  const shown = since === null ? ai.did : ai.did.filter((d) => d.atMs >= since);
+  const head = since === null ? SHEET_WORDS.todayHead : SHEET_WORDS.sinceHead(runClockOf(since));
   return (
     <Part head={head} testid="today-ai-since">
       {shown.length ? (
         <CalmList label={head} testid="today-ai-did-list">
           {shown.map((d) => (
-            <DidLine key={`${d.kind}:${d.at_ms}:${d.who}`} did={d} />
+            <DidLine key={`${d.kind}:${d.atMs}:${d.who}`} did={d} />
           ))}
         </CalmList>
       ) : (
-        nothing(WORDS.didNone, "today-ai-did-none")
+        nothing(SHEET_WORDS.didNone, "today-ai-did-none")
       )}
     </Part>
   );
@@ -178,16 +178,16 @@ function Next({ flash }: { flash: (msg: string, warn: boolean) => void }) {
     setBusy(run.id);
     const r = await broadcasts.cancel(run.id);
     setBusy(null);
-    flash(r.ok ? WORDS.cancelled : r.message, !r.ok);
+    flash(r.ok ? SHEET_WORDS.cancelled : r.message, !r.ok);
   };
   return (
-    <Part head={WORDS.next} testid="today-ai-next">
-      <CalmList label={WORDS.next} testid="today-ai-next-list">
+    <Part head={SHEET_WORDS.next} testid="today-ai-next">
+      <CalmList label={SHEET_WORDS.next} testid="today-ai-next-list">
         {runs.map((run) => (
           <CalmRow
             key={run.id}
             name={runTitleOf(run)}
-            said={WORDS.sends(run.recipient_count)}
+            said={SHEET_WORDS.sends(run.recipient_count)}
             wait={{ words: run.when, long: false }}
             under={
               <div className="calm-sub-act">
@@ -198,7 +198,7 @@ function Next({ flash }: { flash: (msg: string, warn: boolean) => void }) {
                   aria-disabled={busy === run.id || undefined}
                   data-testid="today-ai-next-stop"
                 >
-                  {WORDS.cancel}
+                  {SHEET_WORDS.cancel}
                 </Button>
               </div>
             }
@@ -233,7 +233,7 @@ function HowItWorks() {
   }, []);
   if (!rows?.length) return null;
   return (
-    <Part head={WORDS.how} testid="today-ai-how">
+    <Part head={SHEET_WORDS.how} testid="today-ai-how">
       <div className="calm-ai-rules" role="list">
         {rows.map((r) => (
           <div key={r.id} className="calm-ai-rule" role="listitem" data-testid="today-ai-rule">
@@ -243,7 +243,7 @@ function HowItWorks() {
         ))}
       </div>
       <a className="calm-ai-door" {...routeDoor(addressOf({ kind: "rules" }))} data-testid="today-ai-autonomy">
-        {WORDS.door}
+        {SHEET_WORDS.door}
         <Icon name="chevron" size={12} />
       </a>
     </Part>
@@ -259,8 +259,8 @@ function StopEverything({ stopped, flash }: { stopped: boolean; flash: (msg: str
     const r = await autonomyVerbs.stopAll(!stopped);
     setBusy(false);
     if (!r.ok) return flash(r.message, true);
-    const said = stopSaid(press, r.answer);
-    flash(said.words, said.warn);
+    const stopWords = stopSaid(press, r.answer);
+    flash(stopWords.words, stopWords.warn);
     void refreshSurface("today");
   };
   return (
@@ -272,9 +272,9 @@ function StopEverything({ stopped, flash }: { stopped: boolean; flash: (msg: str
         aria-disabled={busy || undefined}
         data-testid="today-ai-stop"
       >
-        {stopped ? WORDS.resume : WORDS.stop}
+        {stopped ? SHEET_WORDS.resume : SHEET_WORDS.stop}
       </Button>
-      {stopped ? null : <p className="calm-ai-stop-note">{WORDS.stopNote}</p>}
+      {stopped ? null : <p className="calm-ai-stop-note">{SHEET_WORDS.stopNote}</p>}
     </div>
   );
 }
@@ -283,8 +283,8 @@ function StopEverything({ stopped, flash }: { stopped: boolean; flash: (msg: str
 function AiWork({ ai, flash }: { ai: TodayAiVM; flash: (msg: string, warn: boolean) => void }) {
   return (
     <>
-      <h2 className="calm-ai-title">{ai.stopped ? WORDS.stopped : WORDS.on}</h2>
-      <p className="calm-ai-sub">{ai.stopped ? WORDS.stoppedSub : WORDS.onSub}</p>
+      <h2 className="calm-ai-title">{ai.stopped ? SHEET_WORDS.stopped : SHEET_WORDS.on}</h2>
+      <p className="calm-ai-sub">{ai.stopped ? SHEET_WORDS.stoppedSub : SHEET_WORDS.onSub}</p>
       <RightNow ai={ai} />
       <Did ai={ai} />
       <Next flash={flash} />
@@ -312,7 +312,7 @@ export function AiSheet() {
       <Sheet
         open={open && !!ai}
         onClose={closeAiSheet}
-        title={WORDS.kicker}
+        title={SHEET_WORDS.kicker}
         close={{ label: LIFECYCLE_WORDS.close, glyph: <Icon name="x" size={13} /> }}
         kicker
         fit

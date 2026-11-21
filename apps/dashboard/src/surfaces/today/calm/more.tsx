@@ -25,7 +25,7 @@ import { useRests } from "../need-you/rests";
 import { useToast } from "../shell";
 import { CalmList, CalmOpen, CalmRow } from "./lines";
 
-const WORDS = AI_WORDS.more;
+const MORE_WORDS = AI_WORDS.more;
 
 /** How many drafts of a kind, every one sent as written, make it worth asking whether AI may send them. */
 const MIN_HELD = 5;
@@ -88,15 +88,15 @@ export function LetAiDoMore() {
   const set = async (mode: PolicyMode) => autonomyVerbs.setPolicy(offer.cls, mode, {});
   const letIt = async () => {
     setBusy(true);
-    const r = await set(offer.to);
+    const answer = await set(offer.to);
     setBusy(false);
-    if (!r.ok) {
-      flash({ tone: "danger", msg: <>{r.message}</> });
+    if (!answer.ok) {
+      flash({ tone: "danger", msg: <>{answer.message}</> });
       return;
     }
     setDone(true);
     flash({
-      msg: <>{WORDS.said(offer.label, POLICY_MODE_WORDS[offer.to].does)}</>,
+      msg: <>{MORE_WORDS.said(offer.label, POLICY_MODE_WORDS[offer.to].does)}</>,
       undo: async () => {
         const back = await set(offer.from);
         if (!back.ok) {
@@ -109,11 +109,11 @@ export function LetAiDoMore() {
   };
   return (
     <>
-      <CalmList label={WORDS.name(offer.label)} testid="today-more">
+      <CalmList label={MORE_WORDS.name(offer.label)} testid="today-more">
         <CalmRow
           first={{ mark: <Icon name="three" size={14} /> }}
-          name={WORDS.name(offer.label)}
-          said={WORDS.sub(offer.sent, HELD_DRAFTS_DAYS)}
+          name={MORE_WORDS.name(offer.label)}
+          said={MORE_WORDS.sub(offer.sent, HELD_DRAFTS_DAYS)}
           press={() => setOpen(!open)}
           open={open}
           under={
@@ -126,7 +126,7 @@ export function LetAiDoMore() {
                   aria-disabled={busy || undefined}
                   data-testid="today-more-let"
                 >
-                  {WORDS.letIt}
+                  {MORE_WORDS.letIt}
                 </Button>
                 <Button
                   size="sm"
@@ -134,7 +134,7 @@ export function LetAiDoMore() {
                   onClick={() => void rest({ key: `more:${offer.cls}`, flash })}
                   data-testid="today-more-not-now"
                 >
-                  {WORDS.notNow}
+                  {MORE_WORDS.notNow}
                 </Button>
               </div>
             </CalmOpen>

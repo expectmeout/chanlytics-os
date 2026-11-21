@@ -12,10 +12,10 @@ import { workspaceClock } from "../shell";
 
 /** The sentence, or null where it is not said. */
 export function sinceSaidOf(ai: TodayAiVM | null | undefined, quiet: TodayQuiet, turned: boolean): string | null {
-  if (!ai?.since || ai.looked_ms === null || turned) return null;
+  if (!ai?.since || ai.lookedMs === null || turned) return null;
   if (quiet.kind !== "sure" && quiet.kind !== "settling") return null;
   const zone = workspaceClock()?.zone() ?? DEFAULT_TIMEZONE;
-  const time = tzClock(new Date(ai.looked_ms).toISOString(), zone, new Date());
+  const time = tzClock(new Date(ai.lookedMs).toISOString(), zone, new Date());
   return time ? AI_WORDS.since(time, ai.since.answered, ai.since.booked) : null;
 }
 

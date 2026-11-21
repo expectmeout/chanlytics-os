@@ -56,7 +56,7 @@ export type QuietOf = keyof typeof READS_OF;
 const WORST_FIRST: readonly ReadStanding[] = ["failed", "checking", "behind", "kept", "live"];
 
 /** How a surface's read stands now (bridge/surface-status.ts). */
-function standingOf(key: SurfaceKey): ReadStanding {
+function readStandingOf(key: SurfaceKey): ReadStanding {
   if (surfaceValue(key) === undefined) return isSurfaceFailed(key) ? "failed" : "checking";
   if (isSurfaceDegraded(key)) return "behind";
   return getConnection().offline ? "behind" : getSurfaceStatuses().has(key) ? "live" : "kept";
@@ -76,19 +76,19 @@ export function quietOf(reads: readonly ReadStanding[], at: { lineDown: boolean;
 }
 
 /** Each part's quiet last answered, by what it says, so a hook over it draws again only when that changes. */
-const shown = new Map<QuietOf, { said: string; quiet: TodayQuiet }>();
+const quietShown = new Map<QuietOf, { key: string; quiet: TodayQuiet }>();
 
 function quietNow(part: QuietOf): TodayQuiet {
   const reads = READS_OF[part];
   const read = reads.map(readAtOf).filter((at): at is number => at !== null);
-  const quiet = quietOf(reads.map(standingOf), {
+  const quiet = quietOf(reads.map(readStandingOf), {
     lineDown: surfaceValue("today")?.standing.lines.down ?? false,
     readAt: read.length ? Math.min(...read) : null,
   });
-  const said = `${quiet.kind}|${quiet.kind === "behind" ? quiet.at : ""}|${quiet.kind === "unread" ? quiet.line : ""}`;
-  const was = shown.get(part);
-  if (was?.said === said) return was.quiet;
-  shown.set(part, { said, quiet });
+  const quietKey = `${quiet.kind}|${quiet.kind === "behind" ? quiet.at : ""}|${quiet.kind === "unread" ? quiet.line : ""}`;
+  const was = quietShown.get(part);
+  if (was?.key === quietKey) return was.quiet;
+  quietShown.set(part, { key: quietKey, quiet });
   return quiet;
 }
 
@@ -124,7 +124,7 @@ export function useCatchUp(quiet: TodayQuiet): void {
     ceilingMs: MIN_MS,
     maxMs: Number.POSITIVE_INFINITY,
     read: () => {
-      for (const key of READS_OF.end) if (standingOf(key) !== "live") void refreshSurface(key);
+      for (const key of READS_OF.end) if (readStandingOf(key) !== "live") void refreshSurface(key);
     },
     until: () => !asksAgain(endNow()),
   });

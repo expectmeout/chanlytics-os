@@ -33,32 +33,32 @@ export interface HeldActs {
   about: AskScope | null;
 }
 
-const WORDS = TODAY_LINE_WORDS.held;
+const HOLD_WORDS = TODAY_LINE_WORDS.held;
 
 /** How long a finger stays still on a line before it is held, and how far it may wander and still be holding. */
-const HOLD_MS = 480;
+const HOLD_STILL_MS = 480;
 const STILL_PX = 8;
 
-let held: HeldActs | null = null;
-const hearers = new Set<() => void>();
+let heldLine: HeldActs | null = null;
+const heldHearers = new Set<() => void>();
 
-function told(next: HeldActs | null): void {
-  held = next;
-  for (const fn of [...hearers]) fn();
+function tellHeld(next: HeldActs | null): void {
+  heldLine = next;
+  for (const fn of [...heldHearers]) fn();
 }
 
 /** Let the held line go: its sheet shuts. */
-export const letGo = (): void => told(null);
+export const letHeldGo = (): void => tellHeld(null);
 
-function hear(fn: () => void): () => void {
-  hearers.add(fn);
-  return () => void hearers.delete(fn);
+function hearHeld(fn: () => void): () => void {
+  heldHearers.add(fn);
+  return () => void heldHearers.delete(fn);
 }
-const heldNow = (): HeldActs | null => held;
+const heldLineNow = (): HeldActs | null => heldLine;
 const noneOnTheServer = (): HeldActs | null => null;
 
 /** The line held now, if any. */
-const useHeldLine = (): HeldActs | null => useSyncExternalStore(hear, heldNow, noneOnTheServer);
+const useHeldLine = (): HeldActs | null => useSyncExternalStore(hearHeld, heldLineNow, noneOnTheServer);
 
 /** Whether a hand is busy on Today: a line held, AI's sheet open, or a thing open over Today. */
 export function useHandsBusy(): boolean {
@@ -72,7 +72,7 @@ export function useHandsBusy(): boolean {
 let finger: { x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null;
 let fired = false;
 
-function release(): void {
+function releaseFinger(): void {
   if (finger) clearTimeout(finger.timer);
   finger = null;
 }
@@ -90,49 +90,49 @@ export interface HoldProps {
 }
 
 /** Whether a key came with a modifier, or from somewhere words are typed: the page's keys never take it then. */
-export function typing(e: {
+export function typing(keyEvent: {
   target: EventTarget | null;
   altKey: boolean;
   ctrlKey: boolean;
   metaKey: boolean;
 }): boolean {
-  if (e.altKey || e.ctrlKey || e.metaKey) return true;
-  const el = e.target instanceof HTMLElement ? e.target : null;
+  if (keyEvent.altKey || keyEvent.ctrlKey || keyEvent.metaKey) return true;
+  const el = keyEvent.target instanceof HTMLElement ? keyEvent.target : null;
   return !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 }
 
 /** A held line's act by its key, where the line has it: E Done, N its Not now (the sheet, at its times), / Ask AI. */
 function keyAct(acts: HeldActs, key: string): (() => void) | null {
   if (key === "e") return acts.done;
-  if (key === "n") return acts.notNow ? () => told(acts) : null;
+  if (key === "n") return acts.notNow ? () => tellHeld(acts) : null;
   const about = acts.about;
   if (key === "/") return about ? () => askAbout({ mode: "compose", prompt: "", about, fresh: true }) : null;
   return null;
 }
 
 /** The hold of a line with these acts, spread on the line (lines.tsx CalmRow `hold`). */
-export function holdOf(acts: HeldActs): HoldProps {
+export function holdLineOf(acts: HeldActs): HoldProps {
   return {
-    onPointerDown: (e) => {
-      if (e.pointerType === "mouse") return;
-      release();
+    onPointerDown: (event) => {
+      if (event.pointerType === "mouse") return;
+      releaseFinger();
       fired = false;
       const timer = setTimeout(() => {
         fired = true;
         finger = null;
-        told(acts);
-      }, HOLD_MS);
-      finger = { x: e.clientX, y: e.clientY, timer };
+        tellHeld(acts);
+      }, HOLD_STILL_MS);
+      finger = { x: event.clientX, y: event.clientY, timer };
     },
     onPointerMove: (e) => {
-      if (finger && Math.hypot(e.clientX - finger.x, e.clientY - finger.y) > STILL_PX) release();
+      if (finger && Math.hypot(e.clientX - finger.x, e.clientY - finger.y) > STILL_PX) releaseFinger();
     },
-    onPointerUp: release,
-    onPointerCancel: release,
+    onPointerUp: releaseFinger,
+    onPointerCancel: releaseFinger,
     onContextMenu: (e) => {
       e.preventDefault();
-      release();
-      told(acts);
+      releaseFinger();
+      tellHeld(acts);
     },
     onClickCapture: (e) => {
       if (!fired) return;
@@ -151,7 +151,7 @@ export function holdOf(acts: HeldActs): HoldProps {
 }
 
 /** One act of the sheet: its glyph and its words, the whole row a press. */
-function act(key: string, glyph: ReactNode, words: string, onPress: () => void) {
+function heldAct(key: string, glyph: ReactNode, words: string, onPress: () => void) {
   return (
     <Button
       key={key}
@@ -169,7 +169,7 @@ function act(key: string, glyph: ReactNode, words: string, onPress: () => void) 
 
 /** Each act lets the line go first: its sheet shuts as the act is done. */
 const then = (fn: () => void) => () => {
-  letGo();
+  letHeldGo();
   fn();
 };
 
@@ -180,11 +180,13 @@ function HeldActsOf({ line }: { line: HeldActs }) {
   const about = line.about;
   return (
     <div className="calm-held-acts">
-      {line.done ? act("done", <Icon name="check" size={16} />, WORDS.done, then(line.done)) : null}
-      {notNow && !later ? act("later", <Icon name="clock" size={16} />, WORDS.later, () => setLater(true)) : null}
+      {line.done ? heldAct("done", <Icon name="check" size={16} />, HOLD_WORDS.done, then(line.done)) : null}
+      {notNow && !later
+        ? heldAct("later", <Icon name="clock" size={16} />, HOLD_WORDS.later, () => setLater(true))
+        : null}
       {notNow && later
         ? notNow.choices.map((c) =>
-            act(
+            heldAct(
               `later-${c.key}`,
               <Icon name="clock" size={16} />,
               c.label,
@@ -193,9 +195,9 @@ function HeldActsOf({ line }: { line: HeldActs }) {
           )
         : null}
       {about
-        ? act("ask", <Icon name="three" size={16} />, WORDS.ask, () =>
+        ? heldAct("ask", <Icon name="three" size={16} />, HOLD_WORDS.ask, () =>
             // AI's field opens once the sheet's Back has settled: opened at once, that Back shut it again.
-            afterSheetCloses(letGo, () => askAbout({ mode: "compose", prompt: "", about, fresh: true })),
+            afterSheetCloses(letHeldGo, () => askAbout({ mode: "compose", prompt: "", about, fresh: true })),
           )
         : null}
     </div>
@@ -208,9 +210,9 @@ export function HeldSheet() {
   return (
     <Sheet
       open={line !== null}
-      onClose={letGo}
+      onClose={letHeldGo}
       title={line?.name ?? ""}
-      close={{ label: WORDS.close, glyph: <Icon name="x" size={13} /> }}
+      close={{ label: HOLD_WORDS.close, glyph: <Icon name="x" size={13} /> }}
       kicker
       fit
       backCloses

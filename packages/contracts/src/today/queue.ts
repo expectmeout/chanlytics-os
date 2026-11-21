@@ -346,7 +346,7 @@ function handoffOf(escalation: EscalationRecord, todayFacts: TodayFacts): TodayQ
       ? { why: reasonShort(error.reason) }
       : {}),
     // Why AI did not finish it, the card's first sentence (W20); a reply that never reached them says its own.
-    ...(error.reason === "send_failed" ? {} : { held_because: reasonHeld(error.reason) }),
+    ...(error.reason === "send_failed" ? {} : { heldBecause: reasonHeld(error.reason) }),
   };
 }
 

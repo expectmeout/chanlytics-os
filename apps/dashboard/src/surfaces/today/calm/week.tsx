@@ -5,7 +5,7 @@
  * on any of their devices. Nothing where the days are not read, or AI did nothing in them: no number the data can't back.
  * A milestone (AI's 100th booking) waits for a count of AI's bookings since the start, which nothing keeps yet.
  */
-import { DEFAULT_TIMEZONE, dayInZone, type ReportHeadlineVM } from "@chanlytics/contracts";
+import { DAY_MS, DEFAULT_TIMEZONE, dayInZone, type ReportHeadlineVM } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { Icon } from "../../kit/icon/icon";
@@ -16,7 +16,6 @@ import { useRests } from "../need-you/rests";
 import { useToast, workspaceClock } from "../shell";
 import { CardActs, Lead } from "./lead";
 
-const DAY_MS = 86_400_000;
 /** The days a week's sentence counts: the seven before today, today being still under way. */
 const WEEK_DAYS = 7;
 
