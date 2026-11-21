@@ -85,6 +85,8 @@ export interface AdLaunchLive {
   stopped: AdStopped | null;
   said: string | null;
   left: AdPartLeft[];
+  /** Whether Turn on's job is still making it at Meta: what its owner may cancel. */
+  sending: boolean;
   cancelling: boolean;
 }
 

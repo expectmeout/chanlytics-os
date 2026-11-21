@@ -56,6 +56,18 @@ export const pressPauseAll = (ads: readonly { id: string; version: number }[]) =
     () => null,
   );
 
+/**
+ * Turn them back on: the ads Stop everything paused, after a Resume, in one press, each with the version it was drawn
+ * from (the content loop PRD's 14.1, call 21). Null where no answer came at all.
+ */
+export const pressResumeStopped = (ads: readonly { id: string; version: number }[]) =>
+  api()("POST ads/resume-stopped", { body: { ads: ads.map((ad) => ({ id: ad.id, version: ad.version })) } }).catch(
+    () => null,
+  );
+
+/** Cancel, on an ad made here while it is set up (the Ads plan's 4.7, point 8). Null where no answer came at all. */
+export const pressAdCancel = (id: string) => api()("POST ads/[id]/cancel", { params: { id } }).catch(() => null);
+
 /** Check: Meta is asked at once what stands of an ad whose last switch it never answered. */
 export const pressAdCheck = (id: string, version: number) =>
   api()("POST ads/[id]/check", { params: { id }, body: { version } }).catch(() => null);

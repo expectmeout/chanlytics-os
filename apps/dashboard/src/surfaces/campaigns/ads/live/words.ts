@@ -86,12 +86,16 @@ export const LIVE = {
   couldntFinish: (reason: string) => `Couldn't finish · ${reason}. Nothing was spent`,
   /** Its last switch went unanswered, and no read has said since. */
   unconfirmed: "Couldn't confirm it's on · Meta didn't answer",
+  /** Its owner cancelled it while it was set up, and the job has not stopped it yet: nothing is turned on. */
+  cancelling: "Cancelling · nothing is turned on",
   /** Why a launch stopped, as a row says it. */
   stoppedWhy: {
     refused: "Meta turned it down",
     differs: "Meta held something other than what you approved",
     unanswered: "Meta didn't answer",
     ai_stopped: "AI was stopped",
+    way_in: "AI couldn't answer the WhatsApp chat it opens",
+    cancelled: "it was cancelled",
     disconnected: "the ad account was disconnected",
     signed_out: "Meta signed Chanlytics out",
     picture: "its picture couldn't be sent",
@@ -103,6 +107,7 @@ export const LIVE = {
     refused: "Not approved by Meta",
     unpaid: "Meta couldn't charge your card",
     troubled: "Meta found a problem with it",
+    way_in: "AI can't answer the people it brings",
     paused_at_platform: "Paused in Meta",
   },
   ends: (day: string) => `ends ${day}`,
@@ -171,6 +176,8 @@ export const AI_LINE = {
   /** An account ready and no ad made here yet: the first, opening New ad, where AI writes it. */
   first: (inMeta: boolean) =>
     `Make your first ad${inMeta ? " here" : ""}? AI writes it, and nothing runs until you turn it on.`,
+  /** An ad on that AI can't answer the people of (call 11): it spends for nothing, so AI proposes the pause. */
+  wayIn: (name: string) => `${name} is on, and AI can't answer the people it brings. Pause it?`,
   /** An ad made in Meta that brought people and ends within days: keep it going, in Meta, where it is changed. */
   extend: (ending: { name: string; people: number; day: string }) =>
     `${ending.name} brought ${people(ending.people)} and ends ${ending.day}. Keep it going in Meta?`,
@@ -249,10 +256,23 @@ export const SHEET = {
       head: "Its end date has passed",
       body: "Meta stopped it on its last day. Give it a new end date in Meta to run it again.",
     },
+    picture: {
+      head: "Someone in its picture took back their yes",
+      body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
+    },
   },
   /** An ad made here, while it is set up: what happens, and that nothing is asked of the owner. */
   settingUp:
     "Chanlytics is making it at Meta, paused, then checking it against what you approved before turning it on.",
+  /** The owner's Cancel while it is set up (the plan's 4.7, point 8). */
+  cancel: "Cancel",
+  cancelBody: "It stops before it runs. What Chanlytics made at Meta is removed, and nothing is spent.",
+  cancelling: "Cancelling. Chanlytics removes what it made at Meta, and nothing is turned on.",
+  cancelled: (name: string) => `${name} won't run. Chanlytics removes what it made at Meta.`,
+  /** The Cancel came as its last switch went: the ad is made, and paused at once. */
+  cancelledLate: (name: string) => `${name} was made just as you cancelled, so Chanlytics is pausing it now.`,
+  /** Its owner has it on and AI can't answer the people it brings (call 11): why, and the press that stops the spend. */
+  wayIn: (why: string) => `${why} Pause it, and Meta stops charging while nobody answers.`,
   /** Its launch stopped part way: what Meta was left holding, or that nothing was. */
   couldntFinish: (left: readonly AdPartLeft[]) =>
     left.length === 0
@@ -284,15 +304,30 @@ export const SHEET = {
 const adsCount = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
 
 /**
- * AI stopped with ads still on (the Ads plan's G17): the page and the card say how many, and the owner's one press
- * pauses them all. What Meta still bills is said where it is pressed.
+ * AI stopped (the content loop PRD's 14.1, call 21, reversing the Ads plan's G17): the stop paused the ads made here
+ * itself, and the page and the card say so; an ad made in Meta is told of, with the owner's one press that pauses them.
+ * What Meta still bills is said where it is pressed.
  */
 export const STOP = {
   title: "AI is stopped",
-  on: (n: number) =>
+  /** What the stop paused itself: the ads made here that were on. */
+  pausedHere: (n: number) =>
     n === 1
-      ? "1 ad is still on, and Meta keeps charging for it while it runs."
-      : `${n} ads are still on, and Meta keeps charging for them while they run.`,
+      ? "Chanlytics paused 1 ad made here, so nothing is spent while nobody answers."
+      : `Chanlytics paused ${n} ads made here, so nothing is spent while nobody answers.`,
+  /** Still on: made in Meta's own tools (never paused by the stop), or any whose pause could not be kept. */
+  on: (n: number, inMeta: boolean) => {
+    const what = inMeta
+      ? n === 1
+        ? "1 ad made in Meta is"
+        : `${n} ads made in Meta are`
+      : n === 1
+        ? "1 ad is"
+        : `${n} ads are`;
+    return n === 1
+      ? `${what} still on, and Meta keeps charging for it while it runs.`
+      : `${what} still on, and Meta keeps charging for them while they run.`;
+  },
   pausing: (n: number) => `Pausing ${adsCount(n)}…`,
   press: (n: number) => `Pause ${adsCount(n)}`,
   ownerOnly: "Only the owner can pause them.",
@@ -309,6 +344,28 @@ export const STOP = {
   /** Every ad of the press refused on its own (changed since the page was read): the page has read them again. */
   notTaken: "Nothing was paused: the ads changed since the page was read. Press again.",
   partly: (done: number, of: number) => `${done} of ${of} ads are paused, and the rest couldn't be. Press again.`,
+} as const;
+
+/**
+ * After a Resume (call 21): the ads the stop paused stay paused, since turning an ad on spends, and the owner's own press
+ * turns them back on, naming how many.
+ */
+export const STOPPED_ADS = {
+  title: "AI runs again",
+  body: (n: number) =>
+    n === 1
+      ? "1 ad was paused when AI was stopped, and stays paused until you turn it back on."
+      : `${n} ads were paused when AI was stopped, and stay paused until you turn them back on.`,
+  press: (n: number) => (n === 1 ? "Turn it back on" : `Turn ${n} ads back on`),
+  ownerOnly: "Only the owner can turn them back on.",
+  /** What the press came to. */
+  resumed: (n: number) =>
+    n === 1
+      ? "1 ad will turn back on as soon as Meta takes the change."
+      : `${n} ads will turn back on as soon as Meta takes the change.`,
+  notKnown: (n: number) =>
+    `No answer came, so ${adsCount(n)} may still be paused. This page shows what stands in a moment.`,
+  notTaken: "Nothing was turned back on: the ads changed since the page was read. Look again, then press.",
 } as const;
 
 /** Meta Ads Manager, where an ad made in Meta is changed. */

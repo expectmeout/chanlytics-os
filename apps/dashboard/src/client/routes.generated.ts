@@ -177,6 +177,7 @@ export const ROUTES = {
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ads/[id]/area": { method: "POST", path: "/api/v1/ads/[id]/area" },
   "POST ads/[id]/budget": { method: "POST", path: "/api/v1/ads/[id]/budget" },
+  "POST ads/[id]/cancel": { method: "POST", path: "/api/v1/ads/[id]/cancel" },
   "POST ads/[id]/check": { method: "POST", path: "/api/v1/ads/[id]/check" },
   "POST ads/[id]/end": { method: "POST", path: "/api/v1/ads/[id]/end" },
   "POST ads/[id]/end-date": { method: "POST", path: "/api/v1/ads/[id]/end-date" },
@@ -189,6 +190,7 @@ export const ROUTES = {
   "POST ads/check": { method: "POST", path: "/api/v1/ads/check" },
   "POST ads/draft": { method: "POST", path: "/api/v1/ads/draft" },
   "POST ads/pause-all": { method: "POST", path: "/api/v1/ads/pause-all" },
+  "POST ads/resume-stopped": { method: "POST", path: "/api/v1/ads/resume-stopped" },
   "POST ads/turn-on": { method: "POST", path: "/api/v1/ads/turn-on" },
   "POST ads/words": { method: "POST", path: "/api/v1/ads/words" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
@@ -621,6 +623,7 @@ export type Routes = {
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ads/[id]/area": typeof import("../../app/api/v1/ads/[id]/area/route").POST;
   "POST ads/[id]/budget": typeof import("../../app/api/v1/ads/[id]/budget/route").POST;
+  "POST ads/[id]/cancel": typeof import("../../app/api/v1/ads/[id]/cancel/route").POST;
   "POST ads/[id]/check": typeof import("../../app/api/v1/ads/[id]/check/route").POST;
   "POST ads/[id]/end": typeof import("../../app/api/v1/ads/[id]/end/route").POST;
   "POST ads/[id]/end-date": typeof import("../../app/api/v1/ads/[id]/end-date/route").POST;
@@ -633,6 +636,7 @@ export type Routes = {
   "POST ads/check": typeof import("../../app/api/v1/ads/check/route").POST;
   "POST ads/draft": typeof import("../../app/api/v1/ads/draft/route").POST;
   "POST ads/pause-all": typeof import("../../app/api/v1/ads/pause-all/route").POST;
+  "POST ads/resume-stopped": typeof import("../../app/api/v1/ads/resume-stopped/route").POST;
   "POST ads/turn-on": typeof import("../../app/api/v1/ads/turn-on/route").POST;
   "POST ads/words": typeof import("../../app/api/v1/ads/words/route").POST;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;

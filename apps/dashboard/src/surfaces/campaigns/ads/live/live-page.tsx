@@ -85,10 +85,12 @@ interface LiveBodyProps {
   /** AI stopped with ads still on (stop-notice.tsx), first on the page. */
   stop: ReactNode;
   onOpen: (route: string) => void;
+  /** Pause an ad: AI's line for one on that AI can't answer is its Pause. */
+  onPause: (id: string, version: number) => void;
 }
 
 /** The page under its head: the notice, the ads, the quiet lines, and the card. */
-export function LiveBody({ vm, card, stop, onOpen }: LiveBodyProps) {
+export function LiveBody({ vm, card, stop, onOpen, onPause }: LiveBodyProps) {
   return (
     <div className="ads-hero ads-live" data-testid="ads-live">
       <section className="ads-hero-main">
@@ -99,7 +101,7 @@ export function LiveBody({ vm, card, stop, onOpen }: LiveBodyProps) {
             {vm.stale}
           </p>
         ) : null}
-        <AdsLines ai={vm.ai} needsYou={vm.needsYou} onOpen={onOpen} />
+        <AdsLines ai={vm.ai} needsYou={vm.needsYou} onOpen={onOpen} onPause={onPause} />
         {vm.empty ? (
           <EmptyState
             kind="line"

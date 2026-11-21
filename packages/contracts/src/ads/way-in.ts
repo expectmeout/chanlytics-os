@@ -52,8 +52,8 @@ export function adWayInOf(facts: AdWayInFacts): AdWayIn {
   return goes ? "open" : "blocked";
 }
 
-/** Why AI can't answer a running ad's chat, as the bell's row says it: what happened, in the owner's words. */
-const WAY_IN_SAID: Record<Exclude<AdWayIn, "open">, string> = {
+/** Why AI can't answer a running ad's chat, as the bell's row and the ad's drawer say it, in the owner's words. */
+export const AD_WAY_IN_SAID: Record<Exclude<AdWayIn, "open">, string> = {
   stopped: "AI is stopped, so nobody answers the people it brings.",
   paused: "Billing is paused, so the people it brings wait in the Inbox for a person.",
   no_number: "The WhatsApp number it opens is no longer the one AI answers.",
@@ -89,6 +89,6 @@ export function adWayInRowOf(ad: {
       : `It can still spend ${leftToSpend(ad.leftMinor, ad.currency)} of its total.`;
   return {
     title: `“${name}” is on, and AI can't answer it`,
-    body: `${WAY_IN_SAID[ad.wayIn]} ${spends} Pause it, or open it to see what to mend.`,
+    body: `${AD_WAY_IN_SAID[ad.wayIn]} ${spends} Pause it, or open it to see what to mend.`,
   };
 }

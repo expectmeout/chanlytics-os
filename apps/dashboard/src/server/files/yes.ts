@@ -6,9 +6,9 @@
  * door's refusal (not theirs to change, a file gone) is a DbFailure the route, or AI's act, words as the door said it.
  *
  * Taking a yes back holds every post of the file, and of every piece drawn from it, that is still waiting, in that same
- * transaction, and answers every one already up or on its way, for the owner to take down where it is. A running ad
- * that shows the person is paused in the same act once the record of ads made here exists (the Ads plan's G16): the
- * door's seam for it is marked in 00665, and this answers none until then.
+ * transaction, and answers every one already up or on its way, for the owner to take down where it is. Every ad made
+ * here that shows the person is paused in the same act, or cancelled while it is set up, as a remediation, and the owner
+ * told (the Ads plan's G16; 00676): it runs again only with another picture. The answer says each, and what came of it.
  */
 import "server-only";
 import {

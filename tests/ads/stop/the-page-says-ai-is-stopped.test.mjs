@@ -3,14 +3,16 @@
  * no ad in it (4.4). The models run on reads as the server answers them; the real page and its hooks run on the stub
  * React, over a fetch where the routes would be. A made-up business throughout.
  *
- * What must hold. While AI is stopped, the page says so at its top with how many ads are still on (running, or on
+ * What must hold. While AI is stopped, the page says so at its top: the ads made here the stop paused itself (the content
+ * loop PRD's 14.1, call 21), and how many ads are still on (made in Meta, which the stop never pauses: running, or on
  * while Meta checks them), and the owner's one press pauses every one of them in one request, each with the version
  * it was drawn from; then one toast says what came of it and what Meta still bills: on its way, part of it refused,
  * none of it taken, or no answer, which says that whether they were kept is not known. A
  * member who may not press is told who can. An ad already being paused is not counted again. Nothing is said while AI
  * runs, with nothing on, or where Meta signed Chanlytics out (that notice is the page's own). A paused ad's drawer offers
  * no turning back on while AI is stopped. In Settings the card says it, with the same press; on the page the card does
- * not say it twice. And an account with no ad says what will be here, with New ad.
+ * not say it twice. And an account with no ad says what will be here, with New ad. Once AI runs again, the ads the stop
+ * paused stay paused, and the page names them with the owner's own press that turns them back on.
  */
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
@@ -23,7 +25,7 @@ const S = "../../../apps/dashboard/src";
 const { api } = await import(`${S}/bridge/api.ts`);
 const { aiStopOf: stopOf } = await import(`${S}/surfaces/campaigns/ads/live/stop.ts`);
 const { liveModel, sheetModel } = await import(`${S}/surfaces/campaigns/ads/live/model.ts`);
-const { AI_LINE, LIVE, SHEET, STOP } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
+const { AI_LINE, LIVE, SHEET, STOP, STOPPED_ADS } = await import(`${S}/surfaces/campaigns/ads/live/words.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
 const { useAdsConnection } = await import(`${S}/surfaces/campaigns/ads/connect/use-card.tsx`);
 
@@ -44,6 +46,8 @@ const ad = (n, over = {}) => ({
   budget: { kind: "total", minor: 72000, left_minor: 30800, shared: false },
   pending: null,
   version: n + 2,
+  paused_by: null,
+  way_in: null,
   resume: { ok: false, why: "not_paused" },
   people: 0,
   booked: 0,
@@ -78,27 +82,76 @@ const page = (over = {}) => ({
 // ---------------------------------------------------------------------------------------------------------------------
 // What is said
 
-test("while AI is stopped the page says how many ads are still on, with the owner's one press", () => {
+test("while AI is stopped the page says how many ads made in Meta are still on, with the owner's one press", () => {
   assert.deepEqual(stopOf(page()), {
     title: STOP.title,
-    body: "2 ads are still on, and Meta keeps charging for them while they run.",
+    body: "2 ads made in Meta are still on, and Meta keeps charging for them while they run.",
     press: "Pause 2 ads",
+    act: "pause",
     ownerOnly: null,
   });
-  assert.equal(stopOf(page({ ads: [ad(1)] })).body, "1 ad is still on, and Meta keeps charging for it while it runs.");
+  assert.equal(
+    stopOf(page({ ads: [ad(1)] })).body,
+    "1 ad made in Meta is still on, and Meta keeps charging for it while it runs.",
+  );
   assert.equal(stopOf(page({ ads: [ad(1)] })).press, "Pause 1 ad");
   assert.deepEqual(
     stopOf(page({ can_press: false })),
-    { title: STOP.title, body: STOP.on(2), press: null, ownerOnly: "Only the owner can pause them." },
+    {
+      title: STOP.title,
+      body: STOP.on(2, true),
+      press: null,
+      act: "pause",
+      ownerOnly: "Only the owner can pause them.",
+    },
     "a member who may not press is told who can",
   );
+});
+
+test("the ads made here the stop paused itself are said first; one whose pause didn't hold is still on, with the press", () => {
+  const held = (n) => ad(n, { made_in_platform: false, state: "paused", paused_by: "stop", pending: "pausing" });
+  assert.deepEqual(stopOf(page({ ads: [held(1), held(2)] })), {
+    title: STOP.title,
+    body: "Chanlytics paused 2 ads made here, so nothing is spent while nobody answers.",
+    press: null,
+    act: "pause",
+    ownerOnly: null,
+  });
+  const both = stopOf(page({ ads: [held(1), ad(2)] }));
+  assert.equal(
+    both.body,
+    "Chanlytics paused 1 ad made here, so nothing is spent while nobody answers. 1 ad made in Meta is still on, and Meta keeps charging for it while it runs.",
+  );
+  assert.equal(both.press, "Pause 1 ad");
+  const unheld = stopOf(page({ ads: [ad(1, { made_in_platform: false })] }));
+  assert.equal(unheld.body, STOP.on(1, false), "an ad made here still on: its pause did not hold");
+});
+
+test("once AI runs again the ads the stop paused stay paused, and the owner's own press turns them back on", () => {
+  const held = (n) => ad(n, { made_in_platform: false, state: "paused", paused_by: "stop" });
+  const after = page({ stopped_at: null, ads: [held(1), held(2), ad(3, { state: "paused" })] });
+  assert.deepEqual(stopOf(after), {
+    title: STOPPED_ADS.title,
+    body: "2 ads were paused when AI was stopped, and stay paused until you turn them back on.",
+    press: "Turn 2 ads back on",
+    act: "resume",
+    ownerOnly: null,
+  });
+  assert.deepEqual(stopOf({ ...after, can_press: false }).ownerOnly, STOPPED_ADS.ownerOnly);
+  assert.equal(stopOf(page({ stopped_at: null, ads: [ad(3, { state: "paused" })] })), null, "none the stop paused");
 });
 
 test("an ad already being paused is not counted again, and once every one is on its way it says so with no press", () => {
   const one = page({ ads: [ad(1, { pending: "pausing" }), ad(2)] });
   assert.equal(stopOf(one).press, "Pause 1 ad");
   const all = page({ ads: [ad(1, { pending: "pausing" }), ad(2, { pending: "pausing" })] });
-  assert.deepEqual(stopOf(all), { title: STOP.title, body: "Pausing 2 ads…", press: null, ownerOnly: null });
+  assert.deepEqual(stopOf(all), {
+    title: STOP.title,
+    body: "Pausing 2 ads…",
+    press: null,
+    act: "pause",
+    ownerOnly: null,
+  });
 });
 
 test("nothing is said while AI runs, with nothing on, where Meta signed Chanlytics out, or before the page is read", () => {
@@ -218,7 +271,7 @@ test("the page says it at its top, and the one press pauses every ad still on in
   const live = byTestId(tree, "ads-live");
   const stop = byTestId(live, "ads-stop");
   assert.ok(stop, "the stop is drawn on the page");
-  assert.equal(textOf(stop), `${STOP.title}${STOP.on(2)}${STOP.press(2)}`);
+  assert.equal(textOf(stop), `${STOP.title}${STOP.on(2, true)}${STOP.press(2)}`);
   // First on the page: before the ads, the notes and the card.
   assert.equal(textOf(live).indexOf(STOP.title), 0);
   // On the page the card does not say it a second time.
@@ -313,5 +366,5 @@ test("in Settings the card says it, with the same press", async () => {
   hook();
   await until(() => byTestId(again(hook).card, "ads-stop") !== null, "the card's read and the page's");
   const card = again(hook).card;
-  assert.equal(textOf(byTestId(card, "ads-stop")), `${STOP.title}${STOP.on(2)}${STOP.press(2)}`);
+  assert.equal(textOf(byTestId(card, "ads-stop")), `${STOP.title}${STOP.on(2, true)}${STOP.press(2)}`);
 });

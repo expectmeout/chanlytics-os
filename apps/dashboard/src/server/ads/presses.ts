@@ -67,7 +67,7 @@ interface AdPausedOne {
 }
 
 /** The words a refusal of the edge's is said in. */
-function refusalOf(answer: Answer, op: AdPressOp | "pause_all"): AppError {
+function refusalOf(answer: Answer, op: keyof typeof PRESS_DOING): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
     return new AppError(
@@ -81,7 +81,13 @@ function refusalOf(answer: Answer, op: AdPressOp | "pause_all"): AppError {
   if (code === "ad_busy")
     return new AppError("conflict", "Meta is still taking the last change to this ad. Press again in a minute.", 409);
   if (code === "ai_stopped")
-    return new AppError("conflict", "AI is stopped, so no ad is given more to spend. Start AI again first.", 409);
+    return new AppError(
+      "conflict",
+      op === "resume_all"
+        ? "AI is stopped, so no ad is turned back on. Resume AI first."
+        : "AI is stopped, so no ad is given more to spend. Start AI again first.",
+      409,
+    );
   if (code === "ads_writes_off")
     return new AppError("conflict", "Changing an ad from here isn't turned on yet. Change it in Meta.", 409);
   if (code === "meta_signed_out")
@@ -105,12 +111,14 @@ function metaRefused(detail: unknown): AppError {
 }
 
 /** What each press does, in the words its refusal says it could not. */
-const PRESS_DOING: Record<AdPressOp | "pause_all", string> = {
+const PRESS_DOING: Record<AdPressOp | "pause_all" | "resume_all" | "cancel", string> = {
   pause: "pause it",
   resume: "turn it back on",
   check: "ask Meta about it",
   change: "change it",
   pause_all: "pause them",
+  resume_all: "turn them back on",
+  cancel: "cancel it",
 };
 
 const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
@@ -307,5 +315,82 @@ export async function pauseAllAds(
         version: one?.version ?? null,
       };
     }),
+  };
+}
+
+/** What one ad of a turning back on came to: as a pause of them all says it, or `not_stopped` for one the stop didn't pause. */
+const RESUMED_ONE = [...PAUSED_ONE, "not_stopped"] as const;
+
+interface AdResumedOne {
+  id: string;
+  outcome: (typeof RESUMED_ONE)[number];
+  version: number | null;
+}
+
+/**
+ * `POST ads/resume-stopped`: the owner turns back on the ads Stop everything paused, as a press of its own after Resume
+ * (the content loop PRD's 14.1, call 21: Resume never turns an ad on, since that spends). Each carries the version it was
+ * drawn from; each the stop paused and that stands so is turned back on, in one transaction, and Meta told at its pace.
+ * Refused while AI is stopped.
+ */
+export async function resumeStoppedAds(
+  ctx: RouteContext,
+  member: Member,
+  ads: readonly { id: string; version: number }[],
+): Promise<{ ads: AdResumedOne[] }> {
+  if (!edgeConfigured() || !deployment.providersLive)
+    throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
+  const answer: Answer = await callEdge(
+    "/api/admin/ads/press",
+    {
+      op: "resume_all",
+      tenant_id: member.tenantId,
+      user_id: ctx.userId,
+      ads: ads.map((ad) => ({ ad_id: ad.id, version: ad.version })),
+    },
+    { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
+  );
+  const body = answer.body ?? {};
+  if (body.error === "edge_timeout")
+    return { ads: ads.map((ad) => ({ id: ad.id, outcome: "unknown", version: null })) };
+  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "resume_all");
+  const answered = new Map((body.ads ?? []).map((one) => [one.ad_id, one]));
+  return {
+    ads: ads.map((ad) => {
+      const one = answered.get(ad.id);
+      return {
+        id: ad.id,
+        outcome: RESUMED_ONE.find((word) => word === one?.outcome) ?? "unknown",
+        version: one?.version ?? null,
+      };
+    }),
+  };
+}
+
+/** What a Cancel came to: on its way to the job setting it up, asked already, too late (made), or over. */
+const CANCELLED = ["asked", "same", "made", "stopped"] as const;
+
+/**
+ * `POST ads/:id/cancel`: the owner cancels an ad made here while it is set up (the Ads plan's 4.7, point 8). The edge
+ * keeps it on its launch, and the account's job stops it at its next step and removes what it made; nothing is switched
+ * on after. One made already answers `made`, where its Pause stops it.
+ */
+export async function cancelAd(
+  ctx: RouteContext,
+  member: Member,
+  adId: string,
+): Promise<{ outcome: (typeof CANCELLED)[number]; version: number }> {
+  if (!edgeConfigured() || !deployment.providersLive)
+    throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
+  const answer: Answer = await callEdge(
+    "/api/admin/ads/press",
+    { op: "cancel", tenant_id: member.tenantId, user_id: ctx.userId, ad_id: adId },
+    { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
+  );
+  const body = answer.body ?? {};
+  if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, "cancel");
+  return {
+    outcome: CANCELLED.find((word) => word === body.outcome) ?? "asked",
+    version: typeof body.version === "number" ? body.version : 0,
   };
 }
