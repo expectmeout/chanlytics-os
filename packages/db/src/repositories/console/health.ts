@@ -78,6 +78,11 @@ export async function getHealthPreviews(db: Db, days: number) {
   return db.rpc("platform_health_previews", { p_days: days });
 }
 
+/** Watched folders today: Google's day spent, and what waits on the video platform's storage (00674). */
+export async function getHealthFootage(db: Db) {
+  return db.rpc("platform_health_footage");
+}
+
 /** What the replies sent over the last `days` did with the thread's draft (00539 reply_draft_uses). */
 export async function getHealthDraftUses(db: Db, days: number) {
   return db.rpc("reply_draft_uses", { p_days: days });

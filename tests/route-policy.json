@@ -3105,6 +3105,20 @@
       "rate": "vitals",
       "spend": false
     },
+    "GET website-forms": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST website-forms": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "PUT workspaces/accent": {
       "kind": "write",
       "scope": "workspace",

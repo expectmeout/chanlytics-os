@@ -70,7 +70,7 @@ const settingUp = (lead: boolean, note: ColdEmailNote | null) =>
 function cardOfAnother(at: TodayArrangement, week: ReturnType<typeof useWeekMoment>) {
   if (at.card?.holder === "setup") return settingUp(true, null);
   if (at.card?.holder === "found") return <AskFound part="lead" held />;
-  if (at.card?.holder === "week" && week) return <WeekLead id={week.id} sentence={week.sentence} />;
+  if (at.card?.holder === "week" && week) return <WeekLead {...week} />;
   return null;
 }
 

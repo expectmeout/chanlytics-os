@@ -734,6 +734,8 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "the owner stopped watching a folder: every screen that says where it stands reads the folder once it answers",
   "POST sources/disconnect":
     "the owner disconnected Google Drive: every screen that says where it stands reads the folder once it answers",
+  "POST website-forms":
+    "a website's key made, changed or ended: its row in Connections reads the keys again once it answers",
   // The door's answer names the calls it made, and the press re-reads each one's surfaces (bridge/ask/commit.ts tellDoorCalls).
   "POST ask/act":
     "a card acted on by the server: its answer names the calls it made, and the press reads again after each",

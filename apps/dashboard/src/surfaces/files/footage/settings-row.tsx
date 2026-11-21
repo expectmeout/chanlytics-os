@@ -2,7 +2,8 @@
  * The folder's row in Settings › Connections, pressed (the footage sources plan, P5; the canvas's board "Settings,
  * Connections"). The row itself is one of the page's rows, drawn by the page's own row from its model
  * (connections/model/setup-rows.ts driveRow); here is what its verbs do and the sheets they open: Google's own window,
- * the folder chooser, the last step, a look now, and the two ways of letting a folder go.
+ * the folder chooser, the last step, a look now, the two ways of letting a folder go, and the folder's own sheet
+ * ("See which": what could not come in, each with its reason; the Library's line opens it too).
  *
  * After each press the next step arrives by itself: an account just connected with no folder opens the chooser, and a
  * folder chosen opens the last step. What Google's window came back with, where it connected nothing, is said once
@@ -21,6 +22,9 @@ import type { FrameFlash } from "../../frame-verbs";
 import { RecordRow } from "../../kit/record/row";
 import type { FolderChoice } from "./chooser";
 import { LazyFolderChooser } from "./chooser-lazy";
+// The folder's own sheet is light and drawn by the Library's line too: imported as it is, never as a chunk of its own
+// (a lazy one regrouped the chunks of pages that never draw it: Inbox and Start each grew about 10 KB, #2501).
+import { FolderSheet } from "./contents";
 import { copyAdminSteps, useFootage } from "./use-footage";
 
 // The sheets are fetched the first time one is opened: a page that only says where the folder stands carries none of them.
@@ -49,6 +53,7 @@ export function useFolderRow(flash: (f: FrameFlash) => void, sharesGoogle: boole
   const [choosing, setChoosing] = useState(false);
   const [chosen, setChosen] = useState<FolderChoice | null>(null);
   const [leaving, setLeaving] = useState<"stop" | "disconnect" | null>(null);
+  const [contents, setContents] = useState(false);
 
   // Connected just now, with no folder watched: the chooser arrives by itself, once.
   const wasConnecting = useRef(false);
@@ -76,6 +81,8 @@ export function useFolderRow(flash: (f: FrameFlash) => void, sharesGoogle: boole
         return setLeaving("stop");
       case "verb:drive-disconnect":
         return setLeaving("disconnect");
+      case "verb:drive-contents":
+        return setContents(true);
       case "verb:drive-steps":
         return void copyAdminSteps().then((copied) =>
           flash(copied ? { msg: <>{W.stepsCopied}</> } : { tone: "danger", msg: <>{W.adminSteps}</> }),
@@ -98,7 +105,7 @@ export function useFolderRow(flash: (f: FrameFlash) => void, sharesGoogle: boole
 
   // Drawn from the first time one is opened, and kept: a sheet plays its leaving once it is closed.
   const opened = useRef(false);
-  opened.current = opened.current || choosing || chosen !== null || leaving !== null;
+  opened.current = opened.current || choosing || chosen !== null || leaving !== null || contents;
   const sheets = !opened.current ? null : (
     <Suspense fallback={null}>
       <LazyFolderChooser
@@ -131,6 +138,7 @@ export function useFolderRow(flash: (f: FrameFlash) => void, sharesGoogle: boole
         }}
         onFailed={(message) => flash({ tone: "danger", msg: <>{message}</> })}
       />
+      {contents && here.dto ? <FolderSheet footage={here.dto} onClose={() => setContents(false)} /> : null}
     </Suspense>
   );
 

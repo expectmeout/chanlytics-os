@@ -3443,6 +3443,120 @@ export type Database = {
           },
         ]
       }
+      form_entries: {
+        Row: {
+          answers: Json
+          contact_id: string
+          created_at: string
+          effects: Json
+          form: string
+          id: string
+          key_id: string | null
+          owed: string[]
+          ref: string | null
+          state: string
+          tenant_id: string
+          told_at: string | null
+          words: string
+        }
+        Insert: {
+          answers: Json
+          contact_id: string
+          created_at?: string
+          effects?: Json
+          form: string
+          id?: string
+          key_id?: string | null
+          owed: string[]
+          ref?: string | null
+          state?: string
+          tenant_id: string
+          told_at?: string | null
+          words: string
+        }
+        Update: {
+          answers?: Json
+          contact_id?: string
+          created_at?: string
+          effects?: Json
+          form?: string
+          id?: string
+          key_id?: string | null
+          owed?: string[]
+          ref?: string | null
+          state?: string
+          tenant_id?: string
+          told_at?: string | null
+          words?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_entries_contact_id_same_workspace"
+            columns: ["tenant_id", "contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entries_key_id_same_workspace"
+            columns: ["tenant_id", "key_id"]
+            isOneToOne: false
+            referencedRelation: "form_keys"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_keys: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          first: boolean
+          hash: string | null
+          id: string
+          last_used_at: string | null
+          made_by: string | null
+          name: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          first?: boolean
+          hash?: string | null
+          id?: string
+          last_used_at?: string | null
+          made_by?: string | null
+          name?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          first?: boolean
+          hash?: string | null
+          id?: string
+          last_used_at?: string | null
+          made_by?: string | null
+          name?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_connections: {
         Row: {
           account_name: string
@@ -10163,6 +10277,10 @@ export type Database = {
         }
         Returns: Json
       }
+      file_copy_comes_back: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
       file_copy_gone: {
         Args: { p_id: string; p_tenant_id: string }
         Returns: boolean
@@ -10496,6 +10614,40 @@ export type Database = {
           p_title: string
         }
         Returns: number
+      }
+      form_entry_settled: {
+        Args: {
+          p_effect: string
+          p_entry_id: string
+          p_outcome: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      form_entry_take: {
+        Args: {
+          p_answers: Json
+          p_form: string
+          p_key_id?: string
+          p_owed: string[]
+          p_person: Json
+          p_ref?: string
+          p_tenant_id: string
+          p_words: string
+        }
+        Returns: Json
+      }
+      form_key_change: {
+        Args: { p_hash: string; p_key_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      form_key_end: {
+        Args: { p_key_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      form_key_make: {
+        Args: { p_hash: string; p_name: string; p_tenant_id: string }
+        Returns: string
       }
       found_read_spend: {
         Args: {
@@ -12102,6 +12254,7 @@ export type Database = {
           tenant_id: string
         }[]
       }
+      platform_health_footage: { Args: never; Returns: Json }
       platform_health_parts: { Args: { p_days?: number }; Returns: Json }
       platform_health_previews: { Args: { p_days?: number }; Returns: Json }
       platform_metrics_read: {

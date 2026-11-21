@@ -22,7 +22,7 @@ import { Icon } from "../../kit/icon/icon";
 import { autonomyVerbs } from "../../settings/autonomy/verbs";
 import { AI_WORDS } from "../model/ai";
 import { useRests } from "../need-you/rests";
-import { useToast } from "../shell";
+import { useMoved, useToast } from "../shell";
 import { CalmList, CalmOpen, CalmRow } from "./lines";
 
 const MORE_WORDS = AI_WORDS.more;
@@ -42,8 +42,11 @@ interface MoreOffer {
 /** The step a row would take from asking you: holding it where the row can, else sending it. */
 const stepFrom = (cls: HeldDraftsClass): PolicyMode => (POLICY_CLASS_MODES[cls].includes("veto") ? "veto" : "auto");
 
-/** The first row that asks you first and whose held drafts all went as written, enough of them; null where none. */
-function offerOf(read: {
+/**
+ * The first row that asks you first and whose held drafts all went as written, enough of them; null where none.
+ * Exported so a test holds the evidence it asks for.
+ */
+export function offerOf(read: {
   policies: readonly { class: string; mode: string }[];
   held: Parameters<typeof heldDraftsByClass>[0] | null;
   role: Parameters<typeof uiRows>[0]["role"];
@@ -79,14 +82,17 @@ function useMoreOffer(): MoreOffer | null {
 /** The line, where AI could do more: what it found, and under it Let AI and Not now. */
 export function LetAiDoMore() {
   const offer = useMoreOffer();
-  const { rests, rest } = useRests();
+  // What the member set aside comes with the morning's read: the line is drawn once it is in, and again as it moves.
+  useMoved("ask_morning");
+  const { rests, rest, known } = useRests();
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toastNode, flash] = useToast();
-  if (!offer || done || rests(`more:${offer.cls}`)) return toastNode;
+  if (!offer || done || !known || rests(`more:${offer.cls}`)) return toastNode;
   const set = async (mode: PolicyMode) => autonomyVerbs.setPolicy(offer.cls, mode, {});
   const letIt = async () => {
+    if (busy) return;
     setBusy(true);
     const answer = await set(offer.to);
     setBusy(false);
@@ -118,24 +124,26 @@ export function LetAiDoMore() {
           open={open}
           under={
             <CalmOpen open={open}>
-              <div className="calm-sub-acts">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void letIt()}
-                  aria-disabled={busy || undefined}
-                  data-testid="today-more-let"
-                >
-                  {MORE_WORDS.letIt}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="quiet"
-                  onClick={() => void rest({ key: `more:${offer.cls}`, flash })}
-                  data-testid="today-more-not-now"
-                >
-                  {MORE_WORDS.notNow}
-                </Button>
+              <div className="calm-under">
+                <div className="calm-under-acts">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void letIt()}
+                    aria-disabled={busy || undefined}
+                    data-testid="today-more-let"
+                  >
+                    {MORE_WORDS.letIt}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    onClick={() => void rest({ key: `more:${offer.cls}`, flash })}
+                    data-testid="today-more-not-now"
+                  >
+                    {MORE_WORDS.notNow}
+                  </Button>
+                </div>
               </div>
             </CalmOpen>
           }

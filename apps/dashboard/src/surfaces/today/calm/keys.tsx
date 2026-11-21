@@ -1,19 +1,18 @@
 /**
  * Keys on a desk (Working for you, 21 Nov 2026, W12): the same acts as a held line on a phone, nothing new to learn. J and
- * K move between the page's lines, Enter opens the one in focus, E, N and / are its Done, Not now and Ask AI about this
- * (held.tsx, on the line itself), Esc closes what is open over Today (the kit's sheets already do), and ? shows them all.
- * Never while words are being typed, nor with a modifier held, so the browser's and the frame's own keys stay theirs.
+ * K move between the page's lines, Enter opens the one in focus, and E, N and / are its Done, Not now and Ask AI about
+ * this (held.tsx, on the line itself). They are listed where every key of the app is, the ? sheet (contracts SHORTCUTS,
+ * under Today), and drawn nowhere on the page (Ruben, 23 Sep 2026). Never while words are being typed, with a modifier
+ * held, or while anything is open over the page: a sheet's own keys are its own.
  */
-import { useEffect, useState } from "react";
-import { Icon } from "../../kit/icon/icon";
-import { Sheet } from "../../kit/sheet/sheet";
-import { TODAY_LINE_WORDS } from "../model/lines";
+import { useEffect } from "react";
 import { typing } from "./held";
-
-const KEY_WORDS = TODAY_LINE_WORDS.keys;
 
 /** The page's lines a key can move to: each line's own press, open and in reach (none folded or shut away). */
 const LINE_PRESS = '.calm .calm-line:not([data-folded]) > .calm-fold > :is(a, [role="button"])';
+
+/** Anything open over the page: a sheet, a menu, AI. The page's keys wait for it to shut. */
+const OVER_THE_PAGE = '[role="dialog"], [role="menu"], [aria-modal="true"]';
 
 function linesInReach(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>(LINE_PRESS)].filter((el) => !el.closest("[inert]"));
@@ -30,47 +29,18 @@ function moveFocus(by: 1 | -1): void {
   line?.scrollIntoView({ block: "nearest" });
 }
 
-/** The keys, heard on the desk's Today, and the sheet ? opens with them listed. */
-export function TodayKeys() {
-  const [shown, setShown] = useState(false);
+/** J and K, heard on the desk's Today. It draws nothing. */
+export function TodayKeys(): null {
   useEffect(() => {
     const heard = (e: KeyboardEvent) => {
-      if (typing(e) || e.defaultPrevented) return;
-      if (e.key === "j" || e.key === "k") {
-        e.preventDefault();
-        moveFocus(e.key === "j" ? 1 : -1);
-      } else if (e.key === "?") {
-        e.preventDefault();
-        setShown(true);
-      }
+      const key = e.key.toLowerCase();
+      if ((key !== "j" && key !== "k") || e.defaultPrevented || e.shiftKey || typing(e)) return;
+      if (document.querySelector(OVER_THE_PAGE)) return;
+      e.preventDefault();
+      moveFocus(key === "j" ? 1 : -1);
     };
     document.addEventListener("keydown", heard);
     return () => document.removeEventListener("keydown", heard);
   }, []);
-  return (
-    <Sheet
-      open={shown}
-      onClose={() => setShown(false)}
-      title={KEY_WORDS.title}
-      close={{ label: TODAY_LINE_WORDS.held.close, glyph: <Icon name="x" size={13} /> }}
-      kicker
-      fit
-      backCloses
-      className="over-page calm-keys-over"
-      testid="today-keys-sheet"
-    >
-      <dl className="calm-keys">
-        {KEY_WORDS.list.map(([keys, does]) => (
-          <div key={keys} className="calm-key">
-            <dt>
-              {keys.split(" ").map((k) => (
-                <kbd key={k}>{k}</kbd>
-              ))}
-            </dt>
-            <dd>{does}</dd>
-          </div>
-        ))}
-      </dl>
-    </Sheet>
-  );
+  return null;
 }

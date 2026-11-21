@@ -38,6 +38,7 @@ import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
 import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
+import { WebsiteForms } from "../website/forms";
 import { GoogleChoose } from "./google-choose";
 import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
 import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
@@ -596,6 +597,8 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   return (
     <>
       <ConnectionGroups rows={rows} note={note} setNote={setNote} row={row} adsShown={adsShown} />
+      {/* A website's forms and their keys (00675), imported with the page: loaded on demand it regrouped the pages' chunks. */}
+      <WebsiteForms flash={flash} />
       {drive.sheets}
       {toastNode}
     </>

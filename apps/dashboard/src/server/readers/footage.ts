@@ -66,9 +66,11 @@ async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<Foot
     stopped_why: isOneOf(FOLDER_STOPPED_WHYS, source.stopped_why) ? source.stopped_why : null,
     over_listed: state === "watching" && source.stopped_why === "over_listed",
     updated_at: source.last_read_at,
+    // The folder's one count (00674): every screen's number of it is one of these, read once with the page.
     counts: {
       found: counts.found,
       in: counts.in,
+      away: counts.away,
       coming: counts.coming,
       landed: counts.landed,
       waits: {
@@ -77,6 +79,8 @@ async function folderOf(rc: ReaderContext, source: MediaSourceRow): Promise<Foot
         library_full: counts.libraryFull,
         videos_off: counts.videosOff,
       },
+      processing: counts.waitingLength,
+      missed: { failed: counts.failed, too_long: counts.tooLong, too_large: counts.tooLarge },
     },
     videos: minutes && {
       total: minutes.total,

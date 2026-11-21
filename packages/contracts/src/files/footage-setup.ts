@@ -147,8 +147,9 @@ export const FOOTAGE_SETUP = {
       files > 0
         ? `Nothing new comes in. The ${files === 1 ? "one file" : `${files.toLocaleString("en-US")} photos and videos`} that came in ${files === 1 ? "stays" : "stay"} in your Library.`
         : "Nothing new comes in.",
+    // A stopped folder's clips still come back on a press while its account reads (the content loop PRD's F1).
     away: (clips: number) =>
-      `${clipsAre(clips)} kept in Drive right now. ${clips === 1 ? "It" : "They"} can't be played here until a folder is watched again.`,
+      `${clipsAre(clips)} kept in Drive right now. ${clips === 1 ? "It still plays" : "They still play"} here while Google Drive stays connected.`,
     press: "Stop watching",
     keep: "Keep watching",
     done: "Stopped. Google Drive stays connected.",

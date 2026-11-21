@@ -25,6 +25,7 @@ export type {
   SourceConnectionHealth,
   WatchedFolderState,
 } from "./footage";
+export { footageAsidesOf } from "./footage-asides";
 export { FOOTAGE_NUMBERS } from "./footage-numbers";
 export { connectStoppedOf, FOOTAGE_SETUP } from "./footage-setup";
 export type { ConnectStopped } from "./footage-setup";

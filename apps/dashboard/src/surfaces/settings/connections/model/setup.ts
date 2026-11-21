@@ -87,7 +87,7 @@ export const CONNECTION_KINDS: readonly ConnectionKind[] = [
 
 /** Where the row sits: joined, joinable from here, or not built yet. */
 export type ConnectionGroup = "connected" | "available" | "later";
-/** Where this workspace stands with it. `attention` is joined but not working. */
+/** Where this workspace stands with it. `attention` is joined but not working; `off` is a line switched off. */
 export type ConnectionState = "connected" | "attention" | "off" | "waiting_you" | "waiting_them" | "none" | "later";
 /** One of the product's six tones (tone.ts): a channel that waits on someone is "in progress", not "live". */
 export type ConnectionTone = Tone;
@@ -826,7 +826,7 @@ export const CONNECTION_GROUP_WORDS: Record<
   connected: {
     title: "Connected",
     sub: (rows) => {
-      const bad = rows.filter((r) => r.state !== "connected").length;
+      const bad = rows.filter((r) => r.state === "attention" || r.state === "off").length;
       return `${rows.length} connected${bad ? ` · ${bad} need${bad === 1 ? "s" : ""} attention` : ""}`;
     },
   },

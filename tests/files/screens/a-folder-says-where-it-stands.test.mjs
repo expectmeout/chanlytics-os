@@ -8,7 +8,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
-import { connectionRows } from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import {
+  CONNECTION_GROUP_WORDS,
+  connectionRows,
+} from "../../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
 
 const { FOOTAGE_WORDS, footageLineOf, footageSheetOf, footageStandingOf } = await importSrc(
   "packages/contracts/src/files/footage.ts",
@@ -30,8 +33,11 @@ const counts = (over = {}) => ({
   in: 46,
   coming: 0,
   landed: 0,
+  away: 0,
+  processing: 0,
   ...over,
   waits: { budget: 0, room: 0, library_full: 0, videos_off: 0, ...(over.waits ?? {}) },
+  missed: { failed: 0, too_long: 0, too_large: 0, ...(over.missed ?? {}) },
 });
 const folder = (over = {}) => ({
   id: "s",
@@ -124,6 +130,31 @@ test("only what the owner must mend is theirs: every other standing ends by itse
   const yours = Object.keys(STATES).filter((key) => footageStandingOf(STATES[key], clock).tone === "you");
   assert.deepEqual(yours.sort(), ["cant_open", "connector_left", "library_full", "signed_out", "videos_full"]);
   for (const key of yours) assert.ok(footageStandingOf(STATES[key], clock).act, `${key} names the one thing to do`);
+});
+
+test("Connections' head counts a folder as needing attention only where someone must mend it, never for watching nothing", () => {
+  const headOf = (dto) => {
+    const row = connectionRows(
+      {
+        tz: "UTC",
+        channels: [],
+        whatsapp: null,
+        lines: { rows: [], ready: false },
+        lineRequestedAt: null,
+        google: null,
+        calendar: null,
+        footage: dto,
+      },
+      Date.parse("2026-11-19T20:00:00Z"),
+    ).find((line) => line.kind === "drive");
+    return row.group === "connected" ? CONNECTION_GROUP_WORDS.connected.sub([row]) : null;
+  };
+  const asking = Object.keys(STATES).filter((key) => headOf(STATES[key]) === "1 connected · 1 needs attention");
+  assert.deepEqual(asking.sort(), ["blocked", "connector_left", "library_full", "signed_out", "videos_full"]);
+  // Drive connected and no folder watched, or the one it watched stopped, loses nothing: the head said "2 need attention"
+  // over a row that said "Not watching" and offered nothing to mend (21 Nov 2026).
+  assert.equal(headOf(STATES.not_watching), "1 connected");
+  assert.equal(headOf(footage({ folder: folder({ state: "stopped" }) })), "1 connected");
 });
 
 test("Settings' row, Content's card and the Library's line say the same thing of one folder", () => {

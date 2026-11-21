@@ -61,6 +61,8 @@ what the script writes.
 | [`file_consents`](#file_consents) | none | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
+| [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/google/listing.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
@@ -1594,7 +1596,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `sound_said` | text | yes |  | A video's sound in a few words, for the list (contracts soundSaidOf). Written only by file_sound_keep. |
 | `picture_print` | text | yes |  | What the picture looks like (00630): a 128-bit difference hash, 32 hex characters; a video's is its poster's. Twins are within 24 bits. Null until printed. |
 | `copy_state` | text | no | `'here'::text` | Where a video's copy at the video platform stands (00654, the footage sources plan's Availability): here; going, being let go; away, let go, and its folder can give it back; returning, being brought back; lost, its folder cannot give it back. Only a watched folder's clip is ever anything but here. |
-| `copy_why` | text | yes |  | Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, folder, videos_off, busy, unreadable, changed, failed, stopped). One of a closed set (contracts FILE_COPY_WHYS). |
+| `copy_why` | text | yes |  | Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, connection, cant_open, videos_off, busy, stream_full, unreadable, changed, failed, stopped). connection: its folder's account does not read; cant_open: its folder itself won't open (00674, which split folder: a folder only stopped gives its clips back). One of a closed set (contracts FILE_COPY_WHYS). |
 | `copy_used_at` | timestamp with time zone | yes |  | When the copy at the video platform was last used: played, shown to AI, cut into a video (00654). What is let go first is what was used longest ago. |
 | `copy_returned_at` | timestamp with time zone | yes |  | When a return of the copy last spent the day's budget (00654 file_copy_return_begin): a workspace's returns of a day are counted from it. |
 | `owner_uploaded` | boolean | no | `false` | Its owner uploaded it too (00654): a watched folder's file that an upload met as its twin, written by the upload's door. It is theirs from then on, as any upload: its copy is never let go, and a folder's cleanup never removes it. |
@@ -1630,6 +1632,68 @@ What a person removed from a business's files, by fingerprint alone, written at 
 Foreign keys:
 
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+### form_entries
+
+One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
+
+- Owned by: `packages/db/src/repositories/people/website-forms.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `contact_id` | uuid | no |  |  |
+| `key_id` | uuid | yes |  |  |
+| `form` | text | no |  |  |
+| `answers` | jsonb | no |  |  |
+| `ref` | text | yes |  |  |
+| `words` | text | no |  |  |
+| `owed` | text[] | no |  | What the entry owes after it, each by its own subscriber: note (what they asked, waiting on their page for Keep), notice (the owner told), confirm (a sign-up with an address that arrived as it was sent is asked to confirm). |
+| `effects` | jsonb | no | `'{}'::jsonb` | Each owed effect's outcome, by name: {state: done\|failed, why?, outcome?, told?, at}. Written only by form_entry_settled. |
+| `state` | text | no | `'accepted'::text` |  |
+| `told_at` | timestamp with time zone | yes |  | When the owner first had a notice of the entry (its bell row kept). An accepted entry nobody was told of after ten minutes is paged (apps/edge/lib/website/form-watch.ts). |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `key_id` → [`form_keys`](#form_keys) (`tenant_id`, `id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_entries_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### form_keys
+
+A website's key for the form door (00675; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform's own key as before 00675, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.
+
+- Owned by: `packages/db/src/repositories/people/website-forms.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `name` | text | yes |  |  |
+| `hash` | text | yes |  |  |
+| `first` | boolean | no | `false` |  |
+| `made_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `last_used_at` | timestamp with time zone | yes |  |  |
+| `ends_at` | timestamp with time zone | yes |  | From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end. |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_keys_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### google_connections
 

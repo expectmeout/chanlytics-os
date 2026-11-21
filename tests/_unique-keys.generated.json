@@ -1324,6 +1324,111 @@
       "where": null
     },
     {
+      "table": "form_entries",
+      "name": "form_entries_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_entries",
+      "name": "form_entries_ref",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "ref"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "ref"
+        }
+      }
+    },
+    {
+      "table": "form_keys",
+      "name": "form_keys_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_keys",
+      "name": "form_keys_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_keys",
+      "name": "form_keys_hash",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "hash"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "hash"
+        }
+      }
+    },
+    {
+      "table": "form_keys",
+      "name": "form_keys_first",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        }
+      ],
+      "where": {
+        "truthy": {
+          "column": "first"
+        }
+      }
+    },
+    {
       "table": "google_connections",
       "name": "google_connections_pkey",
       "primary": true,
@@ -4154,6 +4259,9 @@
     },
     "escalations": {
       "state": "open"
+    },
+    "form_keys": {
+      "first": false
     },
     "jobs": {
       "dedupe_kept": false,

@@ -501,6 +501,9 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },
+  // A website's entries go with their person; a key is the business's own (00675).
+  form_entries: all(withPerson("form_entries_trigger"), "answers", "ref", "words", "effects", "owed"),
+  form_keys: { name: WITH_WORKSPACE, hash: NOT_PERSONAL },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),

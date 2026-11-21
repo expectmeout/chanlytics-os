@@ -132,6 +132,9 @@ const PREFIX_FAMILY: Record<EventPrefix, ActivityFamily> = {
   policy: "settings",
   contact: "people",
   person: "people",
+  // A website's form entry brings a person; its key is the site's connection (00675).
+  form_entry: "people",
+  form_key: "connections",
   call: "calls",
   voice: "connections",
   line: "connections",

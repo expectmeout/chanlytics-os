@@ -116,8 +116,8 @@ export const SCHEMA_SETS = {
   "file_consents.use": ["post", "ad", "reply", "cold_email"],
   "files.copy_state": ["here", "going", "away", "returning", "lost"],
   "files.copy_why": [
-    "room", "budget", "folder", "videos_off", "busy", "stream_full", "unreadable", "changed", "failed",
-    "stopped", "gone", "outside", "not_found", "no_access", "no_origin",
+    "room", "budget", "connection", "cant_open", "videos_off", "busy", "stream_full", "unreadable",
+    "changed", "failed", "stopped", "gone", "outside", "not_found", "no_access", "no_origin",
   ],
   "files.kind": ["image", "video"],
   "files.look_status": ["waiting", "done", "refused", "failed"],
@@ -131,6 +131,8 @@ export const SCHEMA_SETS = {
   "files.source": ["upload", "google_profile", "google_listing", "website", "instagram", "made", "drive"],
   "files.status": ["inbox", "filed", "set_aside"],
   "files.who_in_it": ["not_asked", "no_one"],
+  "form_entries.form": ["signup", "request"],
+  "form_entries.state": ["accepted", "processed"],
   "google_reviews.origin": ["places", "profile"],
   "imports.source": [
     "google_reviews", "calendar", "clients_file", "mailbox", "contacts", "whatsapp_contacts",

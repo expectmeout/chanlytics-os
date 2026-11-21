@@ -323,6 +323,7 @@ export { emailTextOf } from "./email/text";
 export { FILE_COPY_LOSSES, FILE_COPY_STATES, FILE_COPY_WAITS, FILE_COPY_WHYS } from "./files/copy";
 export { FILE_WORDS, fileCursorOf, filesSayOf, keptSaidOf } from "./files/files";
 export { FOOTAGE_WORDS, footageLineOf, footageSheetOf, footageStandingOf } from "./files/footage";
+export { footageAsidesOf } from "./files/footage-asides";
 export { FOOTAGE_NUMBERS } from "./files/footage-numbers";
 export { connectStoppedOf, FOOTAGE_SETUP } from "./files/footage-setup";
 export { FILE_IMAGE_MIMES, FILE_KINDS, FILE_MADE_OF_VIDEO, FILE_MADE_OF_VIDEO_MIMES, FILE_MEDIA_STATUSES, FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MIMES, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX, fileFramePathOf, fileKindOf, fileMadePathOf, isVideoMime } from "./files/kinds";
@@ -420,6 +421,7 @@ export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VIS
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
 export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
+export { websiteKeyWorks } from "./people/doors/website-keys";
 export { hashLegacyErasedEmail, hashLegacyErasedPhone, hashLegacyLeadSuppression } from "./people/erasure";
 export { cannotBeSentWords, NO_CHANNEL_REACH, NO_NUMBER_REACH, noChannelWords, noNumberWords, noYesWords, peopleAggregates, peopleListAction, peopleListsOf, saidYesWords, savedListAction } from "./people/lists/actions";
 export { BUILTIN_LISTS, LIST_GROUP_WORDS, listAsks, PEOPLE_LIST_GROUPS, PEOPLE_LISTS } from "./people/lists/builtin-lists";

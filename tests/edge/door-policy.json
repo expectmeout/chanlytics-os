@@ -902,7 +902,7 @@
     "POST /api/website-form": {
       "wrapper": "door",
       "verb": "receiveWebsiteForm in apps/edge/lib/website/form-door.ts",
-      "knock": "websiteFormKeyMatches",
+      "knock": "checkWebsiteFormKey",
       "knock_in": "receiveWebsiteForm in apps/edge/lib/website/form-door.ts"
     },
     "GET /api/whatsapp": {

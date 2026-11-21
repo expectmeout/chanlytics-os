@@ -9319,10 +9319,7 @@ CREATE FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds inte
    where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
      and not f.owner_uploaded
      and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
-     and exists (select 1 from public.source_items i
-                   join public.media_sources s on s.id = i.source_id
-                  where i.tenant_id = f.tenant_id and i.file_id = f.id and i.state = 'in'
-                    and s.state = any (array['setting_up', 'watching']))
+     and public.file_copy_comes_back(f.tenant_id, f.id)
      and (coalesce(f.copy_used_at, f.ready_at, f.created_at) >= now() - make_interval(secs => p_rest_seconds)
           or (f.look_status <> all (array['done', 'refused']) and f.created_at >= now() - interval '7 days')
           or exists (select 1 from public.pieces p
@@ -9335,7 +9332,7 @@ $$;
 -- Name: FUNCTION file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) IS 'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads, made and found videos, or folders no longer read. A take that found the videos full waits until then. The service role''s.';
+COMMENT ON FUNCTION public.file_copies_free_at(p_tenant_id uuid, p_rest_seconds integer) IS 'When a copy that may not be let go yet could be (00654): the earliest end of a resting copy''s rest (p_rest_seconds after its last use or its arrival), or the rest from now for one a look not done or a video being made still holds. Null where no copy of the workspace ever may go: what fills its minutes is uploads, made and found videos, or clips that cannot be fetched again (file_copy_comes_back, 00674). A take that found the videos full waits until then. The service role''s.';
 
 
 --
@@ -9361,9 +9358,9 @@ begin
   end if;
   with eligible as (
     -- Only what can come back is let go by itself: a watched folder's clip its owner did not also upload, playable,
-    -- looked at (or past the week a
-    -- look is tried again in), held by an item that is in, in a folder still being read; named by no video being
-    -- made; and not used, or arrived, since the rest began.
+    -- looked at (or past the week a look is tried again in), that can be fetched again (00674: a folder being read,
+    -- or one stopped whose account reads); named by no video being made; and not used, or arrived, since the rest
+    -- began.
     select f.id, f.seconds, coalesce(f.copy_used_at, f.ready_at, f.created_at) as used_at
       from public.files f
      where f.tenant_id = p_tenant_id and f.kind = 'video' and public.file_road_is_watched(f.source)
@@ -9371,10 +9368,7 @@ begin
        and f.removed_at is null and f.copy_state = 'here' and f.media_status = 'ready' and f.media_ref is not null
        and (f.look_status = any (array['done', 'refused']) or f.created_at < now() - interval '7 days')
        and coalesce(f.copy_used_at, f.ready_at, f.created_at) < p_rested_before
-       and exists (select 1 from public.source_items i
-                     join public.media_sources s on s.id = i.source_id
-                    where i.tenant_id = f.tenant_id and i.file_id = f.id and i.state = 'in'
-                      and s.state = any (array['setting_up', 'watching']))
+       and public.file_copy_comes_back(f.tenant_id, f.id)
        and not exists (select 1 from public.pieces p
                         where p.tenant_id = f.tenant_id and p.status = 'making'
                           and position(f.id::text in p.plan::text) > 0)
@@ -9415,7 +9409,35 @@ end $$;
 -- Name: FUNCTION file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip its owner did not also upload (owner_uploaded), playable, looked at, held by an item that is in under a folder still being read, named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
+COMMENT ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds numeric, p_unused_before timestamp with time zone, p_rested_before timestamp with time zone, p_limit integer) IS 'A workspace''s copies marked going (00654, the footage sources plan''s D6). By room (p_seconds: a video of that length must fit): the least recently used first, as many as free what is short, and none where all that may go would not free it. By age (p_seconds null): each one unused since p_unused_before. Only a watched folder''s clip its owner did not also upload (owner_uploaded), playable, looked at, that can be fetched again (file_copy_comes_back, 00674: a folder being read, or one stopped whose account reads), named by no video being made, and not used or arrived since p_rested_before; p_limit at most. Never an upload, a video made here or a found video. Answers [{id, media_ref, seconds}]: the caller deletes each at the video platform, then says so (file_copy_gone). The service role''s.';
+
+
+--
+-- Name: file_copy_comes_back(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- An item of the file's that is in, under a folder being read, or one that was stopped: its original is still read
+  -- through its account's key, so a copy let go comes back on a press as a watched folder's does. Only while that
+  -- account reads: one that needs connecting again gives nothing back, and its folders' clips stay.
+  select exists (
+    select 1 from public.source_items i
+      join public.media_sources s on s.id = i.source_id
+      join public.source_connections c on c.id = s.connection_id
+     where i.tenant_id = p_tenant_id and i.file_id = p_file_id and i.state = 'in'
+       and s.state = any (array['setting_up', 'watching', 'stopped'])
+       and c.health = 'ok')
+$$;
+
+
+--
+-- Name: FUNCTION file_copy_comes_back(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) IS 'Whether a watched clip''s copy can be fetched again by itself (00674, the content loop PRD''s F1): an item of the file''s that is in, under a folder being read or one that was stopped, whose Google account reads (health ok). The one place that says so: file_copies_let_go, file_copies_free_at and video_minutes_by_road ask it. Runs as its caller: a member reads only their own workspace''s rows.';
 
 
 --
@@ -11470,6 +11492,315 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) IS 'One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: a wait that lasts is told once, never again each day. Answers how many rows it wrote.';
+
+
+--
+-- Name: form_entries_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.form_entries where tenant_id = new.tenant_id and contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entries_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_erase_on_contact() IS 'When a person is erased, their website form entries go with them (00675, decision 0036).';
+
+
+--
+-- Name: form_entry_settled(uuid, uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_entry   public.form_entries%rowtype;
+  v_before  jsonb;
+  v_effects jsonb;
+  v_done    boolean;
+begin
+  if p_effect is null or p_effect not in ('note', 'notice', 'confirm') then
+    raise exception 'An effect is the note, the notice or the confirmation.' using errcode = '22023';
+  end if;
+  if p_outcome is null or jsonb_typeof(p_outcome) <> 'object'
+     or coalesce(p_outcome ->> 'state', '') not in ('done', 'failed') then
+    raise exception 'An outcome is done or failed.' using errcode = '22023';
+  end if;
+  select * into v_entry from public.form_entries e
+   where e.tenant_id = p_tenant_id and e.id = p_entry_id
+   for update;
+  -- Gone: its person was erased since. Nothing is owed any more.
+  if not found then
+    return jsonb_build_object('settled', false, 'gone', true, 'effects', '{}'::jsonb);
+  end if;
+  v_before := v_entry.effects -> p_effect;
+  -- A step once done stays as it was: a second run, or a twin delivery that lost to it, never says something else of
+  -- it (an ask done is never called open; a notice told is never called failed).
+  if v_before ->> 'state' = 'done' then
+    return jsonb_build_object('settled', false, 'gone', false, 'effects', v_entry.effects);
+  end if;
+  v_effects := v_entry.effects || jsonb_build_object(p_effect, p_outcome || jsonb_build_object('at', now()));
+  v_done := not exists (
+    select 1 from unnest(v_entry.owed) o where (v_effects -> o ->> 'state') is distinct from 'done');
+  update public.form_entries e
+     set effects = v_effects,
+         state = case when v_done then 'processed' else e.state end,
+         told_at = case when p_effect = 'notice' and coalesce((p_outcome ->> 'told')::boolean, false)
+                        then coalesce(e.told_at, now()) else e.told_at end
+   where e.tenant_id = p_tenant_id and e.id = p_entry_id;
+  -- The confirmation's first outcome is news to the notice, which says what became of the ask.
+  if p_effect = 'confirm' and v_before is null then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.asked', 'contact', 'form_entry', p_entry_id,
+            jsonb_build_object('state', p_outcome ->> 'state'));
+  end if;
+  return jsonb_build_object('settled', true, 'gone', false, 'effects', v_effects);
+end $$;
+
+
+--
+-- Name: FUNCTION form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) IS 'One effect of a website form entry settled (00675): its outcome kept on the entry ({state: done|failed, ...}, with its moment), the entry processed once every owed effect is done, told_at stamped the first time the notice says told. A step done is never written again (settled false). The ask''s first outcome writes form_entry.asked. Answers {settled, gone, effects}; gone for an entry erased since. The service role''s alone.';
+
+
+--
+-- Name: form_entry_take(uuid, text, jsonb, jsonb, text, text[], uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid DEFAULT NULL::uuid, p_ref text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_entry   uuid;
+  v_contact uuid;
+  v_person  jsonb;
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_form is null or p_form not in ('signup', 'request') then
+    raise exception 'A form is a sign-up or a request.' using errcode = '22023';
+  end if;
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' or p_person is null or jsonb_typeof(p_person) <> 'object' then
+    raise exception 'The answers and the person are objects.' using errcode = '22023';
+  end if;
+  if p_words is null or p_words !~ '^[0-9a-f]{64}$' then
+    raise exception 'The words are a digest.' using errcode = '22023';
+  end if;
+
+  -- The site was used, whatever becomes of the entry. The first key is a row from its first use on.
+  if p_key_id is null then
+    insert into public.form_keys as k (tenant_id, first, last_used_at)
+    values (p_tenant_id, true, now())
+    on conflict (tenant_id) where first do update set last_used_at = now()
+    returning k.id into p_key_id;
+  else
+    update public.form_keys set last_used_at = now() where tenant_id = p_tenant_id and id = p_key_id;
+  end if;
+
+  -- Once. The site's own id is the entry's; with none, the same words within ten minutes are a retry (call 19), and
+  -- later they are a new entry. Two posts of the same words at once wait for each other here.
+  if nullif(btrim(coalesce(p_ref, '')), '') is not null then
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+  else
+    perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_entry|' || p_words, 0));
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e
+     where e.tenant_id = p_tenant_id and e.words = p_words and e.ref is null
+       and e.created_at > now() - interval '10 minutes'
+     order by e.created_at desc
+     limit 1;
+  end if;
+  if v_entry is not null then
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+  end if;
+
+  -- The person through the one door, as the website's. A person who asked to be forgotten is not made again, and
+  -- nothing of theirs is written: the door's own writes are taken back with it.
+  begin
+    v_person := public.resolve_person(
+      p_tenant_id, '', '', coalesce(p_person ->> 'phone', ''), coalesce(p_person ->> 'email', ''),
+      coalesce(p_person ->> 'name', ''), 'found', 'website', coalesce(p_person -> 'detail', '{}'::jsonb));
+  exception when sqlstate 'PE001' then
+    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+  end;
+  v_contact := (v_person ->> 'contact_id')::uuid;
+
+  begin
+    insert into public.form_entries (tenant_id, contact_id, key_id, form, answers, ref, words, owed)
+    values (p_tenant_id, v_contact, p_key_id, p_form, p_answers, nullif(btrim(coalesce(p_ref, '')), ''), p_words,
+            coalesce(p_owed, '{}'))
+    returning id into v_entry;
+  exception when unique_violation then
+    -- The same site id at the same moment: the other post kept it.
+    select e.id, e.contact_id into v_entry, v_contact
+      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact);
+  end;
+
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry,
+          jsonb_build_object('form', p_form, 'owed', to_jsonb(coalesce(p_owed, '{}'))));
+
+  return jsonb_build_object('outcome', 'accepted', 'entry_id', v_entry, 'contact_id', v_contact,
+                            'person', v_person ->> 'outcome');
+end $_$;
+
+
+--
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) IS 'The website form door''s one write (00675; the Forms plan, F0): the key''s last use (the first key''s row made at its first use, p_key_id null), the once rule (the site''s own id; with none, the same words within ten minutes), the person through resolve_person as the website''s, the entry and its form_entry.accepted event, together. Answers {outcome: accepted|again|forgotten, entry_id, contact_id, person}: forgotten writes nothing of the person at all (PE001). The service role''s alone.';
+
+
+--
+-- Name: form_key_change(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_old  public.form_keys%rowtype;
+  v_id   uuid;
+  v_name text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
+    raise exception 'A key is kept as its digest.' using errcode = '22023';
+  end if;
+  -- A key that works and is not already on its last day: one changed twice would leave two old keys working.
+  select * into v_old from public.form_keys k
+   where k.tenant_id = p_tenant_id and k.id = p_key_id and k.ends_at is null
+   for update;
+  if not found then
+    raise exception 'That key is ending or has ended already.' using errcode = 'P0002';
+  end if;
+  -- The new key keeps the site's name; the first key had none, and its new one is the website's.
+  v_name := coalesce(v_old.name, 'Website');
+  insert into public.form_keys (tenant_id, name, hash, made_by)
+  values (p_tenant_id, v_name, p_hash, auth.uid())
+  returning id into v_id;
+  -- The old one keeps working for a day, so the site can be given the new one without a form refused.
+  update public.form_keys set ends_at = now() + interval '1 day' where tenant_id = p_tenant_id and id = p_key_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
+          jsonb_build_object('act', 'changed', 'was', p_key_id, 'by', auth.uid()));
+  return jsonb_build_object('id', v_id, 'name', v_name);
+end $_$;
+
+
+--
+-- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) IS 'An owner''s or a partner''s door (00675): a key that works and is not already ending changed for a new one by the same name (the first key''s new one is named Website), the old one honoured for a day more. Answers the new key as {id, name}; P0002 for a key that is ending or has ended.';
+
+
+--
+-- Name: form_key_end(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_ended integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.form_keys
+     set ends_at = now()
+   where tenant_id = p_tenant_id and id = p_key_id and (ends_at is null or ends_at > now());
+  get diagnostics v_ended = row_count;
+  if v_ended > 0 then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_key.set', 'settings', 'form_key', p_key_id,
+            jsonb_build_object('act', 'ended', 'by', auth.uid()));
+  end if;
+  return v_ended > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION form_key_end(p_tenant_id uuid, p_key_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) IS 'An owner''s or a partner''s door (00675): a key refused from now on, the first key too. Answers whether one still working was ended.';
+
+
+--
+-- Name: form_key_make(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+declare
+  v_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if p_name is null or char_length(btrim(p_name)) not between 1 and 60 then
+    raise exception 'A key is named for its site, in at most 60 characters.' using errcode = '22023';
+  end if;
+  if p_hash is null or p_hash !~ '^[0-9a-f]{64}$' then
+    raise exception 'A key is kept as its digest.' using errcode = '22023';
+  end if;
+  -- One key a site: a workspace has at most ten that still work.
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|form_keys', 0));
+  if (select count(*) from public.form_keys k
+       where k.tenant_id = p_tenant_id and (k.ends_at is null or k.ends_at > now())) >= 10 then
+    raise exception 'A workspace has at most ten keys that work. End one first.' using errcode = '22023';
+  end if;
+  insert into public.form_keys (tenant_id, name, hash, made_by)
+  values (p_tenant_id, btrim(p_name), p_hash, auth.uid())
+  returning id into v_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_key.set', 'settings', 'form_key', v_id,
+          jsonb_build_object('act', 'made', 'by', auth.uid()));
+  return v_id;
+end $_$;
+
+
+--
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
 
 
 --
@@ -26420,6 +26751,44 @@ COMMENT ON FUNCTION public.platform_find(p_q text) IS 'The Console''s Find (0046
 
 
 --
+-- Name: platform_health_footage(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.platform_health_footage() RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  -- Google's day, as the takes count it (00643): Pacific time.
+  with today as (select (now() at time zone 'America/Los_Angeles')::date as day),
+  spent as (select d.* from public.source_days d, today t where d.day = t.day),
+  -- What waits on the video platform's own storage: takes waiting, and copies that could not come back.
+  stuck as (
+    select i.tenant_id, i.updated_at from public.source_items i
+     where i.state = 'waiting' and i.why = 'stream_full'
+    union all
+    select f.tenant_id, f.updated_at from public.files f
+     where f.copy_state = 'away' and f.copy_why = 'stream_full'
+  )
+  select jsonb_build_object(
+    'day', (select t.day from today t),
+    'units', coalesce((select s.units from spent s), 0),
+    'bytes', coalesce((select s.bytes from spent s), 0),
+    'takes', coalesce((select s.takes from spent s), 0),
+    'returns', coalesce((select s.returns from spent s), 0),
+    'stream_full', (select count(*) from stuck),
+    'stream_full_workspaces', coalesce((select jsonb_agg(distinct x.tenant_id) from stuck x), '[]'::jsonb),
+    'stream_full_since', (select min(x.updated_at) from stuck x))
+$$;
+
+
+--
+-- Name: FUNCTION platform_health_footage(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.platform_health_footage() IS 'Health''s read of watched folders today (00674, the content loop PRD''s 14.3): Google''s day (Pacific time, as the takes count it) of units, bytes, takes and returns spent from source_days, and what waits on the video platform''s own storage (takes waiting and copies away with why stream_full): how many, the workspaces, and since when. Service role only.';
+
+
+--
 -- Name: platform_health_parts(integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -40178,10 +40547,26 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
     AS $$
   -- What was asked for and is not in yet: a first watch's fifty, or what arrived since. Few rows, by the state's index.
   with moving as (
-    select i.state, i.why
+    select i.state, i.why, i.length_until > now() as processing
       from public.source_items i
      where i.tenant_id = p_tenant_id and i.source_id = p_source_id
        and i.state = any (array['waiting', 'taking'])
+  ),
+  -- The folder's files in the Library, each once (two items may hold one file), as the Library holds them: a file
+  -- whose original left the folder stays until its week is out, and is counted until then.
+  kept as (
+    select distinct f.id, f.kind, f.copy_state
+      from public.source_items i
+      join public.files f on f.id = i.file_id
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.file_id is not null
+       and f.tenant_id = p_tenant_id and f.removed_at is null
+  ),
+  -- What could not come in: tried three times and failed, or too long or too large to bring.
+  missed as (
+    select i.state, i.why
+      from public.source_items i
+     where i.tenant_id = p_tenant_id and i.source_id = p_source_id
+       and i.state = any (array['failed', 'too_big']) and i.kind <> 'folder'
   ),
   -- Google counts a day in Pacific time, and a workspace's takes of a day are counted in the same day (00643).
   today as (
@@ -40195,12 +40580,15 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
            - (select count(*) from public.source_items i
                where i.source_id = p_source_id and i.kind = 'folder' and i.tenant_id = p_tenant_id
                  and i.state <> all (array['gone', 'outside', 'no_access'])),
-    'in', (select count(*) from public.source_items i
-            where i.tenant_id = p_tenant_id and i.source_id = p_source_id and i.state = 'in'),
-    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace).
+    'in', (select count(*) from kept),
+    -- Of them, the clips whose copy is kept in Drive just now.
+    'away', (select count(*) from kept k where k.kind = 'video' and k.copy_state <> 'here'),
+    -- On their way: being taken, or waiting for nothing but their turn (a try again, the provider's pace). A video Drive
+    -- is still processing waits for its length, and is said apart.
     'coming', (select count(*) from moving m
-                where m.state = 'taking' or m.why is null
-                   or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder'])),
+                where m.state = 'taking'
+                   or ((m.why is null or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder']))
+                       and not coalesce(m.processing, false))),
     -- Landed today: what the day's takes brought in, so "12 of 40" is twelve of today's forty.
     'landed', (select count(*) from public.source_items i, today t
                 where i.tenant_id = p_tenant_id and i.taken_at >= t.began
@@ -40208,7 +40596,13 @@ CREATE FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) RE
     'budget', (select count(*) from moving m where m.state = 'waiting' and m.why = 'budget'),
     'room', (select count(*) from moving m where m.state = 'waiting' and m.why = 'room'),
     'library_full', (select count(*) from moving m where m.state = 'waiting' and m.why = 'library_full'),
-    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off')
+    'videos_off', (select count(*) from moving m where m.state = 'waiting' and m.why = 'videos_off'),
+    'waiting_length', (select count(*) from moving m
+                        where m.state = 'waiting' and coalesce(m.processing, false)
+                          and (m.why is null or m.why <> all (array['budget', 'room', 'library_full', 'videos_off', 'folder']))),
+    'failed', (select count(*) from missed x where x.state = 'failed'),
+    'too_long', (select count(*) from missed x where x.state = 'too_big' and x.why = 'seconds'),
+    'too_large', (select count(*) from missed x where x.state = 'too_big' and x.why is distinct from 'seconds')
   );
 $$;
 
@@ -40217,7 +40611,7 @@ $$;
 -- Name: FUNCTION source_items_tally(p_tenant_id uuid, p_source_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens): found (photos and videos still where they were), in (in the Library), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), and those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off). Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
+COMMENT ON FUNCTION public.source_items_tally(p_tenant_id uuid, p_source_id uuid) IS 'A watched folder''s files counted where they stand (00655, the footage sources plan''s screens; 00674): found (photos and videos still where they were), in (its files in the Library, each once, as the Library holds them), away (of them, clips kept in Drive just now), coming (being taken, or waiting only for their turn), landed (in, and counted in today''s takes, a day as Google counts one), those waiting for a day''s allowance (budget), room in the videos (room), room in the Library (library_full) or the workspace''s video switch (videos_off), waiting_length (videos Drive is still processing, said apart from coming), and what could not come in: failed (tried and failed), too_long (longer than AI can watch), too_large (too heavy, or a photo of too many pixels). Every screen''s count of a folder is one of these. Counted from the folder''s own list and kept nowhere. Runs as its caller: a member reads their own workspace''s rows, and another''s count nothing.';
 
 
 --
@@ -42411,11 +42805,7 @@ CREATE FUNCTION public.video_minutes_by_road(p_tenant_id uuid) RETURNS jsonb
     'total', coalesce(sum(c.seconds), 0),
     'can_step_aside', coalesce(sum(c.seconds) filter (
       where public.file_road_is_watched(c.source) and not c.owner_uploaded and c.copy_state = 'here'
-        and c.media_status = 'ready'
-        and exists (select 1 from public.source_items i
-                      join public.media_sources s on s.id = i.source_id
-                     where i.tenant_id = p_tenant_id and i.file_id = c.id and i.state = 'in'
-                       and s.state = any (array['setting_up', 'watching']))), 0),
+        and c.media_status = 'ready' and public.file_copy_comes_back(p_tenant_id, c.id)), 0),
     'set_aside', coalesce(sum(c.seconds) filter (where c.status = 'set_aside'), 0),
     'own', coalesce(sum(c.seconds) filter (where c.status <> 'set_aside'
                                              and (c.source = 'upload' or c.owner_uploaded)), 0),
@@ -44878,7 +45268,7 @@ CREATE TABLE public.files (
     yes_back text[] DEFAULT '{}'::text[] NOT NULL,
     CONSTRAINT files_copy_shape CHECK ((((copy_state = 'here'::text) OR ((kind = 'video'::text) AND (source = 'drive'::text))) AND ((copy_state <> ALL (ARRAY['away'::text, 'lost'::text])) OR (media_ref IS NULL)) AND ((copy_why IS NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text]))))),
     CONSTRAINT files_copy_state_check CHECK ((copy_state = ANY (ARRAY['here'::text, 'going'::text, 'away'::text, 'returning'::text, 'lost'::text]))),
-    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'folder'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
+    CONSTRAINT files_copy_why_check CHECK (((copy_why IS NULL) OR (copy_why = ANY (ARRAY['room'::text, 'budget'::text, 'connection'::text, 'cant_open'::text, 'videos_off'::text, 'busy'::text, 'stream_full'::text, 'unreadable'::text, 'changed'::text, 'failed'::text, 'stopped'::text, 'gone'::text, 'outside'::text, 'not_found'::text, 'no_access'::text, 'no_origin'::text])))),
     CONSTRAINT files_kind_check CHECK ((kind = ANY (ARRAY['image'::text, 'video'::text]))),
     CONSTRAINT files_look_status_check CHECK ((look_status = ANY (ARRAY['waiting'::text, 'done'::text, 'refused'::text, 'failed'::text]))),
     CONSTRAINT files_media_shape CHECK ((((kind = 'image'::text) AND (media_ref IS NULL) AND (media_status IS NULL)) OR ((kind = 'video'::text) AND (media_status IS NOT NULL) AND ((media_ref IS NOT NULL) OR (copy_state = ANY (ARRAY['away'::text, 'lost'::text, 'returning'::text])))))),
@@ -45084,7 +45474,7 @@ COMMENT ON COLUMN public.files.copy_state IS 'Where a video''s copy at the video
 -- Name: COLUMN files.copy_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.copy_why IS 'Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, folder, videos_off, busy, unreadable, changed, failed, stopped). One of a closed set (contracts FILE_COPY_WHYS).';
+COMMENT ON COLUMN public.files.copy_why IS 'Why a copy is lost (gone, outside, not_found, no_access, no_origin), or why one that is away did not come back when it was last asked for (room, budget, connection, cant_open, videos_off, busy, stream_full, unreadable, changed, failed, stopped). connection: its folder''s account does not read; cant_open: its folder itself won''t open (00674, which split folder: a folder only stopped gives its clips back). One of a closed set (contracts FILE_COPY_WHYS).';
 
 
 --
@@ -45159,6 +45549,96 @@ CREATE TABLE public.files_let_go (
 --
 
 COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''s files, by fingerprint alone, written at the press (00551, decision 0099): an import does not bring it back. A person may still add it again. Nothing else of the file stays.';
+
+
+--
+-- Name: form_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    contact_id uuid NOT NULL,
+    key_id uuid,
+    form text NOT NULL,
+    answers jsonb NOT NULL,
+    ref text,
+    words text NOT NULL,
+    owed text[] NOT NULL,
+    effects jsonb DEFAULT '{}'::jsonb NOT NULL,
+    state text DEFAULT 'accepted'::text NOT NULL,
+    told_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
+    CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
+    CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
+    CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
+    CONSTRAINT form_entries_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
+    CONSTRAINT form_entries_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'processed'::text]))),
+    CONSTRAINT form_entries_words_check CHECK ((words ~ '^[0-9a-f]{64}$'::text))
+);
+
+
+--
+-- Name: TABLE form_entries; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_entries IS 'One entry of a website''s form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site''s own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).';
+
+
+--
+-- Name: COLUMN form_entries.owed; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.owed IS 'What the entry owes after it, each by its own subscriber: note (what they asked, waiting on their page for Keep), notice (the owner told), confirm (a sign-up with an address that arrived as it was sent is asked to confirm).';
+
+
+--
+-- Name: COLUMN form_entries.effects; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.effects IS 'Each owed effect''s outcome, by name: {state: done|failed, why?, outcome?, told?, at}. Written only by form_entry_settled.';
+
+
+--
+-- Name: COLUMN form_entries.told_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.told_at IS 'When the owner first had a notice of the entry (its bell row kept). An accepted entry nobody was told of after ten minutes is paged (apps/edge/lib/website/form-watch.ts).';
+
+
+--
+-- Name: form_keys; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    name text,
+    hash text,
+    first boolean DEFAULT false NOT NULL,
+    made_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_used_at timestamp with time zone,
+    ends_at timestamp with time zone,
+    CONSTRAINT form_keys_hash_check CHECK (((hash IS NULL) OR (hash ~ '^[0-9a-f]{64}$'::text))),
+    CONSTRAINT form_keys_name_check CHECK (((name IS NULL) OR ((char_length(name) >= 1) AND (char_length(name) <= 60)))),
+    CONSTRAINT form_keys_one_way CHECK (((first = (hash IS NULL)) AND (first = (name IS NULL))))
+);
+
+
+--
+-- Name: TABLE form_keys; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675; the Forms plan, F0): named, made at random by the dashboard, shown once and kept only as its sha-256, with when it was last used and when it ends. A key changed is a new one, the old one honoured a day. The first key, made from the platform''s own key as before 00675, is a row (first, no hash, no name) once a site uses it, so its "last used" shows when the site has moved; it keeps working until it is ended. Members read them; form_key_make, form_key_change and form_key_end write them, and form_entry_take stamps last_used_at.';
+
+
+--
+-- Name: COLUMN form_keys.ends_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_keys.ends_at IS 'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
 
 
 --
@@ -50029,6 +50509,38 @@ ALTER TABLE ONLY public.files
 
 
 --
+-- Name: form_entries form_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_entries form_entries_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: form_keys form_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_keys form_keys_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: google_connections google_connections_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52045,6 +52557,13 @@ CREATE INDEX files_copies_returned ON public.files USING btree (tenant_id, copy_
 
 
 --
+-- Name: files_copies_stream_full; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX files_copies_stream_full ON public.files USING btree (updated_at) WHERE ((copy_state = 'away'::text) AND (copy_why = 'stream_full'::text));
+
+
+--
 -- Name: files_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -52105,6 +52624,62 @@ CREATE INDEX files_removed ON public.files USING btree (removed_at) WHERE (remov
 --
 
 CREATE INDEX files_superseded ON public.files USING btree (superseded_at) WHERE ((superseded_at IS NOT NULL) AND (removed_at IS NULL));
+
+
+--
+-- Name: form_entries_contact; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_contact ON public.form_entries USING btree (tenant_id, contact_id);
+
+
+--
+-- Name: form_entries_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_key ON public.form_entries USING btree (tenant_id, key_id);
+
+
+--
+-- Name: form_entries_made; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_made ON public.form_entries USING btree (tenant_id, created_at);
+
+
+--
+-- Name: form_entries_ref; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_id, ref) WHERE (ref IS NOT NULL);
+
+
+--
+-- Name: form_entries_untold; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_untold ON public.form_entries USING btree (created_at) WHERE (told_at IS NULL);
+
+
+--
+-- Name: form_entries_words; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_words ON public.form_entries USING btree (tenant_id, words, created_at);
+
+
+--
+-- Name: form_keys_first; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_keys_first ON public.form_keys USING btree (tenant_id) WHERE first;
+
+
+--
+-- Name: form_keys_hash; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_keys_hash ON public.form_keys USING btree (hash) WHERE (hash IS NOT NULL);
 
 
 --
@@ -54205,6 +54780,13 @@ CREATE TRIGGER contacts_erase_marks_its_notices AFTER UPDATE OF erased_at ON pub
 --
 
 CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.contact_events_on_erase();
+
+
+--
+-- Name: contacts contacts_erase_takes_form_entries; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_form_entries AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_erase_on_contact();
 
 
 --
@@ -56676,6 +57258,38 @@ ALTER TABLE ONLY public.files
 
 
 --
+-- Name: form_entries form_entries_contact_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_contact_id_same_workspace FOREIGN KEY (tenant_id, contact_id) REFERENCES public.contacts(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entries form_entries_key_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_key_id_same_workspace FOREIGN KEY (tenant_id, key_id) REFERENCES public.form_keys(tenant_id, id) ON DELETE SET NULL (key_id);
+
+
+--
+-- Name: form_entries form_entries_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_keys form_keys_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_keys
+    ADD CONSTRAINT form_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: google_connections google_connections_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -58919,6 +59533,36 @@ ALTER TABLE public.files_let_go ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY files_member_select ON public.files FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_entries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_entries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_entries form_entries_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_entries_member_select ON public.form_entries FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_keys; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_keys ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_keys form_keys_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_keys_member_select ON public.form_keys FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -61713,6 +62357,15 @@ GRANT ALL ON FUNCTION public.file_copies_let_go(p_tenant_id uuid, p_seconds nume
 
 
 --
+-- Name: FUNCTION file_copy_comes_back(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.file_copy_comes_back(p_tenant_id uuid, p_file_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION file_copy_gone(p_tenant_id uuid, p_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -62131,6 +62784,57 @@ GRANT ALL ON FUNCTION public.footage_quoted(p_name text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p_subject_id text, p_title text, p_body text, p_connector uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_entries_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_settled(p_tenant_id uuid, p_entry_id uuid, p_effect text, p_outcome jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_take(p_tenant_id uuid, p_form text, p_answers jsonb, p_person jsonb, p_words text, p_owed text[], p_key_id uuid, p_ref text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_change(p_tenant_id uuid, p_key_id uuid, p_hash text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_end(p_tenant_id uuid, p_key_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_key_make(p_tenant_id uuid, p_name text, p_hash text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO authenticated;
+GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO service_role;
 
 
 --
@@ -64521,6 +65225,14 @@ GRANT ALL ON FUNCTION public.platform_clocks(p_days integer) TO service_role;
 REVOKE ALL ON FUNCTION public.platform_find(p_q text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO authenticated;
 GRANT ALL ON FUNCTION public.platform_find(p_q text) TO service_role;
+
+
+--
+-- Name: FUNCTION platform_health_footage(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.platform_health_footage() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.platform_health_footage() TO service_role;
 
 
 --
@@ -68184,6 +68896,22 @@ GRANT SELECT(yes_back) ON TABLE public.files TO authenticated;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.files_let_go TO service_role;
+
+
+--
+-- Name: TABLE form_entries; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_entries TO authenticated;
+GRANT ALL ON TABLE public.form_entries TO service_role;
+
+
+--
+-- Name: TABLE form_keys; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_keys TO authenticated;
+GRANT ALL ON TABLE public.form_keys TO service_role;
 
 
 --

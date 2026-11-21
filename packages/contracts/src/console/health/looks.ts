@@ -1,6 +1,7 @@
 /** Health: looks. */
 
 import { anthropicPaused, enforcementWords, type HealthActedOnProfileDto } from "../../ai/anthropic-enforcement";
+import { FOOTAGE_NUMBERS } from "../../files/footage-numbers";
 import { clocksOf, pagesOf, failureReadingOf, jobWords, type ClockVM } from "../health-clocks";
 import { promiseDaysOf } from "../health-promises";
 import { callsOf, sendsOf } from "../health-parts/sends-calls";
@@ -298,6 +299,62 @@ function connectionLooks({ h, nowMs, nameOf, sinceWords }: LookCtx): HealthLookV
   );
 }
 
+/** How much of Google's day watched folders spend before Health says so: four fifths. */
+const FOOTAGE_DAY_LOOK = 0.8;
+
+/** What watched folders spend of Google's day, each against the day's budget the edge stops at. */
+const FOOTAGE_DAY = [
+  ["units", "Google's units"],
+  ["bytes", "the bytes Google gives a day"],
+] as const;
+
+/**
+ * Watched folders today (the content loop PRD's 14.3): Google's day nearly or wholly spent, which stops every folder's
+ * takes and returns until Google's next day, and the video platform's own storage full, which no business can mend.
+ */
+function footageLooks({ h, nowMs, ours, nameOf, sinceWords }: LookCtx): HealthLookVM[] {
+  const day = h.footage;
+  if (!day) return [];
+  const budgets = { units: FOOTAGE_NUMBERS.unitsADay, bytes: FOOTAGE_NUMBERS.platformBytesADay };
+  const spent = FOOTAGE_DAY.flatMap(([key, words]) => {
+    const share = day[key] / budgets[key];
+    if (share < FOOTAGE_DAY_LOOK) return [];
+    return [
+      look({
+        key: `footage:${key}`,
+        severity: share >= 1 ? "red" : "amber",
+        what:
+          share >= 1
+            ? `Watched folders stopped for today: ${words} are spent`
+            : `Watched folders have spent ${Math.round(share * 100)}% of ${words} today`,
+        why: "Takes and returns wait for Google's next day, in Pacific time, then go on by themselves.",
+        where: PLATFORM_WHERE,
+        ours: false,
+        sinceMs: nowMs,
+        since: "today",
+        act: { kind: "open", tab: "background" },
+      }),
+    ];
+  });
+  if (day.stream_full <= 0) return spent;
+  const sinceMs = day.stream_full_since ? Date.parse(day.stream_full_since) : nowMs;
+  return [
+    ...spent,
+    look({
+      key: "footage:stream_full",
+      severity: "red",
+      what: `The video platform's storage is full: ${countPhrase(day.stream_full, "clip")} wait`,
+      why: "No business can mend this: room at the video platform is ours to make. Chanlytics keeps trying.",
+      where: day.stream_full_workspaces.map(nameOf).join(", "),
+      ours: day.stream_full_workspaces.length > 0 && day.stream_full_workspaces.every((id) => ours.has(id)),
+      sinceMs,
+      since: sinceWords(sinceMs),
+      act: { kind: "open", tab: "background" },
+      tenantId: onlyOne(day.stream_full_workspaces),
+    }),
+  ];
+}
+
 export const LOOK_SOURCES = [
   clockLooks,
   backlogLooks,
@@ -311,6 +368,7 @@ export const LOOK_SOURCES = [
   sendLooks,
   callLooks,
   connectionLooks,
+  footageLooks,
 ];
 
 /** A date as a row says one: "21 Oct". */
