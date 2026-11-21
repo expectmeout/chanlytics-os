@@ -1,6 +1,6 @@
 /**
  * How the bell draws an owner's ads (decision 0050, call 15; the Ads plan's 4.10 and G9): five kinds, each a line on the
- * bell and no mail (which also email is Ruben's open call), each row naming one ad and opening its drawer, the two that
+ * bell, the two that stop an ad also mailed (Ruben, 20 Nov 2026), each row naming one ad and opening its drawer, the two that
  * wait on the owner drawn as warnings and the three that are news drawn plain, and Today's away card counting them as
  * ads. What the database writes, and when it rings and closes, is held by the-bell-rings-for-an-owner-s-ads.db.test.mjs.
  */
@@ -14,7 +14,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 
 const { serverNotificationRows } = await import(at("packages/contracts/src/today/notifications/feed.ts"));
 const { NOTICE_ENDS } = await import(at("packages/contracts/src/waits/notice-closes.ts"));
-const { EMAILED_NOTIFICATION_KINDS, BELL_LINE_KINDS, emailsFor } = await import(
+const { EMAILED_NOTIFICATION_KINDS, BELL_LINE_KINDS, ALERT_TOPICS, emailsFor } = await import(
   at("packages/contracts/src/today/notification-kinds.ts")
 );
 const { PUSH_KINDS } = await import(at("packages/contracts/src/today/push.ts"));
@@ -40,14 +40,21 @@ const kept = (kind, title, over = {}) => ({
 });
 const draw = (...rows) => serverNotificationRows({ notifications: rows, seen_at: null });
 
-test("each of the five is a line on the bell, mailed to nobody, and told to no phone yet", () => {
+test("the two that stop an ad are mailed as the business chooses; the three that are news stay on the bell", () => {
+  const MAILED = ["ad_refused", "ad_unpaid"];
   for (const kind of KINDS) {
-    assert.ok(BELL_LINE_KINDS.includes(kind), `${kind}: a line on the bell`);
-    assert.ok(!EMAILED_NOTIFICATION_KINDS.includes(kind), `${kind}: no mail until Ruben says which`);
-    assert.equal(emailsFor({ email_off: [] }, kind), false);
+    const mailed = MAILED.includes(kind);
+    assert.equal(EMAILED_NOTIFICATION_KINDS.includes(kind), mailed, `${kind}: ${mailed ? "mailed" : "no mail"}`);
+    assert.equal(emailsFor({ email_off: [] }, kind), mailed);
+    // Mailed ones are a topic of their own (Settings › Notifications says so), the rest the bell's own line.
+    assert.equal(BELL_LINE_KINDS.includes(kind), !mailed, `${kind}: ${mailed ? "a topic" : "a line on the bell"}`);
     assert.ok(!PUSH_KINDS.includes(kind), `${kind}: no phone until a topic offers it`);
     assert.equal(NOTICE_ENDS[kind].ends, "news", `${kind}: closed by the database, never judged by a page`);
   }
+  // The business may turn the mail off, as any choice: the bell keeps the row.
+  for (const kind of MAILED) assert.equal(emailsFor({ email_off: [kind] }, kind), false, `${kind}: turned off`);
+  const topic = ALERT_TOPICS.find((t) => t.key === "ads");
+  assert.deepEqual([topic.group, topic.email, topic.phone, topic.ads], ["needs_you", "choice", false, true]);
 });
 
 test("a row opens its ad's drawer, and says so", () => {

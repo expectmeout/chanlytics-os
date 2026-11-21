@@ -65,8 +65,11 @@ export interface AdBrief {
   facts: readonly string[];
   /** What the picture shows, in a line; null where nothing is noted. Context, never a claim to add. */
   picture: string | null;
-  /** Where it is shown: the place's name where known, and the miles around the business. */
-  area: { place: string | null; miles: number };
+  /**
+   * Where it is shown: the miles around the business, with the place's name where known; or, where `wide` says so, a
+   * city (with Meta's least ring around it), a state or region, or the whole country, named by `place`.
+   */
+  area: { place: string | null; miles: number; wide: "city" | "region" | "country" | null };
   language: "en" | "es";
   places: readonly AdPlace[];
   /** `rewrite`: the version Meta turned down, and Meta's own words for why. */
@@ -119,6 +122,13 @@ function jobLines(adBrief: AdBrief): string[] {
   ];
 }
 
+/** Where an ad is shown, as the writer is told it. */
+function areaWords(area: AdBrief["area"]): string {
+  if (area.place && area.wide === "city") return `in and around ${area.place}`;
+  if (area.place && (area.wide === "region" || area.wide === "country")) return `across ${area.place}`;
+  return `within ${area.miles} miles${area.place ? ` of ${area.place}` : ""}`;
+}
+
 /**
  * The writer's question: the business, the service and the facts (fenced: they are the owner's words, and the only
  * things the ad may claim), the picture, the area, the language and the lengths, then the job.
@@ -146,7 +156,7 @@ export function adBriefText(adBrief: AdBrief): string {
       ...(adBrief.picture ? [`The picture shows: ${adBrief.picture}`] : []),
     ].join("\n"),
     [
-      `It is shown to adults within ${area.miles} miles${area.place ? ` of ${area.place}` : ""}, on ${adBrief.places.join(" and ") || "facebook"}.`,
+      `It is shown to adults ${areaWords(area)}, on ${adBrief.places.join(" and ") || "facebook"}.`,
       `Write in ${LANGUAGE_WORDS[adBrief.language]}.`,
       `A text is at most ${lengths.text} characters, with its point in its first 40. A headline is at most ${lengths.headline}.`,
       "A tap opens a WhatsApp chat with the business: that is the one thing the ad asks for.",
@@ -157,6 +167,11 @@ export function adBriefText(adBrief: AdBrief): string {
 
 /** What a change may be (the plan's G8), and none where the owner asked for none of them. */
 export const AD_CHANGE_KINDS = ["none", "words", "service", "picture", "area", "amount", "end"] as const;
+/**
+ * An area wider than the miles around the business, as a change names it (settled 20 November 2026): a city, a state or
+ * region, or the whole country; none for the miles.
+ */
+const AD_PLACE_KINDS = ["none", "city", "region", "country"] as const;
 
 /** The writer's answer, for the API's structured output: every field, an empty one where the job has none. */
 export const AD_CRAFT_JSON_SCHEMA = {
@@ -176,11 +191,14 @@ export const AD_CRAFT_JSON_SCHEMA = {
     change: {
       type: "object",
       additionalProperties: false,
-      required: ["kind", "service", "miles", "amount", "end"],
+      required: ["kind", "service", "miles", "place_kind", "place", "within", "amount", "end"],
       properties: {
         kind: { type: "string", enum: AD_CHANGE_KINDS },
         service: { type: "string" },
         miles: { type: "number" },
+        place_kind: { type: "string", enum: AD_PLACE_KINDS },
+        place: { type: "string" },
+        within: { type: "string" },
         amount: { type: "number" },
         end: { type: "string" },
       },
@@ -196,6 +214,10 @@ export const AdCraftAnswerSchema = z.object({
     kind: z.enum(AD_CHANGE_KINDS),
     service: z.string(),
     miles: z.number(),
+    /** An area wider than the miles: its kind, its name, and the state or country it is in where the owner said it. */
+    place_kind: z.enum(AD_PLACE_KINDS).default("none"),
+    place: z.string().default(""),
+    within: z.string().default(""),
     amount: z.number(),
     end: z.string(),
   }),
@@ -225,6 +247,8 @@ export type AdChange =
   | { kind: "service"; service: string }
   | { kind: "picture" }
   | { kind: "area"; miles: number }
+  /** A place wider than the miles, by its name: the server finds it at Meta (server/ads/area.ts) before it is made. */
+  | { kind: "place"; place: { kind: "city" | "region" | "country"; name: string; within: string } }
   /** A whole number of the account's currency: what the rules in code then hold to Meta's least and the owner's most. */
   | { kind: "amount"; units: number }
   | { kind: "end"; day: string };
@@ -250,6 +274,10 @@ export function adChangeOf(adCraftAnswer: AdCraftAnswer, adBrief: AdBrief): AdCh
     return named ? { kind: "service", service: named } : null;
   }
   if (change.kind === "picture") return { kind: "picture" };
+  if (change.kind === "area" && change.place_kind !== "none") {
+    const name = adClean(change.place).slice(0, 120);
+    return name ? { kind: "place", place: { kind: change.place_kind, name, within: adClean(change.within) } } : null;
+  }
   if (change.kind === "area") {
     const miles = Math.round(change.miles);
     return miles >= DRAFT_MILES.least && miles <= DRAFT_MILES.most ? { kind: "area", miles } : null;

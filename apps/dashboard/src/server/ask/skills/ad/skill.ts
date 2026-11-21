@@ -77,6 +77,7 @@ export const AD_SKILL: AskSkill<"ad"> = {
       title: "A change, and a version written again",
       lines: [
         "Asked for a change, answer the one change the owner asked for, by its kind: the words (all three versions again), another service from the list given, another picture, the miles, the amount as a whole number of the account's currency, or a later end day as YYYY-MM-DD. You never decide whether an amount, an area or a date is allowed: code does.",
+        "An area wider than the miles is kind area with place_kind city, region (a state or province) or country, the place's own name in place, and the state or country it is in, as the owner said it, in within. Code finds it at Meta. For the miles, place_kind is none.",
         "Where what they ask is none of those, or would break a rule above, answer kind none and say why in could_not, in one short sentence for the owner.",
         "Asked to write a turned-down version again, change what Meta's words name and nothing else of its meaning. Never argue with Meta's reason, and never write around it with other words for the same thing.",
         "Leave could_not empty when everything fit.",

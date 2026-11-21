@@ -1,12 +1,13 @@
 /**
  * Every sentence the ad account's card says (page-only): where the connection stands, the one thing missing with its
- * one act, the one question, and the five checks. The canvas "Ads: connect, and what Meta asks for" settled them
- * (boards Flow, Step2 and PhAds), and docs/words.md is the rule they follow. Words only: card-model.ts decides which.
+ * one act, the one question, the checks and the WhatsApp line. The canvas "Ads: connect, and what Meta asks for"
+ * settled them (boards Flow, Step2 and PhAds), and docs/words.md is the rule they follow. Words only: card-model.ts
+ * decides which.
  *
  * A problem says what happened, whether it mends itself, and the one thing to do. Meta is named, since the owner fixes
  * each of these in Meta.
  */
-import type { AdCardCheckId } from "@chanlytics/contracts";
+import type { AdAccountCard, AdCardCheckId } from "@chanlytics/contracts";
 
 export const CARD = {
   name: "Facebook and Instagram",
@@ -36,6 +37,8 @@ export const CARD = {
   setLimit: "Set one in Meta",
   noPage: "No Page yet",
   ready: (ok: number, of: number) => `${ok} of ${of} ready`,
+  /** The opened card's head over its checks, where every one is met. */
+  allReady: "Ready",
   account: (name: string, currency: string) => `${name} · ${currency}`,
   connectedOn: (day: string) => `Connected ${day}`,
   checks: "Checks",
@@ -57,12 +60,19 @@ export const CHECK: Record<AdCardCheckId, { label: string; neededFor: string }> 
   "account-active": { label: "Ad account is active", neededFor: "Turn on, Resume" },
   payment: { label: "Payment method in Meta", neededFor: "Turn on, Resume" },
   "page-linked": { label: "Page", neededFor: "A new ad" },
-  "whatsapp-linked": { label: "WhatsApp number linked to the Page", neededFor: "A new ad" },
-  "chanlytics-whatsapp": { label: "That number is the one AI answers", neededFor: "A new ad" },
 };
 
-/** Beside a check Meta does not answer for an app like Chanlytics (a Page's WhatsApp numbers): never a fault of the owner's. */
-export const CHECK_UNSAID = "Meta doesn't share this";
+/**
+ * The Page's link to the number AI answers: a quiet line under the checks, never one of them, since Meta shares a
+ * Page's WhatsApp numbers only with an app holding its Page Public Content or Metadata Access, and so no count that
+ * held it could ever be finished. Meta's own check of an ad settles it when one is made. `number` is AI's, as dialled.
+ */
+export function whatsAppLine(link: AdAccountCard["whatsapp_link"], number: string | null): string {
+  if (link === "no_number" || number === null)
+    return "AI doesn't answer a WhatsApp number yet, and an ad opens a WhatsApp chat. Connect one before making an ad.";
+  if (link === "ai_number") return `Your Page is linked to ${number}, the number AI answers.`;
+  return `Meta doesn't share whether your Page is linked to ${number}, the number AI answers. Meta checks it when an ad is made.`;
+}
 
 /** One thing missing or one stop: what happened, whether it mends itself or what it stops, and its one act. */
 export interface NeedWords {
@@ -73,9 +83,8 @@ export interface NeedWords {
 
 const LOOKS_AGAIN = "Chanlytics looks again when you come back.";
 
-/** A check that is not met, as the card says it. `aiNumber` is the number AI answers, as dialled, where it has one. */
-export function needOf(id: AdCardCheckId, aiNumber: string | null): NeedWords {
-  const toNumber = aiNumber === null ? "the number AI answers" : `${aiNumber}, the number AI answers`;
+/** A check that is not met, as the card says it. */
+export function needOf(id: AdCardCheckId): NeedWords {
   const needs: Record<AdCardCheckId, NeedWords> = {
     "account-active": {
       title: "Meta has this ad account turned off",
@@ -92,23 +101,6 @@ export function needOf(id: AdCardCheckId, aiNumber: string | null): NeedWords {
       line: "An ad runs as your Page. Connect again and tick your Page when Meta asks.",
       act: null,
     },
-    "whatsapp-linked": {
-      title: "Your Page isn't linked to your WhatsApp number",
-      line: `No new ad can be made until it is linked to ${toNumber}.`,
-      act: "Link them",
-    },
-    "chanlytics-whatsapp":
-      aiNumber === null
-        ? {
-            title: "AI doesn't answer a WhatsApp number yet",
-            line: "An ad opens a WhatsApp chat. Connect your number first, so AI answers who taps it.",
-            act: "Connect WhatsApp",
-          }
-        : {
-            title: "Your Page is linked to another WhatsApp number",
-            line: `An ad would open a chat AI doesn't answer. Link the Page to ${toNumber}.`,
-            act: "Link them",
-          },
   };
   return needs[id];
 }
@@ -201,7 +193,6 @@ export const META_DOOR = {
       ? "https://business.facebook.com/billing_hub/payment_settings"
       : `https://business.facebook.com/billing_hub/payment_settings?asset_id=${encodeURIComponent(accountId)}`,
   accounts: "https://business.facebook.com/latest/settings/ad_accounts",
-  whatsapp: "https://business.facebook.com/latest/settings/whatsapp_account",
 } as const;
 
 const adsWord = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);

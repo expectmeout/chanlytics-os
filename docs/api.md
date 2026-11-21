@@ -3826,6 +3826,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `code` | string | no |  |
 | `external_id` | string | no |  |
 | `pause` | boolean | no |  |
+| `place` | object | no |  |
 
 ### `POST /api/admin/ads/check`
 

@@ -15,6 +15,7 @@ import { recordOrEmpty, valueAt } from "@chanlytics/contracts";
 import { metaErrorOf, metaGraphUrl, metaObject, metaProofQuery, metaText } from "../meta/client";
 import type { MetaRequest } from "../meta/client";
 import { isMetaId, metaUnitsToMinor } from "./meta-account";
+import { metaAreaWord } from "./meta-place";
 import { instantOf } from "./meta-read";
 
 /** Meta's id for what a make made; null where the answer names none (a dry run's answer, or a refusal). */
@@ -123,6 +124,8 @@ export interface MetaAdSetHeld {
   youngest: number | null;
   /** The circle it is shown in, in miles; null where Meta holds no circle, more than one, or another unit. */
   miles: number | null;
+  /** Where it is shown, as one word (meta-place.ts metaAreaWord): what a launch compares with what it sent. */
+  area: string | null;
   /** Where it shows, each as `platform:position`, sorted; a platform with no position named is `platform:*`. */
   places: string[];
 }
@@ -226,6 +229,7 @@ function adSetOf(row: unknown, currency: string): MetaAdSetHeld[] {
       whatsappNumber: number || null,
       youngest: typeof youngest === "number" && Number.isSafeInteger(youngest) ? youngest : null,
       miles: milesHeld(targeting),
+      area: metaAreaWord(valueAt(targeting, "geo_locations")),
       places: placesHeld(targeting),
     },
   ];
