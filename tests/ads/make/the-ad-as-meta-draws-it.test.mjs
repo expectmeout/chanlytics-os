@@ -70,7 +70,8 @@ globalThis.fetch = async (url, init) => {
   if (set === "slowed") return reply(400, { error: { message: "Too many calls to this ad-account", code: 80004 } });
   if (set === "revoked") return reply(400, { error: { message: "Error validating access token", code: 190 } });
   if (set === "refused") return reply(400, { error: { message: "Invalid parameter: the picture", code: 100 } });
-  if (set === "elsewhere") return reply(200, { data: [{ body: '<iframe src="https://example.com/x?d=1"></iframe>' }] });
+  if (set === "elsewhere")
+    return reply(200, { data: [{ body: '<iframe src="https://example.com/x?d=SECRET"></iframe>' }] });
   const html = `<iframe src="${frameOf(place).replace("&", "&amp;")}" width="335" height="580" scrolling="yes"></iframe>`;
   return reply(200, { data: [{ body: html }] });
 };
@@ -233,7 +234,8 @@ test("a place Meta did not draw says what stood in its way, and the outcome says
     [{ feed: "slowed", story: "silent", reel: "silent" }, "slowed"],
     [{ feed: "revoked", story: "revoked", reel: "revoked" }, "signed_out"],
     [{ feed: "refused", story: "silent", reel: "refused" }, "refused"],
-    [{ feed: "elsewhere", story: "elsewhere", reel: "elsewhere" }, "refused"],
+    // Meta answered every place, and nothing of it was a frame of its own preview page: its own outcome.
+    [{ feed: "elsewhere", story: "elsewhere", reel: "elsewhere" }, "unread"],
   ];
   for (const [set, outcome] of outcomes) {
     answerFor = set;
@@ -258,4 +260,18 @@ test("Meta's own words reach the log and never the answer; the picture's address
   assert.ok(line, "one line for the preview");
   assert.match(line, /Invalid parameter: the picture/);
   assert.ok(!lines.some((one) => one.includes("a-day")), "the picture's address is in no line");
+});
+
+test("an answer of Meta's that can't be read is said in the log by its shape, with no address or value of it", async () => {
+  const w = world();
+  answerFor = { feed: "elsewhere", story: "elsewhere", reel: "elsewhere" };
+  const { value, lines } = await logsOf(async () => heard(await w.ask()));
+  assert.equal(value[1].outcome, "unread");
+  const line = JSON.parse(lines.find((one) => one.includes('"ads_previewed"')));
+  assert.equal(line.unread_shape, "data 1; iframe src https://example.com/x params d");
+  assert.ok(!lines.some((one) => one.includes("SECRET")), "no value of Meta's address is logged");
+  // Read in full, the shape is not logged.
+  answerFor = {};
+  const drawn = await logsOf(async () => heard(await w.ask()));
+  assert.equal(JSON.parse(drawn.lines.find((one) => one.includes('"ads_previewed"'))).unread_shape, undefined);
 });

@@ -129,6 +129,8 @@ test("where Meta drew some places, the others say why; where it drew none, the e
     ["silent", "busy"],
     ["refused", "refused"],
     ["no_picture", "refused"],
+    // Meta answered in a shape this page can't read: the plain drawing, never Meta saying no.
+    ["unread", "not_here"],
   ];
   for (const [outcome, why] of nones) {
     edge.body = { ok: true, outcome, places: [] };
@@ -136,6 +138,9 @@ test("where Meta drew some places, the others say why; where it drew none, the e
     assert.deepEqual([answer.why, answer.frames], [why, {}], outcome);
     assert.equal(answer.drew.text, THREE[0].text, "it still names what it asked to be drawn");
   }
+  // A place whose answer could not be read is the plain drawing too.
+  edge.body = { ok: true, outcome: "partly", places: [unplaced("feed", "unread"), place("story"), place("reel")] };
+  assert.equal((await readAdPreview(rc, 0)).why, "not_here");
   // A place Meta's sign-in no longer reaches says so.
   edge.body = { ok: true, outcome: "partly", places: [unplaced("feed", "revoked"), place("story"), place("reel")] };
   assert.equal((await readAdPreview(rc, 0)).why, "signed_out");

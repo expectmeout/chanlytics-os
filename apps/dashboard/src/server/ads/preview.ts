@@ -30,11 +30,16 @@ const WHY: Record<string, AdPreviewWhy> = {
   silent: "busy",
   no_picture: "refused",
   refused: "refused",
+  // Meta answered, in a shape this page can't read: said as Chanlytics' own drawing, never as Meta saying no.
+  unread: "not_here",
 };
 
 /** Why one place has no frame of Meta's, by what stood in its way. */
-const placeWhy = (fault: string | null | undefined): AdPreviewWhy =>
-  fault === "revoked" ? "signed_out" : fault === "slowed" || fault === "silent" ? "busy" : "refused";
+function placeWhy(fault: string | null | undefined): AdPreviewWhy {
+  if (fault === "revoked") return "signed_out";
+  if (fault === "slowed" || fault === "silent") return "busy";
+  return fault === "unread" ? "not_here" : "refused";
+}
 
 /** Meta's frame for one place, as the edge answered it; null where Meta drew none. */
 function frameOf(place: { src?: string | null; width?: number | null; height?: number | null }): AdPreviewFrame | null {

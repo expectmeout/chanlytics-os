@@ -100,6 +100,8 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
   assert.deepEqual(p["frame-src"], [
     "https://www.facebook.com",
     "https://web.facebook.com",
+    // Meta's preview of an ad, where Meta serves it from its business host (New ad, meta-preview.ts).
+    "https://business.facebook.com",
     "https://js.stripe.com",
     "https://*.js.stripe.com",
     "https://hooks.stripe.com",
