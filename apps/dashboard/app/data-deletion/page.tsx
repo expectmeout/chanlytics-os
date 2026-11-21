@@ -18,7 +18,7 @@ export default function DataDeletionPage() {
   return (
     <main className="legal">
       <h1>Deleting your data</h1>
-      <p className="legal-meta">Chanlytics · last updated October 12, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated November 20, 2026</p>
 
       <p>
         Who to ask depends on whose data it is. A business that uses Chanlytics decides what it keeps about its own
@@ -63,6 +63,11 @@ export default function DataDeletionPage() {
         connection gave us. Disconnecting Google also gives the permission back to Google and deletes the reviews we had
         read. Disconnecting is not the same as deleting the workspace: the conversations already in the product stay
         until the workspace is deleted.
+      </p>
+      <p>
+        Disconnecting a Meta ad account in Campaigns › Ads stops every read of it and deletes the access Meta gave us.
+        Removing Chanlytics in Meta&rsquo;s Business settings, under Integrations, ends that access from Meta&rsquo;s
+        side, and we stop. The ads and their numbers already read stay until the workspace is deleted.
       </p>
 
       <h2>How long it takes</h2>
