@@ -98,6 +98,33 @@ function GoogleUserData() {
   );
 }
 
+/** The services that process what we hold, each for its part. */
+function Processors() {
+  return (
+    <>
+      <h2>Who else processes it</h2>
+      <p>We use the following services to run the product. Each holds only what its part needs.</p>
+      <ul>
+        <li>
+          Supabase (database and sign-in), Google (sign-in with a Google account, when you choose it: we receive your
+          name and the address you signed in with, nothing else), and Vercel (hosting).
+        </li>
+        <li>
+          Meta (WhatsApp Business Platform) for WhatsApp messages and templates, and Meta's ads interface for a
+          business's Facebook ads, when the owner connects an ad account.
+        </li>
+        <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
+        <li>
+          Google (Business Profile and Maps) for reviews and replies, and Google (Gmail, Contacts and Calendar) for a
+          mailbox, when the owner connects them.
+        </li>
+        <li>Anthropic and OpenAI for the receptionist's drafts.</li>
+        <li>Stripe for billing, and Resend for the emails we send you.</li>
+      </ul>
+    </>
+  );
+}
+
 /**
  * What Meta's App Review reads against Ads' sign-in (the Ads plan's step 3 and 5.3): what an ad account's connection
  * reads and changes, what it is used for, where its access is kept, and how it ends, on Chanlytics' side and on Meta's.
@@ -245,25 +272,7 @@ export default function PrivacyPage() {
         do not use them to train their models.
       </p>
 
-      <h2>Who else processes it</h2>
-      <p>We use the following services to run the product. Each holds only what its part needs.</p>
-      <ul>
-        <li>
-          Supabase (database and sign-in), Google (sign-in with a Google account, when you choose it: we receive your
-          name and the address you signed in with, nothing else), and Vercel (hosting).
-        </li>
-        <li>
-          Meta (WhatsApp Business Platform) for WhatsApp messages and templates, and Meta's ads interface for a
-          business's Facebook ads, when the owner connects an ad account.
-        </li>
-        <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
-        <li>
-          Google (Business Profile and Maps) for reviews and replies, and Google (Gmail, Contacts and Calendar) for a
-          mailbox, when the owner connects them.
-        </li>
-        <li>Anthropic and OpenAI for the receptionist's drafts.</li>
-        <li>Stripe for billing, and Resend for the emails we send you.</li>
-      </ul>
+      <Processors />
 
       <GoogleUserData />
 

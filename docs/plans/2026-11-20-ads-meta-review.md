@@ -13,9 +13,9 @@ the review account's sign-in are kept with the Instagram review's notes, outside
 
 | What | Stands |
 |---|---|
-| Ads on Ruben's own workspace | Live since 19 November: Connect, the card, the page, Pause and Resume, Reports › Ads. New ad drafts; Turn on is open as #2483 |
+| Ads on Ruben's own workspace | Live since 19 November: Connect, the card, the page, Pause and Resume, Reports › Ads. New ad drafts; Turn on merged 21 November (#2483) |
 | The first submission: `ads_read`, `pages_show_list`, `pages_read_engagement` | **Written below. Waits for one ad on the page** (see "What the first recording needs") |
-| The second submission: `ads_management`, `pages_manage_ads` | **Written below, waiting** for Turn on and the first live ad |
+| The second submission: `ads_management`, `pages_manage_ads` | **Written below, waiting** for the first live ad |
 | The higher tier (Full access) | Its own request, once 500 calls in 15 days are logged: about 4 December |
 | The reviewer's way in (G14) | Decided below, and written into the plan |
 | What Meta must find set | Checked against the code below: three settings at Meta and two on the edge are Ruben's |
@@ -216,7 +216,8 @@ Ruben writes the address and password into the field himself.
 
 ## The second submission: changes (waiting)
 
-**Waits for:** Turn on on main (#2483), the first live ad on Ruben's account, and the first submission's answer. For
+**Waits for:** the first live ad on Ruben's account, made with Turn on (merged 21 November, #2483), and the first
+submission's answer. For
 `ads_management` and `pages_manage_ads`. The calls each needs inside 30 days: Pause and Resume (20 November) and the
 paused-ad check's ad and its creative, so a fresh call is needed after about 20 December; the first live ad makes them.
 
@@ -289,7 +290,7 @@ paused-ad check's ad and its creative, so a fresh call is needed after about 20 
 ## Not done here, and why
 
 - **The drawer's line where a member cannot press:** it says "Only the owner can pause an ad or turn one back on." for
-  every cause, an owner whose sign-in may only read included. Turn on (#2483) changes the same drawer, so this waits
-  for it to land, in its own change.
+  every cause, an owner whose sign-in may only read included. Turn on (#2483) changed that drawer as this was written,
+  and the sessions after it work there, so it is a small change of its own.
 - **The privacy policy says nothing about Instagram,** which the Meta link uses today. That belongs to Instagram's
   review pack.
