@@ -11,7 +11,7 @@
  * say).
  */
 import type { TodayQueueRowVM, AskLately, AskMorningCard } from "@chanlytics/contracts";
-import { isFindingCard, isRested, type AskRested } from "@chanlytics/contracts";
+import { isFindingCard, isRested, kindRestId, type AskRested } from "@chanlytics/contracts";
 import type { TodayLeakVM } from "../leaks";
 
 /** How many rows Ask found draws: the rest are said as "and 2 more". */
@@ -70,6 +70,8 @@ export const ASK_FOUND_WORDS = {
   more: (n: number) => `${n} more`,
   came: "What came of it.",
   notToday: "Not today",
+  /** Not today's own last choice (W22): every row of this kind, for good, said back as it is kept. */
+  notThisKind: "Don’t suggest this kind",
   idea: "AI's idea",
   noticed: "AI noticed",
   call: "Worth a listen",
@@ -177,6 +179,16 @@ const queueRow = (row: TodayQueueRowVM): AskFoundRowVM => ({
 });
 
 /**
+ * What kind of thing a row is, which "Don't suggest this kind" rests for good (Working for you, W22): a rule is its own kind;
+ * what AI noticed and its ideas are their card's kind; a call worth a listen and a lead who tried are theirs.
+ */
+export function foundKindOf(row: AskFoundRowVM): string {
+  if (row.source === "rule") return row.key;
+  if (row.source === "noticed" || row.source === "idea") return `${row.source}:${row.card?.kind ?? row.key}`;
+  return row.source;
+}
+
+/**
  * Ask found's rows, ranked once: the rules that look at a person first (amber), what Ask noticed, the rules that wait on
  * someone else, the calls worth a listen and the leads who tried, then Ask's ideas. A row the member set aside lately is
  * left out; three are drawn, and the rest are said.
@@ -191,6 +203,8 @@ export function askFoundOf(input: {
   rested: AskRested;
   /** The business's day, YYYY-MM-DD: what a rest runs out against. */
   today: string;
+  /** The clock, where the caller has it: a rest to a time chosen (Not today's, W22) runs out at it. */
+  nowMs?: number;
 }): AskFoundVM {
   const all = [
     ...input.rules.filter((l) => l.tone === "warn").map(ruleRow),
@@ -198,7 +212,11 @@ export function askFoundOf(input: {
     ...input.rules.filter((l) => l.tone !== "warn").map(ruleRow),
     ...input.found.map(queueRow),
     ...input.cards.filter((c) => !isFindingCard(c)).map(ideaRow),
-  ].filter((r) => !isRested(input.rested, r.key, input.today));
+  ].filter(
+    (r) =>
+      !isRested(input.rested, r.key, input.today, input.nowMs) &&
+      !isRested(input.rested, kindRestId(foundKindOf(r)), input.today),
+  );
   const [first] = input.lately;
   return {
     rows: all.slice(0, ASK_FOUND_SHOWN),

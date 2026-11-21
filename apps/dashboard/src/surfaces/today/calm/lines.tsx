@@ -20,6 +20,7 @@ import { Icon } from "../../kit/icon/icon";
 import { ListRow } from "../../kit/list-row/list-row";
 import { SAYS_WHEN } from "../../kit/says-when";
 import { doorGlyph } from "../shell";
+import type { HoldProps } from "./held";
 
 /** A line's door: its address, and the app's own way there on a plain press (frame-verbs `routeDoor`). */
 interface LineDoor {
@@ -64,6 +65,8 @@ export interface CalmLine {
   folded?: boolean;
   /** The first line still showing in its list: it takes no rule over it. */
   top?: boolean;
+  /** Held (a finger kept still, a right click), its acts open without opening it (held.tsx, W11). */
+  hold?: HoldProps | null;
   testid: string;
 }
 
@@ -111,6 +114,7 @@ export function CalmRow({
   tight = false,
   folded = false,
   top = false,
+  hold = null,
   testid,
 }: CalmLine) {
   const lines = {
@@ -142,6 +146,8 @@ export function CalmRow({
       aria-hidden={folded || undefined}
       inert={folded || undefined}
       data-testid={testid}
+      data-holds={hold ? true : undefined}
+      {...hold}
     >
       <div className="calm-fold">
         {door ? (

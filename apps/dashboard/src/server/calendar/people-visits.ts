@@ -23,7 +23,7 @@ import {
   type PoolCalendar,
   type PoolRecord,
 } from "@chanlytics/contracts";
-import { findPeopleWithEarlierVisits, recordOver } from "@chanlytics/db/calendar";
+import { countKeptVisitsOf, findPeopleWithEarlierVisits, recordOver } from "@chanlytics/db/calendar";
 import type { RouteContext } from "@/server/shared/with-route";
 import { loadLazily, type Lazy } from "@/server/shared/lazy";
 import { findCalendar } from "./settings";
@@ -233,8 +233,8 @@ export async function getBoardVisits(
   items: ParsedFeed["items"],
   cal: PoolCalendar,
   now: Date,
-): Promise<{ rows: PersonRowDto[]; firsts: ReadonlySet<string> }> {
-  if (!cal.record) return { rows, firsts: new Set() };
+): Promise<{ rows: PersonRowDto[]; firsts: ReadonlySet<string>; numbers: ReadonlyMap<string, number> }> {
+  if (!cal.record) return { rows, firsts: new Set(), numbers: new Map() };
   const visits = peopleVisitsOf(items, rows, cal, now.getTime());
   const withVisits = withVisitsOf(rows, visits, { state: "ok", timezone: cal.timezone, source: cal.source });
   // Today's and tomorrow's people with no visit over in the season, a missed one included: the ones the record may hold
@@ -254,7 +254,40 @@ export async function getBoardVisits(
     return null;
   });
   const firsts = earlier ? fresh.filter((r) => !earlier.has(r.id)).map((r) => r.id) : [];
-  return { rows: withVisits, firsts: new Set(firsts) };
+  return {
+    rows: withVisits,
+    firsts: new Set(firsts),
+    numbers: await visitNumbersOf(ctx, tenantId, withVisits, until, now),
+  };
+}
+
+/**
+ * Which visit of theirs today's and tomorrow's people come for, counted from the record (Working for you, W14: "10th
+ * visit"): the visits they kept that are over, and this one. Nobody counted where the read failed or filled its page: the
+ * day says "Last here" instead, a fact it can stand behind.
+ */
+async function visitNumbersOf(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: TenantId,
+  rows: PersonRowDto[],
+  untilMs: number,
+  now: Date,
+): Promise<ReadonlyMap<string, number>> {
+  const coming = rows.filter(({ visits: v }) => {
+    const next = v?.next ? Date.parse(v.next.start) : Number.NaN;
+    return !!v?.last && next < untilMs;
+  });
+  if (!coming.length) return new Map();
+  const kept = await countKeptVisitsOf(
+    ctx.supabase,
+    tenantId,
+    coming.map((r) => ({ id: r.id, phone: r.phone_e164 ?? null, email: r.email ?? null })),
+    now.toISOString(),
+  ).catch((e: unknown) => {
+    log.error("visits_record_read_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  });
+  return new Map(kept ? [...kept].map(([id, n]) => [id, n + 1]) : []);
 }
 
 /**

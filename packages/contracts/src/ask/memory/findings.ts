@@ -176,8 +176,25 @@ export function restedOf(view: unknown): AskRested {
   return Object.fromEntries(kept.filter((e): e is [string, string] => typeof e[1] === "string"));
 }
 
-/** Whether a member has set this card aside for now. */
-export const isRested = (rested: AskRested, id: string, today: string): boolean => (rested[id] ?? "") > today;
+/**
+ * Whether a member has set this card aside for now. A rest runs to a day (YYYY-MM-DD: back that morning) or, since Not
+ * today chooses when (Working for you, W22), to an instant (back at that time): read against `nowMs` where the caller has
+ * the clock, else for the whole of the day it ends in.
+ */
+export function isRested(rested: AskRested, id: string, today: string, nowMs?: number): boolean {
+  const until = rested[id] ?? "";
+  if (!until.includes("T")) return until > today;
+  return nowMs === undefined ? until.slice(0, DAY_KEY_LENGTH) >= today : Date.parse(until) > nowMs;
+}
+
+/** A day key's length (YYYY-MM-DD): an instant's first part. */
+const DAY_KEY_LENGTH = 10;
+
+/** What a rest "for good" runs to: Not today's "Don't suggest this kind" (W22), kept past every other rest. */
+export const RESTED_FOR_GOOD = "9999-12-31";
+
+/** The rest a kind of finding is kept under (W22): a row of that kind rests while it does. */
+export const kindRestId = (kind: string): string => `kind:${kind}`;
 
 /**
  * The most rests a member keeps at once: the view that holds them is a small object (PUT views/:page refuses one past
@@ -195,9 +212,17 @@ export function restedWithout(rested: AskRested, id: string, today: string): Ask
  * that run out soonest, so the oldest come back a little early rather than the newest press refused.
  */
 export function restedWith(rested: AskRested, id: string, today: string): AskRested {
+  return restedUntil(rested, id, today, dayAfterDays(today, ASK_IDEA_REST_DAYS));
+}
+
+/**
+ * The rests with this one added until `until`: a day key, an instant (Not today's times, W22) or RESTED_FOR_GOOD. Those
+ * that have run out let go, and past REST_KEPT the ones that run out soonest.
+ */
+export function restedUntil(rested: AskRested, id: string, today: string, until: string): AskRested {
   const live = Object.entries(rested)
-    .filter(([key, until]) => key !== id && until > today)
+    .filter(([key, ends]) => key !== id && ends > today)
     .sort(([, a], [, b]) => (a < b ? 1 : a > b ? -1 : 0))
     .slice(0, REST_KEPT - 1);
-  return Object.fromEntries([...live, [id, dayAfterDays(today, ASK_IDEA_REST_DAYS)]]);
+  return Object.fromEntries([...live, [id, until]]);
 }

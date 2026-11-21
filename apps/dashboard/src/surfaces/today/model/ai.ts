@@ -52,4 +52,28 @@ export const AI_WORDS = {
     open: "Open",
     sends: (n: number): string => `To ${some(n, "person", "people")}`,
   },
+  /** Tonight's sends, a line once the day is over (W5): how many, the first's name and time, and the Stop in AI's sheet. */
+  tonight: (n: number): string => `Tonight AI sends ${some(n, "message", "messages")}`,
+  tonightSaid: (title: string, at: string): string => `${title}, at ${at}. Stop any one.`,
+  /** Once a week, what AI did (W9): the card's words, and what Got it says back. */
+  week: {
+    kind: "AI’s week",
+    label: "What AI did this week",
+    gotIt: "Got it",
+    reports: "See Reports",
+    /** Said back as Got it is pressed: when the next one comes. */
+    kept: "Next week’s comes on Monday.",
+    messages: (n: number): string => `${n} ${n === 1 ? "message" : "messages"}`,
+    calls: (n: number): string => `${n} ${n === 1 ? "call" : "calls"}`,
+    booked: (n: number): string => `${n} booked`,
+  },
+  /** Let AI do more (W10): a kind AI still asks about whose drafts all went as written, and what one press changes. */
+  more: {
+    name: (label: string): string => `Let AI do more with ${label.toLowerCase()}?`,
+    sub: (n: number, days: number): string => `You sent all ${n} of its drafts as written in ${days} days.`,
+    letIt: "Let AI",
+    notNow: "Not now",
+    /** Said back in the rule's own words (POLICY_MODE_WORDS `does`): "Replies now: Writes it, holds it, …". */
+    said: (label: string, does: string): string => `${label} now: ${does}`,
+  },
 } as const;

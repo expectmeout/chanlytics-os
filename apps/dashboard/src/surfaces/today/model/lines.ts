@@ -11,7 +11,7 @@
  * Today's own words (the surface's model, as CLAUDE.md has a page keep what no other tree says): the dashboard alone
  * reads them. The questions AI opens on from them are the bridge's (bridge/ask/page-asks.ts), where AI reads them too.
  */
-import type { TodayFigureVM } from "@chanlytics/contracts";
+import type { TodayDayVM, TodayFigureVM } from "@chanlytics/contracts";
 
 /** A line's two sentences: what it is, and the quieter line under it, null where it has none. */
 interface TodayLineWords {
@@ -76,8 +76,49 @@ export const TODAY_LINE_WORDS = {
     drafted: "Its reply is written for you to read.",
     cantCall: "AI can’t call them back for you.",
   },
+  /** The next person who waits, at the foot of a conversation's sheet once yours is answered (W4), and its press. */
+  next: "Next",
+  open: "Open",
+  /**
+   * A line held (W11): its acts, and what each said once done; and someone new while a hand is busy (W23), said and placed
+   * once the hand is free.
+   */
+  held: {
+    close: "Close",
+    done: "Done",
+    later: "Not now",
+    ask: "Ask AI about this",
+    arrived: (n: number): string => `${n} new · placed when you’re done`,
+  },
   /** The page's last line, once nothing is left to do. */
   end: "That’s everything.",
+  /** Keys on a desk (W12): the sheet ? opens, each key with what it does, in the order a hand meets them. */
+  keys: {
+    title: "Keys",
+    list: [
+      ["J K", "Move between lines"],
+      ["Enter", "Open the line"],
+      ["E", "Done"],
+      ["N", "Not now"],
+      ["/", "Ask AI about this"],
+      ["Esc", "Close"],
+      ["?", "Show these keys"],
+    ] as const,
+  },
+  /** Where the card stood, for a beat, as the last thing waiting is done (W6). */
+  cleared: "Nothing needs you.",
+  /**
+   * Once the day is over (Working for you, W5): the page's end while AI answers, the head's word for what waits, and the one
+   * line what can wait for morning folds into, with what it holds under it.
+   */
+  evening: {
+    end: "That’s everything. AI is on until you’re back.",
+    rest: "The rest waits for morning.",
+    morning: "Waiting for morning",
+    found: (n: number): string => `${some(n, "thing AI found", "things AI found")}`,
+    setup: "setting up",
+    more: "Content and your lists",
+  },
   /**
    * What the page says while it cannot be sure it shows everything (Working for you, W18, calm/quiet.ts): still checking,
    * behind since a time, a read that failed, a line down. A healthy day says none of them.
@@ -85,7 +126,8 @@ export const TODAY_LINE_WORDS = {
   quiet: {
     checking: "Checking who needs you.",
     behind: (time: string | null): string => (time ? `As of ${time}, catching up.` : "Catching up."),
-    unread: "Some of it couldn’t be read, so there may be more.",
+    // Problems in plain words (W17): what happened, and that it mends itself (calm/quiet.ts useCatchUp asks again).
+    unread: "Some of it couldn’t be read, so there may be more. Today tries again by itself.",
     lineDown: "While a line is down, this may not be everything.",
   },
 } as const;
@@ -151,6 +193,41 @@ export function dayCameToWords(
   const [lead, ...rest] = facts;
   if (!lead) return null;
   return { title: lead(true), sub: rest.length ? rest.map((say) => say(false)).join(" · ") : null };
+}
+
+/**
+ * The day ahead in facts, the head's sentence where nobody waits (Working for you, W15): "4 booked today, the first at 10
+ * AM." before the first visit, "2 more booked, the next at 2:30 PM." after it. Only today's visits, those still standing,
+ * all-day entries left out; null with none ahead, and the head says what it said. No word for the day (a light Monday)
+ * until four weeks of the business's own history can back one.
+ */
+export function dayAheadWords(day: TodayDayVM | null): string | null {
+  const items = day?.frames.find((f) => f.today)?.items.filter((i) => !i.allDay) ?? [];
+  const ahead = items.filter((i) => i.phase === "next" || i.phase === "later");
+  const [next] = ahead;
+  if (!next) return null;
+  const started = items.some((i) => i.phase === "past" || i.phase === "now");
+  return started
+    ? `${ahead.length} more booked, the next at ${next.start}.`
+    : `${ahead.length} booked today, the first at ${next.start}.`;
+}
+
+/** How many of the same weekday before today a usual day is taken from: four weeks of the business's own history. */
+const USUAL_WEEKS = 4;
+const WEEK_DAYS = 7;
+
+/**
+ * A day against a usual one (Working for you, W8): "More than a usual Tuesday" where AI answered more today than on each of
+ * the four Tuesdays before it. Said only with all four in the business's own history, each with something answered (a
+ * day before the business was here counts nothing, and is no usual day), so it is never a guess; and never said of a
+ * quieter day. `answered` is the period's days, oldest first, today last (reports headline `perDay`).
+ */
+export function usualDayWords(answered: readonly number[], weekday: string): string | null {
+  const today = answered.length - 1;
+  if (today - USUAL_WEEKS * WEEK_DAYS < 0) return null;
+  const before = Array.from({ length: USUAL_WEEKS }, (_, k) => answered[today - (k + 1) * WEEK_DAYS] ?? 0);
+  if (before.some((n) => n <= 0)) return null;
+  return (answered[today] ?? 0) > Math.max(...before) ? `More than a usual ${weekday}` : null;
 }
 
 /**

@@ -91,7 +91,7 @@
     "appointments DELETE": "calendar people playbooks settings today · 10 routes",
     "contacts INSERT": "conversations inbox playbooks today · 7 routes",
     "contacts UPDATE": "calendar conversations inbox playbooks today · 8 routes",
-    "tenant_config UPDATE": "calendar playbooks sequences settings · 7 routes",
+    "tenant_config UPDATE": "calendar playbooks sequences settings today · 8 routes",
     "policies INSERT": "google playbooks reach_outs sequences settings · 10 routes",
     "policies UPDATE": "google playbooks reach_outs sequences settings · 10 routes",
     "policies DELETE": "google playbooks reach_outs sequences settings · 10 routes",

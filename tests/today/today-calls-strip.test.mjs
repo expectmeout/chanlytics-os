@@ -228,6 +228,7 @@ test("Today repaints when a call starts or ends, not on every transcript turn", 
     "contacts",
     "appointments", // what was booked, which the day's figures lead with
     "sequence_batches", // the runs waiting for a word, which GET today carries
+    "tenant_config", // whether Stop everything is on (Working for you, W1)
   ]);
   // The rule itself, as the runner applies it: Today's own override (surfaces/today/surface.ts), run, not read. A turn
   // keeps status ongoing; a start or an end does not.

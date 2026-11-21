@@ -44,6 +44,7 @@ import { todayQueue } from "./queue";
 import { todayCallRows, todayCalls, todayNeedsYou, todayNoReply, todayReceipts, todayWindowClosing } from "./rows";
 import type { TodayCalmVM, TodayVM } from "./vm";
 import { todayAiOf, type TodayAiReadDto } from "./ai";
+import { todayTheirsOf } from "./theirs";
 
 /* ------------------------------ the brief ---------------------------------- */
 
@@ -113,6 +114,8 @@ export function toTodayVM(
     { conversations, escalations, ai: beside.ai ?? null },
     { nowMs: now.getTime(), dayStartMs: Date.parse(metricsSummary.window.since) },
   );
+  // What a teammate has taken, said apart from who needs you (theirs.ts, W19).
+  const theirs = todayTheirsOf(conversations, escalations, now.getTime());
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (result.traffic === 0 && result.needsYouCount === 0 && !alert && queue.rows.length === 0) {
@@ -155,6 +158,7 @@ export function toTodayVM(
       calm,
       quiet: todayQuietDay(result, last),
       ai,
+      theirs,
     };
   }
 
@@ -192,5 +196,6 @@ export function toTodayVM(
     calm,
     quiet: null,
     ai,
+    theirs,
   };
 }

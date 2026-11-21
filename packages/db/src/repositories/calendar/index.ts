@@ -27,6 +27,7 @@ export type {
   VisitOriginRow,
 } from "./appointments/rows";
 export {
+  countKeptVisitsOf,
   findAppointmentWorkspace,
   findContactIdByEmail,
   findContactIdByPhone,

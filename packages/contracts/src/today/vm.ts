@@ -15,6 +15,7 @@ import type { WaitingRun } from "../waits/waits";
 import type { MetricsSummaryDto } from "./metrics";
 import type { TodayBackVM } from "./day/zone";
 import type { TodayAiReadDto, TodayAiVM } from "./ai";
+import type { TodayTheirsVM } from "./theirs";
 
 export interface TodayNeedsRowVM {
   id: string;
@@ -419,6 +420,8 @@ export interface TodayVM {
   } | null;
   /** AI's own work (Working for you, W1 to W3): who it is talking to now, what it did today, since this member looked. */
   ai: TodayAiVM;
+  /** The conversations a teammate has, in nobody's count (theirs.ts, W19): a quiet line each. */
+  theirs: TodayTheirsVM[];
 }
 
 /**

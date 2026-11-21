@@ -13,14 +13,16 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  DEFAULT_TIMEZONE,
   MIN_MS,
   NEED_YOU_WORDS as W,
   needYouGroupsOf,
+  notNowChoices,
   type AskMorningCard,
   type AskMorningDto,
 } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS as L } from "../model/lines";
-import { ASK_FOUND_SHOWN, ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM } from "./found-rows";
+import { ASK_FOUND_SHOWN, ASK_FOUND_WORDS as F, askFoundOf, foundKindOf, type AskFoundRowVM } from "./found-rows";
 import { routeDoor } from "../../frame-verbs";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { Lead, CardActs } from "../calm/lead";
@@ -37,10 +39,11 @@ import { askMorningOverride } from "../ask-morning-surface";
 import { TODAY_HELPERS, peopleForToday } from "../helpers";
 import { Done } from "../need-you/parts";
 import { CardSheet, dismissedOnTurn, restoreOnTurn, useIdeaActs } from "../need-you/idea-work";
-import { useRests } from "../need-you/rests";
+import { useRests, type RestFor } from "../need-you/rests";
+import { Menu } from "../../kit/menu/menu";
 import { useRowState } from "../need-you/row-state";
 import { TODAY_PEOPLE_HEARD } from "../people-read";
-import { appNavigate, askAbout, gate, useMoved, useToast, type Flash } from "../shell";
+import { appNavigate, askAbout, gate, useMoved, useToast, workspaceClock, type Flash } from "../shell";
 
 /** How often Ask's morning is read again while Ask writes it: a turn takes up to two minutes. */
 const MORNING_POLL_MS = 8_000;
@@ -137,8 +140,10 @@ export function useFoundModel() {
     lately: morning?.lately ?? [],
     rested,
     today,
+    nowMs: Date.now(),
   });
-  const rest = (key: string, flash: (f: Flash) => void, onUndone: () => void) => restIt({ key, flash, onUndone });
+  const rest = (key: string, flash: (f: Flash) => void, onUndone: () => void, when?: RestFor) =>
+    restIt({ key, flash, onUndone, for: when });
   const keep = (card: AskMorningCard) => setKept((was) => (was.some((k) => k.id === card.id) ? was : [...was, card]));
   const line = morningLine({ morning, asking: !!held?.asking, waited, found });
   return {
@@ -201,7 +206,7 @@ interface RowPorts {
   sub?: boolean;
   open: boolean;
   onToggle: () => void;
-  rest: (onUndone: () => void) => Promise<void>;
+  rest: (onUndone: () => void, when?: RestFor) => Promise<void>;
   flash: (f: Flash) => void;
 }
 
@@ -243,14 +248,43 @@ function foundPeople(row: AskFoundRowVM) {
   );
 }
 
+/**
+ * Not today, which chooses when (Working for you, W22): the Inbox's own times (in an hour, this afternoon or evening,
+ * tomorrow, next week), each said back with its Undo; and, apart, "Don't suggest this kind", which rests every row of the
+ * kind for good and says so as it is kept. Called, not drawn.
+ */
+function notTodayMenu(row: AskFoundRowVM, notToday: (when?: RestFor) => void, busy: boolean) {
+  const later = notNowChoices(workspaceClock()?.zone() ?? DEFAULT_TIMEZONE, Date.now());
+  return (
+    <Menu
+      label={F.notToday}
+      align="start"
+      trigger={
+        <Button variant="quiet" size="sm" disabled={busy} data-testid="today-found-rest">
+          {F.notToday}
+          <Icon name="chevron-down" size={11} />
+        </Button>
+      }
+      groups={[
+        {
+          items: later.map((c) => ({
+            label: c.label,
+            hint: c.when,
+            onSelect: () => notToday({ until: c.until, back: c.back }),
+          })),
+        },
+        { items: [{ label: F.notThisKind, onSelect: () => notToday({ kind: foundKindOf(row) }) }] },
+      ]}
+    />
+  );
+}
+
 /** The quiet acts every row has, beside its own: Ask why (a rule's) and Not today. Called, not drawn. */
-function quietActs(row: AskFoundRowVM, notToday: () => void, busy = false) {
+function quietActs(row: AskFoundRowVM, notToday: (when?: RestFor) => void, busy = false) {
   const ask = row.ask;
   return (
     <>
-      <Button variant="quiet" size="sm" onClick={notToday} disabled={busy} data-testid="today-found-rest">
-        {F.notToday}
-      </Button>
+      {notTodayMenu(row, notToday, busy)}
       {ask ? (
         <Button variant="quiet" size="sm" onClick={() => askAbout({ prompt: ask })} data-testid="today-found-ask">
           {F.askWhy}
@@ -275,7 +309,7 @@ function FoundRow({
 }: {
   p: RowPorts;
   act: ReactNode;
-  notToday: () => void;
+  notToday: (when?: RestFor) => void;
   busy?: boolean;
   said?: ReactNode;
 }) {
@@ -339,7 +373,7 @@ function DoorRow(p: RowPorts & { turn: { card: AskMorningCard; messageId: string
   const [gone, setGone] = useState(false);
   const { row, turn } = p;
   const to = row.act.to;
-  const notToday = () => {
+  const notToday = (when?: RestFor) => {
     setGone(true);
     // The member's rest, then the turn's word, whatever the rest came to: the idea's own Not today (idea-work.tsx). Its
     // toast's Undo takes back both.
@@ -347,7 +381,7 @@ function DoorRow(p: RowPorts & { turn: { card: AskMorningCard; messageId: string
       .rest(() => {
         setGone(false);
         if (turn) void restoreOnTurn(turn.messageId, turn.card);
-      })
+      }, when)
       .catch(() => undefined)
       .then(() => (turn ? dismissedOnTurn(turn.messageId, turn.card) : false));
   };
@@ -401,7 +435,7 @@ function CardRow(
       {p.row.act.label}
     </Button>
   );
-  return <FoundRow p={p} act={act} notToday={() => void acts.notToday()} busy={acts.busy} said={receipt} />;
+  return <FoundRow p={p} act={act} notToday={(when) => void acts.notToday(when)} busy={acts.busy} said={receipt} />;
 }
 
 /** What AI found's model holds, as its parts read it. */
@@ -538,7 +572,7 @@ export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean
         sub,
         open: open === row.key,
         onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
-        rest: (onUndone) => rest(row.key, flash, onUndone),
+        rest: (onUndone, when) => rest(row.key, flash, onUndone, when),
         flash,
       },
       model,

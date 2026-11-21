@@ -136,6 +136,7 @@ export { isHoldRow, isPersonRow, namesAPerson, saidOfMessages } from "./queue";
 export { NO_REPLY_AFTER_MS } from "./rows";
 export { batchFactsOf, todayLateRunsSub, todayRunApproved, todayRunsSub, todayRunWords } from "./runs";
 export type { RunLike, TodayRunWordsVM } from "./runs";
+export type { TodayTheirsVM } from "./theirs";
 export { todaySteps, todayStepsSub, todayVisitsAsked, todayVisitsSub, withSteps, withVisitsAsked } from "./to-do";
 export type { TodayStepsVM, TodayStepVM, TodayVisitAskVM, TodayVisitsAskedVM } from "./to-do";
 export type {

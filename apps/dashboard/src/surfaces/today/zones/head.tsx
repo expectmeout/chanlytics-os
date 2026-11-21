@@ -26,7 +26,7 @@ import {
 import { aiPill } from "../ai/pill";
 import { useSinceSaid } from "../ai/since";
 import { useCatchUp, useTodayQuiet, type TodayQuiet } from "../calm/quiet";
-import { TODAY_LINE_WORDS } from "../model/lines";
+import { TODAY_LINE_WORDS, dayAheadWords } from "../model/lines";
 import { workspaceClock } from "../shell";
 import { surfaceValue } from "../../surface-values";
 import { useStanding } from "../../kit/head/standing";
@@ -40,6 +40,7 @@ import { TODAY_HELPERS } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
 import { useTodayOnPhone } from "../phone";
 import { useDayVm } from "./day-vm";
+import { useTodayEvening } from "../calm/evening";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
@@ -127,6 +128,23 @@ export function useDayTurned(): boolean {
   return todayZoneDay((cal?.vm as CalendarLike | undefined) ?? null, day, [], Date.now())?.tomorrow ?? false;
 }
 
+/**
+ * The sentence's rest where AI's "since you last looked" says nothing: the day ahead in facts while nobody waits (W15), or,
+ * once the business has closed with someone waiting, that the rest waits for morning (W5). Only on a page sure of itself.
+ */
+function restOfDay(at: {
+  count: number;
+  turned: boolean;
+  sure: boolean;
+  alert: boolean;
+  evening: boolean;
+  ahead: string | null;
+}): string | null {
+  if (!at.sure) return null;
+  if (at.count === 0) return !at.turned && !at.alert ? at.ahead : null;
+  return at.evening ? TODAY_LINE_WORDS.evening.rest : null;
+}
+
 /** Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. */
 export function useZonesStanding(): void {
   const phone = useTodayOnPhone();
@@ -150,7 +168,14 @@ export function useZonesStanding(): void {
   const made = vm
     ? quietLine(TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0), quiet, count)
     : null;
-  const line = made && since ? { lead: made.lead, rest: since } : made;
+  // Nobody waits and nothing new since the last look: the day ahead, in facts (W15).
+  const ahead = dayAheadWords(useDayVm());
+  // Only on a page sure of itself: behind or unread, its own sentence is the one that matters.
+  const sure = quiet.kind === "sure" || quiet.kind === "settling";
+  // Once the day is over, whoever waits is said, and the rest waits for morning in its one line (W5).
+  const evening = useTodayEvening();
+  const rest = since ?? restOfDay({ count, turned, sure, alert: vm?.standing.tone === "alert", evening, ahead });
+  const line = made && rest ? { lead: made.lead, rest } : made;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;
   useStanding({

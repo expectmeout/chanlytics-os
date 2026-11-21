@@ -159,8 +159,8 @@ function Did({ ai }: { ai: TodayAiVM }) {
   );
 }
 
-/** The runs set to go on their own within a day, soonest first. */
-function nextRuns(rows: readonly BroadcastVM[] | undefined, nowMs: number): BroadcastVM[] {
+/** The runs set to go on their own within a day, soonest first: the sheet's Next, and tonight's line (tonight.tsx). */
+export function nextRuns(rows: readonly BroadcastVM[] | undefined, nowMs: number): BroadcastVM[] {
   return (rows ?? [])
     .filter((r) => {
       const at = r.scheduled_for ? Date.parse(r.scheduled_for) : Number.NaN;

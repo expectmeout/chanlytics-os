@@ -6,6 +6,7 @@ import type { MatchVia } from "../../calendar/people/matching";
 import { VISIT_WORDS, visitStands } from "../../calendar/words/visit";
 import { clockLabel } from "../../calendar/words/labels";
 import { clockInZone } from "../../shared/zone/math";
+import { DAY_MS } from "../../shared/time";
 import { HELD_WORDS, NEEDS_YOU_WORD } from "../../conversations/standing";
 import { appointmentWords, type AppointmentWord } from "../../journey/appointment-word";
 import { triggerOf, triggerWords } from "../../campaigns/playbooks/triggers/notices";
@@ -30,7 +31,7 @@ interface DayBlockLike {
     id: string;
     name: string;
     via?: MatchVia | null;
-    facts?: { last_visit_at?: string | null } | null;
+    facts?: { last_visit_at?: string | null; visit_number?: number } | null;
   } | null;
   /** ISO instants: when it begins and ends, which a visit line reads to say whether it is over (CalendarBlockVM has both). */
   start?: string;
@@ -313,13 +314,33 @@ function markedOf(b: DayBlockLike): TodayDayItemVM["said"] {
  * or before (calendar-person-facts.ts last_visit_at). Nothing where nobody is matched, it is not known whether they were in
  * before, or the board's zone is unknown.
  */
-function visitFactOf(b: DayBlockLike, tz: string | undefined): string | null {
+function visitFactOf(b: DayBlockLike, tz: string | undefined, dayKey: string): string | null {
   const last = b.person?.facts?.last_visit_at;
   if (last === undefined || !tz) return null;
   if (last === null) return "First time here";
   const at = Date.parse(last);
   if (!Number.isFinite(at)) return null;
+  // A client, not a queue (Working for you, W14): back after a long while (from their last visit to this one's day), or
+  // which visit of theirs this is, where the record counted it.
+  const months = Math.floor((Date.parse(`${dayKey}T12:00:00Z`) - at) / MONTH_MS);
+  if (months >= AWHILE_MONTHS) return `First visit in ${months} months`;
+  const number = b.person?.facts?.visit_number;
+  if (number && number >= ORDINAL_FROM) return `${ordinal(number)} visit`;
   return `Last here ${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}`;
+}
+
+/** A month, as a gap between visits is said in. */
+const MONTH_MS = 30 * DAY_MS;
+/** Back after this many months is said as such: "First visit in 3 months". */
+const AWHILE_MONTHS = 2;
+/** Which visit it is is said from the third: a second visit says when they were last here. */
+const ORDINAL_FROM = 3;
+
+/** 3rd, 10th, 21st, 112th. */
+function ordinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  const end = teen ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${end}`;
 }
 
 /** Rows on Today's day card; the Calendar has the rest. */
@@ -382,7 +403,7 @@ export function todayDay(
     said: markedOf(dayBlock),
     to: visitDoor(dayKey, dayBlock.visit?.id),
     at: allDay ? null : { from: dayBlock.t, to: dayBlock.t + dayBlock.dur / 60 },
-    fact: visitFactOf(dayBlock, cal.timezone),
+    fact: visitFactOf(dayBlock, cal.timezone, dayKey),
   });
   const frames: TodayDayFrameVM[] = picked.map((otherItem) => {
     // A cancelled visit is none: not listed, not counted, never the next.
