@@ -10233,6 +10233,9 @@ export type Database = {
       }
       files_found: {
         Args: {
+          p_before_at?: string
+          p_before_id?: string
+          p_kind?: string
           p_limit: number
           p_made?: boolean
           p_offset?: number
