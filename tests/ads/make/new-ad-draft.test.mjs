@@ -876,12 +876,21 @@ test("AI's card drafts on New ad's own route: the service it named, with that se
     route: "POST ads/draft",
     body: {},
   });
+  // The piece the owner asked about rides beside them, as Run as an ad's press sends it; the route takes the body whole.
+  const around = spec.commit(
+    { payload: { service: "Consultation", most: null, picture: FILE(7) } },
+    { settings: null },
+  );
+  assert.deepEqual(around.body, { service: "Consultation", picture: FILE(7) });
+  assert.deepEqual(AdDraftBodySchema.parse(around.body), around.body);
   assert.deepEqual([spec.needs, spec.open({ payload: {} }, null)], ["operator", "campaigns/ads:new"]);
 });
 
-/** AI's tool, built as a turn builds it: the member, their question, and the workspace. */
-function toolOf(tables, role = "owner", question = "Make me an ad") {
-  const who = seated(tables, role);
+/**
+ * AI's tool, built as a turn builds it: the member, their question, and the workspace; `about`, the file the question is
+ * asked about (Content's line to AI on an open piece), and `who`, a workspace already seated.
+ */
+function toolOf(tables, role = "owner", question = "Make me an ad", { who = seated(tables, role), about } = {}) {
   const { build } = adDraftAct.actions[""];
   const toolContext = {
     ctx: who.rc.ctx,
@@ -891,6 +900,7 @@ function toolOf(tables, role = "owner", question = "Make me an ad") {
     question,
     now: NOW,
     timezone: TZ,
+    ...(about ? { subjectFile: about } : {}),
   };
   return (input) => build(toolContext, input);
 }
@@ -900,7 +910,7 @@ test("AI's tool proposes the card and decides none of the draft; the most is onl
   const card = await owner({ service: "First Appointment", most: 1200 });
   assert.equal(card.isError, false);
   assert.equal(card.proposal.kind, "ad_draft");
-  assert.deepEqual(card.proposal.payload, { service: "First appointment", most: 1200 });
+  assert.deepEqual(card.proposal.payload, { service: "First appointment", most: 1200, picture: null });
   assert.equal(card.proposal.title, "New ad for First appointment");
   assert.match(card.proposal.summary, /From now on, no ad costs more than 1200 USD\.$/);
   assert.equal(card.proposal.needs, "operator");
@@ -1147,4 +1157,57 @@ test("a made piece says as it opens whether it may run as an ad: Content's one r
   assert.equal(await standsOf(pieceVideo({ media_status: "processing" })), null);
   offered = false;
   assert.equal(await standsOf(piece(7)), null);
+});
+
+// AI's card around the piece the owner asks about (6.3 with 6.8, join 3)
+
+/** A workspace no seat rewrites: a piece of its own is never this one's. */
+const ELSEWHERE = "99999999-9999-4999-8999-999999999999";
+
+/** AI's tool in a workspace of made pieces, the question asked about `about` (a file's id; Content's line on a piece). */
+function pieceToolOf(files, { drawn = [], about = FILE(7), question = "Run this as an ad" } = {}) {
+  const who = seatedMade(world({ tables: { files: [file(1), ...files] } }), drawn);
+  return { who, tool: toolOf(null, "owner", question, { who, ...(about ? { about } : {}) }) };
+}
+
+test("AI's tool asked about a made piece: a card drafted around it where Content's rule lets it run, and why not where it doesn't", async () => {
+  // The piece open in Content, left out of the call: the card carries it, and its press drafts around it on New ad's route.
+  const { who, tool } = pieceToolOf([piece(7)]);
+  const card = await tool({});
+  assert.deepEqual(card.proposal.payload, { service: null, most: null, picture: FILE(7) });
+  assert.equal(card.proposal.title, "Run Post 7 as an ad");
+  const pressed = await draftAd(who.rc, C.PROPOSAL_SPECS.ad_draft.commit(card.proposal, { settings: null }).body);
+  assert.deepEqual([pressed.can, pressed.draft.picture.id], [true, FILE(7)]);
+  assert.equal(who.keeps.at(-1).draft.picture, FILE(7), "kept, so New ad opens on it");
+  // Named by its name in a turn about nothing, beside a service: both ride, and the card says the piece once.
+  const named = await pieceToolOf([piece(7)], { about: null }).tool({ file: "post-7", service: "consultation" });
+  assert.deepEqual(named.proposal.payload, { service: "Consultation", most: null, picture: FILE(7) });
+  assert.equal(named.proposal.title, "New ad for Consultation");
+  assert.match(named.proposal.summary, /^Shows Post 7\. AI drafts it in New ad/);
+  // Where it may not run: why, by Content's one rule, so AI says it; and no card.
+  const refusedFor = async (files, drawn = []) => {
+    const answer = await pieceToolOf(files, { drawn }).tool({});
+    assert.equal(answer.proposal, null, "no card");
+    return answer.refusal;
+  };
+  assert.match(await refusedFor([piece(7, { look: AT_THE_CHAIR })]), /hasn't said yes to ads/);
+  const postsOnly = file(2, { look: AT_THE_CHAIR, yes_for: ["post"] });
+  assert.match(await refusedFor([piece(7), postsOnly], [drawnFrom(FILE(2))]), /hasn't said yes to ads/);
+  assert.match(await refusedFor([pieceVideo({ sound: HEARD(true) })]), /has music/);
+  assert.match(await refusedFor([pieceVideo({ sound: null })]), /isn't heard yet/);
+  assert.match(await refusedFor([piece(7, { width: 1080, height: 1920 })]), /shape doesn't fit/);
+  assert.match(await refusedFor([pieceVideo({ sound: HEARD(false), seconds: 90 })]), /too long or too short/);
+  assert.match(await refusedFor([pieceVideo({ media_status: "processing" })]), /can't be played yet/);
+  assert.match(await refusedFor([piece(7, { status: "set_aside" })]), /is set aside/);
+  // Only a piece AI made, and only this workspace's: a photo the question is about is no piece, so the draft's own pick.
+  const library = pieceToolOf([piece(7)], { about: FILE(1) }).tool;
+  assert.equal((await library({})).proposal.payload.picture, null);
+  assert.match((await library({ file: "front-desk-1" })).refusal, /isn't a piece AI made/);
+  const theirs = piece(8, { tenant_id: ELSEWHERE, name: "post-elsewhere" });
+  const notHere = pieceToolOf([piece(7), theirs], { about: null }).tool;
+  assert.match((await notHere({ file: "post-elsewhere" })).refusal, /No file named post-elsewhere/);
+  // The piece the question was about, deleted since: said as gone, its id never told.
+  const gone = await pieceToolOf([piece(7, { removed_at: "2026-11-19T14:00:00Z" })]).tool({});
+  assert.match(gone.refusal, /isn't in Files any more/);
+  assert.doesNotMatch(gone.refusal, new RegExp(FILE(7)));
 });
