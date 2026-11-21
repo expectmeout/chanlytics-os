@@ -198,11 +198,14 @@ test("an account Meta turned off, one it could not charge, and one the sign-in m
     [unpaid.need.title, unpaid.need.act.words],
     ["Meta couldn't charge this ad account's card", "Pay it in Meta"],
   );
-  const looking = card(account({ can_pause: false }));
+  // A sign-in Meta let read and not change (a business connecting between Meta's two reviews): a calm fact, with no
+  // act, since connecting again would ask the same and get the same; it stands before a check that is not met.
+  const looking = card(account({ can_pause: false, checks: without("payment") }));
   assert.deepEqual(
-    [looking.need.title, looking.need.act.words],
-    ["You can see this ad account, but not run ads on it", "Use another ad account"],
+    [looking.need.title, looking.need.tone, looking.need.act],
+    ["Chanlytics can show these ads, not change them yet", "calm", null],
   );
+  assert.match(looking.need.line, /^Meta hasn't approved Chanlytics to pause or make ads yet\./);
 });
 
 test("a look that failed says so with when the card was last brought up to date, and keeps what it knew", () => {

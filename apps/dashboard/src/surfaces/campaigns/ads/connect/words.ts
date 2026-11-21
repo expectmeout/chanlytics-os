@@ -112,11 +112,15 @@ export const UNSETTLED: NeedWords = {
   act: "Pay it in Meta",
 };
 
-/** The sign-in may read the account and not change it. */
+/**
+ * The sign-in may read the account and not change it: what Meta grants a business while it has approved Chanlytics to
+ * read ads and not yet to change them (the Ads plan's step 3, between its two submissions). Nothing the owner does
+ * mends it, so there is no act: Connect again would ask the same and get the same.
+ */
 export const NOT_ALLOWED: NeedWords = {
-  title: "You can see this ad account, but not run ads on it",
-  line: `Its admin can let you run ads, in Meta's settings. ${LOOKS_AGAIN}`,
-  act: "Use another ad account",
+  title: "Chanlytics can show these ads, not change them yet",
+  line: "Meta hasn't approved Chanlytics to pause or make ads yet. Your ads and what they cost show here meanwhile.",
+  act: null,
 };
 
 /** What came back from Meta's window when nothing was connected, by the word the callback said. */
