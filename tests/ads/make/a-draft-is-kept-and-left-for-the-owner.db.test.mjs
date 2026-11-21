@@ -8,7 +8,12 @@
  * owner's bell once while their row is open; one kept with no words rings nothing; the owner's keep closes the rows.
  * The most an ad may cost is the owner's alone to say. Runs against the database `supabase start` builds on this
  * machine, never production.
+ *
+ * And 00672: a keep that names the draft it read writes nothing over another kept since, nor brings back one gone
+ * since, and says so; the ad writer out for a draft's words is marked once for the same words, its mark moves nothing
+ * of the draft (Turn on and a keep still read it as the one they read), and goes when it is back.
  */
+import { randomUUID } from "node:crypto";
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
@@ -195,5 +200,115 @@ test(
     assert.equal(operator.error?.code, "42501");
     const nothing = await ws.owner.client.rpc("ad_account_most", { p_tenant_id: ws.tenant, p_most_minor: 0 });
     assert.equal(nothing.error?.code, "22023");
+  },
+);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// 00672: a keep names the draft it read, and the writer out for its words is marked
+
+const rowOf = async (ws) =>
+  ok(
+    await db
+      .from("ad_drafts")
+      .select("draft, updated_at, writing_ask, writing_for, writing_until")
+      .eq("tenant_id", ws.tenant)
+      .maybeSingle(),
+  );
+const keepOver = async (who, ws, readAt, over = {}) =>
+  ok(
+    await who.client.rpc("ad_draft_keep", {
+      p_tenant_id: ws.tenant,
+      p_account_id: ws.account,
+      p_draft: { ...draftOf(true), ...over },
+      p_read_at: readAt,
+    }),
+  );
+
+test(
+  "a keep that names the draft it read writes nothing over one kept since, nor brings back one gone",
+  { skip },
+  async () => {
+    const ws = await workspace("read");
+    // None kept yet, and none read: kept.
+    const first = await keepOver(ws.owner, ws, "-infinity");
+    assert.equal(first.kept, true);
+    const read = await rowOf(ws);
+    // Kept since by the operator: a keep made from the older one writes nothing, and says so.
+    await keep(ws.operator, ws, false);
+    const since = await rowOf(ws);
+    assert.notEqual(since.updated_at, read.updated_at);
+    assert.deepEqual(await keepOver(ws.owner, ws, read.updated_at, { total_minor: 9000 }), {
+      kept: false,
+      draft_id: first.draft_id,
+      rung: 0,
+      newer: true,
+    });
+    assert.equal((await rowOf(ws)).draft.total_minor, 7000, "nothing written over the newer draft");
+    assert.equal((await keepOver(ws.owner, ws, "-infinity")).newer, true, "nor by a keep that read none");
+    // Made from the draft as it is now: kept.
+    assert.equal((await keepOver(ws.owner, ws, since.updated_at, { total_minor: 9000 })).kept, true);
+    assert.equal((await rowOf(ws)).draft.total_minor, 9000);
+    // Gone since (turned on): a keep made from it brings nothing back. A keep that names nothing keeps, as before.
+    const gone = await rowOf(ws);
+    ok(await db.from("ad_drafts").delete().eq("tenant_id", ws.tenant));
+    assert.deepEqual(await keepOver(ws.owner, ws, gone.updated_at), {
+      kept: false,
+      draft_id: null,
+      rung: 0,
+      newer: true,
+    });
+    assert.equal(await rowOf(ws), null);
+    assert.equal((await keep(ws.owner, ws, false)).kept, true);
+  },
+);
+
+test(
+  "the writer out for a draft's words is marked once for the same words, moves nothing of it, and goes when back",
+  { skip },
+  async () => {
+    const ws = await workspace("writer");
+    const until = (ms = 30_000) => new Date(Date.now() + ms).toISOString();
+    const hold = (who, ask, words = "first appointment", at = until()) =>
+      who.client.rpc("ad_draft_writing", { p_tenant_id: ws.tenant, p_ask: ask, p_for: words, p_until: at });
+    const back = (who, ask) => who.client.rpc("ad_draft_written", { p_tenant_id: ws.tenant, p_ask: ask });
+    const [one, two, three] = [randomUUID(), randomUUID(), randomUUID()];
+    // No draft kept: nothing to mark, and nothing to wait for.
+    assert.deepEqual(ok(await hold(ws.owner, one)), { held: false, ask: null, until: null });
+    await keep(ws.owner, ws, false);
+    const kept = await rowOf(ws);
+    assert.equal(ok(await hold(ws.owner, one)).held, true);
+    // Another ask for the same words, on another device or by another member: the one out, to wait for.
+    const out = ok(await hold(ws.operator, two));
+    assert.deepEqual([out.held, out.ask], [false, one]);
+    assert.ok(Date.parse(out.until) > Date.now());
+    // The mark is not a change of the draft: Turn on and a keep read it as the one they read.
+    const marked = await rowOf(ws);
+    assert.deepEqual(
+      [marked.updated_at, marked.writing_ask, marked.writing_for],
+      [kept.updated_at, one, "first appointment"],
+    );
+    // An ask for other words takes it over; the first one back does not end the newer one's mark.
+    assert.equal(ok(await hold(ws.owner, three, "consultation")).held, true);
+    assert.equal(ok(await back(ws.owner, one)), false);
+    assert.equal((await rowOf(ws)).writing_ask, three);
+    assert.equal(ok(await back(ws.owner, three)), true);
+    assert.deepEqual(Object.values(await rowOf(ws)).slice(2), [null, null, null]);
+    // Out past its time (its request gone with it): the next ask for the same words holds it.
+    assert.equal(ok(await hold(ws.owner, one)).held, true);
+    ok(
+      await db
+        .from("ad_drafts")
+        .update({ writing_until: until(-1000) })
+        .eq("tenant_id", ws.tenant),
+    );
+    assert.equal(ok(await hold(ws.operator, two)).held, true);
+    assert.equal((await rowOf(ws)).updated_at, kept.updated_at, "still the draft Turn on would read");
+    // Only an acting member marks one; a mark's time is within the route's two minutes, and it names its words.
+    const viewer = await memberOf(ws.tenant, "viewer", "writer");
+    assert.equal((await hold(viewer, three)).error?.code, "42501");
+    assert.equal((await back(viewer, two)).error?.code, "42501");
+    assert.equal((await hold(ws.owner, three, "first appointment", until(10 * 60_000))).error?.code, "22023");
+    assert.equal((await hold(ws.owner, three, "first appointment", until(-1000))).error?.code, "22023");
+    assert.equal((await hold(ws.owner, three, " ")).error?.code, "22023");
   },
 );

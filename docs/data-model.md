@@ -252,6 +252,9 @@ A workspace's one draft of a new ad (00659; the Ads plan's 4.6, 6.2 and G18): wh
 | `kept_by` | uuid | yes |  | The member who kept it last (auth.uid() at ad_draft_keep): the owner, or someone who left it for the owner. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `writing_ask` | uuid | yes |  | The ask out for the draft's words, while one is (00672): written by ad_draft_writing, let go by ad_draft_written. Null where no writer is out. |
+| `writing_for` | text | yes |  | The words that ask writes, as the dashboard names them (00672; server/ads/writer.ts): the service, the picture, and whether they say the price. Another ask for the same words waits for it. |
+| `writing_until` | timestamp with time zone | yes |  | Until when another ask for the same words waits for the one out (00672): within the words route's own minute. Past it, the next ask writes its own. |
 
 Foreign keys:
 

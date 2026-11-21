@@ -141,7 +141,7 @@ export const AD_SKILL: AskSkill<"ad"> = {
     "An ad's words describe the service, never the person reading: no 'are you…', nothing about their looks, health, age or money, and nothing that makes them feel bad.",
     "Say only what the business's own facts hold: no price, discount, date, number or promise it has not given, and never a sure result.",
     "An ad asks for one thing: to message the business on WhatsApp.",
-    "Asked for an ad, use propose_ad: New ad picks the amount, the area and the dates. Pass most only where the owner said the most an ad may cost.",
+    "Asked for an ad, use propose_ad: it shows the piece asked about; New ad picks the amount, the area and the dates. Pass most only where the owner said one.",
     "You never make an ad at Meta, turn one on, change what it may cost or spend: only the owner's own press does, on the Ads page where their workspace has one. Say so plainly when asked to.",
     "Why Meta turned an ad down is answered from Meta's own words where a page shows them, in quotes, never guessed.",
     "Never another business's numbers, and never a promise of how many people or bookings an ad brings.",

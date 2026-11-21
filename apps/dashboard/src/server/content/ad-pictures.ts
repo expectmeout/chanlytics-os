@@ -37,7 +37,8 @@ import type { ReaderContext } from "../shared/reader";
  * Ads never crops: the shape is the file's own, and the rule that judges it is contracts adPictureIssue.
  *
  * New ad's draft asks it (server/ads/draft-facts.ts), and so does a made piece as it opens in Content, whose "Run as an
- * ad" says what the same rule answers of it (readPieceAd, the plan's 6.8, join 3).
+ * ad" says what the same rule answers of it (readPieceAd, the plan's 6.8, join 3), and AI's ad card of the piece the
+ * owner asks about (readPieceAdStands).
  */
 
 /**
@@ -184,8 +185,11 @@ export async function listAdPictures(
  */
 export type PieceAdStands = { is: "may" } | { is: "no_account" } | { is: "wont"; why: AdPictureIssue | "unheard" };
 
-async function pieceAdStandsOf(rc: AdReader, row: FileMemberRow): Promise<PieceAdStands | null> {
-  const file = fileDtoOf(row);
+/**
+ * Where a made piece stands for an ad, null where nothing is said of it (readPieceAd says which). AI's ad card asks it
+ * of the piece the owner is asking about (server ask/tools/act/ads/draft.ts), where a read that fails is the turn's.
+ */
+export async function readPieceAdStands(rc: AdReader, file: FileDto): Promise<PieceAdStands | null> {
   if (file.source !== "made" || !playable(file)) return null;
   if (!(await readAdsOffered(rc.tenantId))) return null;
   const video = file.kind === "video";
@@ -208,4 +212,4 @@ async function pieceAdStandsOf(rc: AdReader, row: FileMemberRow): Promise<PieceA
  * what runs and can let the account go. A read that fails says nothing, and costs the piece's record nothing.
  */
 export const readPieceAd = (rc: AdReader, row: FileMemberRow): Promise<PieceAdStands | null> =>
-  pieceAdStandsOf(rc, row).catch(logAndGoOn("a made piece's standing for an ad", null));
+  readPieceAdStands(rc, fileDtoOf(row)).catch(logAndGoOn("a made piece's standing for an ad", null));

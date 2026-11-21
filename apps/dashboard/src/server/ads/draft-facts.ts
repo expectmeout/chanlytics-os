@@ -200,6 +200,20 @@ async function keptDraftOf(
   return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team", at };
 }
 
+/**
+ * The draft kept now, and when it was kept: what an ad writer's answer is put into where another was kept while it
+ * wrote (kept-over.ts). Its draft is null where it is another account's or no longer reads as one; null where none is.
+ */
+export async function readKeptDraft(
+  rc: ReaderContext,
+  accountId: string,
+): Promise<{ draft: AdDraftState | null; at: string } | null> {
+  const row = await findAdDraft(rc.ctx.supabase, rc.tenantId);
+  if (row === null) return null;
+  const parsed = row.account_id === accountId ? AdDraftStateSchema.safeParse(row.draft) : null;
+  return { draft: parsed?.success ? parsed.data : null, at: row.updated_at };
+}
+
 /** The business an ad is written for, as its settings say it. */
 function businessOf(settings: TenantConfig, named: { name: string }, word: AppointmentWord): AdBusinessFacts {
   const profile = settings.brain?.profile;

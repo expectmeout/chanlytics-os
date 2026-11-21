@@ -143,7 +143,8 @@ function basisDto(basis: AdDraftParts["basis"]): AdAmountBasisDto {
 }
 
 /** Whether two drafts hold the same choices, whatever order their fields came in. */
-const sameDraft = (first: AdDraftState, second: AdDraftState): boolean => stableJson(first) === stableJson(second);
+export const sameDraft = (first: AdDraftState, second: AdDraftState): boolean =>
+  stableJson(first) === stableJson(second);
 
 /** A draft as the rule picks it fresh, before anything was chosen: across the wider place proposed, where one was. */
 const freshDraft = (parts: AdDraftParts, proposed: AdWideArea | null): AdDraftState => ({
@@ -224,7 +225,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
 }
 
 /** The draft an answer holds, as it is kept. */
-const keptStateOf = (answer: Extract<AdDraftAnswer, { can: true }>): AdDraftState => ({
+export const keptStateOf = (answer: Extract<AdDraftAnswer, { can: true }>): AdDraftState => ({
   ...answer.draft,
   picture: answer.draft.picture.id,
 });
