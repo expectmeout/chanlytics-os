@@ -54,6 +54,7 @@ const page = (ads, over = {}) => ({
     read_failed: false,
     revoked_at: null,
     disconnected_at: null,
+    ready: true,
   },
   window: { from: "2026-10-23", to: "2026-11-21" },
   today: "2026-11-21",
@@ -62,6 +63,7 @@ const page = (ads, over = {}) => ({
   elsewhere: { people: 0, booked: 0 },
   can_press: true,
   stopped_at: null,
+  needs_you: { count: 0, people: [] },
   ...over,
 });
 const rowOf = (one, over) => liveModel(page([one], over), SAID).rows[0];

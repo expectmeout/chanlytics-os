@@ -17,6 +17,8 @@ const S = "../../apps/dashboard/src";
 const { toPeopleReportVM } = await import("@chanlytics/contracts/report-lens");
 const { api } = await import(`${S}/bridge/api.ts`);
 const { AdsPage } = await import(`${S}/surfaces/campaigns/ads/ads-page.tsx`);
+const { readAdsOpening } = await import(`${S}/bridge/surfaces/ads-first-reads.ts`);
+const { read } = await import(`${S}/bridge/api.ts`);
 const { askOnScreenOf } = await import(`${S}/bridge/ask/on-screen.ts`);
 
 const seriesOf = (byVia, over = {}) => ({ first_came: { by_via: byVia }, today: "2031-03-15", days: 30, ...over });
@@ -166,10 +168,16 @@ const route = { asked: [], answer: () => ({ series: seriesOf(NO_AD), now: null }
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input) => {
   const url = new URL(String(input instanceof Request ? input.url : input), "https://app.example.org");
-  // The ad account's card reads beside the counts: answered apart, and not one of the report's reads.
-  const forCard = url.pathname === "/api/v1/ads/account";
-  if (!forCard) route.asked.push(url);
-  const data = forCard ? route.account : route.answer(url);
+  // What the view opens on, the ad account and its ads (the boot's first reads, bridge/surfaces/ads-first-reads.ts), and the card
+  // beside the counts: answered apart, and none of them the report's reads. No account was ever connected: no ads.
+  const opensOn = url.pathname === "/api/v1/ads/account" || url.pathname === "/api/v1/ads/page";
+  if (url.pathname === "/api/v1/ads/page")
+    return new Response(JSON.stringify({ ok: true, data: null }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  if (!opensOn) route.asked.push(url);
+  const data = opensOn ? route.account : route.answer(url);
   if (data === null) return new Response(JSON.stringify({ ok: false, error: { message: "no" } }), { status: 500 });
   return new Response(JSON.stringify({ ok: true, data }), {
     status: 200,
@@ -180,10 +188,14 @@ after(() => {
   globalThis.fetch = realFetch;
 });
 
-/** Draw the page, its read answered as asked, and hand back what redraws it. */
-function drawPage(answer, param = "ads") {
+/**
+ * Draw the page as a cold load does, its read answered as asked, and hand back what redraws it: the boot reads what the view
+ * opens on first, so its first draw knows no account is held.
+ */
+async function drawPage(answer, param = "ads") {
   // An identical read shares an answer the client holds: each page here is its own visit.
   api().forget();
+  await readAdsOpening({ read, route: "campaigns/ads", workspace: "studio" });
   route.asked.length = 0;
   route.answer = answer;
   fresh();
@@ -199,7 +211,10 @@ test("the page says which ads under its lead, once the counts land, and nothing 
     { platform: "meta", name: "Spring colour offer", n: 5 },
     { platform: "meta", name: null, n: 2 },
   ];
-  const p = drawPage(() => ({ series: seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }), now: null }));
+  const p = await drawPage(() => ({
+    series: seriesOf(byVia, { first_came: { by_via: byVia, by_ad: byAd } }),
+    now: null,
+  }));
   assert.equal(byTestId(p.tree, "ads-v0-ads"), null, "not while it reads");
   await landed("the counts");
   const tree = p.draw();
@@ -211,13 +226,13 @@ test("the page says which ads under its lead, once the counts land, and nothing 
     textOf(byTestId(tree, "ads-v0-ads")),
     "5 people from Spring colour offer and 2 people from an ad you run in Meta.",
   );
-  const plain = drawPage(() => ({ series: seriesOf(byVia), now: null }));
+  const plain = await drawPage(() => ({ series: seriesOf(byVia), now: null }));
   await landed("the counts again");
   assert.equal(byTestId(plain.draw(), "ads-v0-ads"), null);
 });
 
 test("the page reads its own counts once, says it is counting, then says them, and draws nothing of an example", async () => {
-  const p = drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
+  const p = await drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
   assert.equal(textOf(byTestId(p.tree, "ads-v0-reading")), V0.reading, "no flash of nobody while it reads");
   assert.equal(byTestId(p.tree, "ads-v0-lead"), null);
   await landed("the counts");
@@ -236,7 +251,7 @@ test("the page reads its own counts once, says it is counting, then says them, a
 });
 
 test("a workspace nobody new reached says that, as it has no rows to draw", async () => {
-  const p = drawPage(() => ({ series: seriesOf({}), now: null }));
+  const p = await drawPage(() => ({ series: seriesOf({}), now: null }));
   await landed("the counts");
   const tree = p.draw();
   assert.equal(textOf(byTestId(tree, "ads-v0-nobody")), V0.nobodyNew);
@@ -244,7 +259,7 @@ test("a workspace nobody new reached says that, as it has no rows to draw", asyn
 });
 
 test("a read that fails says so and offers again, and never says nobody came", async () => {
-  const p = drawPage(() => null);
+  const p = await drawPage(() => null);
   await landed("the refusal");
   const tree = p.draw();
   const failed = byTestId(tree, "ads-v0-failed");
@@ -261,24 +276,24 @@ test("a read that fails says so and offers again, and never says nobody came", a
 });
 
 test("a database with no series yet is said as a read that did not come, not as nobody", async () => {
-  const p = drawPage(() => ({ series: null, now: null }));
+  const p = await drawPage(() => ({ series: null, now: null }));
   await landed("the empty answer");
   const tree = p.draw();
   assert.ok(byTestId(tree, "ads-v0-failed"), textOf(byTestId(tree, "ads-v0")));
 });
 
-test("an address that names an ad, with nothing connected, is the page with nothing connected: no example's ad", () => {
-  const p = drawPage(() => ({ series: seriesOf(NO_AD), now: null }), "ads:ad:spring");
+test("an address that names an ad, with nothing connected, is the page with nothing connected: no example's ad", async () => {
+  const p = await drawPage(() => ({ series: seriesOf(NO_AD), now: null }), "ads:ad:spring");
   assert.ok(byTestId(p.tree, "ads-v0"));
   assert.equal(byTestId(p.tree, "ads-detail"), null);
   assert.equal(route.asked.length, 1, "the counts are read, as on the page");
 });
 
-test("the page tells Ask what it shows, in a word and no row: what is true", () => {
+test("the page tells Ask what it shows, in a word and no row: what is true", async () => {
   const said = () => {
     const s = askOnScreenOf(globalThis.window);
     return s && [s.key, s.view, s.ids];
   };
-  drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
+  await drawPage(() => ({ series: seriesOf(NO_AD), now: null }));
   assert.deepEqual(said(), ["ads", "ads", []]);
 });
