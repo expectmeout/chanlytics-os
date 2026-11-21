@@ -40,6 +40,7 @@ import {
   adVersionsOf,
   craftSystem,
   usageDollars,
+  usageOf,
 } from "@chanlytics/contracts";
 import { adBriefOf } from "../../../apps/dashboard/src/server/ask/skills/ad/brief.ts";
 import { adCraftIssues } from "../../../apps/dashboard/src/server/ask/skills/ad/checks.ts";
@@ -181,8 +182,18 @@ async function judge(client, entry, brief, written) {
   const verdict = read.answer
     ? adVerdict(issues, read.answer)
     : { pass: false, failed: ["the judge gave no answer"], soft: { passed: 0, of: 0 }, notes: [] };
-  return { ...verdict, pass: verdict.pass && failures.length === 0, failed: [...verdict.failed, ...failures] };
+  return {
+    ...verdict,
+    pass: verdict.pass && failures.length === 0,
+    failed: [...verdict.failed, ...failures],
+    issues,
+    judged: read.answer,
+    usage: read.usage,
+  };
 }
+
+/** What a call cost at list price, from the API's own count of its tokens: measured, where callCost computes. */
+const spentOn = (usage) => (usage ? (usageDollars(MODEL, usageOf(usage)) ?? 0) : 0);
 
 async function main() {
   const argv = process.argv;
@@ -217,12 +228,14 @@ async function main() {
   const client = await messagesClient();
   const rows = [];
   const times = [];
+  const spent = { writing: 0, judging: 0, calls: 0 };
   for (const entry of cases) {
     const brief = briefOf(entry);
     for (let rep = 1; rep <= repeats; rep++) {
       let verdict;
       let written = null;
       let ms = 0;
+      let usage = null;
       try {
         const began = Date.now();
         const read = await structured(client, {
@@ -235,15 +248,22 @@ async function main() {
         });
         ms = Date.now() - began;
         times.push(ms);
+        usage = read.usage;
+        spent.writing += spentOn(usage);
+        spent.calls += 1;
         written = read.answer ? writtenOf(entry, brief, read.answer) : null;
         verdict = written
           ? await judge(client, entry, brief, written)
           : { pass: false, failed: ["no answer"], soft: { passed: 0, of: 0 }, notes: [] };
+        if (verdict.usage) {
+          spent.judging += spentOn(verdict.usage);
+          spent.calls += 1;
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         verdict = { pass: false, failed: [`the call failed: ${reason}`], soft: { passed: 0, of: 0 }, notes: [] };
       }
-      rows.push({ id: entry.id, rep, ms, written, verdict });
+      rows.push({ id: entry.id, rep, ms, usage, written, verdict });
       console.log(
         `${verdict.pass ? "ok  " : "MISS"} ${entry.id} (${rep}/${repeats}): soft ${verdict.soft.passed}/${verdict.soft.of}${ms ? `, ${(ms / 1000).toFixed(1)} s` : ""}`,
       );
@@ -256,11 +276,15 @@ async function main() {
   const lines = [
     `${passed} of ${rows.length} ads held, by ${MODEL} at ${AD_SKILL.craft.effort}.`,
     `Writer time: p50 ${(pct(sorted, 0.5) / 1000).toFixed(1)} s, p90 ${(pct(sorted, 0.9) / 1000).toFixed(1)} s.`,
+    `Spent at list price, from the API's counts: $${(spent.writing + spent.judging).toFixed(2)} over ${spent.calls} calls ($${spent.writing.toFixed(2)} writing, $${spent.judging.toFixed(2)} judging).`,
   ];
   for (const line of lines) console.log(line);
   const out = path.join(ROOT, "tooling/backups", `skill-ad-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
-  fs.writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), model: MODEL, repeats, rows, lines }, null, 2));
+  fs.writeFileSync(
+    out,
+    JSON.stringify({ at: new Date().toISOString(), model: MODEL, repeats, spent, rows, lines }, null, 2),
+  );
   console.log(`Written to ${path.relative(ROOT, out)}.`);
   process.exit(passed === rows.length ? 0 : 1);
 }
