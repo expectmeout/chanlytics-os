@@ -1,7 +1,8 @@
 /**
  * POST /api/admin/ads/press: an owner pauses an ad, or turns one back on (decision 0050, calls 1, 2 and 9; the Ads
- * plan's step 2, part 6). Signed admin token only: the dashboard's /api/v1/ads/:id routes are the callers, for the
- * owner. In order, and nothing after a step that refuses:
+ * plan's step 2, part 6), or changes a running ad made here (`change`, the plan's step 4, item 6: change.ts). Signed
+ * admin token only: the dashboard's /api/v1/ads/:id routes are the callers, for the owner. In order, and nothing
+ * after a step that refuses:
  *
  *   1. This deployment's switch (`ADS_WRITES`) and its list of workspaces (the plan's 6.2 and D7).
  *   2. The owner alone: `has_permission(…, 'ads')`, asked here before anything is kept or asked of Meta.
@@ -41,6 +42,7 @@ import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { NO_ADS_DOORS, adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
+import { runAdChange, type AdsChangeBody } from "./change.js";
 import { mayAskMeta, readAfterOf } from "./pace.js";
 import { adsWrites, mayTellNow, tellAd, type AdsWrites } from "./tell.js";
 
@@ -53,6 +55,7 @@ interface AdsPressBody {
   user_id?: string;
   ad_id?: string;
   version?: number;
+  change?: AdsChangeBody;
   /** `pause_all`: the set, each ad with the version it was drawn from, as sent: pausesOf reads it. */
   ads?: unknown;
 }
@@ -246,12 +249,13 @@ async function pauseAll(db: Db, by: PressedBy, presses: readonly AdPause[]): Pro
   return json(200, { ok: true, outcome: "kept", ads });
 }
 
-/** The door's ops: pause, resume and check on one ad, and pause_all on a set of them. */
+/** The door's ops: pause, resume, check and change on one ad, and pause_all on a set of them. */
 export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): Promise<Response> {
   const intent: AdIntent | null = body.op === "pause" ? "paused" : body.op === "resume" ? "on" : null;
   const all = body.op === "pause_all";
-  if (intent === null && body.op !== "check" && !all)
-    return refuse(400, "unknown_op", "op is pause, resume, check or pause_all");
+  const change = body.op === "change";
+  if (intent === null && body.op !== "check" && !all && !change)
+    return refuse(400, "unknown_op", "op is pause, resume, check, change or pause_all");
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
@@ -266,5 +270,7 @@ export async function runAdPress(auth: Admitted, body: Partial<AdsPressBody>): P
   const version = typeof body.version === "number" && Number.isInteger(body.version) ? body.version : 0;
   if (!isTenantId(tenantId) || !UUID.test(userId) || !UUID.test(adId) || version < 1)
     return refuse(400, "bad_request", "tenant_id, user_id, ad_id and version required");
+  if (change)
+    return admitted({ tenantId, userId }, (db, by) => runAdChange(db, by, { adId, version, change: body.change }));
   return admitted({ tenantId, userId }, (db, by) => pressOne(db, by, { adId, version, intent }));
 }

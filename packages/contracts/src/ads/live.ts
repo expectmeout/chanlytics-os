@@ -12,6 +12,7 @@ import { zoneDayKey } from "../shared/clock";
 import { recordOrEmpty } from "../shared/unknown";
 import { MIN_MS } from "../shared/time";
 import type { AdState } from "./ads";
+import type { AdChangeOnWay } from "./change";
 import { adStateOf } from "./states";
 
 /** What a tap on an ad opens, as its row keeps it (ads.door). */
@@ -52,6 +53,23 @@ export interface AdLaunchLive {
   left: AdPartLeft[];
 }
 
+/**
+ * An ad made here, as its drawer's sentence says it and its owner changes it (the Ads plan's 4.5): where it is shown,
+ * its first day, a change of the owner's still on its way to Meta, when Meta takes the next change of its amount, and
+ * whether Meta holds a total or a last day other than the one approved here (changed in Meta, and never put back).
+ */
+export interface AdMadeHereLive {
+  /** The circle's miles; null where it is shown across a wider place, named by `place`. */
+  miles: number | null;
+  place: { kind: "city" | "region" | "country"; name: string } | null;
+  /** The run's first day in the account's zone: Meta's least is counted from it. */
+  start_day: string;
+  change: AdChangeOnWay | null;
+  /** When its amount can next be changed, where Meta's four an hour are used; null where it can be now. */
+  amount_after: string | null;
+  changed_in_meta: boolean;
+}
+
 /** One ad on the page. */
 export interface AdLiveDto {
   /** Chanlytics' own id (a uuid): the address uses it. */
@@ -63,6 +81,8 @@ export interface AdLiveDto {
   shown_on: string[] | null;
   /** An ad made here: how its launch went. Null for an ad made at the platform. */
   launch: AdLaunchLive | null;
+  /** An ad made here: what its owner changes from its drawer. Null for an ad made at the platform. */
+  made_here: AdMadeHereLive | null;
   opens: AdOpens;
   /** Its badge, worked out once (adStateOf). */
   state: AdState | "draft";
@@ -106,6 +126,9 @@ export interface AdsLiveDto {
     disconnected_at: string | null;
     /** Every check the account's card counts passes (adCardChecksOf, as the card reads them): an ad may be made on it. */
     ready: boolean;
+    /** Meta's least a day for the account, and the most the owner said any ad may cost; null where neither is known. */
+    min_daily_minor: number | null;
+    most_minor: number | null;
   };
   /** The days the page counts, in the workspace's zone (ISO days), and today in the account's. */
   window: { from: string; to: string };

@@ -107,3 +107,15 @@
 .ads-live-booked {
   color: var(--ok-ink);
 }
+/* A tapped word's box in an ad's drawer (change-sentence.tsx): the box on its own line, its press and Keep it under. */
+.ads-live-change {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.ads-live-change-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}

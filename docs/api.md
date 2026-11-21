@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-435 handlers in 60 domains.
+440 handlers in 60 domains.
 
 ## activity
 
@@ -35,6 +35,26 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 
 ## ads
 
+### `POST /api/v1/ads/[id]/area`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
+| `miles` | integer | yes | ≥ 1; ≤ 50 |
+
+### `POST /api/v1/ads/[id]/budget`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
+| `total_minor` | integer | yes | ≤ 9007199254740991 |
+| `from_minor` | integer | yes | ≥ 0; ≤ 9007199254740991 |
+| `expect_max_minor` | integer or null | yes |  |
+
 ### `POST /api/v1/ads/[id]/check`
 
 Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
@@ -42,6 +62,30 @@ Writes; for a member of the row's own workspace, owner or above; counts against 
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
+
+### `POST /api/v1/ads/[id]/end`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
+
+### `POST /api/v1/ads/[id]/end-date`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
+| `end_day` | string | yes | matches `^\d{4}-\d{2}-\d{2}$` |
+| `from_ends_at` | string | yes | at least 1 characters; at most 64 characters |
+
+### `POST /api/v1/ads/[id]/fix`
+
+Writes; for a member of the row's own workspace, operator or above; counts against the `ad_words` rate; may spend the workspace's money.
+
+Declares no body schema: it takes none, or reads its own (`apps/dashboard/app/api/v1/ads/[id]/fix/route.ts`).
 
 ### `POST /api/v1/ads/[id]/pause`
 
@@ -3899,6 +3943,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `ad_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `version` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
+| `change` | object | no |  |
 | `ads` | array of object | no | at most 200 |
 
 ### `POST /api/admin/ads/preview`
@@ -3918,6 +3963,7 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `key` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `draft_at` | string | no | at least 1 characters; at most 64 characters |
 | `ad` | object | no |  |
+| `fixes` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 
 ### `POST /api/admin/billing`
 

@@ -28,6 +28,7 @@ import { LiveBody } from "./live-page";
 import { liveModel, sheetModel } from "./model";
 import { StopNotice } from "./stop-notice";
 import type { StopHere } from "./stop-notice";
+import { useAdChanges } from "./use-change";
 import { useAdPresses } from "./use-press";
 
 interface LiveAdsProps {
@@ -55,7 +56,14 @@ export function LiveAds(p: LiveAdsProps) {
   const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now() };
   const vm = liveModel(dto, said);
   const sheet = sheetModel(dto, address.ad, said);
-  const acts = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  const presses = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });
+  const changes = useAdChanges({
+    ads: dto.ads,
+    currency: dto.account.currency,
+    again: p.again,
+    flash: p.flash,
+    onGo: p.nav.push,
+  });
   // The frame's crumb names an ad open in its drawer by the name the page last read (campaigns/routes.ts).
   useEffect(() => rememberAdNames(dto.ads), [dto.ads]);
   const sentence = (
@@ -127,7 +135,13 @@ export function LiveAds(p: LiveAdsProps) {
         stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
         onOpen={p.nav.push}
       />
-      <AdSheet vm={sheet} timezone={said.timezone} acts={acts} onClose={p.nav.close} onGo={p.nav.push} />
+      <AdSheet
+        vm={sheet}
+        timezone={said.timezone}
+        acts={{ ...presses, ...changes }}
+        onClose={p.nav.close}
+        onGo={p.nav.push}
+      />
       <NewAd
         open={address.compose !== null}
         source={LIVE_AD_SOURCE}

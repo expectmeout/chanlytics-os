@@ -1,21 +1,39 @@
 /**
- * An owner's two presses on an ad, for the dashboard (decision 0050, calls 1, 2 and 9): Pause, and turning one back
- * on. The edge keeps the press, holds Meta's token and tells Meta (apps/edge/lib/ads/press.ts); this hands it the ad,
- * the version the press was drawn from and who pressed, and says a refusal in words an owner can act on: what
- * happened, and the one thing to do. Never a code. While AI is stopped no ad is turned back on from here (the Ads
- * plan's G17); a pause always goes.
+ * An owner's presses on an ad, for the dashboard (decision 0050, calls 1, 2, 3, 9 and 10, and its Routes): Pause, Pause all, and
+ * turning one back on; and, for a running ad made here, a new total, a new last day, new miles, or ending it for good
+ * (the Ads plan's step 4, item 6). The edge keeps the press, holds Meta's token and tells Meta
+ * (apps/edge/lib/ads/press.ts, change.ts); this hands it the ad, the version the press was drawn from and who pressed,
+ * and says a refusal in words an owner can act on: what happened, and the one thing to do. Never a code.
+ *
+ * A change is judged here first, by the one rule the drawer drew its press with (contracts adChangeIssue), against
+ * what Meta holds as the ad's row keeps it, so nothing is sent that would come back refused. While AI is stopped no ad
+ * is turned back on, or given more to spend, from here (the Ads plan's G17); a pause, a cut and an end always go.
  */
 import "server-only";
-import { AppError, SECOND_MS } from "@chanlytics/contracts";
-
-/** How long a press waits for the edge: its own door, Meta's change and the ad read back. */
-const PRESS_WAIT_MS = 45 * SECOND_MS;
+import {
+  AppError,
+  SECOND_MS,
+  adAmountAfter,
+  adChangeFactsOf,
+  adChangeIssue,
+  adChangeMostOf,
+  adChangeOnWayOf,
+  adChangeSpendsMore,
+  metaAdConfigOf,
+  type AdChangeAsk,
+  type AdChangeIssue,
+} from "@chanlytics/contracts";
+import { findAd, findAdAccount } from "@chanlytics/db/ads";
+import { AD_ACCOUNT_NOT_CONNECTED } from "./draft";
 import { callEdge, edgeConfigured, type EdgeAnswer, type EdgeRead } from "../shared/edge";
 import { deployment } from "../shared/env";
 import { aiStoppedAt } from "../readers/ads-page";
 import { getStoredConfig } from "../workspace/config-row";
 import type { Member } from "../shared/route";
 import type { RouteContext } from "../shared/with-route";
+
+/** How long a press waits for the edge: its own door, Meta's change and the ad read back. */
+const PRESS_WAIT_MS = 45 * SECOND_MS;
 
 /** What a press came to, as the page reads it. */
 interface AdPressed {
@@ -29,8 +47,10 @@ interface AdPressed {
 
 type Answer = EdgeAnswer<EdgeRead<"/api/admin/ads/press">>;
 
-/** An owner's press on an ad: Pause, turn it back on, or Check what Meta holds of one whose last switch went unanswered. */
-type AdPressOp = "pause" | "resume" | "check";
+/** An owner's press on an ad: Pause, turn it back on, Check what Meta holds of one, or change one made here. */
+type AdPressOp = "pause" | "resume" | "check" | "change";
+
+const STALE = "This ad changed since the page was read. Look again, then press.";
 
 /**
  * What one ad of a pause of them all came to, as the page reads it. soon: kept, and Meta is told at its pace. took_back:
@@ -50,21 +70,38 @@ interface AdPausedOne {
 function refusalOf(answer: Answer, op: AdPressOp | "pause_all"): AppError {
   const code = answer.body?.error;
   if (code === "ad_account_not_owner")
-    return new AppError("forbidden", "Only the owner can pause an ad or turn one back on.", 403);
-  if (code === "ad_stale")
-    return new AppError("conflict", "This ad changed since the page was read. Look again, then press.", 409);
+    return new AppError(
+      "forbidden",
+      op === "change" ? "Only the owner can change an ad." : "Only the owner can pause an ad or turn one back on.",
+      403,
+    );
+  if (code === "ad_stale") return new AppError("conflict", STALE, 409);
   if (code === "ad_cant_resume")
     return new AppError("conflict", "This ad is turned back on in Meta, where its amount is set.", 409);
+  if (code === "ad_busy")
+    return new AppError("conflict", "Meta is still taking the last change to this ad. Press again in a minute.", 409);
+  if (code === "ai_stopped")
+    return new AppError("conflict", "AI is stopped, so no ad is given more to spend. Start AI again first.", 409);
   if (code === "ads_writes_off")
     return new AppError("conflict", "Changing an ad from here isn't turned on yet. Change it in Meta.", 409);
   if (code === "meta_signed_out")
     return new AppError("conflict", "Meta signed Chanlytics out. Connect again, or change the ad in Meta.", 409);
-  if (code === "meta_refused")
-    return new AppError("upstream_provider", "Meta didn't take the change, so nothing was changed. Change it in Meta.");
+  if (code === "meta_refused") return metaRefused(answer.body?.detail);
   if (code === "not_found") return new AppError("not_found", "That ad is no longer here.", 404);
   if (code === "ad_not_ready")
     return new AppError("conflict", "This ad can't be changed from here right now. Change it in Meta.", 409);
   return new AppError("upstream_provider", `Couldn't ${PRESS_DOING[op]} just now. Nothing was changed. Try again.`);
+}
+
+/** Meta didn't take the change: its own words in quotes, where it gave them, and that nothing changed. */
+function metaRefused(detail: unknown): AppError {
+  const words = typeof detail === "string" ? detail.trim().slice(0, 200) : "";
+  return new AppError(
+    "upstream_provider",
+    words
+      ? `Meta didn't take the change: “${words}” Nothing was changed.`
+      : "Meta didn't take the change, so nothing was changed. Change it in Meta.",
+  );
 }
 
 /** What each press does, in the words its refusal says it could not. */
@@ -72,31 +109,158 @@ const PRESS_DOING: Record<AdPressOp | "pause_all", string> = {
   pause: "pause it",
   resume: "turn it back on",
   check: "ask Meta about it",
+  change: "change it",
   pause_all: "pause them",
 };
 
 const OUTCOMES: readonly AdPressed["outcome"][] = ["told", "sent", "soon", "took_back", "same", "asked"];
 
-/** `POST ads/:id/pause` and `POST ads/:id/resume`: the press, handed to the edge. */
-export async function pressAd(
+/** A change as the edge's door takes it: the ask, what Meta held when it was drawn, and the most a raise names. */
+type AdChangeSent = AdChangeAsk & { from_minor?: number; from_ends_at?: string; expect_max_minor?: number };
+
+/** A press, handed to the edge, and what it came to. */
+async function sendPress(
   ctx: RouteContext,
   member: Member,
-  press: { op: AdPressOp; adId: string; version: number },
+  press: { op: AdPressOp; adId: string; version: number; change?: AdChangeSent },
 ): Promise<AdPressed> {
   // A preview never reaches Meta under a business's name, as no provider door does.
   if (!edgeConfigured() || !deployment.providersLive)
     throw new AppError("conflict", "Changing an ad from here isn't available here. Change it in Meta.", 409);
-  if (press.op === "resume" && aiStoppedAt(await getStoredConfig(ctx.supabase, member.tenantId)) !== null)
-    throw new AppError("conflict", "AI is stopped, so no ad is turned back on. Start AI again first.", 409);
   const answer: Answer = await callEdge(
     "/api/admin/ads/press",
-    { op: press.op, tenant_id: member.tenantId, user_id: ctx.userId, ad_id: press.adId, version: press.version },
+    {
+      op: press.op,
+      tenant_id: member.tenantId,
+      user_id: ctx.userId,
+      ad_id: press.adId,
+      version: press.version,
+      ...(press.change ? { change: press.change } : {}),
+    },
     { workspace: member.tenantId, user: ctx.userId, timeoutMs: PRESS_WAIT_MS },
   );
   const body = answer.body ?? {};
   if (answer.status !== 200 || body.ok !== true) throw refusalOf(answer, press.op);
   const outcome = OUTCOMES.find((one) => one === body.outcome) ?? "sent";
   return { outcome, version: typeof body.version === "number" ? body.version : press.version };
+}
+
+/** `POST ads/:id/pause` and `POST ads/:id/resume`, and Check: the press, handed to the edge. */
+export async function pressAd(
+  ctx: RouteContext,
+  member: Member,
+  press: { op: "pause" | "resume" | "check"; adId: string; version: number },
+): Promise<AdPressed> {
+  if (press.op === "resume" && aiStoppedAt(await getStoredConfig(ctx.supabase, member.tenantId)) !== null)
+    throw new AppError("conflict", "AI is stopped, so no ad is turned back on. Start AI again first.", 409);
+  return sendPress(ctx, member, press);
+}
+
+/** What a change press carries beside the ask: what Meta held when it was drawn, and the most a raise names. */
+interface AdChangePressed {
+  from_minor?: number | undefined;
+  from_ends_at?: string | undefined;
+  expect_max_minor?: number | null | undefined;
+}
+
+/** A change the rule says can't be sent as asked, in words an owner can act on. */
+const ISSUE_WORDS: Record<Exclude<AdChangeIssue["code"], "same">, string> = {
+  under_least: "Meta takes a larger total for this run. Pick the amount again, then press.",
+  under_spent: "Meta keeps the total above what this ad has spent. Pick a larger amount, then press.",
+  over_most: "That's more than the most you set for any ad. Pick a smaller amount, then press.",
+  not_whole: "Meta takes whole amounts. Pick a whole amount, then press.",
+  too_soon: "An ad runs at least a whole day. Pick a later day, then press.",
+  too_long: "The total doesn't cover that many days at Meta's least. Raise the amount first.",
+  miles: "Pick 1 to 50 miles, then press.",
+  wide: "This ad is shown across a wider place. Change where it shows in Meta.",
+};
+
+/** The ad and its account, judged as the rule reads them: what stops this change before the edge is asked. */
+async function judgeChange(
+  ctx: RouteContext,
+  member: Member,
+  press: { adId: string; ask: AdChangeAsk; pressed: AdChangePressed },
+): Promise<{ code: "same" } | null> {
+  const row = await findAd(ctx.supabase, member.tenantId, press.adId);
+  if (!row) throw new AppError("not_found", "That ad is no longer here.", 404);
+  if (row.origin !== "chanlytics") throw new AppError("conflict", "An ad made in Meta is changed in Meta.", 409);
+  if (row.intent === "ended") throw new AppError("conflict", "This ad has ended. Nothing more can be changed.", 409);
+  const account = await findAdAccount(ctx.supabase, member.tenantId, row.account_id);
+  const minDaily = account ? metaAdConfigOf(account.config).min_daily_minor : null;
+  if (!account || account.status !== "connected" || account.currency === null || minDaily === null)
+    throw new AppError("conflict", AD_ACCOUNT_NOT_CONNECTED, 409);
+  const nowMs = Date.now();
+  const facts = adChangeFactsOf(
+    row,
+    {
+      currency: account.currency,
+      minDailyMinor: minDaily,
+      ownerMostMinor: account.most_minor,
+      timezone: account.timezone ?? "UTC",
+    },
+    nowMs,
+  );
+  if (facts === null)
+    throw new AppError("conflict", "Meta hasn't said this ad's total and end yet. Look again soon.", 409);
+  const issue = adChangeIssue(press.ask, facts);
+  // What Meta holds already: the same press again, answered as itself (a double tap, a retry), with nothing sent.
+  if (issue?.code === "same") return issue;
+  const onWay = adChangeOnWayOf(row.change);
+  if (onWay?.unsure)
+    throw new AppError(
+      "conflict",
+      "Meta hasn't said yet whether it took the last change. Look again in a minute.",
+      409,
+    );
+  if (onWay !== null && onWay.what !== press.ask.what && press.ask.what !== "end")
+    throw new AppError(
+      "conflict",
+      "Another change to this ad is on its way to Meta. Press again once it's there.",
+      409,
+    );
+  if (press.ask.what === "total" && adAmountAfter(row.amounts_at ?? [], nowMs) !== null)
+    throw new AppError(
+      "conflict",
+      "Meta takes four changes of an amount an hour. Change it again a little later.",
+      409,
+    );
+  // What the press was drawn from is what Meta held then: one changed in Meta since is never put back.
+  const fromTotal = press.ask.what === "total" && press.pressed.from_minor !== row.budget_minor;
+  const fromEnd = press.ask.what === "end_day" && press.pressed.from_ends_at !== row.ends_at;
+  if (fromTotal || fromEnd) throw new AppError("conflict", STALE, 409);
+  if (issue !== null) throw new AppError("conflict", ISSUE_WORDS[issue.code], 409);
+  // A raise names its most, and the press carries it: one drawn from another total is refused (decision 0050, call 3).
+  if (adChangeMostOf(press.ask, facts) !== (press.pressed.expect_max_minor ?? null))
+    throw new AppError("conflict", STALE, 409);
+  const spends = adChangeSpendsMore(press.ask, facts);
+  if (spends && aiStoppedAt(await getStoredConfig(ctx.supabase, member.tenantId)) !== null)
+    throw new AppError("conflict", "AI is stopped, so no ad is given more to spend. Start AI again first.", 409);
+  return null;
+}
+
+/**
+ * `POST ads/:id/budget`, `end-date`, `area` and `end`: an owner's change to a running ad made here, judged against what
+ * Meta holds, then handed to the edge, which keeps it, sends Meta's dry run and then the change.
+ */
+export async function changeAd(
+  ctx: RouteContext,
+  member: Member,
+  press: { adId: string; version: number; ask: AdChangeAsk; pressed?: AdChangePressed },
+): Promise<AdPressed> {
+  const pressed = press.pressed ?? {};
+  const issue = await judgeChange(ctx, member, { adId: press.adId, ask: press.ask, pressed });
+  if (issue?.code === "same") return { outcome: "same", version: press.version };
+  return sendPress(ctx, member, {
+    op: "change",
+    adId: press.adId,
+    version: press.version,
+    change: {
+      ...press.ask,
+      ...(pressed.from_minor === undefined ? {} : { from_minor: pressed.from_minor }),
+      ...(pressed.from_ends_at === undefined ? {} : { from_ends_at: pressed.from_ends_at }),
+      ...(typeof pressed.expect_max_minor === "number" ? { expect_max_minor: pressed.expect_max_minor } : {}),
+    },
+  });
 }
 
 /** What pausing every ad of a set came to, ad by ad, in the order asked. */

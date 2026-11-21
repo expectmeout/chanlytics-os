@@ -121,7 +121,9 @@ interface PressesOf {
 }
 
 /** The drawer's two presses, and the stop's one that pauses every ad still on. */
-type AdPresses = SheetActs & { pauseAll: (ads: readonly AdLiveDto[]) => void };
+type AdPresses = Pick<SheetActs, "busy" | "pause" | "resume" | "check"> & {
+  pauseAll: (ads: readonly AdLiveDto[]) => void;
+};
 
 export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
   const [busy, setBusy] = useState(false);

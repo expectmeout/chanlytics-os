@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 194 | 194 |
 | reader | 88 | 0 |
-| the server's | 409 | 341 |
+| the server's | 411 | 343 |
 | computed column | 3 | 0 |
 | trigger | 113 | 83 |
-| all | 807 | 618 |
+| all | 809 | 620 |
 
 ## Called by nothing
 
@@ -59,6 +59,8 @@ being read is dropped by a migration.
 | `ad_bell_hearers` | the server's | the server | SQL `ad_bell_ring` | Who hears the bell's five ad notices (00658): |
 | `ad_bell_ring` | the server's | the server | SQL `ads_read_keep` | The bell's five ad notices for one ad account, after a good read (00658, decision 0050 call 15): |
 | `ad_bell_words` | the server's | the server | SQL `ad_bell_ring` | The title and body of one of the bell's five ad notices (00658): |
+| `ad_change_keep` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: an owner changes a running ad made here (00673; |
+| `ad_change_told` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: what telling the platform of an owner's change to an ad came to (00673; |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
@@ -275,7 +277,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 36 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 37 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |

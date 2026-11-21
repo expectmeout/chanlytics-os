@@ -360,12 +360,14 @@ export type Database = {
       ads: {
         Row: {
           account_id: string
+          amounts_at: string[] | null
           approved: Json | null
           budget_at: string | null
           budget_kind: string | null
           budget_left_minor: number | null
           budget_minor: number | null
           budget_shared: boolean | null
+          change: Json | null
           created_at: string
           door: string
           ends_at: string | null
@@ -393,12 +395,14 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          amounts_at?: string[] | null
           approved?: Json | null
           budget_at?: string | null
           budget_kind?: string | null
           budget_left_minor?: number | null
           budget_minor?: number | null
           budget_shared?: boolean | null
+          change?: Json | null
           created_at?: string
           door: string
           ends_at?: string | null
@@ -426,12 +430,14 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          amounts_at?: string[] | null
           approved?: Json | null
           budget_at?: string | null
           budget_kind?: string | null
           budget_left_minor?: number | null
           budget_minor?: number | null
           budget_shared?: boolean | null
+          change?: Json | null
           created_at?: string
           door?: string
           ends_at?: string | null
@@ -9170,6 +9176,25 @@ export type Database = {
           p_zone: string
         }
         Returns: Json
+      }
+      ad_change_keep: {
+        Args: {
+          p_actor: string
+          p_ad_id: string
+          p_change: Json
+          p_tenant_id: string
+          p_version: number
+        }
+        Returns: Json
+      }
+      ad_change_told: {
+        Args: {
+          p_ad_id: string
+          p_outcome: string
+          p_said?: string
+          p_tenant_id: string
+        }
+        Returns: string
       }
       ad_credentials_drop: { Args: { p_account_id: string }; Returns: boolean }
       ad_credentials_get: { Args: { p_account_id: string }; Returns: Json }

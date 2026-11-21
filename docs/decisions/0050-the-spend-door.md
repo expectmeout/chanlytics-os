@@ -574,6 +574,39 @@ with a card limit he sets.
   bell's rows for Couldn't finish and Couldn't confirm it's on (the page and the drawer say both); and the owner's
   changes to a running ad made here (the plan's step 4, item 6).
 
+## As built, 21 November 2026, later · Changing a running ad made here, and Fix it (the Ads plan's step 4, item 6)
+
+Built with nothing sent to Meta and nothing spent. One migration is written and not applied: `00673`
+(`supabase/migrations/00673_an_owner_changes_a_running_ad.sql`, claimed 21 November).
+
+- **The Shape's `setBudget` and `setEnd`, and `endAd`, are the routes** `budget`, `end-date` and `end`, with `area` for
+  the miles (`apps/dashboard/app/api/v1/ads/[id]/budget/route.ts` and its three beside it, over
+  `apps/dashboard/src/server/ads/presses.ts`'s `changeAd`), each the owner's and `fresh`,
+  each carrying the version it was drawn from and what Meta held then. They ride the press door's `change` op
+  (`apps/edge/lib/ads/change.ts`). One rule judges a change in the drawer, the route and the edge (contracts
+  `ads/change.ts`, `adChangeIssue`); call 3's `maxSpendOf` is `adChangeMostOf`: only a raise names a most, the new total,
+  and a press whose most is not the server's is refused.
+- **Call 10, Meta's rules, as its pages say them (read 21 November):** a total never under Meta's least for the run,
+  counted from its first day, nor under a tenth over what it has spent; four changes of an ad set's amount an hour; one
+  change every thirty seconds. Every change to the ad set goes as Meta's dry run first; ending is a switch, sent as
+  Pause is. The edge judges it all again before anything is kept.
+- **Kept, then told,** as a press is (`ad_change_keep`: the change on the ad with what Meta held, the version bumped, the
+  decision `change_ad` or `end_ad`; `ad_change_told`: taken, refused with Meta's words, or sent with no answer, and the
+  events `ad.changed` and `ad.ended`, a refusal kept as `ad.press_refused`). One change at a time, ending taking the
+  place of any. A change sent and never answered is never sent again (call 6): the account's next read reads the
+  campaign back and settles it.
+- **What Meta holds is what the page says.** A change is judged against the total and the last day the account's read
+  kept, and a press drawn from another is refused, so a change made in Meta is never put back. What was approved moves
+  with a change Meta took, and the drawer says where Meta holds something else.
+- **`endAd`** archives the ad's campaign: Meta keeps its numbers and never turns it on again, so there is no Undo. The
+  toast offers no "Make a copy": `copyAd` is not built.
+- **`reviseAd` is not built as the Shape draws it** (a new creative, the old paused, back to review). Meta's pages
+  document no way to swap an existing ad's creative. For an ad Meta turned down, Fix it does its work another way: AI
+  writes each version again from Meta's words, the ad is kept as the workspace's draft with that change made
+  (`apps/dashboard/src/server/ads/fix.ts`), and New ad's Turn on sends it through Meta's check whole, as calls 3 to 6 send any ad. The one
+  turned down ends once that one is turned on, only while Meta still turns it down. For an ad that runs, changing its
+  words or picture waits: a new ad in its place would restart what Meta has learnt of it.
+
 ## Settled 21 November 2026 · staging, and pausing when the way in closes
 
 Ruben, 21 November 2026: "everything you recommend". The Ads plan's section 12 says the same.
