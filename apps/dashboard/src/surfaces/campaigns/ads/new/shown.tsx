@@ -1,6 +1,7 @@
 /**
- * The ad as it will look (the Ads plan's 4.6): drawn by Chanlytics in a neutral frame, and saying so, never a
- * platform's own chrome. The Page it runs as, the version's text and headline, the picture whole in its own shape
+ * The ad as it will look (the Ads plan's 4.6): Meta's own preview once the ad account is connected (meta-frame.tsx,
+ * meta-preview.ts), and where Meta's can't be had, drawn by Chanlytics in a neutral frame, saying so and why in one
+ * line, never a platform's own chrome. The Page it runs as, the version's text and headline, the picture whole in its own shape
  * (Ads never crops), and the press a person sees. "1 of 3 versions" steps through the three the writer wrote, each
  * its own ad at Meta. A story and a Reel show the same picture whole in their taller frame, inside the room Meta
  * keeps clear.
@@ -8,15 +9,18 @@
  * While the words are being written the three are at work beside "AI is writing…": the mark is the one moving thing,
  * and the words stand still.
  */
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import type { AdPreviewAnswer, AdPreviewPlace } from "@/server/ads/preview-shape";
 import { AskFace } from "../../../kit/face/ask-face";
 import { Icon } from "../../../kit/icon/icon";
 import { LinkButton } from "../../../kit/link-button/link-button";
 import { Segmented } from "../../../kit/segmented/segmented";
+import { MetaFrame } from "./meta-frame";
+import { useMetaPreview, type MetaPreviewHere } from "./meta-preview";
 import type { NewAdVM } from "./model";
 import { NEW } from "./words";
 
-type Face = "feed" | "story" | "reel";
+type Face = AdPreviewPlace;
 
 const FACES: readonly { value: Face; label: string }[] = [
   { value: "feed", label: NEW.shown.feed },
@@ -90,10 +94,39 @@ function Press() {
 interface ShownProps {
   shown: NewAdVM["shown"];
   onNext: () => void;
+  /** Meta's own preview of a version, where New ad's source can ask for one. */
+  preview?: ((version: number) => Promise<AdPreviewAnswer | null>) | undefined;
 }
 
-export function AdShown({ shown, onNext }: ShownProps) {
+/** The version on show, as Meta's preview of it is asked for; null while there are no words. */
+const versionAsked = (shown: NewAdVM["shown"]) =>
+  shown.asks && shown.text && shown.headline ? { ...shown.asks, text: shown.text, headline: shown.headline } : null;
+
+/** The one line under the ad: whose preview it is, and where it is Chanlytics', why. */
+function shownLine(meta: MetaPreviewHere, frame: { loaded: boolean; late: boolean } | null): string {
+  if (meta.at === "unasked") return meta.why === "video" ? NEW.shown.not.video : NEW.shown.drawn;
+  if (meta.at === "asking") return NEW.shown.asking;
+  if (frame) return frame.loaded ? NEW.shown.meta : frame.late ? NEW.shown.not.busy : NEW.shown.asking;
+  return !meta.why || meta.why === "not_here" ? NEW.shown.drawn : NEW.shown.not[meta.why];
+}
+
+/** Which of Meta's frames have loaded, and which took too long: each by its address. */
+function useFramesHeard() {
+  const [loaded, setLoaded] = useState<readonly string[]>([]);
+  const [late, setLate] = useState<readonly string[]>([]);
+  const onLoaded = useCallback((src: string) => setLoaded((was) => (was.includes(src) ? was : [...was, src])), []);
+  const onLate = useCallback((src: string) => setLate((was) => (was.includes(src) ? was : [...was, src])), []);
+  return { loaded, late, onLoaded, onLate };
+}
+
+export function AdShown({ shown, onNext, preview }: ShownProps) {
   const [face, setFace] = useState<Face>("feed");
+  const meta = useMetaPreview(versionAsked(shown), shown.picture.video, preview);
+  const heard = useFramesHeard();
+  const frames = meta.at === "answered" ? meta.frames : {};
+  const frame = frames[face] ?? null;
+  const loaded = frame !== null && heard.loaded.includes(frame.src);
+  const late = frame !== null && heard.late.includes(frame.src);
   const headline = shown.headline ? <p className="ads-frame-head">{shown.headline}</p> : null;
   return (
     <section className="ads-new-shown" aria-label={NEW.shown.label} data-testid="ads-new-shown">
@@ -113,7 +146,22 @@ export function AdShown({ shown, onNext }: ShownProps) {
           </span>
         )}
       </div>
-      {face === "feed" ? (
+      {FACES.map(({ value, label }) => {
+        const one = frames[value];
+        return one ? (
+          <MetaFrame
+            key={one.src}
+            place={value}
+            label={label}
+            frame={one}
+            on={value === face}
+            loaded={heard.loaded.includes(one.src)}
+            onLoaded={heard.onLoaded}
+            onLate={heard.onLate}
+          />
+        ) : null;
+      })}
+      {loaded ? null : face === "feed" ? (
         <figure className="ads-frame ads-new-frame" data-kind="feed-whole">
           <Who page={shown.page} />
           <Words shown={shown} />
@@ -133,7 +181,9 @@ export function AdShown({ shown, onNext }: ShownProps) {
           </div>
         </figure>
       )}
-      <p className="ads-drawn">{NEW.shown.drawn}</p>
+      <p className="ads-drawn" role="status" data-testid="ads-new-shown-line">
+        {shownLine(meta, frame ? { loaded, late } : null)}
+      </p>
     </section>
   );
 }

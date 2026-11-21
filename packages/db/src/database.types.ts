@@ -291,9 +291,67 @@ export type Database = {
           },
         ]
       }
+      ad_objects: {
+        Row: {
+          ad_id: string
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          platform_id: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          ad_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          platform_id?: string | null
+          sent_at?: string | null
+          state: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          ad_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          platform_id?: string | null
+          sent_at?: string | null
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_objects_ad_id_same_workspace"
+            columns: ["tenant_id", "ad_id"]
+            isOneToOne: false
+            referencedRelation: "ads"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "ad_objects_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ads: {
         Row: {
           account_id: string
+          approved: Json | null
           budget_at: string | null
           budget_kind: string | null
           budget_left_minor: number | null
@@ -305,6 +363,7 @@ export type Database = {
           id: string
           intent: string
           intent_at: string | null
+          launch: Json | null
           name: string
           origin: string
           platform: string
@@ -315,6 +374,7 @@ export type Database = {
           platform_state: string | null
           read_at: string | null
           said: Json | null
+          shown_on: string[] | null
           starts_at: string | null
           status: string
           tenant_id: string
@@ -324,6 +384,7 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          approved?: Json | null
           budget_at?: string | null
           budget_kind?: string | null
           budget_left_minor?: number | null
@@ -335,6 +396,7 @@ export type Database = {
           id?: string
           intent: string
           intent_at?: string | null
+          launch?: Json | null
           name: string
           origin: string
           platform: string
@@ -345,6 +407,7 @@ export type Database = {
           platform_state?: string | null
           read_at?: string | null
           said?: Json | null
+          shown_on?: string[] | null
           starts_at?: string | null
           status: string
           tenant_id: string
@@ -354,6 +417,7 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          approved?: Json | null
           budget_at?: string | null
           budget_kind?: string | null
           budget_left_minor?: number | null
@@ -365,6 +429,7 @@ export type Database = {
           id?: string
           intent?: string
           intent_at?: string | null
+          launch?: Json | null
           name?: string
           origin?: string
           platform?: string
@@ -375,6 +440,7 @@ export type Database = {
           platform_state?: string | null
           read_at?: string | null
           said?: Json | null
+          shown_on?: string[] | null
           starts_at?: string | null
           status?: string
           tenant_id?: string
@@ -9110,6 +9176,18 @@ export type Database = {
         Args: { p_message_id: string; p_said: Json; p_tenant_id: string }
         Returns: string
       }
+      ad_held_for: {
+        Args: {
+          p_platform: string
+          p_platform_ad_id: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      ad_launch_keep: {
+        Args: { p_ad_id: string; p_kept: Json; p_tenant_id: string }
+        Returns: Json
+      }
       ad_may_resume: {
         Args: {
           p_budget_kind: string
@@ -9173,6 +9251,16 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: string
+      }
+      ad_turn_on: {
+        Args: {
+          p_actor: string
+          p_ad: Json
+          p_draft_at: string
+          p_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       add_person: {
         Args: {

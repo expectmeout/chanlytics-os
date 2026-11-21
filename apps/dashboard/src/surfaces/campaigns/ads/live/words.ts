@@ -4,9 +4,27 @@
  * its check or its own page is meant; AI is AI; nothing here is a system's word. The model (model.ts) chooses among
  * these and writes none of its own.
  */
-import type { AdOpens } from "@chanlytics/contracts";
+import type { AdOpens, AdPartLeft, AdStopped } from "@chanlytics/contracts";
 
 const people = (n: number): string => (n === 1 ? "1 person" : `${n} people`);
+
+/** Meta's own names for the places an ad shows, as a drawer says them. */
+const META_PLACE_WORDS: Readonly<Record<string, string>> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  messenger: "Messenger",
+  audience_network: "Audience Network",
+  // screen-word: Meta's own app of that name, a place an ad shows, named as Meta names it
+  threads: "Threads",
+  whatsapp: "WhatsApp",
+};
+
+/** What a stopped launch left at Meta, said as a list: "campaign and ad set", "campaign, ad set and 3 ads". */
+const PART_WORDS: Record<AdPartLeft, string> = { campaign: "campaign", set: "ad set", picture: "picture", ad: "ads" };
+const partsSaid = (left: readonly AdPartLeft[]): string => {
+  const words = left.map((part) => PART_WORDS[part]);
+  return words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1) ?? ""}`;
+};
 
 export const LIVE = {
   /** The head, with people counted: `26 of 114` in the ink, the rest beside it. */
@@ -59,8 +77,27 @@ export const LIVE = {
     finished: "Finished",
     "setting-up": "Setting up",
     "couldnt-finish": "Couldn't finish",
+    unconfirmed: "Couldn't confirm it's on",
     draft: "Draft",
   },
+  /** An ad made here, while Turn on's job makes it at Meta: nothing shows until Meta checks it. */
+  settingUp: "Setting up · Meta checks it before anyone sees it",
+  /** Its launch stopped part way: why, in a few words, and that nothing was spent. */
+  couldntFinish: (reason: string) => `Couldn't finish · ${reason}. Nothing was spent`,
+  /** Its last switch went unanswered, and no read has said since. */
+  unconfirmed: "Couldn't confirm it's on · Meta didn't answer",
+  /** Why a launch stopped, as a row says it. */
+  stoppedWhy: {
+    refused: "Meta turned it down",
+    differs: "Meta held something other than what you approved",
+    unanswered: "Meta didn't answer",
+    ai_stopped: "AI was stopped",
+    disconnected: "the ad account was disconnected",
+    signed_out: "Meta signed Chanlytics out",
+    picture: "its picture couldn't be sent",
+    business: "something it needs was missing",
+    off: "turning ads on from here was switched off",
+  } satisfies Record<AdStopped, string>,
   checking: "Meta is checking it, usually within a day",
   needs: {
     refused: "Not approved by Meta",
@@ -153,7 +190,9 @@ export const NEEDS_YOU_LINE = {
 
 /** An ad's drawer (the plan's 4.5). */
 export const SHEET = {
-  platform: "Facebook and Instagram",
+  /** Where an ad shows, by Meta's own names for its places; "Meta" where that is not known yet. */
+  platform: "Meta",
+  places: META_PLACE_WORDS,
   madeInMeta: "Made in Meta Ads Manager. Change it in Meta.",
   metasReason: "Meta's reason",
   neverRan: "It never ran, so Meta charged nothing for it.",
@@ -210,8 +249,20 @@ export const SHEET = {
       head: "Its end date has passed",
       body: "Meta stopped it on its last day. Give it a new end date in Meta to run it again.",
     },
-    made_here: { head: "", body: "" },
   },
+  /** An ad made here, while it is set up: what happens, and that nothing is asked of the owner. */
+  settingUp:
+    "Chanlytics is making it at Meta, paused, then checking it against what you approved before turning it on.",
+  /** Its launch stopped part way: what Meta was left holding, or that nothing was. */
+  couldntFinish: (left: readonly AdPartLeft[]) =>
+    left.length === 0
+      ? "Nothing of it was left at Meta, and nothing was spent. Make it again from + New."
+      : `Its ${partsSaid(left)} ${left.length === 1 ? "is" : "are"} left in Meta, paused, so nothing runs or is spent. Remove ${left.length === 1 ? "it" : "them"} in Meta.`,
+  openMeta: "Open Meta",
+  /** Its last switch went unanswered: what is known, and the one thing to do. */
+  unconfirmed: "Meta didn't answer when Chanlytics turned it on, so it may be on or still paused. Check asks Meta now.",
+  check: "Check",
+  checked: "Chanlytics asked Meta. This page shows what Meta says in a minute or two.",
   ownerOnly: "Only the owner can pause an ad or turn one back on.",
   signedOut: "Chanlytics is signed out of Meta, so it can't pause this ad. Connect again, or pause it in Meta.",
   leftInMeta: "This ad was left in Meta when you disconnected. It can only be changed there.",

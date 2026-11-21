@@ -404,6 +404,8 @@ before(async () => {
   ctx.adAccount = await seed("ad_accounts", { tenant_id: A, ...AD_ACCOUNT, external_id: "tenancy-act-1" });
   ctx.ad = await seed("ads", { tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "tenancy-ad-1" });
   await seed("ad_drafts", { tenant_id: A, account_id: ctx.adAccount, draft: { service: "Tenancy cut" } });
+  // What a launch made at Meta for an ad made here (00666): members read the workspace's parts, its doors write them.
+  await seed("ad_objects", { tenant_id: A, ad_id: ctx.ad, kind: "campaign", name: "Tenancy campaign", state: "made" });
   await seed("ad_days", { tenant_id: A, ad_id: ctx.ad, day: "2026-11-01" }, null);
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
@@ -1047,6 +1049,10 @@ const TENANT_TABLES = {
   ads: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, ...AD, platform_ad_id: "stranger-ad" })],
   ad_days: ["member", () => ({ tenant_id: A, ad_id: ctx.ad, day: "2026-11-02" })],
   ad_drafts: ["member", () => ({ tenant_id: A, account_id: ctx.adAccount, draft: { service: "Stranger cut" } })],
+  ad_objects: [
+    "member",
+    () => ({ tenant_id: A, ad_id: ctx.ad, kind: "ad", version: 2, name: "Stranger ad", state: "sent" }),
+  ],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],

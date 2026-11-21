@@ -11,14 +11,18 @@ import type { MetaRequest } from "../meta/client";
 
 const ID = /^\d{5,32}$/;
 
-/** An ad's own switch, set: Meta's `status` for the ad, PAUSED or ACTIVE. Nothing else of the ad is touched. */
+/**
+ * One part's own switch, set: Meta's `status` for an ad, PAUSED or ACTIVE, and the same for an ad set or a campaign,
+ * which take it the same way (a launch switches an ad made here on from the bottom: its ads, its ad set, its campaign).
+ * Nothing else of the part is touched.
+ */
 export function metaAdSwitchRequest(
   token: string,
   appSecret: string,
   adId: string,
   to: "PAUSED" | "ACTIVE",
 ): MetaRequest {
-  if (!ID.test(adId)) throw new Error("Meta's id for the ad is not one");
+  if (!ID.test(adId)) throw new Error("Meta's id for the part is not one");
   return { url: metaGraphUrl(adId, { status: to, ...metaProofQuery(token, appSecret) }), method: "POST" };
 }
 

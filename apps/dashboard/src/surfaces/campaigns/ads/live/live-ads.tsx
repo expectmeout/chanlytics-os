@@ -6,14 +6,14 @@
  * each open by the address, so Back closes it. While AI is stopped with ads still on, the page says so at its top, with
  * the owner's press that pauses them all (stop-notice.tsx; the Ads plan's G17).
  */
-import { ADS_WORDS, newAdRoute } from "@chanlytics/contracts";
+import { ADS_WORDS, adRoute, newAdRoute } from "@chanlytics/contracts";
 import type { AdsAddress, AdsLiveDto } from "@chanlytics/contracts";
 import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { ActWords } from "../../../kit/head/act-words";
-import { askAbout, gate, navigate } from "../../../frame-verbs";
+import { askAbout, gate, navigate, replaceRoute } from "../../../frame-verbs";
 import type { FrameFlash } from "../../../frame-verbs";
 import { CmHead } from "../../parts/head";
 import type { CmView } from "../../parts/split";
@@ -135,8 +135,12 @@ export function LiveAds(p: LiveAdsProps) {
         onClose={p.nav.close}
         onConnect={p.connect.press}
         onGo={navigate}
-        // The job that makes an ad at Meta is not built yet: the press is drawn, and cannot be pressed (new/model.ts).
-        onTurnOn={() => undefined}
+        onSee={(adId) => {
+          p.again();
+          p.nav.push(adRoute(adId));
+        }}
+        start={address.compose?.from ?? null}
+        onDrafted={() => replaceRoute(newAdRoute())}
       />
       {p.toast}
     </div>

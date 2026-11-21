@@ -12,6 +12,7 @@ import {
   listingFactsOf,
   metaAdConfigOf,
   parseTenantConfigResult,
+  recordOrEmpty,
   zoneDayKey,
   type AdAccountCard,
   type AdDraftInputs,
@@ -39,6 +40,7 @@ import type { AdBusinessFacts } from "../ask/skills/ad/brief";
 import { getRoom } from "../ask/tools/read/calendar";
 import { listAdPictures, type AdPictures } from "../content/ad-pictures";
 import { getAppointmentWord } from "../people/deals";
+import { readAdsPressesOn } from "../connections/ads-ready";
 import { ADS_PAGE_DAYS, aiStoppedAt } from "../readers/ads-page";
 import type { ReaderContext } from "../shared/reader";
 import { getTenantFacts } from "../shared/tenant";
@@ -105,10 +107,15 @@ export interface AdDraftFacts {
   openTimes: number | null;
   /** The most the owner said any ad may cost, in the account's minor units; null until they say one (G6). */
   ownerMostMinor: number | null;
-  /** The workspace's kept draft for this account, and who kept it where that was someone else; null where none is. */
-  kept: { draft: AdDraftState; leftBy: string | null } | null;
+  /**
+   * The workspace's kept draft for this account, who kept it where that was someone else, and when it was kept: what
+   * Turn on's press names, so a draft changed since is refused. Null where none is.
+   */
+  kept: { draft: AdDraftState; leftBy: string | null; at: string } | null;
   /** AI is stopped (Stop everything): no draft is written while it is (decision 0050, call 11). */
   stopped: boolean;
+  /** Whether the edge turns ads on, and changes them, in this workspace from this deployment (its switch). */
+  presses: boolean;
   /** Whether this member is the owner. */
   owner: boolean;
 }
@@ -126,15 +133,21 @@ const servesAtOf = (listing: { address: string | null; facts: unknown } | null):
 const adLanguageOf = (languages: readonly string[] | undefined): AdBusinessFacts["language"] =>
   /^\s*(?:es\b|espa|span)/i.test(languages?.[0] ?? "") ? "es" : "en";
 
-/** The names of the ads made here that still run: a service one of them offers is not offered again (G5). */
+/**
+ * The services of the ads made here that still run, or are still being set up: a service one of them offers is not
+ * offered again (G5). An ad made here is named in a few words; the service it offers is what its owner approved.
+ */
 function runningHereOf(rows: readonly AdRow[], at: { today: string; timezone: string; nowMs: number }): string[] {
   return rows
-    .filter((row) => row.origin === "chanlytics" && row.status === "made")
+    .filter((row) => row.origin === "chanlytics" && (row.status === "made" || row.status === "sending"))
     .filter((row) => {
       const state = adStateOfRow(row, at);
       return state !== "ended" && state !== "finished";
     })
-    .map((row) => row.name);
+    .map((row) => {
+      const service = recordOrEmpty(row.approved).service;
+      return typeof service === "string" && service.trim() ? service : row.name;
+    });
 }
 
 /**
@@ -180,9 +193,10 @@ async function keptDraftOf(
   if (row === null || row.account_id !== accountId) return null;
   const parsed = AdDraftStateSchema.safeParse(row.draft);
   if (!parsed.success) return null;
-  if (row.kept_by === null || row.kept_by === rc.userId) return { draft: parsed.data, leftBy: null };
+  const at = row.updated_at;
+  if (row.kept_by === null || row.kept_by === rc.userId) return { draft: parsed.data, leftBy: null, at };
   const named = await findProfileName(rc.ctx.supabase, row.kept_by);
-  return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team" };
+  return { draft: parsed.data, leftBy: named.data?.display_name.trim() || "Someone on your team", at };
 }
 
 /** The business an ad is written for, as its settings say it. */
@@ -229,17 +243,31 @@ function draftAccountOf(live: AdAccountRow | null): AdDraftAccount | null {
   };
 }
 
-/** What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed. */
-export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts> {
+/** The picture a kept draft shows, as its row holds it: read with the shelves, wherever it stands on them. */
+const keptPictureOf = (row: AdDraftRow | null): string | null => {
+  const picture = recordOrEmpty(row?.draft).picture;
+  return typeof picture === "string" ? picture : null;
+};
+
+/**
+ * What a draft is picked and judged from. Thrown where the workspace's settings cannot be read: nothing is guessed.
+ * `shown` are the pictures the request names (a piece "Run as an ad" chose, a draft's own), read with the kept draft's
+ * wherever they stand, so a draft's own picture is never "gone" for being older than the few each shelf is read for.
+ */
+export async function readAdDraftFacts(
+  rc: ReaderContext,
+  shown: readonly (string | undefined)[] = [],
+): Promise<AdDraftFacts> {
   const { supabase } = rc.ctx;
   const nowMs = rc.now.getTime();
+  const keptRead = findAdDraft(supabase, rc.tenantId);
   const [named, settings, word, row, number, pictures, counts, bookedNames, keptRow, listing] = await Promise.all([
     getTenantFacts(supabase, rc.tenantId),
     findConfigRow(supabase, rc.tenantId),
     getAppointmentWord(rc.ctx, rc.tenantId),
     findAdAccountForPage(supabase, rc.tenantId, "meta"),
     findChannelNumber(supabase, rc.tenantId, "whatsapp"),
-    listAdPictures(rc),
+    keptRead.then((kept) => listAdPictures(rc, [...shown, keptPictureOf(kept)])),
     readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
     listServicesBookedSince(
       supabase,
@@ -247,7 +275,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
       new Date(nowMs - BOOKED_LOOKBACK_DAYS * DAY_MS).toISOString(),
       BOOKED_READ,
     ),
-    findAdDraft(supabase, rc.tenantId),
+    keptRead,
     findGoogleListingFacts(supabase, rc.tenantId),
   ]);
   if (number.error) throw new DbFailure(number.error, "the number AI answers");
@@ -290,6 +318,7 @@ export async function readAdDraftFacts(rc: ReaderContext): Promise<AdDraftFacts>
     ownerMostMinor: (account ? live?.most_minor : null) ?? null,
     kept,
     stopped: aiStoppedAt(settings?.config) !== null,
+    presses: live !== null && ROLE_PERMS[rc.role].ads ? await readAdsPressesOn(rc.tenantId) : false,
     owner: ROLE_PERMS[rc.role].ads,
   };
 }

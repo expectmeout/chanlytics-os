@@ -54,20 +54,13 @@ import {
 import { findLiveAdAccount, mayRunAds } from "@chanlytics/db/ads";
 import { filesBucket, findFileForWork } from "@chanlytics/db/files";
 import type { Database } from "@chanlytics/db/types";
-import {
-  filePathOf,
-  isFileMime,
-  isTenantId,
-  localToUtcMs,
-  metaAdConfigOf,
-  UUID,
-  type TenantId,
-} from "@chanlytics/contracts";
+import { filePathOf, isFileMime, isTenantId, metaAdConfigOf, UUID, type TenantId } from "@chanlytics/contracts";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
 import { json, refuse } from "../shared/http.js";
 import { logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
 import { adsOfferedIn, metaAdsApp, signInOf } from "./account-ops.js";
+import { endOfDayIn } from "./launch-parts.js";
 import type { MetaSignIn } from "./meta-facts.js";
 import { adsWrites } from "./tell.js";
 
@@ -153,12 +146,6 @@ function readStepAnswer<T>(steps: CheckStep[], answer: MetaAdsAnswer, parse: (bo
     if (last) Object.assign(last, { outcome: "refused", said: failure instanceof Error ? failure.message : "unread" });
     return null;
   }
-}
-
-/** The moment a day ends in the account's own zone: a minute before its midnight, which Meta takes as the end. */
-function endOfDayIn(timezone: string, day: string): string {
-  const [year = 0, month = 0, date = 0] = day.split("-").map(Number);
-  return new Date(localToUtcMs(timezone, year, month, date, 23, 59)).toISOString();
 }
 
 /** What Meta holds that is not what was sent: each by a short name. Empty where they agree. */

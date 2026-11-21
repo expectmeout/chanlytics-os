@@ -8,9 +8,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installStubReact, fresh, again, all, byTestId, find, textOf, press } from "../../_stub-react.mjs";
+import { installStubReact, fresh, again, all, byTestId, find, textOf, press, unmount } from "../../_stub-react.mjs";
 import { until } from "../../shared/_until.mjs";
-import { CONTENT_LIBRARY_ROUTE } from "@chanlytics/contracts";
+import { CONTENT_LIBRARY_ROUTE, CONTENT_ROUTE } from "@chanlytics/contracts";
 import { dayWord } from "../../../apps/dashboard/src/surfaces/campaigns/ads/model/words.ts";
 import { newAdView } from "../../../apps/dashboard/src/surfaces/campaigns/ads/new/model.ts";
 import {
@@ -64,7 +64,7 @@ const answerOf = (over = {}, draft = {}) => ({
   checks: [],
   question: null,
   declared: "none",
-  turn_on: "not_yet",
+  turn_on: "ready",
   owner: true,
   left_by: null,
   ...over,
@@ -83,6 +83,8 @@ const view = (over = {}) => {
     telling: false,
     told: null,
     need: null,
+    turning: false,
+    refused: null,
     ...over,
   });
 };
@@ -144,14 +146,34 @@ test("written: one of three versions, the next at a press and round again; the a
   });
 });
 
-test("Turn on, until the job that makes an ad exists: grey, and it says nothing is made at Meta and nothing is spent", () => {
+test("Turn on: pressed where nothing stops it, naming the most it can cost; grey with why where something does", () => {
   const vm = view();
   assert.equal(vm.line, null, "nothing stops this draft");
   assert.deepEqual(vm.press, {
     words: "Turn on · up to $70",
-    can: false,
-    under: "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent.",
+    can: true,
+    under: "Made paused. Meta checks it first, usually within a day.",
   });
+  // Turning ads on from here is off in this workspace, or the picture is a video: grey, with why.
+  assert.deepEqual(view({ answer: written({ turn_on: "off" }) }).press, {
+    words: "Turn on · up to $70",
+    can: false,
+    under: "Turning an ad on from here isn't on in this workspace yet. Nothing is made at Meta.",
+  });
+  assert.equal(
+    view({ answer: written({ turn_on: "video" }) }).press.under,
+    "Turn on sends a photo for now. Use the next picture to pick a photo.",
+  );
+  // On its way, it waits; refused, it says the server's own words.
+  assert.deepEqual(view({ turning: true }).press, {
+    words: "Turn on · up to $70",
+    can: false,
+    under: "Turning it on…",
+  });
+  assert.equal(
+    view({ refused: "This ad changed since you saw it. Look at it again, then press." }).press.under,
+    "This ad changed since you saw it. Look at it again, then press.",
+  );
   // A member who is not the owner is told that first: only the owner turns an ad on.
   assert.equal(view({ answer: written({ owner: false }) }).press.under, "Only the owner can turn an ad on.");
   // The page's example went with the mockup (20 Nov 2026): New ad is the workspace's own, drafted by AI.
@@ -423,21 +445,42 @@ let worlds = 0;
  * New ad open in a tab of its own, over a source the test answers by hand: every ask waits in `asks` until the test
  * lands it. `same` opens it again in the tab a world before it used.
  */
-function world({ same = false } = {}) {
+function world({ same = false, preview = false, start = null } = {}) {
   if (!same) worlds += 1;
   globalThis.location.pathname = `/w/screen-${worlds}/campaigns/ads`;
   fresh();
   const asks = [];
-  const ask = (kind) => (body) => new Promise((resolve) => asks.push({ kind, body, land: resolve }));
+  // Each ask hands back the promise the screen waits on (`answered`): a test that lands one waits on it, and the screen
+  // has run. It says too once its answer was handed back (`landed`), for a screen that draws nothing of it (a closed one).
+  const ask = (kind) => (body) => {
+    let land = () => {};
+    const answered = new Promise((resolve) => {
+      land = resolve;
+    });
+    const entry = { kind, body, land, answered, landed: false };
+    void answered.then(() => {
+      entry.landed = true;
+    });
+    asks.push(entry);
+    return answered;
+  };
   const went = [];
   const props = {
     open: true,
-    source: { draft: ask("draft"), words: ask("words") },
+    source: {
+      draft: ask("draft"),
+      words: ask("words"),
+      turnOn: (key, expect) => ask("turn_on")({ key, expect }),
+      ...(preview ? { preview: ask("preview") } : {}),
+    },
     need: null,
     onClose: () => went.push("closed"),
     onConnect() {},
     onGo: (route) => went.push(route),
-    onTurnOn() {},
+    onSee: (adId) => went.push(`see:${adId}`),
+    // Where the address says it starts from: Run as an ad's piece, drafted around once (then the address says New ad).
+    start,
+    onDrafted: () => went.push("drafted"),
   };
   NewAd(props);
   const draw = () => again(() => NewAd(props));
@@ -451,7 +494,7 @@ function world({ same = false } = {}) {
     return asks[n - 1];
   };
   const shows = (id, what) => until(() => byTestId(draw(), id) !== null, what);
-  return { asks, went, draw, said, asked, shows };
+  return { asks, went, draw, said, asked, shows, props };
 }
 /** Type into one of the screen's boxes. */
 const typeInto = (tree, id, value) => {
@@ -616,6 +659,7 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
     picture_none: CONTENT_LIBRARY_ROUTE,
     picture_person: CONTENT_LIBRARY_ROUTE,
     picture_music: CONTENT_LIBRARY_ROUTE,
+    picture_gone: CONTENT_ROUTE,
     account: "closed",
     stopped: "closed",
   };
@@ -650,6 +694,48 @@ test("+ New where a draft can't be written (G13): the one thing missing, and the
   assert.match(none.said("ads-new-short"), /Couldn't open New ad/);
   press(byTestId(none.draw(), "ads-new-again"));
   assert.deepEqual((await none.asked(2, "the draft to be read again")).body, {});
+});
+
+test("opened by Run as an ad on a made piece: one draft around that piece, then the kept draft like any other (6.8)", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  assert.deepEqual(
+    w.asks.map((one) => [one.kind, one.body]),
+    [["draft", { picture: FILE }]],
+    "the draft is asked for around the piece, once",
+  );
+  w.asks[0].land(
+    answerOf({ picked: "first" }, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }),
+  );
+  // Drafted and kept: the address can say New ad alone, so a reload opens the kept draft and drafts nothing again.
+  await until(() => w.went.includes("drafted"), "the address to be told");
+  const writer = await w.asked(2, "the ad writer to be asked");
+  assert.equal(writer.body.draft.picture, FILE, "its words are written for that piece");
+  assert.deepEqual(w.went, ["drafted"]);
+  // The one thing missing keeps nothing: Look again asks around the piece again.
+  const reading = world({ start: { how: "piece", id: FILE } });
+  reading.asks[0].land({ can: false, missing: "account_reading" });
+  await reading.shows("ads-new-short", "the reading to be said");
+  assert.deepEqual(reading.went, [], "nothing was drafted, so the address keeps the piece");
+  press(byTestId(reading.draw(), "ads-new-missing-act"));
+  assert.deepEqual((await reading.asked(2, "the draft to be read again")).body, { picture: FILE });
+  // An ad's copy, run again, or on Google, opens on the kept draft as + New does; so does an address naming no file.
+  assert.deepEqual(world({ start: { how: "copy", id: OTHER } }).asks[0].body, {});
+  assert.deepEqual(world({ start: { how: "piece", id: "not-a-file" } }).asks[0].body, {});
+});
+
+test("a draft that lands after New ad was closed moves no address and asks AI for no words: nobody has it open", async () => {
+  const w = world({ start: { how: "piece", id: FILE } });
+  w.props.open = false;
+  w.draw();
+  w.asks[0].land(answerOf({}, { picture: { id: FILE, kind: "photo", name: "spring post", made: true } }));
+  await until(() => w.asks[0].landed, "the answer to land while it is closed");
+  assert.equal(w.asks.length, 1, "no writer asked for a screen nobody has open");
+  // Opened again: the next ask is the draft's, never the writer's for the screen that was closed.
+  w.props.open = true;
+  w.draw();
+  const next = await w.asked(2, "the draft to be asked for again as it opens");
+  assert.deepEqual([next.kind, next.body], ["draft", { picture: FILE }], "nothing was kept for it: around the piece");
+  assert.deepEqual(w.went, [], "the address was not moved while it was closed");
 });
 
 test("opened again, in the tab or on another device: the workspace's kept draft and its words, and the writer is not asked twice (G18)", async () => {
@@ -703,4 +789,391 @@ test("Tell AI what to change: one line to AI, the one change it made shown, and 
     "That would speak about the person reading, and Meta turns that down. Nothing was changed.",
   );
   assert.equal(w.said("ads-new-text"), THREE[0].text);
+});
+
+test("Turn on: what was typed is judged first; the press goes under its own key with what it shows; then Setting up", async () => {
+  const w = world();
+  w.asks[0].land(written());
+  await w.shows("ads-new-text", "a written draft to open");
+  // Typed, and pressed before the moment the typing is judged: the press judges it first, so it names no number the
+  // server would not.
+  press(byTestId(w.draw(), "ads-chip-amount"));
+  typeInto(w.draw(), "ads-new-amount", "90");
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const judged = await w.asked(2, "what was typed to be judged first");
+  assert.deepEqual([judged.kind, judged.body.draft.total_minor], ["draft", 9000]);
+  assert.equal(w.said("ads-new-under"), "Turning it on…");
+  assert.equal(byTestId(w.draw(), "ads-new-turn-on").props.disabled, true, "pressed once, it waits");
+  judged.land(written({}, { total_minor: 9000 }));
+  const pressed = await w.asked(3, "the press");
+  assert.equal(pressed.kind, "turn_on");
+  assert.match(pressed.body.key, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(pressed.body.expect, {
+    service: "First appointment",
+    picture: FILE,
+    miles: 5,
+    most_minor: 9000,
+    end_day: END,
+    versions: THREE.map((version) => ({ text: version.text, headline: version.headline })),
+  });
+  pressed.land({ ad: "adadadad-0000-4000-8000-000000000001" });
+  await w.shows("ads-new-see", "the screen to say it is being set up");
+  assert.match(w.said("ads-new-short"), /Setting it up at Meta/);
+  assert.match(w.said("ads-new-short"), /Meta checks it before anyone sees it/);
+  press(byTestId(w.draw(), "ads-new-see"));
+  assert.deepEqual(w.went, ["see:adadadad-0000-4000-8000-000000000001"]);
+});
+
+test("Turn on refused: the server's own words under the press, and the draft judged again; no answer keeps the key", async () => {
+  const w = world();
+  w.asks[0].land(written());
+  await w.shows("ads-new-text", "a written draft to open");
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const first = await w.asked(2, "the press");
+  assert.equal(first.kind, "turn_on", "nothing typed: nothing to judge first");
+  // No answer came: the press may go again, under the same key, so it makes one ad.
+  first.land(null);
+  await until(
+    () => w.said("ads-new-under") === "Couldn't reach Chanlytics, so nothing was made. Try again.",
+    "it says so",
+  );
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const second = await w.asked(3, "the press again");
+  assert.equal(second.body.key, first.body.key, "the same press, the same key");
+  second.land({ refused: "This ad changed since you saw it. Look at it again, then press." });
+  const again = await w.asked(4, "the draft judged again");
+  assert.equal(again.kind, "draft");
+  again.land(written());
+  await until(
+    () => w.said("ads-new-under") === "This ad changed since you saw it. Look at it again, then press.",
+    "the refusal's own words",
+  );
+  press(byTestId(w.draw(), "ads-new-turn-on"));
+  const third = await w.asked(5, "a new press");
+  assert.notEqual(third.body.key, first.body.key, "an answer came: the next press is a new one");
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The ad as Meta draws it (the plan's 4.6): Meta's own frame once it has loaded, Chanlytics' drawing until then, and
+// where Meta's can't be had, the drawing says why in one line
+
+/** What the route answers for a version: Meta's frame of each place, and the picture and words it drew. */
+const META = (place) => `https://www.facebook.com/ads/api/preview_iframe.php?d=${place}&t=AQJ`;
+const drawnAs = (version, picture, frames = ["feed", "story", "reel"], why = null) => ({
+  drew: { picture, text: version.text, headline: version.headline },
+  frames: Object.fromEntries(frames.map((place) => [place, { src: META(place), width: 335, height: 580 }])),
+  why,
+});
+const lineOf = (w) => w.said("ads-new-shown-line");
+const pickPlace = (w, place) =>
+  find(w.draw(), (n) => n.props?.label === NEW.shown.faces && n.props.onValueChange).props.onValueChange(place);
+const loadFrame = (w, place) => byTestId(w.draw(), `ads-new-meta-${place}`).props.onLoad();
+
+test("once the words are written, Meta is asked for the version on show; its frame shows once it has loaded, the drawing until then", async () => {
+  const w = world({ preview: true });
+  const picture = "33333333-3333-4333-8333-333333333333";
+  w.asks[0].land(written({}, { picture: { id: picture, kind: "photo", name: "front desk", made: false } }));
+  await w.shows("ads-new-text", "the written draft");
+  const asked = await w.asked(2, "Meta's preview to be asked");
+  assert.deepEqual([asked.kind, asked.body], ["preview", 0]);
+  // While Meta draws, the drawing stands and the line says Meta is being asked.
+  assert.equal(w.said("ads-new-text"), THREE[0].text);
+  assert.equal(lineOf(w), "Asking Meta for its own preview…");
+  asked.land(drawnAs(THREE[0], picture));
+  await w.shows("ads-new-meta-feed", "Meta's frame of the feed");
+  const frame = byTestId(w.draw(), "ads-new-meta-feed");
+  assert.equal(frame.type, "iframe");
+  assert.equal(frame.props.src, META("feed"));
+  assert.deepEqual([frame.props.width, frame.props.height], [335, 580]);
+  assert.match(frame.props.sandbox, /allow-scripts/);
+  assert.doesNotMatch(frame.props.sandbox, /allow-top-navigation/, "Meta's page opens nothing over New ad");
+  assert.equal(w.said("ads-new-text"), THREE[0].text, "nothing jumps: the drawing stays until Meta's has loaded");
+  loadFrame(w, "feed");
+  assert.equal(w.said("ads-new-text"), null, "Meta's own in its place");
+  assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
+  // Each place loads at once; the one on show is Meta's once it has loaded.
+  pickPlace(w, "story");
+  assert.equal(lineOf(w), "Asking Meta for its own preview…");
+  loadFrame(w, "story");
+  assert.equal(lineOf(w), "Meta's own preview, as people will see it on a phone.");
+  // The next version is asked for; back at the first, Meta is asked nothing twice.
+  press(byTestId(w.draw(), "ads-new-next"));
+  w.draw();
+  const second = await w.asked(3, "the next version's preview");
+  assert.deepEqual([second.kind, second.body], ["preview", 1]);
+  second.land(drawnAs(THREE[1], picture));
+  await w.shows("ads-new-meta-story", "the second version's frame");
+  press(byTestId(w.draw(), "ads-new-next"));
+  w.draw();
+  const third = await w.asked(4, "the third version's preview");
+  third.land(drawnAs(THREE[2], picture));
+  press(byTestId(w.draw(), "ads-new-next"));
+  await until(() => byTestId(w.draw(), "ads-new-meta-feed")?.props.src === META("feed"), "the first version again");
+  assert.equal(w.asks.length, 4, "the first version's preview was held");
+  unmount();
+});
+
+test("where Meta's own can't be had, the drawing stands and says why in one line; Meta's frame is never beside other words", async () => {
+  const cases = [
+    [(version, picture) => drawnAs(version, picture, [], "busy"), NEW.shown.not.busy],
+    [(version, picture) => drawnAs(version, picture, [], "refused"), NEW.shown.not.refused],
+    [(version, picture) => drawnAs(version, picture, [], "signed_out"), NEW.shown.not.signed_out],
+    [(version, picture) => drawnAs(version, picture, [], "not_connected"), NEW.shown.not.not_connected],
+    [(version, picture) => drawnAs(version, picture, [], "not_here"), NEW.shown.drawn],
+    [() => null, NEW.shown.not.busy],
+    // Meta drew other words than the ones on show (the kept draft moved): its frame is not shown beside these.
+    [(version, picture) => drawnAs({ ...version, text: "Other words" }, picture), NEW.shown.not.busy],
+    // Meta drew some places and not this one.
+    [(version, picture) => drawnAs(version, picture, ["story"], "refused"), NEW.shown.not.refused],
+  ];
+  let n = 0;
+  for (const [answer, line] of cases) {
+    n += 1;
+    const picture = `44444444-4444-4444-8444-${String(n).padStart(12, "0")}`;
+    const w = world({ preview: true });
+    w.asks[0].land(written({}, { picture: { id: picture, kind: "photo", name: "front desk", made: false } }));
+    await w.shows("ads-new-text", "the written draft");
+    const asked = await w.asked(2, "Meta's preview to be asked");
+    asked.land(answer(THREE[0], picture));
+    await until(() => lineOf(w) === line, `the line ${line}`);
+    assert.equal(w.said("ads-new-text"), THREE[0].text, "the drawing stands");
+    assert.equal(byTestId(w.draw(), "ads-new-meta-feed"), null, "no frame of Meta's for the feed");
+  }
+  unmount();
+});
+
+test("a video's preview is not asked of Meta, and a source with no way to ask draws its own and says so", async () => {
+  const w = world({ preview: true });
+  w.asks[0].land(written({}, { picture: { id: OTHER, kind: "video", name: "spring reel", made: false } }));
+  await w.shows("ads-new-text", "the written draft");
+  assert.equal(lineOf(w), "Drawn by Chanlytics: Meta's own preview is shown for a photo.");
+  assert.deepEqual(
+    w.asks.map((one) => one.kind),
+    ["draft"],
+    "Meta is asked nothing",
+  );
+  const plain = world();
+  plain.asks[0].land(written());
+  await plain.shows("ads-new-text", "the written draft");
+  assert.equal(lineOf(plain), NEW.shown.drawn);
+  // While the words are being written there is nothing to ask Meta for.
+  const writing = world({ preview: true });
+  writing.asks[0].land(answerOf());
+  await writing.asked(2, "the writer to be asked");
+  assert.equal(writing.asks[1].kind, "words");
+  assert.equal(lineOf(writing), NEW.shown.drawn);
+  unmount();
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Answers that land out of turn: what the owner set, and the version on screen, always win
+
+/** Three other versions, as AI's change of the words answers them. */
+const CHANGED = THREE.map((version) => ({ ...version, text: `${version.text} Open Saturdays.` }));
+/** Tell AI, as the owner sends it from the box under the ad. */
+const tellAi = (w, words) => {
+  typeInto(w.draw(), "ads-new-tell-box", words);
+  find(w.draw(), (n) => n.props?.["data-testid"] === "ads-new-tell" && n.props.onSubmit).props.onSubmit({
+    preventDefault() {},
+  });
+};
+/** The screen's timers of one delay, counted as each runs: the moment after typing, waited for by its own running. */
+function timersOf(ms) {
+  const win = globalThis.window;
+  const real = win.setTimeout;
+  const ran = { n: 0 };
+  win.setTimeout = (run, delay, ...rest) =>
+    real(
+      delay === ms
+        ? () => {
+            ran.n += 1;
+            run();
+          }
+        : run,
+      delay,
+      ...rest,
+    );
+  return { ran, restore: () => (win.setTimeout = real) };
+}
+/** An answer landed, and the screen has taken it: the test waits on the very promise the screen waited on. */
+const landed = async (ask, answer) => {
+  ask.land(answer);
+  await ask.answered;
+};
+/** Close New ad, and open it again, as Back and + New do. */
+const closeAndOpen = (w) => {
+  w.props.open = false;
+  w.draw();
+  w.props.open = true;
+  w.draw();
+};
+
+test("words that land after the owner set the amount, the miles and the date never put the old ones back; what was set is judged with them", async () => {
+  const w = world();
+  w.asks[0].land(answerOf());
+  const writer = await w.asked(2, "the ad writer to be asked");
+  const typing = timersOf(500);
+  press(byTestId(w.draw(), "ads-chip-amount"));
+  typeInto(w.draw(), "ads-new-amount", "90");
+  press(byTestId(w.draw(), "ads-new-edit-done"));
+  press(byTestId(w.draw(), "ads-chip-area"));
+  typeInto(w.draw(), "ads-new-miles", "8");
+  press(byTestId(w.draw(), "ads-new-edit-done"));
+  press(byTestId(w.draw(), "ads-chip-end"));
+  typeInto(w.draw(), "ads-new-end", "2031-03-25");
+  press(byTestId(w.draw(), "ads-new-edit-done"));
+  // While the writer is out, nothing is judged once the moment after typing has passed: what was set waits for the words.
+  await until(() => typing.ran.n > 0, "the moment after typing to pass");
+  typing.restore();
+  assert.deepEqual(
+    w.asks.map((one) => one.kind),
+    ["draft", "words"],
+  );
+  // The words land with the draft as it was sent: $70, five miles, the old end.
+  writer.land(wrote());
+  await w.shows("ads-new-text", "the words to land");
+  assert.equal(w.said("ads-new-turn-on"), "Turn on · up to $90", "the owner's amount stands");
+  assert.match(w.said("ads-sentence"), /within 8 miles/);
+  assert.match(w.said("ads-sentence"), new RegExp(dayWord("2031-03-25")));
+  const judged = await w.asked(3, "what was set to be judged with the words");
+  assert.equal(judged.kind, "draft");
+  assert.deepEqual(
+    [judged.body.draft.total_minor, judged.body.draft.miles, judged.body.draft.end_day],
+    [9000, 8, "2031-03-25"],
+  );
+  assert.equal(judged.body.draft.versions.length, 3, "judged with the words that landed");
+});
+
+test("a Tell AI answer that lands after a newer edit never lands over it: the edit stands, and is judged with AI's new words", async () => {
+  const w = world();
+  w.asks[0].land(
+    written({ checks: [{ code: "amount", fault: "under_least", nearest_minor: 7000 }] }, { total_minor: 900 }),
+  );
+  await w.shows("ads-new-line", "the draft's line");
+  tellAi(w, "say we are open on Saturdays");
+  const change = await w.asked(2, "AI to be told");
+  assert.equal(change.body.job, "change");
+  // While AI is out, the owner takes the line's own act: the amount Meta takes.
+  press(byTestId(w.draw(), "ads-new-line-act"));
+  assert.equal(w.said("ads-new-turn-on"), "Turn on · up to $70");
+  // AI's answer lands within the moment before that edit is judged: the draft as it was sent, with new words.
+  change.land({ ...written({}, { total_minor: 900, versions: CHANGED }), changed: { kind: "words" } });
+  await until(() => w.said("ads-new-text") === CHANGED[0].text, "AI's new words to show");
+  assert.equal(w.said("ads-new-turn-on"), "Turn on · up to $70", "REGRESSION: AI's answer put the old amount back");
+  assert.equal(w.said("ads-new-told"), "AI changed the words.");
+  const judged = await w.asked(3, "the edit to be judged with the new words");
+  assert.equal(judged.kind, "draft");
+  assert.equal(judged.body.draft.total_minor, 7000);
+  assert.equal(judged.body.draft.versions[0].text, CHANGED[0].text);
+});
+
+test("an amount AI changed that the owner set over while it was out is theirs, and is not said as AI's", async () => {
+  const w = world();
+  w.asks[0].land(
+    written({ checks: [{ code: "amount", fault: "under_least", nearest_minor: 7000 }] }, { total_minor: 900 }),
+  );
+  await w.shows("ads-new-line", "the draft's line");
+  tellAi(w, "make it $100");
+  const change = await w.asked(2, "AI to be told");
+  press(byTestId(w.draw(), "ads-new-line-act"));
+  change.land({ ...written({}, { total_minor: 10_000 }), changed: { kind: "amount" } });
+  await until(() => !/changing/.test(w.said("ads-new-tell") ?? "changing"), "AI's answer to land");
+  assert.equal(w.said("ads-new-turn-on"), "Turn on · up to $70", "the owner's newer amount stands");
+  assert.equal(w.said("ads-new-told"), null, "AI's amount is not said as the change that was made");
+});
+
+test("the line judges the draft on screen: a judgement of an older one that lands late is dropped", async () => {
+  const w = world();
+  w.asks[0].land(written());
+  await w.shows("ads-new-text", "a written draft to open");
+  press(byTestId(w.draw(), "ads-chip-amount"));
+  typeInto(w.draw(), "ads-new-amount", "9");
+  const older = await w.asked(2, "$9 to be judged");
+  typeInto(w.draw(), "ads-new-amount", "90");
+  const newer = await w.asked(3, "$90 to be judged");
+  assert.deepEqual([older.body.draft.total_minor, newer.body.draft.total_minor], [900, 9000]);
+  // The newer answer lands first: $90 trips nothing.
+  await landed(newer, written({}, { total_minor: 9000 }));
+  assert.equal(w.said("ads-new-line"), null);
+  // The older one lands after it, with its own check: it says nothing of the draft on screen.
+  await landed(
+    older,
+    written({ checks: [{ code: "amount", fault: "under_least", nearest_minor: 7000 }] }, { total_minor: 900 }),
+  );
+  assert.equal(w.said("ads-new-line"), null, "REGRESSION: an older judgement's check was shown");
+  assert.equal(w.said("ads-new-turn-on"), "Turn on · up to $90");
+  // AI's words, changed after a judgement was sent, are not taken back by that judgement landing late.
+  typeInto(w.draw(), "ads-new-amount", "95");
+  const stale = await w.asked(4, "$95 to be judged");
+  press(byTestId(w.draw(), "ads-new-edit-done"));
+  tellAi(w, "say we are open on Saturdays");
+  const change = await w.asked(5, "AI to be told");
+  change.land({ ...written({}, { total_minor: 9500, versions: CHANGED }), changed: { kind: "words" } });
+  await until(() => w.said("ads-new-text") === CHANGED[0].text, "AI's new words to show");
+  await landed(stale, written({ checks: [{ code: "words", fault: "pressure" }] }, { total_minor: 9500 }));
+  assert.equal(w.said("ads-new-text"), CHANGED[0].text, "the words on screen stand");
+  assert.equal(w.said("ads-new-line"), null, "the late judgement's words check is not theirs");
+});
+
+test("closed and opened while the draft is read or the writer is out: one read, one writer, and the words still land", async () => {
+  const w = world();
+  closeAndOpen(w);
+  closeAndOpen(w);
+  assert.deepEqual(
+    w.asks.map((one) => one.kind),
+    ["draft"],
+    "one read, however often it is opened while it is out",
+  );
+  w.asks[0].land(answerOf());
+  const writer = await w.asked(2, "the ad writer to be asked");
+  closeAndOpen(w);
+  closeAndOpen(w);
+  assert.deepEqual(
+    w.asks.map((one) => one.kind),
+    ["draft", "words"],
+    "the writer is not asked twice: its answer is this draft's",
+  );
+  writer.land(wrote());
+  await w.shows("ads-new-text", "the words to land after it was opened again");
+  assert.equal(w.said("ads-new-text"), THREE[0].text);
+  // Opened once the words are kept: the kept draft is read again, words and all, and no writer is asked.
+  closeAndOpen(w);
+  const reread = await w.asked(3, "the kept draft to be read again");
+  assert.equal(reread.kind, "draft");
+  reread.land(written());
+  await w.shows("ads-new-text", "the kept draft to show");
+  assert.equal(w.asks.filter((one) => one.kind === "words").length, 1);
+});
+
+test("Meta's preview is asked for the version on screen, and a late one for a version no longer on screen is not shown", async () => {
+  const w = world({ preview: true });
+  const picture = "55555555-5555-4555-8555-555555555555";
+  const frameFor = (n) => `https://www.facebook.com/ads/api/preview_iframe.php?d=version-${n}&t=AQJ`;
+  const answerFor = (n) => ({
+    drew: { picture, text: THREE[n].text, headline: THREE[n].headline },
+    frames: { feed: { src: frameFor(n), width: 335, height: 580 } },
+    why: null,
+  });
+  w.asks[0].land(written({}, { picture: { id: picture, kind: "photo", name: "front desk", made: false } }));
+  await w.shows("ads-new-text", "the written draft");
+  const first = await w.asked(2, "the first version's preview");
+  assert.deepEqual([first.kind, first.body], ["preview", 0]);
+  // The owner steps to the next version before Meta answers for the first.
+  press(byTestId(w.draw(), "ads-new-next"));
+  w.draw();
+  const second = await w.asked(3, "the second version's preview");
+  assert.deepEqual([second.kind, second.body], ["preview", 1]);
+  // The first version's preview lands late: it is not shown beside the second.
+  await landed(first, answerFor(0));
+  assert.equal(byTestId(w.draw(), "ads-new-meta-feed"), null, "REGRESSION: an older version's frame was shown");
+  assert.equal(lineOf(w), "Asking Meta for its own preview…");
+  second.land(answerFor(1));
+  await until(() => byTestId(w.draw(), "ads-new-meta-feed")?.props.src === frameFor(1), "the second version's frame");
+  // Back at the first: its own preview, which came, is shown, and Meta is asked nothing twice.
+  press(byTestId(w.draw(), "ads-new-next"));
+  w.draw();
+  press(byTestId(w.draw(), "ads-new-next"));
+  await until(() => byTestId(w.draw(), "ads-new-meta-feed")?.props.src === frameFor(0), "the first version's frame");
+  assert.equal(w.asks.filter((one) => one.kind === "preview").length, 3, "the third version only");
+  unmount();
 });

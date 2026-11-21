@@ -32,6 +32,8 @@ export interface AdReadRow {
   /** What the platform holds the ad set to: an adopted ad's intent follows it unless a press is on its way. */
   intent: "on" | "paused" | "ended";
   said: Json | null;
+  /** Where it shows: the platforms its ad set names; null where the platform named none. */
+  shown_on: string[] | null;
 }
 
 /** A platform's day for an ad, as a read hands it to the door. Money in the account's minor units. */

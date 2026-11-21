@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-431 handlers in 60 domains.
+434 handlers in 60 domains.
 
 ## activity
 
@@ -34,6 +34,14 @@ Reads; for a member of the workspace the request names, owner or above; counts a
 | `cursor` | string | no | at most 120 characters; matches `^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z\|[+-][\d:]+)?\\|[de]-[\w-]+$` |
 
 ## ads
+
+### `POST /api/v1/ads/[id]/check`
+
+Writes; for a member of the row's own workspace, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 1; ≤ 9007199254740991 |
 
 ### `POST /api/v1/ads/[id]/pause`
 
@@ -110,6 +118,7 @@ Writes; for a member of the workspace the request names, operator or above; coun
 | `draft` | object | no |  |
 | `act` | one of `"next_picture"` | no |  |
 | `service` | string | no | at least 1 characters; at most 200 characters |
+| `picture` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `most` | integer | no | ≤ 100000000 |
 
 ### `GET /api/v1/ads/page`
@@ -126,6 +135,23 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | --- | --- | --- | --- |
 | `ad` | `"unnamed"` or string | yes |  |
 | `offset` | integer | no | ≥ 0; ≤ 100000 |
+
+### `GET /api/v1/ads/preview`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `version` | integer | yes | ≥ 0; ≤ 2 |
+
+### `POST /api/v1/ads/turn-on`
+
+Writes; for a member of the workspace the request names, owner or above; counts against the `settings` rate; spends nothing.
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `key` | string | yes | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `expect` | object | yes |  |
 
 ### `POST /api/v1/ads/words`
 
@@ -3832,7 +3858,7 @@ Every door on the edge whose body contracts declares (`packages/contracts/src/<d
 the dashboard's `callEdge` sends a declared door the body its schema takes, and the door reads its body through the same
 schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 
-62 doors.
+64 doors.
 
 ### `POST /api/admin/ads/account`
 
@@ -3865,6 +3891,24 @@ schema. Who may knock on each is `tests/edge/door-policy.json`'s.
 | `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `ad_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
 | `version` | integer | no | ≥ -9007199254740991; ≤ 9007199254740991 |
+
+### `POST /api/admin/ads/preview`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `preview` | object | no |  |
+
+### `POST /api/admin/ads/turn-on`
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `tenant_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `user_id` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `key` | string | no | matches `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` |
+| `draft_at` | string | no | at least 1 characters; at most 64 characters |
+| `ad` | object | no |  |
 
 ### `POST /api/admin/billing`
 
@@ -4435,4 +4479,4 @@ A door on the edge refuses with `{ ok: false, error, detail? }`: `error` is a co
 person or support may read (`packages/contracts/src/shared/edge-errors.ts`). A door that crashes answers `door_failed`,
 at 500, and logs `door_failed` with the stack and the request's name.
 
-`accounts_unreadable`, `ad_account_connected`, `ad_account_not_owner`, `ad_account_taken`, `ad_cant_resume`, `ad_not_ready`, `ad_sign_in_lost`, `ad_stale`, `ads_writes_off`, `already_registered`, `already_sent`, `already_subscribed`, `ask_budget`, `bad_request`, `bad_signature`, `bad_template`, `bad_tenant`, `brain_failed`, `campaign_rejected`, `channel_read_failed`, `channel_write_failed`, `check_unset`, `config_broken`, `connection_write_failed`, `context_failed`, `could_not_queue`, `could_not_retire_old_draft`, `credentials_failed`, `direct`, `door_failed`, `draft_not_owed`, `draft_refused`, `email_off`, `empty_draft`, `erasure_unreadable`, `exchange_failed`, `free_mail`, `google_refused`, `grant_unreadable`, `in_flight`, `ingest_failed`, `instagram_account_taken`, `instagram_account_unreadable`, `instagram_accounts_several`, `instagram_messages_not_granted`, `invalid`, `key_unavailable`, `lane_unset`, `line_exists`, `line_failed_retry`, `line_not_retryable`, `line_retry_taken`, `listing_read_failed`, `listing_write_failed`, `mailbox_taken`, `message_read_failed`, `meta_failed`, `meta_off`, `meta_refused`, `meta_signed_out`, `mock_registration`, `model_failed`, `model_paused`, `model_unavailable`, `model_unreachable`, `no_account`, `no_app_credentials`, `no_billing_record`, `no_business_record`, `no_campaign_to_resubmit`, `no_channel`, `no_credentials`, `no_customer`, `no_database`, `no_fn_secret`, `no_line_credentials`, `no_line_provider`, `no_listing`, `no_location`, `no_locations`, `no_messaging_service`, `no_model_key`, `no_oauth_client`, `no_open_handover`, `no_open_invitation`, `no_persona`, `no_phone`, `no_places_key`, `no_platform_mailbox`, `no_primary_profile`, `no_provider`, `no_provider_credentials`, `no_provider_key`, `no_refresh_token`, `no_registration_readable`, `no_review`, `no_sender`, `no_subaccount`, `no_subscription`, `no_such_location`, `no_token`, `no_waba`, `no_workspace_readable`, `not_a_held_draft`, `not_connected`, `not_found`, `not_from_profile`, `not_held`, `not_on_maps`, `not_paused`, `not_ready`, `not_rejected`, `not_trialing`, `nothing_to_answer`, `nothing_to_do`, `number_ambiguous`, `number_missing`, `number_taken`, `number_unreadable`, `payment_required`, `pin_required`, `platform_hold`, `platform_only`, `policy_block_price`, `policy_never`, `preview_failed`, `provider_refused`, `provider_unauthorized`, `provider_unreachable`, `purge_failed`, `query_failed`, `reach_out_step`, `read_failed`, `record_incomplete`, `register_failed`, `registration_pending`, `rehearsal_empty`, `rehearsal_minutes_used`, `replace_failed`, `resubmit_failed`, `review_read_failed`, `review_write_failed`, `routing_unreadable`, `run_failed`, `scope_missing`, `signature`, `sole_proprietor_incomplete`, `stripe_refused`, `stripe_unreadable`, `subscribe_failed`, `token_audience`, `token_body`, `token_expired`, `token_malformed`, `token_replayed`, `token_required`, `token_signature`, `too_large`, `too_many`, `too_many_on_domain`, `unauthorized`, `unavailable`, `unfile_failed`, `unknown_op`, `unreadable`, `voice_canary_failed`, `voice_canary_too_soon`, `voice_canary_unset`, `waba_not_granted`, `waba_unreadable`, `workspace_mismatch`, `write_failed`
+`accounts_unreadable`, `ad_account_connected`, `ad_account_not_owner`, `ad_account_taken`, `ad_busy`, `ad_cant_resume`, `ad_not_ready`, `ad_sign_in_lost`, `ad_stale`, `ads_writes_off`, `ai_stopped`, `already_registered`, `already_sent`, `already_subscribed`, `ask_budget`, `bad_request`, `bad_signature`, `bad_template`, `bad_tenant`, `brain_failed`, `campaign_rejected`, `channel_read_failed`, `channel_write_failed`, `check_unset`, `config_broken`, `connection_write_failed`, `context_failed`, `could_not_queue`, `could_not_retire_old_draft`, `credentials_failed`, `direct`, `door_failed`, `draft_not_owed`, `draft_refused`, `email_off`, `empty_draft`, `erasure_unreadable`, `exchange_failed`, `free_mail`, `google_refused`, `grant_unreadable`, `in_flight`, `ingest_failed`, `instagram_account_taken`, `instagram_account_unreadable`, `instagram_accounts_several`, `instagram_messages_not_granted`, `invalid`, `key_unavailable`, `lane_unset`, `line_exists`, `line_failed_retry`, `line_not_retryable`, `line_retry_taken`, `listing_read_failed`, `listing_write_failed`, `mailbox_taken`, `message_read_failed`, `meta_failed`, `meta_off`, `meta_refused`, `meta_signed_out`, `mock_registration`, `model_failed`, `model_paused`, `model_unavailable`, `model_unreachable`, `no_account`, `no_app_credentials`, `no_billing_record`, `no_business_record`, `no_campaign_to_resubmit`, `no_channel`, `no_credentials`, `no_customer`, `no_database`, `no_fn_secret`, `no_line_credentials`, `no_line_provider`, `no_listing`, `no_location`, `no_locations`, `no_messaging_service`, `no_model_key`, `no_oauth_client`, `no_open_handover`, `no_open_invitation`, `no_persona`, `no_phone`, `no_places_key`, `no_platform_mailbox`, `no_primary_profile`, `no_provider`, `no_provider_credentials`, `no_provider_key`, `no_refresh_token`, `no_registration_readable`, `no_review`, `no_sender`, `no_subaccount`, `no_subscription`, `no_such_location`, `no_token`, `no_waba`, `no_workspace_readable`, `not_a_held_draft`, `not_connected`, `not_found`, `not_from_profile`, `not_held`, `not_on_maps`, `not_paused`, `not_ready`, `not_rejected`, `not_trialing`, `nothing_to_answer`, `nothing_to_do`, `number_ambiguous`, `number_missing`, `number_taken`, `number_unreadable`, `payment_required`, `pin_required`, `platform_hold`, `platform_only`, `policy_block_price`, `policy_never`, `preview_failed`, `provider_refused`, `provider_unauthorized`, `provider_unreachable`, `purge_failed`, `query_failed`, `reach_out_step`, `read_failed`, `record_incomplete`, `register_failed`, `registration_pending`, `rehearsal_empty`, `rehearsal_minutes_used`, `replace_failed`, `resubmit_failed`, `review_read_failed`, `review_write_failed`, `routing_unreadable`, `run_failed`, `scope_missing`, `signature`, `sole_proprietor_incomplete`, `stripe_refused`, `stripe_unreadable`, `subscribe_failed`, `token_audience`, `token_body`, `token_expired`, `token_malformed`, `token_replayed`, `token_required`, `token_signature`, `too_large`, `too_many`, `too_many_on_domain`, `unauthorized`, `unavailable`, `unfile_failed`, `unknown_op`, `unreadable`, `voice_canary_failed`, `voice_canary_too_soon`, `voice_canary_unset`, `waba_not_granted`, `waba_unreadable`, `workspace_mismatch`, `write_failed`

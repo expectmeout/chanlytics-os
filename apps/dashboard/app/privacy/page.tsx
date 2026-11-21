@@ -98,11 +98,83 @@ function GoogleUserData() {
   );
 }
 
+/** The services that process what we hold, each for its part. */
+function Processors() {
+  return (
+    <>
+      <h2>Who else processes it</h2>
+      <p>We use the following services to run the product. Each holds only what its part needs.</p>
+      <ul>
+        <li>
+          Supabase (database and sign-in), Google (sign-in with a Google account, when you choose it: we receive your
+          name and the address you signed in with, nothing else), and Vercel (hosting).
+        </li>
+        <li>
+          Meta (WhatsApp Business Platform) for WhatsApp messages and templates, and Meta's ads interface for a
+          business's Facebook ads, when the owner connects an ad account.
+        </li>
+        <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
+        <li>
+          Google (Business Profile and Maps) for reviews and replies, and Google (Gmail, Contacts and Calendar) for a
+          mailbox, when the owner connects them.
+        </li>
+        <li>Anthropic and OpenAI for the receptionist's drafts.</li>
+        <li>Stripe for billing, and Resend for the emails we send you.</li>
+      </ul>
+    </>
+  );
+}
+
+/**
+ * What Meta's App Review reads against Ads' sign-in (the Ads plan's step 3 and 5.3): what an ad account's connection
+ * reads and changes, what it is used for, where its access is kept, and how it ends, on Chanlytics' side and on Meta's.
+ * Each line is what the edge's reads and presses do (apps/edge/lib/ads); Chanlytics tells Meta nothing about who wrote
+ * or booked (the plan's 6.5).
+ */
+function MetaAdsData() {
+  return (
+    <>
+      <h2>Facebook ads</h2>
+      <p>
+        When a workspace owner connects a Meta ad account in Campaigns › Ads, Meta asks them to let Chanlytics read and
+        manage that ad account's ads and the Facebook Page they run as. With that permission we read:
+      </p>
+      <ul>
+        <li>
+          <b>The ad account</b>: its name, currency and time zone, whether Meta has it running, whether it has a payment
+          method (never the card itself) and its spending limit.
+        </li>
+        <li>
+          <b>Its ads</b>: each ad's name, words and picture, whether it is running, its budget and dates, and Meta's
+          numbers for each day: what it spent, how many times it was shown and how many taps it had.
+        </li>
+        <li>
+          <b>The Page</b>: the list of Pages the owner shares with us, and the chosen Page's name.
+        </li>
+      </ul>
+      <p>
+        We show this only inside the business's own workspace, beside the people each ad brought who wrote to the
+        business and booked, so the owner can see what each ad cost and what it brought. We change something at Meta
+        only when the owner presses for it: pausing an ad, turning one back on, or turning on an ad the owner made in
+        Chanlytics, whose words AI writes from the business's own services for the owner to check first. We never tell
+        Meta who wrote to the business or who booked, we never use this data to advertise anything else, and we never
+        sell it.
+      </p>
+      <p>
+        We store the access Meta grants in a vault the product's pages cannot read. When the owner disconnects the ad
+        account in Campaigns › Ads, we stop reading it and delete that access. The owner can also remove Chanlytics in
+        Meta's Business settings, under Integrations, which ends our access at Meta, and we stop. What was already read
+        stays in the workspace, like its other records, until the owner deletes it or the workspace.
+      </p>
+    </>
+  );
+}
+
 export default function PrivacyPage() {
   return (
     <main className="legal">
       <h1>Privacy policy</h1>
-      <p className="legal-meta">Chanlytics · last updated October 26, 2026</p>
+      <p className="legal-meta">Chanlytics · last updated November 20, 2026</p>
 
       <p>
         Chanlytics is a receptionist for small businesses: it answers a business's customers on WhatsApp, by phone and
@@ -161,7 +233,8 @@ export default function PrivacyPage() {
         <li>
           <b>Connected services</b>: what a connected service tells us — a WhatsApp number's status, a phone line's
           state, a Google Business Profile's reviews and the replies posted to them, the events in a calendar feed the
-          owner pastes, and a connected mailbox's email, contacts and calendar.
+          owner pastes, a connected mailbox's email, contacts and calendar, and a connected Meta ad account's ads and
+          what Meta says each one spent.
         </li>
         <li>
           <b>Billing</b>: the plan, the subscription's status and the card's brand and last four digits. Card numbers
@@ -199,24 +272,11 @@ export default function PrivacyPage() {
         do not use them to train their models.
       </p>
 
-      <h2>Who else processes it</h2>
-      <p>We use the following services to run the product. Each holds only what its part needs.</p>
-      <ul>
-        <li>
-          Supabase (database and sign-in), Google (sign-in with a Google account, when you choose it: we receive your
-          name and the address you signed in with, nothing else), and Vercel (hosting).
-        </li>
-        <li>Meta (WhatsApp Business Platform) for WhatsApp messages and templates.</li>
-        <li>Twilio for phone numbers and text messages, and Retell for phone calls.</li>
-        <li>
-          Google (Business Profile and Maps) for reviews and replies, and Google (Gmail, Contacts and Calendar) for a
-          mailbox, when the owner connects them.
-        </li>
-        <li>Anthropic and OpenAI for the receptionist's drafts.</li>
-        <li>Stripe for billing, and Resend for the emails we send you.</li>
-      </ul>
+      <Processors />
 
       <GoogleUserData />
+
+      <MetaAdsData />
 
       {/*
         The clauses come from contracts, not from this file, because every

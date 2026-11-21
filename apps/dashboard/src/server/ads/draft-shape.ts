@@ -62,7 +62,7 @@ export type AdDraftState = z.infer<typeof AdDraftStateSchema>;
 
 /**
  * POST ads/draft: no draft asks for the kept one, or a fresh one where none is kept; a draft is judged as it stands,
- * after an act where one is named, and kept.
+ * after an act where one is named, and kept. A service or a picture asks for a fresh one started from it.
  */
 export const AdDraftBodySchema = z.object({
   draft: AdDraftStateSchema.optional(),
@@ -73,6 +73,11 @@ export const AdDraftBodySchema = z.object({
    * plan's 6.3). One Services does not list is the draft's own pick.
    */
   service: z.string().trim().min(1).max(200).optional(),
+  /**
+   * A fresh draft around this picture, by its file's id, in place of the kept one: what "Run as an ad" on a made piece in
+   * Content asks for (the plan's 6.8, join 3). One that may not run as an ad is the one thing missing, never another.
+   */
+  picture: z.string().regex(UUID).optional(),
   /**
    * The most any ad may cost, as the owner said it to AI in a sentence (the plan's G6), in whole units of the ad
    * account's currency: kept on the account before the draft is judged. The owner's alone.
@@ -97,6 +102,29 @@ export const AdPausedCheckBodySchema = z
     "A draft, a campaign to remove, or an ad to tidy.",
   );
 
+/**
+ * POST ads/turn-on: the owner's press on New ad (decision 0050, call 3). It carries what the press showed, so a press
+ * drawn from an older draft is refused: the amount (the most it can cost), the end, the picture and the words. The
+ * server judges the workspace's kept draft afresh and turns it on only where every one of them is what it holds now.
+ */
+export const AdTurnOnBodySchema = z.object({
+  /** The press's own key: the same press twice makes one ad. */
+  key: z.string().regex(UUID),
+  expect: z.object({
+    service: z.string().trim().min(1).max(200),
+    picture: z.string().regex(UUID),
+    miles: z.number().int().min(0).max(10_000),
+    /** The wider place it showed the ad across, by Meta's key; none for the circle. */
+    area: AdWideAreaSchema.pick({ kind: true, key: true }).optional(),
+    most_minor: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+    end_day: z.string().regex(DAY_KEY),
+    versions: z
+      .array(z.object({ text: z.string().max(VERSION_MAX.text), headline: z.string().max(VERSION_MAX.headline) }))
+      .min(1)
+      .max(3),
+  }),
+});
+
 /** POST ads/words: the writer's two jobs on a draft. */
 export const AdWordsBodySchema = z.discriminatedUnion("job", [
   z.object({
@@ -116,11 +144,18 @@ export const AdWordsBodySchema = z.discriminatedUnion("job", [
 /**
  * Why a draft cannot be written yet: the plan's four (G13), an ad account not ready to draft for, or AI stopped. A
  * picture missing says which, so its line says what to do: there is none at all (picture_none); each shows someone,
- * or nobody has said who is in it (picture_person); each video has music, or was not heard yet (picture_music); or
- * none is a size or shape an ad takes (picture).
+ * or nobody has said who is in it (picture_person); each video has music, or was not heard yet (picture_music); none
+ * is a size or shape an ad takes (picture); or the piece "Run as an ad" chose is no longer kept (picture_gone).
  */
 export type AdCantDraft =
-  AdDraftMissing | "picture_none" | "picture_person" | "picture_music" | "account" | "account_reading" | "stopped";
+  | AdDraftMissing
+  | "picture_none"
+  | "picture_person"
+  | "picture_music"
+  | "picture_gone"
+  | "account"
+  | "account_reading"
+  | "stopped";
 
 /** What is wrong with an ad's words, as a draft's line says it: Meta's rules by name, and everything else as one. */
 export type AdWordsFault = "about_reader" | "feel_bad" | "sure_result" | "before_after" | "pressure" | "other";
@@ -148,8 +183,11 @@ interface AdDraftDto {
   label?: string | undefined;
 }
 
-/** How Turn on stands on this deployment: the job that makes an ad at Meta is not built yet. */
-export type AdTurnOn = "not_yet";
+/**
+ * How Turn on stands here: it may be pressed; turning an ad on from here is not on in this workspace on this
+ * deployment (the edge's switch); or the picture is a video, which Turn on does not send to Meta yet.
+ */
+export type AdTurnOn = "ready" | "off" | "video";
 
 /**
  * Why the draft's own rule proposes its amount (contracts ads/draft.ts): a starting amount, and why it is one; or the

@@ -56,6 +56,7 @@ export {
   adDraftOf,
   adEndIssue,
   adLeastTotal,
+  adMostOf,
   adPictureIssue,
   adSpecialKinds,
 } from "./draft";
@@ -69,17 +70,20 @@ export type {
   AdServiceFacts,
   AdSpecialKind,
 } from "./draft";
-export { ADS_ACCOUNT_DOOR, ADS_CHECK_DOOR, ADS_PRESS_DOOR } from "./edge-doors";
+export { ADS_ACCOUNT_DOOR, ADS_CHECK_DOOR, ADS_PRESS_DOOR, ADS_PREVIEW_DOOR, ADS_TURN_ON_DOOR } from "./edge-doors";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow } from "./live";
 export type {
   AdBudgetLive,
+  AdLaunchLive,
   AdLiveDto,
   AdNeedsLive,
   AdOpens,
+  AdPartLeft,
   AdPeopleLiveDto,
   AdPersonLiveDto,
   AdResume,
   AdsLiveDto,
+  AdStopped,
 } from "./live";
 export { minorPerUnit } from "./money";
 export { AD_TOLD_MAX } from "./said";

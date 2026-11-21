@@ -11,8 +11,14 @@
           "api/admin/ads/check.ts": {
             "maxDuration": 60
           },
+          "api/admin/ads/preview.ts": {
+            "maxDuration": 30
+          },
           "api/admin/ads/press.ts": {
             "maxDuration": 60
+          },
+          "api/admin/ads/turn-on.ts": {
+            "maxDuration": 30
           },
           "api/admin/billing.ts": {
             "maxDuration": 30

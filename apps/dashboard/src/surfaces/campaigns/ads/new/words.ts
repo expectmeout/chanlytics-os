@@ -95,6 +95,18 @@ export const NEW = {
     picture: (name: string) => `The ad's picture, ${name}`,
     video: (name: string) => `The ad's video, ${name}`,
     drawn: "Drawn by Chanlytics, not Meta's own preview. Your picture is shown whole, never cropped.",
+    /** Meta's own preview, once the ad account is connected (the plan's 4.6), and the frame's name to a screen reader. */
+    meta: "Meta's own preview, as people will see it on a phone.",
+    metaFrame: (place: string) => `Meta's own preview of the ad, in the ${place.toLowerCase()}`,
+    asking: "Asking Meta for its own preview…",
+    /** Where Meta's own can't be had, Chanlytics' drawing stands in its place, and says why in one line. */
+    not: {
+      not_connected: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected.",
+      signed_out: "Drawn by Chanlytics: Meta shows its own preview once the ad account is connected again.",
+      video: "Drawn by Chanlytics: Meta's own preview is shown for a photo.",
+      busy: "Drawn by Chanlytics: Meta didn't answer. New ad asks it again next time it opens.",
+      refused: "Drawn by Chanlytics: Meta didn't show its own preview of this version.",
+    },
   },
 
   /** Tell AI what to change. */
@@ -134,7 +146,18 @@ export const NEW = {
     kind: (ad: string) => `${ad} can't be turned on here.`,
     check: "Turn on waits for the one thing above.",
     owner: "Only the owner can turn an ad on.",
-    notYet: "Chanlytics can't turn an ad on yet. Nothing is made at Meta, and nothing is spent.",
+    off: "Turning an ad on from here isn't on in this workspace yet. Nothing is made at Meta.",
+    video: "Turn on sends a photo for now. Use the next picture to pick a photo.",
+    turning: "Turning it on…",
+    failed: "Couldn't reach Chanlytics, so nothing was made. Try again.",
+  },
+
+  /** After Turn on: the ad is being set up at Meta, and where to see it. */
+  turnedOn: {
+    title: "Setting it up at Meta",
+    body: "Chanlytics makes it paused first, checks it against what you approved, then turns it on.",
+    small: "Meta checks it before anyone sees it, usually within a day. It's on your Ads page now.",
+    act: "See the ad",
   },
 
   /** Where the words can't be written. */
@@ -319,6 +342,12 @@ export const MISSING: Record<AdCantDraft, LineWords & { small: string; act: stri
     body: "Music in an ad needs a licence of your own, and a video is heard before it can run.",
     small: "Add a photo, or a video with no music. AI drafts the ad as soon as one is in.",
     act: "Open Library",
+  },
+  picture_gone: {
+    title: "That piece is no longer in Content",
+    body: "It was deleted or set aside after Run as an ad was pressed.",
+    small: "Open another piece there, and run that one as an ad.",
+    act: "Open Content",
   },
   picture: {
     title: "First, a picture that fits an ad",

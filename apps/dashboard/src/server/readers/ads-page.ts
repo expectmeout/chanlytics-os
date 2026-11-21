@@ -4,6 +4,7 @@ import {
   ROLE_PERMS,
   UUID,
   adCardChecksOf,
+  recordOrEmpty,
   adResumeRule,
   adStandingOf,
   parseTenantConfigResult,
@@ -11,8 +12,10 @@ import {
   metaAdConfigOf,
   personName,
   zoneDayKey,
+  type AdLaunchLive,
   type AdLiveDto,
   type AdOpens,
+  type AdStopped,
   type AdPeopleLiveDto,
   type AdsLiveDto,
 } from "@chanlytics/contracts";
@@ -20,6 +23,7 @@ import {
   findAdAccountForPage,
   listAdPeople,
   listAdsByIds,
+  listAdsLeftParts,
   listAdsOfAccount,
   readAdsPageCounts,
   type AdAccountRow,
@@ -63,8 +67,36 @@ function needsOf(state: AdLiveDto["state"], platformWord: string | null): AdLive
   return platformWord === "WITH_ISSUES" ? "troubled" : "paused_at_platform";
 }
 
+const LAUNCH_STOPS: readonly AdStopped[] = [
+  "refused",
+  "differs",
+  "unanswered",
+  "ai_stopped",
+  "disconnected",
+  "signed_out",
+  "picture",
+  "business",
+  "off",
+];
+
+/** How the launch of an ad made here went: why it stopped where it did, Meta's own words, and what it left there. */
+function launchOf(row: AdRow, left: ReadonlyMap<string, AdLaunchLive["left"]>): AdLaunchLive | null {
+  if (row.origin !== "chanlytics") return null;
+  const launch = recordOrEmpty(row.launch);
+  const metaWords = typeof launch.said === "string" && launch.said.trim() ? launch.said.trim().slice(0, 1000) : null;
+  return {
+    stopped: LAUNCH_STOPS.find((stop) => stop === launch.stopped) ?? null,
+    said: metaWords,
+    left: left.get(row.id) ?? [],
+  };
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
-function adOf(row: AdRow, counts: AdsPageCounts | null, at: ReadAt): AdLiveDto {
+function adOf(
+  row: AdRow,
+  counts: AdsPageCounts | null,
+  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]> },
+): AdLiveDto {
   const people = counts?.people.get(row.id) ?? { people: 0, booked: 0 };
   const spend = counts?.spend.get(row.id);
   const state = adStateOfRow(row, at);
@@ -72,6 +104,8 @@ function adOf(row: AdRow, counts: AdsPageCounts | null, at: ReadAt): AdLiveDto {
     id: row.id,
     name: row.name,
     made_in_platform: row.origin === "platform",
+    shown_on: row.shown_on,
+    launch: launchOf(row, at.left),
     opens: opensOf(row.door),
     state,
     needs: needsOf(state, row.platform_state),
@@ -199,6 +233,12 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
+    // What a launch that stopped part way left at Meta: read only for those, and said in their drawers.
+    const left = await listAdsLeftParts(
+      supabase,
+      rc.tenantId,
+      rows.filter((row) => row.origin === "chanlytics" && row.status === "failed").map((row) => row.id),
+    );
     const timezone = account.timezone ?? "UTC";
     const today = zoneDayKey(nowMs, timezone);
     const data: AdsLiveDto = {
@@ -215,7 +255,7 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
-      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs })),
+      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left })),
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),

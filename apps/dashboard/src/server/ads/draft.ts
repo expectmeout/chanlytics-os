@@ -6,6 +6,7 @@ import {
   adPictureIssue,
   daysBetween,
   minorPerUnit,
+  serviceNamedIn,
   type AdDraftInputs,
   type AdDraftParts,
   type AdPicture,
@@ -29,11 +30,12 @@ import type { AdAmountBasisDto, AdDraftAnswer, AdDraftState, AdTurnOn, AdWideAre
  */
 
 /**
- * How Turn on stands here. The job that makes an ad at Meta is the next part of the plan's step 4, so the press is
- * drawn and cannot be pressed, with the reason under it. The one place that says so: when the job exists, this
- * answers whether it may run in this workspace, and the screen changes nothing.
+ * How Turn on stands here, the one place that says so: whether the edge turns ads on in this workspace from this
+ * deployment (its switch), and whether the picture is one Turn on sends (a photo: a video's upload to Meta is not built
+ * yet). The checks before Turn on are each a line of their own, and the screen draws the press from both.
  */
-const adTurnOnStands = (): AdTurnOn => "not_yet";
+const adTurnOnStands = (facts: Pick<AdDraftFacts, "presses">, picture: "photo" | "video"): AdTurnOn =>
+  !facts.presses ? "off" : picture === "video" ? "video" : "ready";
 
 /** Refused where Ads is not switched on for the workspace on this deployment (the plan's D7). */
 export async function requireAdsOffered(rc: Pick<ReaderContext, "tenantId">): Promise<void> {
@@ -175,6 +177,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
   const days = daysBetween(facts.today, draft.end_day);
   const brief = adDraftBrief(facts, account, draft);
   const file = facts.pictures.files.get(draft.picture);
+  const pictureKind = file?.kind === "video" ? "video" : "photo";
   const pickedHere = draft.service === parts.serviceId;
   return {
     can: true,
@@ -182,7 +185,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       ...draft,
       picture: {
         id: draft.picture,
-        kind: file?.kind === "video" ? "video" : "photo",
+        kind: pictureKind,
         name: file?.name ?? "",
         made: file?.source === "made",
       },
@@ -210,7 +213,7 @@ export function adDraftAnswer(facts: AdDraftFacts, sent: AdDraftState | null): A
       brief,
     }),
     ...adDeclared(adKindsOf(brief, draft.versions), draft.answers),
-    turn_on: adTurnOnStands(),
+    turn_on: adTurnOnStands(facts, pictureKind),
     owner: facts.owner,
     // Who left it, while it is as they left it: an answer that changes it is this member's from then on.
     left_by: facts.kept !== null && sameDraft(draft, facts.kept.draft) ? facts.kept.leftBy : null,
@@ -255,16 +258,47 @@ async function keepOwnersMost(rc: ReaderContext, facts: AdDraftFacts, mostUnits:
   return kept ? { ...facts, ownerMostMinor: mostMinor } : facts;
 }
 
+/** What a fresh draft is started from: the service AI's card named, or the piece "Run as an ad" chose in Content. */
+interface AdDraftStart {
+  service?: string | undefined;
+  picture?: string | undefined;
+}
+
 /**
- * A fresh draft for the service AI's card named (the plan's 6.3), picked by the same rule with Services narrowed to it,
- * so its picture is that service's own; one Services does not list is the rule's own pick. Said with no "why this
- * service": the person named it.
+ * The service a chosen piece is about, as its name says it (a made post is named for its headline): the longest one
+ * Services lists that the name holds (contracts calendar serviceNamedIn, the one rule for a service a title names), of
+ * those no ad made here already runs for. None where its name names none.
  */
-function namedDraftAnswer(facts: AdDraftFacts, service: string): AdDraftAnswer {
-  const named = facts.services.filter((one) => one.name.trim().toLowerCase() === service.trim().toLowerCase());
-  if (named.length === 0) return adDraftAnswer(facts, null);
-  const answer = adDraftAnswer({ ...facts, services: named }, null);
-  return answer.can ? { ...answer, picked: null } : answer;
+function serviceOfPiece(facts: AdDraftFacts, picture: string | undefined): string | null {
+  const piece = picture === undefined ? undefined : facts.pictures.files.get(picture);
+  if (!piece) return null;
+  return serviceNamedIn(piece.name, facts.services, (name) => serviceOf(facts, name)?.advertised === false);
+}
+
+/**
+ * A fresh draft started from what was named, picked by the same rule with what it picks from narrowed to that. A service
+ * AI's card named (the plan's 6.3): Services narrowed to it, so its picture is that service's own; one Services does not
+ * list is the rule's own pick; said with no "why this service", since the person named it. A piece Run as an ad chose
+ * (6.8, join 3): the pictures narrowed to it alone, so the draft shows it or says the one thing missing for it, never
+ * another picture; and the service it is about, where its name says one, else the rule's own pick. One no longer kept
+ * (deleted, or set aside since) is missing as gone.
+ */
+function startedDraftAnswer(facts: AdDraftFacts, start: AdDraftStart): AdDraftAnswer {
+  const wanted = (start.service ?? serviceOfPiece(facts, start.picture) ?? undefined)?.trim().toLowerCase();
+  const named = facts.services.filter((one) => one.name.trim().toLowerCase() === wanted);
+  const chosen = facts.pictures.pictures.filter((one) => one.id === start.picture);
+  const stands = standsOf(facts);
+  if (start.picture !== undefined && chosen.length === 0)
+    return { can: false, missing: "missing" in stands ? stands.missing : "picture_gone" };
+  const answer = adDraftAnswer(
+    {
+      ...facts,
+      ...(named.length > 0 ? { services: named } : {}),
+      ...(start.picture !== undefined ? { pictures: { ...facts.pictures, pictures: chosen, newest: [] } } : {}),
+    },
+    null,
+  );
+  return answer.can && named.length > 0 ? { ...answer, picked: null } : answer;
 }
 
 /**
@@ -279,24 +313,23 @@ async function withProposedArea(rc: ReaderContext, facts: AdDraftFacts): Promise
 }
 
 /** What POST ads/draft takes (draft-shape.ts AdDraftBodySchema). */
-interface AdDraftBody {
+interface AdDraftBody extends AdDraftStart {
   draft?: AdDraftState | undefined;
   act?: "next_picture" | undefined;
-  service?: string | undefined;
   most?: number | undefined;
 }
 
 /**
  * POST ads/draft: the kept draft, or a fresh one where none is kept, or the one sent; judged again after the one act
- * a check offers that is done here, and kept. AI's card asks for a fresh one for the service it names, in place of the
- * kept one. With the owner's most, that is kept first.
+ * a check offers that is done here, and kept. AI's card asks for a fresh one for the service it names, and Run as an ad
+ * for one around the piece it chose, in place of the kept one. With the owner's most, that is kept first.
  */
 export async function draftAd(rc: ReaderContext, body: AdDraftBody): Promise<AdDraftAnswer> {
   await requireAdsOffered(rc);
-  const read = await readAdDraftFacts(rc);
+  const read = await readAdDraftFacts(rc, [body.picture, body.draft?.picture]);
   const facts = body.most === undefined ? read : await keepOwnersMost(rc, read, body.most);
-  if (body.service !== undefined && body.draft === undefined)
-    return keepDraftAnswer(rc, facts, namedDraftAnswer(await withProposedArea(rc, facts), body.service));
+  if ((body.service !== undefined || body.picture !== undefined) && body.draft === undefined)
+    return keepDraftAnswer(rc, facts, startedDraftAnswer(await withProposedArea(rc, facts), body));
   const sent = body.draft ?? facts.kept?.draft ?? null;
   if (sent === null) return keepDraftAnswer(rc, facts, adDraftAnswer(await withProposedArea(rc, facts), null));
   const moved = body.act === "next_picture" ? { ...sent, picture: nextAdPicture(facts, sent.picture) } : sent;

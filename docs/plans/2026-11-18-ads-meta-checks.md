@@ -375,3 +375,83 @@ query parameter is deprecated in v26.0+.", and the whole read failed every twent
 last good read with the removed ad still shown as paused. Meta's v26.0 changelog says such requests "return an error.
 Use per-object requests or supported batching." The read now sends one of Meta's batches, each ad its own GET (the
 same night, #2481); its next read kept the account, and the removed ad showed as ended.
+
+## 20 November 2026 · Meta's App Review pages, read before the first submission
+
+Read only, for step 3: Meta's public pages for developers, with no sign-in. Nothing was asked of Meta and nothing was
+changed there. What it means for each submission is in [the review pack](2026-11-20-ads-meta-review.md).
+
+### What they showed
+
+| Looked at | What it showed |
+|---|---|
+| The permissions reference, the five rows | `ads_read` depends on nothing; `ads_management` on `pages_read_engagement` and `pages_show_list`; `pages_read_engagement` and `pages_manage_ads` on `pages_show_list`. Each row asks for a description of why the app needs it "on behalf of other businesses" and a recording that starts with the whole Facebook sign-in. `ads_read` and `ads_management` ask the recording to show ads performance data "such as Impressions, Conversions, Spend, Clicks, and Reach"; `pages_show_list` that the user's Pages are connected; `pages_read_engagement` a post's content from the Page; `pages_manage_ads` an ad made for the Page and shown on it. Where `pages_show_list` is asked as a dependency, the description names the main permission |
+| `pages_manage_ads`'s allowed usage | To make and manage ads for the Page, "or ads that click to a business messaging surface, such as Messenger, Instagram Direct, or WhatsApp" |
+| The submission walkthrough | A call with each permission inside 30 days, logged within two days; the request button stays grey until then. Each permission's description its own: "Do not copy and paste". Reviewers "test your app using our own test accounts" and "follow your screen recordings". The reviewers' field must not hold the developer's own Meta sign-in. App Purpose is Clients for an app used by people with no role on it |
+| The recordings guide | Every permission shown in use, or that permission is refused. The whole sign-in, from signed out to signed in, with the business sign-in button and the grant. English, captions where a screen is not obvious, annotations recommended, 1080 or better, no wider than 1440, the mouse, no sound. No length or file format is named, and no rule that each permission has a recording of its own |
+| Common mistakes | An app the reviewers cannot reach, or a sign-in they cannot find, refuses the whole submission; so does a fake Facebook account in the reviewers' field. A permission asked for later use, or a missing recording, is refused on its own |
+| The Marketing API's authorization page | The tiers are now Limited and Full access. Full is asked for with "+Upgrade" on the tier's row, and needs 500 calls in the last 15 days with under 15% errors in the last 500. Limited comes when the Marketing API product is added |
+| Test users | "We are temporarily removing the ability for apps to create new test users." A test user grants only approved permissions once an app is live, and meets only the app's own test Pages. Nothing on the page says whether one can hold an ad account, a business portfolio or a WhatsApp number |
+| The data deletion callback | A POST with a `signed_request` naming the person; the answer is JSON with a status address and a confirmation code. The Deauthorize callback's page gives no details beyond that Meta calls it when a person removes the app |
+| Webhooks for the Ad Account | Its fields are named and nothing more: `in_process_ad_objects`, `with_issues_ad_objects`, `creative_fatigue`, `ad_recommendations`, `ads_async_creation_request`, `product_set_issue` |
+
+The App Review FAQ page and a page of its own for the access tier answered "not found".
+
+### What it settles
+
+- **G14.** A reviewer with no WhatsApp number can walk every step but making an ad. Decided in the plan's section 11.
+- **The first submission's three permissions stand together.** `pages_show_list` goes with `pages_read_engagement`,
+  which depends on it, and the description says so.
+- **A recording each** is our rule, not Meta's. It stays: it keeps each permission's grant and use apart for the
+  reviewer.
+
+### What it changes
+
+- **The card for a sign-in that reads and cannot change.** Meta grants a business only approved permissions, so until
+  the second submission passes, another business's sign-in reads its ads and cannot pause one. The card had blamed the
+  ad account's admin; it now says Meta hasn't approved Chanlytics to pause or make ads yet.
+- **The privacy policy and the deletion page** now name what Ads reads from Meta and how it ends.
+- **`pages_read_engagement` is at risk on its own,** since its row asks for a post's content and Chanlytics reads the
+  Page's name. Its fallback is the second submission, beside `ads_management`.
+
+### Read on the live hosts the same day
+
+Read with no sign-in: `app.chanlytics.com/privacy`, `/terms` and `/data-deletion` answer 200; the edge's
+`/api/ads/deauthorize` refuses a call with no signature (401); `/api/ads/meta` refuses Meta's check while its token is
+unset (403) and a notice with no signature (401).
+
+### How these pages were read
+
+The older `/docs/` pages answer curl with `Accept: text/markdown` and no browser's User-Agent: 200, as markdown. With a
+browser's User-Agent they answer 400. The `/documentation/` pages answer their `.md` form, as before.
+
+## 21 November 2026 · Meta's own preview, read before New ad shows it
+
+Meta's pages for a preview, read without a sign-in: `marketing-api/generatepreview`, the ad account's
+`generatepreviews`, a creative's and an ad's `previews`, Instagram's guide to a preview, and the preview object.
+
+### What they showed
+
+| What | What Meta's pages say |
+|---|---|
+| An ad not made yet | The ad account's `generatepreviews` takes the creative as it would be made, and one place (`ad_format`) a call |
+| Its answer | A list of previews, each one field, `body`: the HTML of a frame on facebook.com. The frame "is only valid for 24 hours" |
+| Whose sign-in | "a user access token, not a Page access token" |
+| The places | Each has its own name: `MOBILE_FEED_STANDARD`, `FACEBOOK_STORY_MOBILE`, `FACEBOOK_REELS_MOBILE` for Facebook's feed, stories and Reels on a phone; Instagram's are asked only with the Page's Instagram account named |
+| The picture | A creative may give its picture by address (`picture`) in place of one in the account's library; Meta's own example of a preview does |
+| What it costs | A read: one point of the account's allowance, like any other. Its error list holds the account's rate limit (80004) |
+
+### What it changes in the build
+
+New ad asks Meta for its own preview of the version on show, in the three places an ad made here shows, once its words
+are written: the creative Turn on makes, every one of Meta's own changes switched off, Facebook alone, the picture given
+by a signed address of the file as Files keeps it, which lasts a day, as the frame does. Nothing is placed in the
+library and no post is left on the Page. Only a photo: Turn on sends no video yet. Nothing of Meta's HTML is drawn as it
+came; the frame's address is held to Meta's own preview page, and the page draws a frame of its own there. Where Meta's
+can't be had, New ad's own drawing stands in its place and says why in one line.
+
+### To see on your account
+
+That the business's own sign-in, which made every part of the paused ad, is taken for a preview; that a picture given
+by its address is drawn as the library's would be, whole and in its own shape; the size Meta draws each place at; and
+that the frame shows to someone not signed in to Facebook.

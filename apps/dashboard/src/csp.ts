@@ -34,8 +34,9 @@
  *   img / media  signed URLs from the private media bucket (inbound photos,
  *                call recordings) live on the Supabase origin; a listing photo
  *                Google hands back lives on googleusercontent.com.
- *   frame-src    Meta's SDK plants a hidden iframe under its root element; Stripe's embedded Checkout is a frame of
- *                its own, and a bank's check one more (0073); a business's video plays in Stream's player (0099).
+ *   frame-src    Meta's SDK plants a hidden iframe under its root element, and New ad shows Meta's own preview of an
+ *                ad as a frame of www.facebook.com; Stripe's embedded Checkout is a frame of its own, and a bank's
+ *                check one more (0073); a business's video plays in Stream's player (0099).
  *   stream       a video goes from the browser straight to Stream's upload host (connect), and plays in its frame.
  *   stripe       the first run's Go live pays in the page (decision 0073, R16): Stripe.js from js.stripe.com, and the
  *                origins Stripe's own CSP guide names for it and for embedded Checkout (script, frame, connect, img).
