@@ -367,7 +367,7 @@ test("the owner's word that those in the photo agreed is kept as a yes for posts
   assert.deepEqual(
     [asked.changed[0].p_file_id, asked.changed[0].p_uses, asked.changed[0].p_who],
     [F, ["post"], "The people in it"],
-    "a yes for posts alone (00663): never for an ad",
+    "a yes for posts alone (00665): never for an ad",
   );
   assert.equal(asked.made[0].p_who_in_it, "not_asked", "the post keeps the photo's own word; the yes is the photo's");
   // A photo nobody could recognize anyone in needs no yes: nothing is kept for it.

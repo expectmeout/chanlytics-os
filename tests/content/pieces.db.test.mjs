@@ -477,7 +477,7 @@ test(
   async () => {
     const inBlocks = (...blocks) => making({ shape: "blocks", plan: blocksOf(...blocks) });
     const whoOf = async (pieceId) => (await fileOf((await fileBegun(pieceId)).id)).who_in_it;
-    // A yes is each file's own record (00663), never the video's word: a photo and a clip nobody said no one is in.
+    // A yes is each file's own record (00665), never the video's word: a photo and a clip nobody said no one is in.
     const asked = await inBlocks(
       { is: "photo", file_id: await photo("not_asked"), seconds: 2.5, label: null },
       clipBlockOf(await clip("not_asked")),
@@ -528,7 +528,7 @@ test(
   "who is in a made video is its clips' own word: no one where every clip says so, else not asked; a yes stays the clips'",
   { skip },
   async () => {
-    // The owner's word at the press is a yes on each clip (00663), never a tick on the video.
+    // The owner's word at the press is a yes on each clip (00665), never a tick on the video.
     const said = await making({ plan: { ...PLAN, people_agreed: true } });
     assert.equal((await fileOf((await fileBegun(said)).id)).who_in_it, "not_asked");
     // Every clip says no one is in it: so does the video.

@@ -112,7 +112,7 @@ export interface FileDto {
   shows: FileShows | null;
   who_in_it: FileWhoInIt;
   /**
-   * The uses it has a yes for that stands, and those whose every yes was taken back (00663 files.yes_for, yes_back): what
+   * The uses it has a yes for that stands, and those whose every yes was taken back (00665 files.yes_for, yes_back): what
    * the rule of who may be shown reads (yes.ts fileUseOf). Absent is none, as on a row read before them.
    */
   yes_for?: FileYesUse[];

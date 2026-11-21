@@ -24,7 +24,7 @@ import { filesNamed } from "../../read/files";
 import { quotedInQuestion } from "../remember";
 
 /**
- * A yes for a photo or a video, said to AI (00663; the content PRD's step L4, its consent half). The owner tells AI, in a
+ * A yes for a photo or a video, said to AI (00665; the content PRD's step L4, its consent half). The owner tells AI, in a
  * conversation or on the file's own line to AI, that the people in it said yes to a use (a post, an ad, a reply, a cold
  * email), or that someone took a yes back. AI proposes a card, as every act does, and the act never acts: a card in the
  * owner's own words (`quote`, copied from this question) is kept as the turn is saved (keepYesCards below, as a line AI

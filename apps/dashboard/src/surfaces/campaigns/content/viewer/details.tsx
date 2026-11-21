@@ -67,7 +67,7 @@ function FactWords({
 const STAYS_OPEN = (): void => undefined;
 
 /**
- * The line to AI on a photo or video of the Library that shows someone (00663): where a yes is said, or taken back, on the
+ * The line to AI on a photo or video of the Library that shows someone (00665): where a yes is said, or taken back, on the
  * file itself. AI keeps who said it and for what; nothing here is a press.
  */
 function YesToAi({ file }: { file: FileDto }) {

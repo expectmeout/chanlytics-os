@@ -879,7 +879,7 @@ test("the owner's word that those in the clips agreed is kept first as a yes for
   assert.deepEqual(
     [knocks[0][1].p_file_id, knocks[0][1].p_uses, knocks[0][1].p_who],
     [CLIP, ["post"], "The people in it"],
-    "a yes for posts alone (00663): never for an ad",
+    "a yes for posts alone (00665): never for an ad",
   );
   // Without their word, a recognizable face stops the press too.
   const unasked = await pressed(PLAN, { clip: { look: { people: { count: 1, recognizable: 1 } } } });

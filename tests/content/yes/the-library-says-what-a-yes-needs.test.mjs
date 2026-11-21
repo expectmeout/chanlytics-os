@@ -1,5 +1,5 @@
 /**
- * The Library's line on a photo or video that shows someone (00663; the content PRD's step L4), drawn as the page draws
+ * The Library's line on a photo or video that shows someone (00665; the content PRD's step L4), drawn as the page draws
  * it: what stands, then what it still needs before it is posted or runs as an ad, then the line to AI where a yes is
  * said (the page's own, handed in), and a quiet "No one's in it". No yes is a press: the old "They agreed" is gone.
  */

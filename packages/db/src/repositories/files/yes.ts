@@ -1,5 +1,5 @@
 /**
- * A yes for one use of a file (00663; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email,
+ * A yes for one use of a file (00665; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email,
  * when, and when it was taken back. A member reads a file's yeses with the file, as its `yes_for` and `yes_back`; the
  * two doors (recorded, taken back) ask the settings permission themselves and restate those in the same transaction.
  * What a made piece was drawn from is read from `made`, which a member's session does not read, so that read is the

@@ -302,7 +302,7 @@ const row = (over = {}) => ({
   ...over,
 });
 
-test("a person says no one is in it, and never that nobody asked, nor a yes: a yes is kept for a use, said to AI (00663)", async () => {
+test("a person says no one is in it, and never that nobody asked, nor a yes: a yes is kept for a use, said to AI (00665)", async () => {
   service();
   const patch = (b) => new Request(`http://localhost/api/v1/x${inA}`, { method: "PATCH", body: JSON.stringify(b) });
   const ctx = () => ctxFor({ files: [row()] }, { file_change: () => null }, { id: F });

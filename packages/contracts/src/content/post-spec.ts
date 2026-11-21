@@ -34,7 +34,7 @@ export const postSpec: ProposalSpecAboveOperator = {
 };
 
 /**
- * AI's card for a yes said to it (00663; files/yes.ts holds the rule and its words): the owner told AI, in a conversation
+ * AI's card for a yes said to it (00665; files/yes.ts holds the rule and its words): the owner told AI, in a conversation
  * or on the file's own line, that the people in a photo or video said yes to a use, or took a yes back. A card in their
  * own words is kept as the turn is saved (the dashboard's ask/tools/act/files/yes.ts); any other waits for their press.
  * Its press is POST files/[id]/yes, or POST files/[id]/yes/back for a take-back, which holds every post of it still

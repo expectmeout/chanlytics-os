@@ -1,5 +1,5 @@
 /**
- * Who may be shown, and for what (00663; the content PRD's step L4, its consent half; the Ads plan's 6.8, joins 1 and 2).
+ * Who may be shown, and for what (00665; the content PRD's step L4, its consent half; the Ads plan's 6.8, joins 1 and 2).
  * The one rule every page, AI and New ad ask: a file that shows someone who could be recognized may be used for a post, an
  * ad, a reply or a cold email only once a yes for that use stands. A yes for posts never covers an ad. Ads keeps no copy of
  * this: New ad asks `fileAdRightsOf` and words its answer.
@@ -23,7 +23,7 @@ export type FileYesFacts = Pick<FileDto, "who_in_it" | "look_status" | "people" 
 export type FileUseStands =
   { is: "free" } | { is: "yes" } | { is: "looking" } | { is: "ask"; seen: number | null } | { is: "taken_back" };
 
-/** A file read before 00663 says nothing of its yeses: none. */
+/** A file read before 00665 says nothing of its yeses: none. */
 const yesOf = (file: FileYesFacts) => ({ for: file.yes_for ?? [], back: file.yes_back ?? [] });
 
 /** One file on its own: its own yes first, then who is in it. */

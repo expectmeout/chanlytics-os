@@ -5,7 +5,7 @@ import { fileScope } from "@/server/files/file";
 import { takeBackYes } from "@/server/files/yes";
 
 /**
- * POST /api/v1/files/:id/yes/back — `{ uses? }`: a yes for this file taken back, for the uses named or every use (00663;
+ * POST /api/v1/files/:id/yes/back — `{ uses? }`: a yes for this file taken back, for the uses named or every use (00665;
  * the content PRD's section 8). In the same transaction every post of the file, and of every piece drawn from it, that
  * is still waiting is held, and every one already up or on its way is answered, for the owner to take down where it is.
  * AI's card presses it where it waited for the owner, and a yes's Undo presses it too. Answers what was held and what is

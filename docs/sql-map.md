@@ -204,7 +204,7 @@ being read is dropped by a migration.
 | `fact_corrections` | the server's | the server | SQL `fact_candidates`, `trigger_notes_sweep` | The owner's corrections of the last three days not yet looked at (decision 0063), oldest first: |
 | `fact_suggest` | the server's | the server | code `packages/db/src/repositories/facts/suggestions.ts` | The note sweep suggests a note for the receptionist from an owner's correction (decision 0063): |
 | `fact_suggestion_answer` | door | a signed-in person, the server | code `apps/dashboard/src/server/receptionist/fact-notes.ts`, `packages/db/src/repositories/facts/suggestions.ts` | A member answers a note suggested from an owner's correction (decision 0063): |
-| `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551, 00663): |
+| `file_change` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | What a person says of a file (00551, 00665): |
 | `file_copies_follow_origin` | trigger | the server | trigger `source_items_copies_follow on source_items`, `source_items_copies_follow_gone on source_items` | A trigger on source_items (00654): |
 | `file_copies_free_at` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | When a copy that may not be let go yet could be (00654): |
 | `file_copies_let_go` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | A workspace's copies marked going (00654, the footage sources plan's D6). |
@@ -215,7 +215,7 @@ being read is dropped by a migration.
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
 | `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
 | `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
-| `file_drawn_from` | the server's | the server | SQL `file_yes_take_back`, `files_drawn_from` and 1 more | The ids, as text, of every file a made piece's `made` names (00663): |
+| `file_drawn_from` | the server's | the server | SQL `file_yes_take_back`, `files_drawn_from` and 1 more | The ids, as text, of every file a made piece's `made` names (00665): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -243,12 +243,12 @@ being read is dropped by a migration.
 | `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 3 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
-| `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00663): |
-| `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00663): |
-| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00663; |
+| `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665): |
+| `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00665): |
+| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665; |
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
-| `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00663): |
+| `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612): |
 | `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
 | `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |
@@ -551,7 +551,7 @@ being read is dropped by a migration.
 | `post_again` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post's first attempt never landed (00611): |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616, 00620, 00663): |
+| `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616, 00620, 00665): |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611), with its held reason, link, time, post id or refusal from p_patch; |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |

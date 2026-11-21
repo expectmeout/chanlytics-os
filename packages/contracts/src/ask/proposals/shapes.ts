@@ -134,7 +134,7 @@ export const ASK_KIND_TRAITS = {
   memory: t("keep", "keeps", null, "keep", "keep"),
   memory_change: t("keep", "keeps", null, "keep", "change"),
   memory_forget: t("keep", "keeps", null, "keep", "forget"),
-  // A yes for a photo or a video, or one taken back (00663): a record, but consent, so it never runs on a row alone.
+  // A yes for a photo or a video, or one taken back (00665): a record, but consent, so it never runs on a row alone.
   file_yes: t("keep", "keeps", null, "press", "keep"),
   answer_style: t("keep", "keeps", null, "keep", "keep"),
   list: t("keep", "keeps", null, "keep", "list"),

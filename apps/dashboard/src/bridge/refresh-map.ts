@@ -550,7 +550,7 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE files/[id]": () => [...filesIfDrawn(), ...postMoved()],
   // Undo of a delete (the content redesign's stage 3): a file back.
   "POST files/[id]/restore": filesAndContentIfDrawn,
-  // A yes kept for a photo or a video, or taken back with the posts it held (00663): its line, and where those posts stand.
+  // A yes kept for a photo or a video, or taken back with the posts it held (00665): its line, and where those posts stand.
   "POST files/[id]/yes": filesAndContentIfDrawn,
   "POST files/[id]/yes/back": () => [...filesAndContentIfDrawn(), ...postMoved()],
   // What a watched folder brought, removed with Stop watching or Disconnect (00657): the Library and Content read again.

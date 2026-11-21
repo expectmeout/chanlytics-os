@@ -1,5 +1,5 @@
 /**
- * Who may be shown, and for what (00663; the content PRD's step L4, its consent half; the Ads plan's 6.8, join 1): the
+ * Who may be shown, and for what (00665; the content PRD's step L4, its consent half; the Ads plan's 6.8, join 1): the
  * one rule (contracts files/yes.ts) every page, AI and New ad ask, run as it is.
  *
  * Section 9's consent gates, as the rule holds them: a person with no recorded yes is never shown, a yes for posts never
@@ -52,7 +52,7 @@ test("a yes is for the use it names: a yes for posts never covers an ad", () => 
   assert.deepEqual(fileUseOf("ad", forPosts), { is: "ask", seen: 2 });
   assert.equal(fileAdRightsOf(forPosts, [], false), "person");
   assert.equal(fileAdRightsOf(shown({ yes_for: ["ad"] }), [], false), null, "a yes for ads is one");
-  // A file read before 00663 says nothing of its yeses: none.
+  // A file read before 00665 says nothing of its yeses: none.
   assert.equal(fileAdRightsOf({ ...shown(), yes_for: undefined, yes_back: undefined }, [], false), "person");
 });
 

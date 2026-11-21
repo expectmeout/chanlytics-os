@@ -174,7 +174,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof FILE_SOURCES>, SchemaSet<"files.source">>>,
   Holds<Exactly<Of<typeof FILE_STATUSES>, SchemaSet<"files.status">>>,
   Holds<Exactly<Of<typeof FILE_WHO_IN_IT>, SchemaSet<"files.who_in_it">>>,
-  // A yes for one use of a file, and where it was said (00663).
+  // A yes for one use of a file, and where it was said (00665).
   Holds<Exactly<Of<typeof FILE_YES_USES>, SchemaSet<"file_consents.use">>>,
   Holds<Exactly<Of<typeof FILE_YES_SAID_IN>, SchemaSet<"file_consents.said_in">>>,
   // Where a watched clip's copy at the video platform stands, and why (00654).

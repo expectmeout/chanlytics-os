@@ -1,5 +1,5 @@
 /**
- * 00663 on a real Postgres: a yes is kept for each use of a file, and taken back (the content PRD's step L4 and its
+ * 00665 on a real Postgres: a yes is kept for each use of a file, and taken back (the content PRD's step L4 and its
  * section 8; section 9's gate "a consent taken back holds waiting posts and lists live ones").
  *
  * What must hold. An owner or a partner keeps a yes for a photo, for each use named, through file_yes_record; the same

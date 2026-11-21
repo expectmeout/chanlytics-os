@@ -297,7 +297,7 @@ function matches(row, filters, defaults = {}) {
                               // once. NULL is in no list.
                               if (o === "in")
                                 return cell(row, c) != null && listValues(v).includes(String(cell(row, c)));
-                              // An array that holds each of a set, `cs.{a,b}`: a file's yes for ads (db listFilesForAds, 00663).
+                              // An array that holds each of a set, `cs.{a,b}`: a file's yes for ads (db listFilesForAds, 00665).
                               if (o === "cs") {
                                 const have = cell(row, c);
                                 return (

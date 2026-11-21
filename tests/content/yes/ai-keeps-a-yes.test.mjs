@@ -1,5 +1,5 @@
 /**
- * AI keeps a yes the owner tells it (00663; the content PRD's step L4): keep_yes, run as the registry runs it, over a
+ * AI keeps a yes the owner tells it (00665; the content PRD's step L4): keep_yes, run as the registry runs it, over a
  * database in memory.
  *
  * What must hold. The act never acts: it reads the file and proposes a card, and nothing is written while the turn

@@ -1,4 +1,4 @@
--- 00663 · A yes is kept for each use (the content PRD's step L4, its consent half; the Ads plan's 6.8, joins 1 and 2).
+-- 00665 · A yes is kept for each use (the content PRD's step L4, its consent half; the Ads plan's 6.8, joins 1 and 2).
 --
 -- A photo or a video that shows someone was held to one tick on the file, `files.who_in_it = 'agreed'`: it said nobody
 -- who, when, for what, or how to take it back, and a yes for posts read as a yes for everything. New ad could only offer
@@ -90,11 +90,11 @@ grant select on public.file_consents to authenticated;
 grant all on public.file_consents to service_role;
 
 comment on table public.file_consents is
-  'A yes for one use of a file (00663; the content PRD''s step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.';
+  'A yes for one use of a file (00665; the content PRD''s step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.';
 comment on column public.file_consents.who is
   'Who said yes, as the owner named them to AI. A person in a picture is not joined to People, so this leaves with the workspace, as the picture does.';
 comment on column public.file_consents.said_in is
-  'ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00663, carried over as a yes for posts: D11).';
+  'ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00665, carried over as a yes for posts: D11).';
 
 /* -------------------------------------------------------------------------------------- 2. the file's standing -- */
 
@@ -108,9 +108,9 @@ alter table public.files add constraint files_yes_back_check
   check (yes_back <@ array['post', 'ad', 'reply', 'cold_email']::text[] and not (yes_back && yes_for));
 grant select (yes_for, yes_back) on public.files to authenticated;
 comment on column public.files.yes_for is
-  'The uses this file has a yes for that stands (00663, file_consents), as its doors restate them: what every page and AI read with the row.';
+  'The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row.';
 comment on column public.files.yes_back is
-  'The uses whose every yes on this file was taken back, and none given again (00663, file_consents).';
+  'The uses whose every yes on this file was taken back, and none given again (00665, file_consents).';
 
 -- The two columns as their records say, for the files named: the one place they are written.
 create or replace function public.file_yes_restate(p_tenant_id uuid, p_ids uuid[])
@@ -140,7 +140,7 @@ $$;
 revoke all on function public.file_yes_restate(uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.file_yes_restate(uuid, uuid[]) to service_role;
 comment on function public.file_yes_restate(uuid, uuid[]) is
-  'files.yes_for and files.yes_back restated from file_consents for the files named (00663): called by the doors that write a yes, in their own transaction.';
+  'files.yes_for and files.yes_back restated from file_consents for the files named (00665): called by the doors that write a yes, in their own transaction.';
 
 -- Feed: a yes given or taken back is a change a page draws (the Library's line, New ad's pictures).
 drop trigger if exists workspace_tell_update on public.files;
@@ -191,7 +191,7 @@ update public.files f set who_in_it = 'not_asked' where f.who_in_it = 'agreed';
 alter table public.files drop constraint if exists files_who_in_it_check;
 alter table public.files add constraint files_who_in_it_check check (who_in_it = any (array['not_asked', 'no_one']));
 comment on column public.files.who_in_it is
-  'A person''s word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00663).';
+  'A person''s word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00665).';
 
 /* ------------------------------------------------------------------------------------------------ 4. the doors -- */
 
@@ -210,7 +210,7 @@ $$;
 revoke all on function public.file_drawn_from(jsonb) from public, anon, authenticated;
 grant execute on function public.file_drawn_from(jsonb) to service_role;
 comment on function public.file_drawn_from(jsonb) is
-  'The ids, as text, of every file a made piece''s `made` names (00663): what it was drawn from. Read by the yes doors, post_begin and files_drawn_from.';
+  'The ids, as text, of every file a made piece''s `made` names (00665): what it was drawn from. Read by the yes doors, post_begin and files_drawn_from.';
 
 -- The uses a door was handed, each once and in one order; every use where none is (a take-back of everything).
 create or replace function public.file_yes_uses(p_uses text[], p_every boolean)
@@ -227,7 +227,7 @@ $$;
 revoke all on function public.file_yes_uses(text[], boolean) from public, anon, authenticated;
 grant execute on function public.file_yes_uses(text[], boolean) to service_role;
 comment on function public.file_yes_uses(text[], boolean) is
-  'The uses a yes door was handed, each once and sorted; every use where none was handed and p_every (00663).';
+  'The uses a yes door was handed, each once and sorted; every use where none was handed and p_every (00665).';
 
 create or replace function public.file_yes_record(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_who text,
                                                   p_thread_id uuid default null)
@@ -290,7 +290,7 @@ end $$;
 revoke all on function public.file_yes_record(uuid, uuid, text[], text, uuid) from public, anon;
 grant execute on function public.file_yes_record(uuid, uuid, text[], text, uuid) to authenticated, service_role;
 comment on function public.file_yes_record(uuid, uuid, text[], text, uuid) is
-  'A member''s door, with the settings permission (00663): a yes said to AI for a file, for each use named (post, ad, reply, cold_email), by who the owner named, in the conversation named. The same person''s standing yes for a use is not kept twice. Answers {ids, kept, again (uses already standing), yes_for, yes_back}.';
+  'A member''s door, with the settings permission (00665): a yes said to AI for a file, for each use named (post, ad, reply, cold_email), by who the owner named, in the conversation named. The same person''s standing yes for a use is not kept twice. Answers {ids, kept, again (uses already standing), yes_for, yes_back}.';
 
 create or replace function public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[] default null,
                                                      p_held text default null)
@@ -368,7 +368,7 @@ end $$;
 revoke all on function public.file_yes_take_back(uuid, uuid, text[], text) from public, anon;
 grant execute on function public.file_yes_take_back(uuid, uuid, text[], text) to authenticated, service_role;
 comment on function public.file_yes_take_back(uuid, uuid, text[], text) is
-  'A member''s door, with the settings permission (00663; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads (G16: empty until the record of ads made here exists)}.';
+  'A member''s door, with the settings permission (00665; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads (G16: empty until the record of ads made here exists)}.';
 
 create or replace function public.files_drawn_from(p_tenant_id uuid, p_ids uuid[])
 returns table (file_id uuid, from_id uuid)
@@ -387,7 +387,7 @@ $$;
 revoke all on function public.files_drawn_from(uuid, uuid[]) from public, anon, authenticated;
 grant execute on function public.files_drawn_from(uuid, uuid[]) to service_role;
 comment on function public.files_drawn_from(uuid, uuid[]) is
-  'The service role''s read (00663): for each made piece named, the files of the workspace it was drawn from that are still here, by file_drawn_from, so New ad judges a piece by the people in what it was made from.';
+  'The service role''s read (00665): for each made piece named, the files of the workspace it was drawn from that are still here, by file_drawn_from, so New ad judges a piece by the people in what it was made from.';
 
 /* ------------------------------------------------------------------------------- 5. a post, and who is in it -- */
 
@@ -443,7 +443,7 @@ begin
   if v_file.source <> 'made' then
     return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
   end if;
-  -- A yes for posts taken back on it, or on a photo or clip it was drawn from, and not given again on it (00663; the
+  -- A yes for posts taken back on it, or on a photo or clip it was drawn from, and not given again on it (00665; the
   -- content PRD's section 8): no new post of it goes.
   if not ('post' = any (v_file.yes_for))
      and ('post' = any (v_file.yes_back)
@@ -488,7 +488,7 @@ begin
   return jsonb_build_object('fate', 'begun', 'post_id', v_id);
 end $$;
 comment on function public.post_begin(uuid, uuid, text, text, text, timestamptz, text) is
-  'A member''s press, with the settings permission (00611, 00616, 00620, 00663): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, taken_back (a yes for posts taken back on it or on what it was drawn from), post_id}.';
+  'A member''s press, with the settings permission (00611, 00616, 00620, 00665): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, taken_back (a yes for posts taken back on it or on what it was drawn from), post_id}.';
 
 create or replace function public.file_change(p_tenant_id uuid, p_id uuid, p_name text default null,
                                               p_shows text default null, p_who_in_it text default null,
@@ -518,7 +518,7 @@ begin
   if p_status is not null and p_status not in ('filed', 'set_aside') then
     raise exception 'A file is filed or set aside.' using errcode = '22023';
   end if;
-  -- not_asked is where a file starts, never something a person says; a yes is file_yes_record's (00663).
+  -- not_asked is where a file starts, never something a person says; a yes is file_yes_record's (00665).
   if p_who_in_it is not null and p_who_in_it <> 'no_one' then
     raise exception 'Say no one is in it.' using errcode = '22023';
   end if;
@@ -542,7 +542,7 @@ begin
                                                                   'who_in_it', p_who_in_it, 'status', p_status))));
 end $$;
 comment on function public.file_change(uuid, uuid, text, text, text, text) is
-  'What a person says of a file (00551, 00663): its name, its shelf, that no one is in it, filed or set aside. A field left null stays, and the event keeps what was said. A yes is file_yes_record''s.';
+  'What a person says of a file (00551, 00665): its name, its shelf, that no one is in it, filed or set aside. A field left null stays, and the event keeps what was said. A yes is file_yes_record''s.';
 
 -- A video's own word on who is in it, without the old tick: every line but the one that read it is 00638's.
 create or replace function public.piece_file_begin(p_piece_id uuid, p_id uuid, p_media_ref text, p_name text, p_bytes bigint, p_fingerprint text, p_seconds numeric)
@@ -600,7 +600,7 @@ begin
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
   -- Who is in it is its files' own word: no one where every one says so, else not asked. A yes is each file's own record
-  -- (00663), and a made video is judged by the files it was drawn from, so none is kept on it here. Its files are every
+  -- (00665), and a made video is judged by the files it was drawn from, so none is kept on it here. Its files are every
   -- one its plan names: a "Hook first" plan's cuts, and in a plan of blocks a clip's and a photo's, a pair's two pictures
   -- and the picture a quote stands over. Read by each file's id as text, so a plan that names no file (cards of words
   -- alone) reads none, and says not asked.

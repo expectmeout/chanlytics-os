@@ -1,5 +1,5 @@
 /**
- * A yes for one use of a file, given and taken back (00663; the content PRD's step L4 and section 8). An owner says it to
+ * A yes for one use of a file, given and taken back (00665; the content PRD's step L4 and section 8). An owner says it to
  * AI, in a conversation or on the file's own line to AI: AI's act keeps it (ask/tools/act/files/yes.ts), and its card's
  * press and Undo come here through their routes. Both doors ask the settings permission themselves, on the member's own
  * session, and restate the file's yeses in the same transaction, so every page and AI read the change with the row. A
@@ -8,7 +8,7 @@
  * Taking a yes back holds every post of the file, and of every piece drawn from it, that is still waiting, in that same
  * transaction, and answers every one already up or on its way, for the owner to take down where it is. A running ad
  * that shows the person is paused in the same act once the record of ads made here exists (the Ads plan's G16): the
- * door's seam for it is marked in 00663, and this answers none until then.
+ * door's seam for it is marked in 00665, and this answers none until then.
  */
 import "server-only";
 import {

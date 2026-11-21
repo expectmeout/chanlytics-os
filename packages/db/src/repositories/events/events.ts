@@ -139,7 +139,7 @@ interface TableData {
   "mailbox_connection.resumed": { address: string; why: string | null; by: string };
   "mailbox_connection.paused": { address: string; by: string };
   "file.added": { file_id: string; source: string; by?: string };
-  /** What was said, and by whom: "no one is in it", or a yes for its uses and who gave it, or one taken back (00663). */
+  /** What was said, and by whom: "no one is in it", or a yes for its uses and who gave it, or one taken back (00665). */
   "file.changed": {
     file_id: string;
     by: string;

@@ -127,7 +127,7 @@ const KINDS = [
   "bring_in",
   // A new ad drafted on New ad's own route, and New ad opened on it (the Ads plan's 6.3, 20 Nov 2026).
   "ad_draft",
-  // A yes for a photo or a video, kept or taken back (00663).
+  // A yes for a photo or a video, kept or taken back (00665).
   "file_yes",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
@@ -480,7 +480,7 @@ const CHANGE = {
   run_waits: false,
   timezone: "America/New_York",
 };
-/** A file a yes is kept for (00663). */
+/** A file a yes is kept for (00665). */
 const FILE_ID = "f11e0000-0000-4000-8000-000000000001";
 /** A card of every shape each kind makes: each thread verb, a lead search new and answering, a deal with its step. */
 const SHAPES = {

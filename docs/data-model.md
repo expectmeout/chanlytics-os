@@ -1470,7 +1470,7 @@ Foreign keys:
 
 ### file_consents
 
-A yes for one use of a file (00663; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.
+A yes for one use of a file (00665; the content PRD's step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.
 
 - Owned by: none
 - Primary key: `id`
@@ -1483,7 +1483,7 @@ A yes for one use of a file (00663; the content PRD's step L4): who said it, for
 | `file_id` | uuid | no |  |  |
 | `use` | text | no |  |  |
 | `who` | text | no |  | Who said yes, as the owner named them to AI. A person in a picture is not joined to People, so this leaves with the workspace, as the picture does. |
-| `said_in` | text | no |  | ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00663, carried over as a yes for posts: D11). |
+| `said_in` | text | no |  | ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00665, carried over as a yes for posts: D11). |
 | `thread_id` | uuid | yes |  |  |
 | `said_by` | uuid | yes |  |  |
 | `said_at` | timestamp with time zone | no | `now()` |  |
@@ -1532,7 +1532,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `looked_at` | timestamp with time zone | no | `now()` | When it was last looked at, or tried, or kept: what tells the sweep to leave it alone for a day. |
 | `shows` | text | yes |  | Its shelf's word: from the look, Google's category, or a person. owner_shelved says a person chose it. |
 | `owner_shelved` | boolean | no | `false` |  |
-| `who_in_it` | text | no | `'not_asked'::text` | A person's word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00663). |
+| `who_in_it` | text | no | `'not_asked'::text` | A person's word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00665). |
 | `created_by` | uuid | yes |  |  |
 | `removed_at` | timestamp with time zone | yes |  | A person removed it: hidden at once. file_purge lets its bytes go and takes the row. |
 | `created_at` | timestamp with time zone | no | `now()` |  |
@@ -1555,8 +1555,8 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `superseded_at` | timestamp with time zone | yes |  | When the item it came from let go of it because the bytes at its provider changed (00654): new bytes are a new file. The seven-day cleanup removes it on the same terms as a tombstone's, and the mark is cleared if an item holds it again. Null: never superseded. |
 | `origin_left` | text | yes |  | How a watched file's original left its folder (00657): gone (seen in its provider's bin) or outside (moved out); null while an origin still holds it in. With origin_left_at, its row says the day it leaves the Library. |
 | `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
-| `yes_for` | text[] | no | `'{}'::text[]` | The uses this file has a yes for that stands (00663, file_consents), as its doors restate them: what every page and AI read with the row. |
-| `yes_back` | text[] | no | `'{}'::text[]` | The uses whose every yes on this file was taken back, and none given again (00663, file_consents). |
+| `yes_for` | text[] | no | `'{}'::text[]` | The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row. |
+| `yes_back` | text[] | no | `'{}'::text[]` | The uses whose every yes on this file was taken back, and none given again (00665, file_consents). |
 
 Foreign keys:
 

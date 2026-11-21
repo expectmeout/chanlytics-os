@@ -421,7 +421,7 @@ test("only a picture whose people said yes to ads, and with no music, is offered
   );
   // A member's own word that nobody is in it is enough.
   assert.equal(await offeredOf([file(1, { who_in_it: "no_one", look: null, look_status: "waiting" })]), FILE(1));
-  // Someone shown who said yes to ads (00663, Content's step L4): offered, as Content answers it; a yes taken back, not.
+  // Someone shown who said yes to ads (00665, Content's step L4): offered, as Content answers it; a yes taken back, not.
   const said = { line: "A stylist at the chair.", people: { count: 1, recognizable: 1 }, issues: [] };
   assert.equal(await offeredOf([file(1, { look: said, yes_for: ["ad", "post"] })]), FILE(1));
   assert.equal(await offeredOf([file(1, { look: said, yes_for: ["post"], yes_back: ["ad"] })]), "picture_person");

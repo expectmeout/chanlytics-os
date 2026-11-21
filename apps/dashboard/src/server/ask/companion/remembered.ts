@@ -79,7 +79,7 @@ export function rememberedBlock(remembered: Remembered): string {
  * each line in the member's own words (`theirs`, the act's to say) through the one door, as the member Ask answers, its
  * card then arriving kept with its Undo, or failed with the door's reason in a person's words. A line in other words,
  * and any other card, goes through as it came: a card for the member's press. A yes for a photo or a video said in their
- * own words is kept the same way, after them (tools/act/files/yes.ts keepYesCards, 00663).
+ * own words is kept the same way, after them (tools/act/files/yes.ts keepYesCards, 00665).
  */
 export async function keepRememberCards(
   ctx: RouteContext,

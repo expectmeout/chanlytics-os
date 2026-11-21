@@ -197,7 +197,7 @@ export function readMadeAs(db: Db, tenantId: TenantId, file: { id: string; kind:
 
 /**
  * What each made piece named was drawn from, its photo or its clips, that is still here and this person can see: what the
- * rule of who may be shown reads of a piece (contracts files/yes.ts fileUseOf). Found in `made` by 00663's
+ * rule of who may be shown reads of a piece (contracts files/yes.ts fileUseOf). Found in `made` by 00665's
  * files_drawn_from, which a member's session does not read; read back as the member reads them. A piece whose files are
  * all gone has none, and is judged as it is.
  */

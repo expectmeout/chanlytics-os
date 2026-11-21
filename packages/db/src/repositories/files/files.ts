@@ -200,7 +200,7 @@ export async function listFilesOnShelf(
 /**
  * What a kept file may hold to run as an ad, read wide so the rule that judges it (contracts files/yes.ts fileAdRightsOf)
  * is never handed less than it would offer: nobody in it by a member's word, a look that finished and counted no one, or
- * no one who could be recognized, or a yes for ads (00663). A made piece is judged by what it was drawn from, so none is
+ * no one who could be recognized, or a yes for ads (00665). A made piece is judged by what it was drawn from, so none is
  * left out here.
  */
 const MAY_SHOW_IN_ADS =

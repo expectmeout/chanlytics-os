@@ -271,7 +271,7 @@ const OPERATOR_ACTS = [
  */
 const PARTNER_ACTS = [
   ...OPERATOR_ACTS,
-  // A yes for a photo or a video, kept or taken back (00663): a partner's, as every change to a file is.
+  // A yes for a photo or a video, kept or taken back (00665): a partner's, as every change to a file is.
   "keep_yes",
   "propose_bring_in",
   "propose_lead_search",

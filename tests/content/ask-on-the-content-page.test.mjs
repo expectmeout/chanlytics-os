@@ -28,7 +28,7 @@ const facts = {
   now: new Date("2031-03-15T14:05:00Z"),
 };
 
-/** The cards Content's own pages commit, which the guide says on Content, and a yes for one of its files (00663). */
+/** The cards Content's own pages commit, which the guide says on Content, and a yes for one of its files (00665). */
 const CONTENT_VERBS = ["post", "piece", "publish", "bring_in", "file_yes"];
 
 test("the view Content says is read by its address's own predicate, whichever of its tabs is shown", () => {

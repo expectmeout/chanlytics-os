@@ -696,7 +696,7 @@ test("someone recognizable waits for the owner's word, and that word goes with t
   const said = await asked({ people_agreed: true }, { file: face });
   assert.equal(said.proposal.payload.people_agreed, true);
   const agreed = await asked({}, { file: { ...face, yes_for: ["post"] } });
-  assert.equal(agreed.proposal?.kind, "post", "a yes for posts already kept (00663)");
+  assert.equal(agreed.proposal?.kind, "post", "a yes for posts already kept (00665)");
   // A yes for ads alone is not one for posts, and one taken back stops the post whatever the card says.
   assert.match((await asked({}, { file: { ...face, yes_for: ["ad"] } })).refusal, /recognizable/);
   const back = await asked({ people_agreed: true }, { file: { ...face, yes_back: ["post"] } });

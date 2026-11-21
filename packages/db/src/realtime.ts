@@ -156,7 +156,7 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
   // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
   // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
   // Where a watched clip's copy stands (00655): a clip coming back plays by itself, and its row says so meanwhile.
-  // A yes given or taken back (00663): the Library's line, and what New ad may show.
+  // A yes given or taken back (00665): the Library's line, and what New ad may show.
   files: [
     "status",
     "name",

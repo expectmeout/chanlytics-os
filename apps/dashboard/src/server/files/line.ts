@@ -112,7 +112,7 @@ function yesesSaid(file: Pick<FileDto, "yes_for" | "yes_back">): string[] {
 
 /**
  * Who is in a picture, as a line says it, from the one place that reads a person's word beside the look's, and the yeses
- * kept for it, each for its use (00663). "No yes kept" is what keeps a recognizable person out of what Ask suggests: it is
+ * kept for it, each for its use (00665). "No yes kept" is what keeps a recognizable person out of what Ask suggests: it is
  * the owner's to say, not Ask's to assume, and a yes for posts never covers an ad.
  */
 export function fileWhoSaid(

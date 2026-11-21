@@ -158,7 +158,7 @@ export interface AskProposal {
     | "publish"
     // A business's photos and videos brought in from a link it pasted: its website, or its Instagram (content/bring-in.ts).
     | "bring_in"
-    // A yes for a photo or a video, for a use, said to AI, or one taken back (files/yes.ts, 00663).
+    // A yes for a photo or a video, for a use, said to AI, or one taken back (files/yes.ts, 00665).
     | "file_yes"
     // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts): nothing is made at Meta.
     | "ad_draft"

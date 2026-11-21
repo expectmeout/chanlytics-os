@@ -155,7 +155,7 @@ test("who is in it is said as it stands, from the one place that reads a person'
   assert.equal(fileWhoSaid(f({ people: { count: 0, recognizable: 0 } })), "no people");
   assert.equal(fileWhoSaid(f({ people: { count: 1, recognizable: 0 } })), "1 person, none recognizable");
   assert.equal(fileWhoSaid(f({ people: { count: 2, recognizable: 1 } })), "2 people, no yes kept");
-  // A yes for each use it was said for (00663): AI reads which, and that one for posts is not one for ads.
+  // A yes for each use it was said for (00665): AI reads which, and that one for posts is not one for ads.
   assert.equal(fileWhoSaid(f({ people: { count: 2, recognizable: 2 }, yes_for: ["post"] })), "2 people, yes to post");
   assert.equal(
     fileWhoSaid(f({ people: { count: 2, recognizable: 2 }, yes_for: ["post"], yes_back: ["ad"] })),

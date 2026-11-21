@@ -8059,7 +8059,7 @@ begin
   if p_status is not null and p_status not in ('filed', 'set_aside') then
     raise exception 'A file is filed or set aside.' using errcode = '22023';
   end if;
-  -- not_asked is where a file starts, never something a person says; a yes is file_yes_record's (00663).
+  -- not_asked is where a file starts, never something a person says; a yes is file_yes_record's (00665).
   if p_who_in_it is not null and p_who_in_it <> 'no_one' then
     raise exception 'Say no one is in it.' using errcode = '22023';
   end if;
@@ -8088,7 +8088,7 @@ end $$;
 -- Name: FUNCTION file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) IS 'What a person says of a file (00551, 00663): its name, its shelf, that no one is in it, filed or set aside. A field left null stays, and the event keeps what was said. A yes is file_yes_record''s.';
+COMMENT ON FUNCTION public.file_change(p_tenant_id uuid, p_id uuid, p_name text, p_shows text, p_who_in_it text, p_status text) IS 'What a person says of a file (00551, 00665): its name, its shelf, that no one is in it, filed or set aside. A field left null stays, and the event keeps what was said. A yes is file_yes_record''s.';
 
 
 --
@@ -8519,7 +8519,7 @@ $_$;
 -- Name: FUNCTION file_drawn_from(p_made jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_drawn_from(p_made jsonb) IS 'The ids, as text, of every file a made piece''s `made` names (00663): what it was drawn from. Read by the yes doors, post_begin and files_drawn_from.';
+COMMENT ON FUNCTION public.file_drawn_from(p_made jsonb) IS 'The ids, as text, of every file a made piece''s `made` names (00665): what it was drawn from. Read by the yes doors, post_begin and files_drawn_from.';
 
 
 --
@@ -9758,7 +9758,7 @@ end $$;
 -- Name: FUNCTION file_yes_record(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_who text, p_thread_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_record(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_who text, p_thread_id uuid) IS 'A member''s door, with the settings permission (00663): a yes said to AI for a file, for each use named (post, ad, reply, cold_email), by who the owner named, in the conversation named. The same person''s standing yes for a use is not kept twice. Answers {ids, kept, again (uses already standing), yes_for, yes_back}.';
+COMMENT ON FUNCTION public.file_yes_record(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_who text, p_thread_id uuid) IS 'A member''s door, with the settings permission (00665): a yes said to AI for a file, for each use named (post, ad, reply, cold_email), by who the owner named, in the conversation named. The same person''s standing yes for a use is not kept twice. Answers {ids, kept, again (uses already standing), yes_for, yes_back}.';
 
 
 --
@@ -9794,7 +9794,7 @@ $$;
 -- Name: FUNCTION file_yes_restate(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00663): called by the doors that write a yes, in their own transaction.';
+COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00665): called by the doors that write a yes, in their own transaction.';
 
 
 --
@@ -9877,7 +9877,7 @@ end $$;
 -- Name: FUNCTION file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00663; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads (G16: empty until the record of ads made here exists)}.';
+COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, every post of them still waiting held with p_held''s words, in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), ads (G16: empty until the record of ads made here exists)}.';
 
 
 --
@@ -9899,7 +9899,7 @@ $$;
 -- Name: FUNCTION file_yes_uses(p_uses text[], p_every boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a yes door was handed, each once and sorted; every use where none was handed and p_every (00663).';
+COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a yes door was handed, each once and sorted; every use where none was handed and p_every (00665).';
 
 
 --
@@ -9944,7 +9944,7 @@ $$;
 -- Name: FUNCTION files_drawn_from(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) IS 'The service role''s read (00663): for each made piece named, the files of the workspace it was drawn from that are still here, by file_drawn_from, so New ad judges a piece by the people in what it was made from.';
+COMMENT ON FUNCTION public.files_drawn_from(p_tenant_id uuid, p_ids uuid[]) IS 'The service role''s read (00665): for each made piece named, the files of the workspace it was drawn from that are still here, by file_drawn_from, so New ad judges a piece by the people in what it was made from.';
 
 
 --
@@ -24916,7 +24916,7 @@ begin
     return jsonb_build_object('fate', 'minutes', 'file_id', null);
   end if;
   -- Who is in it is its files' own word: no one where every one says so, else not asked. A yes is each file's own record
-  -- (00663), and a made video is judged by the files it was drawn from, so none is kept on it here. Its files are every
+  -- (00665), and a made video is judged by the files it was drawn from, so none is kept on it here. Its files are every
   -- one its plan names: a "Hook first" plan's cuts, and in a plan of blocks a clip's and a photo's, a pair's two pictures
   -- and the picture a quote stands over. Read by each file's id as text, so a plan that names no file (cards of words
   -- alone) reads none, and says not asked.
@@ -26472,7 +26472,7 @@ begin
   if v_file.source <> 'made' then
     return jsonb_build_object('fate', 'not_a_post', 'post_id', null);
   end if;
-  -- A yes for posts taken back on it, or on a photo or clip it was drawn from, and not given again on it (00663; the
+  -- A yes for posts taken back on it, or on a photo or clip it was drawn from, and not given again on it (00665; the
   -- content PRD's section 8): no new post of it goes.
   if not ('post' = any (v_file.yes_for))
      and ('post' = any (v_file.yes_back)
@@ -26522,7 +26522,7 @@ end $$;
 -- Name: FUNCTION post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620, 00663): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, taken_back (a yes for posts taken back on it or on what it was drawn from), post_id}.';
+COMMENT ON FUNCTION public.post_begin(p_tenant_id uuid, p_file_id uuid, p_place text, p_kind text, p_caption text, p_when timestamp with time zone, p_via text) IS 'A member''s press, with the settings permission (00611, 00616, 00620, 00665): a made post approved for a place, as a picture or a story, with its words and its time; a picture and a story of one piece wait apart. The placement is written, and for Instagram its first job; for Google later than two minutes on, its post_google job at its time. Answers {fate: begun, busy (the one of its kind on its way), gone, not_a_post, not_yet, taken_back (a yes for posts taken back on it or on what it was drawn from), post_id}.';
 
 
 --
@@ -43491,7 +43491,7 @@ CREATE TABLE public.file_consents (
 -- Name: TABLE file_consents; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.file_consents IS 'A yes for one use of a file (00663; the content PRD''s step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.';
+COMMENT ON TABLE public.file_consents IS 'A yes for one use of a file (00665; the content PRD''s step L4): who said it, for a post, an ad, a reply or a cold email, when, where it was said, and when it was taken back. Members read it; file_yes_record and file_yes_take_back write it. A yes for posts never covers an ad.';
 
 
 --
@@ -43505,7 +43505,7 @@ COMMENT ON COLUMN public.file_consents.who IS 'Who said yes, as the owner named 
 -- Name: COLUMN file_consents.said_in; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.file_consents.said_in IS 'ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00663, carried over as a yes for posts: D11).';
+COMMENT ON COLUMN public.file_consents.said_in IS 'ai (said to AI, in the conversation thread_id names while it is kept) or before (a tick on the file given before 00665, carried over as a yes for posts: D11).';
 
 
 --
@@ -43674,7 +43674,7 @@ COMMENT ON COLUMN public.files.shows IS 'Its shelf''s word: from the look, Googl
 -- Name: COLUMN files.who_in_it; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.who_in_it IS 'A person''s word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00663).';
+COMMENT ON COLUMN public.files.who_in_it IS 'A person''s word alone: not_asked, or no_one. What the look counted is on look.people, and contracts whoStandsOf reads the two; a yes is file_consents (00665).';
 
 
 --
@@ -43814,14 +43814,14 @@ COMMENT ON COLUMN public.files.origin_left_at IS 'When a watched file''s origina
 -- Name: COLUMN files.yes_for; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.yes_for IS 'The uses this file has a yes for that stands (00663, file_consents), as its doors restate them: what every page and AI read with the row.';
+COMMENT ON COLUMN public.files.yes_for IS 'The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row.';
 
 
 --
 -- Name: COLUMN files.yes_back; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.yes_back IS 'The uses whose every yes on this file was taken back, and none given again (00663, file_consents).';
+COMMENT ON COLUMN public.files.yes_back IS 'The uses whose every yes on this file was taken back, and none given again (00665, file_consents).';
 
 
 --
