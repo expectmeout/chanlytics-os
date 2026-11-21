@@ -19,7 +19,7 @@ export { findAdDraft, keepAdDraft, keepAdMost } from "./drafts";
 export type { AdDraftKept, AdDraftRow } from "./drafts";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
-export { keepAdLaunch, listAdLaunches, listAdsLeftParts, listAdsMadeHere, keepTurnOn } from "./launches";
+export { keepAdLaunch, keepTurnOn, listAdLaunches, listAdsLeftParts, listAdsMadeHere } from "./launches";
 export type { AdLaunchAfter, AdLaunchRow, AdLaunchStep, AdMadeHereRow, AdPartKept, AdTurnOnKept } from "./launches";
 export { findAd, listAdPeople, listAdsByIds, listAdsOfAccount, readAdsPageCounts } from "./page";
 export type { AdPersonRow, AdRow, AdsPageCounts } from "./page";

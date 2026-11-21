@@ -32,8 +32,6 @@ being read is dropped by a migration.
 
 | Function | Why it stays |
 | --- | --- |
-| `ad_launch_keep` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
-| `ad_turn_on` | NOT NAMED: give it a caller, name it in KEPT_WITH_NO_CALLER with why, or drop it |
 | `ai_shadow_agreement` | read by hand to judge the second model against the first (decision 0023, the shadow port), as the service role |
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
@@ -67,7 +65,7 @@ being read is dropped by a migration.
 | `ad_draft_keep` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00659; |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00662): |
-| `ad_launch_keep` | the server's | the server | nothing at run time | Service-role only: what the launch of an ad made here came to, step by step (00662; |
+| `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00662; |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
@@ -76,7 +74,7 @@ being read is dropped by a migration.
 | `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses an ad or turns it back on (00652; |
 | `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
-| `ad_turn_on` | the server's | the server | nothing at run time | Service-role only: an owner turns an ad on (00662; |
+| `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00662; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |

@@ -75,6 +75,8 @@ const TABLES = [
   "ad_drafts",
   // What an ad said to each person who tapped it and wrote (00644, decision 0049).
   "ad_entries",
+  // What Chanlytics made at Meta for an ad made here (00662).
+  "ad_objects",
   "ads",
   "ai_usage",
   "anthropic_profiles",

@@ -20,8 +20,8 @@ what the script writes.
 | [`ad_days`](#ad_days) | none | on, 1 policy |
 | [`ad_drafts`](#ad_drafts) | `packages/db/src/repositories/ads/drafts.ts` | on, 1 policy |
 | [`ad_entries`](#ad_entries) | `packages/db/src/repositories/ads/entries.ts` | on, 1 policy |
-| [`ad_objects`](#ad_objects) | none | on, 1 policy |
-| [`ads`](#ads) | `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
+| [`ad_objects`](#ad_objects) | `packages/db/src/repositories/ads/launches.ts` | on, 1 policy |
+| [`ads`](#ads) | `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 1 policy |
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
@@ -297,7 +297,7 @@ Foreign keys:
 
 What Chanlytics made at the platform for an ad made here (00662; decision 0049's ledger for the launch, decision 0050 calls 5 and 6): the campaign, the ad set, the picture and an ad for each version of the words, each with its tagged name, the platform's id once known, and where it stands (sent, made, refused, removed, left). Written before each make is sent, so a make whose answer never came is found by its name and never sent again. Members read; ad_launch_keep writes.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/ads/launches.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -328,7 +328,7 @@ Foreign keys:
 
 An ad as its owner thinks of it (decision 0049, 00648): its account and platform, whether Chanlytics made it or the owner did on the platform itself, its name, what a tap on it opens, the platform's own ids, the budget it sits under, when it starts and ends, what it says, and three words side by side: where Chanlytics is with making it (status), what the owner last asked of it (intent) and the platform's own word (platform_state). The badge a page says is read from the three by contracts adStateOf and kept nowhere. Money is whole minor units of its account's currency. Members read; every write is a door's.
 
-- Owned by: `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts`
+- Owned by: `packages/db/src/repositories/ads/launches.ts`, `packages/db/src/repositories/ads/page.ts`, `packages/db/src/repositories/ads/presses.ts`, `packages/db/src/repositories/ads/reads.ts`, `packages/db/src/repositories/workspace/scopes.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
