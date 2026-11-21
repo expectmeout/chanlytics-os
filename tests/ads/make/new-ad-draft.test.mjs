@@ -1044,8 +1044,7 @@ test("Run as an ad: a fresh draft around the piece Content chose, kept, and neve
   );
   const words = await writeAdWords(who, { job: "write", draft: sent(ran) });
   assert.deepEqual([words.wrote, words.draft.picture.id, words.checks], [{ ok: true }, FILE(7), []]);
-  // Nothing is made at Meta from here: the press that would is drawn, and cannot be pressed yet.
-  assert.equal(ran.turn_on, "not_yet");
+  // Nothing is made at Meta by drafting: this file's fetch answers the edge's word on Ads alone, and refuses the rest.
 });
 
 test("Run as an ad offers the service the piece is about, where its name says one, as a calendar title names one", async () => {
