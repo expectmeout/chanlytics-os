@@ -11,6 +11,8 @@
   /* The lines stand on the page, not in a pane: their words start near the card's edge, as the canvas drew them. */
   --row-pad-x: var(--space-1);
   --row-rule-start: calc(var(--row-pad-x) + var(--row-face) + var(--row-gap));
+  /* A line 66px tall, its 40px mark and the two lines of words beside it, as the canvas drew it (the second look, L1). */
+  --row-pad-y: 13px;
 }
 .calm-desk {
   display: grid;
@@ -144,10 +146,25 @@
   display: grid;
   grid-template-rows: 1fr;
   border-top: 1px solid var(--line);
+  /* A line folds a beat after the card has begun to hand off (the second look, M3): the card first, the lines after it,
+     never four things at once. */
   transition:
-    grid-template-rows var(--duration-slow) var(--ease-out),
-    opacity var(--duration-base) var(--ease-out),
-    border-color var(--duration-slow) var(--ease-out);
+    grid-template-rows var(--duration-slow) var(--ease-out) var(--calm-lines-after),
+    opacity var(--duration-base) var(--ease-out) var(--calm-lines-after),
+    border-color var(--duration-slow) var(--ease-out) var(--calm-lines-after);
+}
+.calm {
+  --calm-lines-after: 150ms;
+}
+/* A line's mark stands centred on its words: beside its name and the line under it, or beside its name alone. The kit's
+   row lets a mark span a third line, which Today never draws: it stood every line 8px taller than the canvas's 66 (L1),
+   and a line of one row had its words ride above its mark's middle (L8). */
+.calm-fold > :first-child > :first-child {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.calm-fold > :first-child:not(:has(> :nth-child(4))) > :first-child {
+  grid-row: 1;
 }
 .calm-fold {
   display: flex;
@@ -238,6 +255,19 @@
 .calm .calm-rest.tq::after {
   content: none;
 }
+/* Setting up in its sheet over Today (the second look, L7): the sheet is its ground, so the card draws no pane of its own. */
+.calm-setup-over .tq {
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.calm-setup-over .tq::after {
+  content: none;
+}
+/* Hide for a week is a quiet press at the sheet's foot, as wide as its words. */
+.calm-setup-over [data-testid="today-setup-hide"] {
+  align-self: flex-start;
+}
 /* What a line opened under itself, a card of its own (setting up): a step in from the line's edges. */
 .calm-opened {
   margin: 0 var(--row-pad-x) var(--space-3);
@@ -279,7 +309,9 @@
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
-  font-size: var(--text-xs);
+  /* An axis, not words: small mono, as the canvas drew it (L3). */
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
   line-height: var(--row-said-line);
   color: var(--ink-dim);
 }
@@ -326,10 +358,66 @@
 .calm-subs > .calm-line {
   border-top: 0;
 }
-/* A door's own press under it (Mark all kept), from under its name. */
+/* A door with a press of its own (Mark all kept, L5): the press stands at the door's end, before its chevron, beside the
+   link and never inside it, and the door's words stop short of it. */
+.calm-sub-acts {
+  position: relative;
+  --calm-sub-act-room: 8.5rem;
+}
+.calm-sub-acts > .calm-line .calm-name {
+  padding-right: var(--calm-sub-act-room);
+}
 .calm-sub-act {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--row-pad-x) + var(--space-6));
   display: flex;
+  transform: translateY(-50%);
+}
+.calm-sub-acts > .calm-line {
+  border-top: 0;
+}
+/* The press stands on its own: no foot's rule over it, as it had at To do's foot. */
+.calm-sub-act > * {
+  justify-content: flex-start;
+  min-height: 0;
+  border-top: 0;
+}
+/* Asking first (how many, and what follows), the press's question takes the room under the door, from under its name.
+   On a phone the press does too: beside the door it left its name two lines tall. */
+.calm-sub-act:has([data-testid="today-kept-all-ask"]) {
+  position: static;
   padding: 0 var(--row-pad-x) var(--space-2) var(--row-rule-start);
+  transform: none;
+}
+@media (max-width: 720px) {
+  .calm-sub-acts > .calm-line .calm-name {
+    padding-right: 0;
+  }
+  .calm-sub-act {
+    position: static;
+    margin-top: calc(-1 * var(--space-2));
+    padding: 0 var(--row-pad-x) 0 var(--row-rule-start);
+    transform: none;
+  }
+}
+/* What a line opens under itself folds open and shut where it stands, as a line does (M2): drawn while shut, out of reach
+   of a press and a reader. */
+.calm-open {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--duration-slow) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+.calm-open[data-shut] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.calm-open > * {
+  min-height: 0;
+  overflow: hidden;
 }
 /* The words of a sentence that are its warning, in the warning's ink (a to-do's "overdue since Thu"). */
 .calm [data-tone="warn"] {
@@ -364,6 +452,7 @@
 /* Less motion: nothing travels and nothing folds over time. Things change place at once. */
 @media (prefers-reduced-motion: reduce) {
   .calm-line,
+  .calm-open,
   .calm-fold > a,
   .calm-fold > [role="button"] {
     transition: none;

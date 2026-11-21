@@ -79,10 +79,11 @@
   "setup": "live settings setup",
   "setup/first-run": "live settings setup",
   "setup/rows": "",
-  "today": "ask_morning broadcasts calendar google people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins workspace",
+  "today": "ask_morning broadcasts calendar calendar_runs google inbox people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins workspace",
   "today/calm": "",
   "today/model": "",
   "today/need-you": "ask_morning calendar reply_drafts settings",
+  "today/over": "calendar calendar_runs inbox",
   "today/zones": "ask_morning broadcasts calendar people playbooks reach_out_replies reply_drafts reports_headline settings setup today today_pins",
   "waits": "today"
 }

@@ -87,7 +87,8 @@ export async function readFound(page: Page): Promise<FoundRow[]> {
   const zone = page.getByTestId("today-ask-found");
   if (await zone.count())
     for (const line of await zone
-      .locator('.calm-line[data-testid^="today-found-"]:not([data-testid="today-found-more"])')
+      // The lines the list draws, not the rest folded under "3 more AI found" (the second look, L6).
+      .locator(':scope > .calm-line[data-testid^="today-found-"]:not([data-testid="today-found-more"])')
       .all()) {
       out.push({
         source: ((await line.getAttribute("data-testid")) ?? "").replace(/^today-found-/, ""),

@@ -49,6 +49,14 @@ export const TODAY_LINE_WORDS = {
   foundMore: (n: number): string => `${n} more AI found`,
   /** The day's line once the day has turned (D19): when tomorrow starts, who is first under it. */
   tomorrowStarts: (when: string): string => `Tomorrow starts at ${when}`,
+  /**
+   * An open hour with nothing to press, said on the day's line (the second look, L3): its time and how long, from its own
+   * title ("Open · 30 min" at 9 AM is "Open at 9 AM, 30 min").
+   */
+  openAt: (time: string, title: string): string => {
+    const [, long] = title.split(" · ");
+    return long ? `Open at ${time}, ${long}` : `Open at ${time}`;
+  },
   /** What was finished while the page has been open, for a reader: the name of the list its lines stand in. */
   doneHere: "Done just now",
   /**

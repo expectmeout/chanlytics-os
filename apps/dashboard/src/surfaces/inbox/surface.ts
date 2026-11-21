@@ -15,6 +15,7 @@ import { routeOnScreen } from "@/bridge/workspace";
 import {
   heldThreadIds,
   inboxThreadClock,
+  isUuid,
   OPEN_HOLDS_READ_MAX,
   waitsOnAPerson,
   type ConversationDto,
@@ -32,6 +33,7 @@ import {
 import { needsYouRowsNow, needsYouWaitsNow } from "../needs-you";
 import { peopleHold, threadPersonSaid } from "../people/want-person";
 import { namedByRoute } from "./address";
+import { seeOverNow } from "../see/see-over";
 import { ixPlace } from "./place";
 import { ixOnPhone, ixOpeningThread } from "./rules";
 import { inboxThreadsOf, readHeldThreads, readThreadWhole, revivedThread } from "./read-apart";
@@ -153,6 +155,12 @@ function openingThreadWaits(threads: Thread[]): void {
   if (thread.partial) firstDrawWaitsFor("inbox", readThreadWhole(thread.conversationId));
 }
 
+/** The conversation open over the page by the address's `?see=thread:<id>`, where it is one the server can read. */
+function seeThread(): string | null {
+  const over = seeOverNow();
+  return over?.kind === "thread" && isUuid(over.id) ? over.id : null;
+}
+
 export const inboxOverride: SurfaceOverride = {
   key: "inbox",
   value: "inbox",
@@ -202,7 +210,9 @@ export const inboxOverride: SurfaceOverride = {
     // a tapped push) is read by its id when neither the newest hundred nor the waiting hold it: a link is a read of one record,
     // never a look in the window the page holds (finding A2c). The workspace scopes the read, so another's thread answers
     // nothing and the page still says it is not here, and no other thread opens in its place.
-    const wanted = typeof window !== "undefined" && window.location ? namedByRoute(routeOnScreen()).chat : null;
+    // And the conversation open over Today (`?see=thread:<id>`, the second look of 20 Nov 2026), which no route names.
+    const wanted =
+      typeof window !== "undefined" && window.location ? (namedByRoute(routeOnScreen()).chat ?? seeThread()) : null;
     const askedByAddress = wanted !== null && !listed.has(wanted) && !missing.includes(wanted) ? wanted : null;
     // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
     // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.

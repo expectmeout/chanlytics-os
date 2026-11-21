@@ -20,7 +20,7 @@ import { NOW, W, answerWith, buttons, corals, json, wire, went, dayWith, draw, r
 // Need you as the page draws it, with the card its arrangement names (Today, calm).
 const { NeedYouOnToday: NeedYou } = await import("./_on-today.mjs");
 const { offerOtherTimes } = await import("../../../apps/dashboard/src/surfaces/booking-request.ts");
-const { takeCarriedReply, cameFromToday } = await import("../../../apps/dashboard/src/surfaces/inbox/carried-reply.ts");
+const { takeCarriedReply } = await import("../../../apps/dashboard/src/surfaces/inbox/carried-reply.ts");
 const { useNeedYouLine, useNeedYouModel } =
   await import("../../../apps/dashboard/src/surfaces/today/need-you-model.ts");
 const { setSurfaceValue, surfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -236,8 +236,9 @@ test("Stop on AI's reply stops it on Today, and what follows is written in their
     "REGRESSION: the stopped words were sent from Today, where nothing is written to a person (D8)",
   );
   press(buttons(stopped, NEED_YOU_WORDS.held.reply)[0]);
+  // Off Today's own address (this world has none) it goes to the conversation's page; on Today it opens over Today
+  // (the second look, N3: tests/shell/address/open-in-place.test.mjs).
   assert.equal(went.at(-1), "inbox/th-cv-lea", "Reply opens their conversation");
-  assert.equal(cameFromToday("th-cv-lea"), true, "which offers the way back to Today");
   assert.equal(
     takeCarriedReply("th-cv-lea"),
     "Yes, 3 PM is free.",

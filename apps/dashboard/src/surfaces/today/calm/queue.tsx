@@ -5,6 +5,7 @@
  * row always did: their conversation where its answer is written there, its own door where it has no work on Today, and
  * for the rest it rises into the card.
  */
+import { useEffect, useState } from "react";
 import { NEED_YOU_WORDS as W, NOTE_WORDS, addressOf, namesAPerson, type TodayQueueRowVM } from "@chanlytics/contracts";
 import { routeDoor } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -50,6 +51,14 @@ const queueThreadOf = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx): string | null
   answersInThread(row) && row.conversationId && !ctx.kept.has(row.id) ? row.conversationId : null;
 
 /**
+ * A to-do past its day, as its line says it at its end, where a wait stands (the second look, L2): the day it was due,
+ * "Sat", in the wait's amber, so the line under its name says whose number and whose to-do it is and is never cut. Null
+ * for any other row, and for one not late.
+ */
+const lateOf = (row: TodayQueueRowVM): string | null =>
+  row.kind === "step" && row.warn ? (row.step?.late ?? null) : null;
+
+/**
  * A row of Need you as a line: who, what they said, how long. Its press is the row's own: their conversation, with AI's
  * draft asked for its box (D8 of 17 Nov); its door, where nothing of it is worked on Today; else it takes the card.
  */
@@ -59,6 +68,7 @@ export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
   // A visit to mark says when it was ("Wed, Nov 18, 10:30 – 11 AM"), not how long anyone has waited: that is its first
   // fact under the name, so the name keeps its room, and the slot at the line's end stays for a wait.
   const was = row.kind === "visit" && words.wait ? words.wait.words : null;
+  const late = lateOf(row);
   const base = {
     first: { face: queueFaceOf(row) },
     name: words.trail ? `${words.name} · ${words.trail}` : words.name,
@@ -67,9 +77,11 @@ export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
       ...(was ? [was] : []),
       ...queueSaidOf(row)
         .split(FACT_DOT)
+        // How late a to-do is stands at the line's end, said once.
+        .filter((fact) => !(late && fact === words.saidToneOn))
         .map((fact) => toned(fact, words.saidToneOn, words.saidTone)),
     ],
-    wait: was ? null : words.wait,
+    wait: late ? { words: late, long: true } : was ? null : words.wait,
     // One line for who or what, one for what was said: the whole of it is in the card, or behind the press.
     tight: true,
     testid: words.testid,
@@ -96,15 +108,43 @@ const workIn = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx, main: "primary" | "se
   );
 
 /**
+ * Whether a line drawn a moment ago has had its first frame: folded on it, open from the next, so it folds open where it
+ * stands. A finished line is drawn only after a press, never as Today opens.
+ */
+function useArrived(): boolean {
+  const [arrived, setArrived] = useState(false);
+  useEffect(() => {
+    // No frames to wait for (a server, a test): it is open at once.
+    if (typeof requestAnimationFrame !== "function") {
+      setArrived(true);
+      return undefined;
+    }
+    // Two frames: the first paints it folded, the second opens it, so the fold has a start to move from.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setArrived(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, []);
+  return arrived;
+}
+
+/**
  * A row finished on this visit, as a line (D6: a finished thing says so where it stands): who or what it was, and under
  * it what became of it, with its Undo, for as long as the page is open.
  */
 export function ActedLine({ row, ctx }: { row: TodayQueueRowVM; ctx: NeedYouRowsCtx }) {
   const words = rowWords(row);
+  const arrived = useArrived();
   return (
     <CalmRow
       first={{ face: queueFaceOf(row) }}
       name={words.name}
+      // It opens where it stands, as a line folds (the second look, M1), never landing whole in one frame.
+      folded={!arrived}
       tight
       under={<div className="calm-under calm-receipt">{workIn(row, ctx, "secondary")}</div>}
       testid={words.testid}

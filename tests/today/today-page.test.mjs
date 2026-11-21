@@ -1108,7 +1108,8 @@ test("AI found ranks what the workspace's own counts say first: the first its ca
   press(byTestId(card, "today-found-act"));
   assert.equal(went.at(-1), ranked[0].cta.to, "its door goes where the count is");
   // While anyone waits, one line under it (D20): the next finding, its door its own page; the rest said, never dropped.
-  const lines = linesIn(tree, "today-ask-found").filter((l) => l.props["data-testid"] !== "today-found-more");
+  const inMore = new Set(all(byTestId(tree, "today-found-more"), (n) => classes(n).includes("calm-line")));
+  const lines = linesIn(tree, "today-ask-found").filter((l) => !inMore.has(l));
   assert.deepEqual(lines.map(nameOf), [ranked[1].head]);
   assert.match(find(lines[0], (n) => typeof n.props?.href === "string").props.href, new RegExp(`${ranked[1].cta.to}$`));
   assert.match(
@@ -1414,12 +1415,11 @@ test("the page is its bands and nothing seeded", () => {
       .filter(Boolean)
       .flatMap((c) => (c.type === W.React.Fragment ? [c.props.children].flat(Infinity).filter(Boolean) : [c]))
       .map(name);
-  // What is left to set up, with what came in before Chanlytics (decision 0073, T-today), is a line in the work's column
-  // while someone waits on you (Today, calm, D17). What goes on its own today is the day's, at its time (decision 0064).
-  // What Ask would do is AI found's, under the day: nothing it suggests outranks a person who has been waiting (0070).
+  // Setting up (decision 0073) is a line at the foot of the day's column, so the two end near each other (L8). What goes on
+  // its own today is the day's (0064); AI found is under the day: nothing it suggests outranks a person waiting (0070).
   const [work, rest] = all(tree, (n) => classes(n).includes("calm-col"));
-  assert.deepEqual(partsOf(work), ["NeedYou", "TodaySetup", "today-setting-up"]);
-  assert.deepEqual(partsOf(rest), ["DayZone", "DayCameTo", "AskFound", "TodayContentLine", "TodayPins"]);
+  const day = ["DayZone", "DayCameTo", "AskFound", "TodayContentLine", "TodayPins"];
+  assert.deepEqual([partsOf(work), partsOf(rest)], [["NeedYou"], [...day, "TodaySetup", "today-setting-up"]]);
   assert.equal(
     all(tree, (n) => n.props?.["data-testid"] === "today-recap").length,
     0,

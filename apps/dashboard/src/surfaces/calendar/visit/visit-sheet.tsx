@@ -7,7 +7,7 @@
  *
  * The open visit is the address's (use-calendar.ts useVisitAddress): closing goes back, so a phone's Back closes the sheet.
  */
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import type { CalendarBlockVM, CalendarMomentDto } from "@chanlytics/contracts";
 import { CALENDAR_VISIT_SHEET_WORDS as W, visitSheetOf, type VisitSheetOutcome } from "./sheet-view";
 import { Button } from "../../kit/button/button";
@@ -40,6 +40,10 @@ interface OpenVisitProps {
   /** Open another visit in this one's place (the desk's walk through the day, and the next to mark once one is said). */
   onWalk: (b: CalendarBlockVM) => void;
   flash: (text: string) => void;
+  /** Its door to the Calendar, where it is open over another page (Today: the second look, N1). */
+  home?: ReactNode;
+  /** Open over another page: on a phone the tab bar stands down while it is (mobile.css `.over-page`). */
+  over?: boolean;
 }
 
 /** A phone, by the kit's own breakpoint (900px), heard as it changes so a turned tablet moves between the two. */
@@ -155,6 +159,8 @@ function VisitPeek(p: OpenVisitProps) {
           <p className="cal-side-when" data-testid="cal-panel-when">
             {whenWords(c.vm)}
           </p>
+          {/* Its door to the Calendar, under when it is: the head's line keeps the title, the walk and Close. */}
+          {p.home}
         </div>
         {walkNav(p)}
         <Button
@@ -187,6 +193,8 @@ function VisitSheetPhone(p: OpenVisitProps) {
       title={c.vm.title}
       sub={whenWords(c.vm)}
       close={{ label: W.close, glyph: <Icon name="x" size={13} /> }}
+      tools={p.home}
+      className={p.over ? "over-page" : undefined}
       solid
       flatFoot
       foot={c.vm.nobody ? undefined : <VisitFoot c={c} />}

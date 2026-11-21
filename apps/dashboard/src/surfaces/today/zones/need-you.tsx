@@ -221,7 +221,7 @@ function useCardRows(card: TodayCard, order: readonly TodayQueueRowVM[], ctx: Ne
   return { lead, heldLead, cardRow };
 }
 
-/** A row finished on this visit says what became of it, with its Undo, as a line of its own under the lines. */
+/** A row finished on this visit says what became of it, with its Undo, as a line of its own over the lines. */
 const actedLines = (order: readonly TodayQueueRowVM[], ctx: NeedYouRowsCtx, todo: ToDo, leadId: string | null) => [
   ...order.filter((r) => ctx.kept.has(r.id) && r.id !== leadId).map((r) => <ActedLine key={r.id} row={r} ctx={ctx} />),
   ...todo.rows
@@ -354,16 +354,18 @@ const NeedYouList = ({ vm, model, card }: { vm: TodayVM; model: NeedYouModel; ca
   return (
     <>
       {cardIn({ heldLead, lead, waitLead, card })}
+      {/* What was finished here opens at the top of the list, where the next thing's line shuts as it rises into the
+          card (the second look, M1): the two cross where they stand. */}
+      {acted.length ? (
+        <CalmList label={TODAY_LINE_WORDS.doneHere} testid="today-acted">
+          {acted}
+        </CalmList>
+      ) : null}
       {entries.length ? (
         <CalmList label={W.title} testid="today-queue">
           {entries.map((x) => (
             <CalmRow key={x.key} {...x.line} folded={!named.has(x.key)} top={x.key === free[0]?.key} />
           ))}
-        </CalmList>
-      ) : null}
-      {acted.length ? (
-        <CalmList label={TODAY_LINE_WORDS.doneHere} testid="today-acted">
-          {acted}
         </CalmList>
       ) : null}
       {rest ? (

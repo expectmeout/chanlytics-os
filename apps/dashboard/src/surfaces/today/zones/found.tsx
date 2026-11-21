@@ -24,7 +24,7 @@ import { ASK_FOUND_SHOWN, ASK_FOUND_WORDS as F, askFoundOf, type AskFoundRowVM }
 import { routeDoor } from "../../frame-verbs";
 import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { Lead, CardActs } from "../calm/lead";
-import { CalmList, CalmRow } from "../calm/lines";
+import { CalmList, CalmOpen, CalmRow } from "../calm/lines";
 import type { PeopleListsLike } from "../leaks";
 import { refreshSurfaces } from "@/bridge/surface-runner";
 import { Button } from "../../kit/button/button";
@@ -197,6 +197,8 @@ interface RowPorts {
   row: AskFoundRowVM;
   /** The row is the page's card (Today, calm, D1): drawn whole, its act the coral; else a line. */
   lead: boolean;
+  /** One of the rest, opened under "3 more AI found" (the second look, L6): a quieter line, with no mark of its own. */
+  sub?: boolean;
   open: boolean;
   onToggle: () => void;
   rest: (onUndone: () => void) => Promise<void>;
@@ -316,7 +318,8 @@ function FoundRow({
     ) : null);
   return (
     <CalmRow
-      first={{ mark: foundMark(14) }}
+      first={p.sub ? undefined : { mark: foundMark(14) }}
+      quiet={p.sub}
       name={row.head}
       said={campaign ? undefined : row.sub}
       door={to && !said ? routeDoor(to) : null}
@@ -410,18 +413,18 @@ const foundAsks = (all: readonly AskFoundRowVM[]) =>
 
 /**
  * Which rows a part draws: the card its first, where what AI found holds it; the lines the rest, three once nobody
- * waits, one while anyone does (D20: analysis never outranks a person), every one once their line is opened; and how
- * many the lines leave out.
+ * waits, one while anyone does (D20: analysis never outranks a person); and the rows past them, which open under the
+ * line that counts them (the second look, L6).
  */
 function rowsOfPart(
   all: readonly AskFoundRowVM[],
-  at: { lines: boolean; held: boolean; waiting: boolean; everyRow: boolean },
-): { rows: readonly AskFoundRowVM[]; cut: number } {
+  at: { lines: boolean; held: boolean; waiting: boolean },
+): { rows: readonly AskFoundRowVM[]; more: readonly AskFoundRowVM[] } {
   const [first, ...others] = all;
-  if (!at.lines) return { rows: at.held && first ? [first] : [], cut: 0 };
+  if (!at.lines) return { rows: at.held && first ? [first] : [], more: [] };
   const listed = at.held ? others : all;
   const room = at.waiting ? 1 : ASK_FOUND_SHOWN;
-  return { rows: at.everyRow ? listed : listed.slice(0, room), cut: Math.max(0, listed.length - room) };
+  return { rows: listed.slice(0, room), more: listed.slice(room) };
 }
 
 /**
@@ -447,12 +450,12 @@ function foundRowOf(ports: RowPorts, model: Pick<FoundModel, "morning" | "keep">
 }
 
 /**
- * The lines' own part: a read that failed, the rows as lines with the line that opens the rest, the place held for AI's
- * morning, and what came of an idea lately. Called, not drawn.
+ * The lines' own part: a read that failed, the rows as lines with the line that opens the rest under itself, the place
+ * held for AI's morning, and what came of an idea lately. Called, not drawn.
  */
 function foundLines(p: {
   drawn: ReactNode[];
-  cut: number;
+  more: ReactNode[];
   everyRow: boolean;
   setEveryRow: (every: boolean) => void;
   model: Pick<FoundModel, "broke" | "line" | "found">;
@@ -472,12 +475,20 @@ function foundLines(p: {
       {p.drawn.length ? (
         <CalmList label={F.title} testid="today-ask-found">
           {p.drawn}
-          {p.cut ? (
+          {p.more.length ? (
             <CalmRow
               quiet
-              name={p.everyRow ? F.fewer : L.foundMore(p.cut)}
+              name={L.foundMore(p.more.length)}
               press={() => p.setEveryRow(!p.everyRow)}
               open={p.everyRow}
+              // The rest fold open under the line that counts them, and the same line shuts them (L6, M2).
+              under={
+                <CalmOpen open={p.everyRow}>
+                  <div className="calm-subs" role="list" data-testid={p.everyRow ? "today-found-rest" : undefined}>
+                    {p.more}
+                  </div>
+                </CalmOpen>
+              }
               testid="today-found-more"
             />
           ) : null}
@@ -518,23 +529,24 @@ export function AskFound({ part, held }: { part: "lead" | "lines"; held: boolean
   // The lines hand AI what they ask, asked once by the part that lists them.
   useTodayAsks("found", lines && draws ? foundAsks(all) : []);
   if (!draws) return toastNode;
-  const { rows, cut } = rowsOfPart(all, { lines, held, waiting, everyRow });
-  const drawn = rows.map((row) =>
+  const { rows, more } = rowsOfPart(all, { lines, held, waiting });
+  const draw = (row: AskFoundRowVM, sub: boolean) =>
     foundRowOf(
       {
         row,
         lead: !lines,
+        sub,
         open: open === row.key,
         onToggle: () => setOpen((was) => (was === row.key ? null : row.key)),
         rest: (onUndone) => rest(row.key, flash, onUndone),
         flash,
       },
       model,
-    ),
-  );
+    );
+  const drawn = rows.map((row) => draw(row, false));
   return (
     <>
-      {lines ? foundLines({ drawn, cut, everyRow, setEveryRow, model }) : drawn}
+      {lines ? foundLines({ drawn, more: more.map((row) => draw(row, true)), everyRow, setEveryRow, model }) : drawn}
       {toastNode}
     </>
   );

@@ -781,7 +781,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
       visibility 0s linear 0s;
   }
   :root:not([data-carrying]) .app-root:has([data-dock]:not([data-leaving])) .phone-places,
-  body:has(.cmh-host-over:not([data-leaving])) .phone-places {
+  body:has(:is(.cmh-host-over, .over-page):not([data-leaving])) .phone-places {
     opacity: 0;
     translate: 0 6px;
     visibility: hidden;
@@ -794,7 +794,7 @@ html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px));
   @media (prefers-reduced-motion: reduce) {
     [data-testid="phone-tabs"],
     :root:not([data-carrying]) .app-root:has([data-dock]:not([data-leaving])) .phone-places,
-    body:has(.cmh-host-over:not([data-leaving])) .phone-places {
+    body:has(:is(.cmh-host-over, .over-page):not([data-leaving])) .phone-places {
       transition: none;
     }
   }

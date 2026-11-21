@@ -13,8 +13,6 @@
 const CARRIED = "chanlytics-compose";
 /** Where a person's page finds Not a person asked for them, in this tab's session. */
 const NOT_A_PERSON = "chanlytics-not-a-person";
-/** The thread Today last opened, so it says the way back (Today with colour, D8), in this tab's session. */
-const FROM_TODAY_KEY = "chanlytics-from-today";
 /** Where a thread finds AI's draft asked for its box (Today's Reply), in this tab's session. */
 const DRAFT_ASK_KEY = "chanlytics-draft-asked";
 
@@ -56,33 +54,6 @@ export function carryDraft(to: string): void {
     sessionStorage.setItem(DRAFT_ASK_KEY, threadIdOf(to));
   } catch {
     /* nothing to carry */
-  }
-}
-
-/** Say that Today opened the thread `to` names: its head then offers the way back to Today. */
-export function carryFromToday(to: string): void {
-  try {
-    sessionStorage.setItem(FROM_TODAY_KEY, threadIdOf(to));
-  } catch {
-    /* nothing to carry */
-  }
-}
-
-/** Whether Today opened the thread `threadId`: read, not taken, so the head says it however often it is drawn. */
-export function cameFromToday(threadId: string): boolean {
-  try {
-    return namesThread(sessionStorage.getItem(FROM_TODAY_KEY), threadId);
-  } catch {
-    return false;
-  }
-}
-
-/** Today drawn again: no thread came from it now, so none offers the way back until Today opens one. */
-export function forgetFromToday(): void {
-  try {
-    sessionStorage.removeItem(FROM_TODAY_KEY);
-  } catch {
-    /* nothing kept */
   }
 }
 
