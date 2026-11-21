@@ -125,12 +125,31 @@ function waitSaidOf(reason: FileCopyWhy, facts: CopyFacts): CopySaid {
         act: null,
         mends: false,
       };
-    case "folder":
+    // Only its account stands between it and Play: a folder that was only stopped still gives its clips back (F1).
+    case "connection":
       return {
         mark: "none",
         head: "Google Drive needs to be connected again",
         body: "Then this clip plays.",
         act: "connect",
+        mends: false,
+      };
+    // The folder itself won't open just now: it opens again by itself, so the one thing to do is press again later.
+    case "cant_open":
+      return {
+        mark: "play",
+        head: "Google Drive can't open its folder just now",
+        body: "Its picture and its sound are here. Play it again once the folder opens.",
+        act: "play",
+        mends: false,
+      };
+    // Drive gave nothing this time: never "keeps trying", since nothing asks again until the next press.
+    case "unreadable":
+      return {
+        mark: "play",
+        head: "Google Drive didn't give this clip just now",
+        body: "Its picture and its sound are here. Play to try again.",
+        act: "play",
         mends: false,
       };
     case "videos_off":

@@ -346,3 +346,22 @@ export async function askForListedItems(db: Db, ref: SourceRef): Promise<number>
   if (error) throw new DbFailure(error, "cannot ask for the watched folder's older files");
   return count ?? 0;
 }
+
+/**
+ * What stopped with the folder handed back (the content loop PRD's F2, Ruben's call 2 of 21 Nov 2026): a watch, and a
+ * watch again of the same folder, gives every photo and video that failed only because its job stopped its turn back,
+ * as new. Nothing else moves: a file tried and unreadable, one the video platform could not prepare, one too long and
+ * one that came in stay as they were. Answers how many were handed back.
+ */
+export async function askForStoppedItems(db: Db, ref: SourceRef): Promise<number> {
+  const { count, error } = await db
+    .from("source_items")
+    .update({ state: "waiting", why: null, take_tries: 0, take_after: null }, { count: "exact" })
+    .eq("tenant_id", ref.tenantId)
+    .eq("source_id", ref.sourceId)
+    .eq("state", "failed")
+    .eq("why", "stopped")
+    .in("kind", ["image", "video"]);
+  if (error) throw new DbFailure(error, "cannot hand back what stopped with the watched folder");
+  return count ?? 0;
+}

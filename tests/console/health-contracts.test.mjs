@@ -776,3 +776,46 @@ test("a call with no answer keeps what the API said, cut to the column; a credit
   assert.equal(creditRanOut({ type: "overloaded_error", message: "Overloaded" }), false);
   assert.equal(creditRanOut(null), false);
 });
+
+/* ------------------------------------------------------------------------------- watched folders (00674) -- */
+
+test("watched folders: Google's day nearly spent is a look, wholly spent a red one, and the platform's full storage names its workspaces", () => {
+  const day = (over = {}) => ({
+    day: "2026-10-21",
+    units: 0,
+    bytes: 0,
+    takes: 0,
+    returns: 0,
+    stream_full: 0,
+    stream_full_workspaces: [],
+    stream_full_since: null,
+    ...over,
+  });
+  const footageLooks = (footage) =>
+    healthLooksOf(healthOf({ footage }), "all", NOW).filter((r) => r.key.startsWith("footage:"));
+  assert.deepEqual(footageLooks(day()), [], "a quiet day says nothing");
+  assert.deepEqual(footageLooks(undefined), [], "a server before it says nothing");
+  const near = footageLooks(day({ units: 255_000_000 }));
+  assert.deepEqual(
+    near.map((r) => [r.key, r.severity, r.what]),
+    [["footage:units", "amber", "Watched folders have spent 85% of Google's units today"]],
+  );
+  const spent = footageLooks(day({ units: 300_000_000, bytes: 800_000_000_000 }));
+  assert.deepEqual(
+    spent.map((r) => [r.key, r.severity]),
+    [
+      ["footage:units", "red"],
+      ["footage:bytes", "red"],
+    ],
+  );
+  assert.equal(spent[1].what, "Watched folders stopped for today: the bytes Google gives a day are spent");
+  const full = footageLooks(
+    day({ stream_full: 3, stream_full_workspaces: [C], stream_full_since: iso(NOW - 2 * HOUR) }),
+  );
+  assert.equal(full.length, 1);
+  assert.deepEqual(
+    [full[0].severity, full[0].what, full[0].where, full[0].tenantId, full[0].ours],
+    ["red", "The video platform's storage is full: 3 clips wait", "Bloom Studio", C, false],
+  );
+  assert.equal(full[0].sinceMs, NOW - 2 * HOUR);
+});

@@ -54,9 +54,18 @@ export function copyDoors(tables, w) {
   const free = (tenantId) => CAP_SECONDS - videoSecondsOf(tables, w.nowMs, tenantId);
   const usedAt = (f) => Date.parse(f.copy_used_at ?? f.ready_at ?? f.created_at);
   const named = (plan, fileId) => JSON.stringify(plan ?? null).includes(fileId);
+  // file_copy_comes_back (F1): its item is in, under a folder being read or stopped, whose account reads.
   const reading = () =>
-    new Set(tables.media_sources.filter((s) => ["setting_up", "watching"].includes(s.state)).map((s) => s.id));
-  /** A copy that could ever be let go: a watched clip its owner did not upload, here, playable, its item in a folder read. */
+    new Set(
+      tables.media_sources
+        .filter(
+          (s) =>
+            ["setting_up", "watching", "stopped"].includes(s.state) &&
+            (tables.source_connections ?? []).some((c) => c.id === s.connection_id && c.health === "ok"),
+        )
+        .map((s) => s.id),
+    );
+  /** A copy that could ever be let go: a watched clip its owner did not upload, here, playable, that can come back. */
   const mayEverGo = (f, tenantId) =>
     f.tenant_id === tenantId &&
     f.kind === "video" &&

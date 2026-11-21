@@ -63,9 +63,19 @@ test("every reason a copy waits or is lost has its own sentence, with no code in
 test("what ends by itself says so and asks nothing; what does not names the one thing to do", () => {
   const of = (copy, why) => copySaidOf(copy, why, facts);
   assert.deepEqual([of("away", "room").mends, of("away", "room").act], [true, null], "no room: it waits");
-  for (const why of ["busy", "unreadable", "failed", "stopped"])
+  for (const why of ["busy", "failed", "stopped"])
     assert.equal(of("away", why).head, "Still getting it from Google Drive…", `${why}: one line covers a slow try`);
-  assert.equal(of("away", "folder").act, "connect");
+  // Its account, never its folder, asks for a connect: a folder only stopped still gives its clips back (F1).
+  assert.deepEqual(
+    [of("away", "connection").act, of("away", "connection").head],
+    ["connect", "Google Drive needs to be connected again"],
+  );
+  // A folder Drive can't open, or a try Drive gave nothing to, is pressed again: nothing else asks for it.
+  for (const why of ["cant_open", "unreadable"]) {
+    const said = of("away", why);
+    assert.deepEqual([said.mark, said.act, said.mends], ["play", "play", false], `${why}: one press asks again`);
+    assert.ok(!/connect/i.test(`${said.head} ${said.body}`), `${why}: the account is not blamed`);
+  }
   assert.equal(of("lost", "gone").act, "open_drive");
   assert.equal(of("lost", "outside").head, "Its original was moved out of “Salon clips”");
   assert.equal(of("lost", "not_found").act, "add_again", "the bytes its owner gives again bring it back (gate 2)");
@@ -99,6 +109,9 @@ test("the numbers a sentence quotes are the code's own", () => {
     returnsADay: RETURN_BUDGETS.workspaceReturnsADay,
     // The days a row says a file leaves on are the days the cleanup is asked with.
     graceDays: SOURCE_GRACE.seconds / (24 * 60 * 60),
+    // What Health holds the footage day to (00674): the platform's day of Google's units and bytes.
+    unitsADay: TAKE_BUDGETS.unitsADay,
+    platformBytesADay: TAKE_BUDGETS.platformBytesADay,
   });
   assert.ok(copySaidOf("away", "budget", facts).body.startsWith(`${RETURN_BUDGETS.workspaceReturnsADay} clips a day`));
 });

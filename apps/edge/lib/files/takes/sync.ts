@@ -15,11 +15,11 @@ import type { SourceItemRecord, SourceReply, TenantId } from "@chanlytics/contra
 import type { Database } from "@chanlytics/db/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "../../shared/log.js";
-import { leaveRefusedKey, openSource } from "../sources/standing.js";
+import { leaveRefusedKey, openSource, type SourceClosedBy } from "../sources/standing.js";
 
 type Db = SupabaseClient<Database>;
 
-/** An hour's key to the folder's account, or why the folder is not one to read now. */
+/** An hour's key to the folder's account, or why the folder is not one to read now, and whose that is to mend. */
 type TakeKey =
   | {
       ok: true;
@@ -30,26 +30,37 @@ type TakeKey =
        */
       refused(error: unknown): Promise<{ skipped: string }>;
     }
-  | { ok: false; skipped: string };
+  | { ok: false; skipped: string; cause: SourceClosedBy };
+
+/** What a folder is opened for: a file taken in, or a clip that came in brought back. */
+export type TakeRoad = "take" | "return";
 
 export interface TakeSync {
-  /** The item's folder made ready for a job: an hour's key for its account, or why it is not read now. */
-  open(db: Db, named: { tenantId: TenantId; sourceId: string }, log: Logger): Promise<TakeKey>;
+  /** The item's folder made ready for a job on its road: an hour's key for its account, or why it is not read now. */
+  open(db: Db, named: { tenantId: TenantId; sourceId: string }, log: Logger, road: TakeRoad): Promise<TakeKey>;
   /** One item's own record at its provider (5 of Google's units, which its asker counts). */
   record(accessToken: string, providerId: string): Promise<SourceReply<SourceItemRecord>>;
 }
 
-/** The states a folder's files are taken in: watched, or being set up (its first walk asks for the newest as it ends). */
-const TAKEN_FROM = ["setting_up", "watching"] as const;
+/**
+ * The states a folder is opened in, by road. A file is taken only from a folder watched, or being set up (its first
+ * walk asks for the newest as it ends). A clip that came in is brought back from those, and from a folder that was
+ * stopped: its original is still read through its account's key while that account reads (the content loop PRD's F1,
+ * Ruben's call 1 of 21 Nov 2026), and the sync never reads it again otherwise.
+ */
+const OPENED_FROM = {
+  take: ["setting_up", "watching"],
+  return: ["setting_up", "watching", "stopped"],
+} as const satisfies Record<TakeRoad, readonly string[]>;
 
 /**
- * The deployment's sync: what a take and the key door read through unless one is handed in (a test's pretend one).
- * The folder is opened by the sync's own opener, so a take pauses what a walk or a read would pause, and reads a
+ * The deployment's sync: what a take, a return and the key door read through unless one is handed in (a test's pretend
+ * one). The folder is opened by the sync's own opener, so a take pauses what a walk or a read would pause, and reads a
  * token nowhere else.
  */
 export const takeSync: TakeSync = {
-  open: async (db, named, log) => {
-    const opened = await openSource(db, named, TAKEN_FROM, log);
+  open: async (db, named, log, road) => {
+    const opened = await openSource(db, named, OPENED_FROM[road], log);
     if (!opened.ok) return opened;
     return {
       ok: true,

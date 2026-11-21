@@ -71,6 +71,7 @@ const SWEEP_WORDS: Record<string, string> = {
   reach_out_check: "Reach-outs checked before they go",
   registration: "Texting registrations followed",
   snoozes: "Snoozed threads woken",
+  sources: "Watched folders read, and their files brought in",
   sweep_voice_sessions: "Ended voice sessions removed",
 };
 

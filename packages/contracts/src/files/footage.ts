@@ -8,6 +8,7 @@
  * the one thing to do. Never a code and never Google's wording. Pure: a moment is said by the clock the page hands in.
  */
 import { groupedPlural } from "../shared/words";
+import { footageAsidesOf, type FootageMissedDto } from "./footage-asides";
 import { FOOTAGE_NUMBERS } from "./footage-numbers";
 import { FOOTAGE_SAID, quotedName } from "./footage-said";
 import { FILE_VIDEO_BYTES_MAX, FILE_VIDEO_MINUTES_MAX, FILE_VIDEO_SECONDS_MAX } from "./kinds";
@@ -39,13 +40,19 @@ export interface FootageWaitsDto {
 export interface FootageCountsDto {
   /** Photos and videos its listing has found so far. */
   found: number;
-  /** Those in the Library now. */
+  /** Its files in the Library now, each once: the one count every screen says of what came in (00674). */
   in: number;
+  /** Of them, the clips kept in Drive just now: they play again on a press (00674). */
+  away: number;
   /** Those on their way now. */
   coming: number;
   /** Of the ones that began coming with those on their way, how many have landed: "12 of 40" is 12 of 12 + 28. */
   landed: number;
   waits: FootageWaitsDto;
+  /** Videos Google Drive is still processing: they wait for their length, and are not among those coming (00674). */
+  processing: number;
+  /** What could not come in, by its one reason (00674): said quietly beside the standing (footage-asides.ts). */
+  missed: FootageMissedDto;
 }
 
 /** The Google account a folder is read through. */
@@ -160,6 +167,8 @@ export const FOOTAGE_WORDS = {
   } satisfies Record<FootageAct, string>,
   /** The folder's sheet, opened from the Library's line: its way to Settings. */
   openConnections: "Open Connections",
+  /** What a quiet line of what could not come in opens: the folder's sheet, each with its reason. */
+  seeWhich: "See which",
   /** The quiet acts at the foot of a watched folder's fold. */
   check: "Check now",
   checked: "Looking now",
@@ -416,6 +425,8 @@ export function footageLineOf(footage: FootageDto, standing: FootageStanding): F
   const { account, folder } = footage;
   if (!account || !folder || folder.state === "stopped") return null;
   const name = quotedName(folder.name);
+  const asides = footageAsidesOf(folder);
+  const aside = asides.map((one) => one.head).join(" · ") || null;
   const line = (glyph: FootageLine["glyph"], head: string, sub: string): FootageLine => ({
     glyph,
     head,
@@ -426,7 +437,7 @@ export function footageLineOf(footage: FootageDto, standing: FootageStanding): F
   switch (standing.key) {
     case "looking":
     case "bringing_in":
-      return line("folder", standing.badge, FOOTAGE_WORDS.from(folder.name));
+      return line("folder", standing.badge, [FOOTAGE_WORDS.from(folder.name), aside].filter(Boolean).join(" · "));
     case "waits_tomorrow":
       return line("clock", standing.badge, `${FOOTAGE_NUMBERS.takesADay} a day come in from ${name}`);
     case "waits_room": {
@@ -455,7 +466,19 @@ export function footageLineOf(footage: FootageDto, standing: FootageStanding): F
     case "checking_left":
       return line("folder", standing.badge, standing.note ?? "");
     default:
-      return null;
+      // A quiet folder has nothing to say but what Drive is still processing and what could not come in (F3, F5): the
+      // first is the line, the second rides its wrapping second row, never cut at a phone's width.
+      if (!aside) return null;
+      return {
+        glyph: "folder",
+        head: asides[0]?.head ?? aside,
+        sub: [
+          ...asides.slice(1).map((one) => one.head),
+          asides.some((one) => one.key === "missed") ? FOOTAGE_WORDS.seeWhich : FOOTAGE_WORDS.from(folder.name),
+        ].join(" · "),
+        tone: "rest",
+        act: null,
+      };
   }
 }
 

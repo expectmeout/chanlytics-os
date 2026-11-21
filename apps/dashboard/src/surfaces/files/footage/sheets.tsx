@@ -5,7 +5,12 @@
  * came in stays either way.
  */
 import { useEffect, useState } from "react";
-import { CONTENT_LIBRARY_ROUTE, FOOTAGE_SETUP as W, type FootageDto } from "@chanlytics/contracts";
+import {
+  CONTENT_LIBRARY_ROUTE,
+  FOOTAGE_SETUP as W,
+  type FootageCountsDto,
+  type FootageDto,
+} from "@chanlytics/contracts";
 import { read } from "@/bridge/api";
 import { disconnectDrive, removeFolderFiles, stopFolderWatch } from "@/bridge/verbs/footage";
 import { navigate } from "../../frame-verbs";
@@ -13,6 +18,7 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Sheet } from "../../kit/sheet/sheet";
 import type { FolderChoice } from "./chooser";
+import { stopWordsOf } from "./leave-words";
 import { readFootageAgain } from "./use-footage";
 import { WatchFacts, WatchTold, useWatchStep } from "./watch-confirm";
 
@@ -232,6 +238,7 @@ export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFai
       ) : (
         <LeaveSaid
           kind={kind}
+          counts={footage?.folder?.counts ?? null}
           leaving={leaving}
           sharesGoogle={sharesGoogle}
           onRemoveToo={removable > 0 ? () => setAlsoRemove(true) : null}
@@ -241,23 +248,30 @@ export function LeaveSheet({ kind, footage, sharesGoogle, onClose, onDone, onFai
   );
 }
 
-/** What letting go leaves, said before the press, and the quiet way to remove what came too where there is any. */
+/**
+ * What letting go leaves, said before the press, and the quiet way to remove what came too where there is any. Stopping
+ * says the folder's own count, the one its row says (the content loop PRD's F4), and that its clips kept in Drive still
+ * play (F1); disconnecting says what every folder of the account leaves, which no longer plays.
+ */
 function LeaveSaid({
   kind,
+  counts,
   leaving,
   sharesGoogle,
   onRemoveToo,
 }: {
   kind: "stop" | "disconnect";
+  counts: FootageCountsDto | null;
   leaving: Leaving | null;
   sharesGoogle: boolean;
   onRemoveToo: (() => void) | null;
 }) {
-  const words = kind === "stop" ? W.stop : W.disconnect;
+  const stop = kind === "stop" ? stopWordsOf(counts ?? { in: 0, away: 0 }) : null;
   return (
     <div className="fo-leave" data-kind={kind}>
-      <p>{kind === "stop" ? W.stop.stays(leaving?.files ?? 0) : W.disconnect.drops}</p>
-      {leaving && leaving.away > 0 ? <p data-strong="true">{words.away(leaving.away)}</p> : null}
+      <p>{stop ? stop.stays : W.disconnect.drops}</p>
+      {stop?.away ? <p>{stop.away}</p> : null}
+      {!stop && leaving && leaving.away > 0 ? <p data-strong="true">{W.disconnect.away(leaving.away)}</p> : null}
       {kind === "disconnect" && sharesGoogle ? <p>{W.disconnect.google}</p> : null}
       {onRemoveToo ? (
         <div className="fo-leave-also">

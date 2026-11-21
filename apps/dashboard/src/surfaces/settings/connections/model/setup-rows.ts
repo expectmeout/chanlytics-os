@@ -11,6 +11,7 @@ import {
   CONTENT_LIBRARY_ROUTE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   FOOTAGE_WORDS,
+  footageAsidesOf,
   footageStandingOf,
   googleAudienceWords,
   META_LINE_OFF_WHY,
@@ -262,6 +263,8 @@ const DRIVE_VERBS: Record<FootageAct, ConnectionVerb> = {
   copy_steps: driveVerb("copy_steps", "verb:drive-steps"),
 };
 const DRIVE_CHECK: ConnectionVerb = { label: FOOTAGE_WORDS.check, to: "verb:drive-check", who: "owner" };
+/** What could not come in, opened: the folder's sheet, each with its reason. Anyone may read it. */
+const DRIVE_CONTENTS: ConnectionVerb = { label: FOOTAGE_WORDS.seeWhich, to: "verb:drive-contents", who: "operator" };
 const DRIVE_STOP: ConnectionVerb = { label: FOOTAGE_WORDS.stop, to: "verb:drive-stop", who: "owner" };
 const DRIVE_DISCONNECT: ConnectionVerb = {
   label: FOOTAGE_WORDS.disconnect,
@@ -322,6 +325,12 @@ export function driveRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
   const standing = footageStandingOf(footage, (iso) => clockStamp(Date.parse(iso), connectionInputs.tz, nowMs));
   const { account, folder } = footage;
   const watched = folder && folder.state !== "stopped" ? folder : null;
+  // What it could not bring in and what Drive is still processing, said on the row itself (the PRD's F3, F5).
+  const asides = watched ? footageAsidesOf(watched) : [];
+  const acts = [
+    ...(asides.some((aside) => aside.key === "missed") ? [DRIVE_CONTENTS] : []),
+    ...(footage.can_change ? driveActs(footage, standing.key) : []),
+  ];
   const facts = [
     ...(watched ? [{ label: FOOTAGE_WORDS.facts.folder, value: watched.name }] : []),
     ...(account?.email ? [{ label: FOOTAGE_WORDS.facts.account, value: account.email }] : []),
@@ -348,6 +357,7 @@ export function driveRow(connectionInputs: ConnectionInputs, { nowMs }: { nowMs:
         ? DRIVE_VERBS[standing.act]
         : null,
     ...(facts.length > 0 && account?.health !== "blocked_by_admin" ? { facts } : {}),
-    ...(footage.can_change ? { acts: driveActs(footage, standing.key) } : {}),
+    ...(asides.length > 0 ? { notes: asides.map((aside): ConnectionNote => ({ text: aside.head, live: true })) } : {}),
+    ...(acts.length > 0 ? { acts } : {}),
   };
 }

@@ -9,6 +9,7 @@ export {
   getHealthClocks,
   getHealthDraftUses,
   getHealthFailedJobs,
+  getHealthFootage,
   getHealthLedger,
   getHealthPages,
   getHealthParts,

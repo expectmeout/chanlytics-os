@@ -9,8 +9,11 @@
  *   A watch       the folder validated (it exists, it can be listed, and where its changes are read), then its place
  *                 in the provider's changes saved BEFORE its first walk begins, so nothing that changes during the
  *                 walk is missed; then the walk's first step put on the ledger. Choosing a folder twice is one watch.
+ *                 A watch again, of a folder stopped or of the one watched now, hands back what failed only because
+ *                 its job stopped (the content loop PRD's F2): nothing else that failed is tried again for it.
  *   Check now     one read of the folder, at once.
- *   Stop          the folder is no longer read and its channel is closed. What came in stays.
+ *   Stop          the folder is no longer read and its channel is closed. What came in stays, and a clip of it that
+ *                 stepped aside still comes back while its account reads (F1).
  *   Confirm       a person's word that a held wave of removals is real: the next walk marks them.
  *
  * How many folders a workspace may watch is an entitlement, not the schema's: one at launch (the plan's D5).
@@ -19,6 +22,7 @@ import { SECOND_MS, type SourceFolder, type SourceRefusal, type TenantId } from 
 import { driveSource, type DriveFolderChoices, type DrivePlace } from "@chanlytics/channels/files";
 import {
   askForListedItems,
+  askForStoppedItems,
   findMediaSource,
   findSourceConnection,
   listMediaSourcesOf,
@@ -162,7 +166,12 @@ export async function watchFolder(
   if (!account.ok) return account;
   const others = (await listMediaSourcesOf(db, ask.tenantId)).filter((row) => row.state !== "stopped");
   const already = others.find((row) => row.connection_id === ask.connectionId && row.folder_id === ask.folderId);
-  if (already) return { ok: true, source: already, made: false };
+  if (already) {
+    // Chosen again while it is watched: still one watch, and what stopped with it is handed back (the PRD's F2).
+    const back = await askForStoppedItems(db, { tenantId: ask.tenantId, sourceId: already.id });
+    log.info("source_watched", { source: already.id, again: true, handed_back: back });
+    return { ok: true, source: already, made: false };
+  }
   if (!ask.instead && others.length >= SOURCES_A_WORKSPACE) return { ok: false, reason: "too_many" };
   const found = await findFolderAndPlace(account.token, ask.folderId).catch((error: unknown) =>
     refusedKey(db, account.connection, log, error),
@@ -202,8 +211,15 @@ export async function watchFolder(
     if (!again) return { ok: true, source, made: false };
     source = again;
   }
+  // What failed only because its job stopped with the folder takes its turn again, as new; nothing else moves (F2).
+  const back = kept.made ? 0 : await askForStoppedItems(db, { tenantId: ask.tenantId, sourceId: source.id });
   await scheduleWalk(db, source, kept.made ? "snapshot" : "reconcile");
-  log.info("source_watched", { source: source.id, again: !kept.made, subfolders: ask.includeSubfolders });
+  log.info("source_watched", {
+    source: source.id,
+    again: !kept.made,
+    subfolders: ask.includeSubfolders,
+    handed_back: back,
+  });
   return { ok: true, source, made: kept.made };
 }
 
