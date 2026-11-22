@@ -113,6 +113,12 @@ function driveReturnedHere(): DriveReturned | null {
   }
 }
 
+/**
+ * What Google's window sent this page's own address back with, kept until it is cleared: the frame draws a page more
+ * than once as it loads, and the address says it only the first time.
+ */
+let driveReturned: DriveReturned | null = null;
+
 /** The steps a Google Workspace's manager is sent, put on the clipboard; whether the browser let it. */
 export async function copyAdminSteps(): Promise<boolean> {
   try {
@@ -251,11 +257,12 @@ function useDriveWindow(on: boolean): Pick<FootageHere, "outcome" | "connecting"
   const [outcome, setOutcome] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  // What this page's own address came back with, once.
+  // What this page's own address came back with, kept until it is cleared: the frame draws the page more than once as
+  // it loads, and the address says it only the first time.
   useEffect(() => {
     if (!on) return;
-    const returned = driveReturnedHere();
-    if (returned) setOutcome(connectStopOf(returned));
+    driveReturned = driveReturnedHere() ?? driveReturned;
+    if (driveReturned) setOutcome(connectStopOf(driveReturned));
   }, [on]);
 
   // The wait ends with the page itself, too.
@@ -273,6 +280,7 @@ function useDriveWindow(on: boolean): Pick<FootageHere, "outcome" | "connecting"
       return;
     }
     waiting.current?.();
+    driveReturned = null;
     setOutcome(null);
     setConnecting(true);
     const stop = waitForWindow(opened, (returned) => {
@@ -285,7 +293,11 @@ function useDriveWindow(on: boolean): Pick<FootageHere, "outcome" | "connecting"
     waiting.current = stop;
   }, []);
 
-  return { outcome, connecting, connect, clearOutcome: () => setOutcome(null) };
+  const clearOutcome = () => {
+    driveReturned = null;
+    setOutcome(null);
+  };
+  return { outcome, connecting, connect, clearOutcome };
 }
 
 /** The workspace's watched folder, where `on` says the page draws it. */

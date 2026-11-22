@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { todayPeopleOf as todayReadOf } from "@chanlytics/contracts";
 import { again, all, fresh, textOf, unmount } from "../../_stub-react.mjs";
 import { personDto } from "../../consent/_person-row.mjs";
-import { headline } from "../_headline.mjs";
+import { headline, weekSeen } from "../_headline.mjs";
 import { W, ZONE, answerWith, dayWith, json, row } from "./_world.mjs";
 
 // The phone's width, which the page asks once (phone.ts): one answer, turned per test.
@@ -105,7 +105,7 @@ const morning = (state, cards = []) => ({
     detail: "",
     cards,
     findings: [],
-    rested: {},
+    rested: weekSeen(),
     lately: [],
   },
 });

@@ -1182,7 +1182,7 @@ $$;
 -- Name: FUNCTION ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) IS 'Meta''s count beside Chanlytics'' (the Ads tracking plan''s T2, 00677): for each ad that opens a chat the workspace hears (door whatsapp or instagram, with an active route of that kind), over the window''s days Meta has settled (ad_days.settled, with a count of chats), the chats Meta says it started (meta), the entries Chanlytics kept on those days in the ad''s account zone (kept: new people and known ones alike, each by ad_held_for), and the last of those days (through). Ads with no settled day are left out. The window is ads_page_counts''. Meta counts a chat written within seven days of a tap and Chanlytics an entry when its message arrives, so the two are never equal: contracts adChatsKeptRule says when they have parted. Counts only. SECURITY INVOKER.';
+COMMENT ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) IS 'Meta''s count beside Chanlytics'' (the Ads tracking plan''s T2, 00678): for each ad that opens a chat the workspace hears (door whatsapp or instagram, with an active route of that kind), over the window''s days Meta has settled (ad_days.settled, with a count of chats), the chats Meta says it started (meta), the entries Chanlytics kept on those days in the ad''s account zone (kept: new people and known ones alike, each by ad_held_for), and the last of those days (through). Ads with no settled day are left out. The window is ads_page_counts''. Meta counts a chat written within seven days of a tap and Chanlytics an entry when its message arrives, so the two are never equal: contracts adChatsKeptRule says when they have parted. Counts only. SECURITY INVOKER.';
 
 
 --
@@ -1964,7 +1964,7 @@ $$;
 -- Name: FUNCTION ad_people_back(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought back (the Ads tracking plan''s T3 and its call 2, 00677): someone already known who wrote from an ad in the window (ad_people_in''s), alive and not merged away, counted once an ad by their first message from it there, and left out where that message is the one that made them (the ad brought them: ad_people_in counts them). Booked after: a visit of theirs asked for in a chat and confirmed (source receptionist) or added by a member (source person), neither cancelled nor only asked for, whose row was made after that message and which starts after it (the content loop PRD''s A.6); a visit read in from a calendar, a booking email or a tool is never after, its row''s time being only when Chanlytics first saw it. {ads: [{ad_id, people, booked}], unnamed: {people, booked} for ads Chanlytics cannot name, all: {people, booked}, each person once}. Never added to the people an ad brought, nor to the cost of a booked person. Null for a workspace nobody can read. SECURITY INVOKER.';
+COMMENT ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought back (the Ads tracking plan''s T3 and its call 2, 00678): someone already known who wrote from an ad in the window (ad_people_in''s), alive and not merged away, counted once an ad by their first message from it there, and left out where that message is the one that made them (the ad brought them: ad_people_in counts them). Booked after: a visit of theirs asked for in a chat and confirmed (source receptionist) or added by a member (source person), neither cancelled nor only asked for, whose row was made after that message and which starts after it (the content loop PRD''s A.6); a visit read in from a calendar, a booking email or a tool is never after, its row''s time being only when Chanlytics first saw it. {ads: [{ad_id, people, booked}], unnamed: {people, booked} for ads Chanlytics cannot name, all: {people, booked}, each person once}. Never added to the people an ad brought, nor to the cost of a booked person. Null for a workspace nobody can read. SECURITY INVOKER.';
 
 
 --
@@ -2398,7 +2398,7 @@ $$;
 -- Name: FUNCTION ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) IS 'The shared record''s reader over ad_entries for a thread (the content loop PRD''s Appendix A.2; the Ads tracking plan''s T1, 00677): of p_messages (500 at most), the entries they opened, each named by its ad''s reference; and for every reference, those and p_refs (200 at most, first touches as contacts.acquired_ref keeps them), the ad Chanlytics holds for it (ad_held_for) and its name (ad_named). {touches: [{message_id, ref}], named: [{ref, ad_id, name}]}. Counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
+COMMENT ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) IS 'The shared record''s reader over ad_entries for a thread (the content loop PRD''s Appendix A.2; the Ads tracking plan''s T1, 00678): of p_messages (500 at most), the entries they opened, each named by its ad''s reference; and for every reference, those and p_refs (200 at most, first touches as contacts.acquired_ref keeps them), the ad Chanlytics holds for it (ad_held_for) and its name (ad_named). {touches: [{message_id, ref}], named: [{ref, ad_id, name}]}. Counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -13283,6 +13283,157 @@ begin
     'state', v_state, 'paused_until', v_paused,
     'consent', v_consent, 'dnc', v_dnc);
 end $_$;
+
+
+--
+-- Name: instagram_account_connect(uuid, text, jsonb, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_other record;
+  v_here  record;
+  v_id    uuid;
+  v_was   text;
+begin
+  -- An Instagram account's id is 5 to 32 digits (contracts' own shape for it); anything else is no account.
+  if p_account_id is null
+     or length(p_account_id) not between 5 and 32
+     or translate(p_account_id, '0123456789', '') <> '' then
+    raise exception 'instagram_account_connect: not an account id' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_config) is distinct from 'object' or jsonb_typeof(p_secret) is distinct from 'object' then
+    raise exception 'instagram_account_connect: a config and a secret, each an object' using errcode = '22023';
+  end if;
+  -- One connect at a time for a workspace, then for an account, always in that order: a second waits, then reads what
+  -- the first wrote. Two workspaces never hold each other's lock, so nothing waits in a circle.
+  perform pg_advisory_xact_lock(hashtextextended('instagram_workspace:' || p_tenant_id::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('instagram_account:' || p_account_id, 0));
+
+  -- Another workspace's row for the account: connected, it holds it; off, it lets go now.
+  select c.id, c.tenant_id, c.status into v_other
+    from public.tenant_channels c
+   where c.kind = 'instagram' and c.external_id = p_account_id and c.tenant_id <> p_tenant_id
+     for update;
+  if found then
+    if v_other.status = 'active' then
+      return jsonb_build_object('outcome', 'taken', 'held_by', v_other.tenant_id);
+    end if;
+    perform public.instagram_account_disconnect(v_other.tenant_id, v_other.id, null);
+  end if;
+
+  -- One account a workspace: a different one connected here stands until its own Disconnect.
+  select c.id, c.config ->> 'username' as username into v_here
+    from public.tenant_channels c
+   where c.tenant_id = p_tenant_id and c.kind = 'instagram' and c.status = 'active'
+     and c.external_id <> p_account_id
+   order by c.created_at
+   limit 1;
+  if found then
+    return jsonb_build_object('outcome', 'another_here', 'username', v_here.username);
+  end if;
+
+  -- This workspace's own row for the account: the one that holds it now, else the one it let go last.
+  select c.id into v_id
+    from public.tenant_channels c
+   where c.tenant_id = p_tenant_id and c.kind = 'instagram'
+     and (c.external_id = p_account_id
+          or (c.external_id = 'let-go:' || c.id::text and c.config ->> 'account_id' = p_account_id))
+   order by (c.external_id = p_account_id) desc, c.updated_at desc
+   limit 1
+     for update;
+  if v_id is null then
+    insert into public.tenant_channels (tenant_id, kind, external_id, status, config)
+    values (p_tenant_id, 'instagram', p_account_id, 'disabled', p_config)
+    returning id into v_id;
+    v_was := 'new';
+  else
+    update public.tenant_channels set external_id = p_account_id, config = p_config where id = v_id;
+    v_was := 'own';
+  end if;
+  -- The token, through the one door that writes a credential; it raises where Vault will not keep it, and the row,
+  -- its key and its config are then as they were.
+  perform public.put_channel_credentials(v_id, p_secret);
+  update public.tenant_channels set status = 'active' where id = v_id;
+  -- The connection, on the ledger with it: which account, through which login where the config names one, and who.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'channel.connected', 'system', 'channel', v_id,
+          jsonb_build_object(
+            'kind', 'instagram',
+            'account_id', p_account_id,
+            'username', p_config ->> 'username',
+            'by', p_config ->> 'connected_by')
+          || case when p_config ? 'login' then jsonb_build_object('login', p_config ->> 'login') else '{}'::jsonb end);
+  return jsonb_build_object('outcome', 'connected', 'channel_id', v_id, 'was', v_was);
+end $$;
+
+
+--
+-- Name: FUNCTION instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb) IS 'Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). Under a lock for the workspace and one for the account: answers taken (with held_by, the workspace) while another workspace has the account connected, and lets go of another workspace''s row that is off and still holds it (instagram_account_disconnect); answers another_here (with its username) while this workspace has a different account connected; else this workspace''s own row for the account (the one holding it, or the one it let go last) or a new one takes the account''s id and the config, the secret is kept through put_channel_credentials, the row is turned on, and channel.connected { kind, account_id, username, by, login? } is written with it: connected, with channel_id and was (own or new). A secret Vault will not keep raises and nothing changes. Refuses (22023) an account id that is not 5 to 32 digits, or a config or secret that is not an object. The edge''s Instagram and Meta doors call it (apps/edge/lib/instagram).';
+
+
+--
+-- Name: instagram_account_disconnect(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'vault'
+    AS $$
+declare
+  v_row public.tenant_channels%rowtype;
+begin
+  select * into v_row
+    from public.tenant_channels c
+   where c.id = p_channel_id and c.tenant_id = p_tenant_id and c.kind = 'instagram'
+     for update;
+  if not found then
+    return jsonb_build_object('outcome', 'gone');
+  end if;
+  -- Let go before: it holds nothing, and nothing changes.
+  if v_row.external_id = 'let-go:' || v_row.id::text then
+    return jsonb_build_object('outcome', 'already');
+  end if;
+  update public.tenant_channels
+     set status = 'disabled',
+         external_id = 'let-go:' || v_row.id::text,
+         credentials_ref = null,
+         -- What was true of a token it no longer keeps goes; the handle stays, with the account, when and who.
+         config = (config - array['scopes', 'token_checked_at', 'token_lapsed_at', 'token_refreshed_at', 'token_expires_at'])
+                  || jsonb_strip_nulls(jsonb_build_object(
+                       'account_id', v_row.external_id,
+                       'disconnected_at', now(),
+                       'disconnected_by', p_by))
+   where id = v_row.id;
+  -- put_channel_credentials (00042) keeps a channel's secret under this name; it leaves with the account.
+  delete from vault.secrets where name = 'wa-creds-' || v_row.id::text;
+  -- A connected account disconnected is a fact the ledger keeps, with it. A row that was off already (left by the code
+  -- before this, or by a connect that never finished) was no connection to end: it lets go and says nothing.
+  if v_row.status = 'active' then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'channel.disconnected', 'system', 'channel', v_row.id,
+            jsonb_build_object(
+              'kind', 'instagram',
+              'login', coalesce(v_row.config ->> 'login', 'instagram'),
+              'account_id', v_row.external_id,
+              'username', v_row.config ->> 'username',
+              'by', p_by));
+  end if;
+  return jsonb_build_object('outcome', 'let_go', 'account_id', v_row.external_id, 'was', v_row.status);
+end $$;
+
+
+--
+-- Name: FUNCTION instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) IS 'Service-role only: a workspace''s Instagram account disconnected and let go (00677, decision 0143). The row is turned off, gives up the account''s id (external_id becomes let-go:<row id>, so another workspace may connect the account), its token is deleted from Vault and credentials_ref cleared, and its config keeps the handle with account_id, disconnected_at and disconnected_by; a row that was connected writes channel.disconnected { kind, login, account_id, username, by } with it. Answers let_go with the account''s id and the status it had, already for a row let go before, gone for a row that is not this workspace''s Instagram account. The edge''s Instagram and Meta doors call it (apps/edge/lib/instagram), and instagram_account_connect for a row that is off and still holds an account.';
 
 
 --
@@ -63259,6 +63410,22 @@ GRANT ALL ON FUNCTION public.ingest_call(p_tenant_id uuid, p_retell_call_id text
 
 REVOKE ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ingest_inbound(p_tenant_id uuid, p_channel text, p_identity_external_id text, p_phone_e164 text, p_wa_profile_name text, p_message_external_id text, p_type text, p_body text, p_channel_ts timestamp with time zone, p_media jsonb, p_meta jsonb, p_opt_out boolean, p_opt_in boolean, p_opt_in_marketing boolean) TO service_role;
+
+
+--
+-- Name: FUNCTION instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.instagram_account_connect(p_tenant_id uuid, p_account_id text, p_config jsonb, p_secret jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.instagram_account_disconnect(p_tenant_id uuid, p_channel_id uuid, p_by uuid) TO service_role;
 
 
 --

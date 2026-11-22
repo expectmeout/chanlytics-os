@@ -468,6 +468,8 @@ export const EVENT_KINDS = [
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
   "channel.connected",
+  /** An Instagram account disconnected and let go, written by its door (00677): { kind, login, account_id, username, by }. */
+  "channel.disconnected",
   /** A WhatsApp number's quality rating, read on a clock, changed (00315): { from?, to }. Meta's own news of it is channel.phone_number_quality_update. */
   "channel.quality_rating",
   /** What Meta holds about a WhatsApp number (may it send, and what stands in the way) changed: read at connection, on a clock or when an owner asks (00338): { from?, to }, the word of can_send only. */

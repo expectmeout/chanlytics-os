@@ -1,6 +1,6 @@
 /**
  * The people an ad brought back (the Ads tracking plan's T3 and its call 2): someone already known who wrote again from
- * an ad, counted in the database whole (00677 ad_people_back), on a line of its own on the ad's drawer and in Reports ›
+ * an ad, counted in the database whole (00678 ad_people_back), on a line of its own on the ad's drawer and in Reports ›
  * Ads. And Meta's count beside Chanlytics' (T2), which the same read hands each ad.
  *
  * What must hold. The page's read hands each ad its people brought back and the whole workspace's, once a person, as the

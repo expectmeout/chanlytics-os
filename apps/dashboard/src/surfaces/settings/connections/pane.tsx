@@ -28,6 +28,9 @@ import type { GoogleSurface } from "@/bridge/google";
 import { googleVerbs } from "@/bridge/google";
 import { pageClock } from "@/bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
+import { Icon } from "../../kit/icon/icon";
+import { StatePill } from "../../kit/pill/state-pill";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useAdsShown } from "../../campaigns/ads/shown";
@@ -36,18 +39,28 @@ import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
-import { connectedMailboxes } from "./connected-mailboxes";
+import type { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 import { WebsiteForms } from "../website/forms";
 import { GoogleChoose } from "./google-choose";
-import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
+import {
+  signInNames,
+  useGoogleNote,
+  useLineCodes,
+  useLogins,
+  useMailboxNote,
+  useSignupAhead,
+  useStandingCheck,
+  type Logins,
+} from "./live";
 import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
-import { ConnectionRow, type Arm } from "./row";
+import { ConnectionRow, connRowPress, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
-import type { AdsPlace } from "./ad-account-real";
+import type { SignInNames } from "./model/login-words";
+import type { AdsPlace, AdsRowKit } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -63,52 +76,25 @@ interface AdsHere {
   slot: (element: HTMLElement | null) => void;
 }
 
-/** The place for the ad account's card in a group: an element the card is drawn into, never a box of its own. */
-const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
-
-/** What the browser came back from Google with, said once. */
-function googleNote(): string | null {
-  const o = googleVerbs.outcome();
-  if (!o) return null;
-  const W = googleVerbs.outcomeWords;
-  return (
-    W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null)
-  );
-}
-
-/** A login's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
-interface LoginDoor<D> {
-  config: () => Promise<D>;
-  held: () => D | null;
-  outcome: () => string | null;
-}
-
 /**
- * A login's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves the
- * offer out), and what the browser came back from that login with, said once under its row until Ok.
+ * What the ad account's row (a lazy chunk) is handed by the page: its press, face and pill, which the page loads at
+ * once already, so the chunk imports none of them (ad-account-real.tsx AdsRowKit says why).
  */
-function useLoginDoor<D>(login: LoginDoor<D>) {
-  // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
-  const [door, setDoor] = useState<D | null | undefined>(() => login.held() ?? undefined);
-  const [note, setNote] = useState<string | null>(() => login.outcome());
-  useEffect(() => {
-    let on = true;
-    login
-      .config()
-      .then((c) => on && setDoor(c))
-      .catch(() => on && setDoor(null));
-    return () => {
-      on = false;
-    };
-  }, [login]);
-  return { door, note, clearNote: () => setNote(null) };
-}
+const ADS_KIT: AdsRowKit = {
+  press: connRowPress,
+  face: (on) => (
+    <Face
+      className="set-int-tile"
+      data-kind="ads"
+      data-on={on ? "true" : undefined}
+      glyph={<Icon name="trending-up" size={15} />}
+    />
+  ),
+  pill: (tone, label) => <StatePill kind="tone" value={tone} label={label} />,
+};
 
-/** Both logins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
-function useLogins() {
-  return { ig: useLoginDoor(igConnect), meta: useLoginDoor(metaConnect) };
-}
-type Logins = ReturnType<typeof useLogins>;
+/** The place for the ad account's row in a group: an element the row is drawn into, never a box of its own. */
+const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
 /** What came back from a login, under the Instagram row: Instagram's own, or Meta's. */
 function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => void; label: "Instagram" | "Meta" }) {
@@ -117,12 +103,12 @@ function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => voi
   return <RecordRow id={id} testid={id} label={label} value={note} act={{ label: "Ok", onClick: onOk }} />;
 }
 
-/** What each login came back with, under the Instagram row, each until Ok. */
-function LoginNotes({ logins: { ig, meta } }: { logins: Logins }) {
+/** What each login came back with, under the Instagram row, in the row's words, each until Ok. */
+function LoginNotes({ logins: { ig, meta }, names }: { logins: Logins; names: SignInNames }) {
   return (
     <>
-      <LoginNote label="Instagram" note={ig.note} onOk={ig.clearNote} />
-      <LoginNote label="Meta" note={meta.note} onOk={meta.clearNote} />
+      <LoginNote label="Instagram" note={ig.note(names)} onOk={ig.clearNote} />
+      <LoginNote label="Meta" note={meta.note(names)} onOk={meta.clearNote} />
     </>
   );
 }
@@ -220,7 +206,7 @@ function rowsOf(
       signupLeftOpenAt: asked.signupLeftOpenAt,
       imports: S ? (S.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
-      meta: asked.meta ? { ready: asked.meta.ready } : null,
+      meta: asked.meta ? { ready: asked.meta.ready, postsWaiting: asked.meta.posts_waiting } : null,
       footage: asked.footage,
     },
     Date.now(),
@@ -392,6 +378,8 @@ function ConnectionGroups(props: {
   const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
   const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
   const { note, setNote, row } = props;
+  // Under the Meta row (the Instagram connection) where both stand in one group: the row is then that row's child.
+  const child = !!adsPlace && props.rows.some((r) => r.group === adsPlace.group && r.kind === "instagram");
   return (
     <>
       {connectionGroupsOf(props.rows).map(({ g, list }) =>
@@ -406,7 +394,7 @@ function ConnectionGroups(props: {
       )}
       {props.adsShown && (
         <Suspense fallback={null}>
-          <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} />
+          <RealAdAccount slot={adsSlot} child={child} kit={ADS_KIT} onPlace={setAdsPlace} />
         </Suspense>
       )}
     </>
@@ -476,10 +464,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   // The email row's form and the business record under Texting, each open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
-  const [note, setNote] = useState<string | null>(googleNote);
-  // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
-  const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
-  const dropNote = () => setMailboxNote(null);
+  const [note, setNote] = useGoogleNote();
+  // What the browser came back from a mailbox's provider with, said under the mailboxes' row until it is dropped.
+  const [mailboxNote, dropNote] = useMailboxNote();
   // The address named "Left in your mailbox": the mailbox block opens its list.
   const leftOpen = named === MAILBOX_LEFT_ROW;
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
@@ -586,7 +573,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
             onClose={() => setEmailOpen(false)}
           />
         )}
-        {r.kind === "instagram" && <LoginNotes logins={logins} />}
+        {r.kind === "instagram" && <LoginNotes logins={logins} names={signInNames(channels)} />}
         {r.kind === "drive" && drive.note}
         {/* A Later row has no block, but what a connect came back with is still said under it. */}
         {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (

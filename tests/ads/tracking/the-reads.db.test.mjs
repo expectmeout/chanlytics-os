@@ -1,5 +1,5 @@
 /**
- * 00677 on a real Postgres: a conversation's ad, Meta's count beside Chanlytics', and the people an ad brought back (the
+ * 00678 on a real Postgres: a conversation's ad, Meta's count beside Chanlytics', and the people an ad brought back (the
  * Ads tracking plan's T1, T2 and T3). The messages arrive through ingest_inbound, so the entries are the first-touch
  * trigger's own, new person and known one as the database judges them.
  *

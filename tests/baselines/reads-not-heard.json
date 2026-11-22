@@ -1247,7 +1247,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The name of the ad a person first came through (ad_named, and people_series' first_came.by_ad, over ad_entries: 00646; decision 0049, call 2). The feed tells no entry: an entry is part of the message that carried it, opened in that message's own transaction, and what the ad said is kept on it seconds later. The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00677), with the messages they hear. A person's page reads the name with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). Words kept after that read are said on the next one.",
+      "why": "The name of the ad a person first came through (ad_named, and people_series' first_came.by_ad, over ad_entries: 00646; decision 0049, call 2). The feed tells no entry: an entry is part of the message that carried it, opened in that message's own transaction, and what the ad said is kept on it seconds later. The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00678), with the messages they hear. A person's page reads the name with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). Words kept after that read are said on the next one.",
       "reads": {
         "conversations": [
           "ad_entries"
@@ -1285,7 +1285,7 @@
     },
     {
       "kind": "over-read",
-      "why": "The name of the ad a person first came through, once Chanlytics holds the ad (ad_named reads ads.name first: 00651; decision 0049, call 2). The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00677), with the messages they hear. A person's page reads it with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). An ad's name moves only when its owner renames it at the platform, and the new one is said at the next read.",
+      "why": "The name of the ad a person first came through, once Chanlytics holds the ad (ad_named reads ads.name first: 00651; decision 0049, call 2). The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00678), with the messages they hear. A person's page reads it with the person, whose own row holds the ad they came through and which the page hears; the people report reads it with the messages it hears (heardWith). An ad's name moves only when its owner renames it at the platform, and the new one is said at the next read.",
       "reads": {
         "conversations": [
           "ads"
@@ -1323,7 +1323,7 @@
     },
     {
       "kind": "unfed",
-      "why": "The ad a tap on one version of an ad made here names (ad_held_for over ad_objects, 00666): an ad made here is three ads at Meta, and ad_named and people_series name the one the owner made. The feed tells no part: what was made at Meta for an ad is written with that ad's own row, which is told, and a part's Meta id is kept once, when Meta makes it, before anyone can have tapped it. The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00677), with the messages they hear. A person's page and the people report read it with what they hear (heardWith).",
+      "why": "The ad a tap on one version of an ad made here names (ad_held_for over ad_objects, 00666): an ad made here is three ads at Meta, and ad_named and people_series name the one the owner made. The feed tells no part: what was made at Meta for an ad is written with that ad's own row, which is told, and a part's Meta id is kept once, when Meta makes it, before anyone can have tapped it. The Inbox, Conversations and Today read it for a thread whose person came from an ad or whose messages came from one (ad_touches_of, 00678), with the messages they hear. A person's page and the people report read it with what they hear (heardWith).",
       "reads": {
         "conversations": [
           "ad_objects"

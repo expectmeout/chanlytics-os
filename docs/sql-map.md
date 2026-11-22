@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 197 | 197 |
 | reader | 92 | 0 |
-| the server's | 419 | 351 |
+| the server's | 421 | 353 |
 | computed column | 3 | 0 |
 | trigger | 116 | 85 |
-| all | 827 | 633 |
+| all | 829 | 635 |
 
 ## Called by nothing
 
@@ -62,7 +62,7 @@ being read is dropped by a migration.
 | `ad_bell_words` | the server's | the server | SQL `ad_bell_paused`, `ad_bell_ring` | The title and body of one of the bell's ad notices (00658, 00676): |
 | `ad_change_keep` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: an owner changes a running ad made here (00673; |
 | `ad_change_told` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: what telling the platform of an owner's change to an ad came to (00673; |
-| `ad_chats_kept` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | Meta's count beside Chanlytics' (the Ads tracking plan's T2, 00677): |
+| `ad_chats_kept` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | Meta's count beside Chanlytics' (the Ads tracking plan's T2, 00678): |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
 | `ad_credentials_get` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: an ad account's token from Vault, or null where none is kept (00648). |
 | `ad_credentials_put` | the server's | the server | SQL `ad_account_connect` | Service-role only: stores an ad account's token in Vault under ad-creds-<account id> (00648, decision 0049). |
@@ -77,7 +77,7 @@ being read is dropped by a migration.
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `ad_touches_of`, `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
 | `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ads_remediate_files` | Service-role only: ads paused together, each through ad_set_intent, in one transaction, in the ads' own order (00671, 00676; |
 | `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
-| `ad_people_back` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The people an ad brought back (the Ads tracking plan's T3 and its call 2, 00677): |
+| `ad_people_back` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The people an ad brought back (the Ads tracking plan's T3 and its call 2, 00678): |
 | `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
 | `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` and 1 more | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
 | `ad_resume_stopped` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: the owner turns back on the ads Stop everything paused, after Resume, as a press of its own that names them (00676; |
@@ -304,6 +304,8 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
+| `instagram_account_connect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts` | Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). |
+| `instagram_account_disconnect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`; SQL `instagram_account_connect` | Service-role only: a workspace's Instagram account disconnected and let go (00677, decision 0143). |
 | `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 74 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
@@ -615,7 +617,7 @@ being read is dropped by a migration.
 | `push_device_forget` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `push_device_register` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `push_devices_forget_all` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/member-alerts.ts` |  |
-| `put_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/whatsapp.ts` | Service-role only: stores a channel's credentials in Vault under wa-creds-<channel id> and points credentials_ref at it. |
+| `put_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/whatsapp.ts`; SQL `instagram_account_connect`, `instagram_account_disconnect` | Service-role only: stores a channel's credentials in Vault under wa-creds-<channel id> and points credentials_ref at it. |
 | `put_google_credentials` | the server's | the server | code `packages/db/src/repositories/google/connection.ts` | Service-role only: stores a workspace's Google token in Vault under google-creds-<workspace> and points credentials_ref at it. |
 | `put_line_credentials` | the server's | the server | code `packages/db/src/repositories/lines/credentials.ts` | Service-role only: merges a line's provider secrets into Vault under line-creds-<line id>. |
 | `put_mailbox_credentials` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only: stores a connected mailbox's token in Vault under mailbox-creds-<id> and points credentials_ref at it. |

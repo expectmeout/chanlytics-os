@@ -54,7 +54,8 @@ import { useToDoRows } from "./to-do";
 import { appNavigate, canDo, surfaceFailed, useMoved, useToast, workspaceClock } from "../shell";
 import { useTodayWord } from "./day-vm";
 import { AlsoLine, type AlsoDoors } from "../calm/also";
-import { LeadGone } from "../calm/lead";
+import { LeadCleared, LeadGone } from "../calm/lead";
+import type { ClearedBeat } from "../calm/cleared";
 import { cardPressed, cardPressedLately, useFoldsIn } from "../calm/motion";
 import { CalmList, CalmRow, type CalmLine } from "../calm/lines";
 import type { TodayCard } from "../calm/lead";
@@ -62,12 +63,21 @@ import { ActedLine, QueueLead, queueLine } from "../calm/queue";
 import { WaitLead, waitLine } from "../calm/wait";
 
 /** The list, once Today has been read: the page is READY when it is drawn (client/page-speed.ts). */
-export const NeedYou = ({ card, evening = false }: { card: TodayCard; evening?: boolean }) => {
+export const NeedYou = ({
+  card,
+  evening = false,
+  beat = null,
+}: {
+  card: TodayCard;
+  evening?: boolean;
+  /** The celebration, while the page owes it (calm/cleared.ts): it stands where the card stood. */
+  beat?: ClearedBeat;
+}) => {
   useMoved("today");
   const vm = surfaceValue("today");
   usePartShown("today", "queue", !!vm);
   const model = useNeedYouModel(vm ?? null);
-  return vm && model ? <NeedYouList vm={vm} model={model} card={card} evening={evening} /> : null;
+  return vm && model ? <NeedYouList vm={vm} model={model} card={card} evening={evening} beat={beat} /> : null;
 };
 
 /** The drafts the drawn rows read, asked for once per set, where the page's first reads did not hold them. */
@@ -352,21 +362,21 @@ function alsoLeftOf(parts: { entries: Entry[]; next: string | null; model: NeedY
 }
 
 /**
- * The card, where this part holds it: a row finished a moment ago, the row it holds, or the run; where nothing holds it,
- * the room it stood in folds shut.
+ * The card, where this part holds it: a row finished a moment ago, the row it holds, or the run; the celebration, for
+ * its beat, where the last who waited was answered here (W6); and where nothing holds it, the room it stood in folds shut.
  */
 function cardIn(at: {
   heldLead: CardRow | null;
   lead: CardRow | null;
   waitLead: WaitPart | null;
   card: TodayCard;
-  cleared: boolean;
+  beat: ClearedBeat;
 }) {
   if (at.heldLead) return <QueueLead row={at.heldLead.row} ctx={at.heldLead.ctx} holder={at.heldLead.holder} done />;
   if (at.lead) return <QueueLead row={at.lead.row} ctx={at.lead.ctx} holder={at.lead.holder} />;
   if (at.waitLead) return <WaitLead part={at.waitLead} />;
-  // The last thing waiting done, and nothing else to do: the one celebration, once (W6).
-  return at.card === null ? <LeadGone cleared={at.cleared} /> : null;
+  if (at.beat) return <LeadCleared live={at.beat === "on"} />;
+  return at.card === null ? <LeadGone /> : null;
 }
 
 const NeedYouList = ({
@@ -374,11 +384,13 @@ const NeedYouList = ({
   model,
   card,
   evening,
+  beat,
 }: {
   vm: TodayVM;
   model: NeedYouModel;
   card: TodayCard;
   evening: boolean;
+  beat: ClearedBeat;
 }) => {
   const [toastNode, ppFlash] = useToast();
   const { groups, drawn, order, kept } = model;
@@ -440,7 +452,7 @@ const NeedYouList = ({
   const rest = callsUnread || (!broadcastsRead() && surfaceFailed("broadcasts"));
   return (
     <>
-      {cardIn({ heldLead, lead, waitLead, card, cleared: entries.length === 0 && left.waiting === 0 })}
+      {cardIn({ heldLead, lead, waitLead, card, beat })}
       {/* What was finished here opens at the top of the list, where the next thing's line shuts as it rises into the
           card (the second look, M1): the two cross where they stand. */}
       {acted.length ? (

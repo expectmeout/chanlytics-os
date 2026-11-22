@@ -202,6 +202,8 @@ export function dayAheadWords(day: TodayDayVM | null): string | null {
 /** How many of the same weekday before today a usual day is taken from: four weeks of the business's own history. */
 const USUAL_WEEKS = 4;
 const WEEK_DAYS = 7;
+/** The days a usual day is read from: today and the four weeks before it. */
+export const USUAL_DAYS = USUAL_WEEKS * WEEK_DAYS + 1;
 
 /**
  * A day against a usual one (Working for you, W8): "More than a usual Tuesday" where AI answered more today than on each of

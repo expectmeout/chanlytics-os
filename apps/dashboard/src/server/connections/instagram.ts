@@ -5,7 +5,7 @@
  * the one secret used here is the dashboard's own, the key that signs the OAuth state (Google's, which a mailbox's
  * connect signs with too: the state names its provider, and each callback refuses another's).
  */
-import { AppError, appLink, ROLE_PERMS } from "@chanlytics/contracts";
+import { AppError, appLink, isTenantId, ROLE_PERMS } from "@chanlytics/contracts";
 import { instagramAuthorizeUrl } from "@chanlytics/channels/instagram";
 import { STATE_TTL_MS, verifyStateFor, signStateFor } from "@chanlytics/channels/tokens";
 import { callEdge, edgeConfigured, READY_TTL_MS, type EdgeAnswer, type EdgeBody, type EdgeRead } from "../shared/edge";
@@ -90,14 +90,30 @@ export function backToConnections(
   key: "instagram" | "meta",
   origin: string,
   slugOf: () => string | null,
-): (outcome: string, reason?: string) => Response {
-  return (outcome, reason) =>
-    new Response(null, {
+): (outcome: string, reason?: string, at?: string | null) => Response {
+  return (outcome, reason, at) => {
+    const words = { [key]: outcome, why: reason || null, at: at || null };
+    return new Response(null, {
       status: 302,
-      headers: {
-        location: `${origin}${appLink(slugOf(), "admin/integrations", { [key]: outcome, why: reason || null })}`,
-      },
+      headers: { location: `${origin}${appLink(slugOf(), "admin/integrations", words)}` },
     });
+  };
+}
+
+/**
+ * The workspace that has an account connected, as the page may name it: its own address's word, and only where the
+ * person signed in is an owner or a manager there too (the edge says which workspace beside `instagram_account_taken`).
+ * Null for anyone else's, which the page is never told: it says "another Chanlytics workspace".
+ */
+export async function findOwnWorkspaceHolding(ctx: RouteContext, heldBy: unknown): Promise<string | null> {
+  if (typeof heldBy !== "string" || !isTenantId(heldBy)) return null;
+  try {
+    const there = await getMemberContext(ctx, heldBy);
+    return ROLE_PERMS[there.role].settings ? (there.slug ?? null) : null;
+  } catch {
+    // Not a member there: the workspace is someone else's, and stays unnamed.
+    return null;
+  }
 }
 
 /** `GET channels/instagram/connect`: a signed state naming the workspace and the person, then Instagram's consent screen. */
@@ -149,12 +165,12 @@ export async function handleInstagramCallback(ctx: RouteContext, req: Request): 
       reason,
       detail: typeof body.detail === "string" ? body.detail.slice(0, 200) : null,
     });
-    return back("error", reason);
+    return back("error", reason, await findOwnWorkspaceHolding(ctx, body.held_by));
   }
   return back("connected");
 }
 
-/** `POST channels/instagram/disconnect`: the account's row turned off, so nothing it is sent routes. */
+/** `POST channels/instagram/disconnect`: the account let go, so nothing it is sent routes, and no token of it is kept. */
 export async function disconnectInstagram(ctx: RouteContext, member: Member, channelId: string): Promise<{ ok: true }> {
   const answer = await edgeInstagram({
     op: "disconnect",

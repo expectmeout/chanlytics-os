@@ -1,5 +1,5 @@
 /**
- * The shared record's reader over ad_entries (the content loop PRD's Appendix A.2; the Ads tracking plan's T1, 00677
+ * The shared record's reader over ad_entries (the content loop PRD's Appendix A.2; the Ads tracking plan's T1, 00678
  * ad_touches_of): for a thread, which of its messages came from an ad, and the ad a person first came from, each named
  * as every page names an ad (ad_named) with the ad Chanlytics holds for it (ad_held_for). One read for every thread of an
  * answer, and none for threads that hold no ad: only a customer's message an ad's referral rode in on, and only a
@@ -35,7 +35,7 @@ const filledText = (value: unknown): string | null => (typeof value === "string"
 
 /**
  * Of these messages, the touches they are (the entries they opened); and of these first touches (contacts.acquired_ref),
- * the ad each names, by the reference. Nothing is read where neither holds anything. A database that has not run 00677
+ * the ad each names, by the reference. Nothing is read where neither holds anything. A database that has not run 00678
  * answers none (either deploy order). A read the database refuses throws.
  */
 export async function readAdTouches(

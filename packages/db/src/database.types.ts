@@ -10821,6 +10821,19 @@ export type Database = {
         }
         Returns: Json
       }
+      instagram_account_connect: {
+        Args: {
+          p_account_id: string
+          p_config: Json
+          p_secret: Json
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      instagram_account_disconnect: {
+        Args: { p_by: string; p_channel_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       is_acting_member: { Args: { p_tenant: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }

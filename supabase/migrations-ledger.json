@@ -679,6 +679,7 @@
     "00674_a_stopped_folder_s_clips_come_back.sql": "c239a41fb5e030af1d4b681679a50c759cfa06e28fc5217804c82e24368af118",
     "00675_a_website_s_form_is_kept_as_its_own_entry.sql": "f6a22d82764be2fed977c96a847edd6fbb65253ac3b28cb3e34c16972176208b",
     "00676_the_stop_pauses_the_ads_made_here.sql": "1c01a6b6d2fb38197ce4a07e980030de5f8a14f38e86a17de261072d17fd9f94",
-    "00677_an_ad_says_who_came_back_and_what_meta_counted.sql": "bd086ab4fc89148a7fb1bae5ddd0f244c81eb1ff407a09e346c076537babce1d"
+    "00677_a_disconnected_instagram_account_is_let_go.sql": "e7a2f5ccc22e598a1a83a583bbb1dfc731847a04d92fc7fb4e3c7978ac61cf21",
+    "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571"
   }
 }

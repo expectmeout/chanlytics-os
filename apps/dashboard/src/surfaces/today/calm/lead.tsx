@@ -10,7 +10,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AskFace } from "../../kit/face/ask-face";
 import { Panel } from "../../kit/panel/panel";
 import { TODAY_LINE_WORDS } from "../model/lines";
-import { CLEARED_BEAT_MS, cardPressed, cardPressedLately, useCardGone, useCardHandOff } from "./motion";
+import { cardPressed, useCardGone, useCardHandOff, useClearedRoom } from "./motion";
 
 /**
  * The page's one card, as the arrangement names it (arrangement.ts `todayCardOf`): which part holds it, and which of that
@@ -69,23 +69,29 @@ export function Lead({
  * Where the card stood, once nothing holds it (the last thing done): its room folds shut, so the lines rise under it
  * instead of jumping. Nothing where no card was drawn on this visit.
  */
-export function LeadGone({ cleared = false }: { cleared?: boolean }) {
-  // Only what a press finished is celebrated (W6), and that is decided once, as the room is first drawn: a card that
-  // left because a read moved it (the day closed, someone else answered) just folds.
-  const [said] = useState(() => cleared && cardPressedLately());
-  const { room, gone } = useCardGone(said ? CLEARED_BEAT_MS : 0);
-  if (gone) return null;
+export function LeadGone() {
+  const { room, gone } = useCardGone();
+  return gone ? null : <div ref={room} className="calm-gone" aria-hidden="true" />;
+}
+
+/**
+ * Where the card stood while the celebration is owed (calm/cleared.ts): its room at the height it stood at, the
+ * celebration in it once nothing is open over the page (`live`), and empty until then.
+ */
+export function LeadCleared({ live }: { live: boolean }) {
+  const room = useClearedRoom();
   return (
     <div ref={room} className="calm-gone" aria-hidden="true">
-      {said ? <Cleared /> : null}
+      {live ? <Cleared /> : null}
     </div>
   );
 }
 
 /**
- * The one celebration (Working for you, W6): as the last thing waiting is done, where the card stood says so for a beat
- * while the three give the sweep they give when an answer is done (the three in motion, M7: speaking, then at rest), once,
- * and the room folds away. No confetti, no sound, and the words stay still; the head has said it for a reader.
+ * The one celebration (Working for you, W6): as the last who waited is answered here, where the card stood says so for a
+ * beat while the three give the sweep they give when an answer is done (the three in motion, M7: speaking, then at rest),
+ * once; then the next thing takes the card, or the room folds away. No confetti, no sound, and the words stay still; the
+ * head has said it for a reader.
  */
 function Cleared() {
   const [state, setState] = useState<"speaking" | "idle">("speaking");

@@ -1,7 +1,7 @@
 /**
  * Meta's count beside Chanlytics', told to Health (the Ads tracking plan's T2 and its call 1). After each read of an
  * account at Meta, every ad whose chats Meta counted ten or more of over the days it has settled, and of which fewer than
- * half reached Chanlytics (contracts adChatsKeptRule, over 00677 ad_chats_kept), is paged to the platform with the ad
+ * half reached Chanlytics (contracts adChatsKeptRule, over 00678 ad_chats_kept), is paged to the platform with the ad
  * and the two counts. Once: a page of the ad's own key that went out is not sent again, however many reads find it still
  * parted, and each read's own log line counts them. A page that did not go is tried at the next read. If Meta changes what it
  * sends, messages stop being kept and every figure on the Ads page goes quietly wrong; this is the alarm for that.

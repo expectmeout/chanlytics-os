@@ -51,7 +51,7 @@ const AD_CHATS_KEPT_SHARE = 0.5;
 
 /**
  * Meta's count of the chats an ad started beside the messages from it that reached Chanlytics, as one rule (the Ads
- * tracking plan's T2 and its call 1), over the days Meta has settled (the read's, 00677 ad_chats_kept): said once Meta
+ * tracking plan's T2 and its call 1), over the days Meta has settled (the read's, 00678 ad_chats_kept): said once Meta
  * has counted AD_CHATS_SAID_FROM, and parted when Chanlytics kept fewer than half. Meta counts a chat written within
  * seven days of a tap and Chanlytics a message when it arrives with the ad on it, so the two are never equal: the rule
  * asks for half, not all. The drawer says it, and each read of an account at Meta tells Health of an ad that parted.

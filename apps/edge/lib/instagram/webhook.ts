@@ -283,7 +283,7 @@ async function receiveWith(request: Request, settleMs: number): Promise<Response
   const routeOf = (account: string): Promise<Route> => {
     const known = routes.get(account);
     if (known) return known;
-    const read = resolveChannelDetailed(db, "instagram", account).then((r) => ({
+    const read = resolveChannelDetailed(db, "instagram", account, { fresh: true }).then((r) => ({
       routed: r.channel,
       failed: r.lookupFailed,
     }));

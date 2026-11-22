@@ -40,7 +40,7 @@ export interface MessageDto {
   channel_ts?: string | null;
   /**
    * The ad it came from, where it is a message that opened an entry (ad_entries: a person who wrote from an ad, read by
-   * the shared record's reader, 00677): absent on every other message, and where the read of it failed.
+   * the shared record's reader, 00678): absent on every other message, and where the read of it failed.
    */
   from_ad?: AdNamedDto;
 }

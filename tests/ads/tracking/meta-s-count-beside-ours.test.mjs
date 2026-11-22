@@ -7,7 +7,7 @@
  * Meta's. The drawer says both numbers, and when they part, what is happening, that the ad and AI's replies are not
  * affected, and that Chanlytics is looking: the owner is never asked to fix it. Health is told of a parted ad once, with
  * the ad and the two counts, never at every read; an ad that is not parted, or one under ten, tells Health nothing.
- * Which ads are compared at all (one that opens a chat the workspace hears) is the read's (00677 ad_chats_kept).
+ * Which ads are compared at all (one that opens a chat the workspace hears) is the read's (00678 ad_chats_kept).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -116,7 +116,7 @@ function pager() {
 }
 const ADDRESSED = { LEAD_TO: "ops@example.com", LEAD_FROM: "alerts@example.com" };
 
-/** A workspace's read of its ads' counts, as ad_chats_kept answers it (00677). */
+/** A workspace's read of its ads' counts, as ad_chats_kept answers it (00678). */
 const world = (rows) => {
   const tables = { operator_pages: [] };
   const db = fakeDb(tables, {}, { ad_chats_kept: () => rows });

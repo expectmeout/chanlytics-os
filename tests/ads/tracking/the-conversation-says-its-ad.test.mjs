@@ -2,7 +2,7 @@
  * A conversation says its ad (the Ads tracking plan's T1 and its call 6): a real thread whose person first came from an
  * ad says which under its head, and the message that came from an ad is marked where it happened, so a known person who
  * writes again from an ad months later is seen there too. Read through the shared record's reader over ad_entries (the
- * content loop PRD's Appendix A.2; 00677 ad_touches_of), named as the person's page names it (ad_named).
+ * content loop PRD's Appendix A.2; 00678 ad_touches_of), named as the person's page names it (ad_named).
  *
  * What must hold. The Inbox's read and a thread's own read carry the line and the marks, by this workspace and these
  * messages. A read whose threads hold no ad asks nothing more: no person from an ad and no message with an ad's
@@ -125,7 +125,7 @@ const world = (over = {}) => ({
   escalations: [],
   ...over,
 });
-/** ad_touches_of as 00677 answers it, out of the entries these messages opened. */
+/** ad_touches_of as 00678 answers it, out of the entries these messages opened. */
 const TOUCHES = {
   touches: [
     { message_id: M_FIRST, ref: "meta:1200001" },

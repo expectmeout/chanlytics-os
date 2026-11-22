@@ -111,7 +111,7 @@ export interface AdChatsKeptRow {
 }
 
 /**
- * Meta's count beside Chanlytics' for each ad whose chat the workspace hears (00677 ad_chats_kept; the tracking plan's
+ * Meta's count beside Chanlytics' for each ad whose chat the workspace hears (00678 ad_chats_kept; the tracking plan's
  * T2), over the page's days. Null where the database cannot say: one a deploy behind, which has no such read. A read
  * the database refuses throws.
  */
@@ -142,7 +142,7 @@ const backCountOf = (value: unknown): { people: number; booked: number } => {
 };
 
 /**
- * The people ads brought back over the page's days, counted whole in the database (00677 ad_people_back; the tracking
+ * The people ads brought back over the page's days, counted whole in the database (00678 ad_people_back; the tracking
  * plan's T3): known people who wrote again from an ad, and who of them booked after. Null where the database cannot
  * say. A read the database refuses throws.
  */

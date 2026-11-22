@@ -278,6 +278,7 @@ export const WORDS: Record<string, string> = {
   "mailbox_connection.removed": "A mailbox to write from was removed",
   "mailbox_connection.sender_sorted": "Who sends your mailbox automated mail changed",
   "channel.connected": "A WhatsApp number was connected",
+  "channel.disconnected": "An Instagram account was disconnected",
   "lead.stage": "A lead moved",
   "lead.emailed": "A lead was marked as emailed",
   "lead.call": "A call to a lead was logged",

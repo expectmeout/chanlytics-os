@@ -6,7 +6,8 @@
  * (lists/actions.ts), read as Today's page loads.
  */
 import { DEFAULT_TIMEZONE, LIST_GROUP_WORDS } from "@chanlytics/contracts";
-import { TODAY_LINE_WORDS, dayCameToWords, usualDayWords } from "../model/lines";
+import { TODAY_LINE_WORDS, USUAL_DAYS, dayCameToWords, usualDayWords } from "../model/lines";
+import { useLastDays } from "../calm/days";
 import type { PeopleListsLike } from "../leaks";
 import { codeOnce } from "@/lib/code-once";
 import { useCode } from "@/lib/use-code";
@@ -53,10 +54,11 @@ const weekdayNow = (): string =>
 
 /** What AI answered today against a usual day of its weekday, once the day is done; null by day or without the history. */
 function useUsualDay(turned: boolean): string | null {
-  const headline = useSurface("reports_headline");
-  if (!turned || !headline) return null;
+  // Asked for only once the day is done; the last thirty are read where this device's period is shorter (calm/days.ts).
+  const days = useLastDays(USUAL_DAYS, turned);
+  if (!turned || !days) return null;
   return usualDayWords(
-    headline.perDay.map((d) => d.answered),
+    days.map((d) => d.answered),
     weekdayNow(),
   );
 }

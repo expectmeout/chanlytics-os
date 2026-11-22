@@ -28,6 +28,8 @@ import { ColdEmailLine, useColdEmailNote } from "./cold-email-note";
 import { TodayContentLine } from "../content-note";
 import { useTodayArrangement, type TodayArrangement } from "../arrangement";
 import { forgetTodayMotion } from "../calm/motion";
+import { forgetLastDays } from "../calm/days";
+import { useClearedBeat, type ClearedBeat } from "../calm/cleared";
 import { useTodayOnPhone } from "../phone";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
@@ -75,7 +77,9 @@ function cardOfAnother(at: TodayArrangement, week: ReturnType<typeof useWeekMome
 }
 
 /** Who waits on you: the card where it is theirs, three more named, and one line for what is left. */
-const waitingOnYou = (at: TodayArrangement) => <NeedYou card={at.card} evening={at.morning !== null} />;
+const waitingOnYou = (at: TodayArrangement, beat: ClearedBeat) => (
+  <NeedYou card={at.card} evening={at.morning !== null} beat={beat} />
+);
 
 /**
  * The day and what is left over, a line each: the day, what it came to, what AI found, Content, the pins. Once the day is
@@ -172,7 +176,13 @@ export function TodayZones() {
   useEffect(() => forgetTodayMotion, []);
   // This member's look at Today is kept as they put it away, for the next look's "since" (W2).
   useKeepsTheLook();
-  const at = useTodayArrangement();
+  // Today left: the last days are asked for again on the next visit.
+  useEffect(() => forgetLastDays, []);
+  const arranged = useTodayArrangement();
+  // The celebration, where the last who waited was answered here (W6): for its beat nothing holds the card, and the next
+  // thing takes it after.
+  const beat = useClearedBeat(arranged);
+  const at: TodayArrangement = beat ? { ...arranged, card: null } : arranged;
   const week = useWeekMoment();
   const phone = useTodayOnPhone();
   // Cold email's note joins what is left to set up (D21); where setting up holds the card, it is a line of its own.
@@ -189,7 +199,7 @@ export function TodayZones() {
       >
         <TodayAlertBand />
         {cardOfAnother(at, week)}
-        {waitingOnYou(at)}
+        {waitingOnYou(at, beat)}
         {theRest(at, setupLater)}
         {setupAfter(at, setupLater)}
         <TodayOverHere />
@@ -204,7 +214,7 @@ export function TodayZones() {
       <div className="calm-desk">
         <div className="calm-col">
           {cardOfAnother(at, week)}
-          {waitingOnYou(at)}
+          {waitingOnYou(at, beat)}
         </div>
         {/* Setting up stands at the foot of the day's column, so the two columns end near each other (the second look, L8). */}
         <div className="calm-col">

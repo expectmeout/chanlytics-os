@@ -147,7 +147,7 @@ function madeHereOf(row: AdRow, at: ReadAt): AdMadeHereLive | null {
 }
 
 /**
- * What the page reads beside its counts (the tracking plan's T2 and T3, 00677): Meta's count beside Chanlytics' for each
+ * What the page reads beside its counts (the tracking plan's T2 and T3, 00678): Meta's count beside Chanlytics' for each
  * ad, and the people ads brought back. Each null where its read failed or the database has none yet: the page then says
  * no line for it, and its counts stand.
  */
