@@ -117,6 +117,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   // Two invitations accepted the same morning read as a team that grew.
   member_joined: ["teammate joined", "teammates joined"],
   member_left: ["teammate left", "teammates left"],
+  // A day nobody answered can leave several: one pattern, each its own conversation.
+  booking_lapsed: ["time that wasn't confirmed", "times that weren't confirmed"],
   // A morning's corrections can suggest several notes: one pile, each kept or dismissed on the Autonomy pane.
   note_to_keep: ["note to keep for AI", "notes to keep for AI"],
   // One a morning, the member's own: a second is another day's.

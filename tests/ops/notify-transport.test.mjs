@@ -696,6 +696,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "leads_ready",
       "member_joined",
       "member_left",
+      // A time asked for that ran out, and AI told the customer (decision 0061): a line on the bell.
+      "booking_lapsed",
       "note_for_you",
       "note_to_keep",
       // A reply waiting to go in the owner's name (decision 0064): the bell and the phone, never a mail for minutes.

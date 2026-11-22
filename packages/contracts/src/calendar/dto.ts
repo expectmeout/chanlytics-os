@@ -111,7 +111,7 @@ export interface CalendarItemDto {
    */
   visit?: VisitMark | null;
   /** A time a customer picked by text (00443, decision 0061): the thread it is answered in, and whether it waits on an answer. */
-  request?: { thread_id: string; open: boolean } | null;
+  request?: { thread_id: string; open: boolean; lapsed?: boolean } | null;
   /** Where its person came from: the lead they were found as (00426 appointments_lead_stamp), and its sequence. */
   origin?: VisitOriginDto | null;
 }

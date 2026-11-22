@@ -89,6 +89,7 @@ export { bookedAfterAsk } from "./calendar/visit/booked-after-ask";
 export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, bookingRequestCardOf, bookingRequestRefusalOf, otherTimeWords, requestedBookingOf, slotLong, slotNear, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
+export { LAPSE_WIRES, REQUEST_LAPSE_WORDS, REQUEST_TOLD_WITHIN_MS, requestLapsedNews, requestLapseInstruction, requestNudgeNews } from "./calendar/visit/request-lapse";
 export { visitTitleWithout } from "./calendar/visit/service";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
 export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, VISITS_KEPT_MAX, visitStands, visitStateOf } from "./calendar/words/visit";
@@ -421,7 +422,7 @@ export { callDays, composerDays, dueStepDay, forWords, nextStepOf, stepDayName, 
 export { checkNoteSuggestion, customerWords, NOTE_SUGGEST_KINDS, NOTE_SUGGEST_LIMITS, NOTE_SUGGEST_MODEL, NOTE_SUGGEST_SCHEMA, noteSuggestSystemPrompt, noteSuggestUserContent, whyNotLook } from "./notes/suggest";
 export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SYNC_NOTICE_WORDS, GOOGLE_SYNC_TOLD_AFTER_MS, NUMBER_FLAG_TITLES } from "./notices/connection-news";
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
-export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
+export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, requestLapsed, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
 export { formRequestNote, formRequestNotice } from "./people/doors/form-request";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";

@@ -45,6 +45,8 @@ export interface AppointmentLike {
   source?: string | null;
   /** The thread a request the receptionist took came from (00443): where it is answered. */
   conversation_id?: string | null;
+  /** Whether AI told the customer when a request ran out with no answer (00679); null or absent for one that never did. */
+  lapse_told?: boolean | null;
 }
 
 /** The words the block carries: the service and the client, as the notice gave them; the title the row kept; else this. */
@@ -216,7 +218,14 @@ export function itemOfAppointment(row: AppointmentLike, people: PersonLike[]): C
     visit: visitMarkOf(row),
     // A time a customer picked by text: answered in its thread, Booked it or Can't, while it is open (decision 0061).
     ...(row.source === "receptionist" && row.conversation_id
-      ? { request: { thread_id: row.conversation_id, open: row.status === "proposed" } }
+      ? {
+          request: {
+            thread_id: row.conversation_id,
+            open: row.status === "proposed",
+            // Closed by its clock, never by its owner (00679): the sheet says so.
+            ...(typeof row.lapse_told === "boolean" ? { lapsed: true } : {}),
+          },
+        }
       : {}),
   };
 }

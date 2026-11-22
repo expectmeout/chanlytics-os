@@ -681,6 +681,7 @@
     "00676_the_stop_pauses_the_ads_made_here.sql": "1c01a6b6d2fb38197ce4a07e980030de5f8a14f38e86a17de261072d17fd9f94",
     "00677_a_disconnected_instagram_account_is_let_go.sql": "e7a2f5ccc22e598a1a83a583bbb1dfc731847a04d92fc7fb4e3c7978ac61cf21",
     "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571",
-    "00680_a_request_form_and_its_row.sql": "6a4b44ea03152c37239022c8cf7e9ab024a2da11093ba8e048f098164f962e60"
+    "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
+    "00680_a_request_form_and_its_row.sql": "017342d9825eef4c276ecdcf944b44ca5d736ed306eab2d989e3bd68fc09a220"
   }
 }

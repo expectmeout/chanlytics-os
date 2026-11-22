@@ -203,6 +203,18 @@ const sourceOfWeek = (dto: CalendarWeekDto, link: CalendarFeedHealth, forwarding
     bookingLink: !!dto.booking_link,
   });
 
+/** A time a customer picked by text, as its block carries it: its thread, whether it waits, and whether its clock closed it. */
+const blockRequestOf = (item: CalendarItemDto): Pick<CalendarBlockVM, "request"> =>
+  item.request
+    ? {
+        request: {
+          threadId: item.request.thread_id,
+          open: item.request.open,
+          ...(item.request.lapsed ? { lapsed: true } : {}),
+        },
+      }
+    : {};
+
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
   const highest = Math.max(Date.parse(item.start), dayStartMs);
   const lowest = Math.min(Date.parse(item.end), dayEndMs);
@@ -254,7 +266,7 @@ function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs
     start: item.start,
     end: item.end,
     visit: item.visit ?? null,
-    ...(item.request ? { request: { threadId: item.request.thread_id, open: item.request.open } } : {}),
+    ...blockRequestOf(item),
     ...(item.origin ? { origin: item.origin } : {}),
     lane: 0,
     lanes: 1,

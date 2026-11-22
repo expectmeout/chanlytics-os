@@ -25,6 +25,7 @@ import { visitRoute } from "../calendar/appointment-key";
 import { visitDateKey, visitLine } from "../calendar/people/visits";
 import type { FreedTimeOffer } from "../calendar/visit/freed-time";
 import { MIN_MS } from "../shared/time";
+import { recordOrEmpty } from "../shared/unknown";
 import { plural } from "../shared/words";
 
 /** The changes of the record that are a booking arriving: a visit added, and a proposed one confirmed. */
@@ -44,6 +45,8 @@ export const VISIT_CHANGES_TOLD = {
   missed: "A member's word on a no-show: theirs, not news.",
   vanished: "Gone from the owner's calendar, their own diary: not told, as a feed's rebuild would tell them all.",
   back: "Back on the owner's calendar, their own diary: not told.",
+  lapsed:
+    "A request that ran out (requestLapsed): told once AI writes to the customer · else its conversation's hold tells it.",
 } as const;
 
 /** The sources a customer's booking comes by. A member's own entry (`person`) is the owner's, not news. */
@@ -141,6 +144,17 @@ export function bookingChanged(event: EventLike): { appointmentId: string; chang
   if (typeof source !== "string" || !CHANGES_BY.has(source)) return null;
   if (by !== "service") return null;
   return { appointmentId: event.subject_id, change: change as VisitChange };
+}
+
+/**
+ * The request an `appointment.changed` event says ran out with no answer (00679, decision 0061 as amended), and whether
+ * AI told the customer; null for every other event and every other change. Only a told one is news: where the
+ * customer could not be told, the conversation waits on a person, and its hold's own notice says so.
+ */
+export function requestLapsed(event: EventLike): { appointmentId: string; told: boolean } | null {
+  if (event.kind !== "appointment.changed" || event.subject_type !== "appointment" || !event.subject_id) return null;
+  const { change, told } = recordOrEmpty(event.data);
+  return change === "lapsed" ? { appointmentId: event.subject_id, told: told === true } : null;
 }
 
 /** A visit that arrived, as the record says it now. */

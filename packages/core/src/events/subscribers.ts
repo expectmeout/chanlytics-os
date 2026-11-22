@@ -75,6 +75,9 @@ import {
   memberLeftNotice,
   optOutNotice,
   optOutOf,
+  requestLapsed,
+  requestLapsedNews,
+  type RequestSaid,
   visitChangeNews,
   visitNews,
   waitsOnAPerson,
@@ -156,6 +159,11 @@ export interface SubscriberPorts {
    * wins, so a second delivery moves nothing. Throws when it could not be written, so the delivery tries again.
    */
   keepArrival(tenantId: TenantId, appointmentId: string, at: string): Promise<void>;
+  /**
+   * A request that ran out, as its owner's note says it (packages/db findBookingRequest): who asked, for when on the
+   * business's clock, and its conversation; null where the record no longer holds it, or it has no conversation.
+   */
+  lapsedRequest(tenantId: TenantId, appointmentId: string): Promise<RequestSaid | null>;
   /** The invitation a member.joined event is about: who accepted it and as what (packages/db findMemberJoined); null when it is gone. */
   memberJoined(tenantId: TenantId, invitationId: string): Promise<MemberJoined | null>;
   /**
@@ -331,6 +339,20 @@ async function offerForNews(
   }
 }
 
+/**
+ * A time asked for that ran out with no answer (decision 0061, as amended 22 Nov 2026): where AI's message to the
+ * customer was queued, the owner's one note, told once by its own event. One the customer was not told of is the
+ * conversation's hold's to tell. True when the event was a request running out, whatever was told of it.
+ */
+async function lapseNoted(event: DeliveredEvent, ports: SubscriberPorts): Promise<boolean> {
+  const lapsed = requestLapsed(event);
+  if (!lapsed) return false;
+  if (!lapsed.told || (await ports.eventTold(event.tenant_id, event.id))) return true;
+  const request = await ports.lapsedRequest(event.tenant_id, lapsed.appointmentId);
+  if (request) await ports.tell({ ...requestLapsedNews(request), sourceEvent: event.id });
+  return true;
+}
+
 export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
   form_entry_note: formStep("note", false),
   form_entry_notice: formStep("notice", true),
@@ -385,6 +407,7 @@ export const SUBSCRIBERS: Readonly<Record<EventSubscriber, Subscriber>> = {
     });
   },
   visit_notice: async (event, ports) => {
+    if (await lapseNoted(event, ports)) return;
     // A booking the customer cancelled or moved: one visit, told by its own event, while it is still ahead.
     const changed = bookingChanged(event);
     if (changed) {

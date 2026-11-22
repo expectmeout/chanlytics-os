@@ -69,6 +69,7 @@ const TONES: Record<string, Tone> = {
   "capability.deactivated": "warn",
   "member.left": "warn",
   "appointment.cancelled": "warn",
+  "appointment.lapsed": "warn",
   "reach_out.lead_stopped": "warn",
   "message.send_raced_cancel": "warn",
   pause_agent: "warn",

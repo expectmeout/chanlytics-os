@@ -710,8 +710,11 @@ export type Database = {
           expires_at: string | null
           external_id: string | null
           id: string
+          lapse_told: boolean | null
+          lapsed_at: string | null
           lead_id: string | null
           note: string | null
+          nudged_at: string | null
           price: string | null
           service: string | null
           source: string
@@ -740,8 +743,11 @@ export type Database = {
           expires_at?: string | null
           external_id?: string | null
           id?: string
+          lapse_told?: boolean | null
+          lapsed_at?: string | null
           lead_id?: string | null
           note?: string | null
+          nudged_at?: string | null
           price?: string | null
           service?: string | null
           source: string
@@ -770,8 +776,11 @@ export type Database = {
           expires_at?: string | null
           external_id?: string | null
           id?: string
+          lapse_told?: boolean | null
+          lapsed_at?: string | null
           lead_id?: string | null
           note?: string | null
+          nudged_at?: string | null
           price?: string | null
           service?: string | null
           source?: string
@@ -10098,6 +10107,20 @@ export type Database = {
         }
         Returns: Json
       }
+      booking_request_lapse: {
+        Args: {
+          p_appointment_id: string
+          p_due_at?: string
+          p_message?: Json
+          p_payload?: Json
+          p_reply_words: string
+        }
+        Returns: Json
+      }
+      booking_request_nudged: {
+        Args: { p_appointment_id: string }
+        Returns: boolean
+      }
       booking_request_open: {
         Args: {
           p_contact_id: string
@@ -10110,6 +10133,20 @@ export type Database = {
           p_words: string
         }
         Returns: Json
+      }
+      booking_requests_due: {
+        Args: { p_limit?: number }
+        Returns: {
+          appointment_id: string
+          client_name: string
+          conversation_id: string
+          expires_at: string
+          service: string
+          starts_at: string
+          tenant_id: string
+          timezone: string
+          what: string
+        }[]
       }
       calendar_grant_note: {
         Args: {

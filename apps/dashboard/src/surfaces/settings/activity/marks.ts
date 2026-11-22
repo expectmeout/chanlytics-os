@@ -120,6 +120,7 @@ const KIND_MARK: Partial<Record<string, string>> = {
   "line.forwarding_set": "phone",
   "billing.payment_failed": "alert",
   "appointment.cancelled": "x",
+  "appointment.lapsed": "clock",
   "escalation.opened": "flag",
 };
 
