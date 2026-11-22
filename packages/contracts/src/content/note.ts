@@ -5,7 +5,7 @@
 import type { FileDto } from "../files/views";
 import type { ContentLineDto, ContentMadeDto, ContentMakingDto } from "./page";
 import { POST_PLACE_SAID, type PostPlace } from "./posts";
-import { TAKE_DOWN_UNCONFIRMED_MS, TAKE_DOWN_WORDS } from "./placements/take-down";
+import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 
 /**
  * A take-down Today names (the canvas's Today 2 and 5): a post still up that its place left to the owner to delete
@@ -74,5 +74,5 @@ export const CONTENT_TODAY_WORDS = {
   down: (down: Pick<ContentDownDto, "is" | "place">) =>
     down.is === "by_hand"
       ? `Delete it in ${POST_PLACE_SAID[down.place]} · Chanlytics couldn't`
-      : TAKE_DOWN_WORDS.unconfirmed(down.place),
+      : takeDownUnconfirmedSaid(down.place),
 } as const;

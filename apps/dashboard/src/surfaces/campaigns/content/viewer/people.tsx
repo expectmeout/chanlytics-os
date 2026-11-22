@@ -10,6 +10,7 @@ import {
   PIECE_PEOPLE_WORDS as W,
   THREAD_CHANNEL_WORDS,
   entryOf,
+  personFaceOf,
   personSaidOf,
   personStandsOf,
   type FileYesUse,
@@ -19,7 +20,6 @@ import {
 } from "@chanlytics/contracts";
 import { askAbout } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
-import { Face } from "../../../kit/face/face";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 import type { ViewerClock } from "../model/viewer-line";
 
@@ -144,7 +144,11 @@ function PersonRow(props: { person: PiecePersonDto; use: FileYesUse; clock: View
   const quote = stands.is === "answered" ? stands.words : stands.is === "yes" ? stands.yes.quote : null;
   return (
     <div className="cnv-who-row" data-tone={says.tone || undefined} data-testid={`cnv-who-${person.id}`}>
-      <Face person={{ name: person.name }} size="sm" />
+      {/* Their initials, by the one rule for them (contracts personFaceOf), on the page's own mark: the kit's face,
+          imported here, regroups about 12 KB gzipped into Settings' first load (measured 22 Nov 2026). */}
+      <span className="cnv-who-initials" aria-hidden="true">
+        {personFaceOf(person.name).initials}
+      </span>
       <div className="cnv-goes-words">
         <b>{person.name}</b>
         <span className="cnv-who-said" data-testid={`cnv-who-said-${person.id}`}>

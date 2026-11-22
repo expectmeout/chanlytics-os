@@ -7,12 +7,10 @@
 import { DAY_MS } from "../../shared/time";
 import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
 import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
+import { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./take-down-late";
 
 /** What a take-down job's door answers a place can give: everything but still waiting. */
 export type TakeDownSettled = Exclude<RemediationOutcome, "pending">;
-
-/** After this long with no answer from a place, a take-down is Chanlytics's to chase, and the piece says so. */
-export const TAKE_DOWN_UNCONFIRMED_MS = DAY_MS;
 
 /** One thing a take-down reached, as the piece's sheet draws it. */
 export interface TakeDownActionDto {
@@ -111,7 +109,7 @@ export const TAKE_DOWN_WORDS = {
   open: (place: PostPlace) => `Open in ${POST_PLACE_SAID[place]}`,
   deleted: "I deleted it",
   checking: (place: PostPlace) => `Checking with ${POST_PLACE_SAID[place]}`,
-  unconfirmed: (place: PostPlace) => `${POST_PLACE_SAID[place]} hasn't confirmed it's gone · Chanlytics is on it`,
+  unconfirmed: takeDownUnconfirmedSaid,
   unconfirmedNote: (when: string) => `Asked ${when}. Chanlytics keeps checking and says here when it's gone.`,
   stillUp: (place: PostPlace) => `It's still on ${POST_PLACE_SAID[place]}. Delete it there, then say so here.`,
   adPaused: (when: string | null) => (when ? `Paused · ${when}` : "Paused"),

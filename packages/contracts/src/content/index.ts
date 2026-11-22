@@ -176,7 +176,6 @@ export {
   postCameDownAt,
   postComingDownOf,
   TAKE_DOWN_BELL,
-  TAKE_DOWN_UNCONFIRMED_MS,
   TAKE_DOWN_WORDS,
   takeDownWillOf,
 } from "./placements/take-down";
@@ -187,6 +186,7 @@ export type {
   TakeDownSettled,
   TakeDownWill,
 } from "./placements/take-down";
+export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
 export { takeDownSpec } from "./placements/take-down-spec";
 export { fileYesSpec } from "./post-spec";
 export {

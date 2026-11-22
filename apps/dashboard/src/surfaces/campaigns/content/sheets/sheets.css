@@ -378,6 +378,18 @@
 .cnv-who-row {
   grid-template-columns: 30px minmax(0, 1fr);
 }
+/* A person's initials, round, on the inset ground: never a face. */
+.cnv-who-initials {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  background: var(--surface-inset-fill);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
 .cnv-who-said {
   font-size: var(--text-sm);
   line-height: 1.4;
