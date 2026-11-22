@@ -28,6 +28,9 @@ import type { GoogleSurface } from "@/bridge/google";
 import { googleVerbs } from "@/bridge/google";
 import { pageClock } from "@/bridge/zone";
 import { FailedRead } from "../../kit/empty/empty";
+import { Face } from "../../kit/face/face";
+import { Icon } from "../../kit/icon/icon";
+import { StatePill } from "../../kit/pill/state-pill";
 import { RecordRow } from "../../kit/record/row";
 import { refusalToast, useFrameToast, type FrameFlash } from "../../frame-verbs";
 import { useAdsShown } from "../../campaigns/ads/shown";
@@ -40,14 +43,14 @@ import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 import { WebsiteForms } from "../website/forms";
 import { GoogleChoose } from "./google-choose";
-import { useLineCodes, useSignupAhead, useStandingCheck } from "./live";
+import { useLineCodes, useLogins, useSignupAhead, useStandingCheck, type Logins } from "./live";
 import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
-import { ConnectionRow, type Arm } from "./row";
+import { ConnectionRow, connRowPress, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
-import type { AdsPlace } from "./ad-account-real";
+import type { AdsPlace, AdsRowKit } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
 
@@ -63,6 +66,23 @@ interface AdsHere {
   slot: (element: HTMLElement | null) => void;
 }
 
+/**
+ * What the ad account's row (a lazy chunk) is handed by the page: its press, face and pill, which the page loads at
+ * once already, so the chunk imports none of them (ad-account-real.tsx AdsRowKit says why).
+ */
+const ADS_KIT: AdsRowKit = {
+  press: connRowPress,
+  face: (on) => (
+    <Face
+      className="set-int-tile"
+      data-kind="ads"
+      data-on={on ? "true" : undefined}
+      glyph={<Icon name="trending-up" size={15} />}
+    />
+  ),
+  pill: (tone, label) => <StatePill kind="tone" value={tone} label={label} />,
+};
+
 /** The place for the ad account's row in a group: an element the row is drawn into, never a box of its own. */
 const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
@@ -75,40 +95,6 @@ function googleNote(): string | null {
     W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null)
   );
 }
-
-/** A login's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
-interface LoginDoor<D> {
-  config: () => Promise<D>;
-  held: () => D | null;
-  outcome: () => string | null;
-}
-
-/**
- * A login's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves the
- * offer out), and what the browser came back from that login with, said once under its row until Ok.
- */
-function useLoginDoor<D>(login: LoginDoor<D>) {
-  // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
-  const [door, setDoor] = useState<D | null | undefined>(() => login.held() ?? undefined);
-  const [note, setNote] = useState<string | null>(() => login.outcome());
-  useEffect(() => {
-    let on = true;
-    login
-      .config()
-      .then((c) => on && setDoor(c))
-      .catch(() => on && setDoor(null));
-    return () => {
-      on = false;
-    };
-  }, [login]);
-  return { door, note, clearNote: () => setNote(null) };
-}
-
-/** Both logins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
-function useLogins() {
-  return { ig: useLoginDoor(igConnect), meta: useLoginDoor(metaConnect) };
-}
-type Logins = ReturnType<typeof useLogins>;
 
 /** What came back from a login, under the Instagram row: Instagram's own, or Meta's. */
 function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => void; label: "Instagram" | "Meta" }) {
@@ -408,7 +394,7 @@ function ConnectionGroups(props: {
       )}
       {props.adsShown && (
         <Suspense fallback={null}>
-          <RealAdAccount slot={adsSlot} child={child} onPlace={setAdsPlace} />
+          <RealAdAccount slot={adsSlot} child={child} kit={ADS_KIT} onPlace={setAdsPlace} />
         </Suspense>
       )}
     </>

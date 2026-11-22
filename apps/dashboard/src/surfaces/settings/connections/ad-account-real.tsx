@@ -12,7 +12,7 @@
  * Meta row beside it. The pane draws the place it goes in (pane.tsx), the row is drawn into that place, and it tells the
  * pane where it stands, so the group's count holds it.
  */
-import { useEffect } from "react";
+import { useEffect, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useAdsConnection } from "../../campaigns/ads/connect/use-card";
 import { CardChecks, CardNeed, CardQuestion, type AdCardActs } from "../../campaigns/ads/connect/card";
@@ -20,11 +20,20 @@ import type { ConnectCardVM } from "../../campaigns/ads/connect/card-model";
 import { CARD } from "../../campaigns/ads/connect/words";
 import { StopNotice, type StopHere } from "../../campaigns/ads/live/stop-notice";
 import { Button } from "../../kit/button/button";
-import { Face } from "../../kit/face/face";
 import { Icon } from "../../kit/icon/icon";
-import { StatePill } from "../../kit/pill/state-pill";
 import type { ConnectionState, ConnectionTone } from "./model/setup";
-import { connRowPress } from "./row";
+
+/**
+ * What the pane hands the row, all of it what the page loads at once: the rows' press (row.tsx connRowPress), the face,
+ * and the state's pill. Imported here, the face and the pill made this lazy chunk share kit modules with the page, and
+ * Turbopack moved route modules into Settings' first load: +12.7 KB gzipped on #2505's first build, and 203.5 KB again,
+ * under main's, without them (measured locally, 21 Nov 2026).
+ */
+export interface AdsRowKit {
+  press: (event: MouseEvent<HTMLDivElement>) => void;
+  face: (on: boolean) => ReactNode;
+  pill: (tone: ConnectionTone, label: string) => ReactNode;
+}
 
 /** Where the card stands among the page's groups, and what it counts as in its group's head. */
 export interface AdsPlace {
@@ -81,8 +90,9 @@ function AdsRow(props: {
   stop: StopHere | null;
   place: AdsPlace;
   child: boolean;
+  kit: AdsRowKit;
 }) {
-  const { vm, acts, stop, place, child } = props;
+  const { vm, acts, stop, place, child, kit } = props;
   const joins = vm.state === "none" || vm.state === "left";
   const opens = vm.state === "connected" || vm.state === "signed-out";
   // Before an account is held, what it costs and who may connect it is said on the row, never behind a press.
@@ -95,25 +105,16 @@ function AdsRow(props: {
       data-state={place.state}
       data-child={child ? "true" : undefined}
       data-offers={joins && vm.button ? "primary" : opens ? "one" : "none"}
-      onClick={opens ? connRowPress : undefined}
+      onClick={opens ? kit.press : undefined}
     >
-      {child ? (
-        <span aria-hidden="true" />
-      ) : (
-        <Face
-          className="set-int-tile"
-          data-kind="ads"
-          data-on={place.group === "connected" ? "true" : undefined}
-          glyph={<Icon name="trending-up" size={15} />}
-        />
-      )}
+      {child ? <span aria-hidden="true" /> : kit.face(place.group === "connected")}
       <span className="set-team-body">
         <span className="set-int-head">
           <span className="set-team-name">{CARD.inConnections}</span>
         </span>
         {before.length ? <span className="set-int-notes">{before.join(" ")}</span> : null}
       </span>
-      <StatePill kind="tone" value={PILL[place.state]} label={pillWordsOf(vm, place.state)} />
+      {kit.pill(PILL[place.state], pillWordsOf(vm, place.state))}
       <span className="set-int-actions">
         {joins && vm.button ? (
           <Button size="sm" variant="secondary" onClick={acts.connect} data-testid="conn-ads-connect">
@@ -145,12 +146,15 @@ function AdsRow(props: {
 export function RealAdAccount({
   slot,
   child,
+  kit,
   onPlace,
 }: {
   /** The place for the row in its group; null until the pane has drawn it. */
   slot: HTMLElement | null;
   /** The row stands under the Meta row, as its child. */
   child: boolean;
+  /** The rows' press, face and pill, the pane's (AdsRowKit). */
+  kit: AdsRowKit;
   onPlace: (place: AdsPlace | null) => void;
 }) {
   // Until the account says its own zone, a day is said in the zone of whoever is looking.
@@ -171,7 +175,7 @@ export function RealAdAccount({
   if (slot === null || vm === null || parts === null || place === null) return null;
   return createPortal(
     <>
-      <AdsRow vm={vm} acts={parts.acts} stop={connection.stop} place={place} child={child} />
+      <AdsRow vm={vm} acts={parts.acts} stop={connection.stop} place={place} child={child} kit={kit} />
       {parts.sheets}
     </>,
     slot,
