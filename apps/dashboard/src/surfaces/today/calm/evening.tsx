@@ -75,6 +75,9 @@ function morningSaid(m: TodayMorning): string[] {
   ].filter((part): part is string => part !== null);
 }
 
+/** Whether anything waits for morning: the one line has something to hold (the head says so only then). */
+export const morningWaits = (morning: TodayMorning): boolean => morningSaid(morning).length > 0;
+
 /**
  * What can wait, folded into one line that waits for morning (W5): it says what it holds, and opens under itself on a
  * press, as the page's other folds do (CalmOpen). Where nothing counted waits, the lines stand as they would by day.

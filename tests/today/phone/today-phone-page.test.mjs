@@ -236,6 +236,14 @@ test("how many were done today follows how many need you, where no list head say
   for (const key of ["today", "broadcasts", "setup"]) setStatus(key, "live");
   try {
     assert.ok(byTestId(draw(TodayEnd), "today-end"), "nobody waiting: the page says it is done");
+    assert.equal(
+      byTestId(
+        draw(() => TodayEnd({ toDoLeft: true })),
+        "today-end",
+      ),
+      null,
+      "REGRESSION (22 Nov 2026): it said that was everything under a to-do of the member's own",
+    );
   } finally {
     setSurfaceValue("broadcasts", undefined);
     setSurfaceValue("setup", undefined);
