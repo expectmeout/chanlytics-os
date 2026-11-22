@@ -116,10 +116,20 @@ export function queueLine(row: TodayQueueRowVM, ctx: NeedYouRowsCtx): CalmLine {
  * finished what became of it, with its Undo. Its words are a title over it already (the card's, a line's name), so the
  * work stands under them and never under a second copy of what was said.
  */
-const workIn = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx, main: "primary" | "secondary") =>
+const workIn = (row: TodayQueueRowVM, ctx: NeedYouRowsCtx, main: "primary" | "secondary", titled = false) =>
   workOf(
     row,
-    { main, may: ctx.may, tz: ctx.tz, flash: ctx.flash, keep: ctx.keep, unkeep: ctx.unkeep, read: null, whole: false },
+    {
+      main,
+      may: ctx.may,
+      tz: ctx.tz,
+      flash: ctx.flash,
+      keep: ctx.keep,
+      unkeep: ctx.unkeep,
+      read: null,
+      whole: false,
+      titled,
+    },
     { word: ctx.word, stepDone: () => ctx.stepDone(row) },
   );
 
@@ -246,7 +256,7 @@ export function QueueLead({
         </CardActs>
       ) : (
         <div className="calm-work" data-testid="today-card-work">
-          {workIn(row, ctx, coral ? "primary" : "secondary")}
+          {workIn(row, ctx, coral ? "primary" : "secondary", true)}
         </div>
       )}
     </Lead>

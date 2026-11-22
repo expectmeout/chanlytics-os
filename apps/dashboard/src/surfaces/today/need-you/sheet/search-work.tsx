@@ -54,11 +54,12 @@ export function SearchWork(p: WorkProps) {
       }
     />
   );
-  // Up next on a phone says the question above it and its two answers: the sheet holds the rest.
-  if (!p.whole) return acts;
+  // Up next on a phone says the question above it and its two answers: the sheet holds the rest. Today's card says the
+  // question as its title, and holds the rest under it (D8: what to change in words, and that nothing is spent).
+  if (!p.whole && !p.titled) return acts;
   return (
     <>
-      <State>{row.sentence}</State>
+      {p.titled ? null : <State>{row.sentence}</State>}
       {may ? (
         <SayToAsk
           placeholder={W.search.change}
