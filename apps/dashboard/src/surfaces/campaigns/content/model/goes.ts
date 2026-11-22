@@ -175,7 +175,7 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
 
 /**
  * How long a post Instagram took may still be on its way to being seen on the account: the account is asked two minutes
- * after the send (00680 post_moved), and again a few times where it gives no answer.
+ * after the send (00681 post_moved), and again a few times where it gives no answer.
  */
 const POST_SEEN_WAIT_MS = 10 * MIN_MS;
 

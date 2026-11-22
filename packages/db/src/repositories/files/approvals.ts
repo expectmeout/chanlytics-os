@@ -1,5 +1,5 @@
 /**
- * An approval of a piece's version and its placements (00680; the content loop PRD's 5.3): the member's press that writes it
+ * An approval of a piece's version and its placements (00681; the content loop PRD's 5.3): the member's press that writes it
  * (post_approve, under the member's own session, which asks the settings permission itself), the check the edge makes right
  * before a send (post_as_approved, the service role's), and a new version of a piece (piece_revise).
  */
@@ -22,7 +22,7 @@ import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
 
-/** What an approval came to (00680 post_approve). */
+/** What an approval came to (00681 post_approve). */
 const APPROVE_FATES = [
   "approved",
   "busy",
@@ -90,7 +90,7 @@ export async function readPostAsApproved(db: Db, postId: string): Promise<AsAppr
 }
 
 /**
- * New words on a made post or video, saved by a member who may approve (00680 piece_words_keep): the piece's next
+ * New words on a made post or video, saved by a member who may approve (00681 piece_words_keep): the piece's next
  * version, and every placement still waiting for its time goes up with them under a new approval of the same bytes.
  * Answers how many placements took them.
  */

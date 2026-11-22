@@ -231,7 +231,7 @@ before(async () => {
   await seed("ask_memory_lines", { tenant_id: A, text: "Our best customers are dental offices", source: "pane" });
   ctx.file = await seed("files", fileRow("seeded"));
   await seed("file_consents", { tenant_id: A, file_id: ctx.file, use: "post", who: "Tenancy guest", said_in: "ai" });
-  // A person named in a file (00681): members read who is in it, its door writes it.
+  // A person named in a file (00682): members read who is in it, its door writes it.
   await seed("file_subjects", {
     tenant_id: A,
     file_id: ctx.file,
@@ -261,7 +261,7 @@ before(async () => {
     edition: 1,
     card_key: "seeded",
   });
-  // A piece's version, a shape of it as sent, and what an owner approved (00680): members read them, their doors write them.
+  // A piece's version, a shape of it as sent, and what an owner approved (00681): members read them, their doors write them.
   ctx.revision = await seed("piece_revisions", { tenant_id: A, piece_id: ctx.piece, n: 1, plan: {}, made_by: "owner" });
   await seed("piece_renditions", {
     tenant_id: A,
@@ -888,7 +888,7 @@ const TENANT_TABLES = {
     "member",
     () => ({ tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "a-strangers" }),
   ],
-  // A piece's versions, its shapes and its approvals (00680): a member reads them, only their doors write them.
+  // A piece's versions, its shapes and its approvals (00681): a member reads them, only their doors write them.
   piece_revisions: ["member", () => ({ tenant_id: A, piece_id: ctx.piece, n: 9, plan: {}, made_by: "ai" })],
   piece_renditions: [
     "member",

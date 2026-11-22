@@ -91,7 +91,7 @@ export function pieceNextOf(
   nowMs: number,
 ): PieceNext {
   if (file.source !== "made") return libraryNextOf(file);
-  // A video goes to Instagram as a reel (00680), where Instagram is offered and takes one now, or it has a post there
+  // A video goes to Instagram as a reel (00681), where Instagram is offered and takes one now, or it has a post there
   // already. Anywhere else nothing posts one from here, and it is saved, as before (decision 0121).
   if (file.kind === "video" && !(takes?.instagram || posts.some((p) => p.place === "instagram"))) return { is: "save" };
   // Set aside is the owner's "not this one" (Ruben, 16 Nov 2026: it still led with Post): Put back leads, before a post of it

@@ -151,7 +151,7 @@ function world({
     { files: kept },
     {},
     {
-      // What a piece was drawn from, read for who is in it (00681): nothing here names a photo's people.
+      // What a piece was drawn from, read for who is in it (00682): nothing here names a photo's people.
       files_drawn_from: () => [],
       file_made: (a) => {
         asked.made.push(a);

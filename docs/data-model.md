@@ -553,7 +553,7 @@ Foreign keys:
 
 ### approvals
 
-What an owner approved, exactly (00680; the content loop PRD's 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement's part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.
+What an owner approved, exactly (00681; the content loop PRD's 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement's part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.
 
 - Owned by: none
 - Primary key: `id`
@@ -1576,9 +1576,9 @@ A yes for one use of a file (00665; the content PRD's step L4): who said it, for
 | `taken_back_at` | timestamp with time zone | yes |  |  |
 | `taken_back_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
-| `subject_id` | uuid | yes |  | The person in the file this yes is theirs (00681, file_subjects); null for a yes kept before people were named, read as before. |
+| `subject_id` | uuid | yes |  | The person in the file this yes is theirs (00682, file_subjects); null for a yes kept before people were named, read as before. |
 | `scope` | jsonb | no | `'{}'::jsonb` |  |
-| `evidence` | jsonb | no | `'{}'::jsonb` | Where it was said (00681): the message it was said in, who kept it. Never the person's words. |
+| `evidence` | jsonb | no | `'{}'::jsonb` | Where it was said (00682): the message it was said in, who kept it. Never the person's words. |
 
 Foreign keys:
 
@@ -1595,7 +1595,7 @@ Foreign keys:
 
 ### file_subjects
 
-A person in a file (00681; the content loop PRD's 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.
+A person in a file (00682; the content loop PRD's 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.
 
 - Owned by: `packages/db/src/repositories/files/subjects.ts`
 - Primary key: `id`
@@ -1682,7 +1682,7 @@ A business's files (00551, decision 0099): one row a picture, whichever road bro
 | `origin_left_at` | timestamp with time zone | yes |  | When a watched file's original left its folder (00657): the newest of its origins' gone_at, where none still holds it in. |
 | `yes_for` | text[] | no | `'{}'::text[]` | The uses this file has a yes for that stands (00665, file_consents), as its doors restate them: what every page and AI read with the row. |
 | `yes_back` | text[] | no | `'{}'::text[]` | The uses whose every yes on this file was taken back, and none given again (00665, file_consents). |
-| `subjects_state` | text | no | `'not_asked'::text` | Whether the people in it are known (00681): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say). |
+| `subjects_state` | text | no | `'not_asked'::text` | Whether the people in it are known (00682): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say). |
 
 Foreign keys:
 
@@ -3380,7 +3380,7 @@ The machine image a made video is drawn on, one row an edition of the template (
 
 ### piece_renditions
 
-One shape of a piece's version as it is sent (00680; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
+One shape of a piece's version as it is sent (00681; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
 
 - Owned by: none
 - Primary key: `id`
@@ -3411,7 +3411,7 @@ Foreign keys:
 
 ### piece_revisions
 
-One version of a piece (00680; the content loop PRD's 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.
+One version of a piece (00681; the content loop PRD's 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.
 
 - Owned by: none
 - Primary key: `id`
@@ -3453,7 +3453,7 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `shape` | text | no |  | hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post's piece (00680), its row written at its first approval, which no video job reads (stage is not read for one). |
+| `shape` | text | no |  | hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post's piece (00681), its row written at its first approval, which no video job reads (stage is not read for one). |
 | `plan` | jsonb | no |  |  |
 | `look` | jsonb | no |  |  |
 | `status` | text | no | `'making'::text` | making (its job is drawing it, or the video platform is making it playable), made (a file, under Made by Ask), failed (failed_why says why, in contracts PIECE_FAILS). |
@@ -3467,8 +3467,8 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `made_at` | timestamp with time zone | yes |  |  |
-| `revision` | integer | no | `1` | The version the piece stands at (00680, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep). |
-| `intent` | jsonb | yes |  | Why it exists (00680; the content loop PRD's 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands). |
+| `revision` | integer | no | `1` | The version the piece stands at (00681, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep). |
+| `intent` | jsonb | yes |  | Why it exists (00681; the content loop PRD's 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands). |
 
 Foreign keys:
 
@@ -3645,14 +3645,14 @@ One row per place a post goes (00611, decision 0121): the exact file approved, w
 | `error` | jsonb | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
-| `piece_id` | uuid | yes |  | The piece this placement shows (00680); null for one approved before it, read as before. |
-| `revision` | integer | yes |  | The version of the piece it shows (00680, piece_revisions.n). |
-| `approval_id` | uuid | yes |  | The approval it was approved in (00680); null for one approved before it, read as before. |
-| `capability_edition` | integer | yes |  | The place's capability edition when it was approved (contracts PLACE_CAPABILITIES, 00680). |
-| `verified_at` | timestamp with time zone | yes |  | When the place was seen holding it (00680): "On Instagram" is said only from then. |
-| `good_until` | timestamp with time zone | yes |  | The last moment it is still worth sending (00680; PRD 8.2), from the piece's intent at approval: nothing is sent after it, by any road. Null where nothing dates it. |
-| `account_id` | text | yes |  | The place's own account it went to (00680): an Instagram account's id, a Google location's name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one. |
-| `held_why` | text | yes |  | Why it was held, or let go before it went (00680, contracts POST_HELD_WHYS): the recheck's reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words. |
+| `piece_id` | uuid | yes |  | The piece this placement shows (00681); null for one approved before it, read as before. |
+| `revision` | integer | yes |  | The version of the piece it shows (00681, piece_revisions.n). |
+| `approval_id` | uuid | yes |  | The approval it was approved in (00681); null for one approved before it, read as before. |
+| `capability_edition` | integer | yes |  | The place's capability edition when it was approved (contracts PLACE_CAPABILITIES, 00681). |
+| `verified_at` | timestamp with time zone | yes |  | When the place was seen holding it (00681): "On Instagram" is said only from then. |
+| `good_until` | timestamp with time zone | yes |  | The last moment it is still worth sending (00681; PRD 8.2), from the piece's intent at approval: nothing is sent after it, by any road. Null where nothing dates it. |
+| `account_id` | text | yes |  | The place's own account it went to (00681): an Instagram account's id, a Google location's name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one. |
+| `held_why` | text | yes |  | Why it was held, or let go before it went (00681, contracts POST_HELD_WHYS): the recheck's reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words. |
 
 Foreign keys:
 

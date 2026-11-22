@@ -77,7 +77,7 @@ const NOTIFICATION_DELIVERY = {
   // A post set for its time went up, or did not (00616): a line on the bell, no more; Content says the rest.
   post_up: "bell",
   post_stopped: "bell",
-  // A piece taken down everywhere it was up, or one a place leaves to its owner to delete (00682): lines on the bell.
+  // A piece taken down everywhere it was up, or one a place leaves to its owner to delete (00683): lines on the bell.
   post_down: "bell",
   post_by_hand: "bell",
   // A lead tried the preview they were sent (00632): a line on the bell as it happens, written by the database.

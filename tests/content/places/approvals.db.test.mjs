@@ -1,5 +1,5 @@
 /**
- * An approval of an exact thing, on a real database (00680; the content loop PRD's 5.3, 8.1, 8.2, 15.1), with real
+ * An approval of an exact thing, on a real database (00681; the content loop PRD's 5.3, 8.1, 8.2, 15.1), with real
  * sessions: the owner's press writes the piece (a made picture's, the first time), its version, its shapes and the
  * approval with its placements and their jobs in one transaction; a viewer may not; another workspace sees nothing of it.
  * Right before a send the placement stands as approved, with the path of the approved bytes; a caption changed after

@@ -96,7 +96,7 @@ async function keepCaption(
     if (!(await keepPostCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
   }
   // The piece's next version, and every placement still waiting goes up with the new words: this member's save is their
-  // approval of them (00680 piece_words_keep), so a scheduled post is never left behind on the old ones.
+  // approval of them (00681 piece_words_keep), so a scheduled post is never left behind on the old ones.
   await keepPieceWords(ctx.supabase, { tenantId: member.tenantId, fileId: row.id, caption: caption || null });
 }
 

@@ -9,7 +9,7 @@ const USES = z.array(z.enum(FILE_YES_USES)).min(1).max(FILE_YES_USES.length);
 
 /**
  * POST /api/v1/files/:id/people — `{ state, people? }`: who is in this file, as the owner or an operator says it, never
- * from a face (00681; the content loop PRD's 5.3, principle 6): `named` with each person (their name, a client, staff or
+ * from a face (00682; the content loop PRD's 5.3, principle 6): `named` with each person (their name, a client, staff or
  * someone else, and the person in People where the workspace knows them), `none`, or `unsure` (no new use until the
  * owner says). The door asks the add_files permission itself.
  *

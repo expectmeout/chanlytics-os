@@ -7,7 +7,7 @@ import { postFileToInstagram, pullFilePost } from "@/server/posts/instagram";
 /**
  * POST /api/v1/files/:id/instagram — `{ as, caption?, when?, about?, facts? }`: a made post approved for the business's
  * Instagram, as a post or a story, or a made video as a reel, now or at the time given. Whoever may save one, on their press
- * alone: the press is the approval, of these bytes and these words (00680). `about` is what AI's card said the words are
+ * alone: the press is the approval, of these bytes and these words (00681). `about` is what AI's card said the words are
  * about (a day, an offer, a service), and `facts` what the owner said themselves. It answers at once, `{ post_id, status }`,
  * and the post goes up a minute or two later, after a recheck right before the send.
  *

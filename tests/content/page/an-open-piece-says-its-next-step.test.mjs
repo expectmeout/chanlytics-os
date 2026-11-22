@@ -86,7 +86,7 @@ test("one on its way says so, and whether it can still be stopped", () => {
 
 test("a video's step is to post it as a reel where Instagram takes one, and to save it where nothing posts one", () => {
   const video = { kind: "video", source: "made" };
-  // Instagram is offered and takes a reel now (00680): Post leads, as a picture's does.
+  // Instagram is offered and takes a reel now (00681): Post leads, as a picture's does.
   assert.deepEqual(pieceNextOf(video, [], BOTH), { is: "post" });
   // One that stopped is tried again; one that is up, with nowhere else to go, leads with nothing.
   assert.deepEqual(pieceNextOf(video, [post("instagram", "failed", { kind: "reel" })], BOTH), {

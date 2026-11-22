@@ -1,8 +1,8 @@
 /**
- * The people in a file and each one's own yes (00681; the content loop PRD's 5.3 and call 13): a member's two doors, on the
+ * The people in a file and each one's own yes (00682; the content loop PRD's 5.3 and call 13): a member's two doors, on the
  * member's own session, each asking its permission itself (add_files to say who is in it, settings to keep a yes), and the
  * read of who is in a file with the uses each person's yes stands for; the ask a person was sent, a no, a yes taken
- * back (00682); and what a piece's sheet reads of each person in it.
+ * back (00683); and what a piece's sheet reads of each person in it.
  */
 import {
   DbFailure,

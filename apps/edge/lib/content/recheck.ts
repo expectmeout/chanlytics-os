@@ -1,8 +1,8 @@
 /**
  * The recheck right before a place is asked anything (the content loop PRD's 6.2, third moment; 00611's recheck): one
  * reading for every place. Whoever approved it may still post for the business; the post was not deleted; everything is
- * not stopped; it still stands as approved (00680 post_as_approved: its words, its bytes, its version); every person in
- * it, or in what it was drawn from, has said yes (00681); and its reason still stands (PRD 6.1). Anything moved holds the
+ * not stopped; it still stands as approved (00681 post_as_approved: its words, its bytes, its version); every person in
+ * it, or in what it was drawn from, has said yes (00682); and its reason still stands (PRD 6.1). Anything moved holds the
  * post in words and sends nothing. A post whose last moment passed is let go (`pulled`, held_why `late`) and is never
  * sent late, by any road. The business's notes and services are read only where the piece's intent leans on one.
  */

@@ -11,7 +11,7 @@ import { filesNamed } from "../../read/files";
 import { draftThreadReply } from "../reply";
 
 /**
- * Rights per person (00681; the content loop PRD's 5.3, 12.1 act/rights, call 13), as three of keep_yes's actions: who is
+ * Rights per person (00682; the content loop PRD's 5.3, 12.1 act/rights, call 13), as three of keep_yes's actions: who is
  * in a photo or a video (as the owner or an operator tells AI, never read from a face); the ask to one of them, a reply in
  * their own conversation that AI drafts and the owner sends through the one send door (the reply card); and that person's
  * own yes, kept with where it was said. AI never decides who is in a file or that anyone said yes.

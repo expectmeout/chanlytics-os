@@ -128,7 +128,7 @@ test("every kind has its row in the one table, and a press that says what it doe
     assert.ok(traits.shape && traits.reach && traits.alone && traits.press, kind);
     assert.equal(typeof askPressOf({ kind, payload: {} }), "string", kind);
   }
-  // 84 since who is in a file, a person's own yes and a post taken down (file_people, person_yes, take_down; 00681, 00682).
+  // 84 since who is in a file, a person's own yes and a post taken down (file_people, person_yes, take_down; 00682, 00683).
   assert.equal(Object.keys(ASK_KIND_TRAITS).length, 84);
   assert.equal(askPressOf({ kind: "playbook_change", payload: { state: "paused" } }), "pause");
   assert.equal(askPressOf({ kind: "run", payload: { verb: "skip" } }), "skip");

@@ -1,11 +1,11 @@
 /**
- * A post made ready on Instagram (00611, decision 0121; 00680): post_prepare. The approved bytes (a picture's shape, or a
+ * A post made ready on Instagram (00611, decision 0121; 00681): post_prepare. The approved bytes (a picture's shape, or a
  * made video for a reel) are signed for a day and Instagram is asked, through its adapter (place.ts), to
  * make a container of them; once the container says it is ready, the send is scheduled for the post's time. Nothing here
  * puts anything in front of anyone: the container is Instagram's draft, and lapses in a day.
  *
  * Every run first reads the post and stops where it no longer stands where this job expects it (pulled, held), and where it
- * no longer stands as approved (00680 post_as_approved: its words, its bytes or its version moved since): held, "Changed
+ * no longer stands as approved (00681 post_as_approved: its words, its bytes or its version moved since): held, "Changed
  * since you approved it". The container's id is kept on its send's row, so a run that comes back after a throw asks after
  * the same container rather than making another. A refusal is said in the owner's words (contracts ON_INSTAGRAM.refused)
  * and ends the job for good, which tells the owner and settles the post (packages/jobs settle-post.ts); Instagram's bad
@@ -90,7 +90,7 @@ export function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
   return { postId, attempt: job.payload.attempt === "2" ? 2 : 1 };
 }
 
-/** The kind Instagram is sent: a picture, a story or a reel (00680); anything else is no post of ours to send. */
+/** The kind Instagram is sent: a picture, a story or a reel (00681); anything else is no post of ours to send. */
 export function instagramKindOf(post: PostRow): InstagramPostKind {
   if (isOneOf(INSTAGRAM_POST_KINDS, post.kind)) return post.kind;
   throw new CertainFailure(`post ${post.id}: a ${String(post.kind)} cannot go`, ON_INSTAGRAM.notSent);
@@ -120,7 +120,7 @@ export function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDe
 }
 
 /**
- * Instagram's adapter for a post asked down (00682), or why the account cannot be asked from here: not connected, or
+ * Instagram's adapter for a post asked down (00683), or why the account cannot be asked from here: not connected, or
  * posting not allowed, and the take-down is the owner's to do in Instagram.
  */
 export async function takeDownPlaceFor(db: Db, post: PostRow): Promise<PlaceAdapter | { cant: string }> {
@@ -202,7 +202,7 @@ function pictureSays(file: { made: unknown }): string | null {
 }
 
 /**
- * Where the bytes Instagram fetches are kept: the approved shape's own path (00680), or, for a post approved before
+ * Where the bytes Instagram fetches are kept: the approved shape's own path (00681), or, for a post approved before
  * approvals were kept, the post's own shape (a picture's portrait, a story's) as before.
  */
 function mediaPathOf(post: PostRow, kind: InstagramPostKind, approvedPath: string | null): string {

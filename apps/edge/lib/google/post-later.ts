@@ -1,11 +1,11 @@
 /**
- * A post on its way to Google at its time (00616, the content redesign's stage 3; 00680): post_google. The picture was
+ * A post on its way to Google at its time (00616, the content redesign's stage 3; 00681): post_google. The picture was
  * drawn at the press and kept in the file's folder (`google.jpg`, the dashboard's server/posts/google.ts); here, at its
  * time, Google is asked to fetch it, once, after the recheck, through its adapter (place.ts), as
  * Instagram's send is (instagram/post-send.ts).
  *
  * The recheck, right before the send: whoever set it may still post for the business, the post was not deleted, and it
- * still stands as approved (00680 post_as_approved), with the exact bytes approved. Then the job says it is about to
+ * still stands as approved (00681 post_as_approved), with the exact bytes approved. Then the job says it is about to
  * speak (ledger markSpoke), and Google is asked. Google not connected, or its token lost, holds the post in words and
  * sends nothing, for the owner to post again once it is connected. A refusal fails the post in the owner's words. Google
  * keeps nothing to ask after, so a run that died after speaking is said so by the settle (jobs settle-post.ts), never

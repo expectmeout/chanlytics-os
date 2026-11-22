@@ -12,14 +12,14 @@ export type PersonAnswer =
   | { subject_id: string; said: "no" }
   | { subject_id: string; said: "took_back"; uses?: FileYesUse[] };
 
-/** Take down (00682): the piece comes down everywhere it is up, and what waits for its time is let go. */
+/** Take down (00683): the piece comes down everywhere it is up, and what waits for its time is let go. */
 export const takeDownPiece = (fileId: string) => api()("DELETE files/[id]/posts", { params: { id: fileId } });
 
 /** "I deleted it", of a post Chanlytics could not take down: the place is asked whether it is gone. */
 export const markDeletedByHand = (fileId: string, postId: string) =>
   api()("PUT files/[id]/posts", { params: { id: fileId }, body: { post_id: postId } });
 
-/** Who is in it (00681): nobody, or not sure. People are named to AI, which keeps them by its own card. */
+/** Who is in it (00682): nobody, or not sure. People are named to AI, which keeps them by its own card. */
 export const sayWhoIsIn = (fileId: string, state: "none" | "unsure") =>
   api()("POST files/[id]/people", { params: { id: fileId }, body: { state } });
 

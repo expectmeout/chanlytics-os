@@ -208,7 +208,7 @@ export const FILE_WORDS = {
   twin: "Already here",
   alreadyHere: (n: number) => (n === 1 ? "1 was already here." : `${n} were already here.`),
   gone: "That file is gone.",
-  /** Who is in a file (00681): said by the owner or an operator, never read from a face. */
+  /** Who is in a file (00682): said by the owner or an operator, never read from a face. */
   people: {
     nameSomeone: "Name who is in it, or say nobody is.",
   },

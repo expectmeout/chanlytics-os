@@ -384,7 +384,7 @@ test("a post that waits for its time is said in the row, and the next place stil
 });
 
 test("a video AI made leads with Post where Instagram takes a reel, and with Save video where nothing posts one from here", () => {
-  // Instagram is offered and takes one now: it goes as a reel (00680), so Post leads and it has its row.
+  // Instagram is offered and takes one now: it goes as a reel (00681), so Post leads and it has its row.
   for (const html of both({ kind: "video" })) {
     assert.equal(saysOf(html, "cnv-next"), "Post");
     assert.equal(count(html, "cnv-video-save"), 0);

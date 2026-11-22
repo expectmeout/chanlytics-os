@@ -1,5 +1,5 @@
 /**
- * A take-down its place has not answered about (00682; the content loop PRD's 8.3): after how long it is Chanlytics's
+ * A take-down its place has not answered about (00683; the content loop PRD's 8.3): after how long it is Chanlytics's
  * to chase, and the one sentence that says so, on the piece's line and on Today. A leaf, apart from the take-down's
  * other words (take-down.ts): Today reads it on every page's first load, and carries nothing else of a take-down.
  */

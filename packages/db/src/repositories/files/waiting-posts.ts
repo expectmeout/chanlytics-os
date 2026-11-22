@@ -1,6 +1,6 @@
 /**
  * A post still waiting for its time, moved to another (Campaigns › Content's post sheet, 00621). The words it goes up with,
- * as its piece's caption changes, are approvals.ts keepPieceWords (00680): the save is the approval of the new words. Apart
+ * as its piece's caption changes, are approvals.ts keepPieceWords (00681): the save is the approval of the new words. Apart
  * from posts.ts, which holds the placement's own doors and reads and stands at the width a module may (repo/size).
  */
 import { DbFailure, recordOrEmpty } from "@chanlytics/contracts";

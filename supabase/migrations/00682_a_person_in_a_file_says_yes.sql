@@ -1,4 +1,4 @@
--- 00681 (working number) · A person in a file says yes (the content loop PRD v3.2, pass 1b, M2; sections 2, 5.2, 5.3,
+-- 00682 (working number) · A person in a file says yes (the content loop PRD v3.2, pass 1b, M2; sections 2, 5.2, 5.3,
 -- 6.1 and 14.4; call 13).
 --
 -- A yes was kept per file and use (00665 file_consents), said by whoever the owner named as text, and a file's yes for a
@@ -74,7 +74,7 @@ grant select on public.file_subjects to authenticated;
 grant all on public.file_subjects to service_role;
 
 comment on table public.file_subjects is
-  'A person in a file (00681; the content loop PRD''s 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.';
+  'A person in a file (00682; the content loop PRD''s 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.';
 
 /* ---------------------------------------------------------------------------------- 2. files.subjects_state -- */
 
@@ -86,7 +86,7 @@ alter table public.files add constraint files_subjects_state_check
 update public.files set subjects_state = 'none' where who_in_it = 'no_one' and subjects_state = 'not_asked';
 grant select (subjects_state) on public.files to authenticated;
 comment on column public.files.subjects_state is
-  'Whether the people in it are known (00681): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say).';
+  'Whether the people in it are known (00682): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say).';
 
 /* ------------------------------------------------------------------------------- 3. file_consents, widened -- */
 
@@ -113,9 +113,9 @@ alter table public.files drop constraint if exists files_yes_back_check;
 alter table public.files add constraint files_yes_back_check
   check (yes_back <@ array['post', 'ad', 'reply', 'cold_email', 'website']::text[] and not (yes_back && yes_for));
 comment on column public.file_consents.subject_id is
-  'The person in the file this yes is theirs (00681, file_subjects); null for a yes kept before people were named, read as before.';
+  'The person in the file this yes is theirs (00682, file_subjects); null for a yes kept before people were named, read as before.';
 comment on column public.file_consents.evidence is
-  'Where it was said (00681): the message it was said in, who kept it. Never the person''s words.';
+  'Where it was said (00682): the message it was said in, who kept it. Never the person''s words.';
 
 /* ------------------------------------------------------------------------------------ 4. file_yes_restate -- */
 
@@ -151,7 +151,7 @@ as $$
 $$;
 revoke all on function public.file_yes_restate(uuid, uuid[]) from public, anon, authenticated;
 comment on function public.file_yes_restate(uuid, uuid[]) is
-  'files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00681): a file whose people are named has a yes for a use only when every one of them has one that stands. Called by the doors that write a yes, in their own transaction.';
+  'files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00682): a file whose people are named has a yes for a use only when every one of them has one that stands. Called by the doors that write a yes, in their own transaction.';
 
 /* ------------------------------------------------------------------------------------------------ 5. doors -- */
 
@@ -202,7 +202,7 @@ end $$;
 revoke all on function public.file_subjects_name(uuid, uuid, text, jsonb) from public, anon;
 grant execute on function public.file_subjects_name(uuid, uuid, text, jsonb) to authenticated, service_role;
 comment on function public.file_subjects_name(uuid, uuid, text, jsonb) is
-  'A member''s door, with the add_files permission (00681): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
+  'A member''s door, with the add_files permission (00682): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
 
 create or replace function public.subject_yes_record(
   p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb
@@ -253,7 +253,7 @@ end $$;
 revoke all on function public.subject_yes_record(uuid, uuid, text[], text, jsonb) from public, anon;
 grant execute on function public.subject_yes_record(uuid, uuid, text[], text, jsonb) to authenticated, service_role;
 comment on function public.subject_yes_record(uuid, uuid, text[], text, jsonb) is
-  'A member''s door, with the settings permission (00681; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
+  'A member''s door, with the settings permission (00682; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
 
 /* ------------------------------------------------------------------------------ 5a. the ask, and a no -- */
 
@@ -286,7 +286,7 @@ end $$;
 revoke all on function public.subject_ask_record(uuid, uuid, text, text[]) from public, anon;
 grant execute on function public.subject_ask_record(uuid, uuid, text, text[]) to authenticated, service_role;
 comment on function public.subject_ask_record(uuid, uuid, text, text[]) is
-  'A member''s door, with the add_files permission (00681; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
+  'A member''s door, with the add_files permission (00682; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
 
 create or replace function public.subject_no_record(p_tenant_id uuid, p_subject_id uuid)
 returns jsonb
@@ -308,7 +308,7 @@ end $$;
 revoke all on function public.subject_no_record(uuid, uuid) from public, anon;
 grant execute on function public.subject_no_record(uuid, uuid) to authenticated, service_role;
 comment on function public.subject_no_record(uuid, uuid) is
-  'A member''s door, with the settings permission (00681; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
+  'A member''s door, with the settings permission (00682; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
 
 /* ------------------------------------------------------------------------- 5b. a person's row gone (erased) -- */
 
@@ -328,7 +328,7 @@ begin
 end $$;
 revoke all on function public.file_subjects_gone() from public, anon, authenticated;
 comment on function public.file_subjects_gone() is
-  'Trigger (00681; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
+  'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
 drop trigger if exists file_subjects_gone on public.file_subjects;
 create trigger file_subjects_gone after delete on public.file_subjects
   for each row execute function public.file_subjects_gone();
@@ -367,7 +367,7 @@ as $$
 $$;
 revoke all on function public.file_rights_gap_of(uuid, uuid, text) from public, anon, authenticated;
 comment on function public.file_rights_gap_of(uuid, uuid, text) is
-  'Who stands between a file and a use (00681; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
+  'Who stands between a file and a use (00682; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
 
 create or replace function public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text)
 returns jsonb
@@ -388,7 +388,7 @@ end $$;
 revoke all on function public.file_rights_gap(uuid, uuid, text) from public, anon;
 grant execute on function public.file_rights_gap(uuid, uuid, text) to authenticated, service_role;
 comment on function public.file_rights_gap(uuid, uuid, text) is
-  'A member''s read, with the add_files permission (00681): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
+  'A member''s read, with the add_files permission (00682): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
 
 /* ------------------------------------------------------------------------------- 6. post_as_approved -- */
 
@@ -411,7 +411,7 @@ begin
   if not found then
     return jsonb_build_object('is', 'changed');
   end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00681).
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00682).
   v_gap := public.file_rights_gap_of(v_post.tenant_id, v_post.file_id, 'post');
   if v_gap ->> 'is' <> 'ok' then
     return jsonb_build_object('is', 'rights', 'name', v_gap ->> 'name');
@@ -446,7 +446,7 @@ end $$;
 revoke all on function public.post_as_approved(uuid) from public, anon, authenticated;
 grant execute on function public.post_as_approved(uuid) to service_role;
 comment on function public.post_as_approved(uuid) is
-  'Right before a send (00680; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00681), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+  'Right before a send (00681; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00682), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
 
 /* ------------------------------------------------------------------------------------ 7. post_approve -- */
 
@@ -504,7 +504,7 @@ begin
                         and s.id::text = any (public.file_drawn_from(v_file.made)))) then
     return jsonb_build_object('fate', 'taken_back', 'posts', '[]'::jsonb);
   end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00681):
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00682):
   -- nothing goes, and it says who.
   v_gap := public.file_rights_gap_of(p_tenant_id, p_file_id, 'post');
   if v_gap ->> 'is' <> 'ok' then
@@ -636,4 +636,4 @@ end $$;
 revoke all on function public.post_approve(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.post_approve(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.post_approve(uuid, uuid, jsonb) is
-  'A member''s press, with the settings permission (00680; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, rights (name: who has not said yes, 00681), late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+  'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, rights (name: who has not said yes, 00682), late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';

@@ -3,7 +3,7 @@
  * press that is the approval, on the member's own session. Before anything is written, the checks a press is held to
  * (posts/checks.ts): a person in it has not said yes, the place takes it, AI is not paused, its reason stands. Then the
  * words that go are kept on the piece (posts/caption.ts), and the exact thing approved is read: each shape a placement
- * sends, by its path in the file's folder and the full SHA-256 of its bytes, so the edge sends those bytes or none (00680
+ * sends, by its path in the file's folder and the full SHA-256 of its bytes, so the edge sends those bytes or none (00681
  * post_as_approved). One door writes it all. An owner's own words are never judged by a guess: what they type and press
  * is theirs.
  */

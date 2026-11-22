@@ -1,5 +1,5 @@
 /**
- * Take down (00682; the content loop PRD's 8.3; the journey canvas, board Piece, cells 36 to 40): the two presses behind
+ * Take down (00683; the content loop PRD's 8.3; the journey canvas, board Piece, cells 36 to 40): the two presses behind
  * DELETE and PUT files/[id]/posts, each through its door on the member's own session, and the piece's newest take-down as
  * its sheet reads it (GET files/[id]). Asking a place and the place confirming are two times: nothing here says a post
  * is down. The take-down job does, once the place said so.

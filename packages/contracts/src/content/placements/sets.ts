@@ -1,5 +1,5 @@
 /**
- * The closed sets pass 1b's records hold (00680 to 00682, and 00676's remediations): a rendition's shape, what an
+ * The closed sets pass 1b's records hold (00681 to 00683, and 00676's remediations): a rendition's shape, what an
  * approval is of and why it stopped standing, who made a version, who a person in a file is and how that is known, and
  * what a remediation does, reaches and came to. A leaf: the schema's pins (shared/schema-sets.ts) read them here, so
  * holding a set to the database draws no module of words or rules into what the pins reach.
@@ -20,14 +20,14 @@ export type ApprovalVoidWhy = (typeof APPROVAL_VOID_WHYS)[number];
 export const REVISION_MADE_BY = ["ai", "owner", "operator"] as const;
 export type RevisionMadeBy = (typeof REVISION_MADE_BY)[number];
 
-/** Who a person in a file is to the business (00681 file_subjects.label). */
+/** Who a person in a file is to the business (00682 file_subjects.label). */
 export const SUBJECT_LABELS = ["client", "staff", "other"] as const;
 export type SubjectLabel = (typeof SUBJECT_LABELS)[number];
 
 /** How it is known a person is in a file: the owner or an operator named them, or the person said so. Never a face. */
 export const SUBJECT_HOWS = ["owner_named", "person_said"] as const;
 
-/** Whether the people in a file are known (00681 files.subjects_state). */
+/** Whether the people in a file are known (00682 files.subjects_state). */
 export const SUBJECTS_STATES = ["not_asked", "none", "named", "unsure"] as const;
 export type SubjectsState = (typeof SUBJECTS_STATES)[number];
 

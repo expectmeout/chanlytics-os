@@ -66,7 +66,7 @@ interface InstagramPress {
 }
 
 /**
- * POST files/[id]/instagram: the post approved for Instagram (00680), a picture as a post or a story, a video as a reel,
+ * POST files/[id]/instagram: the post approved for Instagram (00681), a picture as a post or a story, a video as a reel,
  * now or at a time the person chose. The press is the approval: of these bytes, these words, this place (posts/approve.ts).
  */
 export async function postFileToInstagram(

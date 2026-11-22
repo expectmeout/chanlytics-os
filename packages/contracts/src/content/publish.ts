@@ -137,7 +137,7 @@ export function publishCardWords(p: PostPublish, name: string): { title: string;
 function publishCallsOf(p: PostPublish): ProposalCall[] {
   const id = { id: p.file_id };
   const when = p.when ? { when: p.when } : {};
-  // What the words are about, and the owner's own fact: each place's approval keeps them (00680).
+  // What the words are about, and the owner's own fact: each place's approval keeps them (00681).
   const approved = { ...(p.about ? { about: p.about } : {}), ...(p.facts.length ? { facts: p.facts } : {}) };
   const calls: ProposalCall[] = [];
   const carried = p.places.includes("google") || (p.places.includes("instagram") && p.as !== "story");

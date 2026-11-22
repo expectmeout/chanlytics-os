@@ -129,7 +129,7 @@ const KINDS = [
   "ad_draft",
   // A yes for a photo or a video, kept or taken back (00665).
   "file_yes",
-  // Who is in a photo or a video, and one person's own yes (00681); a post taken down (00682).
+  // Who is in a photo or a video, and one person's own yes (00682); a post taken down (00683).
   "file_people",
   "person_yes",
   "take_down",

@@ -1,5 +1,5 @@
 /**
- * A post taken down (00682; the content loop PRD's 5.3 and 8.3; the journey canvas, board Piece, cells 23, 24 and 36 to
+ * A post taken down (00683; the content loop PRD's 5.3 and 8.3; the journey canvas, board Piece, cells 23, 24 and 36 to
  * 40): a remediation, one action for each thing it reached, pending until the place says. Chanlytics asking and the place
  * confirming are two times, kept apart, and a post is taken down only once its place said so. Never an Undo: a post
  * taken down is posted again as a new post.
@@ -120,7 +120,7 @@ export const TAKE_DOWN_WORDS = {
 } as const;
 
 /**
- * What the bell says of a take-down (00682; the canvas's Today 6): a piece gone from every place it was asked down from,
+ * What the bell says of a take-down (00683; the canvas's Today 6): a piece gone from every place it was asked down from,
  * and one a place would not take down for Chanlytics, which its owner deletes there. A piece that cannot be named is
  * "A post", never a blank title. The second is closed by the first (waits/notice-mends.ts holds both titles).
  */
