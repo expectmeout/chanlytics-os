@@ -118,9 +118,10 @@ export interface ReplyDraftThread {
   /** The open hold's reason and what it left, or nulls with none. */
   holdReason: string | null;
   holdDetails: string | null;
-  /** Their newest message, its words and subject, and the address it came from. */
+  /** Their newest message, its words and subject, when they wrote it, and the address it came from. */
   forMessageId: string | null;
   theirWords: string | null;
+  theirAt: string | null;
   theirSubject: string | null;
   theirName: string | null;
   theirAddress: string | null;
@@ -150,6 +151,15 @@ function emailOf(meta: unknown): { subject: string | null; name: string | null; 
   return { subject: text(e.subject), name: text(e.from_name), address: text(e.from) };
 }
 
+/** Their newest message among a thread's newest rows, as a draft reads it: nulls where they wrote none of them. */
+function theirNewestOf(
+  rows: ReadonlyArray<{ id: string; sender: string; body: string | null; created_at: string; meta: unknown }>,
+) {
+  const theirs = rows.find((m) => m.sender === "customer");
+  if (!theirs) return { id: null, words: null, at: null, email: emailOf(null) };
+  return { id: theirs.id, words: theirs.body, at: theirs.created_at, email: emailOf(theirs.meta) };
+}
+
 /**
  * The thread as a draft reads it, or null with no such thread. A failed read throws: "we could not check" is not "nothing
  * is owed".
@@ -170,7 +180,7 @@ export async function replyDraftThreadOf(
   const [messages, hold, person, kept] = await Promise.all([
     db
       .from("messages")
-      .select("id, channel, type, sender, direction, status, meta, body")
+      .select("id, channel, type, sender, direction, status, meta, body, created_at")
       .eq("tenant_id", tenantId)
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
@@ -198,24 +208,24 @@ export async function replyDraftThreadOf(
   if (hold.error) throw new DbFailure(hold.error, "escalations");
   if (person.error) throw new DbFailure(person.error, "contacts");
   const rows = messages.data ?? [];
-  const theirs = rows.find((m) => m.sender === "customer") ?? null;
-  const email = theirs ? emailOf(theirs.meta) : { subject: null, name: null, address: null };
+  const theirs = theirNewestOf(rows);
   const details = hold.data?.details;
   const wire = rows.length ? answerWireOf([...rows].reverse() as WireRow[]) : null;
   // Only an email can answer a reach-out, and only a hold makes it matter: nobody asks of the rest.
   const reachOutReply =
-    !!theirs && !!hold.data && wire === "email"
+    theirs.id !== null && !!hold.data && wire === "email"
       ? !!(await findReachOutReply(db, { tenantId, messageId: theirs.id, days: REACH_OUT_REPLY_DAYS }))
       : false;
   return {
     contactId: conv.data.contact_id,
     holdReason: hold.data?.reason ?? null,
     holdDetails: typeof details === "string" && details.trim() ? details.trim() : null,
-    forMessageId: theirs?.id ?? null,
-    theirWords: theirs?.body ?? null,
-    theirSubject: email.subject,
-    theirName: email.name,
-    theirAddress: email.address ?? person.data?.email ?? null,
+    forMessageId: theirs.id,
+    theirWords: theirs.words,
+    theirAt: theirs.at,
+    theirSubject: theirs.email.subject,
+    theirName: theirs.email.name,
+    theirAddress: theirs.email.address ?? person.data?.email ?? null,
     // Oldest first, as a thread holds them. A thread with no row has no wire: a draft has nothing to go by.
     wire,
     clocks: {

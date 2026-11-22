@@ -117,7 +117,9 @@ were read again against main at `133c654ae4`.
    one writer of a reply (decision 0093), so they are in the language the customer writes in, and the writer's checks
    hold them: no price it was not given, no promise of a follow-up by a time.
 3. **Not where a person may have it in hand, or the business said no.** Nothing is sent when a person typed a reply
-   since the customer asked, the customer asked to stop, a person or a call holds the conversation, the workspace is
+   since the customer asked, the customer asked to stop, the customer wrote again since they asked (what they wrote has
+   had no answer, and AI's own message took it up in a draft's voice, "I'll find out and come back to you", with nobody
+   left to find out: the walk of 22 November 2026), a person or a call holds the conversation, the workspace is
    paused, the reply setting in force does not let AI speak by itself (Asks you, Stays quiet, or any mode while
    everything is stopped: decision 0139), the conversation is not on WhatsApp or a text, WhatsApp's reply window has
    closed, it is more than two hours after the request ran out, or AI had no words. One rule says which (core
