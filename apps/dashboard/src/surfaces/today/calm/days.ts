@@ -17,25 +17,25 @@ export type LastDays = ReportHeadlineVM["perDay"];
 const LONG_PERIOD = "30d" satisfies ReportPeriodId;
 
 /** The thirty days as last asked for, and when: asked once by whoever needs them first, and again after an hour. */
-let asked: { at: number; days: Promise<LastDays | null> } | null = null;
+let thirty: { at: number; days: Promise<LastDays | null> } | null = null;
 
 function thirtyDays(): Promise<LastDays | null> {
-  if (asked && Date.now() - asked.at < HOUR_MS) return asked.days;
+  if (thirty && Date.now() - thirty.at < HOUR_MS) return thirty.days;
   const days = read("GET reports/headline", { query: { period: LONG_PERIOD } }).then(
     (answer) => toHeadlineVM(answer.headline).perDay,
     // A read that failed says nothing, and is asked again by the next who needs it.
     () => {
-      asked = null;
+      thirty = null;
       return null;
     },
   );
-  asked = { at: Date.now(), days };
+  thirty = { at: Date.now(), days };
   return days;
 }
 
 /** Today is left: the next visit asks again. */
 export function forgetLastDays(): void {
-  asked = null;
+  thirty = null;
 }
 
 /**

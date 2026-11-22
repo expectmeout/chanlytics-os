@@ -22,7 +22,7 @@ export type ClearedBeat = "held" | "on" | null;
 const LEFT_HOLDS_MS = 1500;
 
 type Holder = NonNullable<TodayArrangement["card"]>["holder"];
-const waited = (holder: Holder | null): boolean => holder === "queue" || holder === "wait";
+const heldSomeone = (holder: Holder | null): boolean => holder === "queue" || holder === "wait";
 
 /** What the last draw held, and when the card let a waiting person go (0 where it has not, or it was answered for). */
 interface Drawn {
@@ -51,8 +51,8 @@ export function useClearedBeat(at: Pick<TodayArrangement, "card" | "waiting">): 
   // page is drawn again at once, before any part of it, so the card's room is the celebration's from its first frame and
   // the next card is never drawn ahead of it.
   if (drawn.holder !== holder || drawn.waiting !== waiting) {
-    const leftAt = waited(drawn.holder) && !waited(holder) ? Date.now() : drawn.leftAt;
-    const quiet = !waited(holder) && !waiting;
+    const leftAt = heldSomeone(drawn.holder) && !heldSomeone(holder) ? Date.now() : drawn.leftAt;
+    const quiet = !heldSomeone(holder) && !waiting;
     const justLeft = quiet && leftAt > 0 && Date.now() - leftAt < LEFT_HOLDS_MS;
     setDrawn({ holder, waiting, leftAt: justLeft ? 0 : leftAt });
     if (!quiet) setOwed(false);
