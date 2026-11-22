@@ -32,7 +32,10 @@ import { copyReturner } from "../files/copy/bring-back.js";
 import { sourceTaker } from "../files/takes/step.js";
 import { fileJobs } from "../files/upkeep.js";
 import { postJobs } from "../instagram/post-send.js";
+import { takeDownPlaceFor } from "../instagram/post-ready.js";
 import { sendGooglePost } from "../google/post-later.js";
+import { googlePlace } from "../google/place.js";
+import { takePostDown } from "../content/take-down.js";
 import { previewBuilder } from "../previews/build.js";
 import { getCampaignsBinding } from "../email/campaigns-domain.js";
 import { pageOperator } from "../shared/alerts/page-operator.js";
@@ -159,7 +162,17 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   copies: copyReturner(db),
   // A post on its way to Instagram (decision 0121): the business's token is in the vault here. And one on its way to Google
   // at its time (00616), through the connection held here too.
-  posts: { ...postJobs(db), google: (job: ClaimedJob) => sendGooglePost(db, job) },
+  posts: {
+    ...postJobs(db),
+    google: (job: ClaimedJob) => sendGooglePost(db, job),
+    // A post asked down where it is up (00682), each place through its own adapter.
+    takeDown: (job: ClaimedJob) =>
+      takePostDown(db, job, (post) =>
+        post.place === "google"
+          ? Promise.resolve(googlePlace(db, { tenantId: post.tenant_id, fileId: post.file_id, by: post.approved_by }))
+          : takeDownPlaceFor(db, post),
+      ),
+  },
   // A lead's own receptionist built (decision 0079), its website read the same way.
   previews: previewBuilder(db),
 });

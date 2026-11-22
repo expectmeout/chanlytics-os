@@ -1,5 +1,5 @@
 /**
- * 00685 on a real Postgres: a visit is worth its service's amount on the day it was booked, and the Ads page's counts
+ * 00683 on a real Postgres: a visit is worth its service's amount on the day it was booked, and the Ads page's counts
  * sum what an ad's bookings are worth (the Ads tracking plan's T6 and its call 5).
  *
  * What must hold. A visit is stamped with its service's amount when it is written, found by the service's name as the

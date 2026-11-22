@@ -84,6 +84,11 @@ export const REQUEST_WORDS = {
     title: "Nothing can be sent to them",
     call: "Call them",
   },
+  /** How to reach them could not be checked: a read that failed, said as one (docs/words.md), with its one act. */
+  unchecked: {
+    title: "Couldn't check how to reach them",
+    act: "Try again",
+  },
   unreached: {
     title: "The reply didn't reach them",
     body: "It left and came back, so they have no answer yet. Send another to an address that works, or call.",

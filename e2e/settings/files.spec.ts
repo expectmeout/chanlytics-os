@@ -294,8 +294,10 @@ test.describe("Files, from a photo to a post", () => {
       const facts = pane.getByTestId("cnv-facts");
       await expect(facts).toContainText("Made from", { timeout: 30_000 });
       await expect(facts.locator(`img[src*="/api/v1/files/${photoId}/view"]`)).toHaveCount(1);
-      // Change it is the pane's own pencil, beside its lead (Ruben, 12 Nov 2026: one way to change a piece), not More's.
-      await pane.getByTestId("cnv-change").click();
+      // Change it is in More: a line to AI stands where the pencil stood beside the lead (the journey canvas's piece,
+      // approved 22 Nov 2026), and the post's own editor is reached from the menu.
+      await pane.getByTestId("cnv-more").click();
+      await page.getByRole("menuitem", { name: "Change it" }).click();
       const version = pane.getByTestId("post-version");
       await expect(version.getByTestId("post-line")).toHaveValue(CHANGED);
       await expect(version.locator(LOOK_CHOICES)).toHaveCount(0);

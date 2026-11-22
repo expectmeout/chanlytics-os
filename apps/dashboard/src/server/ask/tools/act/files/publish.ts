@@ -8,7 +8,10 @@ import {
   POST_PLACE_SAID,
   POST_PLACES,
   POST_SOON_MS,
+  PostAboutSchema,
   clockWhen,
+  intentOfAbout,
+  zoneDayKey,
   dateFormat,
   fileSaidOf,
   postCaptionProblem,
@@ -19,17 +22,21 @@ import {
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
+import { wordsNeedAbout } from "@chanlytics/core";
+import { isSendingStopped } from "@chanlytics/db/workspace";
 import { postClaimsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
 import { findConnection } from "../../../../connections/google";
 import { readPostCaption } from "../../../../posts/caption";
+import { readPlacementRefusals, type CheckedFile, type PlacementAsked } from "../../../../posts/checks";
 import { readInstagramPostable } from "../../../../posts/instagram";
 import { readFilePosts } from "../../../../posts/record";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
+import { quotedInQuestion } from "../remember";
 import { ownersWords } from "./post";
 import { movesOf } from "./publish-move";
 
@@ -44,13 +51,24 @@ import { movesOf } from "./publish-move";
 const publishInput = z.object({
   file: z.string().min(1).max(120).optional().describe("Its name as files says it; left out, the question's post."),
   places: z.array(z.enum(POST_PLACES)).min(1),
-  as: z.enum(INSTAGRAM_POST_KINDS).optional().describe("On Instagram: picture (the feed) or story."),
+  as: z
+    .enum(INSTAGRAM_POST_KINDS)
+    .optional()
+    .describe("On Instagram: picture (the feed) or story for a made post; reel for a made video."),
   when: z
     .string()
     .max(20)
     .optional()
     .describe("YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now."),
   caption: z.string().max(2200).optional().describe("Only for other words they asked for. Left out, its own."),
+  about: PostAboutSchema.optional().describe(
+    "What the words lean on: their day (YYYY-MM-DD), an offer with its last day, a service, or nothing true where they date nothing. Needed when they name a day, an offer or a price.",
+  ),
+  fact: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Only a fact the owner said this turn, in their words: kept as theirs."),
 });
 
 type PublishInput = z.infer<typeof publishInput>;
@@ -147,22 +165,89 @@ async function captionOf(
   return { caption, isNew };
 }
 
-async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
+/** A made video goes to Instagram as a reel and nowhere else; a picture never as a reel. Why not, for the model, or null. */
+function kindRefusal(fileKind: string, places: readonly PostPlace[], as: PostPublish["as"] | undefined): string | null {
+  if (fileKind === "video" && places.includes("google"))
+    return "Google takes a picture, not a video. Say so, and offer Instagram as a reel";
+  if (fileKind === "video" && as !== undefined && as !== "reel")
+    return "a made video goes on Instagram as a reel: set as to reel";
+  if (fileKind !== "video" && as === "reel")
+    return "only a made video goes as a reel: this is a picture, so post or story";
+  return null;
+}
+
+/** What the card's checks read: the made file, where it goes, its words, what they are about, and any stated fact. */
+interface CardChecked {
+  file: CheckedFile;
+  placements: PlacementAsked[];
+  words: string;
+  about: PostPublish["about"];
+  facts: PostPublish["facts"];
+}
+
+/**
+ * The checks the card is held to as AI proposes it (the PRD's 6.2), the ones the press makes again and the send once
+ * more: AI is paused, its reason does not stand. First the backstop on AI's own draft:
+ * words that plainly name a day, an offer or a price say what they are about. Why not, for the model, or null.
+ */
+async function checksRefusal(toolContext: ToolContext, at: CardChecked): Promise<string | null> {
+  const needs = wordsNeedAbout(at.words, at.about);
+  if (needs?.is === "day")
+    return `the words say "${needs.phrase}": set about.day to the date it means (YYYY-MM-DD), ask them which day, or set about.nothing where the words date nothing`;
+  if (needs?.is === "offer")
+    return `the words name "${needs.phrase}": set about.offer to it with its last day, ask them when it ends, or set about.nothing where it is no offer`;
+  const refused = await readPlacementRefusals(toolContext.ctx.supabase, {
+    tenantId: toolContext.tenantId,
+    zone: toolContext.timezone,
+    file: at.file,
+    placements: at.placements,
+    intent: intentOfAbout(at.about ?? undefined),
+    facts: at.facts,
+    // Each place asked was read as connected above (placeRefusal).
+    connections: { instagram: "yes", google: "yes" },
+    stopped: await isSendingStopped(toolContext.ctx.supabase, toolContext.tenantId),
+    config: () => load(toolContext.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
+  });
+  return refused ? `${refused} Say so in a few words with the one thing to do.` : null;
+}
+
+/** The made post a call names and the places it asks for, or, in words for the model, why it cannot go as asked. */
+async function findPostAsked(toolContext: ToolContext, input: PublishInput) {
   const named = input.file ?? toolContext.subjectFile;
-  if (!named) return refuse("name the post with file, as files says it");
+  if (!named) return { refused: "name the post with file, as files says it" };
   const { files } = (await load(toolContext.rc, filesNamedForAsk, { names: [named] })).data;
   const file = filesNamed(files, [named]).found.at(0);
-  if (!file) return refuse(`no file named ${named}; names come from files with action list`);
-  if (file.source !== "made" || file.kind === "video")
-    return refuse(
-      `${file.name} is not a post made here. A video is saved from Campaigns › Content and posted from the phone; a photo is made into a post first, with propose_post`,
-    );
-  const places = POST_PLACES.filter((p) => input.places.includes(p));
+  if (!file) return { refused: `no file named ${named}; names come from files with action list` };
+  if (file.source !== "made")
+    return { refused: `${file.name} is not a post made here. A photo is made into a post first, with propose_post` };
+  const places = POST_PLACES.filter((place) => input.places.includes(place));
+  const shapeRefused = kindRefusal(file.kind, places, input.as);
+  if (shapeRefused) return { refused: shapeRefused };
   for (const place of places) {
-    const why = await placeRefusal(toolContext, place);
-    if (why) return refuse(why);
+    const refusal = await placeRefusal(toolContext, place);
+    if (refusal) return { refused: refusal };
   }
-  const as = input.as ?? "picture";
+  return { file, places, as: input.as ?? (file.kind === "video" ? ("reel" as const) : ("picture" as const)) };
+}
+
+/**
+ * What the words are about and any fact the owner stated, as the approval keeps them. A fact is theirs only in their
+ * own words: AI never states one for them.
+ */
+function intentAsked(toolContext: ToolContext, input: PublishInput) {
+  if (input.fact && !quotedInQuestion(toolContext, input.fact))
+    return {
+      refused: "fact must be their own words in this question, copied exactly; ask them if they have not said it",
+    };
+  const about = input.about ?? null;
+  const until = about?.day ?? about?.offer?.until ?? zoneDayKey(Date.now(), toolContext.timezone);
+  return { about, facts: input.fact ? [{ says: input.fact, until }] : [] };
+}
+
+async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
+  const found = await findPostAsked(toolContext, input);
+  if (found.refused !== undefined) return refuse(found.refused);
+  const { file, places, as } = found;
   // The time first: only a time named can say that a post already set at a place asked is to move to it (00621).
   const when = whenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
@@ -177,24 +262,43 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   }
   const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
+  const intent = intentAsked(toolContext, input);
+  if (intent.refused !== undefined) return refuse(intent.refused);
+  const { about, facts } = intent;
+  const atIso = when.at === null ? null : new Date(when.at).toISOString();
+  const checked = await checksRefusal(toolContext, {
+    file,
+    placements: posting.map((place) => ({
+      place,
+      kind: place === "instagram" ? as : "picture",
+      caption: caption.caption,
+      when: atIso,
+    })),
+    words: caption.caption,
+    about,
+    facts,
+  });
+  if (checked) return refuse(checked);
   const language = toolContext.language === "es" ? "es" : "en";
   const payload: PostPublish = {
     file_id: file.id,
     places: posting,
     moves: set.moves,
     as,
-    when: when.at === null ? null : new Date(when.at).toISOString(),
+    when: atIso,
     when_said: when.at === null ? null : whenSaidOf(when.at, toolContext.timezone, language),
     caption: caption.caption,
     caption_new: caption.isNew,
     language,
+    about,
+    facts,
   };
   return propose({ kind: "publish", ...publishCardWords(payload, fileSaidOf(file.name)), payload: { ...payload } });
 }
 
 export const publishAct = defineAct({
   name: "propose_publish",
-  description: `Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. ${approvalWords("publish")}.`,
+  description: `Put a made post up on Instagram (post or story) and Google, or a made video on Instagram as a reel, now or at a named time; one already set moves to it. Words that name a day, an offer or a price say what they are about. The card says where and when. ${approvalWords("publish")}.`,
   kind: "publish",
   input: publishInput,
   label: "Putting a post up",

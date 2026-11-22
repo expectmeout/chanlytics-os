@@ -1505,6 +1505,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
         ],
       ],
       ["propose_settings", ["change", "answers", "worth", "autonomy", "goal", "answer_style"]],
+      ["propose_take_down", []],
       ["propose_thread_verb", []],
       // A fact the person tells Ask to keep (decision 0070).
       ["remember", []],

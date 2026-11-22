@@ -50,7 +50,7 @@ export async function sendToEach(
     else if (answer) refused[place] = answer.message;
   });
   // A story carries no words, so its door keeps none: only Google's, or Instagram's picture, kept these on the piece.
-  const carried = sent.includes("google") || (sent.includes("instagram") && sending.as === "picture");
+  const carried = sent.includes("google") || (sent.includes("instagram") && sending.as !== "story");
   return { sent, refused, kept: carried ? words : null };
 }
 
@@ -85,7 +85,7 @@ export function usePostMove(
       const post = piece.posts.find((p) => p.id === postId);
       if (!post) return;
       tell.refused({});
-      const kind = post.kind === "story" ? "story" : "picture";
+      const kind = post.kind === "picture" ? "picture" : post.kind;
       setMoving({ post: post.id, place: post.place, kind, at: Date.parse(post.scheduled_for) });
     },
     to: (at: number) => setMoving((m) => (m ? { ...m, at } : m)),
@@ -101,7 +101,12 @@ export function usePostMove(
  * beside a post that waits: 00620), is switched on by hand, never by opening the list. A place that stopped and can take none
  * now (disconnected since) leaves nothing on: Post again was pressed for it, so another place is never switched on in its stead.
  */
-export function postBothOpening(open: PieceTakes, posts: readonly PostDto[], nowMs: number): PostBothDraft {
+export function postBothOpening(
+  open: PieceTakes,
+  posts: readonly PostDto[],
+  nowMs: number,
+  fileKind = "image",
+): PostBothDraft {
   const begun = postBothBegins(open);
   const stands = (place: PostPlace) => pieceStandsAt(posts, place, nowMs).is;
   const stopped = POST_PLACES.filter((place) => stands(place) === "stuck");
@@ -111,5 +116,9 @@ export function postBothOpening(open: PieceTakes, posts: readonly PostDto[], now
   // A story that stopped is tried again as a story; else the kind Instagram can take now, a post before a story.
   const last = newestAtEachPlace(posts).find((p) => p.place === "instagram");
   const again = stopped.includes("instagram") && last?.kind === "story" ? "story" : begun.as;
-  return { as: instagramAsOf(instagramKindsFree(posts), again), instagram: on("instagram"), google: on("google") };
+  return {
+    as: instagramAsOf(instagramKindsFree(posts, fileKind), again),
+    instagram: on("instagram"),
+    google: on("google"),
+  };
 }

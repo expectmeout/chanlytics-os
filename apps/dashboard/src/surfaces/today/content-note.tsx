@@ -9,7 +9,9 @@
  * could not read.
  *
  * The newest post that did not go out is a line of its own over it, with why, and opens the piece's sheet, where it is
- * posted again (Need you is people and their to-dos, zones/need-you.tsx, and holds no piece).
+ * posted again (Need you is people and their to-dos, zones/need-you.tsx, and holds no piece). A take-down still open
+ * is a line too (the content loop's pass 1b): a post its place left to the owner to delete, in amber, or one its place
+ * has not answered about in a day, which asks nothing of them. Each opens the piece at its lines.
  *
  * A picture is the kit's face, as a tile: one that does not load stands aside (a video whose poster is not cut yet), and
  * the line's words say the rest.
@@ -23,6 +25,7 @@ import {
   fileSaidOf,
   fileViewOf,
   postStoppedWhyOf,
+  type ContentDownDto,
   type ContentLineDto,
   type ContentTodayDto,
 } from "@chanlytics/contracts";
@@ -51,7 +54,21 @@ function StoppedLine({ line }: { line: ContentLineDto }) {
   );
 }
 
-/** The week's pieces as one line: how many, the newest by name, its picture; nothing where the week made none. */
+/** A take-down still open: the piece by its name and picture, and what its place left undone; it opens the piece's lines. */
+function DownLine({ down }: { down: ContentDownDto }) {
+  return (
+    <CalmRow
+      first={{
+        face: { glyph: <Icon name="image" size={14} />, photo: `${fileViewOf(down.file.id)}?w=320`, tile: true },
+      }}
+      name={fileSaidOf(down.file.name)}
+      said={<span data-tone={down.is === "by_hand" ? "warn" : undefined}>{W.down(down)}</span>}
+      door={routeDoor(contentRouteOf({ list: "made", view: "all", open: down.file.id, post: true }))}
+      testid={`today-content-down-${down.is}`}
+    />
+  );
+}
+
 /**
  * The newest piece's face: its picture where there is one to ask for, over the mark of what it is, which stands where the
  * picture does not come. A video is asked for its picture only once the platform has made it ready, never one it could
@@ -112,10 +129,15 @@ export function TodayContentLine() {
         )
       : null,
   ]);
-  if (!today || (today.week.length === 0 && today.making.length === 0 && !today.stopped)) return null;
+  if (!today) return null;
+  const downs = today.down ?? [];
+  if (today.week.length === 0 && today.making.length === 0 && !today.stopped && downs.length === 0) return null;
   return (
     <CalmList label={W.title} testid="today-content">
       {today.stopped ? <StoppedLine line={today.stopped} /> : null}
+      {downs.map((down) => (
+        <DownLine key={`${down.file.id}:${down.is}`} down={down} />
+      ))}
       {/* Drawn afresh as the newest piece moves: a poster the look cut since is asked for again (a picture that did not
           come stands aside for good where it was drawn). */}
       <WeekLine

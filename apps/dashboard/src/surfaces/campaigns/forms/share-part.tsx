@@ -9,6 +9,7 @@
 import { useState } from "react";
 import {
   agoWords,
+  formTestPath,
   requestAddress,
   type FormEntryRowDto,
   type FormLinkDto,
@@ -289,7 +290,13 @@ export function SharePart({ sheet, again, fail, justLive }: SharePartProps) {
             <strong>{SHARE_WORDS.test}</strong>
             <span>{SHARE_WORDS.testBody}</span>
           </div>
-          <Button size="sm" href={`/b/${slug}/${sheet.slug}`} target="_blank" rel="noreferrer" data-testid="forms-test">
+          <Button
+            size="sm"
+            href={formTestPath(slug, sheet.slug)}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="forms-test"
+          >
             <Icon name="eye" size={12} />
             {SHARE_WORDS.testAct}
           </Button>

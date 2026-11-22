@@ -24,6 +24,7 @@ import { readFormRequest, sendFormRequestPress } from "@/bridge/verbs/forms";
 import { hearNeedsYou } from "../../needs-you";
 import { askDraft, readReach, undoFirst } from "../new-conversation/verbs";
 import type { Flash } from "../shell";
+import { replyWayOf } from "./reply-way";
 import { REQUEST_WORDS as W, requestWho } from "./words";
 
 /** Where the request's read stands. */
@@ -42,19 +43,6 @@ const NO_DRAFT: RequestDraft = { state: "none", text: "", subject: "", changed: 
 
 /** The replies written this visit, by request: a request opened again shows the words it had. */
 const KEPT_DRAFTS = new Map<string, RequestDraft>();
-
-/**
- * The way a reply to them goes: the chat they already have while it is open for a member's own words (the canvas's
- * call 12), else an email. Null where neither can carry one now, with the email door's own reason.
- */
-function replyWayOf(reach: PersonReachDto | null): { way: WriteWay | null; why: string | null } {
-  if (!reach) return { way: null, why: null };
-  const chat = reach.ways.find((w) => w.wire === "whatsapp" && w.ok && w.carries === "words" && !w.starts);
-  const email = reach.ways.find((w) => w.wire === "email");
-  if (chat) return { way: chat, why: null };
-  if (email?.ok) return { way: email, why: null };
-  return { way: null, why: email?.why ?? null };
-}
 
 /** The request's read, kept fresh. */
 function useRequestRead(id: string): [RequestRead, () => Promise<void>] {
@@ -86,9 +74,13 @@ function useRequestRead(id: string): [RequestRead, () => Promise<void>] {
   return [read, again];
 }
 
-/** How the request's person can be written to, read once per person: null while it is read, "failed" where it was not. */
-function useReach(personId: string | null): PersonReachDto | null | "failed" {
+/**
+ * How the request's person can be written to, read once per person and again on a press: null while it is read,
+ * "failed" where it was not.
+ */
+function useReach(personId: string | null): [PersonReachDto | null | "failed", () => void] {
   const [reach, setReach] = useState<PersonReachDto | null | "failed">(null);
+  const [tries, setTries] = useState(0);
   useEffect(() => {
     if (!personId) return undefined;
     let live = true;
@@ -100,8 +92,8 @@ function useReach(personId: string | null): PersonReachDto | null | "failed" {
     return () => {
       live = false;
     };
-  }, [personId]);
-  return personId ? reach : null;
+  }, [personId, tries]);
+  return [personId ? reach : null, () => setTries((n) => n + 1)];
 }
 
 /** What the page hands its presses: who is asked, and what the frame says of the answer. */
@@ -183,11 +175,15 @@ export interface RequestPage {
   way: WriteWay | null;
   /** Why nothing can be sent, in the send door's own words; null where something can, or it is not known yet. */
   why: string | null;
+  /** How to reach them could not be checked just now: the read failed, or the send door could not be asked. */
+  unchecked: boolean;
   draft: RequestDraft;
   /** The address the member picked where the request's is not the one on the person's page; null before a pick. */
   emailTo: string | null;
   busy: string | null;
   again: () => Promise<void>;
+  /** Asks again how they can be reached. */
+  checkAgain: () => void;
   setText: (text: string) => void;
   pickEmail: (address: string) => void;
   askAi: () => void;
@@ -248,8 +244,8 @@ export function useRequestPage(id: string, flash: (f: Flash) => void, close: () 
   const [read, again] = useRequestRead(id);
   const dto = read.state === "read" ? read.dto : null;
   const open = dto?.standing === "open";
-  const reach = useReach(open ? (dto?.person?.id ?? null) : null);
-  const { way, why } = replyWayOf(reach && reach !== "failed" ? reach : null);
+  const [reach, checkAgain] = useReach(open ? (dto?.person?.id ?? null) : null);
+  const { way, why, unchecked } = replyWayOf(reach && reach !== "failed" ? reach : null);
   const [emailTo, setEmailTo] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => setEmailTo(null), [id]);
@@ -267,10 +263,12 @@ export function useRequestPage(id: string, flash: (f: Flash) => void, close: () 
     reach,
     way,
     why,
+    unchecked: unchecked || reach === "failed",
     draft,
     emailTo,
     busy,
     again,
+    checkAgain,
     setText: (text) =>
       setDraft({ ...draft, state: draft.state === "writing" ? "writing" : draft.state, text, changed: true }),
     pickEmail: setEmailTo,

@@ -8,7 +8,7 @@ import "server-only";
  * A list that could not be read is no list: the page is the business's own, vetted as it stands, and is never failed
  * for a line it can do without.
  */
-import { heldTenantId } from "@chanlytics/contracts";
+import { formPagePath, heldTenantId } from "@chanlytics/contracts";
 import { listLiveForms } from "@chanlytics/db/forms";
 import { log } from "../shared/log";
 import { serviceDb } from "../shared/service-db";
@@ -25,7 +25,7 @@ export async function findLiveFormLinks(slug: string): Promise<LiveFormLink[]> {
     const workspace = await publicFactsFor(slug);
     if (!workspace) return [];
     const forms = await listLiveForms(serviceDb(), heldTenantId(workspace.id));
-    return forms.map((form) => ({ href: `/b/${workspace.slug}/${form.slug}`, heading: form.heading }));
+    return forms.map((form) => ({ href: formPagePath(workspace.slug, form.slug), heading: form.heading }));
   } catch (e) {
     log.error("form_link_failed", { error: String(e).slice(0, 300) });
     return [];

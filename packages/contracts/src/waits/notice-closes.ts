@@ -183,6 +183,12 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A post that did not go is told once; Content's Needs you holds it, with why, until it is sent again or let go.",
   },
+  post_down: {
+    ends: "news",
+    why: "A piece taken down is told once, when every place it was asked down from says it is gone.",
+  },
+  // Closed by the news that it is gone (notice-mends.ts): the owner deleted it there, and the place no longer holds it.
+  post_by_hand: { ends: "mended" },
   preview_tried: {
     ends: "news",
     why: "A lead who tried their preview is told at their first message and at their first call. Today keeps the lead.",

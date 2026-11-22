@@ -55,7 +55,7 @@ export interface AdWorth {
 
 /**
  * What the bookings of one figure are worth, as one rule (the Ads tracking plan's T6 and its call 5), beside what the
- * figure cost: the worth of the visits its people booked, each its service's amount on the day it was booked (00685
+ * figure cost: the worth of the visits its people booked, each its service's amount on the day it was booked (00683
  * appointments.worth_minor), under the cost's own floor and its own "so far". Money is never converted (decision 0049,
  * call 9): amounts add within one currency, and two currencies are two sums. Which visits go in, and how many were left
  * out for a service with no amount, are the read's (ads_page_counts): the rule adds what it is given.

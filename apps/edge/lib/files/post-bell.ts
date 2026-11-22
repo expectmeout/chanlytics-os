@@ -16,6 +16,10 @@ export const POST_BELL = {
   heldBody: (reason: string) => (reason ? `Didn't post · ${reason}` : "Didn't post"),
 } as const;
 
+/** Where a take-down's row opens: the piece, in Made, at its list, where each place's line says what it answered. */
+export const takeDownBellRouteOf = (fileId: string): string =>
+  contentRouteOf({ list: "made", view: "all", open: fileId, post: true });
+
 /** Where a post's row opens: the piece, in Made, or in Made's Needs you while it waits for the owner. */
 export const postBellRouteOf = (fileId: string, held: boolean): string =>
   contentRouteOf({ list: "made", view: held ? "needs" : "all", open: fileId, post: held });

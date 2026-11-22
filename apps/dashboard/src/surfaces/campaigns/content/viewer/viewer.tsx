@@ -9,8 +9,9 @@
  * address (`campaigns/content:<id>`), the takeover of the screen, the list held behind it and Back. The piece's record, its
  * presses and its drafts are the pane's own (piece.tsx ContentPiece, piece-presses.tsx), handed in.
  */
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { CONTENT_WORDS as W, FILE_WORDS, fileSaidOf, type ContentMadeDto } from "@chanlytics/contracts";
+import { GOES_WORDS } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Icon } from "../../../kit/icon/icon";
@@ -22,6 +23,8 @@ import { cmGoing } from "../../parts/split";
 import { useSave } from "../piece-foot";
 import type { PieceFootActs } from "../piece-foot";
 import type { PiecePresses, usePieceDrafts } from "../piece-presses";
+import type { PieceStanding } from "../model/standing";
+import { AskLine } from "../sheets/ask-change";
 import { pieceNextOf, type PieceTakes } from "../model/piece-open";
 import type { RunAsAdLine } from "../model/run-as-ad";
 import { viewerSaidOf, type ViewerRecord } from "../model/viewer-line";
@@ -63,6 +66,8 @@ export interface ViewerHands {
   byHand: ByHandPress;
   /** "Run as an ad", or why not with its one act (run-as-ad.tsx); its line is null where it says nothing. */
   runAsAd: { line: RunAsAdLine | null; acts: RunAsAdActs };
+  /** Its placements' lines, their one status and the take-down (piece-standing.tsx). */
+  standing: PieceStanding;
 }
 
 /** Whether "I posted it" is offered: a video Ask made, which nothing posts from here (decision 0121). */
@@ -93,16 +98,15 @@ function viewerPages(acts: Pick<ViewerActs, "onBefore" | "onAfter">): (el: Eleme
   };
 }
 
-/** The glass top: ×, "n of N", a video's sound, and More. */
+/** The glass top: ×, "n of N" and a video's sound. More rides the foot's acts (the journey canvas's call 8). */
 function ViewerTop(props: {
   hands: ViewerHands;
   sound: { on: boolean; flip: () => void } | null;
-  onRename: () => void;
   /** ×: the piece shrinks back into its tile, then closes (into-tile.ts). */
   onClose: () => void;
 }) {
   const { hands, sound } = props;
-  const { made, beside, acts } = hands;
+  const { beside } = hands;
   return (
     <div className="cnv-viewer-top">
       <Button
@@ -133,7 +137,6 @@ function ViewerTop(props: {
             <Icon name={sound.on ? "sound-on" : "sound-off"} size={16} />
           </Button>
         ) : null}
-        {hands.may ? <ViewerMore file={made.file} acts={{ ...acts, onRename: props.onRename }} /> : null}
       </div>
     </div>
   );
@@ -159,6 +162,27 @@ export function removeAsk(hands: Pick<ViewerHands, "made" | "presses">) {
       />
     </div>
   );
+}
+
+/**
+ * What the foot reads of where the piece stands, for the viewer and the desk's pane alike: its one status, the act that
+ * leads, Run as an ad where it may run, Take down while something is up, More, and the line to AI on a piece AI made.
+ */
+export function footStandingOf(hands: ViewerHands, at: { more: ReactNode; onTold: () => void }) {
+  const { standing, runAsAd, made, may } = hands;
+  const ad = runAsAd.line?.is === "press" ? { words: runAsAd.line.words, press: runAsAd.acts.run } : null;
+  return {
+    pill: standing.pill,
+    leads: standing.lead,
+    ad,
+    takeDown: standing.takeDown,
+    holdsLead: standing.holdsLead,
+    more: at.more,
+    tell:
+      may && made.file.source === "made" ? (
+        <AskLine about={hands.drafts.about} onAsked={at.onTold} placeholder={GOES_WORDS.tell} />
+      ) : null,
+  };
 }
 
 export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean }) {
@@ -193,10 +217,21 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
     backNavigates: true,
   });
   const playable = file.kind === "video" && file.media_status === "ready";
+  const onChange = acts.onChange ?? (file.source === "made" ? () => setSheet("change") : null);
+  const footStanding = footStandingOf(hands, {
+    more: hands.may ? (
+      <ViewerMore
+        file={file}
+        acts={{ ...acts, onChange, onRename: () => setSheet("rename"), save: { share: save.share, href: save.href } }}
+      />
+    ) : null,
+    onTold: () => undefined,
+  });
   // Where it stands, opened: a post's list of places once its record is read (foot.tsx statusOpensOf).
   const onStatus = statusOpensOf({ ready: drafts.both.ready }, () => {
     presses.clear();
-    drafts.both.begin();
+    if (hands.standing.opensToRead) drafts.both.look();
+    else drafts.both.begin();
   });
   return (
     <section
@@ -230,16 +265,17 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
                 clock={clock}
                 busy={presses.busy}
               />
-              <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} />
+              <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
             </>
           }
+          standing={footStanding}
           asking={removeAsk(hands)}
           problem={presses.problem ?? save.said}
           acts={{
             onLead,
             onStatus,
             onAsk: acts.onAsk,
-            onChange: acts.onChange ?? (file.source === "made" ? () => setSheet("change") : null),
+            onChange,
             onDetails: () => setSheet("details"),
           }}
         />
@@ -247,7 +283,6 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
       <ViewerTop
         hands={hands}
         sound={playable ? { on: sound, flip: () => setSound((on) => !on) } : null}
-        onRename={() => setSheet("rename")}
         onClose={closeIntoTile}
       />
       <ViewerDetails
@@ -277,8 +312,10 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
               compact
             />
           ),
+          standing: hands.standing,
         }}
       />
+      {hands.standing.sheets}
     </section>
   );
 }

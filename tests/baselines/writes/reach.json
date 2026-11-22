@@ -1,7 +1,7 @@
 {
-  "rows": 185,
+  "rows": 186,
   "same": 10,
-  "differ": 175,
+  "differ": 176,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -44,6 +44,19 @@
     },
     "DELETE files/[id]/instagram": {
       "changes": "posts UPDATE"
+    },
+    "DELETE files/[id]/posts": {
+      "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE",
+      "tells": "ad_accounts · ads · notifications",
+      "missing": {
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
+        "notifications": "every page",
+        "person": "clients/person",
+        "reports_people": "reports/people",
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "today": "today"
+      }
     },
     "DELETE google/connection": {
       "changes": "",
@@ -357,7 +370,7 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "PATCH files/[id]": {
-      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_revisions INSERT · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "missing": {
         "notifications": "every page"
@@ -1277,7 +1290,7 @@
       }
     },
     "POST files/[id]/google": {
-      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · publish_attempts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "doors": "anthropic_profiles · business_reads · google_connections · google_listings · google_reviews · imports · tenant_channels",
       "missing": {
@@ -1285,7 +1298,7 @@
       }
     },
     "POST files/[id]/instagram": {
-      "changes": "files UPDATE · notifications INSERT UPDATE · pieces UPDATE · posts INSERT UPDATE · source_items UPDATE",
+      "changes": "approvals INSERT · files UPDATE · notifications INSERT UPDATE · piece_renditions INSERT · piece_revisions INSERT · pieces INSERT UPDATE · posts INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
       "doors": "tenant_channels",
       "missing": {

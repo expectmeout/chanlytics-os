@@ -174,6 +174,13 @@ export const NOTICE_MENDS: readonly NoticeMend[] = [
     by: { change: "calendar.readable" },
     sameSubject: false,
   },
+  // A post a place leaves to its owner to delete is mended by the news that the piece is gone from every place it was
+  // asked down from (00682; the words are content/take-down.ts TAKE_DOWN_BELL, which a test holds to these).
+  {
+    warns: { kind: "post_by_hand", title: /^Delete it in .+ · /u },
+    by: { kind: "post_down", title: /^Taken down · /u },
+    sameSubject: true,
+  },
   // Closed in SQL by resume_email_offers (00421): listed so the test holds the SQL's literal to these words.
   {
     warns: { kind: "sweep", title: exactly(OFFERS_NOTICE_WORDS.paused(null).title) },

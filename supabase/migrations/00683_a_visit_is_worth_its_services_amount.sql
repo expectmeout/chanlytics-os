@@ -1,4 +1,4 @@
--- 00685 · A visit is worth its service's amount on the day it was booked, and the Ads page says what an ad's bookings
+-- 00683 · A visit is worth its service's amount on the day it was booked, and the Ads page says what an ad's bookings
 -- are worth beside what the ad cost (the Ads tracking plan's T6, 22 Nov 2026; its call 5, taken as recommended).
 --
 -- A service's amount lives with the service, in the workspace's settings (tenant_config.config, brain.profile.services:
@@ -44,7 +44,7 @@ $$;
 revoke all on function public.service_key(text) from public, anon, authenticated;
 grant execute on function public.service_key(text) to service_role;
 comment on function public.service_key(text) is
-  'A service''s name as the owner reads it (00685): trimmed, its runs of space made one, lower case. How a visit finds its service among the workspace''s (service_amounts), as a settings change finds one by name (contracts settings-change.ts). Empty for no name. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it.';
+  'A service''s name as the owner reads it (00683): trimmed, its runs of space made one, lower case. How a visit finds its service among the workspace''s (service_amounts), as a settings change finds one by name (contracts settings-change.ts). Empty for no name. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it.';
 
 create or replace function public.service_amounts(p_tenant_id uuid)
 returns table (key text, amount_minor bigint, currency text)
@@ -72,7 +72,7 @@ $$;
 revoke all on function public.service_amounts(uuid) from public, anon, authenticated;
 grant execute on function public.service_amounts(uuid) to service_role;
 comment on function public.service_amounts(uuid) is
-  'The services of a workspace that have an amount (00685; the Ads tracking plan''s T6), read from its settings (tenant_config.config, brain.profile.services): each by its key (service_key), with amount_minor, a whole number of the currency''s minor units, and currency, ISO 4217. The pair alone is an amount: a service with a number and no currency, or a price note and no amount, is not here, and a note is never read for a number. The first of a name where two share one. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it, and the settings row is its owner''s alone to read.';
+  'The services of a workspace that have an amount (00683; the Ads tracking plan''s T6), read from its settings (tenant_config.config, brain.profile.services): each by its key (service_key), with amount_minor, a whole number of the currency''s minor units, and currency, ISO 4217. The pair alone is an amount: a service with a number and no currency, or a price note and no amount, is not here, and a note is never read for a number. The first of a name where two share one. The stamps'' alone (appointments_worth_stamp, tenant_config_worth_stamp): no session calls it, and the settings row is its owner''s alone to read.';
 
 /* ------------------------------------------------------------------------------ 2. what a visit is worth -- */
 
@@ -84,9 +84,9 @@ alter table public.appointments add constraint appointments_worth_check
          and (worth_minor is null or (worth_minor >= 0 and worth_currency ~ '^[A-Z]{3}$')));
 
 comment on column public.appointments.worth_minor is
-  'What the visit is worth (00685; the Ads tracking plan''s T6): its service''s amount when the visit was written, a whole number of worth_currency''s minor units, stamped by appointments_worth_stamp and never moved by a later change of the amount; stamped again only when the visit''s service changes. A visit written before its service had an amount takes the first one the service is given (tenant_config_worth_stamp). Null where its service has had none, or it names none: a sum then leaves it out and counts it (ads_page_counts).';
+  'What the visit is worth (00683; the Ads tracking plan''s T6): its service''s amount when the visit was written, a whole number of worth_currency''s minor units, stamped by appointments_worth_stamp and never moved by a later change of the amount; stamped again only when the visit''s service changes. A visit written before its service had an amount takes the first one the service is given (tenant_config_worth_stamp). Null where its service has had none, or it names none: a sum then leaves it out and counts it (ads_page_counts).';
 comment on column public.appointments.worth_currency is
-  'The currency worth_minor is in, ISO 4217 (00685). Null exactly where worth_minor is.';
+  'The currency worth_minor is in, ISO 4217 (00683). Null exactly where worth_minor is.';
 
 create or replace function public.appointments_worth_stamp()
 returns trigger
@@ -109,7 +109,7 @@ end $$;
 revoke all on function public.appointments_worth_stamp() from public, anon, authenticated;
 grant execute on function public.appointments_worth_stamp() to service_role;
 comment on function public.appointments_worth_stamp() is
-  'A visit is worth its service''s amount on the day it was booked (00685; the Ads tracking plan''s T6): appointments.worth_minor and worth_currency, filled before a visit is written from the amount its service has in the workspace''s settings then (service_amounts, found by service_key), and again only when the visit''s service changes. A request AI opens is written when it is asked for, so it is stamped then. Null where the service has no amount or the visit names none.';
+  'A visit is worth its service''s amount on the day it was booked (00683; the Ads tracking plan''s T6): appointments.worth_minor and worth_currency, filled before a visit is written from the amount its service has in the workspace''s settings then (service_amounts, found by service_key), and again only when the visit''s service changes. A request AI opens is written when it is asked for, so it is stamped then. Null where the service has no amount or the visit names none.';
 
 drop trigger if exists appointments_worth_stamp on public.appointments;
 create trigger appointments_worth_stamp
@@ -143,7 +143,7 @@ end $$;
 revoke all on function public.tenant_config_worth_stamp() from public, anon, authenticated;
 grant execute on function public.tenant_config_worth_stamp() to service_role;
 comment on function public.tenant_config_worth_stamp() is
-  'The day a service is first given an amount, the visits already written for it take it (00685; the Ads tracking plan''s T6): after a save of the settings that changed the services, each visit of the workspace that has no worth, names a service that now has an amount (service_amounts, by service_key) and starts within the last ninety days, the longest window a page counts, is stamped with it. A visit that has a worth is never touched, so a changed amount moves no visit. SECURITY DEFINER, since a member writes no visit: it reads and writes the one workspace whose settings were saved, and no session may call it.';
+  'The day a service is first given an amount, the visits already written for it take it (00683; the Ads tracking plan''s T6): after a save of the settings that changed the services, each visit of the workspace that has no worth, names a service that now has an amount (service_amounts, by service_key) and starts within the last ninety days, the longest window a page counts, is stamped with it. A visit that has a worth is never touched, so a changed amount moves no visit. SECURITY DEFINER, since a member writes no visit: it reads and writes the one workspace whose settings were saved, and no session may call it.';
 
 drop trigger if exists tenant_config_worth_stamp on public.tenant_config;
 create trigger tenant_config_worth_stamp
@@ -249,4 +249,4 @@ $$;
 revoke all on function public.ads_page_counts(uuid, integer, date) from public, anon;
 grant execute on function public.ads_page_counts(uuid, integer, date) to authenticated, service_role;
 comment on function public.ads_page_counts(uuid, integer, date) is
-  'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling); and worth (00685; the Ads tracking plan''s T6), for each ad whose people booked, what their visits are worth: sums, one a currency and never across (call 9), visits, how many are in them, and left_out, how many have no amount. The visits are the ones that make its people booked (call 6), each at the worth stamped on it (appointments.worth_minor); one with none is left out, and counted. The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';
+  'The Ads page''s totals for a window, counted whole (00651; decision 0049, calls 3, 5 and 6): ads, a row an ad Chanlytics holds that brought someone (ad_id, people, booked); unnamed, the people from an ad it cannot name, as one count; spend, what each ad''s platform says it spent, was shown and was tapped in the same days, with whether any of them is still moving (settling); and worth (00683; the Ads tracking plan''s T6), for each ad whose people booked, what their visits are worth: sums, one a currency and never across (call 9), visits, how many are in them, and left_out, how many have no amount. The visits are the ones that make its people booked (call 6), each at the worth stamped on it (appointments.worth_minor); one with none is left out, and counted. The people are ad_people_in''s, so ads plus unnamed is the count people_series says under "An ad". Null for a workspace nobody can read. SECURITY INVOKER.';

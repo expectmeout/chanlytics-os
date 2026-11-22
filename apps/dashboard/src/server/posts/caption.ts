@@ -18,9 +18,9 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import {
-  followPostCaption,
   getFileMade,
   keepPostCaption,
+  keepPieceWords,
   keepVideoCaption,
   listFilePosts,
   type FileMemberRow,
@@ -89,13 +89,15 @@ async function keepCaption(
   const db = serviceDb();
   if (video) {
     if (!(await keepVideoCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
-    return;
+  } else {
+    const posts = read ?? (await listFilePosts(ctx.supabase, member.tenantId, row.id));
+    const refused = waitingRefusalOf(posts, caption);
+    if (refused) throw new AppError("validation", refused);
+    if (!(await keepPostCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
   }
-  const posts = read ?? (await listFilePosts(ctx.supabase, member.tenantId, row.id));
-  const refused = waitingRefusalOf(posts, caption);
-  if (refused) throw new AppError("validation", refused);
-  if (!(await keepPostCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
-  await followPostCaption(db, member.tenantId, row.id, caption || null);
+  // The piece's next version, and every placement still waiting goes up with the new words: this member's save is their
+  // approval of them (00681 piece_words_keep), so a scheduled post is never left behind on the old ones.
+  await keepPieceWords(ctx.supabase, { tenantId: member.tenantId, fileId: row.id, caption: caption || null });
 }
 
 /**

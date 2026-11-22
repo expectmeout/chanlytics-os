@@ -2,7 +2,7 @@
  * A service's amount in the Services sheet (the Ads tracking plan's T6): what the service is worth each time it is
  * booked, which a report counts bookings by. Its box holds a number with its currency ("45 USD"), exact text and never
  * a price note read; Settings keep whole minor units beside the currency's code (contracts ServiceSchema), and the pair
- * alone is an amount, as the database reads it (00685 service_amounts). Pure: what the box holds, what was typed in
+ * alone is an amount, as the database reads it (00683 service_amounts). Pure: what the box holds, what was typed in
  * it, what a save writes for it, and the sentences under it.
  */
 import { isCurrencyCode, minorPerUnit, recordOrEmpty } from "@chanlytics/contracts";

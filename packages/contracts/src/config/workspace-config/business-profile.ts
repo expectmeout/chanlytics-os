@@ -98,7 +98,7 @@ export const ServiceSchema = z
      * types it. A report counts by it; no customer is ever told it (price-allowance.ts reads the note alone).
      */
     amount_minor: z.number().int().min(0).max(SERVICE_AMOUNT_MAX_MINOR).optional(),
-    /** The currency `amount_minor` is in, ISO 4217. An amount is the pair: one alone is none (00685 service_amounts). */
+    /** The currency `amount_minor` is in, ISO 4217. An amount is the pair: one alone is none (00683 service_amounts). */
     currency: z.string().regex(CURRENCY_CODE).optional(),
   })
   .strip();

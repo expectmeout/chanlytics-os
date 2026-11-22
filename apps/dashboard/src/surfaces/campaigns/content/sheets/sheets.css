@@ -254,3 +254,156 @@
   font-size: var(--text-md);
   line-height: 24px;
 }
+
+/* ---- Where it goes and the take-down (viewer/goes.tsx, take-down.tsx) ---- */
+
+/* The piece's placements, a line each, on the group's ground the places under them stand on. */
+.cnv-goes {
+  display: flex;
+  flex-direction: column;
+  padding: 0 14px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-inset-fill);
+}
+/* A placement: a glyph, then the name over where it stands, a note and its acts. */
+.cnv-goes-line {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+}
+.cnv-goes-line + .cnv-goes-line {
+  border-top: 1px solid var(--line);
+}
+.cnv-goes-glyph {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 20px;
+  color: var(--ink-dim);
+}
+.cnv-goes-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cnv-goes-words > b {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+/* Where it stands there, after its tone's dot: plain ink set for its time, the owner's in the warning's. */
+.cnv-goes-said {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.cnv-goes-line[data-tone="you"] .cnv-goes-said {
+  color: var(--warn-ink);
+}
+.cnv-goes-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: var(--radius-full);
+  background: var(--ink-faint);
+}
+.cnv-goes-line[data-tone="ok"] .cnv-goes-dot {
+  background: var(--ok);
+}
+.cnv-goes-line[data-tone="you"] .cnv-goes-dot {
+  background: var(--warn);
+}
+.cnv-goes-line[data-tone="live"] .cnv-goes-dot {
+  background: var(--accent);
+}
+/* Ended (a story after its day, a post taken down): a hollow dot. */
+.cnv-goes-line[data-tone="gone"] .cnv-goes-dot {
+  border: 1.5px solid var(--ink-faint);
+  background: none;
+}
+/* The one thing that moves: the ring of a line that mends itself (content.css cnv-turn, as a tile's going is drawn). */
+.cnv-goes-dot[data-moving] {
+  width: 11px;
+  height: 11px;
+  margin-top: 3px;
+  border: 2px solid var(--accent);
+  border-right-color: transparent;
+  background: none;
+  animation: cnv-turn 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cnv-goes-dot[data-moving] {
+    animation: none;
+    border-right-color: var(--accent);
+  }
+}
+/* A line's acts: its one fix first, then quiet words, wrapping under it. */
+.cnv-goes-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 14px;
+}
+.cnv-goes-words > .cnv-ask-line {
+  margin-top: 6px;
+}
+
+/* Where it goes: its label, as a fact's (content.css .cnv-fact), then a line a placement. */
+.cnv-goes-part {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.cnv-sect {
+  margin: 0 0 3px;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+/* The lines' group stands a little clear of its label, as a card under a heading. */
+.cnv-sect + .cnv-goes {
+  margin-top: 5px;
+}
+
+/* Take down asks first: what comes off and what stays, then a line a placement with what the press does to it. */
+.cnv-take-down {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+.cnv-take-down > p {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
+}
+.cnv-take-down > ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.cnv-take-down li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+.cnv-take-down li span {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
