@@ -42,6 +42,7 @@ export async function keepVideoCaption(db: Db, tenantId: TenantId, fileId: strin
     .select("id, plan")
     .eq("tenant_id", tenantId)
     .eq("file_id", fileId)
+    .neq("shape", "picture")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

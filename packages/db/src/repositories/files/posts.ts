@@ -3,7 +3,7 @@
  * (begin, pull) ask the settings permission themselves; the edge's (an attempt opened and closed, a placement moved) are the
  * service role's alone, and a move is a compare-and-set, so two runs never both move one post.
  */
-import { DbFailure, recordOrEmpty, type PostKind, type PostPlace, type PostStatus } from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty, type PostHeldWhy, type PostPlace, type PostStatus } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
@@ -12,43 +12,6 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type PostRow = Database["public"]["Tables"]["posts"]["Row"];
 export type PostAttemptRow = Database["public"]["Tables"]["publish_attempts"]["Row"];
-
-/** What a press came to: the post begun, the one already on its way, or why none could be. */
-export type PostBegun = {
-  fate: "begun" | "busy" | "gone" | "not_a_post" | "not_yet";
-  post_id: string | null;
-};
-
-const BEGUN_FATES: readonly PostBegun["fate"][] = ["begun", "busy", "gone", "not_a_post", "not_yet"];
-
-/** A member's press, which is the approval: the placement written, and for Instagram its first job. */
-export async function beginPost(
-  db: Db,
-  post: {
-    tenantId: TenantId;
-    fileId: string;
-    place: PostPlace;
-    kind: PostKind;
-    caption: string | null;
-    when: string | null;
-    via: "press" | "card";
-  },
-): Promise<PostBegun> {
-  const { data, error } = await db.rpc("post_begin", {
-    p_tenant_id: post.tenantId,
-    p_file_id: post.fileId,
-    p_place: post.place,
-    p_kind: post.kind,
-    p_caption: post.caption ?? "",
-    ...(post.when ? { p_when: post.when } : {}),
-    p_via: post.via,
-  });
-  if (error) throw new DbFailure(error, "post begin");
-  const answer = recordOrEmpty(data);
-  const fate = BEGUN_FATES.find((f) => f === answer.fate);
-  if (!fate) throw new Error("post begin: no fate answered");
-  return { fate, post_id: typeof answer.post_id === "string" ? answer.post_id : null };
-}
 
 /** A member's Don't post: pulled while nothing has been sent, else late with where it stands. */
 export async function pullPost(db: Db, postId: string): Promise<{ fate: "pulled" | "late" | "unknown" }> {
@@ -121,6 +84,12 @@ export async function closePostAttempt(
 /** What a move may carry onto the post. */
 export interface PostPatch {
   held_reason?: string;
+  /** Why it was held, or let go late, beside its words (contracts POST_HELD_WHYS). */
+  held_why?: PostHeldWhy;
+  /** The place's own account it went to. */
+  account_id?: string | null;
+  /** When the place was seen holding it. */
+  verified_at?: string | null;
   permalink?: string | null;
   published_at?: string | null;
   external_id?: string | null;
@@ -266,7 +235,7 @@ export async function listPostAttempts(db: Db, tenantId: TenantId, postId: strin
 
 /** The columns a member reads of a post (00611's grant): never its container. */
 const MEMBER_POST_COLUMNS =
-  "id, place, kind, caption, status, held_reason, permalink, scheduled_for, published_at, error, external_id, created_at";
+  "id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
 
 export type MemberPostRow = Pick<
   PostRow,
@@ -276,9 +245,12 @@ export type MemberPostRow = Pick<
   | "caption"
   | "status"
   | "held_reason"
+  | "held_why"
   | "permalink"
   | "scheduled_for"
   | "published_at"
+  | "verified_at"
+  | "good_until"
   | "error"
   | "external_id"
   | "created_at"
@@ -299,7 +271,7 @@ export async function listFilePosts(db: Db, tenantId: TenantId, fileId: string):
 
 /** The member's columns of a post and the file it is of: what a page of files reads of its posts in one read. */
 const MEMBER_FILE_POST_COLUMNS =
-  "id, file_id, place, kind, caption, status, held_reason, permalink, scheduled_for, published_at, error, external_id, created_at";
+  "id, file_id, place, kind, caption, status, held_reason, held_why, permalink, scheduled_for, published_at, verified_at, good_until, error, external_id, created_at";
 
 export type MemberFilePostRow = MemberPostRow & Pick<PostRow, "file_id">;
 

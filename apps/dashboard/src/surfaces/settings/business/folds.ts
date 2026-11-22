@@ -52,6 +52,7 @@ import {
 import { REACH_OUT_FOLDS } from "../outreach/fold-tables";
 import { BT_RUN_BLOCKS, btChangedLines, btWillSay } from "./fold-says";
 import { FALLBACK_DEFAULTS, instructionsDraft, newReceptionistDefaults, unknownDetails } from "@chanlytics/contracts";
+import { amountKeysOf, amountProblemAt } from "./model/service-amount";
 import { greetingDraftOf, greetingStoredOf } from "./phone/greeting-draft";
 
 /* ------------------------------------ what each fold opens with, refuses and writes ------------------------------------ */
@@ -271,8 +272,11 @@ const btWriteClosures = (next: Config, draft: unknown) => {
   btPutProfile(next, "closures", closed.length ? closed : undefined);
 };
 
+// A service's amount is written as typed in its box, else as kept: a save of the sheet never loses one (AI's card sets
+// it, and the list was once rebuilt from its name, minutes and price alone).
 const btWriteServices = (next: Config, draft: unknown) => {
-  const services = ((draft || []) as ServiceRow[])
+  const rows = (draft || []) as ServiceRow[];
+  const services = rows
     .filter((x) => trimmed(x.name))
     .map((x) => {
       const o: ServiceRow = { name: trimmed(x.name) };
@@ -281,7 +285,7 @@ const btWriteServices = (next: Config, draft: unknown) => {
       const d = btMinutes(x.duration_min);
       if (d > 0) o.duration_min = d;
       if (trimmed(x.price_note)) o.price_note = trimmed(x.price_note);
-      return o;
+      return { ...o, ...amountKeysOf(x, rows) };
     });
   btPutProfile(next, "services", services.length ? services : undefined);
 };
@@ -475,6 +479,7 @@ const btServicesProblems = (draft: unknown) => {
     else if (minutes > BT_LIMITS.serviceMinutes) found[`service-${i}-duration_min`] = btRefusalOf("serviceMinutes");
     const price = trimmed(x.price_note).length;
     if (price > BT_LIMITS.servicePrice) found[`service-${i}-price_note`] = btRefusalOf("servicePrice", price);
+    Object.assign(found, amountProblemAt(x, i, rows));
   });
   return found;
 };

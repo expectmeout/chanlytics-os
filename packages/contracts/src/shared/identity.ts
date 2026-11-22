@@ -60,3 +60,14 @@ export function asContactId(value: string): ContactId {
   if (!isUuid(value)) throw new TypeError("A contact id is a uuid.");
   return value as ContactId;
 }
+
+/**
+ * What a currency's code looks like where an amount is kept: ISO 4217's three capital letters (`USD`, `EUR`, `JPY`). A
+ * service's amount in Settings, a visit's worth and a sum a read answers are each a whole number of minor units beside
+ * one of these. How many minor units a unit holds is ads/money.ts's.
+ */
+export const CURRENCY_CODE = /^[A-Z]{3}$/;
+
+/** Whether a stored value is a currency's code. */
+export const isCurrencyCode = (value: unknown): value is string =>
+  typeof value === "string" && CURRENCY_CODE.test(value);

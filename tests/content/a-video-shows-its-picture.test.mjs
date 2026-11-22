@@ -196,3 +196,39 @@ test("a ready video's picture is asked for over its mark, which stands where the
   }
   assert.ok(pictureOf(lineOf(drawLine())), "the poster the look cut is asked for");
 });
+
+/* ------------------------------------------------------------------------------------- Today names a take-down -- */
+
+test("a take-down still open is a line of its own on Today: the owner's in amber, one that only waits said plainly, each opening the piece", async () => {
+  const piece = (id, name) => madeVideo(id, { kind: "image", name }).file;
+  note = {
+    ...weekOf(),
+    down: [
+      { is: "by_hand", place: "instagram", file: piece("down-1", "the-finish") },
+      { is: "unconfirmed", place: "google", file: piece("down-2", "warm-balayage") },
+    ],
+  };
+  clearReadCaches();
+  api().forget();
+  fresh();
+  const rowOf = (is) => byTestId(drawLine(), `today-content-down-${is}`);
+  await until(() => !!rowOf("by_hand"), "the line's read landed");
+  const mine = rowOf("by_hand");
+  assert.match(textOf(mine), /Delete it in Instagram · Chanlytics couldn't/);
+  assert.equal(find(mine, (n) => n.props?.["data-tone"] === "warn") !== null, true, "the owner's to finish, in amber");
+  assert.match(pictureOf(mine).props.src, /down-1\/view/, "the piece is known by its picture");
+  const waits = rowOf("unconfirmed");
+  assert.match(textOf(waits), /Google hasn't confirmed it's gone · Chanlytics is on it/);
+  assert.equal(
+    find(waits, (n) => n.props?.["data-tone"] === "warn"),
+    null,
+    "nothing is asked of the owner",
+  );
+  assert.equal(lineOf(drawLine()), null, "a week that made nothing says nothing of the week");
+});
+
+test("an answer from before take-downs were named draws as it did", async () => {
+  const line = await lineWith(weekOf(madeVideo("today-old")));
+  assert.ok(line, "the week's line");
+  assert.equal(byTestId(drawLine(), "today-content-down-by_hand"), null);
+});

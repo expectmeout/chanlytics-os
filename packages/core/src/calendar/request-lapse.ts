@@ -63,6 +63,8 @@ interface LapseThread {
   theirWords: string | null;
   /** A person typed a reply on the conversation since the customer asked. */
   personSpoke: boolean;
+  /** The customer wrote again since they asked: what they wrote has had no answer. */
+  wroteAgain: boolean;
   /** A person took the conversation over, or a call is in progress on it (deliver/hold.ts liveHoldOf), right now. */
   liveHold: boolean;
 }
@@ -117,6 +119,7 @@ interface LapseFacts {
   holdReason: string | null;
   personSpoke: boolean;
   optedOut: boolean;
+  wroteAgain: boolean;
   liveHold: boolean;
   paused: boolean;
   mode: string;
@@ -136,6 +139,7 @@ export function lapseHoldOf(facts: LapseFacts): LapseHold | null {
   if (facts.nowMs > facts.expiresAtMs + REQUEST_TOLD_WITHIN_MS) return "late";
   if (facts.personSpoke) return "person_answered";
   if (facts.optedOut) return "opted_out";
+  if (facts.wroteAgain) return "wrote_again";
   if (facts.liveHold) return "person_has_it";
   if (facts.paused) return "paused";
   if (!speaksUnattended(facts.mode)) return "asks_first";
@@ -180,6 +184,7 @@ export async function settleLapsedRequest(ports: RequestLapsePorts, cmd: SettleL
     holdReason: thread.holdReason,
     personSpoke: thread.personSpoke,
     optedOut: thread.optedOut,
+    wroteAgain: thread.wroteAgain,
     liveHold: thread.liveHold,
     paused: posture.paused,
     mode: posture.mode,

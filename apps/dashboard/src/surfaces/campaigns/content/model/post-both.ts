@@ -32,10 +32,11 @@ export const postBothBegins = (takes: PieceTakes): PostBothDraft => ({
 export function postBothProblemOf(draft: PostBothDraft, words: string): string | null {
   const postSays = CONTENT_WORDS.post;
   if (!draft.instagram && !draft.google) return postSays.nowhere;
+  // A post on Google and a picture post need words; a story shows none, and a reel may go with none.
   const needsWords = draft.google || draft.as === "picture";
   if (needsWords && !words) return postSays.wordsNeeded;
   if (draft.google && words.length > FILE_GOOGLE_WORDS_MAX) return postSays.tooLongForGoogle;
-  if (draft.instagram && draft.as === "picture") {
+  if (draft.instagram && draft.as !== "story") {
     const refusal = postCaptionProblem(words);
     if (refusal) return refusal;
   }

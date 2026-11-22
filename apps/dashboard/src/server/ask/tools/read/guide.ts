@@ -13,6 +13,7 @@ import { bringInAct } from "../act/files/bring-in";
 import { pieceAct } from "../act/files/piece";
 import { postAct } from "../act/files/post";
 import { publishAct } from "../act/files/publish";
+import { takeDownAct } from "../act/files/take-down";
 import { propose_follow_up } from "../act/follow-up";
 import { propose_lead_search } from "../act/leads/search";
 import { propose_leads } from "../act/leads/leads";
@@ -52,6 +53,7 @@ const ACT_TOOLS: readonly ActTool[] = [
   postAct,
   pieceAct,
   publishAct,
+  takeDownAct,
   bringInAct,
 ];
 

@@ -28,11 +28,16 @@
 .fmv-share,
 .fmv-nexts,
 .fmv-tell,
-.fmv-more-line {
+.fmv-more-line,
+.fmv-publish {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-width: 0;
+}
+/* The publish step's lines end clear of its button: the sheet's body has no foot room of its own. */
+.fmv-publish {
+  padding-bottom: var(--space-2);
 }
 .fmv-ask-head {
   display: flex;

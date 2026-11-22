@@ -17,10 +17,13 @@ import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { A, consultForm, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
+import { A, consultForm, emailWire, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+// The dashboard may ask the edge whether email can send: a form's sheet says where a reply by email cannot go.
+process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+for (const name of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[name];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -34,12 +37,20 @@ const { setModelStream } = await import(at("apps/dashboard/src/server/shared/mod
 const { linkFormReply } = await import("@chanlytics/db/forms");
 const { readerContext, load } = await import(at("apps/dashboard/src/server/shared/reader.ts"));
 const { formRequestsOpen } = await import(at("apps/dashboard/src/server/readers/forms.ts"));
-const { formDescriptionProblems } = await import("@chanlytics/contracts");
+const { CHANNEL_WORDS, formDescriptionProblems } = await import("@chanlytics/contracts");
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
-beforeEach(() => setRateStore(memoryStore()));
+/** The edge's answer about email: it can send as each test begins, and the salon has its mailbox (formWorld). */
+const wire = emailWire(getEmailWire);
+
+beforeEach(async () => {
+  setRateStore(memoryStore());
+  await wire.says(true);
+});
 after(() => {
   setModelStream(null);
   setServiceClient(null);
+  wire.undo();
 });
 
 const U = "11111111-1111-4111-8111-111111111111";
@@ -520,6 +531,41 @@ test("a reply waits for the member's pick where the request's address is not the
   );
   assert.equal(w.tables.contacts[0].email, "ana.old@example.com", "her page is never overwritten by a form");
   assert.equal(w.tables.messages.length, 0, "and nothing was sent");
+});
+
+test("a form's sheet says whether a reply by email can go, as the send door answers it, and the form publishes either way", async () => {
+  // The business's mailbox, on a deployment whose email can send.
+  assert.deepEqual((await world().sheetOf(FORM)).email, { ready: true, why: null, connect: false, unchecked: false });
+
+  // No mailbox: the door's own sentence, and the business has the door that opens it.
+  const none = world({ email: false, state: "draft" });
+  assert.deepEqual((await none.sheetOf(FORM)).email, {
+    ready: false,
+    why: CHANNEL_WORDS.noMailbox,
+    connect: true,
+    unchecked: false,
+  });
+  // The owner is told and nothing is held: it goes live by the same press.
+  await none.press({ act: "publish", form_id: FORM });
+  const live = await none.sheetOf(FORM);
+  assert.equal(live.state, "live");
+  assert.equal(live.email.ready, false);
+
+  // A deployment whose email cannot send: a no, with no door of the business's to open.
+  await wire.says(false);
+  assert.deepEqual((await world().sheetOf(FORM)).email, {
+    ready: false,
+    why: CHANNEL_WORDS.noEmailDomain,
+    connect: false,
+    unchecked: false,
+  });
+
+  // An edge that does not answer is not a no: the sheet says nothing of it, and never that email is ready.
+  await wire.says(null);
+  const unasked = (await world().sheetOf(FORM)).email;
+  assert.equal(unasked.unchecked, true);
+  assert.equal(unasked.ready, false);
+  assert.equal(unasked.connect, false);
 });
 
 test("a viewer reads a business's forms and presses nothing", async () => {

@@ -9,15 +9,18 @@
  * to the visitor; a test tells nobody; a form published while a visitor has the version before open is taken for a
  * day, and after that their answers are carried over; a database that fails the write is never a thank-you.
  */
-import { test, beforeEach } from "node:test";
+import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { A, consultForm, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
-import { requestCodeOf } from "@chanlytics/contracts";
+import { A, consultForm, emailWire, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
+import { formTestPath, requestCodeOf } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+// The dashboard may ask the edge whether email can send (the thank-you promises a reply by email only then).
+process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+for (const name of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[name];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -25,8 +28,16 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setLinkPageClient } = await import(at("apps/dashboard/src/server/public/link-page.ts"));
 const { drawFormPage, takeFormPost } = await import(at("apps/dashboard/src/server/public/form-page.ts"));
 const { linkGet } = await import(at("apps/dashboard/src/server/public/form-link.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
-beforeEach(() => setRateStore(memoryStore()));
+/** The edge's answer about email: it can send as each test begins, and the salon has its mailbox (formWorld). */
+const wire = emailWire(getEmailWire);
+after(() => wire.undo());
+
+beforeEach(async () => {
+  setRateStore(memoryStore());
+  await wire.says(true);
+});
 
 const ADDRESS = "https://app.chanlytics.com/b/luma-salon/colour-consultation";
 const BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Instagram 350.0";
@@ -247,22 +258,27 @@ test("the sixth from one sender in ten minutes is held, not refused", async () =
   );
 });
 
-test("a test is its owner's alone: it tells nobody and has no person; anyone else's is a real request", async () => {
-  const member = async () => ({
-    auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: async () => ({
-            data: [{ tenant_id: A, role: "owner", tenants: { slug: "luma-salon" } }],
-            error: null,
-          }),
+/** The salon's owner, signed in: the session's client answers their one membership. */
+const member = async () => ({
+  auth: { getUser: async () => ({ data: { user: { id: "u1" } } }) },
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        order: async () => ({
+          data: [{ tenant_id: A, role: "owner", tenants: { slug: "luma-salon" } }],
+          error: null,
         }),
       }),
     }),
-  });
+  }),
+});
+
+test("a test is its owner's alone: it tells nobody and has no person; anyone else's is a real request", async () => {
   const { tables } = world();
-  const drawn = await drawFormPage("luma-salon", "colour-consultation", new Request(`${ADDRESS}?test=1`), member);
+  // The address the Share part's Test opens (contracts' formTestPath), on the app's own site.
+  const testAddress = `https://app.chanlytics.com${formTestPath("luma-salon", "colour-consultation")}`;
+  assert.equal(testAddress, `${ADDRESS}?test=1`);
+  const drawn = await drawFormPage("luma-salon", "colour-consultation", new Request(testAddress), member);
   const page = await drawn.text();
   assert.match(page, /<p class="test"><b>A test\.<\/b> It tells nobody and counts nowhere\.<\/p>/);
   assert.match(page, /action="\/b\/luma-salon\/colour-consultation\?test=1"/);
@@ -281,6 +297,84 @@ test("a test is its owner's alone: it tells nobody and has no person; anyone els
   assert.equal(tables.form_entries[1].test, false);
   assert.equal(tables.events.length, 1);
   assert.equal((await get("?test=1").then((r) => r.text())).includes('class="test"'), false);
+});
+
+test("another request goes through the same link, and an owner's second test is still a test", async () => {
+  const { tables } = world();
+  const another = (html) => /<a class="more" href="([^"]+)">/.exec(html)?.[1].replaceAll("&amp;", "&");
+  const ago = { t: String(Date.now() - 10_000) };
+
+  // Opened through the link: the press for another request carries its code, and the form it opens carries it on.
+  const first = carriedOf(await get("?l=k7q2md").then((r) => r.text()));
+  const thanked = await send(ANA, { carried: { ...first, ...ago } }).then((r) => r.text());
+  assert.equal(another(thanked), "/b/luma-salon/colour-consultation?again=1&l=k7q2md");
+  const second = carriedOf(await get("?again=1&l=k7q2md").then((r) => r.text()));
+  assert.equal(second.l, "k7q2md");
+  await send({ ...ANA, "a.f2mail": "ana.two@example.com" }, { carried: { ...second, ...ago } });
+  assert.deepEqual(
+    tables.form_entries.map((e) => e.link_id),
+    [LINK, LINK],
+    "both requests name the place they came through",
+  );
+
+  // Its owner's test: the press keeps the mark, so the next one is a test too.
+  const tested = await send(ANA, { carried: { entry_id: "e-test" }, query: "?test=1", session: member });
+  assert.equal(another(await tested.text()), "/b/luma-salon/colour-consultation?again=1&test=1");
+  const marked = await drawFormPage(
+    "luma-salon",
+    "colour-consultation",
+    new Request(`${ADDRESS}?again=1&test=1`),
+    member,
+  );
+  assert.ok(
+    (await marked.text()).includes('<p class="test"><b>A test.</b>'),
+    "the form that press opens is still marked a test",
+  );
+
+  // Neither: the form's bare address, as before.
+  const plain = await send({ ...ANA, "a.f2mail": "ana.three@example.com" }, { carried: { entry_id: "e-plain" } });
+  assert.equal(another(await plain.text()), "/b/luma-salon/colour-consultation?again=1");
+});
+
+test("the business's own page is linked only where it opens: a record too thin to publish it gets no dead link", async () => {
+  // The salon's record names no street and no city, so /b/luma-salon is Not found (contracts' publishesBusinessPage).
+  world();
+  const thin = await get().then((r) => r.text());
+  assert.ok(thin.includes("<footer><span>Luma Salon</span></footer>"), "the form's foot names the business alone");
+  assert.equal(thin.includes('href="/b/luma-salon"'), false);
+  world({ state: "off" });
+  const closedThin = await get().then((r) => r.text());
+  assert.ok(
+    closedThin.includes('<div class="card"><b>Luma Salon</b><br>Hair colour, cuts and treatments</div>'),
+    "the closed page says who they are with no link",
+  );
+  assert.equal(closedThin.includes('href="/b/luma-salon"'), false);
+  // With no page and nothing said of what they do, there is no card: the page has named them already.
+  world({ state: "off", more: { business_records: [{ tenant_id: A, trade_name: "Luma Salon", country: "US" }] } });
+  assert.equal((await get().then((r) => r.text())).includes('class="card"'), false);
+
+  // A record that says who the business is and where: its page opens, and both link to it.
+  const record = {
+    tenant_id: A,
+    trade_name: "Luma Salon",
+    legal_name: "Luma Salon LLC",
+    street: "12 Example Street",
+    city: "Miami",
+    country: "US",
+    about: "Hair colour, cuts and treatments",
+  };
+  world({ more: { business_records: [record] } });
+  const linked = await get().then((r) => r.text());
+  assert.ok(
+    linked.includes('<footer><span>Luma Salon</span><a href="/b/luma-salon">Privacy and terms</a></footer>'),
+    "the form's foot links the page that opens",
+  );
+  world({ state: "off", more: { business_records: [record] } });
+  const closedLinked = await get().then((r) => r.text());
+  assert.ok(
+    closedLinked.includes('<div class="card"><b><a href="/b/luma-salon">Luma Salon</a></b>'),
+    "and so does the closed page",
+  );
 });
 
 test("a form that is off says it is closed, with a way to message the business; a draft's address opens nothing", async () => {
@@ -375,6 +469,56 @@ test("a number only: the chat is the one press where the business has it, and a 
   assert.match(noChat, /Luma Salon will call you on <b>/);
   assert.equal(noChat.includes("wa.me"), false);
   assert.equal(tables.form_entries[0].reach.phone, "+17865550199");
+});
+
+test("a reply by email is promised only where one can go: with no email connected the thank-you says the roads that can carry one", async () => {
+  const EMAIL_PROMISE = "replies by email";
+  // No mailbox, and a chat: the chat is the road, and the address is promised nothing.
+  const first = world({ email: false });
+  const withChat = await (await send(ANA)).text();
+  assert.match(withChat, /<h1>Thanks, Ana<\/h1>/);
+  assert.equal(withChat.includes(EMAIL_PROMISE), false, "no reply by email is promised");
+  assert.match(
+    withChat,
+    /One more step: send the message that opens in WhatsApp, and Luma Salon will answer you there\./,
+  );
+  assert.equal(withChat.includes("Or wait for a call"), false, "no call is promised to a request that left no number");
+  assert.equal(first.tables.form_entries[0].reach.email, "ana.ruiz@example.com", "the request is kept whole");
+
+  // No mailbox, no chat, and a number as well as an address: the call is the road.
+  world({ email: false, chat: false });
+  const both = await (await send({ ...ANA, "a.f3phon": "(786) 555-0199" })).text();
+  assert.equal(both.includes(EMAIL_PROMISE), false);
+  assert.match(both, /Thanks, we have your request\. Luma Salon will call you on <b>[^<]*786[^<]*<\/b>\./);
+
+  // No mailbox, no chat, an address alone: only that they will answer is said, once.
+  world({ email: false, chat: false });
+  const alone = await (await send(ANA)).text();
+  assert.equal(alone.includes(EMAIL_PROMISE), false);
+  assert.match(
+    alone,
+    /<p class="lead">Thanks, we have your request\. Luma Salon will answer you\. Nothing is booked until they confirm a time with you\.<\/p>/,
+  );
+  assert.equal(alone.includes('<p class="sub">'), false, "and nothing is said twice under it");
+  assert.equal(alone.includes("will call you"), false);
+
+  // A mailbox, on a deployment whose email cannot send: the same no.
+  await wire.says(false);
+  world({ chat: false });
+  assert.equal((await (await send(ANA)).text()).includes(EMAIL_PROMISE), false);
+
+  // An edge that does not answer is not a yes: nothing nobody could check is promised, and the request is still kept.
+  await wire.says(null);
+  const unasked = world({ chat: false });
+  const res = await send(ANA);
+  assert.equal(res.status, 200);
+  assert.equal((await res.text()).includes(EMAIL_PROMISE), false);
+  assert.equal(unasked.tables.form_entries.length, 1);
+
+  // And where it can go, it is promised, to the address they gave.
+  await wire.says(true);
+  world({ chat: false });
+  assert.match(await (await send(ANA)).text(), /Luma Salon replies by email, to <b>ana\.ruiz@example\.com<\/b>\./);
 });
 
 test("a form in Spanish says everything in Spanish", async () => {

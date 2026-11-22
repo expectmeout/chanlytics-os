@@ -1,6 +1,8 @@
 /**
  * The files domain: `@chanlytics/db/files`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { approvePosts, keepPieceWords, readPostAsApproved } from "./approvals";
+export type { ApproveFate, PostsApproved } from "./approvals";
 export { keepPostCaption, keepVideoCaption } from "./captions";
 export {
   beginCopyReturn,
@@ -85,7 +87,6 @@ export {
 } from "./pieces";
 export type { PieceBegun, PieceFileFate, PieceMemberRow, PieceRow, PieceStandingRow } from "./pieces";
 export {
-  beginPost,
   closePostAttempt,
   countPostsOut,
   countPostsTimed,
@@ -113,7 +114,6 @@ export type {
   MemberPostRow,
   PostAttempt,
   PostAttemptRow,
-  PostBegun,
   PostCursor,
   PostPatch,
   PostRow,
@@ -193,6 +193,16 @@ export {
   watchedFolderOf,
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
-export { followPostCaption, movePostTime } from "./waiting-posts";
+export {
+  beginPostTakeDown,
+  findPieceTakeDown,
+  findTakeDownAction,
+  listTakeDownsOpen,
+  markPostDeletedByHand,
+  settlePostTakeDown,
+  type TakeDownKept,
+} from "./take-down";
+export type { TakeDownBegun } from "./take-down";
+export { movePostTime } from "./waiting-posts";
 export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
 export type { FileYesKept } from "./yes";

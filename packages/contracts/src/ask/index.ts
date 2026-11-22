@@ -124,6 +124,7 @@ export {
   describeSettingsChange,
   GUARDRAIL_RULE_WORDS,
   GUARDRAIL_RULES,
+  serviceListedAs,
 } from "./settings-change";
 export type {
   AskAnswersChange,

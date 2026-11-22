@@ -52,21 +52,37 @@ export function metaPostLimitRequest(poster: MetaPoster): InstagramRequest {
 const META_ALT_MAX = 1000;
 
 /**
- * The fields a container is made with, as the attempt keeps them: the picture's host alone, never its signed address, and
- * never a token. A story shows no caption and takes no description, so neither is sent. A post's description (`says`, the
- * words drawn on the picture) is what Instagram reads out to someone who cannot see it.
+ * The fields a container is made with. A story shows no caption and takes no description, so neither is sent. A post's
+ * description (`says`, the words drawn on the picture) is what Instagram reads out to someone who cannot see it. A reel is
+ * a video Instagram fetches itself, shared to the feed as well, with its caption: the same two calls as a picture, as the
+ * first-post sitting sent one by hand on 21 November 2026.
  */
 export function metaContainerFields(
   kind: InstagramPostKind,
-  imageUrl: string,
+  mediaUrl: string,
   words: { caption: string | null; says: string | null },
 ): Record<string, string> {
-  if (kind === "story") return { image_url: imageUrl, media_type: "STORIES" };
+  if (kind === "story") return { image_url: mediaUrl, media_type: "STORIES" };
+  if (kind === "reel")
+    return {
+      media_type: "REELS",
+      video_url: mediaUrl,
+      share_to_feed: "true",
+      ...(words.caption ? { caption: words.caption } : {}),
+    };
   return {
-    image_url: imageUrl,
+    image_url: mediaUrl,
     ...(words.caption ? { caption: words.caption } : {}),
     ...(words.says ? { alt_text: words.says.slice(0, META_ALT_MAX) } : {}),
   };
+}
+
+/** The fields as a send's row keeps them: the media's host alone, never its signed address, never a token. */
+export function metaContainerFieldsKept(fields: Record<string, string>): Record<string, string> {
+  const hostOf = (link: string | undefined) => (link ? new URL(link).host : undefined);
+  const image = hostOf(fields.image_url);
+  const video = hostOf(fields.video_url);
+  return { ...fields, ...(image ? { image_url: image } : {}), ...(video ? { video_url: video } : {}) };
 }
 
 /** A container made from a public picture (a JPEG Instagram fetches itself): a post, or a story. */
@@ -89,7 +105,10 @@ export function metaMediaReadRequest(poster: MetaPoster, mediaId: string): Insta
   return readFrom(encodeURIComponent(mediaId), { fields: "id,permalink,timestamp" }, poster);
 }
 
-/** The account's newest posts, or its live stories, to find one a send with no answer may have made. */
+/**
+ * The account's newest posts (a reel is among them), or its live stories, to find one a send with no answer may have made.
+ * The Meta link's own token is given each post's caption (pass 1b's first test, 22 November 2026), which the match needs.
+ */
 export function metaNewestMediaRequest(poster: MetaPoster, kind: InstagramPostKind): InstagramRequest {
   const edge = kind === "story" ? "stories" : "media";
   return readFrom(
@@ -97,6 +116,14 @@ export function metaNewestMediaRequest(poster: MetaPoster, kind: InstagramPostKi
     { fields: "id,caption,timestamp,permalink", limit: "10" },
     poster,
   );
+}
+
+/** A post taken off the account (Meta's IG Media, Deleting): the only call that removes anything. */
+export function metaDeleteRequest(poster: MetaPoster, mediaId: string): InstagramRequest {
+  return {
+    url: `${META_GRAPH}/${encodeURIComponent(mediaId)}?${new URLSearchParams(proofOf(poster)).toString()}`,
+    method: "DELETE",
+  };
 }
 
 /* -------------------------------------------------------------- answers */
@@ -189,15 +216,29 @@ export function metaMediaSentBy(
 }
 
 /** What a refusal comes to for the owner (contracts ON_INSTAGRAM.refused): which sentence the sheet and the bell say. */
-export type MetaPostRefusal = "limit" | "picture" | "token" | "busy" | "other";
+export type MetaPostRefusal = "limit" | "picture" | "video" | "words" | "token" | "busy" | "other";
 
-/** The publishing errors that are the picture's (Meta's error codes page): its size, its format, its shape, its fetch. */
-const PICTURE_SUBCODES: readonly number[] = [2207003, 2207004, 2207005, 2207009, 2207052, 36000, 36001, 36003, 36004];
+/** The publishing subcodes that are the media's (Meta's error codes page): its size, its format, its shape, its fetch. */
+const MEDIA_SUBCODES: readonly number[] = [
+  2207003, 2207004, 2207005, 2207009, 2207026, 2207052, 2207076, 36000, 36001, 36003, 36004,
+];
+/**
+ * Meta's own media codes. Meta sends these as the code, not the subcode (the sitting's forced refusal, 21 Nov 2026: code
+ * 36004, subcode 2207010, "Caption Too Long"); 36004 with 2207010 is the words, the rest the media.
+ */
+const MEDIA_CODES: readonly number[] = [36000, 36001, 36003, 36004];
+const CAPTION_TOO_LONG = 2207010;
 /** Too many, too fast: Graph's throttles and the account's own (80002). Nothing was taken. */
 const BUSY_CODES: readonly number[] = [4, 17, 32, 613, 80002];
 
-/** Which sentence a refusal is, from Instagram's answer: its code and subcode, and the HTTP status. */
-export function metaPostRefusalOf(answer: { status: number; json: unknown }): {
+/** The media's sentence for its kind: a reel's video, or a picture. */
+const mediaRefusalOf = (kind: InstagramPostKind): MetaPostRefusal => (kind === "reel" ? "video" : "picture");
+
+/** Which sentence a refusal is, from Instagram's answer: its code and subcode, the HTTP status, and what was sent. */
+export function metaPostRefusalOf(
+  answer: { status: number; json: unknown },
+  kind: InstagramPostKind = "picture",
+): {
   refusal: MetaPostRefusal;
   code: number | null;
   subcode: number | null;
@@ -209,6 +250,24 @@ export function metaPostRefusalOf(answer: { status: number; json: unknown }): {
   if (subcode === 2207042) return of("limit");
   if (code === 190) return of("token");
   if (answer.status === 429 || (code !== null && BUSY_CODES.includes(code))) return of("busy");
-  if (subcode !== null && PICTURE_SUBCODES.includes(subcode)) return of("picture");
+  if (subcode === CAPTION_TOO_LONG) return of("words");
+  if ((subcode !== null && MEDIA_SUBCODES.includes(subcode)) || (code !== null && MEDIA_CODES.includes(code)))
+    return of(mediaRefusalOf(kind));
   return of("other");
 }
+
+/**
+ * A container Instagram could not make ready (status ERROR): the number Meta puts only inside its sentence ("Media upload
+ * has failed with error code 2207076", the sitting's video that could not be fetched; that number is not on Meta's error
+ * codes page), and the media's sentence for what was sent. A fault in a video shows only here, never at the call.
+ */
+export function metaContainerErrorOf(
+  detail: string,
+  kind: InstagramPostKind,
+): { refusal: MetaPostRefusal; code: number | null; subcode: number | null } {
+  const number = /error code (\d{4,9})/i.exec(detail)?.[1];
+  return { refusal: mediaRefusalOf(kind), code: null, subcode: number ? Number(number) : null };
+}
+
+/** Whether Meta's answer to a delete says the post is gone (Meta's IG Media page: `{"success": true}`). */
+export const parseMetaDeleted = (json: unknown): boolean => valueAt(objectOf(json), "success") === true;

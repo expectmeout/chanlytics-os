@@ -1,3 +1,7 @@
+import { channelsReady, type ChannelReady, type TenantId } from "@chanlytics/contracts";
+import { findMailboxOfTenant } from "@chanlytics/db/email";
+import type { Database } from "@chanlytics/db/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { callEdge, edgeConfigured, READY_TTL_MS } from "../shared/edge";
 
 /**
@@ -57,4 +61,18 @@ async function askEdge(): Promise<EmailWire> {
   if (answer.status !== 200 || answer.body?.ok !== true || typeof answer.body.ready !== "boolean") return COULD_NOT_ASK;
   const offers = answer.body.offers === true ? true : answer.body.offers === null ? null : false;
   return { ready: answer.body.ready, offers };
+}
+
+/**
+ * Whether one workspace can send an email now, asked alone: its mailbox, on a wire that can send, judged by the one
+ * rule every channel is judged by (contracts channelsReady) and from the facts the channels' own read takes
+ * (campaigns/channels-ready.ts), without the other channels' reads. For what says something of email alone: a hosted
+ * form's thank-you, which promises a reply by email only where one can go, and that form's sheet, which says where it
+ * cannot. The mailbox is read only where the wire can send, as there. `db` is the caller's own client: a member's
+ * session, or the service role where a visitor has none. A read that fails throws.
+ */
+export async function findEmailReady(db: SupabaseClient<Database>, tenantId: TenantId): Promise<ChannelReady> {
+  const { ready: domain } = await getEmailWire();
+  const mailbox = domain === true ? await findMailboxOfTenant(db, tenantId) : null;
+  return channelsReady({ whatsapp: null, textLine: null, email: { mailbox: !!mailbox, domain } }).email;
 }

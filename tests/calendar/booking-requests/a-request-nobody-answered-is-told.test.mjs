@@ -52,6 +52,7 @@ const thread = (over = {}) => ({
   forMessageId: "m1",
   theirWords: "Saturday at 2 works",
   personSpoke: false,
+  wroteAgain: false,
   liveHold: false,
   ...over,
 });
@@ -130,6 +131,9 @@ test("a text's request is told by text", async () => {
 const HELD = [
   ["a person typed a reply since they asked", { thread: thread({ personSpoke: true }) }, "person_answered"],
   ["the customer asked to stop", { thread: thread({ optedOut: true }) }, "opted_out"],
+  // What they wrote since has had no answer: AI's own message would take it up in a draft's voice ("I'll find out"),
+  // with nobody left to find out. A person reads the draft first.
+  ["the customer wrote again since they asked", { thread: thread({ wroteAgain: true }) }, "wrote_again"],
   ["a person or a call holds the conversation", { thread: thread({ liveHold: true }) }, "person_has_it"],
   ["the workspace is paused", { posture: { mode: "auto", delayMs: 0, paused: true } }, "paused"],
   ["replies ask first", { posture: { mode: "ask", delayMs: 0, paused: false } }, "asks_first"],
@@ -231,6 +235,7 @@ test("the rule says why, in one order: late, then the person, then the workspace
     holdReason: "booking_request",
     personSpoke: false,
     optedOut: false,
+    wroteAgain: false,
     liveHold: false,
     paused: false,
     mode: "auto",
@@ -242,6 +247,8 @@ test("the rule says why, in one order: late, then the person, then the workspace
   assert.equal(lapseHoldOf({ ...base, holdReason: null }), "hold_moved");
   assert.equal(lapseHoldOf({ ...base, nowMs: EXPIRES + REQUEST_TOLD_WITHIN_MS + 1, personSpoke: true }), "late");
   assert.equal(lapseHoldOf({ ...base, personSpoke: true, optedOut: true }), "person_answered");
+  assert.equal(lapseHoldOf({ ...base, optedOut: true, wroteAgain: true }), "opted_out");
+  assert.equal(lapseHoldOf({ ...base, wroteAgain: true, liveHold: true, paused: true }), "wrote_again");
   assert.equal(lapseHoldOf({ ...base, optedOut: true, paused: true }), "opted_out");
   assert.equal(lapseHoldOf({ ...base, paused: true, mode: "ask" }), "paused");
   assert.equal(lapseHoldOf({ ...base, mode: "ask", wire: "email" }), "asks_first");

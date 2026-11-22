@@ -5,11 +5,12 @@
  * like to come is asked as a question. The thank-you's words are the form's own.
  */
 import { useId, useState } from "react";
-import { FORM_LIMITS, type FormDescription } from "@chanlytics/contracts";
+import { FORM_LIMITS, type FormDescription, type FormSheetDto } from "@chanlytics/contracts";
 import { Field } from "../../kit/field/field";
 import { Icon } from "../../kit/icon/icon";
 import { Switch } from "../../kit/switch/switch";
 import { Button } from "../../kit/button/button";
+import { NoEmailNotice, saysNoEmail } from "./no-email";
 import type { DraftEditing } from "./use-forms";
 import { FORMS_WORDS as W } from "./words";
 
@@ -67,10 +68,12 @@ interface NextPartProps {
   editing: DraftEditing;
   /** Whether the business has a chat a visitor can carry on in. */
   chat: boolean;
+  /** Whether a reply by email can go from the business now: said under the lines where it cannot. */
+  email: FormSheetDto["email"];
   canChange: boolean;
 }
 
-export function NextPart({ editing, chat, canChange }: NextPartProps) {
+export function NextPart({ editing, chat, email, canChange }: NextPartProps) {
   const { draft } = editing;
   const [thanking, setThanking] = useState(false);
   const turn = (next: Partial<FormDescription["next"]>) =>
@@ -87,7 +90,7 @@ export function NextPart({ editing, chat, canChange }: NextPartProps) {
         testid="forms-next-chat"
       />
       <Switched
-        words={[N.draft[0], N.draft[1]]}
+        words={[N.draft[0], saysNoEmail(email) ? N.draftNoEmail : N.draft[1]]}
         on={draft.next.draft}
         canChange={canChange}
         onTurn={(on) => turn({ draft: on })}
@@ -126,6 +129,7 @@ export function NextPart({ editing, chat, canChange }: NextPartProps) {
           }
         />
       )}
+      <NoEmailNotice email={email} testid="forms-next-no-email" />
     </div>
   );
 }

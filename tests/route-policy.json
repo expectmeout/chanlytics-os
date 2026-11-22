@@ -1096,6 +1096,20 @@
       "rate": "settings",
       "spend": false
     },
+    "DELETE files/[id]/posts": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
+    "PUT files/[id]/posts": {
+      "kind": "write",
+      "scope": "row",
+      "role": "partner",
+      "rate": "settings",
+      "spend": false
+    },
     "POST files/[id]/restore": {
       "kind": "write",
       "scope": "workspace",

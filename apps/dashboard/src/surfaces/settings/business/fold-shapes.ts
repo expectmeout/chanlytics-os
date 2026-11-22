@@ -59,11 +59,17 @@ export interface ClosureRow {
   note?: string;
 }
 
-/** A service's row in the draft: the minutes as its box holds them (a number as stored, a string as typed). */
+/**
+ * A service's row in the draft: the minutes as its box holds them (a number as stored, a string as typed), and its
+ * amount as Settings keep it (whole minor units beside a currency) with what is typed over it (model/service-amount.ts).
+ */
 export interface ServiceRow {
   name?: string;
   duration_min?: number | string;
   price_note?: string;
+  amount?: string;
+  amount_minor?: number;
+  currency?: string;
 }
 
 /** The booking rules fold's draft: each number as its box holds it, the notes one to a line, the email switch. */

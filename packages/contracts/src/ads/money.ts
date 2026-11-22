@@ -10,8 +10,9 @@
  * kept under one count and read under another would be a hundred times off.
  *
  * This is the one rule every tree reads an amount by. How a page says an amount is the page's
- * (apps/dashboard/src/surfaces/campaigns/ads/model/money.ts).
+ * (apps/dashboard/src/surfaces/campaigns/ads/model/money.ts); a card or a bell says one with `exactMoney`.
  */
+import { numberFormat } from "../shared/time";
 
 /** The currencies ISO 4217 gives no minor unit: the amount is whole units. */
 const WHOLE: ReadonlySet<string> = new Set([
@@ -48,4 +49,17 @@ export function minorPerUnit(currency: string): number {
   if (WHOLE.has(code)) return 1;
   if (THOUSANDTHS.has(code)) return 1000;
   return TEN_THOUSANDTHS.has(code) ? 10_000 : 100;
+}
+
+/**
+ * An amount said exact, in its own money: "$64.20", "$70", "¥1,284"; a whole number of units without its fraction, any
+ * other with every digit its currency keeps. A code that is no currency is said beside the number.
+ */
+export function exactMoney(minor: number, currency: string): string {
+  const perUnit = minorPerUnit(currency);
+  const digits = minor % perUnit === 0 ? 0 : String(perUnit).length - 1;
+  const fraction = { minimumFractionDigits: digits, maximumFractionDigits: digits };
+  return /^[A-Za-z]{3}$/.test(currency)
+    ? numberFormat("en-US", { style: "currency", currency, ...fraction }).format(minor / perUnit)
+    : `${numberFormat("en-US", fraction).format(minor / perUnit)} ${currency}`.trim();
 }

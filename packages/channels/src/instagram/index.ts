@@ -46,9 +46,12 @@ export {
 } from "./meta";
 export type { MetaAccount } from "./meta";
 export {
+  metaContainerErrorOf,
   metaContainerFields,
+  metaContainerFieldsKept,
   metaContainerRequest,
   metaContainerStatusRequest,
+  metaDeleteRequest,
   metaMediaReadRequest,
   metaMediaSentBy,
   metaNewestMediaRequest,
@@ -57,6 +60,7 @@ export {
   metaPublishRequest,
   parseMetaContainerStatus,
   parseMetaCreatedId,
+  parseMetaDeleted,
   parseMetaMedia,
   parseMetaMediaList,
   parseMetaPostLimit,

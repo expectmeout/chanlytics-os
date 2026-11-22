@@ -70,7 +70,7 @@ function Waits({
 }: {
   glyph: string;
   title: string;
-  body: string;
+  body?: string | null;
   children?: React.ReactNode;
   testid: string;
 }) {
@@ -80,7 +80,7 @@ function Waits({
         <Icon name={glyph} size={13} />
         {title}
       </strong>
-      <p>{body}</p>
+      {body ? <p>{body}</p> : null}
       {children ? <div className="ix-rq-acts">{children}</div> : null}
     </Panel>
   );
@@ -263,10 +263,36 @@ function OpenRequest({ page, dto }: { page: RequestPage; dto: FormRequestDto }) 
         {W.reading}
       </p>
     );
+  // How to reach them could not be checked: said as the read that failed, with its one act. Never "nothing can be
+  // sent", which nobody knows yet. Calling them, and saying it was answered, need no check.
+  if (page.unchecked)
+    return (
+      <>
+        <Waits glyph="alert" title={W.unchecked.title} testid="ix-rq-unchecked">
+          <Button size="sm" onClick={page.checkAgain} data-testid="ix-rq-check-again">
+            {W.unchecked.act}
+          </Button>
+          <CallThem phone={phone} label={W.cantSend.call} />
+          <Button
+            size="sm"
+            onClick={page.mark}
+            data-testid="ix-rq-mark"
+            {...gate("approve", "mark a request answered")}
+          >
+            {W.quiet.mark}
+          </Button>
+        </Waits>
+        <div className="ix-rq-quiet">
+          <LinkButton onClick={page.hold} data-testid="ix-rq-not-real" {...gate("approve", "set a request aside")}>
+            {W.quiet.notReal}
+          </LinkButton>
+        </div>
+      </>
+    );
   // Nothing can go: said in the door's own words (they asked not to be messaged, an address that bounced before).
   return (
     <>
-      <Waits glyph="alert" title={W.cantSend.title} body={page.why ?? W.unread.body} testid="ix-rq-cant-send">
+      <Waits glyph="alert" title={W.cantSend.title} body={page.why} testid="ix-rq-cant-send">
         <CallThem phone={phone} label={W.cantSend.call} />
         <Button size="sm" onClick={page.mark} data-testid="ix-rq-mark" {...gate("approve", "mark a request answered")}>
           {W.quiet.mark}

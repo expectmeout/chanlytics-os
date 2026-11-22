@@ -32,6 +32,9 @@ export const REQUEST_TOLD_WITHIN_MS = 2 * HOUR_MS;
  *   late             more than REQUEST_TOLD_WITHIN_MS after it ran out.
  *   person_answered  a person typed a reply since the customer asked: they may have sorted it out by hand.
  *   opted_out        the customer asked to stop.
+ *   wrote_again      the customer wrote again since they asked, and it has had no answer: AI's own message would take
+ *                    that up too, in a draft's voice ("I'll find out and come back to you", the walk of 22 Nov 2026),
+ *                    with nobody left to find out once the conversation is AI's again. A person reads the draft first.
  *   person_has_it    a person took the conversation over, or a call is in progress on it.
  *   paused           the workspace is paused (billing).
  *   asks_first       the reply setting in force does not let AI speak by itself: Asks you, Stays quiet, or any mode
@@ -46,6 +49,7 @@ export type LapseHold =
   | "late"
   | "person_answered"
   | "opted_out"
+  | "wrote_again"
   | "person_has_it"
   | "paused"
   | "asks_first"

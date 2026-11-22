@@ -3,7 +3,7 @@
  * stands beside it. Pure: the pane draws what these say.
  */
 import {
-  INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   POST_ON_ITS_WAY,
   POST_PLACES,
   POST_PULLABLE,
@@ -27,8 +27,8 @@ export type PieceTakes = Record<PostPlace, boolean>;
  * The kinds Instagram can take of this piece now: each with none of its own on its way there, since a picture post and a
  * story wait apart (00620; contracts postPlaceTakenOf, the rule Ask's card keeps too).
  */
-export const instagramKindsFree = (posts: readonly PostDto[]): InstagramPostKind[] =>
-  INSTAGRAM_POST_KINDS.filter((kind) => !postPlaceTakenOf(posts, "instagram", kind));
+export const instagramKindsFree = (posts: readonly PostDto[], fileKind = "image"): InstagramPostKind[] =>
+  instagramKindsFor(fileKind).filter((kind) => !postPlaceTakenOf(posts, "instagram", kind));
 
 /** What Instagram is posted as: the kind wanted where it can go now, else the one that can. */
 export const instagramAsOf = (free: readonly InstagramPostKind[], wanted: InstagramPostKind): InstagramPostKind =>
@@ -42,10 +42,10 @@ export const instagramAsOf = (free: readonly InstagramPostKind[], wanted: Instag
  */
 export function pieceTakesOf(
   posts: readonly PostDto[],
-  can: { instagram: boolean; google: boolean; onGoogle: boolean },
+  can: { instagram: boolean; google: boolean; onGoogle: boolean; fileKind?: string },
 ): PieceTakes {
   return {
-    instagram: can.instagram && instagramKindsFree(posts).length > 0,
+    instagram: can.instagram && instagramKindsFree(posts, can.fileKind).length > 0,
     google: can.google && !can.onGoogle && !postPlaceTakenOf(posts, "google"),
   };
 }
@@ -91,8 +91,9 @@ export function pieceNextOf(
   nowMs: number,
 ): PieceNext {
   if (file.source !== "made") return libraryNextOf(file);
-  // A video is no picture or story: a reel waits for its own road (decision 0121).
-  if (file.kind === "video") return { is: "save" };
+  // A video goes to Instagram as a reel (00681), where Instagram is offered and takes one now, or it has a post there
+  // already. Anywhere else nothing posts one from here, and it is saved, as before (decision 0121).
+  if (file.kind === "video" && !(takes?.instagram || posts.some((p) => p.place === "instagram"))) return { is: "save" };
   // Set aside is the owner's "not this one" (Ruben, 16 Nov 2026: it still led with Post): Put back leads, before a post of it
   // or one tried again. What waited went with it (server files/file.ts), and one that stopped needs nobody while it is aside.
   if (file.status === "set_aside") return { is: "put_back" };

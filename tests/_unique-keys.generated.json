@@ -461,6 +461,33 @@
       }
     },
     {
+      "table": "approvals",
+      "name": "approvals_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "approvals",
+      "name": "approvals_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "ask_actions",
       "name": "ask_actions_pkey",
       "primary": true,
@@ -3069,6 +3096,96 @@
       "where": null
     },
     {
+      "table": "piece_renditions",
+      "name": "piece_renditions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "piece_renditions",
+      "name": "piece_renditions_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "piece_id"
+        },
+        {
+          "column": "revision"
+        },
+        {
+          "column": "shape"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "piece_revisions",
+      "name": "piece_revisions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "piece_revisions",
+      "name": "piece_revisions_once",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "piece_id"
+        },
+        {
+          "column": "n"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "piece_revisions",
+      "name": "piece_revisions_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "piece_revisions",
+      "name": "piece_revisions_tenant_piece_n_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "piece_id"
+        },
+        {
+          "column": "n"
+        }
+      ],
+      "where": null
+    },
+    {
       "table": "pieces",
       "name": "pieces_pkey",
       "primary": true,
@@ -3109,6 +3226,29 @@
         }
       ],
       "where": null
+    },
+    {
+      "table": "pieces",
+      "name": "pieces_one_picture",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "file_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "shape"
+        },
+        "right": {
+          "value": "picture"
+        }
+      }
     },
     {
       "table": "platform_acts",

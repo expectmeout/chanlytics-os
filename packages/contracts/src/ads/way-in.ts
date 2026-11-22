@@ -18,8 +18,7 @@
  * as Needs you. Nothing here reads a database or asks Meta: it is given what was read.
  */
 import { samePhone } from "../shared/phone";
-import { numberFormat } from "../shared/time";
-import { minorPerUnit } from "./money";
+import { exactMoney } from "./money";
 
 /** Why AI can't answer the chat an ad opens, or `open` where it can. */
 export type AdWayIn = "open" | "stopped" | "paused" | "no_number" | "unread" | "blocked";
@@ -58,16 +57,6 @@ export const AD_WAY_IN_SAID: Record<Exclude<AdWayIn, "open">, string> = {
   blocked: "Meta stopped its WhatsApp number sending, so AI can't reply.",
 };
 
-/** What is left to spend, in the account's own money, exact: "$64.20", "$70", "¥1,284". */
-function leftToSpend(minor: number, currency: string): string {
-  const perUnit = minorPerUnit(currency);
-  const digits = minor % perUnit === 0 ? 0 : String(perUnit).length - 1;
-  const fraction = { minimumFractionDigits: digits, maximumFractionDigits: digits };
-  return /^[A-Za-z]{3}$/.test(currency)
-    ? numberFormat("en-US", { style: "currency", currency, ...fraction }).format(minor / perUnit)
-    : `${numberFormat("en-US", fraction).format(minor / perUnit)} ${currency}`.trim();
-}
-
 /**
  * The bell's row for a running ad whose way in closed (decision 0050, call 11; the database rings it, 00676
  * ad_way_in_keep): which ad, why AI can't answer the people it brings, what it can still spend of its total (where Meta
@@ -83,7 +72,7 @@ export function adWayInRowOf(ad: {
   const spends =
     ad.leftMinor === null
       ? "Meta charges while it runs."
-      : `It can still spend ${leftToSpend(ad.leftMinor, ad.currency)} of its total.`;
+      : `It can still spend ${exactMoney(ad.leftMinor, ad.currency)} of its total.`;
   return {
     title: `“${name}” is on, and AI can't answer it`,
     body: `${AD_WAY_IN_SAID[ad.wayIn]} ${spends} Pause it, or open it to see what to mend.`,

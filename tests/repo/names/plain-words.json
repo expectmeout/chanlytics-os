@@ -1,6 +1,7 @@
 [
   "about",
   "acct",
+  "action",
   "add",
   "address",
   "after",
@@ -69,6 +70,7 @@
   "live",
   "mail",
   "max",
+  "media",
   "mine",
   "mode",
   "model",
@@ -119,6 +121,7 @@
   "sent",
   "sentence",
   "service",
+  "shape",
   "sid",
   "size",
   "slot",

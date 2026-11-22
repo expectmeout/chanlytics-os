@@ -23,10 +23,13 @@ import {
   continueMessage,
   emailTypoFix,
   formatPhoneDisplay,
+  formPagePath,
   formPageWords,
   formProblemWords,
+  formTestPath,
   hasPublicPages,
   heldTenantId,
+  publishesBusinessPage,
   readFormAnswers,
   SLUG,
   sourceFromSeen,
@@ -44,8 +47,10 @@ import {
 } from "@chanlytics/db/forms";
 import type { Database } from "@chanlytics/db/types";
 import { findPublicWorkspaceBySlug, listMyMemberships, type PublicWorkspaceRead } from "@chanlytics/db/workspace";
+import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { findEmailReady } from "../connections/email-readiness";
 import { log } from "../shared/log";
 import { takeRate } from "../shared/rate-limit";
 import { hashKey, ipOf } from "../shared/request-ip";
@@ -91,6 +96,8 @@ interface FormPlace {
   form: FormRead;
   /** The form's own address, without its site. */
   path: string;
+  /** The same address as its owner's Test opens it. */
+  testPath: string;
 }
 
 /** The form an address names, or null for an address that opens nothing: no such workspace, no such form, or a draft. */
@@ -104,7 +111,15 @@ export async function findFormPlace(db: Db, slug: string, formSlug: string): Pro
   const form = await findFormBySlug(db, tenantId, address);
   if (!form || form.state === "draft") return null;
   const look = await linkPageLookOf(db, tenantId);
-  return { db, tenantId, workspace, look, form, path: `/b/${clean}/${address}` };
+  return {
+    db,
+    tenantId,
+    workspace,
+    look,
+    form,
+    path: formPagePath(clean, address),
+    testPath: formTestPath(clean, address),
+  };
 }
 
 /** The name the page says the business by: the one it trades under, else the workspace's. */
@@ -119,7 +134,9 @@ function pageFrameOf(
   return {
     look: place.look,
     business: businessNameOf(place.workspace),
-    businessHref: `/b/${place.workspace.slug}`,
+    // Linked only where it opens (the page's own rule): a record too thin to say who the business is publishes no page,
+    // and its address is Not found.
+    businessHref: publishesBusinessPage(place.workspace.record) ? `/b/${place.workspace.slug}` : null,
     lang: described.lang,
     heading: described.heading,
     intro: described.intro ?? null,
@@ -190,7 +207,7 @@ async function isTest(request: Request, session: Session, slug: string): Promise
 }
 
 /** Where the form posts: its own address, saying so when it is a test. */
-const actionOf = (place: FormPlace, test: boolean): string => (test ? `${place.path}?test=1` : place.path);
+const actionOf = (place: FormPlace, test: boolean): string => (test ? place.testPath : place.path);
 
 /**
  * GET: the form as a visitor sees it, the closed page for one that is off, or nothing for an address that opens none.
@@ -363,11 +380,39 @@ function fixesOf(
   return fixes;
 }
 
-/** The thank-you for an entry that was kept (or held, or a forgotten person's: a visitor is told nothing of either). */
+/**
+ * Where "Send another request" opens the form: still through the link it was opened by, and still a test where it was
+ * one. Without them a second request lost the place it came through, and an owner's second test was a real request.
+ */
+function againHrefOf(read: SendRead): string {
+  const query = new URLSearchParams({ again: "1" });
+  if (read.test) query.set("test", "1");
+  const code = first(read.fields, "l");
+  if (code) query.set("l", code.slice(0, 12));
+  return `${read.place.path}?${query.toString()}`;
+}
+
+/**
+ * Whether a reply by email can go from this business now (connections findEmailReady, the send door's own answer),
+ * asked only of a request that left an address. Never fails: what nobody could check is not promised.
+ */
+const repliesByEmail = (place: FormPlace, email: string | null): Promise<boolean> =>
+  email
+    ? findEmailReady(place.db, place.tenantId).then(
+        (ready) => ready.ready,
+        logAndGoOn("a form's email readiness", false),
+      )
+    : Promise.resolve(false);
+
+/**
+ * The thank-you for an entry that was kept (or held, or a forgotten person's: a visitor is told nothing of either).
+ * `emailOpen`: a reply by email can go now. Where it cannot, their address is not promised a reply: the thank-you
+ * says the roads that can carry one (the chat, a call), or only that the business will answer.
+ */
 function thanksPage(
   read: SendRead,
   taken: FormRequestTaken,
-  reach: { name: string | null; email: string | null; phone: string | null },
+  reach: { name: string | null; email: string | null; phone: string | null; emailOpen: boolean },
   fragment: boolean,
 ): Response {
   const { place, against } = read;
@@ -386,14 +431,15 @@ function thanksPage(
           code,
         })
       : null;
+  const email = reach.emailOpen ? reach.email : null;
   const main = thanksMain(frame, {
     thanks: against.description.thanks,
     // Thanked by their first name, as a person would.
     name: reach.name?.split(/\s+/)[0] || null,
-    email: reach.email,
-    phoneOnly: reach.email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
+    email,
+    phoneOnly: email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
     chatHref: message ? chatHrefOf(place.workspace, message) : null,
-    formHref: place.path,
+    againHref: againHrefOf(read),
   });
   return htmlPage(200, fragment ? main : formDocument(frame, main));
 }
@@ -438,6 +484,8 @@ export async function takeFormPost(
   if (Object.keys(fixes).length > 0) return againPage(read, { fixes, offered: Object.keys(fixes) }, 422, fragment);
 
   const entryId = first(fields, "entry_id") || randomUUID();
+  // Asked beside the write, so the thank-you waits for one of them and not both.
+  const emailOpen = repliesByEmail(place, answered.reach.email);
   let taken: FormRequestTaken;
   try {
     taken = await takeFormRequest(db, {
@@ -486,5 +534,5 @@ export async function takeFormPost(
     };
     return againPage(carriedOver, { notice: "changed" }, 422, fragment);
   }
-  return thanksPage(read, taken, answered.reach, fragment);
+  return thanksPage(read, taken, { ...answered.reach, emailOpen: await emailOpen }, fragment);
 }

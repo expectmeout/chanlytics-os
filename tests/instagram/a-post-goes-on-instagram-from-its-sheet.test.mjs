@@ -9,7 +9,8 @@ import { test, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ON_INSTAGRAM } from "@chanlytics/contracts";
+import { createHash } from "node:crypto";
+import { CONTENT_CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -73,6 +74,8 @@ const fileRow = (tenant, over = {}) => ({
   removed_at: null,
   created_at: "2026-11-01T12:00:00Z",
   updated_at: "2026-11-01T12:00:00Z",
+  kind: "image",
+  seconds: null,
   ...over,
 });
 
@@ -101,7 +104,16 @@ const postRow = (tenant, over = {}) => ({
 });
 
 /** A workspace of its own each time (the switch is kept a while per workspace), with a made post and a photo. */
-function world({ on = true, scopes = ALL, connected = true, lapsed = false, role = "owner", posts = [] } = {}) {
+function world({
+  on = true,
+  scopes = ALL,
+  connected = true,
+  lapsed = false,
+  role = "owner",
+  posts = [],
+  file = {},
+} = {}) {
+  const wordsKept = [];
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   if (on) ON.add(tenant);
@@ -117,18 +129,37 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
         memberships: [
           { user_id: USER, tenant_id: tenant, role, tenants: { slug: `w${seq}` }, created_at: "2026-01-01T00:00:00Z" },
         ],
-        files: [fileRow(tenant), fileRow(tenant, { id: PHOTO_ID, source: "upload", name: "storefront" })],
+        files: [fileRow(tenant, file), fileRow(tenant, { id: PHOTO_ID, source: "upload", name: "storefront" })],
         tenants: [{ id: tenant, name: "Harbor", slug: `w${seq}`, timezone: "UTC", status: "active" }],
         google_connections: [],
         posts: rows,
       },
       {},
       {
-        post_begin: (a) => {
-          begun.push(a);
+        // The words kept as the piece's next version (00681): asked by every press.
+        piece_words_keep: (a) => {
+          wordsKept.push(a.p_caption);
+          return { revision: 1, followed: 0 };
+        },
+        // 00681's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
+        post_approve: ({ p_tenant_id, p_file_id, p_approval }) => {
+          const [placed] = p_approval.placements;
+          begun.push({
+            p_tenant_id,
+            p_file_id,
+            p_place: placed.place,
+            p_kind: placed.kind,
+            p_caption: placed.caption ?? "",
+            p_via: p_approval.via,
+            approval: p_approval,
+          });
           if (rows.some((p) => ["queued", "preparing", "publishing", "checking"].includes(p.status)))
-            return { fate: "busy", post_id: rows[0].id };
-          return { fate: "begun", post_id: "00000002-0000-4000-8000-000000000000" };
+            return { fate: "busy", post_id: rows[0].id, posts: [] };
+          return {
+            fate: "approved",
+            approval_id: "abab0000-0000-4000-8000-000000000001",
+            posts: [{ place: placed.place, kind: placed.kind, post_id: "00000002-0000-4000-8000-000000000000" }],
+          };
         },
         file_change: (a) => {
           doors.push(["file_change", a.p_status ?? null]);
@@ -202,9 +233,30 @@ function world({ on = true, scopes = ALL, connected = true, lapsed = false, role
   // How the post was made, as every made post keeps it: its words are kept here as it is posted (posts/caption.ts).
   const made = { plan: { line: "Open late on Fridays", under: null }, caption: null };
   const kept = [{ id: POST_ID, tenant_id: tenant, source: "made", made, removed_at: null }];
-  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows }, {}, {});
+  // A video made here is a piece (00613): its words are kept on the plan it was drawn by.
+  const pieces = [
+    {
+      id: "99999999-0000-4000-8000-000000000001",
+      tenant_id: tenant,
+      file_id: POST_ID,
+      shape: "blocks",
+      plan: { blocks: [] },
+      look: {},
+      status: "made",
+      stage: "queued",
+      edition: 1,
+      card_key: "card-1",
+      created_at: "2026-11-01T12:00:00Z",
+      updated_at: "2026-11-01T12:00:00Z",
+    },
+  ];
+  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows, pieces }, {}, {});
+  // The approval reads each shape it sends, and sums its bytes (posts/approve.ts).
+  service.storage = {
+    from: () => ({ download: async () => ({ data: new Blob([`bytes of ${tenant}`]), error: null }) }),
+  };
   setServiceClient(service);
-  return { ctx, tenant, begun, pulled, moved, rows, kept, doors };
+  return { ctx, tenant, begun, pulled, moved, rows, kept, doors, wordsKept };
 }
 const send = (w, method, body) =>
   new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`, { method, body: JSON.stringify(body) });
@@ -434,4 +486,71 @@ test("a link that is no https address is refused before any door, and a photo of
     /Only a piece AI made is marked as posted/,
   );
   assert.deepEqual(w.doors, []);
+});
+
+test("the approval is of the exact bytes: each shape by its path and the full SHA-256 of what was read (00681)", async () => {
+  const w = world();
+  await route.POST.run(send(w, "POST", { as: "picture", caption: "  Open late on Fridays.  " }), w.ctx);
+  const { approval } = w.begun[0];
+  const sum = createHash("sha256").update(`bytes of ${w.tenant}`).digest("hex");
+  assert.deepEqual(approval.renditions, [
+    { shape: "4x5", path: `${w.tenant}/${POST_ID}/original.jpg`, checksum: sum, bytes: `bytes of ${w.tenant}`.length },
+  ]);
+  assert.deepEqual(approval.snapshot.renditions, [
+    { shape: "4x5", file_id: POST_ID, path: `${w.tenant}/${POST_ID}/original.jpg`, checksum: sum },
+  ]);
+  assert.equal(approval.snapshot.placements[0].caption, "Open late on Fridays.");
+  assert.deepEqual(approval.snapshot.uses, ["post"]);
+  assert.equal(approval.placements[0].capability_edition, 1);
+});
+
+test("an owner's own words are theirs: a day named in them is approved as typed, and AI's card says what it is about", async () => {
+  // Typed and pressed by the owner: never judged by a guess, never a new way to be blocked.
+  const typed = world();
+  await route.POST.run(send(typed, "POST", { as: "picture", caption: "Thursday has 3 open chairs." }), typed.ctx);
+  assert.equal(typed.begun.length, 1);
+  assert.equal(typed.begun[0].approval.intent, null);
+  assert.equal(typed.begun[0].approval.placements[0].good_until, null);
+  // From AI's card, with what the words are about: the piece keeps its reason, and the post its last moment.
+  const w = world();
+  await route.POST.run(
+    send(w, "POST", { as: "picture", caption: "Thursday has 3 open chairs.", about: { day: "2099-11-26" } }),
+    w.ctx,
+  );
+  const { approval } = w.begun[0];
+  assert.equal(approval.intent.day, "2099-11-26");
+  assert.equal(
+    approval.placements[0].good_until,
+    "2099-11-26T23:59:59.999Z",
+    "the end of that day, in the workspace's zone",
+  );
+  // A day already gone: too late, said before anything is written.
+  const late = world();
+  await assert.rejects(
+    route.POST.run(send(late, "POST", { as: "picture", caption: "Thursday!", about: { day: "2020-01-02" } }), late.ctx),
+    (e) => e.message === CONTENT_CHECK_WORDS.late("Thursday"),
+  );
+  assert.equal(late.begun.length, 0);
+});
+
+test("a made video goes as a reel, from its own file, and a picture never does", async () => {
+  const picture = world();
+  await assert.rejects(
+    route.POST.run(send(picture, "POST", { as: "reel", caption: "Calls answered." }), picture.ctx),
+    (e) => e.message === ON_INSTAGRAM.wrongKind,
+  );
+  const video = world({ file: { kind: "video", mime: "video/mp4", seconds: 13, bytes: 1_100_000 } });
+  await route.POST.run(send(video, "POST", { as: "reel", caption: "Calls answered for you." }), video.ctx);
+  const { approval } = video.begun[0];
+  assert.equal(video.begun[0].p_kind, "reel");
+  assert.deepEqual(
+    approval.renditions.map((r) => [r.shape, r.path]),
+    [["9x16", `${video.tenant}/${POST_ID}/video.mp4`]],
+  );
+  // Too short for a reel: Instagram's own limit, said before anything is written.
+  const short = world({ file: { kind: "video", mime: "video/mp4", seconds: 2, bytes: 100_000 } });
+  await assert.rejects(
+    route.POST.run(send(short, "POST", { as: "reel", caption: "Quick." }), short.ctx),
+    (e) => e.message === CONTENT_CHECK_WORDS.video,
+  );
 });
