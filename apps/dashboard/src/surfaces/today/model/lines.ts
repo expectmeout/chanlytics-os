@@ -182,25 +182,47 @@ export function dayCameToWords(
   return { title: lead(true), sub: rest.length ? rest.map((say) => say(false)).join(" · ") : null };
 }
 
+/** How many of the same weekday before today a usual day is taken from: four weeks of the business's own history. */
+const USUAL_WEEKS = 4;
+
+/**
+ * Whether the day is lighter than its weekday is (W15): each of the four weeks before had visits on this weekday by
+ * this hour, and today holds at most two thirds of the fewest of them. Never said from less: a week with none (the
+ * business was not here, or its calendar was not read yet) is no usual day, and one visit fewer is no light day.
+ */
+function isLightDay(today: number, before: readonly number[] | null | undefined): boolean {
+  if (!before || before.length < USUAL_WEEKS) return false;
+  const fewest = Math.min(...before);
+  return fewest > 0 && today * 3 <= fewest * 2;
+}
+
 /**
  * The day ahead in facts, the head's sentence where nobody waits (Working for you, W15): "4 booked today, the first at 10
  * AM." before the first visit, "2 more booked, the next at 2:30 PM." after it. Only today's visits, those still standing,
- * all-day entries left out; null with none ahead, and the head says what it said. No word for the day (a light Monday)
- * until four weeks of the business's own history can back one.
+ * all-day entries left out; null with none ahead, and the head says what it said.
+ *
+ * The day gets its one word where the business's own history backs it (`usual`, isLightDay): "A light Monday:
+ * 4 booked, the first at 10 AM." where each of the last four Mondays held clearly more by this hour. `usual.before` is
+ * those four counts (the morning's read, today/history.ts), `usual.weekday` the day's name; without them, no word.
  */
-export function dayAheadWords(day: TodayDayVM | null): string | null {
+export function dayAheadWords(
+  day: TodayDayVM | null,
+  usual: { before: readonly number[] | null | undefined; weekday: string } | null = null,
+): string | null {
   const items = day?.frames.find((f) => f.today)?.items.filter((i) => !i.allDay) ?? [];
   const ahead = items.filter((i) => i.phase === "next" || i.phase === "later");
   const [next] = ahead;
   if (!next) return null;
   const started = items.some((i) => i.phase === "past" || i.phase === "now");
+  if (usual && isLightDay(items.length, usual.before))
+    return started
+      ? `A light ${usual.weekday}: ${ahead.length} more booked, the next at ${next.start}.`
+      : `A light ${usual.weekday}: ${ahead.length} booked, the first at ${next.start}.`;
   return started
     ? `${ahead.length} more booked, the next at ${next.start}.`
     : `${ahead.length} booked today, the first at ${next.start}.`;
 }
 
-/** How many of the same weekday before today a usual day is taken from: four weeks of the business's own history. */
-const USUAL_WEEKS = 4;
 const WEEK_DAYS = 7;
 /** The days a usual day is read from: today and the four weeks before it. */
 export const USUAL_DAYS = USUAL_WEEKS * WEEK_DAYS + 1;

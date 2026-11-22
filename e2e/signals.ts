@@ -304,14 +304,17 @@ export async function sheetFoot(page: Page): Promise<number> {
 
 /**
  * Every motion that ends has ended: a page pushed over a list slides in with its presses off until it lands (kit
- * motion), so what a thumb would press, or where a row stands, is read once the page has come to rest.
+ * motion), so what a thumb would press, or where a row stands, is read once the page has come to rest. A motion tied to
+ * the scroll (the top's ground fading in as Today goes under it, components.css `frame-top-ground`) runs on the scroll's
+ * own timeline and ends only when a thumb scrolls that far: it is no motion to wait for, and waiting for it never ended
+ * (the nightly's two Today cases of first-rows, red since Today went under the top).
  */
 export async function motionSettled(page: Page): Promise<void> {
   await page.evaluate(() =>
     Promise.all(
       document
         .getAnimations()
-        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .filter((a) => a.timeline === document.timeline && a.effect?.getTiming().iterations !== Infinity)
         .map((a) => a.finished.catch(() => null)),
     ),
   );

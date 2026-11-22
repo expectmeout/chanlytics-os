@@ -381,7 +381,7 @@ export async function recordReachOutBookedFrom(db: Db, tenantId: TenantId, appoi
 /* ------------------------------------------------------ what was booked, by service */
 
 /** The statuses of a visit that was booked: a proposed time is not one yet, and a cancelled one no longer. */
-const BOOKED_STATUSES = ["booked", "kept", "missed"] as const;
+export const BOOKED_STATUSES = ["booked", "kept", "missed"] as const;
 
 /**
  * The service of each visit booked since a moment, newest first, up to `limit`: what counts which service a business

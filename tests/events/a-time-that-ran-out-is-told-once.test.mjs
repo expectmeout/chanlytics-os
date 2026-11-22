@@ -68,7 +68,8 @@ test("the owner's one note: who, which time, that AI told them, and it opens the
   assert.equal(news.route, `inbox/th-${CONV}`);
   assert.deepEqual(news.about, { type: "conversation", id: CONV });
   assert.equal(news.subject, "Ana Ruiz's time wasn't confirmed");
-  assert.equal(news.body, "Sat, Oct 17, 2:00 PM · Balayage\nAI is letting them know it couldn't be confirmed.");
+  // One line, so the bell's row (a note's first line) says both: that AI is telling them, and which time.
+  assert.equal(news.body, "AI is letting them know · Sat, Oct 17, 2:00 PM · Balayage");
   assert.doesNotMatch(news.redactedBody, /Ana|Balayage/);
   // Nobody named: it is still said, of a customer.
   assert.equal(requestLapsedNews({ ...SAID, who: null, service: null }).subject, "A customer's time wasn't confirmed");
