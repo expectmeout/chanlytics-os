@@ -216,6 +216,7 @@ export type {
   StandingTime,
 } from "./visit/freed-time";
 export {
+  holdDraftInstruction,
   LAPSE_WIRES,
   type LapseHold,
   REQUEST_LAPSE_WORDS,

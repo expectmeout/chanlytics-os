@@ -89,7 +89,7 @@ export { bookedAfterAsk } from "./calendar/visit/booked-after-ask";
 export { BOOKING_REQUEST_INSTRUCTION, BOOKING_REQUEST_REFUSALS, BOOKING_REQUEST_SCHEMA_FIELDS, BOOKING_REQUEST_WORDS, bookingRequestCardOf, bookingRequestRefusalOf, otherTimeWords, requestedBookingOf, slotLong, slotNear, slotShort, takesBookingRequests } from "./calendar/visit/booking-request";
 export { calendarPersonFactsOf, calendarPersonOf } from "./calendar/visit/calendar-person-facts";
 export { changeFreesATime, FREED_TIME_REFUSALS, freedTimeOf, freedTimesUnoffered, freedTimeTaken, freedTimeWords } from "./calendar/visit/freed-time";
-export { LAPSE_WIRES, REQUEST_LAPSE_WORDS, REQUEST_TOLD_WITHIN_MS, requestLapsedNews, requestLapseInstruction, requestNudgeNews } from "./calendar/visit/request-lapse";
+export { holdDraftInstruction, LAPSE_WIRES, REQUEST_LAPSE_WORDS, REQUEST_TOLD_WITHIN_MS, requestLapsedNews, requestLapseInstruction, requestNudgeNews } from "./calendar/visit/request-lapse";
 export { visitTitleWithout } from "./calendar/visit/service";
 export { ADD_TO_PEOPLE_WORDS, addToPeopleOf, CALENDAR_FEED_WORDS, calendarHoursLines, clockLabel, closureDatesLabel, closuresFrom, eventText, feedNotes, feedSourceLabel, readAgoLabel, ruleParts, rulesLine, visitMarkOfDto } from "./calendar/words/labels";
 export { sightingStands, VISIT_ASK_WORDS, VISIT_REFUSALS, VISIT_WORDS, visitActsOf, visitLineOf, visitLineOfBlock, VISITS_KEPT_MAX, visitStands, visitStateOf } from "./calendar/words/visit";
