@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 197 | 197 |
 | reader | 89 | 0 |
-| the server's | 419 | 351 |
+| the server's | 421 | 353 |
 | computed column | 3 | 0 |
 | trigger | 116 | 85 |
-| all | 824 | 633 |
+| all | 826 | 635 |
 
 ## Called by nothing
 
@@ -301,6 +301,8 @@ being read is dropped by a migration.
 | `ingest_before` | the server's | the server | code `packages/db/src/repositories/imports/before.ts` | A message from before Chanlytics (decision 0073, R19 and R21): |
 | `ingest_call` | the server's | its owner | code `packages/db/src/repositories/voice/calls.ts`; script `tooling/scripts/ops/filler.mjs` |  |
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
+| `instagram_account_connect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts` | Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). |
+| `instagram_account_disconnect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`; SQL `instagram_account_connect` | Service-role only: a workspace's Instagram account disconnected and let go (00677, decision 0143). |
 | `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 74 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
@@ -612,7 +614,7 @@ being read is dropped by a migration.
 | `push_device_forget` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `push_device_register` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `push_devices_forget_all` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/member-alerts.ts` |  |
-| `put_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/whatsapp.ts` | Service-role only: stores a channel's credentials in Vault under wa-creds-<channel id> and points credentials_ref at it. |
+| `put_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/whatsapp.ts`; SQL `instagram_account_connect`, `instagram_account_disconnect` | Service-role only: stores a channel's credentials in Vault under wa-creds-<channel id> and points credentials_ref at it. |
 | `put_google_credentials` | the server's | the server | code `packages/db/src/repositories/google/connection.ts` | Service-role only: stores a workspace's Google token in Vault under google-creds-<workspace> and points credentials_ref at it. |
 | `put_line_credentials` | the server's | the server | code `packages/db/src/repositories/lines/credentials.ts` | Service-role only: merges a line's provider secrets into Vault under line-creds-<line id>. |
 | `put_mailbox_credentials` | the server's | the server | code `packages/db/src/repositories/email/connections.ts` | Service-role only: stores a connected mailbox's token in Vault under mailbox-creds-<id> and points credentials_ref at it. |

@@ -60,6 +60,8 @@ export const INSTAGRAM_ACCOUNT_DOOR = edgeDoor(
   answerFields({
     ready: z.boolean(),
     app: z.object({ client_id: z.string(), redirect_uri: z.string() }).partial().nullable(),
+    /** Beside `instagram_account_taken`: the workspace that has the account connected, for the dashboard to judge. */
+    held_by: z.string(),
   }),
 );
 
@@ -85,5 +87,7 @@ export const META_CONNECTION_DOOR = edgeDoor(
     account_id: z.string(),
     username: z.string().nullable(),
     accounts: z.array(z.object({ id: z.string(), username: z.string().nullable() })),
+    /** Beside `instagram_account_taken`: the workspace that has the account connected, for the dashboard to judge. */
+    held_by: z.string(),
   }),
 );

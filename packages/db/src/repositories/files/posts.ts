@@ -414,14 +414,15 @@ export async function listPostsTimed(
   return data;
 }
 
-/** How many posts wait for their time, past `after`. */
-export async function countPostsTimed(db: Db, tenantId: TenantId, after: string): Promise<number> {
-  const { count, error } = await db
+/** How many posts wait for their time, past `after`: every place's, or one place's where `place` names it. */
+export async function countPostsTimed(db: Db, tenantId: TenantId, after: string, place?: PostPlace): Promise<number> {
+  const timed = db
     .from("posts")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .in("status", [...TIMED_STATUSES])
     .gt("scheduled_for", after);
+  const { count, error } = await (place ? timed.eq("place", place) : timed);
   if (error) throw new DbFailure(error, "posts timed counted");
   return count ?? 0;
 }

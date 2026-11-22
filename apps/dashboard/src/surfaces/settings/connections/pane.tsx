@@ -39,17 +39,27 @@ import { useSurface } from "../../use-surface";
 import { channelVMs } from "../../channels/surface";
 import type { SetupSurface } from "../../setup/surface";
 import { retryLineInPlace } from "../../setup/retry-line";
-import { connectedMailboxes } from "./connected-mailboxes";
+import type { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 import { WebsiteForms } from "../website/forms";
 import { GoogleChoose } from "./google-choose";
-import { useLineCodes, useLogins, useSignupAhead, useStandingCheck, type Logins } from "./live";
+import {
+  signInNames,
+  useGoogleNote,
+  useLineCodes,
+  useLogins,
+  useMailboxNote,
+  useSignupAhead,
+  useStandingCheck,
+  type Logins,
+} from "./live";
 import { ConnectedMailboxes, EmailCard } from "./mailboxes-block";
 import { BusinessRecordForm } from "./record-form";
 import { ConnectionRow, connRowPress, type Arm } from "./row";
 import { signupLeftOpenAt, waConnect, type SignupDoor } from "./whatsapp";
 import { igConnect, type InstagramDoor } from "./instagram";
 import { metaConnect, type MetaDoor } from "./meta";
+import type { SignInNames } from "./model/login-words";
 import type { AdsPlace, AdsRowKit } from "./ad-account-real";
 
 type WaConfig = SignupDoor | null | undefined;
@@ -86,16 +96,6 @@ const ADS_KIT: AdsRowKit = {
 /** The place for the ad account's row in a group: an element the row is drawn into, never a box of its own. */
 const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
-/** What the browser came back from Google with, said once. */
-function googleNote(): string | null {
-  const o = googleVerbs.outcome();
-  if (!o) return null;
-  const W = googleVerbs.outcomeWords;
-  return (
-    W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null)
-  );
-}
-
 /** What came back from a login, under the Instagram row: Instagram's own, or Meta's. */
 function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => void; label: "Instagram" | "Meta" }) {
   if (!note) return null;
@@ -103,12 +103,12 @@ function LoginNote({ note, onOk, label }: { note: string | null; onOk: () => voi
   return <RecordRow id={id} testid={id} label={label} value={note} act={{ label: "Ok", onClick: onOk }} />;
 }
 
-/** What each login came back with, under the Instagram row, each until Ok. */
-function LoginNotes({ logins: { ig, meta } }: { logins: Logins }) {
+/** What each login came back with, under the Instagram row, in the row's words, each until Ok. */
+function LoginNotes({ logins: { ig, meta }, names }: { logins: Logins; names: SignInNames }) {
   return (
     <>
-      <LoginNote label="Instagram" note={ig.note} onOk={ig.clearNote} />
-      <LoginNote label="Meta" note={meta.note} onOk={meta.clearNote} />
+      <LoginNote label="Instagram" note={ig.note(names)} onOk={ig.clearNote} />
+      <LoginNote label="Meta" note={meta.note(names)} onOk={meta.clearNote} />
     </>
   );
 }
@@ -206,7 +206,7 @@ function rowsOf(
       signupLeftOpenAt: asked.signupLeftOpenAt,
       imports: S ? (S.dto.imports ?? null) : null,
       instagram: asked.instagram ? { ready: asked.instagram.ready } : null,
-      meta: asked.meta ? { ready: asked.meta.ready } : null,
+      meta: asked.meta ? { ready: asked.meta.ready, postsWaiting: asked.meta.posts_waiting } : null,
       footage: asked.footage,
     },
     Date.now(),
@@ -464,10 +464,9 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
   // The email row's form and the business record under Texting, each open only once its verb is pressed.
   const [emailOpen, setEmailOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
-  const [note, setNote] = useState<string | null>(googleNote);
-  // What the browser came back from a mailbox's provider with, said once under the mailboxes' row.
-  const [mailboxNote, setMailboxNote] = useState(() => connectedMailboxes.outcome());
-  const dropNote = () => setMailboxNote(null);
+  const [note, setNote] = useGoogleNote();
+  // What the browser came back from a mailbox's provider with, said under the mailboxes' row until it is dropped.
+  const [mailboxNote, dropNote] = useMailboxNote();
   // The address named "Left in your mailbox": the mailbox block opens its list.
   const leftOpen = named === MAILBOX_LEFT_ROW;
   // Meta's sign-up window is open (this page began it and it has not ended), and the sign-up an earlier page began on this tab and
@@ -574,7 +573,7 @@ export const PaneIntegrationsReal = ({ row: named = null }: { row?: string | nul
             onClose={() => setEmailOpen(false)}
           />
         )}
-        {r.kind === "instagram" && <LoginNotes logins={logins} />}
+        {r.kind === "instagram" && <LoginNotes logins={logins} names={signInNames(channels)} />}
         {r.kind === "drive" && drive.note}
         {/* A Later row has no block, but what a connect came back with is still said under it. */}
         {((r.body === "mailboxes" && S && email) || (r.kind === "mailbox" && mailboxNote)) && (

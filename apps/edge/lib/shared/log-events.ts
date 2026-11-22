@@ -345,7 +345,6 @@ export const LOG_EVENTS = [
   "ig_connect_account_taken",
   "ig_connect_channel_read_failed",
   "ig_connect_channel_write_failed",
-  "ig_connect_credentials_failed",
   "ig_connect_messages_not_granted",
   "ig_connect_refused",
   "ig_connected",

@@ -14,10 +14,28 @@ import {
   type ChannelVM,
   type LineCodeDto,
 } from "@chanlytics/contracts";
+import { googleVerbs } from "@/bridge/google";
 import { canDo } from "../../frame-verbs";
-import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
+import { workspacesNow } from "../business/shell";
+import { connectedMailboxes } from "./connected-mailboxes";
 import { igConnect } from "./instagram";
 import { metaConnect } from "./meta";
+import { keepsUntilSeen, type CameBack, type Keeper } from "./model/came-back";
+import { loginSentence, type SignInNames } from "./model/login-words";
+import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
+
+/**
+ * What a keeper holds (model/came-back.ts), as a pane says it: the same on every drawing of the pane, and the Ok that
+ * ends it. The frame draws a pane more than once as its page loads, and the address says a return only the first time.
+ */
+function useKept<T>(kept: Keeper<T>): [T | null, () => void] {
+  const [held, setHeld] = useState<T | null>(kept.read);
+  const drop = () => {
+    kept.seen();
+    setHeld(null);
+  };
+  return [held, drop];
+}
 
 /** One read of the codes, painted if the page that asked still wants it; a read that fails changes nothing: the page keeps what it has. */
 function askCodes(paint: (codes: LineCodeDto[]) => void): void {
@@ -81,21 +99,40 @@ export function useSignupAhead(
   }, [offered, door]);
 }
 
+/** What the browser came back from Google with, in the row's words. */
+function googleNote(): string | null {
+  const o = googleVerbs.outcome();
+  if (!o) return null;
+  const W = googleVerbs.outcomeWords;
+  return (
+    W[o.why || ""] || W[o.outcome] || (o.outcome === "error" ? `Google did not connect (${o.why || "unknown"}).` : null)
+  );
+}
+
+/**
+ * What Google's sign-in and a mailbox's came back with, each kept until its Ok, as the pane says them: the frame draws
+ * the pane more than once as the page loads, and the address says a return only the first time (model/came-back.ts).
+ */
+const googleCame = keepsUntilSeen(googleNote);
+const mailboxCame = keepsUntilSeen(() => connectedMailboxes.outcome());
+export const useGoogleNote = () => useKept(googleCame);
+export const useMailboxNote = () => useKept(mailboxCame);
+
 /** A login's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
 interface LoginDoor<D> {
   config: () => Promise<D>;
   held: () => D | null;
-  outcome: () => string | null;
+  returned: Keeper<CameBack>;
 }
 
 /**
  * A login's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves the
- * offer out), and what the browser came back from that login with, said once under its row until Ok.
+ * offer out), and what the browser came back from that login with, said under its row until Ok.
  */
-function useLoginDoor<D>(login: LoginDoor<D>) {
+function useLoginDoor<D>(login: LoginDoor<D>, label: "Instagram" | "Meta") {
   // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
   const [door, setDoor] = useState<D | null | undefined>(() => login.held() ?? undefined);
-  const [note, setNote] = useState<string | null>(() => login.outcome());
+  const [returned, clearNote] = useKept(login.returned);
   useEffect(() => {
     let on = true;
     login
@@ -106,11 +143,22 @@ function useLoginDoor<D>(login: LoginDoor<D>) {
       on = false;
     };
   }, [login]);
-  return { door, note, clearNote: () => setNote(null) };
+  // The row's sentence for what came back, naming what this page may name; null where nothing came back.
+  const note = (names: SignInNames) => (returned ? loginSentence(label, returned, names) : null);
+  return { door, note, clearNote };
 }
 
 /** Both logins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
 export function useLogins() {
-  return { ig: useLoginDoor(igConnect), meta: useLoginDoor(metaConnect) };
+  return { ig: useLoginDoor(igConnect, "Instagram"), meta: useLoginDoor(metaConnect, "Meta") };
 }
 export type Logins = ReturnType<typeof useLogins>;
+
+/**
+ * What a sign-in's sentence may name on this page: one of this person's own workspaces by its address's word (the
+ * callback writes that word only for a workspace the person owns or manages), and the account connected here.
+ */
+export const signInNames = (channels: readonly ChannelVM[] | null | undefined): SignInNames => ({
+  workspace: (slug) => workspacesNow()?.find((mine) => mine.slug === slug)?.name ?? null,
+  handle: channelFor(channels ?? [], "instagram")?.handle ?? null,
+});

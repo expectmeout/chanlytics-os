@@ -11,7 +11,6 @@ import type { Database, Json } from "../../types";
 
 import type { TenantId, ContactId } from "@chanlytics/contracts";
 import { DbFailure } from "@chanlytics/contracts";
-import { dbLogAndGoOn } from "../../shared/observe";
 type Db = SupabaseClient<Database>;
 
 /** An account's row as the sweep and the wires take it. */
@@ -48,18 +47,61 @@ export async function putChannelSecret(db: Db, channelId: string, secret: Json):
   if (error) throw new DbFailure(error, "putChannelSecret");
 }
 
-/** Which workspace holds an Instagram account's row, if any: the connect door refuses one another workspace holds. */
+/**
+ * Which workspace's row holds an Instagram account's id, if any, and whether it is connected: the connect door refuses an
+ * account another workspace has connected before it asks Meta for anything. A row that was disconnected holds no id
+ * (instagram_account_disconnect, 00677), so it is not found here. A read that fails THROWS.
+ */
 export async function findInstagramAccountHolder(
   db: Db,
   accountId: string,
-): Promise<{ id: string; tenant_id: TenantId } | null> {
+): Promise<{ id: string; tenant_id: TenantId; status: string } | null> {
   const { data, error } = await db
     .from("tenant_channels")
-    .select("id, tenant_id")
+    .select("id, tenant_id, status")
     .eq("kind", "instagram")
     .eq("external_id", accountId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "findInstagramAccountHolder");
+  return data;
+}
+
+/**
+ * The Instagram accounts this workspace has connected, oldest first: one account a workspace, so a connect of a
+ * different one is refused with the handle of the one that stands (decision 0143). A read that fails THROWS.
+ */
+export async function listConnectedInstagramAccounts(
+  db: Db,
+  tenantId: TenantId,
+): Promise<{ id: string; external_id: string; config: Json }[]> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, external_id, config")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "instagram")
+    .eq("status", "active")
+    .order("created_at", { ascending: true });
+  if (error) throw new DbFailure(error, "listConnectedInstagramAccounts");
+  return data;
+}
+
+/**
+ * One of this workspace's Instagram rows by its id, as a disconnect finds it: its config and whether it keeps a token.
+ * Null for a row that is not this workspace's. A read that fails THROWS.
+ */
+export async function findInstagramChannel(
+  db: Db,
+  tenantId: TenantId,
+  channelId: string,
+): Promise<{ id: string; config: Json; credentials_ref: string | null } | null> {
+  const { data, error } = await db
+    .from("tenant_channels")
+    .select("id, config, credentials_ref")
+    .eq("id", channelId)
+    .eq("tenant_id", tenantId)
+    .eq("kind", "instagram")
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "findInstagramChannel");
   return data;
 }
 
@@ -105,73 +147,64 @@ export async function findMetaInstagramRow(
   return data;
 }
 
-/**
- * An account's row, written for THIS workspace: an update of the row it holds, else an insert, written disabled (it
- * routes only once its token is in the Vault), that the unique (kind, external_id) refuses when another workspace raced
- * it there; this workspace's own row found that way is a double submit. Its id, `taken`, or `failed` with the words.
- */
-export async function writeInstagramAccount(
-  db: Db,
-  fields: { tenantId: TenantId; accountId: string; config: Json },
-): Promise<{ id: string } | "taken" | { failed: string }> {
-  const row: {
-    tenant_id: TenantId;
-    kind: "instagram";
-    external_id: string;
-    number_e164: null;
-    waba_id: null;
-    config: Json;
-  } = {
-    tenant_id: fields.tenantId,
-    kind: "instagram",
-    external_id: fields.accountId,
-    number_e164: null,
-    waba_id: null,
-    config: fields.config,
-  };
-  const mine = await db
-    .from("tenant_channels")
-    .update(row)
-    .eq("kind", "instagram")
-    .eq("external_id", fields.accountId)
-    .eq("tenant_id", fields.tenantId)
-    .select("id")
-    .maybeSingle();
-  if (mine.error) return { failed: mine.error.message };
-  if (mine.data) return mine.data;
-  const created = await db
-    .from("tenant_channels")
-    .insert({ ...row, status: "disabled" })
-    .select("id")
-    .single();
-  if (created.error?.code === "23505") {
-    const holder = await findInstagramAccountHolder(db, fields.accountId).catch(
-      dbLogAndGoOn("findInstagramAccountHolder", null),
-    );
-    return holder?.tenant_id === fields.tenantId ? { id: holder.id } : "taken";
-  }
-  if (created.error || !created.data) return { failed: created.error?.message ?? "no row" };
-  return created.data;
+/** What the connect door answered (instagram_account_connect, 00677). */
+export type InstagramConnect =
+  | { outcome: "connected"; channelId: string; was: "own" | "new" }
+  | { outcome: "taken"; heldBy: string | null }
+  | { outcome: "another_here"; username: string | null };
+
+/** What a door answered, read as a record of text: a field that is not a string reads as null. */
+function textFields(answer: Json | null): Record<string, string | null> {
+  const fields = answer && typeof answer === "object" && !Array.isArray(answer) ? answer : {};
+  return Object.fromEntries(
+    Object.entries(fields).map(([name, value]) => [name, typeof value === "string" ? value : null]),
+  );
 }
 
 /**
- * An account's row turned on or off, for this workspace only: true when a row changed, counted, since a forbidden or
- * mis-aimed UPDATE reports success with no row.
+ * An Instagram account connected to this workspace in one write, through its door (instagram_account_connect, 00677):
+ * the row (this workspace's own for the account, the one it let go revived, or a new one), its token in the Vault, the
+ * row on. `taken` while another workspace has the account connected, with that workspace; `another_here` while this one
+ * has a different account connected, with its handle. A write that fails THROWS, and nothing was changed.
  */
-export async function setInstagramStatus(
+export async function connectInstagramAccount(
   db: Db,
-  tenantId: TenantId,
-  channelId: string,
-  status: "active" | "disabled",
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("tenant_channels")
-    .update({ status })
-    .eq("id", channelId)
-    .eq("tenant_id", tenantId)
-    .eq("kind", "instagram")
-    .select("id");
-  return !error && !!data?.length;
+  fields: { tenantId: TenantId; accountId: string; config: Json; secret: Json },
+): Promise<InstagramConnect> {
+  const { data, error } = await db.rpc("instagram_account_connect", {
+    p_tenant_id: fields.tenantId,
+    p_account_id: fields.accountId,
+    p_config: fields.config,
+    p_secret: fields.secret,
+  });
+  if (error) throw new DbFailure(error, "connectInstagramAccount");
+  const answer = textFields(data);
+  if (answer.outcome === "taken") return { outcome: "taken", heldBy: answer.held_by ?? null };
+  if (answer.outcome === "another_here") return { outcome: "another_here", username: answer.username ?? null };
+  if (answer.outcome !== "connected" || !answer.channel_id)
+    throw new DbFailure({ message: "the door answered no channel" }, "connectInstagramAccount");
+  return { outcome: "connected", channelId: answer.channel_id, was: answer.was === "own" ? "own" : "new" };
+}
+
+/**
+ * One of this workspace's Instagram accounts disconnected and let go, through its door (instagram_account_disconnect,
+ * 00677): the row off, the account's id freed for any workspace, its token deleted from the Vault. `let_go` with the
+ * account it held, `already` for a row let go before, `gone` for a row that is not this workspace's. A write that fails
+ * THROWS.
+ */
+export async function disconnectInstagramAccount(
+  db: Db,
+  fields: { tenantId: TenantId; channelId: string; by: string },
+): Promise<{ outcome: "let_go"; accountId: string | null } | { outcome: "already" } | { outcome: "gone" }> {
+  const { data, error } = await db.rpc("instagram_account_disconnect", {
+    p_tenant_id: fields.tenantId,
+    p_channel_id: fields.channelId,
+    p_by: fields.by,
+  });
+  if (error) throw new DbFailure(error, "disconnectInstagramAccount");
+  const answer = textFields(data);
+  if (answer.outcome === "let_go") return { outcome: "let_go", accountId: answer.account_id ?? null };
+  return answer.outcome === "already" ? { outcome: "already" } : { outcome: "gone" };
 }
 
 /**

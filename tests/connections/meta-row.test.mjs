@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { metaLinesOf, toChannelVM } from "@chanlytics/contracts";
 import { connectionRows } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup.ts";
+import { leavingWords } from "../../apps/dashboard/src/surfaces/settings/connections/model/setup-rows.ts";
 
 const NOW = Date.parse("2026-11-09T15:00:00Z");
 const H = 3_600_000;
@@ -122,4 +123,20 @@ test("a Meta connection whose token lapsed asks for a reconnect; a disconnected 
   assert.equal(off.title, "Meta");
   assert.equal(off.state, "none");
   assert.equal(off.verb.label, "Connect again");
+});
+
+test("a Disconnect's question says what ends and what stays, and the posts waiting to go out when there are any", () => {
+  const ends = "Its DMs stop being answered here until you connect it again.";
+  const stays = `${ends} Its conversations stay.`;
+  assert.equal(leavingWords(0), stays);
+  assert.equal(leavingWords(1), `${ends} Its conversations stay, and 1 waiting post is held.`);
+  assert.equal(leavingWords(3), `${ends} Its conversations stay, and 3 waiting posts are held.`);
+  // On the row: the Meta row's Disconnect carries the workspace's count; Instagram's own login has no posts to hold.
+  const meta = rowOf({ channels: [account({ meta_lines: metaLinesOf(ALL) })], meta: { ready: true, postsWaiting: 2 } });
+  assert.equal(meta.verb.to, "verb:meta-disconnect");
+  assert.equal(meta.leaving, leavingWords(2));
+  assert.equal(rowOf({ channels: [account({ meta_lines: metaLinesOf(ALL) })], meta: { ready: true } }).leaving, stays);
+  assert.equal(rowOf({ channels: [account()], meta: null }).leaving, stays);
+  // A row with nothing to disconnect asks nothing.
+  assert.equal(rowOf({ meta: { ready: true, postsWaiting: 2 } }).leaving, undefined);
 });

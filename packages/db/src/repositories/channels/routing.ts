@@ -40,13 +40,19 @@ export interface ChannelLookup {
   lookupFailed: boolean;
 }
 
+/**
+ * `fresh` asks the database every time and serves no kept answer: an Instagram account can be disconnected in one
+ * workspace and connected in another within the minutes a kept answer lives, and a DM must never follow where its
+ * account was (decision 0143). A fresh read that fails is `lookupFailed`, never the last answer.
+ */
 export async function resolveChannelDetailed(
   db: SupabaseClient<Database>,
   kind: SchemaSet<"tenant_channels.kind">,
   externalId: string,
+  { fresh = false }: { fresh?: boolean } = {},
 ): Promise<ChannelLookup> {
   const key = `${kind}:${externalId}`;
-  const hit = cache.get(key);
+  const hit = fresh ? undefined : cache.get(key);
   if (hit && hit.exp > Date.now()) return { channel: hit.v, lookupFailed: false };
   const { data, error } = await db
     .from("tenant_channels")

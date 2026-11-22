@@ -63,6 +63,7 @@ export const EDGE_ERROR_CODES = [
   "instagram_account_taken",
   "instagram_account_unreadable",
   "instagram_accounts_several",
+  "instagram_another_connected",
   "instagram_messages_not_granted",
   "invalid",
   "key_unavailable",
