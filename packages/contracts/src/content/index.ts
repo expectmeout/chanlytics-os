@@ -26,8 +26,8 @@ export {
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
-export { CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS } from "./note";
-export type { ContentTodayDto } from "./note";
+export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./note";
+export type { ContentDownDto, ContentTodayDto } from "./note";
 export {
   CONTENT_FAILED_DAYS,
   CONTENT_LINES_PAGE,
@@ -101,12 +101,85 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
+export { OwnersFactSchema, PostAboutSchema } from "./placements/approval-schemas";
+export {
+  goodUntilOf,
+  intentOfAbout,
+  ownersFactsOf,
+  pieceIntentOf,
+  postAboutOf,
+  renditionShapeOf,
+} from "./placements/approvals";
+export type {
+  AsApproved,
+  OwnersFact,
+  PieceApprovalSnapshot,
+  PieceIntent,
+  PostAbout,
+  RevisionChange,
+  SnapshotPlacement,
+  SnapshotRendition,
+} from "./placements/approvals";
+export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
+export type { ContentCheck } from "./placements/check-words";
+export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
+export type {
+  CapabilityProof,
+  PlaceAdapter,
+  PlaceAnswerKept,
+  PlaceCapabilities,
+  PlacedMedia,
+  PlacementToSend,
+  PlaceRefusal,
+  Prepared,
+  PreparedState,
+  RemoteState,
+  SendOutcome,
+  SentPlacement,
+  TakeDownAnswer,
+} from "./placements/places";
+export {
+  APPROVAL_SUBJECTS,
+  APPROVAL_VOID_WHYS,
+  REMEDIATION_ACTS,
+  REMEDIATION_OUTCOMES,
+  REMEDIATION_TARGETS,
+  RENDITION_SHAPES,
+  REVISION_MADE_BY,
+} from "./placements/sets";
+export type {
+  ApprovalVoidWhy,
+  RemediationAct,
+  RemediationOutcome,
+  RemediationTarget,
+  RenditionShape,
+  RevisionMadeBy,
+} from "./placements/sets";
+export {
+  placementSaid,
+  postCameDownAt,
+  postComingDownOf,
+  TAKE_DOWN_BELL,
+  TAKE_DOWN_WORDS,
+  takeDownWillOf,
+} from "./placements/take-down";
+export type {
+  PieceTakeDownDto,
+  PostComingDown,
+  TakeDownActionDto,
+  TakeDownSettled,
+  TakeDownWill,
+} from "./placements/take-down";
+export { TAKE_DOWN_UNCONFIRMED_MS, takeDownUnconfirmedSaid } from "./placements/take-down-late";
+export { takeDownSpec } from "./placements/take-down-spec";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_CAPTION_MAX,
+  POST_HELD_WHYS,
   POST_KINDS,
   POST_ON_ITS_WAY,
   POST_PLACE_SAID,
@@ -117,6 +190,7 @@ export {
   POST_VIAS,
   postCaptionProblem,
   postPlaceTakenOf,
+  postStandsSaid,
   postStoppedWhyOf,
   postWaitsForItsTime,
 } from "./posts";
@@ -125,6 +199,7 @@ export type {
   InstagramPostable,
   InstagramPostKind,
   PostDto,
+  PostHeldWhy,
   PostKind,
   PostPlace,
   PostStatus,

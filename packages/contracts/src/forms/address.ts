@@ -43,6 +43,17 @@ export function formsRouteOf(place: Partial<FormsPlace> = {}): string {
   return `${FORMS_ROUTE}:${place.form}${place.part && place.part !== "form" ? `:${place.part}` : ""}`;
 }
 
+/** A form's own public address under its business's page (`/b/<workspace>/<form>`), without its site. */
+export const formPagePath = (workspaceSlug: string, formSlug: string): string => `/b/${workspaceSlug}/${formSlug}`;
+
+/**
+ * The same address as its owner's Test opens it: marked a test. The page believes the mark only from a signed-in member
+ * of that workspace; from anyone else it is a visitor's own request. Without the mark an owner's test is a request like
+ * any other, which rang the bell and was counted until 22 November 2026.
+ */
+export const formTestPath = (workspaceSlug: string, formSlug: string): string =>
+  `${formPagePath(workspaceSlug, formSlug)}?test=1`;
+
 /** A request's own address in Inbox: where its bell row opens, and where it is answered. */
 export const requestAddress = (entryId: string): string => `inbox/rq-${entryId}`;
 

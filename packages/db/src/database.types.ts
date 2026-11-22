@@ -825,6 +825,56 @@ export type Database = {
           },
         ]
       }
+      approvals: {
+        Row: {
+          approved_at: string
+          approved_by: string | null
+          id: string
+          policy_edition: number
+          snapshot: Json
+          snapshot_hash: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+          voided_at: string | null
+          voided_why: string | null
+        }
+        Insert: {
+          approved_at?: string
+          approved_by?: string | null
+          id?: string
+          policy_edition?: number
+          snapshot: Json
+          snapshot_hash: string
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+          voided_at?: string | null
+          voided_why?: string | null
+        }
+        Update: {
+          approved_at?: string
+          approved_by?: string | null
+          id?: string
+          policy_edition?: number
+          snapshot?: Json
+          snapshot_hash?: string
+          subject_id?: string
+          subject_type?: string
+          tenant_id?: string
+          voided_at?: string | null
+          voided_why?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approvals_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ask_actions: {
         Row: {
           at: string
@@ -6969,6 +7019,124 @@ export type Database = {
         }
         Relationships: []
       }
+      piece_renditions: {
+        Row: {
+          bytes: number | null
+          checksum: string
+          file_id: string
+          id: string
+          made_at: string
+          path: string
+          piece_id: string
+          revision: number
+          shape: string
+          tenant_id: string
+        }
+        Insert: {
+          bytes?: number | null
+          checksum: string
+          file_id: string
+          id?: string
+          made_at?: string
+          path: string
+          piece_id: string
+          revision: number
+          shape: string
+          tenant_id: string
+        }
+        Update: {
+          bytes?: number | null
+          checksum?: string
+          file_id?: string
+          id?: string
+          made_at?: string
+          path?: string
+          piece_id?: string
+          revision?: number
+          shape?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_renditions_file_id_same_workspace"
+            columns: ["tenant_id", "file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "piece_renditions_revision_same_workspace"
+            columns: ["tenant_id", "piece_id", "revision"]
+            isOneToOne: false
+            referencedRelation: "piece_revisions"
+            referencedColumns: ["tenant_id", "piece_id", "n"]
+          },
+          {
+            foreignKeyName: "piece_renditions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      piece_revisions: {
+        Row: {
+          captions: Json
+          changed: string[]
+          cost_cents: number
+          created_at: string
+          created_by: string | null
+          id: string
+          made_by: string
+          n: number
+          piece_id: string
+          plan: Json
+          tenant_id: string
+        }
+        Insert: {
+          captions?: Json
+          changed?: string[]
+          cost_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          made_by: string
+          n: number
+          piece_id: string
+          plan: Json
+          tenant_id: string
+        }
+        Update: {
+          captions?: Json
+          changed?: string[]
+          cost_cents?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          made_by?: string
+          n?: number
+          piece_id?: string
+          plan?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piece_revisions_piece_id_same_workspace"
+            columns: ["tenant_id", "piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "piece_revisions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pieces: {
         Row: {
           card_key: string
@@ -6978,10 +7146,12 @@ export type Database = {
           failed_why: string | null
           file_id: string | null
           id: string
+          intent: Json | null
           look: Json
           machine: Json | null
           made_at: string | null
           plan: Json
+          revision: number
           shape: string
           stage: string
           status: string
@@ -6996,10 +7166,12 @@ export type Database = {
           failed_why?: string | null
           file_id?: string | null
           id?: string
+          intent?: Json | null
           look: Json
           machine?: Json | null
           made_at?: string | null
           plan: Json
+          revision?: number
           shape: string
           stage?: string
           status?: string
@@ -7014,10 +7186,12 @@ export type Database = {
           failed_why?: string | null
           file_id?: string | null
           id?: string
+          intent?: Json | null
           look?: Json
           machine?: Json | null
           made_at?: string | null
           plan?: Json
+          revision?: number
           shape?: string
           stage?: string
           status?: string
@@ -7285,77 +7459,115 @@ export type Database = {
       }
       posts: {
         Row: {
+          account_id: string | null
+          approval_id: string | null
           approved_at: string
           approved_by: string | null
           attempts: number
+          capability_edition: number | null
           caption: string | null
           container_id: string | null
           created_at: string
           error: Json | null
           external_id: string | null
           file_id: string
+          good_until: string | null
           held_reason: string | null
+          held_why: string | null
           id: string
           kind: string
           permalink: string | null
+          piece_id: string | null
           place: string
           published_at: string | null
+          revision: number | null
           scheduled_for: string
           status: string
           tenant_id: string
           updated_at: string
+          verified_at: string | null
           via: string
         }
         Insert: {
+          account_id?: string | null
+          approval_id?: string | null
           approved_at?: string
           approved_by?: string | null
           attempts?: number
+          capability_edition?: number | null
           caption?: string | null
           container_id?: string | null
           created_at?: string
           error?: Json | null
           external_id?: string | null
           file_id: string
+          good_until?: string | null
           held_reason?: string | null
+          held_why?: string | null
           id?: string
           kind: string
           permalink?: string | null
+          piece_id?: string | null
           place: string
           published_at?: string | null
+          revision?: number | null
           scheduled_for?: string
           status: string
           tenant_id: string
           updated_at?: string
+          verified_at?: string | null
           via?: string
         }
         Update: {
+          account_id?: string | null
+          approval_id?: string | null
           approved_at?: string
           approved_by?: string | null
           attempts?: number
+          capability_edition?: number | null
           caption?: string | null
           container_id?: string | null
           created_at?: string
           error?: Json | null
           external_id?: string | null
           file_id?: string
+          good_until?: string | null
           held_reason?: string | null
+          held_why?: string | null
           id?: string
           kind?: string
           permalink?: string | null
+          piece_id?: string | null
           place?: string
           published_at?: string | null
+          revision?: number | null
           scheduled_for?: string
           status?: string
           tenant_id?: string
           updated_at?: string
+          verified_at?: string | null
           via?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "posts_approval_id_same_workspace"
+            columns: ["tenant_id", "approval_id"]
+            isOneToOne: false
+            referencedRelation: "approvals"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "posts_file_id_same_workspace"
             columns: ["tenant_id", "file_id"]
             isOneToOne: false
             referencedRelation: "files"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "posts_piece_id_same_workspace"
+            columns: ["tenant_id", "piece_id"]
+            isOneToOne: false
+            referencedRelation: "pieces"
             referencedColumns: ["tenant_id", "id"]
           },
           {
@@ -9998,6 +10210,7 @@ export type Database = {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number
       }
+      approval_hash: { Args: { p_snapshot: Json }; Returns: string }
       approve_broadcast: {
         Args: {
           p_broadcast_id: string
@@ -12629,6 +12842,10 @@ export type Database = {
         }
         Returns: Json
       }
+      piece_of_made_file: {
+        Args: { p_actor: string; p_file_id: string; p_tenant_id: string }
+        Returns: string
+      }
       piece_sent: { Args: { p_piece_id: string }; Returns: boolean }
       piece_stage: {
         Args: { p_piece_id: string; p_stage: string }
@@ -12637,6 +12854,10 @@ export type Database = {
       piece_step: {
         Args: { p_machine: Json; p_piece_id: string }
         Returns: boolean
+      }
+      piece_words_keep: {
+        Args: { p_caption: string; p_file_id: string; p_tenant_id: string }
+        Returns: Json
       }
       platform_admin_add: {
         Args: { p_email: string; p_role?: string }
@@ -12865,6 +13086,11 @@ export type Database = {
         Args: { p_from: string; p_post_id: string }
         Returns: boolean
       }
+      post_approve: {
+        Args: { p_approval: Json; p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_as_approved: { Args: { p_post_id: string }; Returns: Json }
       post_attempt_close: {
         Args: {
           p_answer?: Json
@@ -12913,9 +13139,33 @@ export type Database = {
         Args: { p_file_id: string; p_link?: string; p_tenant_id: string }
         Returns: Json
       }
+      post_shape: { Args: { p_kind: string; p_place: string }; Returns: string }
+      post_take_down_begin: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_take_down_by_hand: {
+        Args: { p_post_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_take_down_settle: {
+        Args: { p_action_id: string; p_outcome: string; p_said: string }
+        Returns: Json
+      }
       post_unanswered: {
         Args: { p_attempt: string; p_post_id: string }
         Returns: boolean
+      }
+      posts_take_down_start: {
+        Args: {
+          p_actor: string
+          p_cancel: boolean
+          p_cause: string
+          p_files: string[]
+          p_subject_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       preview_built: {
         Args: { p_id: string; p_ok: boolean; p_why?: string }

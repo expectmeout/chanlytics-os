@@ -23,13 +23,14 @@ import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
 import { PostedByHand } from "./by-hand";
 import { ViewerFacts } from "./details";
-import { ViewerActs, ViewerStatus, statusOpensOf, viewerHasStatus, viewerLeadOf } from "./foot";
+import { ViewerActs, ViewerStatus, actsLeadOf, statusOpensOf, viewerHasStatus } from "./foot";
 import { ViewerMore } from "./more";
 import { ViewerPicture } from "./picture";
 import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
-import { byHandOffered, removeAsk, type ViewerHands } from "./viewer";
+import { WhereItGoes } from "./goes";
+import { byHandOffered, footStandingOf, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
 type DeskOpen = "change" | "rename" | null;
@@ -159,7 +160,7 @@ function deskOpenedOf(
       title: head.title,
       sub: head.sub,
       close: head.cancel,
-      body: draftBody(drafts, null, hands.doors, at.facts),
+      body: draftBody(drafts, null, { doors: hands.doors, facts: at.facts, standing: hands.standing }),
       foot: draftFoot(drafts),
     };
   }
@@ -278,11 +279,21 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     presses.clear();
     acts.onNext(next);
   };
-  const lead = hands.may ? viewerLeadOf(file, next) : null;
+  // The act P presses is the coral one, as the row draws it: a line's own fix where one leads (Ask, Look again), else
+  // the piece's next step; none while a take-down of it is under way.
+  const lead = actsLeadOf({
+    file,
+    next,
+    may: hands.may,
+    acts: { onLead },
+    leads: hands.may ? hands.standing.lead : null,
+    holdsLead: hands.standing.holdsLead,
+  });
   // Where it stands, opened: a post's list of places once its record is read (foot.tsx statusOpensOf).
   const onStatus = statusOpensOf({ ready: drafts.both.ready }, () => {
     presses.clear();
-    drafts.both.begin();
+    if (hands.standing.opensToRead) drafts.both.look();
+    else drafts.both.begin();
   });
   const playable = file.kind === "video" && file.media_status === "ready";
   const flip = playable ? () => setSound((on) => !on) : null;
@@ -290,9 +301,17 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     before: acts.onBefore,
     after: acts.onAfter,
     sound: flip,
-    lead: lead && !presses.busy ? onLead : null,
+    lead: lead?.press && !presses.busy ? lead.press : null,
   });
-  const more = hands.may ? <ViewerMore file={file} desk acts={{ ...acts, onRename: () => setOpen("rename") }} /> : null;
+  const onChange = acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null);
+  const more = hands.may ? (
+    <ViewerMore
+      file={file}
+      desk
+      acts={{ ...acts, onChange, onRename: () => setOpen("rename"), save: { share: save.share, href: save.href } }}
+    />
+  ) : null;
+  const standing = footStandingOf(hands, { more, onTold: () => undefined });
   return (
     <CmPane
       bare
@@ -318,8 +337,8 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           </>
         ) : (
           <>
-            {viewerHasStatus(file) ? (
-              <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} desk />
+            {viewerHasStatus(file, next) ? (
+              <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} pill={standing.pill} desk />
             ) : null}
             {(presses.problem ?? save.said) ? (
               <p className="cnv-desk-line" role="alert" data-testid="cnv-problem">
@@ -334,37 +353,61 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 busy={presses.busy}
                 save={save}
                 caption={file.kind === "video" ? says.words : null}
-                acts={{
-                  onLead,
-                  onAsk: acts.onAsk,
-                  onChange: acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null),
-                }}
-                desk={{ more }}
+                acts={{ onLead, onAsk: acts.onAsk, onChange }}
+                desk
+                more={standing.more}
+                leads={standing.leads}
+                ad={standing.ad}
+                takeDown={standing.takeDown}
+                holdsLead={standing.holdsLead}
               />
             )}
-            {presses.asking ? null : (
-              <>
-                <PostedByHand
-                  press={hands.byHand}
-                  may={hands.may}
-                  offered={byHandOffered(file)}
-                  clock={clock}
-                  busy={presses.busy}
-                />
-                <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} />
-              </>
-            )}
-            <ViewerFacts
-              shown={says.details}
-              may={hands.may}
-              busy={presses.busy}
-              say={presses.say}
-              caption={presses.caption}
-            />
+            <DeskSheetAtRest hands={hands} tell={standing.tell} details={says.details} clock={clock} />
             <DeskKeysLine beside={acts} sound={!!flip} lead={lead?.words} />
           </>
         )}
       </div>
+      {hands.standing.sheets}
     </CmPane>
+  );
+}
+
+/**
+ * What the phone's one sheet holds, in the pane's body at rest and in the phone's order: posted by hand and the ad's
+ * reason (out of the way while a question is asked), the line to AI, where it goes, then its words.
+ */
+function DeskSheetAtRest(props: {
+  hands: ViewerHands;
+  tell: ReactNode;
+  details: Parameters<typeof ViewerFacts>[0]["shown"];
+  /** The page's own clock, as the pane's status reads it. */
+  clock: ReturnType<typeof viewerClockOf>;
+}) {
+  const { hands } = props;
+  const { presses, standing } = hands;
+  return (
+    <>
+      {presses.asking ? null : (
+        <>
+          <PostedByHand
+            press={hands.byHand}
+            may={hands.may}
+            offered={byHandOffered(hands.made.file)}
+            clock={props.clock}
+            busy={presses.busy}
+          />
+          <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
+          {props.tell}
+        </>
+      )}
+      <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <ViewerFacts
+        shown={props.details}
+        may={hands.may}
+        busy={presses.busy}
+        say={presses.say}
+        caption={presses.caption}
+      />
+    </>
   );
 }

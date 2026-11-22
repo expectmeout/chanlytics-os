@@ -20,6 +20,7 @@ import { canDo, type FrameFlash } from "../../frame-verbs";
 import type { usePostRecord } from "../../files/post-record";
 import { PostVersion, PostVersionActs, usePostVersion } from "../../files/post-version";
 import { fileVerbs, postDoors, type FileChange } from "../../files/verbs";
+import type { PieceStanding } from "./model/standing";
 import { PostBoth, PostBothActs, usePostBoth, type PlaceDoors } from "./post-both";
 import { VideoAgain, VideoAgainActs, useVideoAgain } from "./video-again";
 import { pieceStandsAt, pieceTakesOf, type PieceTakes } from "./model/piece-open";
@@ -50,7 +51,7 @@ export interface PieceHands {
 export function usePiecePosts(
   piece: ContentMadeDto,
   record: PieceRecord,
-): { posts: PostDto[]; takes: PieceTakes | null; wont: PieceWont | null; offers: PieceOffers | null } {
+): { posts: PostDto[]; takes: PieceTakes | null; wont: PieceWont | null; offers: PieceOffers | null; known: boolean } {
   // Every place's (a line's piece holds its view's posts alone, and one read on its own held Instagram's alone). Where both
   // hold a post, the page's says where it stands: the page asks again while anything moves, and the record follows it.
   const recorded = record.posts;
@@ -62,16 +63,20 @@ export function usePiecePosts(
   }, [piece.posts, recorded]);
   // What already holds a place is one rule, Ask's card's too (model/piece-open.ts pieceTakesOf, contracts postPlaceTakenOf).
   // Google up before each post was kept is the record's alone (`posted`).
-  const takes: PieceTakes | null = record.made
+  // A made video goes to Instagram alone, as a reel (00681): Google takes none from here.
+  const video = piece.file.kind === "video";
+  const known = record.read && piece.file.source === "made";
+  const takes: PieceTakes | null = known
     ? pieceTakesOf(posts, {
         instagram: record.instagram?.can === "yes",
-        google: record.connected,
+        google: !video && record.connected,
         onGoogle: !!record.posted,
+        fileKind: piece.file.kind,
       })
     : null;
   // Why a place can take none at all, short, where the list says it beside Connect (Settings > Connections), which puts it
   // right: a place hidden said nothing, and a sentence said what the press beside it now does.
-  const wont: PieceWont | null = record.made
+  const wont: PieceWont | null = known
     ? {
         instagram:
           record.instagram?.can === "not_connected"
@@ -84,8 +89,8 @@ export function usePiecePosts(
     : null;
   // Instagram is offered only where the Meta link is switched on for the workspace: the record holds none of it otherwise
   // (server posts/record.ts readFileRecord), and the list leaves the place out rather than say "Not yet" of it.
-  const offers: PieceOffers | null = record.made ? { instagram: record.instagram !== null, google: true } : null;
-  return { posts, takes, wont, offers };
+  const offers: PieceOffers | null = known ? { instagram: record.instagram !== null, google: !video } : null;
+  return { posts, takes, wont, offers, known };
 }
 
 /** What the drafts read of the piece's posts: its posts, where it can go now, and why a place can take none. */
@@ -290,7 +295,7 @@ export function usePieceDrafts(
   const both = usePostBoth(
     {
       id: made.file.id,
-      plan: record.made?.plan ?? null,
+      fileKind: made.file.kind,
       caption: presses.captionShown ?? postCaptionOf(at.posts, record.made),
       ...at,
       may: canDo("settings"),
@@ -314,9 +319,15 @@ type PieceDrafts = ReturnType<typeof usePieceDrafts>;
  * The pane's body while a draft holds it, else what it shows at rest. A post's new version (its words and shape alone: how it
  * looks is Ask's) and a video's words end on the one line to Ask, which lets the draft go as it asks. `doors` are the doors
  * to a post that is up at a place (see it, take it down), drawn under that place in the composer's list; `facts` the piece's
- * own (its caption typed in place, what it was made from), under the list, so the list and its words are one sheet.
+ * own (its caption typed in place, what it was made from), under the list, so the list and its words are one sheet;
+ * `standing` its placements' lines over the list (piece-standing.tsx).
  */
-export function draftBody(drafts: PieceDrafts, rest: ReactNode, doors: PlaceDoors, facts: ReactNode): ReactNode {
+export function draftBody(
+  drafts: PieceDrafts,
+  rest: ReactNode,
+  piece: { doors: PlaceDoors; facts: ReactNode; standing?: PieceStanding | undefined },
+): ReactNode {
+  const { doors, facts, standing } = piece;
   if (drafts.again.open)
     return (
       <>
@@ -334,7 +345,7 @@ export function draftBody(drafts: PieceDrafts, rest: ReactNode, doors: PlaceDoor
   if (drafts.both.open)
     return (
       <>
-        <PostBoth both={drafts.both} doors={doors} />
+        <PostBoth both={drafts.both} doors={doors} standing={standing} />
         {facts}
       </>
     );

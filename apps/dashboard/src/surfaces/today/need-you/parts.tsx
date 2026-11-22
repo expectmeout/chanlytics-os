@@ -49,6 +49,11 @@ export interface WorkProps {
   read?: (() => void) | null;
   /** The row is drawn whole, in a sheet or a desk's place: what was said on it stands over its work. */
   whole?: boolean;
+  /**
+   * What was said on the row is a title over its work already (Today's card, calm/queue.tsx): the work is drawn whole
+   * but for those words, which are never said twice.
+   */
+  titled?: boolean;
   /** The sheet is pulled up: all that was said on it, not its last three. */
   pulled?: boolean;
 }

@@ -429,6 +429,7 @@ test("a video Ask made says the plan it was drawn by, so its words can be made a
     id: F,
     tenant_id: A,
     file_id: MADE,
+    shape: "blocks",
     plan,
     status: "made",
     created_at: "2026-11-10T12:00:00Z",

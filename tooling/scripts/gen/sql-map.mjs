@@ -46,6 +46,8 @@ export const KEPT_WITH_NO_CALLER = {
     "an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066)",
   platform_role:
     "the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs",
+  post_begin:
+    "a member's press as 00616 kept a post, superseded by post_approve (00681) and kept for a dashboard a deploy behind, which still calls it between this migration and its code; dropped by a migration of its own once that code is live",
   resume_email_offers:
     "the back office turns a workspace's offers by email back on by hand once its list is fixed; the notice that stopped them says the statement (apps/edge/lib/email/offer-gates.ts)",
   sweep_schedules: "read by hand and by the sweep-health suites: every sweep's schedule as pg_cron holds it (00019)",

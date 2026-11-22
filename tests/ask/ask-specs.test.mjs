@@ -127,6 +127,8 @@ const KINDS = [
   "bring_in",
   // A new ad drafted on New ad's own route, and New ad opened on it (the Ads plan's 6.3, 20 Nov 2026).
   "ad_draft",
+  // A made piece taken down everywhere it is up (00682).
+  "take_down",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -222,6 +224,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     bring_in: "settings",
     // Drafting an ad is an operator's, as New ad's own route is: the approve permission's. Turn on is the owner's.
     ad_draft: "approve",
+    // A take-down is the settings permission's, as putting a post up is.
+    take_down: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -709,6 +713,7 @@ const SHAPES = {
     card("ad_draft", { service: null, most: null }),
     card("ad_draft", { service: null, most: null, picture: FILE_ID }),
   ],
+  take_down: [card("take_down", { file_id: FILE_ID, file: "chair-by-the-window" })],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -1007,6 +1012,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     piece: ["POST files/video"],
     bring_in: ["POST content/bring-in"],
     ad_draft: ["POST ads/draft"],
+    take_down: ["DELETE files/[id]/posts"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],
@@ -1061,6 +1067,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["post", "partner"],
       ["publish", "partner"],
       ["settings", "partner"],
+      ["take_down", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))

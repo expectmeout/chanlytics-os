@@ -192,7 +192,9 @@ test("tonight's line (W5) counts only what goes before the day is out, names the
   // Within the hour and still today on the business's clock; and the first hour that is tomorrow there.
   const soon = [60_000, 1_000].map((ms) => now + ms).find((ms) => dayInZone(ZONE, ms).key === today);
   const HOUR = 3_600_000;
-  const tomorrow = Array.from({ length: 23 }, (_, h) => now + (h + 1) * HOUR).find(
+  // A day there is at most 25 hours long, so its next one has begun within 25 (just after midnight it is 23 hours off and
+  // more, and a search of 23 found none: red in CI at that hour, 22 Nov 2026).
+  const tomorrow = Array.from({ length: 25 }, (_, h) => now + (h + 1) * HOUR).find(
     (ms) => dayInZone(ZONE, ms).key !== today,
   );
   const run = (id, atMs, people) => ({

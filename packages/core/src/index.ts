@@ -16,6 +16,7 @@
  */
 export * from "./calendar";
 export * from "./campaigns";
+export * from "./content";
 export * from "./conversations";
 export { deliver, deliverSafely, getTemplatePurpose } from "./deliver/deliver";
 export type {

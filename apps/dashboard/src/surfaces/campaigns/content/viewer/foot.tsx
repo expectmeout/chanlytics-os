@@ -14,23 +14,30 @@ import {
   CONTENT_SHEET_WORDS as SHEET,
   CONTENT_WORDS as W,
   FILE_WORDS,
+  TAKE_DOWN_WORDS,
   type FileDto,
   type PostDto,
-  type PostPlace,
 } from "@chanlytics/contracts";
+import type { GoesTone } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { useCopied } from "../../../kit/copy-button/copy-button";
 import { Icon } from "../../../kit/icon/icon";
 import { Press } from "../../../kit/press";
 import { SaveButton, type useSave } from "../piece-foot";
+import { PLACE_GLYPH } from "./goes";
 import type { PieceNext } from "../model/piece-open";
 import { pieceStatusOf } from "../model/places";
 import type { ViewerClock } from "../model/viewer-line";
 
 const VIDEO = SHEET.video;
 
+/** A line's tone as the status row draws its dot: up, moving, the owner's, or plain. */
+const PILL_TONE = { ok: "up", live: "going", you: "need", gone: "none", "": "timed" } as const satisfies Record<
+  GoesTone,
+  string
+>;
+
 /** Each place's glyph, as the canvas draws it on the act that posts there. */
-const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
 
 /** The coral act: its words and its glyph. */
 interface ViewerLead {
@@ -43,7 +50,7 @@ interface ViewerLead {
  * The coral act for the piece's next step. A video Ask made leads with Post, which opens what a video can do today (save it,
  * or a post from it): Instagram takes no reel from here yet (decision 0121).
  */
-export function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: PieceNext): ViewerLead | null {
+function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: PieceNext): ViewerLead | null {
   const step = W.piece.step;
   // A video: nothing posts one from here (decision 0121), so it is saved, and Save video leads (ViewerActs).
   if (next.is === "save") return null;
@@ -75,8 +82,8 @@ export function statusOpensOf(at: { ready: boolean }, places: () => void): Statu
  * Whether the piece has a status row: a post Ask made. Not a video: nothing posts one from here, so a row saying it is ready
  * to post promised what no press keeps (Ruben, 12 Nov 2026); its one act, Save video, says what it can do.
  */
-export const viewerHasStatus = (file: Pick<FileDto, "kind" | "source">): boolean =>
-  file.source === "made" && file.kind !== "video";
+export const viewerHasStatus = (file: Pick<FileDto, "kind" | "source">, next?: PieceNext): boolean =>
+  file.source === "made" && (file.kind !== "video" || (next !== undefined && next.is !== "save"));
 
 /**
  * A made video's one act, coral: Save video, its caption copied as it is saved, to paste under it in Instagram, which takes
@@ -128,9 +135,13 @@ export function ViewerStatus(props: {
   opens: StatusOpens | null;
   /** On a desk's pane rather than the glass over the picture. */
   desk?: boolean;
+  /** The piece's one status from its placements' lines (contracts goesPillOf), where it has any: it says it then. */
+  pill?: { said: string; tone: GoesTone; moving: boolean } | null | undefined;
 }) {
-  const { opens } = props;
-  const status = pieceStatusOf(props.posts, props.next, props.clock, Date.now());
+  const { opens, pill } = props;
+  const status = pill
+    ? { said: pill.said, tone: PILL_TONE[pill.tone] }
+    : pieceStatusOf(props.posts, props.next, props.clock, Date.now());
   const said = (
     <>
       <span className="cnv-status-dot" aria-hidden="true" />
@@ -185,14 +196,27 @@ export function ViewerActs(props: {
   /** A made video's caption, copied as Save video saves it; null on anything else, and on a video with none. */
   caption: string | null;
   acts: Pick<ViewerFootActs, "onLead" | "onAsk" | "onChange">;
-  /** On a desk: More, at the end of the row. */
-  desk?: { more: ReactNode };
+  /** On a desk: the pane's own presses. */
+  desk?: boolean;
+  /** More, at the end of the row: what is left of the piece's acts rides it (Save, Rename, Set aside, Delete). */
+  more?: ReactNode;
+  /** The act a line that needs the owner leads with (Ask Paola, Approve, Shorten it): it takes the coral press. */
+  leads?: { words: string; press: () => void } | null | undefined;
+  /** Run as an ad, where it may run: a press beside the lead. */
+  ad?: { words: string; press: () => void } | null | undefined;
+  /** Take down, while something of it is up. */
+  takeDown?: (() => void) | null | undefined;
+  /** Nothing leads with a new post: a take-down of it is under way. */
+  holdsLead?: boolean | undefined;
 }) {
   const { file, next, may, busy, save, acts, desk } = props;
-  const lead = may && acts.onLead ? viewerLeadOf(file, next) : null;
+  const lead = actsLeadOf(props);
+  // With More in the row, Save rides it; the row never stands as one small press alone, so Save keeps its room otherwise.
+  const inMore = !!props.more;
   // A clip sent to the Library stays with whoever sent it: the one picture is saved, never a clip (as Files kept it).
   const saves = !(file.kind === "video" && file.source !== "made");
-  const madeVideo = file.kind === "video" && file.source === "made";
+  // A made video that nothing posts from here is saved, with its caption copied: Save video leads (model pieceNextOf).
+  const madeVideo = file.kind === "video" && file.source === "made" && next.is === "save";
   const quiet = desk ? "secondary" : "glass";
   // A phone's thumb; a desk's large step, the height of where it stands over them (content.css .cnv-desk .cnv-status).
   const size = desk ? "lg" : "touch";
@@ -204,7 +228,7 @@ export function ViewerActs(props: {
           variant="primary"
           size={size}
           className="cnv-viewer-lead"
-          onClick={acts.onLead ?? undefined}
+          onClick={lead.press}
           disabled={busy}
           data-testid="cnv-next"
         >
@@ -212,34 +236,67 @@ export function ViewerActs(props: {
           {lead.words}
         </Button>
       ) : null}
-      {saves && !madeVideo ? <SaveButton save={save} glass={!desk} wide={!lead} /> : null}
-      {/* One round press beside the lead: Change it where Ask made the piece and this person may change it (the line to Ask is
-          in it), else Ask: a reader asks about it, and a Library file is asked about. */}
-      {may && acts.onChange ? (
+      {saves && !madeVideo && !inMore ? <SaveButton save={save} glass={!desk} wide={!lead} /> : null}
+      {props.ad ? (
         <Button
           variant={quiet}
           size={size}
-          iconOnly
-          onClick={acts.onChange}
-          aria-label={W.piece.changeIt}
-          data-testid="cnv-change"
+          className={lead ? undefined : "cnv-viewer-lead"}
+          onClick={props.ad.press}
+          disabled={busy}
+          data-testid="cnv-ad-run"
         >
-          <Icon name="pencil" size={desk ? 15 : 17} />
+          {props.ad.words}
         </Button>
-      ) : (
-        <Button
-          variant={quiet}
-          size={size}
-          iconOnly
-          onClick={acts.onAsk}
-          aria-label={W.piece.ask}
-          data-testid="cnv-ask"
-        >
-          <Icon name="three" size={desk ? 16 : 18} />
+      ) : null}
+      {props.takeDown ? (
+        <Button variant={quiet} size={size} onClick={props.takeDown} disabled={busy} data-testid="cnv-take-down-open">
+          {TAKE_DOWN_WORDS.act}
         </Button>
+      ) : null}
+      {inMore && may && file.source === "made" ? null : (
+        <RoundPress onChange={may ? acts.onChange : undefined} onAsk={acts.onAsk} desk={!!desk} />
       )}
-      {desk?.more}
+      {props.more}
     </div>
+  );
+}
+
+/**
+ * The act that leads the row: a line's own where one needs the owner (Ask Paola, Approve, Shorten it), else the piece's
+ * next step where this person may take it and no take-down of it is under way.
+ */
+export function actsLeadOf(props: {
+  file: FileDto;
+  next: PieceNext;
+  may: boolean;
+  acts: Pick<ViewerFootActs, "onLead">;
+  leads?: { words: string; press: () => void } | null | undefined;
+  holdsLead?: boolean | undefined;
+}): { words: string; glyph: string | null; press: (() => void) | undefined } | null {
+  if (props.leads) return { words: props.leads.words, glyph: null, press: props.leads.press };
+  if (!props.may || !props.acts.onLead || props.holdsLead) return null;
+  const step = viewerLeadOf(props.file, props.next);
+  return step ? { ...step, press: props.acts.onLead } : null;
+}
+
+/**
+ * One round press at the row's end: Change it where Ask made the piece and this person may change it (the line to Ask
+ * is in it), else Ask: a reader asks about it, and a Library file is asked about.
+ */
+function RoundPress(props: { onChange: (() => void) | null | undefined; onAsk: () => void; desk: boolean }) {
+  const { onChange, desk } = props;
+  return (
+    <Button
+      variant={desk ? "secondary" : "glass"}
+      size={desk ? "lg" : "touch"}
+      iconOnly
+      onClick={onChange ?? props.onAsk}
+      aria-label={onChange ? W.piece.changeIt : W.piece.ask}
+      data-testid={onChange ? "cnv-change" : "cnv-ask"}
+    >
+      {onChange ? <Icon name="pencil" size={desk ? 15 : 17} /> : <Icon name="three" size={desk ? 16 : 18} />}
+    </Button>
   );
 }
 
@@ -260,6 +317,16 @@ export function ViewerFoot(props: {
   byHand?: ReactNode;
   /** A question asked in place of the acts (Delete's), or none. */
   asking: ReactNode | null;
+  /** The piece's status from its lines, the act that leads, Run as an ad, Take down, More, and the line to AI. */
+  standing?: {
+    pill: { said: string; tone: GoesTone; moving: boolean } | null;
+    leads: { words: string; press: () => void } | null;
+    ad: { words: string; press: () => void } | null;
+    takeDown: (() => void) | null;
+    holdsLead: boolean;
+    more: ReactNode;
+    tell: ReactNode;
+  };
   /** What went wrong with the last press, or the share sheet's refusal. */
   problem: string | null;
   acts: ViewerFootActs;
@@ -273,8 +340,8 @@ export function ViewerFoot(props: {
           {props.line}
         </p>
       </div>
-      {viewerHasStatus(file) ? (
-        <ViewerStatus posts={posts} next={props.next} clock={clock} opens={acts.onStatus} />
+      {viewerHasStatus(file, props.next) ? (
+        <ViewerStatus posts={posts} next={props.next} clock={clock} opens={acts.onStatus} pill={props.standing?.pill} />
       ) : null}
       {props.problem ? (
         <p className="cnv-viewer-line" role="alert" data-testid="cnv-problem">
@@ -290,12 +357,18 @@ export function ViewerFoot(props: {
           save={props.save}
           caption={props.caption}
           acts={acts}
+          more={props.standing?.more}
+          leads={props.standing?.leads}
+          ad={props.standing?.ad}
+          takeDown={props.standing?.takeDown}
+          holdsLead={props.standing?.holdsLead}
         />
       )}
       {props.asking ? null : props.byHand}
+      {props.asking ? null : props.standing?.tell}
       {/* One door to the piece's sheet (Ruben, 12 Nov 2026: two sheets told one piece in halves): a post's is where it
           stands, above; Details stands only where there is no such row, a video or a photo of the Library. */}
-      {viewerHasStatus(file) ? null : (
+      {viewerHasStatus(file, props.next) ? null : (
         <Button
           variant="quiet"
           size="sm"

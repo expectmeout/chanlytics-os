@@ -22,6 +22,8 @@ export interface PieceMoreActs {
 interface ViewerMoreActs extends PieceMoreActs {
   /** Rename, in the viewer's sheet or the desk pane's body. */
   onRename: () => void;
+  /** Save to the phone: the device's share sheet where it has one (`share`), the download's address everywhere. */
+  save?: { share: (() => void) | null; href: string } | undefined;
 }
 
 /**
@@ -30,6 +32,14 @@ interface ViewerMoreActs extends PieceMoreActs {
  */
 function moreItemsOf(file: FileDto, acts: ViewerMoreActs): MenuItem[] {
   const items: MenuItem[] = [];
+  const save = acts.save;
+  if (save) {
+    const words = { label: W.piece.save, glyph: <Icon name="download" size={13} /> };
+    items.push(save.share ? { ...words, onSelect: save.share } : { ...words, href: save.href });
+  }
+  // Its words and its shape by hand (a post's new version, a video's words made again): the line to AI is the foot's.
+  if (acts.onChange)
+    items.push({ label: W.piece.changeIt, glyph: <Icon name="pencil" size={13} />, onSelect: acts.onChange });
   // What the video's own Post sheet offered beside Save video, here once that sheet went (Ruben, 12 Nov 2026): Ask makes it.
   if (file.kind === "video" && file.source === "made")
     items.push({

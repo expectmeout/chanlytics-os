@@ -10,6 +10,7 @@ import { Sheet } from "../../../kit/sheet/sheet";
 import { NameField } from "../../../files/file-fields";
 import type { FileChange } from "../../../files/verbs";
 import { draftBody, draftFoot, type usePieceDrafts } from "../piece-presses";
+import type { PieceStanding } from "../model/standing";
 import { postBothTitleOf, type PlaceDoors } from "../post-both";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 
@@ -41,7 +42,7 @@ export function ViewerDrafts({
   drafts: PieceDrafts;
   doors: PlaceDoors;
   /** The piece's own sheet, where the list of places opens (Ruben, 12 Nov 2026: one sheet, not two): its name and its facts. */
-  piece: { name: string; facts: ReactNode };
+  piece: { name: string; facts: ReactNode; standing?: PieceStanding };
 }) {
   const own = drafts.both.open;
   // Its name alone: what kind it is and its size stand on the piece behind the sheet already.
@@ -58,7 +59,7 @@ export function ViewerDrafts({
       fit={own}
       testid="cnv-draft"
     >
-      <div className="cnv-over">{draftBody(drafts, null, doors, piece.facts)}</div>
+      <div className="cnv-over">{draftBody(drafts, null, { doors, facts: piece.facts, standing: piece.standing })}</div>
     </Sheet>
   );
 }

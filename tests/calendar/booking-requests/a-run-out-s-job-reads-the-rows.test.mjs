@@ -183,6 +183,39 @@ test("a person typed a reply since they asked: no model is asked, and the door i
   assert.equal("p_message" in w.doors[0], false);
 });
 
+test("the customer wrote again since they asked: AI sends nothing of its own, and the door is handed no message", async () => {
+  // What they wrote since has no answer yet. AI's own message would take it up too, in a draft's voice ("I'll find
+  // out and come back to you", the walk of 22 Nov 2026), with nobody left to find out: a person reads the draft first.
+  const w = world({
+    messages: [
+      {
+        id: "m2",
+        tenant_id: T,
+        conversation_id: CONV,
+        channel: "whatsapp",
+        type: "text",
+        direction: "inbound",
+        sender: "customer",
+        status: "received",
+        body: "Also, do you do keratin?",
+        meta: {},
+        created_at: iso(Date.now() - 3 * H),
+      },
+    ],
+  });
+  assert.equal(await w.run(), "done");
+  assert.equal(w.written.length, 0);
+  assert.equal(w.doors.length, 1);
+  assert.equal("p_message" in w.doors[0], false);
+});
+
+test("the message they asked in is not writing again: written a moment before its request, they are still told", async () => {
+  const w = world({ appointment: { created_at: iso(Date.now() - 23 * H - 4 * 60_000) } });
+  assert.equal(await w.run(), "done");
+  assert.equal(w.written.length, 1);
+  assert.ok(w.doors[0].p_message);
+});
+
 test("a campaign's send since they asked is no person speaking: they are still told", async () => {
   const w = world({
     messages: [

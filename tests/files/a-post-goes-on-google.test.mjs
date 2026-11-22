@@ -101,6 +101,8 @@ const fileRow = (over = {}) => ({
   removed_at: null,
   created_at: "2026-11-01T12:00:00Z",
   updated_at: "2026-11-01T12:00:00Z",
+  kind: "image",
+  seconds: null,
   ...over,
 });
 const postRow = (over = {}) =>
@@ -167,7 +169,20 @@ function world({
         posts,
       },
       {},
-      { post_begin: doors.begin, post_pull: doors.pull },
+      {
+        post_approve: doors.approve,
+        post_pull: doors.pull,
+        // The words kept as the piece's next version (00681): asked by every press.
+        // As the door has it: every placement still queued, never a story, goes up with the new words.
+        piece_words_keep: ({ p_file_id, p_caption }) => {
+          const words = p_caption.trim() || null;
+          const taking = posts.filter(
+            (p) => p.file_id === p_file_id && p.status === "queued" && p.kind !== "story" && p.caption !== words,
+          );
+          for (const post of taking) post.caption = words;
+          return { revision: 1, followed: taking.length };
+        },
+      },
     ),
     userId: USER,
     email: "ada@example.com",
@@ -209,27 +224,24 @@ function world({
 function placementDoors(posts, attempts) {
   const find = (id) => posts.find((p) => p.id === id);
   return {
-    begin: (a) => {
-      if (
-        posts.some(
-          (p) => p.file_id === a.p_file_id && p.place === a.p_place && ["queued", "publishing"].includes(p.status),
-        )
-      )
-        return { fate: "busy", post_id: null };
-      const id = `0000000${posts.length + 1}-0000-4000-8000-000000000000`;
-      // As 00616 has it: later than two minutes on, a Google post waits for its job; sooner, the press asks Google itself.
-      const later = !!a.p_when && Date.parse(a.p_when) - Date.now() > 120_000;
-      posts.push(
-        placementRow({
-          id,
-          place: a.p_place,
-          kind: a.p_kind,
-          caption: a.p_caption,
-          status: later ? "queued" : "publishing",
-          scheduled_for: a.p_when ?? new Date().toISOString(),
-        }),
-      );
-      return { fate: "begun", post_id: id };
+    begin: (a) => placementDoors.begin(posts, a),
+    // 00681's door, over the same placements: the approval's one placement, as the press asked it.
+    approve: ({ p_file_id, p_approval }) => {
+      const [placed] = p_approval.placements;
+      const begun = placementDoors.begin(posts, {
+        p_file_id,
+        p_place: placed.place,
+        p_kind: placed.kind,
+        p_caption: placed.caption ?? "",
+        p_when: placed.at ?? null,
+      });
+      return begun.fate === "busy"
+        ? { fate: "busy", post_id: null, posts: [] }
+        : {
+            fate: "approved",
+            approval_id: "abab0000-0000-4000-8000-000000000001",
+            posts: [{ place: placed.place, kind: placed.kind, post_id: begun.post_id }],
+          };
     },
     pull: ({ p_post_id }) => {
       const p = find(p_post_id);
@@ -644,3 +656,25 @@ test("a person sees the picture as Google will show it before they press", async
   const seen = await sharp(Buffer.from(await res.arrayBuffer())).metadata();
   assert.deepEqual([seen.width, seen.height], [1200, 900]);
 });
+
+/** 00616's placement as its door wrote one: busy while one waits there, queued for later, publishing for now. */
+placementDoors.begin = (posts, a) => {
+  if (
+    posts.some((p) => p.file_id === a.p_file_id && p.place === a.p_place && ["queued", "publishing"].includes(p.status))
+  )
+    return { fate: "busy", post_id: null };
+  const id = `0000000${posts.length + 1}-0000-4000-8000-000000000000`;
+  // As 00616 has it: later than two minutes on, a Google post waits for its job; sooner, the press asks Google itself.
+  const later = !!a.p_when && Date.parse(a.p_when) - Date.now() > 120_000;
+  posts.push(
+    placementRow({
+      id,
+      place: a.p_place,
+      kind: a.p_kind,
+      caption: a.p_caption,
+      status: later ? "queued" : "publishing",
+      scheduled_for: a.p_when ?? new Date().toISOString(),
+    }),
+  );
+  return { fate: "begun", post_id: id };
+};

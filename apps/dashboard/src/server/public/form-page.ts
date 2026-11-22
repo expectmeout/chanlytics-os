@@ -23,10 +23,13 @@ import {
   continueMessage,
   emailTypoFix,
   formatPhoneDisplay,
+  formPagePath,
   formPageWords,
   formProblemWords,
+  formTestPath,
   hasPublicPages,
   heldTenantId,
+  publishesBusinessPage,
   readFormAnswers,
   SLUG,
   sourceFromSeen,
@@ -91,6 +94,8 @@ interface FormPlace {
   form: FormRead;
   /** The form's own address, without its site. */
   path: string;
+  /** The same address as its owner's Test opens it. */
+  testPath: string;
 }
 
 /** The form an address names, or null for an address that opens nothing: no such workspace, no such form, or a draft. */
@@ -104,7 +109,15 @@ export async function findFormPlace(db: Db, slug: string, formSlug: string): Pro
   const form = await findFormBySlug(db, tenantId, address);
   if (!form || form.state === "draft") return null;
   const look = await linkPageLookOf(db, tenantId);
-  return { db, tenantId, workspace, look, form, path: `/b/${clean}/${address}` };
+  return {
+    db,
+    tenantId,
+    workspace,
+    look,
+    form,
+    path: formPagePath(clean, address),
+    testPath: formTestPath(clean, address),
+  };
 }
 
 /** The name the page says the business by: the one it trades under, else the workspace's. */
@@ -119,7 +132,9 @@ function pageFrameOf(
   return {
     look: place.look,
     business: businessNameOf(place.workspace),
-    businessHref: `/b/${place.workspace.slug}`,
+    // Linked only where it opens (the page's own rule): a record too thin to say who the business is publishes no page,
+    // and its address is Not found.
+    businessHref: publishesBusinessPage(place.workspace.record) ? `/b/${place.workspace.slug}` : null,
     lang: described.lang,
     heading: described.heading,
     intro: described.intro ?? null,
@@ -190,7 +205,7 @@ async function isTest(request: Request, session: Session, slug: string): Promise
 }
 
 /** Where the form posts: its own address, saying so when it is a test. */
-const actionOf = (place: FormPlace, test: boolean): string => (test ? `${place.path}?test=1` : place.path);
+const actionOf = (place: FormPlace, test: boolean): string => (test ? place.testPath : place.path);
 
 /**
  * GET: the form as a visitor sees it, the closed page for one that is off, or nothing for an address that opens none.
@@ -363,6 +378,18 @@ function fixesOf(
   return fixes;
 }
 
+/**
+ * Where "Send another request" opens the form: still through the link it was opened by, and still a test where it was
+ * one. Without them a second request lost the place it came through, and an owner's second test was a real request.
+ */
+function againHrefOf(read: SendRead): string {
+  const query = new URLSearchParams({ again: "1" });
+  if (read.test) query.set("test", "1");
+  const code = first(read.fields, "l");
+  if (code) query.set("l", code.slice(0, 12));
+  return `${read.place.path}?${query.toString()}`;
+}
+
 /** The thank-you for an entry that was kept (or held, or a forgotten person's: a visitor is told nothing of either). */
 function thanksPage(
   read: SendRead,
@@ -393,7 +420,7 @@ function thanksPage(
     email: reach.email,
     phoneOnly: reach.email || !reach.phone ? null : formatPhoneDisplay(reach.phone),
     chatHref: message ? chatHrefOf(place.workspace, message) : null,
-    formHref: place.path,
+    againHref: againHrefOf(read),
   });
   return htmlPage(200, fragment ? main : formDocument(frame, main));
 }

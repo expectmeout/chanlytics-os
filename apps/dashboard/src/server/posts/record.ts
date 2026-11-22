@@ -11,6 +11,7 @@ import {
   recordOrNull,
   type FilePosted,
   type FileRecordDto,
+  type PieceTakeDownDto,
   type PostDto,
   type PostPlan,
 } from "@chanlytics/contracts";
@@ -28,6 +29,7 @@ import { findFilePosted } from "@chanlytics/db/events";
 import { findConnection } from "@/server/connections/google";
 import { readInstagramPostable, instagramPostsOf } from "./instagram";
 import { fileMadeOf } from "./made-as";
+import { readPieceTakeDown } from "./take-down";
 import { log } from "@/server/shared/log";
 import { handPostOf, sentPostsOf } from "@/server/readers/content";
 import { fileDtoOf } from "@/server/readers/files";
@@ -45,18 +47,21 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
   const file = fileDtoOf(row);
   if (row.kind === "video") {
     const ours = row.source === "made";
-    const [sound, plan, posts] = await Promise.all([
+    const [sound, plan, posts, can] = await Promise.all([
       readFileSound(ctx.supabase, row.id),
       ours ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
-      // A made video's one post is the one its owner put up by hand: nothing sends a video from here (decision 0121).
+      // A made video's posts: its reel on Instagram (00681), and the one its owner put up by hand.
       ours ? listFilePosts(ctx.supabase, member.tenantId, row.id) : [],
+      ours ? readInstagramPostable(member.tenantId) : null,
     ]);
     const drawnBy = recordOrNull(plan);
     return {
       file,
       made: null,
+      // Google takes no video from here (contracts PLACE_CAPABILITIES).
       google: null,
-      instagram: null,
+      instagram: can === null ? null : { can, posts: instagramPostsOf(posts) },
+      ...(ours ? { posts: sentPostsOf(posts) } : {}),
       by_hand: handPostOf(posts),
       sound: fileSoundOf(sound),
       ...(drawnBy ? { video: { plan: piecePlanOf(drawnBy) } } : {}),
@@ -114,4 +119,18 @@ export async function findNewestPostLook(tenantId: TenantId): Promise<PostLook |
     log.warn("file_post_look_failed", { tenant_id: tenantId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
+}
+
+/**
+ * A made piece's standing beyond its posts (GET files/[id]; 00682): its newest take-down. Null for anything AI did not
+ * make.
+ */
+export async function readPieceStanding(
+  ctx: RouteContext,
+  member: Member,
+  row: FileMemberRow,
+  posts: readonly PostDto[],
+): Promise<{ take_down: PieceTakeDownDto | null } | null> {
+  if (row.source !== "made") return null;
+  return { take_down: await readPieceTakeDown(ctx, member, { id: row.id, postIds: posts.map((p) => p.id) }) };
 }

@@ -211,6 +211,7 @@ export const DASHBOARD_LOG_EVENTS = [
   "playbook_pools_people_failed",
   "playbook_pools_templates_failed",
   "playbook_pools_visits_failed",
+  "post_approve_shape_unread",
   "preview_call_failed",
   "preview_claim_marks_failed",
   "preview_claimed",

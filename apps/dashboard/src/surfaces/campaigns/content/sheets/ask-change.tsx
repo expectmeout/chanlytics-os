@@ -36,12 +36,15 @@ export function AskLine({
   alone = false,
   placeholder,
   lead = null,
+  begin = "",
 }: {
   about: AskScope;
   onAsked: () => void;
   alone?: boolean;
   placeholder?: string;
   lead?: ReactNode;
+  /** What the owner's words are begun with as they are asked ("In the-finish: "), where the line asks for one thing. */
+  begin?: string;
 }) {
   const [words, setWords] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
@@ -52,7 +55,7 @@ export function AskLine({
   const ask = () => {
     if (!said) return;
     onAsked();
-    askAbout({ about, prompt: said, fresh: true });
+    askAbout({ about, prompt: `${begin}${said}`, fresh: true });
   };
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;

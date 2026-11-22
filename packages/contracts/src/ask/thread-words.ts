@@ -158,6 +158,8 @@ export interface AskProposal {
     | "publish"
     // A business's photos and videos brought in from a link it pasted: its website, or its Instagram (content/bring-in.ts).
     | "bring_in"
+    // A made piece taken down everywhere it is up (content/take-down.ts): what each place will be asked, and Take it down.
+    | "take_down"
     // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts): nothing is made at Meta.
     | "ad_draft"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It

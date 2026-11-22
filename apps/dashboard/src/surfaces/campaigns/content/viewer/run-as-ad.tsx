@@ -28,8 +28,20 @@ export function runAsAdActsOf(
   };
 }
 
-export function RunAsAd({ line, acts, busy }: { line: RunAsAdLine | null; acts: RunAsAdActs; busy: boolean }) {
+export function RunAsAd({
+  line,
+  acts,
+  busy,
+  whyOnly = false,
+}: {
+  line: RunAsAdLine | null;
+  acts: RunAsAdActs;
+  busy: boolean;
+  /** Where the press rides the piece's acts (viewer/foot.tsx): only why it may not run is said here. */
+  whyOnly?: boolean;
+}) {
   if (!line) return null;
+  if (line.is === "press" && whyOnly) return null;
   if (line.is === "press")
     return (
       <div className="cnv-ad">
