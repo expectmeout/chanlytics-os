@@ -10801,7 +10801,12 @@ export type Database = {
         Returns: undefined
       }
       file_subjects_name: {
-        Args: { p_file_id: string; p_people: Json; p_state: string; p_tenant_id: string }
+        Args: {
+          p_file_id: string
+          p_people: Json
+          p_state: string
+          p_tenant_id: string
+        }
         Returns: Json
       }
       file_twin_fate: {
