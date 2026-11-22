@@ -14,6 +14,9 @@ import {
   reasonShort,
   SCHEMA_SETS,
 } from "@chanlytics/contracts";
+import { importSrc } from "../_source.mjs";
+
+const { reasonHeld } = await importSrc("packages/contracts/src/conversations/escalations.ts");
 
 test("every stored reason has a label, a clause and a summary, and nothing else does", () => {
   const stored = [...SCHEMA_SETS["escalations.reason"]].sort();
@@ -43,4 +46,9 @@ test("no clause starts with a capital or ends with a stop: it sits after 'Escala
     assert.match(clause, /^(?:[a-z]|AI )/, `${reason}: "${clause}"`);
     assert.doesNotMatch(clause, /[.!]$/, `${reason}: "${clause}"`);
   }
+});
+
+test("Today's card says a time to confirm and a time that isn't booked apart: one is a press, the other a reply", () => {
+  assert.equal(reasonHeld("booking_request"), "AI held it: booking a time needs you.");
+  assert.equal(reasonHeld("booking_reply"), "AI held it: the time they asked for isn't booked.");
 });
