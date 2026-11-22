@@ -45,6 +45,24 @@ export const isAskMorningQuestion = (question: string | null | undefined): boole
 /** A card the morning left waiting, as Today draws it: nothing has become of it yet, so it carries no outcome. */
 export type AskMorningCard = Omit<AskProposal, "outcome">;
 
+/**
+ * The business's own history, as Today says it (Working for you, W9 and W15; built 22 Nov 2026): how many visits AI has
+ * booked, for a milestone said once ("AI's 100th booking for you."), and how many visits each of the last weeks' same
+ * weekday held by this hour, for the one word the head may say of the day ahead ("A light Monday"). Read beside the
+ * morning, once a visit to Today, never with the day's own read: a count of every booking is no read to repeat as a
+ * conversation moves. The read says its own lengths of time (`days`, and one count a week), so the page never says a
+ * window the server did not count. What is said from it is the page's own (today/calm/week.tsx, today/model/lines.ts).
+ */
+interface TodayHistoryDto {
+  /** AI's bookings that nobody took back: all of them, and those of the last `days` days. */
+  booked_by_ai: { total: number; lately: number; days: number };
+  /**
+   * The visits on today's weekday in each of the weeks before, the nearest week first, as each day stood at this hour
+   * of it: a day still filling is set beside days still filling, never beside how they ended.
+   */
+  weekday_visits: number[];
+}
+
 /** How the morning stands for the member, as Today reads it. */
 export type AskMorningState = "none" | "writing" | "ready" | "quiet" | "failed";
 
@@ -68,6 +86,11 @@ export interface AskMorningDto {
   rested?: AskRested;
   /** What came of the ideas approved lately; absent from a server before it. */
   lately?: AskLately[];
+  /**
+   * The business's history as Today says it once (AI's bookings for a milestone, the weekday's usual visits for the day
+   * ahead); null where it could not be read, absent from a server before it.
+   */
+  history?: TodayHistoryDto | null;
 }
 
 /**

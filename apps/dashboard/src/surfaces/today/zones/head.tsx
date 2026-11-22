@@ -162,6 +162,21 @@ export function headRestOf(at: {
   return at.forMorning ? TODAY_LINE_WORDS.evening.rest : null;
 }
 
+/** The day's weekday in the business's zone: "Tuesday". */
+export const weekdayNow = (): string =>
+  new Intl.DateTimeFormat("en-US", { timeZone: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE, weekday: "long" }).format(
+    Date.now(),
+  );
+
+/**
+ * The day ahead in facts (W15), with its one word where the last four of its weekday back it: the morning's read of the
+ * business's history. Null with no visit ahead.
+ */
+function useDayAhead(): string | null {
+  const before = useSurface("ask_morning")?.dto?.history?.weekday_visits ?? null;
+  return dayAheadWords(useDayVm(), { before, weekday: weekdayNow() });
+}
+
 /**
  * Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. `morning` is
  * the page's own arrangement's (null by day), handed over from the same draw, so the head says the rest waits for morning
@@ -190,7 +205,7 @@ export function useZonesStanding(morning: TodayMorning | null): void {
     ? quietLine(TODAY_HELPERS.headLine(vm.standing, count, said, vm.calm, went, done > 0), quiet, count)
     : null;
   // Nobody waits and nothing new since the last look: the day ahead, in facts (W15).
-  const ahead = dayAheadWords(useDayVm());
+  const ahead = useDayAhead();
   // Only on a page sure of itself: behind or unread, its own sentence is the one that matters.
   const sure = quiet.kind === "sure" || quiet.kind === "settling";
   // Once the day is over, whoever waits is said, and the rest waits for morning in its one line where it holds any (W5).

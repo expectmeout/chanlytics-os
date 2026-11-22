@@ -5,7 +5,7 @@
  * under its name and the page it opens; and the page saying it is done. The pins' counts are People's lists'
  * (lists/actions.ts), read as Today's page loads.
  */
-import { DEFAULT_TIMEZONE, LIST_GROUP_WORDS } from "@chanlytics/contracts";
+import { LIST_GROUP_WORDS } from "@chanlytics/contracts";
 import { TODAY_LINE_WORDS, USUAL_DAYS, dayCameToWords, usualDayWords } from "../model/lines";
 import { useLastDays } from "../calm/days";
 import type { PeopleListsLike } from "../leaks";
@@ -20,8 +20,8 @@ import { todayAskOf, useTodayAsks } from "../calm/asks";
 import { CalmList, CalmRow } from "../calm/lines";
 import { useTodayQuiet } from "../calm/quiet";
 import { useSinceSaid } from "../ai/since";
-import { borrowed, useMoved, workspaceClock } from "../shell";
-import { useDayTurned, useTodayEvening } from "./head";
+import { borrowed, useMoved } from "../shell";
+import { useDayTurned, useTodayEvening, weekdayNow } from "./head";
 
 /** People's lists' code: asked for once, as Today's page loads; a fetch that failed is asked for again as the pins draw. */
 const listsCode = codeOnce(() => import("../../people/people-lists"));
@@ -45,12 +45,6 @@ const SAID_BY_THE_HEAD = ["booked", "answered"] as const;
 
 /** Where the day's line goes: Reports, which holds each of its counts and what is behind it. */
 const REPORTS_ROUTE = "reports";
-
-/** The day's weekday in the business's zone: "Tuesday". */
-const weekdayNow = (): string =>
-  new Intl.DateTimeFormat("en-US", { timeZone: workspaceClock()?.zone() ?? DEFAULT_TIMEZONE, weekday: "long" }).format(
-    Date.now(),
-  );
 
 /** What AI answered today against a usual day of its weekday, once the day is done; null by day or without the history. */
 function useUsualDay(turned: boolean): string | null {
