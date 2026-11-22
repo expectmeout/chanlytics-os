@@ -13,6 +13,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  CHECK_WORDS,
   DAY_MS,
   FILE_WORDS,
   MIN_MS,
@@ -92,6 +93,7 @@ async function recheck(
   if (await isSendingStopped(db, post.tenant_id)) return { words: ON_INSTAGRAM.held.stopped, why: "stopped" };
   const approved = await readPostAsApproved(db, post.id);
   if (approved.is === "changed") return { words: ON_INSTAGRAM.held.changed, why: "changed" };
+  if (approved.is === "rights") return { words: CHECK_WORDS.notYetSaid(approved.name), why: "rights" };
   // The reason, read again (PRD 6.1): its day passed (let go, never sent late), or its offer or service is gone (held).
   const reason = await readReasonNow(db, post, approved.is === "stands" ? approved : { intent: null, facts: [] });
   if (reason) return { words: reason.words, why: reason.code };

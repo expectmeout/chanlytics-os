@@ -17,6 +17,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  CHECK_WORDS,
   DAY_MS,
   INSTAGRAM_POST_KINDS,
   ON_INSTAGRAM,
@@ -367,6 +368,7 @@ export async function approvedBytesOf(
   if (await isSendingStopped(db, post.tenant_id)) return { held: ON_INSTAGRAM.held.stopped, why: "stopped" };
   const approved = await readPostAsApproved(db, post.id);
   if (approved.is === "changed") return { held: ON_INSTAGRAM.held.changed, why: "changed" };
+  if (approved.is === "rights") return { held: CHECK_WORDS.notYetSaid(approved.name), why: "rights" };
   // The reason, read again (PRD 6.1): its day passed (let go, never sent late), or its offer or service is gone (held).
   const reason = await readReasonNow(db, post, approved.is === "stands" ? approved : { intent: null, facts: [] });
   if (reason) return { held: reason.words, why: reason.code };

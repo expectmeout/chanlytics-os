@@ -107,7 +107,13 @@ export interface FileYesPost {
   at: string | null;
 }
 
-const USE_WORDS: Record<FileYesUse, string> = { post: "posts", ad: "ads", reply: "replies", cold_email: "cold emails" };
+const USE_WORDS: Record<FileYesUse, string> = {
+  post: "posts",
+  ad: "ads",
+  reply: "replies",
+  cold_email: "cold emails",
+  website: "the website",
+};
 
 /** Words joined as a person lists them: "posts and ads", "Instagram and Google". */
 const wordsJoined = (words: readonly string[]): string =>

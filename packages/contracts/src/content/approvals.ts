@@ -115,6 +115,8 @@ export function renditionShapeOf(place: PostPlace, kind: PostKind): RenditionSha
  */
 export type AsApproved =
   | { is: "stands"; path: string; intent: PieceIntent | null; facts: OwnersFact[] }
+  /** A person in its file has no yes for posts that stands, or the owner is not sure who is in it (00691). */
+  | { is: "rights"; name: string | null }
   | { is: "before" }
   | { is: "changed" };
 

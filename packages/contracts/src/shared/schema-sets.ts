@@ -49,6 +49,9 @@ import type {
   FILE_STATUSES,
   FILE_WHO_IN_IT,
   FILE_YES_SAID_IN,
+  SUBJECTS_STATES,
+  SUBJECT_HOWS,
+  SUBJECT_LABELS,
   FILE_YES_USES,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
@@ -178,6 +181,9 @@ export type SchemaAgreement = [
   // A yes for one use of a file, and where it was said (00665).
   Holds<Exactly<Of<typeof FILE_YES_USES>, SchemaSet<"file_consents.use">>>,
   Holds<Exactly<Of<typeof FILE_YES_SAID_IN>, SchemaSet<"file_consents.said_in">>>,
+  Holds<Exactly<Of<typeof SUBJECT_LABELS>, SchemaSet<"file_subjects.label">>>,
+  Holds<Exactly<Of<typeof SUBJECT_HOWS>, SchemaSet<"file_subjects.how">>>,
+  Holds<Exactly<Of<typeof SUBJECTS_STATES>, SchemaSet<"files.subjects_state">>>,
   // Where a watched clip's copy at the video platform stands, and why (00654).
   Holds<Exactly<Of<typeof FILE_COPY_STATES>, SchemaSet<"files.copy_state">>>,
   Holds<Exactly<Of<typeof FILE_COPY_WHYS>, SchemaSet<"files.copy_why">>>,

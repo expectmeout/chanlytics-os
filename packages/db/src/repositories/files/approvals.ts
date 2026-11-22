@@ -28,6 +28,7 @@ export const APPROVE_FATES = [
   "not_a_post",
   "wrong_kind",
   "taken_back",
+  "rights",
   "late",
   "changed",
 ] as const;
@@ -37,6 +38,8 @@ export interface PostsApproved {
   fate: ApproveFate;
   /** On busy: the one of its kind already on its way. */
   busyPostId: string | null;
+  /** On rights: who in it has not said yes to posts; null where nobody is sure who is in it. */
+  rightsName: string | null;
   approvalId: string | null;
   posts: { place: PostPlace; kind: PostKind; post_id: string }[];
 }
@@ -58,6 +61,7 @@ export async function approvePosts(
   return {
     fate: answer.fate,
     busyPostId: typeof answer.post_id === "string" ? answer.post_id : null,
+    rightsName: typeof answer.name === "string" ? answer.name : null,
     approvalId: typeof answer.approval_id === "string" ? answer.approval_id : null,
     posts: posts.flatMap((p) =>
       typeof p.post_id === "string" && (p.place === "instagram" || p.place === "google") && isOneOf(POST_KINDS, p.kind)
@@ -79,6 +83,7 @@ export async function readPostAsApproved(db: Db, postId: string): Promise<AsAppr
       intent: pieceIntentOf(answer.intent),
       facts: ownersFactsOf(answer.facts),
     };
+  if (answer.is === "rights") return { is: "rights", name: typeof answer.name === "string" ? answer.name : null };
   return answer.is === "before" ? { is: "before" } : { is: "changed" };
 }
 

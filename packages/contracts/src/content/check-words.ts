@@ -22,6 +22,11 @@ const quoteOf = (words: string): string => `“${words}”`;
 export const CHECK_WORDS = {
   mayNot: "Only an owner or a manager can approve a post.",
   takenBack: "Someone in it took back their yes to posts. Use another photo or clip.",
+  /** PRD 6.3's words: a person named in it with no yes for this use, or nobody sure who is in it. */
+  notYetSaid: (name: string | null) =>
+    name
+      ? `${name} hasn't said yes to being in posts. Ask them, or use another clip.`
+      : "Say who is in it before it's posted.",
   claim: (problem: string) => `${problem} Change the words, or add it to the business's details.`,
   notConnected: (place: PostPlace) => `${POST_PLACE_SAID[place]} isn't connected. Connect it, then approve again.`,
   lineOff: "Instagram doesn't allow posting from here. Connect Meta again and allow it.",

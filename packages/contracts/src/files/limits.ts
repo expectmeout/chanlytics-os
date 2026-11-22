@@ -81,13 +81,27 @@ export const FILE_WHO_IN_IT = ["not_asked", "no_one"] as const;
 
 export type FileWhoInIt = (typeof FILE_WHO_IN_IT)[number];
 
-/** What a yes for a file is for (00665 file_consents.use): a post, an ad, a reply, a cold email. */
-export const FILE_YES_USES = ["post", "ad", "reply", "cold_email"] as const;
+/** What a yes for a file is for (00665 file_consents.use; 00691): a post, an ad, a reply, a cold email, the website. */
+export const FILE_YES_USES = ["post", "ad", "reply", "cold_email", "website"] as const;
 
 export type FileYesUse = (typeof FILE_YES_USES)[number];
 
-/** Where a yes was said: to AI, in a conversation, or a tick given on the file before 00665 (D11). */
-export const FILE_YES_SAID_IN = ["ai", "before"] as const;
+/**
+ * Where a yes was said: to AI, in a conversation; a tick given on the file before 00665 (D11); in a message the person
+ * sent, or in person, to the owner (00691).
+ */
+export const FILE_YES_SAID_IN = ["ai", "before", "message", "in_person"] as const;
+
+/** Who a person in a file is to the business (00691 file_subjects.label). */
+export const SUBJECT_LABELS = ["client", "staff", "other"] as const;
+export type SubjectLabel = (typeof SUBJECT_LABELS)[number];
+
+/** How it is known a person is in a file: the owner or an operator named them, or the person said so. Never a face. */
+export const SUBJECT_HOWS = ["owner_named", "person_said"] as const;
+
+/** Whether the people in a file are known (00691 files.subjects_state). */
+export const SUBJECTS_STATES = ["not_asked", "none", "named", "unsure"] as const;
+export type SubjectsState = (typeof SUBJECTS_STATES)[number];
 
 export const FILE_LOOK_STATUSES = ["waiting", "done", "refused", "failed"] as const;
 

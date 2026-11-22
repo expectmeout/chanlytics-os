@@ -138,6 +138,7 @@ function refusedFate(answer: PostsApproved): AppError {
   if (answer.fate === "not_a_post") return new AppError("validation", ON_INSTAGRAM.notAPost);
   if (answer.fate === "wrong_kind") return new AppError("validation", ON_INSTAGRAM.wrongKind);
   if (answer.fate === "taken_back") return new AppError("conflict", CHECK_WORDS.takenBack, 409);
+  if (answer.fate === "rights") return new AppError("conflict", CHECK_WORDS.notYetSaid(answer.rightsName), 409);
   if (answer.fate === "changed") return new AppError("conflict", ON_INSTAGRAM.held.changed, 409);
   return new AppError("validation", CHECK_WORDS.afterItsDay);
 }
