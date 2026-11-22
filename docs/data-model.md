@@ -26,6 +26,7 @@ what the script writes.
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
 | [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`approvals`](#approvals) | none | on, 1 policy |
 | [`ask_actions`](#ask_actions) | `packages/db/src/repositories/ask/actions.ts` | on, 3 policies |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
 | [`ask_memory_lines`](#ask_memory_lines) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
@@ -113,7 +114,9 @@ what the script writes.
 | [`person_moments`](#person_moments) | `packages/db/src/repositories/people/people.ts` | on, 1 policy |
 | [`person_notes`](#person_notes) | `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`piece_images`](#piece_images) | `packages/db/src/repositories/files/pieces.ts` | on, no policy, so only the service role reaches it |
-| [`pieces`](#pieces) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
+| [`piece_renditions`](#piece_renditions) | none | on, 1 policy |
+| [`piece_revisions`](#piece_revisions) | none | on, 1 policy |
+| [`pieces`](#pieces) | `packages/db/src/repositories/files/approvals.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts` | on, 1 policy |
 | [`platform_acts`](#platform_acts) | `packages/db/src/repositories/console/acts.ts`, `packages/db/src/repositories/console/support.ts` | on, no policy, so only the service role reaches it |
 | [`platform_admins`](#platform_admins) | none | on, no policy, so only the service role reaches it |
 | [`platform_claims`](#platform_claims) | `packages/db/src/repositories/console/staff.ts` | on, no policy, so only the service role reaches it |
@@ -543,6 +546,37 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `appointments_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### approvals
+
+What an owner approved, exactly (00690; the content loop PRD's 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement's part again from the post and its shape and compares. Members read; post_approve and piece_revise write.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `subject_type` | text | no |  |  |
+| `subject_id` | uuid | no |  |  |
+| `snapshot` | jsonb | no |  | {revision {piece_id, n}, renditions [{shape, file_id, path, checksum}], placements [{place, kind, at, caption}], uses, spend, facts [{says, until}]} (contracts PieceApprovalSnapshot). |
+| `snapshot_hash` | text | no |  |  |
+| `approved_by` | uuid | yes |  |  |
+| `approved_at` | timestamp with time zone | no | `now()` |  |
+| `policy_edition` | integer | no | `1` |  |
+| `voided_at` | timestamp with time zone | yes |  |  |
+| `voided_why` | text | yes |  |  |
+
+Foreign keys:
+
+- `approved_by` → `auth.users` (`id`), on delete set null
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `approvals_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### ask_actions
 
@@ -3300,11 +3334,11 @@ The machine image a made video is drawn on, one row an edition of the template (
 | `hash` | text | no |  |  |
 | `made_at` | timestamp with time zone | no | `now()` |  |
 
-### pieces
+### piece_renditions
 
-One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
+One shape of a piece's version as it is sent (00690; the content loop PRD's 5.3, 11): its made file, the path of its bytes in the file's folder and their full SHA-256, read when the row was written. Never changed once written; a version's shapes are the newest drawn at or before it. Members read; post_approve writes.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`
+- Owned by: none
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3312,7 +3346,70 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
+| `piece_id` | uuid | no |  |  |
+| `revision` | integer | no |  |  |
 | `shape` | text | no |  |  |
+| `file_id` | uuid | no |  |  |
+| `path` | text | no |  |  |
+| `checksum` | text | no |  |  |
+| `bytes` | bigint | yes |  |  |
+| `made_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `piece_id`, `revision` → [`piece_revisions`](#piece_revisions) (`tenant_id`, `piece_id`, `n`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `piece_renditions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### piece_revisions
+
+One version of a piece (00690; the content loop PRD's 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_revise write.
+
+- Owned by: none
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `piece_id` | uuid | no |  |  |
+| `n` | integer | no |  |  |
+| `plan` | jsonb | no |  |  |
+| `captions` | jsonb | no | `'{}'::jsonb` |  |
+| `changed` | text[] | no | `'{}'::text[]` |  |
+| `made_by` | text | no |  |  |
+| `cost_cents` | integer | no | `0` |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `created_by` → `auth.users` (`id`), on delete set null
+- `tenant_id`, `piece_id` → [`pieces`](#pieces) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `piece_revisions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### pieces
+
+One row a video asked for (00613, decision 0122): its plan as pressed, the template's edition it is drawn by, where it stands and the file it became. Written only through its doors.
+
+- Owned by: `packages/db/src/repositories/files/approvals.ts`, `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/pieces.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `shape` | text | no |  | hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post's piece (00690), its row written at its first approval, which no video job reads (stage is not read for one). |
 | `plan` | jsonb | no |  |  |
 | `look` | jsonb | no |  |  |
 | `status` | text | no | `'making'::text` | making (its job is drawing it, or the video platform is making it playable), made (a file, under Made by Ask), failed (failed_why says why, in contracts PIECE_FAILS). |
@@ -3326,6 +3423,8 @@ One row a video asked for (00613, decision 0122): its plan as pressed, the templ
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
 | `made_at` | timestamp with time zone | yes |  |  |
+| `revision` | integer | no | `1` | The version the piece stands at (00690, piece_revisions.n): 1 as made, one more for each change (piece_revise). |
+| `intent` | jsonb | yes |  | Why it exists (00690; the content loop PRD's 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands). |
 
 Foreign keys:
 
@@ -3502,11 +3601,21 @@ One row per place a post goes (00611, decision 0121): the exact file approved, w
 | `error` | jsonb | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
 | `updated_at` | timestamp with time zone | no | `now()` |  |
+| `piece_id` | uuid | yes |  | The piece this placement shows (00690); null for one approved before it, read as before. |
+| `revision` | integer | yes |  | The version of the piece it shows (00690, piece_revisions.n). |
+| `approval_id` | uuid | yes |  | The approval it was approved in (00690); null for one approved before it, read as before. |
+| `capability_edition` | integer | yes |  | The place's capability edition when it was approved (contracts PLACE_CAPABILITIES, 00690). |
+| `verified_at` | timestamp with time zone | yes |  | When the place was seen holding it (00690): "On Instagram" is said only from then. |
+| `good_until` | timestamp with time zone | yes |  | The last moment it is still worth sending (00690; PRD 8.2), from the piece's intent at approval: nothing is sent after it, by any road. Null where nothing dates it. |
+| `account_id` | text | yes |  | The place's own account it went to (00690): an Instagram account's id, a Google location's name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one. |
+| `held_why` | text | yes |  | Why it was held, or let go before it went (00690, contracts POST_HELD_WHYS): the recheck's reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words. |
 
 Foreign keys:
 
+- `tenant_id`, `approval_id` → [`approvals`](#approvals) (`tenant_id`, `id`), on delete set null
 - `approved_by` → `auth.users` (`id`), on delete set null
 - `tenant_id`, `file_id` → [`files`](#files) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `piece_id` → [`pieces`](#pieces) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
