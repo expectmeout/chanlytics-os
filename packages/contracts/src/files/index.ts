@@ -71,7 +71,17 @@ export {
   FILES_PAGE,
   isFileMime,
 } from "./limits";
-export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt, FileYesUse } from "./limits";
+export type {
+  FileLookStatus,
+  FileMime,
+  FileShows,
+  FileSource,
+  FileStatus,
+  FileWhoInIt,
+  FileYesUse,
+  SubjectLabel,
+  SubjectsState,
+} from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,

@@ -4,6 +4,8 @@
 export { APPROVE_FATES, approvePosts, findPieceOfFile, readPostAsApproved, revisePiece } from "./approvals";
 export type { ApproveFate, PostsApproved } from "./approvals";
 export { keepPostCaption, keepVideoCaption } from "./captions";
+export { listFileSubjects, nameFileSubjects, recordSubjectYes } from "./subjects";
+export type { FileSubjectRow } from "./subjects";
 export {
   beginCopyReturn,
   endSourceGrace,

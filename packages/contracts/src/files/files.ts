@@ -208,6 +208,10 @@ export const FILE_WORDS = {
   twin: "Already here",
   alreadyHere: (n: number) => (n === 1 ? "1 was already here." : `${n} were already here.`),
   gone: "That file is gone.",
+  /** Who is in a file (00691): said by the owner or an operator, never read from a face. */
+  people: {
+    nameSomeone: "Name who is in it, or say nobody is.",
+  },
   /** A video's words (decision 0099, stage B): drawn only where the workspace takes videos (video.ts videoPreviewOf). */
   video: {
     askAbout: "Ask about this video",
