@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import {
+  AD_PAGE_DAYS,
   ROLE_PERMS,
   UUID,
   adCardChecksOf,
@@ -31,8 +32,12 @@ import {
   listAdsByIds,
   listAdsLeftParts,
   listAdsOfAccount,
+  readAdChatsKept,
+  readAdPeopleBack,
   readAdsPageCounts,
   type AdAccountRow,
+  type AdChatsKeptRow,
+  type AdPeopleBack,
   type AdRow,
   type AdsPageCounts,
 } from "@chanlytics/db/ads";
@@ -43,8 +48,6 @@ import { isGoing } from "../people/going";
 import { getStoredConfig } from "../workspace/config-row";
 import { readerStamp, type Reader, type ReaderContext } from "../shared/reader";
 
-/** The days the page counts: the same thirty Reports' people lens opens on, and a draft reads its bookings over. */
-export const ADS_PAGE_DAYS = 30;
 /** How many of an ad's people one page of the drawer's list holds. */
 const PEOPLE_PAGE = 50;
 
@@ -143,11 +146,43 @@ function madeHereOf(row: AdRow, at: ReadAt): AdMadeHereLive | null {
   };
 }
 
+/**
+ * What the page reads beside its counts (the tracking plan's T2 and T3, 00677): Meta's count beside Chanlytics' for each
+ * ad, and the people ads brought back. Each null where its read failed or the database has none yet: the page then says
+ * no line for it, and its counts stand.
+ */
+interface Beside {
+  chats: ReadonlyMap<string, AdChatsKeptRow> | null;
+  back: AdPeopleBack | null;
+}
+
+/** Both reads, side by side, each never at the page's cost: a read that fails is logged and claims nothing. */
+async function readBeside(rc: ReaderContext): Promise<Beside> {
+  const [chats, back] = await Promise.all([
+    readAdChatsKept(rc.ctx.supabase, rc.tenantId, AD_PAGE_DAYS).catch(
+      logAndGoOn<AdChatsKeptRow[] | null>("Meta's chats beside the ones kept", null),
+    ),
+    readAdPeopleBack(rc.ctx.supabase, rc.tenantId, AD_PAGE_DAYS).catch(
+      logAndGoOn<AdPeopleBack | null>("the people ads brought back", null),
+    ),
+  ]);
+  return { chats: chats && new Map(chats.map((one) => [one.ad_id, one])), back };
+}
+
+/** One ad's lines beside its counts: none for a read that failed, and nothing to say for an ad they hold nothing of. */
+function besideOf(adId: string, beside: Beside): Pick<AdLiveDto, "chats" | "back"> {
+  const kept = beside.chats?.get(adId);
+  return {
+    ...(beside.chats ? { chats: kept ? { meta: kept.meta, kept: kept.kept, through: kept.through } : null } : {}),
+    ...(beside.back ? { back: beside.back.ads.get(adId) ?? { people: 0, booked: 0 } } : {}),
+  };
+}
+
 /** One ad as the page draws it: its row, with the window's two halves beside it. */
 function adOf(
   row: AdRow,
   counts: AdsPageCounts | null,
-  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]> },
+  at: ReadAt & { left: ReadonlyMap<string, AdLaunchLive["left"]>; beside: Beside },
 ): AdLiveDto {
   const people = counts?.people.get(row.id) ?? { people: 0, booked: 0 };
   const spend = counts?.spend.get(row.id);
@@ -187,6 +222,7 @@ function adOf(
       clicks: spend?.clicks ?? 0,
       results: spend?.platform_results ?? null,
     },
+    ...besideOf(row.id, at.beside),
   };
 }
 
@@ -247,10 +283,27 @@ const readNeedsYou = (rc: ReaderContext, nowMs: number): Promise<AdPersonWaiting
     logAndGoOn<AdPersonWaitingRow[]>("the people from ads who need you", []),
   );
 
+/** Of who an ad brought and needs you, the ones still waiting: nobody waits on someone being erased (readers/escalations.ts). */
+const stillWaiting = (rows: readonly AdPersonWaitingRow[], nowMs: number): AdPersonWaitingRow[] =>
+  rows.filter((row) => !isGoing(row.erasing_since, nowMs));
+
+/**
+ * Who an ad brought and needs you now, every one, longest waiting first: the people the page's line counts. AI's Inbox
+ * list answers "who from my ads is waiting" with it (the tracking plan's T1 and its call 6), so AI and the page name the
+ * same people. A read that fails throws, as a tool's read says it.
+ */
+export const adPeopleWaiting: Reader<undefined, AdPersonWaitingRow[]> = {
+  name: "ad-people-waiting",
+  async read(rc) {
+    const nowMs = rc.now.getTime();
+    const rows = await listAdPeopleWaitingOnYou(rc.ctx.supabase, rc.tenantId, nowMs);
+    return { data: stillWaiting(rows, nowMs), rows: [], stamp: readerStamp() };
+  },
+};
+
 /** Who an ad brought and needs you now, as the page is handed it. */
 function needsYouOf(rows: readonly AdPersonWaitingRow[], nowMs: number): AdsLiveDto["needs_you"] {
-  // Nobody waits on someone being erased: the Inbox's holds leave them out too (readers/escalations.ts).
-  const listed = rows.filter((row) => !isGoing(row.erasing_since, nowMs));
+  const listed = stillWaiting(rows, nowMs);
   return {
     count: listed.length,
     people: listed.slice(0, NEEDS_YOU_NAMED).map((row) => ({
@@ -279,12 +332,13 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
     if (!account || status === null) return { data: null, rows: [], stamp: readerStamp() };
     // The request's own moment: every state, day and wait on the page is said by one clock.
     const nowMs = rc.now.getTime();
-    const [listed, counts, presses, settings, waiting] = await Promise.all([
+    const [listed, counts, presses, settings, waiting, beside] = await Promise.all([
       listAdsOfAccount(supabase, rc.tenantId, account.id),
-      readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
+      readAdsPageCounts(supabase, rc.tenantId, AD_PAGE_DAYS),
       status === "connected" && ROLE_PERMS[rc.role].ads ? readAdsPressesOn(rc.tenantId) : false,
       getStoredConfig(supabase, rc.tenantId),
       readNeedsYou(rc, nowMs),
+      readBeside(rc),
     ]);
     const { more, elsewhere } = await unlistedOf(rc, listed, counts, account.id);
     const rows = [...listed, ...more];
@@ -312,9 +366,10 @@ export const adsPage: Reader<undefined, AdsLiveDto | null> = {
       },
       window: { from: counts?.from ?? today, to: counts?.to ?? today },
       today,
-      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left })),
+      ads: rows.map((row) => adOf(row, counts, { today, timezone, nowMs, left, beside })),
       unnamed: counts?.unnamed ?? { people: 0, booked: 0 },
       elsewhere,
+      ...(beside.back ? { back: beside.back.all } : {}),
       can_press: presses && metaAdConfigOf(account.config).scopes.includes("ads_management"),
       stopped_at: aiStoppedAt(settings),
       needs_you: needsYouOf(waiting, nowMs),
@@ -339,7 +394,7 @@ export const adPeople: Reader<z.infer<typeof AdPeopleQuery>, AdPeopleLiveDto> = 
     const adId = input.ad === "unnamed" ? null : input.ad;
     // One more than a page, to say whether there are more.
     const rows = await listAdPeople(rc.ctx.supabase, rc.tenantId, adId, {
-      days: ADS_PAGE_DAYS,
+      days: AD_PAGE_DAYS,
       limit: PEOPLE_PAGE + 1,
       offset: input.offset,
     });

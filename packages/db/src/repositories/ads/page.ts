@@ -99,6 +99,68 @@ export async function readAdsPageCounts(db: Db, tenantId: TenantId, days: number
   };
 }
 
+/** One ad's chats as Meta counted them over the days it has settled, beside the messages from it Chanlytics kept. */
+export interface AdChatsKeptRow {
+  ad_id: string;
+  /** The ad's name, as Chanlytics holds it: what Health is told. */
+  name: string;
+  meta: number;
+  kept: number;
+  /** The last of those days (ISO), in the ad's account zone. */
+  through: string;
+}
+
+/**
+ * Meta's count beside Chanlytics' for each ad whose chat the workspace hears (00677 ad_chats_kept; the tracking plan's
+ * T2), over the page's days. Null where the database cannot say: one a deploy behind, which has no such read. A read
+ * the database refuses throws.
+ */
+export async function readAdChatsKept(db: Db, tenantId: TenantId, days: number): Promise<AdChatsKeptRow[] | null> {
+  const { data, error } = await db.rpc("ad_chats_kept", { p_tenant_id: tenantId, p_days: days });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new DbFailure(error, "ad_chats_kept");
+  }
+  return rowsOf(data).flatMap((row) => {
+    const { ad_id: adId, name, through } = row;
+    return typeof adId === "string" && typeof name === "string" && typeof through === "string"
+      ? [{ ad_id: adId, name, meta: count(row.meta), kept: count(row.kept), through }]
+      : [];
+  });
+}
+
+/** The people ads brought back in a window, as ad_people_back answers them: each ad's, the unnamed ones', everyone's. */
+export interface AdPeopleBack {
+  ads: Map<string, { people: number; booked: number }>;
+  unnamed: { people: number; booked: number };
+  all: { people: number; booked: number };
+}
+
+const backCountOf = (value: unknown): { people: number; booked: number } => {
+  const row = recordOrEmpty(value);
+  return { people: count(row.people), booked: count(row.booked) };
+};
+
+/**
+ * The people ads brought back over the page's days, counted whole in the database (00677 ad_people_back; the tracking
+ * plan's T3): known people who wrote again from an ad, and who of them booked after. Null where the database cannot
+ * say. A read the database refuses throws.
+ */
+export async function readAdPeopleBack(db: Db, tenantId: TenantId, days: number): Promise<AdPeopleBack | null> {
+  const { data, error } = await db.rpc("ad_people_back", { p_tenant_id: tenantId, p_days: days });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new DbFailure(error, "ad_people_back");
+  }
+  if (data === null) return null;
+  const answer = recordOrEmpty(data);
+  return {
+    ads: new Map(rowsOf(answer.ads).map((row) => [String(row.ad_id), backCountOf(row)])),
+    unnamed: backCountOf(answer.unnamed),
+    all: backCountOf(answer.all),
+  };
+}
+
 /** One person an ad brought, as ad_people answers them. */
 export interface AdPersonRow {
   contact_id: string;

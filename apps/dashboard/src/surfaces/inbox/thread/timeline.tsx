@@ -9,7 +9,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
 import { TlMedia } from "../../kit/media/tl-media";
 import type { AgentEntry, MsgEntry, Thread, TimelineEntry as TlEntry } from "../types";
-import { THREAD_PANE_WORDS, type ReplyWhyVM } from "@chanlytics/contracts";
+import { THREAD_PANE_WORDS, fromAdWords, type ReplyWhyVM } from "@chanlytics/contracts";
 import { ThreadCall, tlCallFor } from "./call";
 import { Button } from "../../kit/button/button";
 import { gate } from "../shell";
@@ -392,11 +392,15 @@ function bubbleCorner(
   // Words of ours a person or a run sent are signed (A9, A23): "Your team", or the campaign's name.
   const signed = entry.via ? entry.via.name : entry.byWords || "your team";
   const author = !ours || receptionist || signedAbove ? null : signed.charAt(0).toUpperCase() + signed.slice(1);
+  // Their words that came from an ad say so where it happened, quietly (the Ads tracking plan's T1): a second time
+  // months later is seen here, though the head names only the ad they first came from.
+  const fromAd = !ours && entry.fromAd ? fromAdWords(entry.fromAd.name) : null;
   const time = entry.time || entry.at;
   const inner = (
     <>
       {receptionist && <Icon name="spark" size={10} className="tl-stamp-spark" />}
       {author && <span className="tl-stamp-words">{author}</span>}
+      {fromAd && <span className="tl-stamp-words">{fromAd}</span>}
       {wire && (
         <span role="img" aria-label={channelLabels[entry.channel]} title={channelLabels[entry.channel]}>
           <Icon name={channelIcon(entry.channel)} size={10} />

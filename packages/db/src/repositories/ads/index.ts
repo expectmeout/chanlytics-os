@@ -41,8 +41,16 @@ export type {
   AdTurnOnKept,
   AdWayInKept,
 } from "./launches";
-export { findAd, listAdPeople, listAdsByIds, listAdsOfAccount, readAdsPageCounts } from "./page";
-export type { AdPersonRow, AdRow, AdsPageCounts } from "./page";
+export {
+  findAd,
+  listAdPeople,
+  listAdsByIds,
+  listAdsOfAccount,
+  readAdChatsKept,
+  readAdPeopleBack,
+  readAdsPageCounts,
+} from "./page";
+export type { AdChatsKeptRow, AdPeopleBack, AdPersonRow, AdRow, AdsPageCounts } from "./page";
 export {
   adSwitchIdOf,
   askAdTell,
@@ -58,3 +66,4 @@ export {
 export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept, AdResumedKept } from "./presses";
 export { askAdRead, handOutAdReads, keepAdsRead, listHeldAdIds } from "./reads";
 export type { AdDayReadRow, AdReadRow, AdsReadKept, AdsReadOutcome } from "./reads";
+export { adRefIn, readAdTouches } from "./touches";

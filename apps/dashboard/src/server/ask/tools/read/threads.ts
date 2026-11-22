@@ -15,6 +15,7 @@ import {
   UUID,
 } from "@chanlytics/contracts";
 import { load } from "../../../shared/reader";
+import { adPeopleWaiting } from "../../../readers/ads-page";
 import { conversation } from "../../../readers/conversation";
 import { escalations as escalationsReader } from "../../../readers/escalations";
 import { inbox } from "../../../readers/inbox";
@@ -40,10 +41,29 @@ function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map
 const writerOf = (m: { direction: string; sender: string | null }): "customer" | "receptionist" | "you" =>
   m.direction === "inbound" ? "customer" : m.sender === "ai" ? "receptionist" : "you";
 
+/**
+ * The people an ad brought who need you now, by their place in the Ads page's line (longest waiting first): the list
+ * that page reads (readers/ads-page.ts adPeopleWaiting), so AI names the people it names. Null for any other filter.
+ */
+async function fromAdsWaiting(toolContext: ToolContext, filter: string): Promise<Map<string, number> | null> {
+  if (filter !== "from_ads") return null;
+  const waiting = (await load(toolContext.rc, adPeopleWaiting, undefined)).data;
+  return new Map(waiting.map((one, place) => [one.conversation_id, place]));
+}
+
+/** Of the Inbox's threads, those of the people an ad brought who need you, in the Ads page's order. */
+function fromAdsIn<V extends { conversationId: string }>(vms: readonly V[], order: ReadonlyMap<string, number>): V[] {
+  const placeOf = (vm: V): number => order.get(vm.conversationId) ?? order.size;
+  return vms.filter((vm) => order.has(vm.conversationId)).sort((one, other) => placeOf(one) - placeOf(other));
+}
+
 async function listThreads(toolContext: ToolContext, input: { filter: string }): Promise<unknown> {
   const filter = str(input.filter) || "recent";
   // The Inbox as the page composes it (readers/inbox.ts): the newest hundred, and every escalated thread outside it.
-  const { conversations, escalations } = (await load(toolContext.rc, inbox, undefined)).data;
+  const [{ conversations, escalations }, fromAds] = await Promise.all([
+    load(toolContext.rc, inbox, undefined).then((read) => read.data),
+    fromAdsWaiting(toolContext, filter),
+  ]);
   const byConv = inboxEscalations(escalations);
   const vms = conversations.map((c) =>
     toInboxThreadVM(c, byConv.get(c.id) ?? null, toolContext.timezone, toolContext.now),
@@ -54,21 +74,23 @@ async function listThreads(toolContext: ToolContext, input: { filter: string }):
   const waiting = new Set(
     conversations.filter((c) => conversationWaitsOnYou(c, byConv.get(c.id) ?? null, toolContext.now)).map((c) => c.id),
   );
-  const matching = vms.filter((value) => {
-    switch (filter) {
-      case "needs_you":
-        return waiting.has(value.conversationId);
-      case "held":
-        // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
-        return heldDraftWaits(value, toolContext.now.getTime());
-      case "waiting":
-        return value.move.list === "waiting";
-      case "snoozed":
-        return value.state === "snoozed";
-      default:
-        return true;
-    }
-  });
+  const matching = fromAds
+    ? fromAdsIn(vms, fromAds)
+    : vms.filter((value) => {
+        switch (filter) {
+          case "needs_you":
+            return waiting.has(value.conversationId);
+          case "held":
+            // A draft still waiting to send, by the Inbox's rule: one past its deadline is going out, not held.
+            return heldDraftWaits(value, toolContext.now.getTime());
+          case "waiting":
+            return value.move.list === "waiting";
+          case "snoozed":
+            return value.state === "snoozed";
+          default:
+            return true;
+        }
+      });
   // Recent alone is newest first, before the cap: the Inbox's rows put the escalated threads it fetched by id first,
   // however old, and twenty of them would have been the whole answer. lastAtMs is last_message_at, the column the
   // server orders the hundred by, so the hundred keep their order. Every other filter keeps the Inbox's order, the
@@ -110,6 +132,8 @@ async function listThreads(toolContext: ToolContext, input: { filter: string }):
       // said `tags`, which toInboxThreadVM sets to [] on every real thread --
       // a field that has never carried anything.
       channel: value.replyVia,
+      // The ad they first came from, as the thread's head names it (null: one Chanlytics can't name yet).
+      ...(value.fromAd ? { from_ad: value.fromAd.name } : {}),
     })),
   };
 }
@@ -266,11 +290,11 @@ export const inboxTool = defineActions({
   tail: `Call action list to find conversations by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the conversation's row. list returns at most ${ASK_CAPS.threads} conversations, with total_matching counted before the cap, so a count is the total and never the rows shown. conversation returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
   actions: {
     list: readAction({
-      input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent"]) }),
+      input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent", "from_ads"]) }),
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
       words:
-        "Action list takes filter and finds conversations: needs_you (what waits on you, as the Inbox counts it: someone asked for a person, nobody answered them, a reply that did not send, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (the next move is theirs or a teammate's: conversations a person holds, and ones with no reply yet), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
+        "Action list takes filter and finds conversations: needs_you (what waits on you, as the Inbox counts it: someone asked for a person, nobody answered them, a reply that did not send, or a reply counting down that can still be stopped), held (a draft waiting to send), waiting (the next move is theirs or a teammate's: conversations a person holds, and ones with no reply yet), snoozed, recent (all, newest first), or from_ads (the people an ad first brought who need you now, longest waiting first: the list the Ads page names, for who from my ads is waiting); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, its last three messages with who wrote them, and from_ad, the ad's name, where the person first came from an ad (empty for one Chanlytics can't name yet).",
       run: listThreads,
     }),
     thread: readAction({

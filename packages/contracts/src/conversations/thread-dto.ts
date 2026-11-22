@@ -38,6 +38,11 @@ export interface MessageDto {
    * this column; nothing selected it.
    */
   channel_ts?: string | null;
+  /**
+   * The ad it came from, where it is a message that opened an entry (ad_entries: a person who wrote from an ad, read by
+   * the shared record's reader, 00677): absent on every other message, and where the read of it failed.
+   */
+  from_ad?: AdNamedDto;
 }
 
 /** When a message happened, preferring the channel's own clock over ours. */
@@ -140,7 +145,19 @@ export interface ConversationDto {
     email_suppressed_at?: string | null;
     email_suppressed_reason?: string | null;
   };
+  /**
+   * The ad the person first came from (contacts.acquired_via, as their page reads it; the Ads tracking plan's T1): the
+   * ad Chanlytics holds for it, null where it holds none, and its name, null where none is known. Absent for a person
+   * who came another way, and where the read of it failed.
+   */
+  from_ad?: AdNamedDto;
   messages: MessageDto[];
+}
+
+/** An ad as a conversation names it: the ad Chanlytics holds (null where it holds none) and its name (null where none). */
+export interface AdNamedDto {
+  ad_id: string | null;
+  name: string | null;
 }
 
 /** The customer asked not to be contacted. Delegates to the one predicate in

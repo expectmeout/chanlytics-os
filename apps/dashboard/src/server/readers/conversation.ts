@@ -1,6 +1,7 @@
 import "server-only";
 import { AppError, addressOf, personName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
 import { groupMessages, messageRowsOf } from "../conversations/dto";
+import { markAdMessages } from "../conversations/from-ads";
 import { loadConversation, type VerbConversation } from "../shared/verbs";
 import { load, readerStamp, type Reader, type RowRef } from "../shared/reader";
 import { listThreadMessages } from "@chanlytics/db/conversations";
@@ -22,7 +23,9 @@ export const messagesOf: Reader<{ id: string; before: string | null }, MessageDt
     const { supabase } = rc.ctx;
     const { data: msgs, error: merr } = await listThreadMessages(supabase, id, before, 100);
     if (merr) throw new Error(merr.message);
-    return { data: groupMessages(messageRowsOf(msgs)).get(id) ?? [], rows: [], stamp: readerStamp() };
+    // Each message that came from an ad, marked as the Inbox's read marks it: none, no read (conversations/from-ads.ts).
+    const messages = await markAdMessages(rc, groupMessages(messageRowsOf(msgs)).get(id) ?? []);
+    return { data: messages, rows: [], stamp: readerStamp() };
   },
 };
 

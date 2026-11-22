@@ -45,10 +45,12 @@ import {
 import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, metaAdConfigOf, MIN_MS, SECOND_MS, type TenantId } from "@chanlytics/contracts";
 import type { ClaimedJob } from "@chanlytics/jobs";
+import { logAndGoOn } from "@chanlytics/log";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { errField, logger } from "../shared/log.js";
 import { metaAdsApp, signInOf } from "./account-ops.js";
 import { keepWaysIn } from "./chat/answered.js";
+import { pageChatsParted } from "./chat/kept.js";
 import { mailAdNotices } from "./mail.js";
 import {
   ADS_PACE,
@@ -464,7 +466,9 @@ export async function runAdRead(
   };
   // An ad that can't run, rung by this read or owed by one before: mailed once, where the read's time leaves room.
   const mailed = await mailAdNotices(db, tenantId, { deadline, ports: {} });
+  // Meta's count beside Chanlytics': an ad whose chats stopped reaching Chanlytics is told to Health, once (T2).
+  const chats = await pageChatsParted(db, tenantId).catch(logAndGoOn("Meta's chats beside the ones kept", null));
   // How long a read took, from the account's first question to its last write: what a real read is timed by.
-  log.info("ads_read", { ...read, mailed, usage_pct: reading.usage?.pct ?? null, ms: Date.now() - nowMs });
+  log.info("ads_read", { ...read, mailed, chats, usage_pct: reading.usage?.pct ?? null, ms: Date.now() - nowMs });
   return { read };
 }

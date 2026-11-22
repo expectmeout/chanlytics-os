@@ -217,6 +217,14 @@ export const SHEET = {
   chatsLabel: "Chats Meta counted",
   formsLabel: "Forms Meta counted",
   theirsNote: "Meta's count includes someone who tapped twice. It is never added to Chanlytics' people.",
+  /** Meta's count beside the messages that reached Chanlytics, up to the last day Meta has settled (tracking plan T2). */
+  chatsKept: (o: { meta: number; kept: number; through: string }) =>
+    `Meta counted ${o.meta} chats from this ad up to ${o.through}. ${o.kept} reached Chanlytics.`,
+  /** When the two part: what is happening is the line above; nothing of the ad is affected, and nothing is asked. */
+  chatsParted: "The ad and AI's replies aren't affected. Chanlytics is looking into it.",
+  /** The people an ad brought back (T3): on a line of its own, never in the figures. */
+  back: (o: { people: string; booked: number; from: "this ad" | "an ad" }) =>
+    `${o.people} you already knew wrote again from ${o.from}. ${o.booked > 0 ? `${o.booked} booked after.` : "None booked after yet."}`,
   people: "People it brought",
   nobody: "No one has written from this ad in the last 30 days.",
   bookedMark: "Booked",

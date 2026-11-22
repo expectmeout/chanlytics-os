@@ -1,6 +1,7 @@
 import "server-only";
 import {
   AD_BOOKED_TO_FORECAST,
+  AD_PAGE_DAYS,
   AppError,
   DAY_MS,
   ROLE_PERMS,
@@ -44,7 +45,7 @@ import { getRoom } from "../ask/tools/read/calendar";
 import { listAdPictures, type AdPictures } from "../content/ad-pictures";
 import { getAppointmentWord } from "../people/deals";
 import { readAdsPressesOn } from "../connections/ads-ready";
-import { ADS_PAGE_DAYS, aiStoppedAt } from "../readers/ads-page";
+import { aiStoppedAt } from "../readers/ads-page";
 import type { ReaderContext } from "../shared/reader";
 import { getTenantFacts } from "../shared/tenant";
 import { findConfigRow } from "../workspace/config-row";
@@ -308,7 +309,7 @@ export async function readAdDraftFacts(
       findWhatsappChannelFacts(supabase, rc.tenantId),
       isWorkspacePaused(supabase, rc.tenantId),
       keptRead.then((kept) => listAdPictures(rc, [...shown, keptPictureOf(kept)])),
-      readAdsPageCounts(supabase, rc.tenantId, ADS_PAGE_DAYS),
+      readAdsPageCounts(supabase, rc.tenantId, AD_PAGE_DAYS),
       listServicesBookedSince(
         supabase,
         rc.tenantId,

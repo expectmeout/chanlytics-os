@@ -41,6 +41,11 @@ export interface InboxThreadVM {
   emailStopped: string | null;
   /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
   proposalUrl: string | null;
+  /**
+   * The ad the person first came from, as the head says it: the ad Chanlytics holds (its door; null where it holds
+   * none) and its name (null where none is known). Absent for a person who came another way.
+   */
+  fromAd?: { id: string | null; name: string | null };
   who: string;
   whoMeta: string;
   avatar: string;
@@ -220,6 +225,8 @@ export interface InboxThreadVM {
         byWords?: string;
         /** Sent by a broadcast, not typed: the name the owner gave it. */
         via?: { kind: "broadcast" | "playbook"; name: string };
+        /** Their words that came from an ad (an entry it opened): the ad, as the head names one. */
+        fromAd?: { id: string | null; name: string | null };
         status?: string;
         /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
         statusLabel?: string;
