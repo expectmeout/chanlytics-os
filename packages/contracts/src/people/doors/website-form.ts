@@ -40,6 +40,10 @@ export const WebsiteFormBody = z.object({
   lang: line(10),
   at: z.optional(z.iso.datetime({ offset: true })),
   entry_id: z.optional(z.string().trim().min(1).max(100)),
+  // Where the visitor came from, as the site's snippet read it off its own address (the Ads tracking plan's T4):
+  // the five campaign labels and the address they came from, by name. Read leniently and cleaned by sourceFromSeen, so
+  // a label with odd characters is dropped alone and costs the form nothing; anything else it carries is unread.
+  source: z.optional(z.record(z.string().max(40), z.unknown())),
 });
 export type WebsiteFormInput = z.infer<typeof WebsiteFormBody>;
 
@@ -94,20 +98,22 @@ export function websiteFormLate(websiteFormInput: Pick<WebsiteFormInput, "at">, 
 }
 
 /**
- * The note a form suggests on the person's page: what they signed up for or asked, in their own words where they wrote
- * any, and the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are
- * cut, never the line.
+ * The note a form suggests on the person's page: what they signed up for or asked, where they came from when the form
+ * said (`came`: "From Google (spring-offer)", the Ads tracking plan's T4), in their own words where they wrote any, and
+ * the day they sent it, in the workspace's zone, when it arrived late. At most a note's length: their words are cut,
+ * never the line.
  */
 export function websiteFormNote(
   websiteFormInput: Pick<WebsiteFormInput, "form" | "about" | "note" | "at">,
   when: WebsiteFormWhen,
+  arrived: string | null = null,
 ): string {
   const first =
     websiteFormInput.about?.trim() ||
     (websiteFormInput.form === "signup"
       ? "Signed up for your offers on your website"
       : "Sent a request on your website");
-  const head = `${first.replace(/[.\s]+$/, "")}.`;
+  const head = `${first.replace(/[.\s]+$/, "")}.${arrived ? ` ${arrived}.` : ""}`;
   const late =
     websiteFormInput.at && websiteFormLate(websiteFormInput, when.nowMs)
       ? ` Sent ${sentOn(websiteFormInput.at, when.tz)}.`

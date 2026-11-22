@@ -104,6 +104,8 @@ test("Today hears the channel, the line and the billing account its chips and it
     "appointments", // what was booked, which the day's figures lead with (decision 0076, as amended 2 Nov 2026)
     "sequence_batches", // the runs waiting for a word, which GET today carries (Today in three zones)
     "tenant_config", // whether Stop everything is on, which AI's line and sheet say (Working for you, W1)
+    "form_entries", // a request someone sent through a form: arriving, held, let through (00680)
+    "form_entry_links", // and what answered it: a reply, their own message with its code, a member's word
   ]);
   for (const table of LINE_TABLES) {
     assert.equal(wantsRefresh(todayOverride, table), true, `${table} is wanted`);

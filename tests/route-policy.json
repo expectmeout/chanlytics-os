@@ -2538,6 +2538,13 @@
       "rate": "aggregate",
       "spend": false
     },
+    "GET reports/forms": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "aggregate",
+      "spend": false
+    },
     "GET reports/people": {
       "kind": "read",
       "scope": "workspace",
@@ -3138,6 +3145,49 @@
       "scope": "account",
       "role": null,
       "rate": "vitals",
+      "spend": false
+    },
+    "GET forms": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST forms": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "form_change",
+      "spend": false
+    },
+    "POST forms/links": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "form_change",
+      "spend": false
+    },
+    "GET forms/requests": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST forms/requests": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "reply",
+      "spend": false,
+      "idempotent": "own"
+    },
+    "GET forms/sheet": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
       "spend": false
     },
     "GET website-forms": {

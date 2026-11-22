@@ -111,11 +111,14 @@ export function proposalSending(conversations: ReadonlyArray<ConversationDto>, u
   );
 }
 
+/** Who is said to have added a person a door added: the door's own name. */
+const ADDED_BY_DOOR = { calendar: "Calendar", lead: "Leads", website: "Website", form: "Forms" } as const;
+
 /**
  * Who added a person and how, from their first contact.added event (PersonDetailDto.added), read as
  * people_list reads it for came_from (00138): 'calendar' is the calendar sweep, 'lead' the lead finder
  * (00140, 00142), 'import' a client list the owner brought in (00170), 'website' a form on the business's own website
- * (00488), 'ad' an ad (the ad by name and platform, with
+ * (00488), 'form' a form it shares with no website (00680), 'ad' an ad (the ad by name and platform, with
  * the address that opens it, `to`, where it is known), and any other source -- 'manual', or whatever POST contacts was
  * given -- a hand. In came_from's words, once: History's row says who and "Added" how, About's Added row the day and
  * how.
@@ -127,11 +130,11 @@ export function addedBy(added: Pick<NonNullable<PersonDetailDto["added"]>, "sour
 } {
   if (added.source === "import") return { who: "You", how: "from a spreadsheet", to: null };
   if (added.source === "ad") return addedByAd(added.ad ?? null);
-  if (added.source !== "calendar" && added.source !== "lead" && added.source !== "website")
+  if (added.source !== "calendar" && added.source !== "lead" && added.source !== "website" && added.source !== "form")
     return { who: "You", how: "by hand", to: null };
   const from = PERSON_CAME_FROM_WORDS[added.source];
   return {
-    who: added.source === "calendar" ? "Calendar" : added.source === "lead" ? "Leads" : "Website",
+    who: ADDED_BY_DOOR[added.source],
     how: `from ${from.charAt(0).toLowerCase()}${from.slice(1)}${added.source === "calendar" && added.title ? ` (${added.title})` : ""}`,
     to: null,
   };

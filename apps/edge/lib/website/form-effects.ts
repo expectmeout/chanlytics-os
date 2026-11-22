@@ -1,5 +1,7 @@
 /**
- * What a website form's entry owes, once it is kept (00675; the Forms plan's 3.2, steps 7 and 8). Each is its own step,
+ * What a form's entry owes, once it is kept (00675, 00680; the Forms plan's 3.2, steps 7 and 8): a website's own form,
+ * and a hosted form's request, which owes the same note and notice and is read against the version its visitor saw
+ * (its notice is the bell's `form_request`, and opens the request in Inbox, where it is answered). Each is its own step,
  * run by its own subscriber from the entry's event (core SUBSCRIBERS form_entry_note, form_entry_notice,
  * form_entry_confirm; packages/jobs hands them here), each with its own outcome kept on the entry
  * (form_entry_settled), each safe to run twice:
@@ -19,14 +21,22 @@
  */
 import {
   DEFAULT_TIMEZONE,
+  formRequestNote,
+  formRequestNotice,
+  recordOrEmpty,
   signupAskLine,
+  Source,
+  sourceInWords,
+  throughPlace,
   websiteFormLate,
   websiteFormNote,
   websiteFormNotice,
   websiteFormPerson,
+  type FormDescription,
   type FormEffect,
   type TenantId,
 } from "@chanlytics/contracts";
+import { findFormVersion, findLinkPlace } from "@chanlytics/db/forms";
 import { suggestPersonNote } from "@chanlytics/db/facts";
 import { findNotice } from "@chanlytics/db/notices";
 import { findFormEntry, settleFormEffect, type FormEffectOutcome, type FormEntryRow } from "@chanlytics/db/people";
@@ -41,14 +51,23 @@ import { askEntryToConfirm } from "./signup-confirm.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
 
-/** An entry as a step reads it: its row, what was sent, who it is about, and when it arrived. */
-interface EntryRead {
+/** A hosted form's request as a step reads it: the version its visitor saw, their answers, and where it came through. */
+interface HostedRequest {
+  description: FormDescription;
+  answers: Record<string, unknown>;
+  place: string | null;
+}
+
+/**
+ * An entry as a step reads it: its row, who it is about, when it arrived, and what was sent: a website form's own
+ * fields (`answers`), or a hosted form's request (`hosted`). One of the two, never both.
+ */
+type EntryRead = {
   tenantId: TenantId;
   row: FormEntryRow;
-  answers: EntryAnswers;
   person: { name: string | null; email: string | null; phone: string | null };
   arrivedMs: number;
-}
+} & ({ answers: EntryAnswers; hosted: null } | { answers: null; hosted: HostedRequest });
 
 /** What a step came to: settled on the entry, or waiting for another step's outcome (the notice, for its ask). */
 type StepDone = FormEffectOutcome | "waits";
@@ -59,13 +78,29 @@ const entryZone = (db: Db, tenantId: TenantId) =>
     .catch(logAndGoOn("reading the zone a website form's day is said in", null))
     .then((tz) => tz || DEFAULT_TIMEZONE);
 
+/**
+ * How an entry's person came, as their note says it: the place a request's link was shared, else who sent them by the
+ * labels and the site the form saw (the Ads tracking plan's T4). Null where neither is known. A website's source is
+ * kept just after its entry: a note written in that moment says nothing of it, and is right without it.
+ */
+function cameWords(entry: EntryRead): string | null {
+  const through = throughPlace(entry.hosted?.place);
+  if (through) return through;
+  const source = Source.safeParse(entry.row.source);
+  const from = source.success ? sourceInWords(source.data) : null;
+  return from ? `From ${from}` : null;
+}
+
 /** What they asked, waiting on their page for a member's Keep, once by the entry. */
 async function keepEntryNote(db: Db, entry: EntryRead): Promise<StepDone> {
-  const tz = await entryZone(db, entry.tenantId);
+  const arrived = cameWords(entry);
+  const body = entry.hosted
+    ? formRequestNote(entry.hosted.description, entry.hosted.answers, arrived)
+    : websiteFormNote(entry.answers, { nowMs: entry.arrivedMs, tz: await entryZone(db, entry.tenantId) }, arrived);
   const kept = await suggestPersonNote(db, {
     tenantId: entry.tenantId,
     contactId: entry.row.contact_id,
-    body: websiteFormNote(entry.answers, { nowMs: entry.arrivedMs, tz }),
+    body,
     source: "website",
     sourceId: onceKeyId(`form_entry_note:${entry.row.id}`),
   });
@@ -82,7 +117,7 @@ async function keepEntryNote(db: Db, entry: EntryRead): Promise<StepDone> {
 async function notKept(db: Db, entry: EntryRead, onceKey: string): Promise<StepDone> {
   const twin = await findNotice(db, {
     tenantId: entry.tenantId,
-    kind: "website_form",
+    kind: entry.hosted ? "form_request" : "website_form",
     sourceEvent: onceKeyId(onceKey),
   }).catch(logAndGoOn("looking for the notice a twin delivery may hold", null));
   return twin ? "waits" : { state: "failed", why: "not_kept", told: false };
@@ -92,17 +127,24 @@ async function notKept(db: Db, entry: EntryRead, onceKey: string): Promise<StepD
 async function tellOwner(db: Db, entry: EntryRead): Promise<StepDone> {
   const ask = entry.row.effects.confirm;
   if (entry.row.owed.includes("confirm") && !ask) return "waits";
-  const tz = await entryZone(db, entry.tenantId);
-  const askWord = ask?.state === "done" ? (ask.outcome ?? null) : null;
-  const notice = websiteFormNotice(
-    entry.answers,
-    { contactId: entry.row.contact_id, ...entry.person },
-    { nowMs: entry.arrivedMs, tz },
-    signupAskLine(askWord),
-  );
+  const notice = entry.hosted
+    ? formRequestNotice(entry.hosted.description, entry.hosted.answers, {
+        entryId: entry.row.id,
+        contactId: entry.row.contact_id,
+        reach: entry.person,
+        place: entry.hosted.place,
+      })
+    : websiteFormNotice(
+        entry.answers,
+        { contactId: entry.row.contact_id, ...entry.person },
+        { nowMs: entry.arrivedMs, tz: await entryZone(db, entry.tenantId) },
+        signupAskLine(ask?.state === "done" ? (ask.outcome ?? null) : null),
+      );
   const onceKey = `form_entry:${entry.row.id}`;
   const addressing = await loadTenantNotifications(db, entry.tenantId);
-  if (websiteFormLate(entry.answers, entry.arrivedMs) || addressing.unread) {
+  // A hosted form's request is never late: it is kept the moment its visitor sends it.
+  const late = entry.hosted ? false : websiteFormLate(entry.answers, entry.arrivedMs);
+  if (late || addressing.unread) {
     // Old news, or nobody known to mail: the bell alone, as before.
     const kept = await keepOnce(
       entry.tenantId,
@@ -128,6 +170,8 @@ async function tellOwner(db: Db, entry: EntryRead): Promise<StepDone> {
 
 /** A sign-up asked to confirm: an ask settled done is never asked again (runFormEffect). */
 async function askEntryConfirm(db: Db, entry: EntryRead): Promise<StepDone> {
+  // Only a website's sign-up owes the ask: a hosted form takes no yes to offers (the Forms plan's calls 3 and 4).
+  if (entry.hosted) return { state: "done", outcome: "not_a_signup" };
   if (!entry.person.email) return { state: "done", outcome: "no_email" };
   const outcome = await askEntryToConfirm(db, {
     tenantId: entry.tenantId,
@@ -168,6 +212,28 @@ async function settleStep(
 }
 
 /**
+ * An entry as its steps read it, or null for one that cannot be read: a hosted form's against the version its visitor
+ * saw (a version that is gone or no longer reads is unreadable), a website's own by its fixed fields.
+ */
+async function readEntry(db: Db, tenantId: TenantId, row: FormEntryRow): Promise<EntryRead | null> {
+  const arrivedMs = Date.parse(row.created_at);
+  if (row.version_id) {
+    const version = await findFormVersion(db, tenantId, row.version_id);
+    if (!version?.description || !row.reach) return null;
+    const place = row.link_id
+      ? await findLinkPlace(db, tenantId, row.link_id).catch(
+          logAndGoOn("reading where a request's link is shared", null),
+        )
+      : null;
+    const hosted = { description: version.description, answers: recordOrEmpty(row.answers), place };
+    return { tenantId, row, person: row.reach, arrivedMs, answers: null, hosted };
+  }
+  const answers = entryAnswersFrom(row.answers);
+  const person = answers ? websiteFormPerson(answers) : null;
+  return answers && person ? { tenantId, row, person, arrivedMs, answers, hosted: null } : null;
+}
+
+/**
  * One step an entry owes, run and settled (packages/jobs, through the edge's run context). Nothing for an entry gone, a
  * step it does not owe, or one done already: a step done is never run again. Throws when the step failed, after keeping
  * why, so its delivery tries again.
@@ -176,10 +242,8 @@ export async function runFormEffect(db: Db, tenantId: TenantId, entryId: string,
   const row = await findFormEntry(db, tenantId, entryId);
   if (!row || !row.owed.includes(effect) || row.effects[effect]?.state === "done") return;
   const step = { tenantId, entryId, effect };
-  const answers = entryAnswersFrom(row.answers);
-  const person = answers ? websiteFormPerson(answers) : null;
-  if (!answers || !person) return settleStep(db, step, { state: "failed", why: "unreadable" });
-  const entry: EntryRead = { tenantId, row, answers, person, arrivedMs: Date.parse(row.created_at) };
+  const entry = await readEntry(db, tenantId, row);
+  if (!entry) return settleStep(db, step, { state: "failed", why: "unreadable" });
   let outcome: StepDone;
   try {
     outcome = await FORM_STEPS[effect](db, entry);

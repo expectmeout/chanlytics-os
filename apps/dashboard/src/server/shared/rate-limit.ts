@@ -283,6 +283,12 @@ export const RATE = {
   billing: { limit: 20, windowMs: HOUR_MS, noun: "billing requests" },
   /** Reading the invoices: a call to Stripe that changes nothing, and must not spend the Checkout bucket. */
   billing_read: { limit: 60, windowMs: HOUR_MS, noun: "billing reads" },
+  /** A hosted form's entries from one sender to one form: past this they are held for a look, never refused (00680). */
+  form_sender: { limit: 5, windowMs: 10 * MIN_MS, noun: "requests" },
+  /** A hosted form's entries in an hour, whoever sent them: past this they are held for a look (00680). */
+  form_day: { limit: 120, windowMs: HOUR_MS, noun: "requests" },
+  /** A press on Campaigns › Forms: a draft kept as it is changed, a form published, a link made. Many in a sitting. */
+  form_change: { limit: 120, windowMs: MIN_MS, noun: "form changes" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: MIN_MS, noun: "exports" },
   /** A page remembering its view: a sort, a tab. One small write per click at most. */

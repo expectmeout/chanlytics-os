@@ -61,6 +61,7 @@ import {
   saidNotACustomer,
 } from "@chanlytics/contracts";
 import { logger, errField } from "../shared/log.js";
+import { linkCarriedRequest, prepareCarriedRequest } from "../website/request-code.js";
 import { noteEmailTheyGave } from "@chanlytics/db/people";
 import { asJson, jsonCopyOf } from "@chanlytics/db/shared";
 import type { TenantId } from "@chanlytics/contracts";
@@ -209,6 +210,12 @@ export async function runPgIngest(
 ): Promise<IngestResult> {
   if (!db) throw new IngestFailed("no database to keep the message in");
   try {
+    // A request carried in from a form's thank-you (00680): its code is read before the person is resolved, so the
+    // one who wrote is the request's own person. Its own call, which logs and never throws.
+    const requestCode = await prepareCarriedRequest(db, tenantId, {
+      body: inboundMessage.body,
+      phoneE164: inboundMessage.identity.phoneE164,
+    });
     const ingested = await ingestInbound(db, {
       tenantId,
       channel: inboundMessage.channel,
@@ -240,6 +247,11 @@ export async function runPgIngest(
     });
     // What the ad said, kept beside the message once it has landed (0049): its own call, which logs and never throws.
     await keepWhatTheAdSaid(db, tenantId, ingested.message_id, inboundMessage.referral);
+    await linkCarriedRequest(db, tenantId, {
+      code: requestCode,
+      conversationId: ingested.conversation_id,
+      messageId: ingested.message_id,
+    });
     return ingested;
   } catch (e) {
     logger().error("ingest_pg_failed", { tenant_id: tenantId, message: inboundMessage.externalId, error: errField(e) });

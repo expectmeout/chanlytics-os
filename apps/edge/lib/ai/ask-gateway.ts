@@ -279,6 +279,8 @@ export const GATEWAY_PURPOSES = [
   "message_draft",
   // An ad's words, by the ad writer skill (the Ads plan's 6.7): a craft call at the skill's effort, counted apart (G19).
   "ad_draft",
+  // A form drafted from its owner's sentence, by the form drafter skill (the Forms plan, 3.7): a craft call, counted apart.
+  "form_draft",
 ] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** Whether a purpose is Ask's own: its turn, or a turn's warm. */
@@ -295,6 +297,7 @@ export function modelPurposeOf(purpose: GatewayPurpose): ModelPurpose {
   if (isAsk(purpose)) return "ask";
   if (purpose === "message_draft") return "template_draft";
   if (purpose === "ad_draft") return "ad_draft";
+  if (purpose === "form_draft") return "form_draft";
   return purpose === "lead_suggest" ? "lead_suggest" : "lead_json";
 }
 
@@ -343,7 +346,7 @@ function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, u
  */
 export const GATEWAY_MODELS: readonly string[] = [
   ...new Set(
-    (["ask", "lead_json", "lead_suggest", "template_draft", "ad_draft"] as const).flatMap((p) =>
+    (["ask", "lead_json", "lead_suggest", "template_draft", "ad_draft", "form_draft"] as const).flatMap((p) =>
       [MODEL_ROUTES[p].model, MODEL_ROUTES[p].fallback].filter((m): m is NonNullable<typeof m> => m !== null),
     ),
   ),
@@ -375,7 +378,7 @@ const ceilingOf = (purpose: GatewayPurpose, effort: ModelEffort | null): number 
     ? askRoundCap(effort)
     : purpose === "ask_warm"
       ? ASK_WARM_MAX_TOKENS
-      : purpose === "message_draft" || purpose === "ad_draft"
+      : purpose === "message_draft" || purpose === "ad_draft" || purpose === "form_draft"
         ? SKILL_CRAFT_MAX_TOKENS
         : purpose === "sequence_draft"
           ? SEQUENCE_DRAFT_MAX_TOKENS

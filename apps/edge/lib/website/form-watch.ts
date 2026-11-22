@@ -6,10 +6,11 @@
  * by its subscriber, and Deliver again reaches it.
  */
 import { MIN_MS } from "@chanlytics/contracts";
+import { purgeFormEntries } from "@chanlytics/db/forms";
 import { listUntoldFormEntries } from "@chanlytics/db/people";
 import { logAndGoOn } from "@chanlytics/log";
 import { pageOperator } from "../shared/alerts/page-operator.js";
-import { logger } from "../shared/log.js";
+import { errField, logger } from "../shared/log.js";
 import type { pg } from "../shared/pg.js";
 
 type Db = NonNullable<ReturnType<typeof pg>>;
@@ -21,7 +22,7 @@ const UNTOLD_AFTER_MS = 10 * MIN_MS;
 const UNTOLD_READ = 50;
 
 /** The entries that told nobody in time, paged; how many it found (null where the read failed, which is said). */
-export async function watchFormEntries(db: Db, nowMs: number): Promise<number | null> {
+async function watchFormEntries(db: Db, nowMs: number): Promise<number | null> {
   const untold = await listUntoldFormEntries(db, new Date(nowMs - UNTOLD_AFTER_MS).toISOString(), UNTOLD_READ).catch(
     logAndGoOn("reading the website entries nobody was told of", null),
   );
@@ -37,4 +38,29 @@ export async function watchFormEntries(db: Db, nowMs: number): Promise<number | 
       "Each one's notice step is in Health, Background work, under form entry notice; once it is mended, Deliver again tells them.",
   );
   return untold.length;
+}
+
+/**
+ * The entries a form no longer keeps, removed (00680; contracts RETENTION_DAYS): one held for a look that nobody let
+ * through in 30 days, and a test past 7. The same half-hourly look runs it. How many went, or null where the purge
+ * failed, which is said and tried again at the next look.
+ */
+async function purgeOldFormEntries(db: Db): Promise<number | null> {
+  try {
+    return await purgeFormEntries(db);
+  } catch (e) {
+    logger().error("form_entries_purge_failed", { error: errField(e) });
+    return null;
+  }
+}
+
+/**
+ * Both of the health sweep's looks at form entries, as its line says them: the entries nobody was told of, paged, and
+ * the held entries and tests past their days, removed.
+ */
+export async function watchForms(
+  db: Db,
+  nowMs: number,
+): Promise<{ form_entries_untold: number | null; form_entries_purged: number | null }> {
+  return { form_entries_untold: await watchFormEntries(db, nowMs), form_entries_purged: await purgeOldFormEntries(db) };
 }

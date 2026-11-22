@@ -36,7 +36,8 @@ export const ERASURE_LEGS = {
     "contacts_before_erased: what another system said of them before Chanlytics (a client file's visits, last visit and birthday) cleared (00477)",
   mailbox_trigger:
     "mailbox_senders_on_erase: their address off the list of what a connected mailbox left, and a person said of it with it, and what Chanlytics read them to be (00495); what was said of a robot stays (00483)",
-  form_entries_trigger: "form_entries_erase_on_contact: every website form entry they sent deleted (00675)",
+  form_entries_trigger:
+    "form_entries_erase_on_contact: every form entry they sent deleted (00675); form_entries_held_erase_on_contact: an entry held for a look, which has no person yet, deleted by the address or the number typed into it (00680)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;

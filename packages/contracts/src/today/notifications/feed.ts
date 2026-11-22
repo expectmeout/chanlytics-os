@@ -383,6 +383,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   // Ads Chanlytics paused for the workspace (00676): news, opening the first of them.
   ads_paused: { icon: "money", tone: "", action: "Open the ad", to: ADS_ROUTE, own: true },
   website_form: { icon: "users", tone: "ok", action: "Open their page", to: "clients" },
+  // A request from a form the business shares (00680): the row opens it in Inbox, where it is answered.
+  form_request: { icon: "inbox", tone: "ok", action: "Open the request", to: "inbox", own: true },
   alert: ALERT_LOOK,
 };
 

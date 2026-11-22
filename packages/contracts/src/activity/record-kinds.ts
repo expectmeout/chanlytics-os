@@ -51,6 +51,8 @@ export const RECORD_KINDS = {
   /** An owner's ad account, and an ad in it (decision 0049): connected, read, signed out; adopted, moved, paused. */
   ad_account: ["ad_accounts"],
   ad: ["ads"],
+  /** What someone sent through a form, and what answered it (00680): a request arriving, held, let through or answered. */
+  request: ["form_entries", "form_entry_links"],
 } as const satisfies Record<string, readonly string[]>;
 
 /** A kind of record a page can draw. */

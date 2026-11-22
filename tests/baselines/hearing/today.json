@@ -108,6 +108,11 @@
     "business_reads DELETE": "setup · 2 routes",
     "rehearsals INSERT": "setup · 2 routes",
     "rehearsals UPDATE": "setup · 2 routes",
-    "rehearsals DELETE": "setup · 2 routes"
+    "rehearsals DELETE": "setup · 2 routes",
+    "form_entries INSERT": "today · 1 route",
+    "form_entries UPDATE": "today · 1 route",
+    "form_entries DELETE": "today · 1 route",
+    "form_entry_links INSERT": "today · 1 route",
+    "form_entry_links DELETE": "today · 1 route"
   }
 }

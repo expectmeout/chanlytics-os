@@ -121,6 +121,9 @@ const HEARD_BEFORE = {
     "sequence_batches",
     // Whether Stop everything is on, which AI's line and sheet say (Working for you, W1, 21 Nov 2026).
     "tenant_config",
+    // A request someone sent through a form, and what answered it (00680): it joins or leaves the rows Need you counts.
+    "form_entries",
+    "form_entry_links",
   ],
   people: [
     "messages",
@@ -518,6 +521,7 @@ test("the kinds name every table the database tells a workspace of, each in exac
     "rehearsal",
     "ad_account",
     "ad",
+    "request",
   ]);
 });
 

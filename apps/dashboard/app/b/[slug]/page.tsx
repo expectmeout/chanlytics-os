@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { businessPageMetadata, businessPageVM } from "@chanlytics/contracts";
 import { findBusinessPage } from "@/server/public/business-page";
+import { findLiveFormLinks } from "@/server/public/live-forms";
 import { BusinessPublicPage } from "@/yes/BusinessPublicPage";
 
 /**
@@ -54,6 +55,8 @@ export default async function BusinessPage({ params }: { params: Promise<{ slug:
   if (!facts) notFound();
   const vm = businessPageVM(facts);
   if (vm.empty) notFound();
+  // The forms it has live (00680), where it is taking requests: a business that is paused asks nobody for anything.
+  const forms = vm.closedLine ? [] : await findLiveFormLinks(slug);
 
-  return <BusinessPublicPage vm={vm} />;
+  return <BusinessPublicPage vm={vm} forms={forms} />;
 }

@@ -67,13 +67,24 @@ const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) =>
 
 /** Today: the queue's rows the page drew, each as the queue says it, and the day's standing and figures. */
 export const readToday: Provider = async (rc, ctx) => {
-  const { metrics, conversations, escalations, calls, searches, runs, heldThreads, previewsTried } = (
-    await load(rc, todayReader, undefined)
-  ).data;
+  const {
+    metrics,
+    conversations,
+    escalations,
+    calls,
+    searches,
+    runs,
+    heldThreads,
+    previewsTried,
+    formRequests,
+    formHeld,
+  } = (await load(rc, todayReader, undefined)).data;
   const vm = toTodayVM(metrics, conversations, escalations, calls, rc.now, searches, {
     runs,
     heldThreads,
     previewsTried,
+    formRequests,
+    formHeld,
   });
   // What the queue holds, and what waits with no row: the replies counting down and the runs waiting for a word.
   const parts = [...vm.queue.parts, todayDraftsSub(vm.needsYou?.sends ?? 0), todayRunsSub(vm.runs_waiting ?? 0)].filter(

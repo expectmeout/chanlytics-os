@@ -28,6 +28,7 @@ type Event = "INSERT" | "UPDATE" | "DELETE";
 const EVERY: readonly Event[] = ["INSERT", "UPDATE", "DELETE"];
 const INSERTS_AND_UPDATES: readonly Event[] = ["INSERT", "UPDATE"];
 const UPDATES: readonly Event[] = ["UPDATE"];
+const INSERTS_AND_DELETES: readonly Event[] = ["INSERT", "DELETE"];
 
 /**
  * Tables whose changes must repaint the live surfaces (Blueprint §5), and the events each is told for. 00265's loop
@@ -125,6 +126,12 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
   // page and the account's card repaint. An update is told when what they draw moved, or a read landed.
   { table: "ad_accounts", events: EVERY },
   { table: "ads", events: EVERY },
+  // A request someone sent through a form, held for a look, let through, or found to be someone already known
+  // (00680): Today's and the Inbox's Needs you repaint. And what answered it: a reply sent from it, a conversation that
+  // took it over, a member's word, or that word taken back. An entry's update is told when where it stands moved,
+  // never for the steps that tell its owner.
+  { table: "form_entries", events: EVERY },
+  { table: "form_entry_links", events: INSERTS_AND_DELETES },
 ];
 
 /**
@@ -135,6 +142,9 @@ const WATCHED: ReadonlyArray<{ table: string; events: readonly Event[] }> = [
  * whatever a write named.
  */
 const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
+  // Where a form's entry stands and whose it is (00680): held, let through, or moved to the record two were combined
+  // into. Never the steps that tell its owner (effects, told_at), which every entry writes twice.
+  form_entries: ["state", "held_why", "contact_id"],
   // What the account's card draws, and the read's stamp, which is how a page learns an hour's numbers are in (00650):
   // never the platform's pace, which every read moves.
   ad_accounts: ["status", "name", "standing", "config", "read_at", "read_error", "withdrawn_at"],

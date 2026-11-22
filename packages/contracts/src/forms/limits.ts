@@ -1,0 +1,32 @@
+/**
+ * A form's plain values (the Forms plan, 3.7): the eight kinds a question may be, which of them are a choice, and the
+ * shape's limits. Apart from the shape itself (shape.ts, which is schemas): a page that changes a form in place
+ * reads these and carries no schema (decision 0024). Pure.
+ */
+
+/** The kinds a field may be (Ruben's call 6): eight, from the start, and no list a person picks from. */
+export const FORM_FIELD_KINDS = ["short", "long", "email", "phone", "service", "one", "several", "when"] as const;
+export type FormFieldKind = (typeof FORM_FIELD_KINDS)[number];
+
+/** The kinds that are a choice among the field's own: a service, one, several, or when they would like to come. */
+export const CHOICE_KINDS: ReadonlySet<FormFieldKind> = new Set(["service", "one", "several", "when"]);
+
+/** After this many days with nobody looking, a form's held entries are said on Today (the Forms plan, 3.10). */
+export const FORM_HELD_SAID_AFTER_DAYS = 3;
+
+/** The shape's limits: fields and choices, and each answer's length by its kind. */
+export const FORM_LIMITS = {
+  fields: 12,
+  choices: 12,
+  short: 200,
+  long: 2000,
+  email: 254,
+  phone: 40,
+  label: 120,
+  help: 200,
+  heading: 80,
+  intro: 300,
+  thanks: 300,
+} as const;
+
+/** A field's id or a choice's: short, plain, and its own for as long as the form lives. */

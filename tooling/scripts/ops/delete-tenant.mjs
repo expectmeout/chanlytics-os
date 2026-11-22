@@ -120,6 +120,13 @@ const TABLES = [
   // A website's form entries and its keys (00675).
   "form_entries",
   "form_keys",
+  // A business's own forms (00680): each form and its versions, what happened to an entry, and its links with their
+  // days of opens.
+  "form_entry_links",
+  "form_versions",
+  "forms",
+  "link_days",
+  "links",
   // Where each post went, and each send of it (00611, decision 0121).
   "posts",
   "publish_attempts",

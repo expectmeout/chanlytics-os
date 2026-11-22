@@ -8,6 +8,7 @@ import { personTabRoute, type PersonTab } from "../people/person-page/route";
 import { lensRoute, reviewRoute } from "../reports/lenses";
 import { messageRoute, runRoute, sequenceRoute } from "../campaigns/sequences/address";
 import { CONTENT_LIBRARY_ROUTE } from "../content/address";
+import { requestAddress } from "../forms/address";
 import type { RecordKind } from "./record-kinds";
 
 /**
@@ -45,7 +46,8 @@ import type { RecordKind } from "./record-kinds";
  * where the writer knows the day (visitRoute). A list is a built-in's word or a kept list's id. A lead names the lead open,
  * the search it is of, or both; with neither, Leads itself. A template is the Library's message, which is addressed by its
  * name. The reviews are the Reviews lens, and, named by a review's id, that review with its reply box open
- * (`reports/reviews:<id>`). The lines, the team, the business's facts, its rules and its bill are one pane each.
+ * (`reports/reviews:<id>`). The lines, the team, the business's facts, its rules and its bill are one pane each. A request
+ * someone sent through a form opens where it is answered, in the Inbox (`inbox/rq-<id>`).
  */
 export type RecordRef =
   | { kind: "person"; id: string; tab?: PersonTab }
@@ -69,7 +71,8 @@ export type RecordRef =
   | { kind: "billing" }
   | { kind: "file" }
   | { kind: "ad"; id: string }
-  | { kind: "ad_account" };
+  | { kind: "ad_account" }
+  | { kind: "request"; id: string };
 
 /**
  * The kinds of record that open nowhere, and why: the other half of RECORD_KINDS, so a kind added there says where it opens
@@ -147,6 +150,9 @@ export function addressOf(ref: RecordRef): string {
     case "ad":
       // An ad opens its drawer on Campaigns › Ads, by Chanlytics' own id for it (decision 0049, call 1).
       return adRoute(ref.id);
+    case "request":
+      // A form's request opens where it is answered (00680).
+      return requestAddress(ref.id);
   }
 }
 

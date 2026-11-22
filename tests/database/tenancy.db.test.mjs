@@ -283,7 +283,7 @@ before(async () => {
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // A website's key and an entry it sent (00675): members read them, only their doors write them.
   await seed("form_keys", { tenant_id: A, name: "Seeded site", hash: "a".repeat(64) });
-  await seed("form_entries", {
+  ctx.formEntry = await seed("form_entries", {
     tenant_id: A,
     contact_id: ctx.contact,
     form: "request",
@@ -291,6 +291,14 @@ before(async () => {
     words: "b".repeat(64),
     owed: [],
   });
+  // A form the business shares (00680), a version of it, a link to it and a day of the link's opens: members read
+  // them; an owner or an operator writes a form and a link, and only the doors write a version and a day.
+  ctx.form = await seed("forms", { tenant_id: A, slug: "seeded", draft: {} });
+  await seed("form_versions", { tenant_id: A, form_id: ctx.form, n: 1, description: {} });
+  ctx.link = await seed("links", { tenant_id: A, subject_type: "form", subject_id: ctx.form, place: "Seeded" });
+  await seed("link_days", { tenant_id: A, link_id: ctx.link, day: "2026-11-20", opens: 1 }, null);
+  // What happened to an entry (00680): a member's word that it was answered another way.
+  await seed("form_entry_links", { tenant_id: A, entry_id: ctx.formEntry, kind: "marked", created_by: ctx.viewerId });
   // Keyed by their workspace and day, so no id to pick.
   await seed("ask_journal_days", { tenant_id: A, day: "2026-10-20", state: "written", text: "A quiet day." }, null);
   await seed("ask_mornings", { tenant_id: A, user_id: ctx.viewerId, day: "2026-10-21" }, null);
@@ -871,6 +879,32 @@ const TENANT_TABLES = {
   form_entries: [
     "member",
     () => ({ tenant_id: A, contact_id: ctx.contact, form: "request", answers: {}, words: "d".repeat(64), owed: [] }),
+  ],
+  // A form, its versions, its links, their days and what happened to its entries (00680): the workspace's members
+  // read them. A stranger and a viewer write none: a form and a link are an owner's or an operator's, a member's word
+  // on an entry is theirs too, and a version and a day are only their doors'.
+  forms: ["member", () => ({ tenant_id: A, slug: "a-strangers", draft: {}, created_by: ctx.strangerId })],
+  form_versions: ["member", () => ({ tenant_id: A, form_id: ctx.form, n: 2, description: {} })],
+  links: [
+    "member",
+    () => ({
+      tenant_id: A,
+      subject_type: "form",
+      subject_id: ctx.form,
+      place: "A stranger's",
+      created_by: ctx.strangerId,
+    }),
+  ],
+  link_days: ["member", () => ({ tenant_id: A, link_id: ctx.link, day: "2026-11-21", opens: 1 })],
+  form_entry_links: [
+    "member",
+    () => ({
+      tenant_id: A,
+      entry_id: ctx.formEntry,
+      kind: "reply",
+      message_id: ctx.message,
+      created_by: ctx.strangerId,
+    }),
   ],
   file_consents: ["member", () => ({ tenant_id: A, file_id: ctx.file, use: "ad", who: "Stranger", said_in: "ai" })],
   file_subjects: [

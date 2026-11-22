@@ -25,7 +25,9 @@ import {
   firstRunStepOf,
   FIRST_RUN_FIND_ROUTE,
   FIRST_RUN_ROUTE,
+  FORMS_ROUTE,
   isAdsParam,
+  isFormsParam,
   parseAds,
   GET_YES_PARAM,
   GET_YES_ROUTE,
@@ -41,6 +43,7 @@ import {
   personTabRoute,
   pipelinePersonOf,
   reportsParamParts,
+  requestIdOf,
   type RecordRef,
 } from "@chanlytics/contracts";
 import { parseHome } from "./campaigns/home/address";
@@ -79,12 +82,15 @@ const alone =
   (param) =>
     param === "" ? { view } : null;
 
-/** What the Inbox's param opens: a thread by its conversation's id, the door of a new conversation, or To send. */
+/** What the Inbox's param opens: a thread by its conversation's id, a form's request, the door of a new conversation, or To send. */
 function opensInbox(param: string): Opened | null {
   if (param === "") return { view: "inbox" };
   if (newConversationOf(param)) return { view: "inbox/new" };
   // Needs you with its To send open (the Campaigns wiring review's lane 4): every email handed to its owner.
   if (isToSendParam(param)) return { view: "inbox/to-send" };
+  // A request someone sent through a form, where it is answered (00680).
+  const request = requestIdOf(param);
+  if (request) return { ref: { kind: "request", id: request } };
   const id = inboxThread(param);
   return id !== null && RECORD_ID.test(id) ? { ref: { kind: "conversation", id } } : null;
 }
@@ -134,6 +140,8 @@ function opensCampaigns(param: string): Opened | null {
     const ad = parseAds(param).ad;
     return ad ? { ref: { kind: "ad", id: ad } } : { view: "campaigns/ads" };
   }
+  // Campaigns › Forms, the list or a form's sheet over it: a form is no kind of record the feed tells, so it is the view.
+  if (isFormsParam(param)) return { view: FORMS_ROUTE };
   const content = contentPlaceOf(param);
   if (content) return content.list === "library" && !content.open ? { ref: { kind: "file" } } : { view: CONTENT_ROUTE };
   // A message at its home, the Library open on it (contracts messageRoute).

@@ -348,14 +348,15 @@ test("every workspace's Campaigns has a Content tab, after its campaigns and bef
   const plain = S.campaignsChrome({ param: null });
   assert.deepEqual(
     plain.views.tabs.map((t) => t.id),
-    ["sequences", "content"],
-    "no switch draws it: Connect Meta's (content_preview) is off here",
+    ["sequences", "content", "forms"],
+    "no switch draws it: Connect Meta's (content_preview) is off here; Forms is every workspace's too (00680)",
   );
   assert.equal(plain.views.tabs.find((t) => t.id === "content").to, "campaigns/content");
   settingsWith({}, true);
   assert.deepEqual(
     S.campaignsChrome({ param: null }).views.tabs.map((t) => t.id),
-    ["sequences", "content", "ads"],
+    ["sequences", "content", "ads", "forms"],
+    "Ads where it is drawn, and Forms the last",
   );
 });
 

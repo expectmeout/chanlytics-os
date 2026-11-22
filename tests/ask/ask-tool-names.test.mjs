@@ -1612,7 +1612,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     // `tenant_channels` read more. Its bytes are unchanged: this world's number is held by nothing.
     // 21 Nov 2026 (W1, W2): and AI's bookings, the stop and the member's last look (today.ts aiBeside). Bytes unchanged.
     const ai = ["appointments.select", "tenant_config.select", "memberships.select"];
-    const booked = old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select", ...ai] : [];
+    // 22 Nov 2026 (00680): and the form entries held for a look that nobody has looked at in three days, read beside
+    // the requests nobody has answered (readers/forms.ts formRequestsOpen): one `form_entries` read more. Bytes
+    // unchanged: this world has no form.
+    const held = ["form_entries.select"];
+    const booked =
+      old === "get_today" ? ["events.select", "appointments.select", "tenant_channels.select", ...ai, ...held] : [];
     const allowance = leadPlan && !want.isError ? ["rpc:lead_allowance"] : [];
     const reads =
       NAMES[old] === "report"

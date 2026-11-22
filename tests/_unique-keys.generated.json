@@ -1444,6 +1444,95 @@
       }
     },
     {
+      "table": "form_entries",
+      "name": "form_entries_code",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "code"
+        }
+      ],
+      "where": {
+        "notNull": {
+          "column": "code"
+        }
+      }
+    },
+    {
+      "table": "form_entry_links",
+      "name": "form_entry_links_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_entry_links",
+      "name": "form_entry_links_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_entry_links",
+      "name": "form_entry_links_marked",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "entry_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "kind"
+        },
+        "right": {
+          "value": "marked"
+        }
+      }
+    },
+    {
+      "table": "form_entry_links",
+      "name": "form_entry_links_taken_over",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "entry_id"
+        },
+        {
+          "column": "conversation_id"
+        }
+      ],
+      "where": {
+        "cmp": "=",
+        "left": {
+          "column": "kind"
+        },
+        "right": {
+          "value": "conversation"
+        }
+      }
+    },
+    {
       "table": "form_keys",
       "name": "form_keys_pkey",
       "primary": true,
@@ -1501,6 +1590,93 @@
           "column": "first"
         }
       }
+    },
+    {
+      "table": "form_versions",
+      "name": "form_versions_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_versions",
+      "name": "form_versions_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "form_versions",
+      "name": "form_versions_n_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "form_id"
+        },
+        {
+          "column": "n"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "forms",
+      "name": "forms_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "forms",
+      "name": "forms_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "forms",
+      "name": "forms_slug_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "slug"
+        }
+      ],
+      "where": null
     },
     {
       "table": "google_connections",
@@ -2272,6 +2448,60 @@
           "answering"
         ]
       }
+    },
+    {
+      "table": "link_days",
+      "name": "link_days_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "link_id"
+        },
+        {
+          "column": "day"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "links",
+      "name": "links_pkey",
+      "primary": true,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "links",
+      "name": "links_tenant_id_id_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "tenant_id"
+        },
+        {
+          "column": "id"
+        }
+      ],
+      "where": null
+    },
+    {
+      "table": "links",
+      "name": "links_code_key",
+      "primary": false,
+      "nullsNotDistinct": false,
+      "keys": [
+        {
+          "column": "code"
+        }
+      ],
+      "where": null
     },
     {
       "table": "mailbox_connections",

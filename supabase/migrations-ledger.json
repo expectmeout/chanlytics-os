@@ -84,8 +84,7 @@
     "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
     "00667": "left empty by Pause all's lane (cm-ads-pause-all), which claimed it and moved its own file to 00671 when 00668 went on production above it (21 Nov 2026)",
     "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
-    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)",
-    "00680": "claimed by a request form and its row (cm-forms-request, draft #2511), pushed three minutes before the content loop's pass 1b took 00681 to 00683 above it (22 Nov 2026); not on main and not on production then. Its file takes this number when it lands first, and this line goes; landing second, it is numbered above the head"
+    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -683,6 +682,7 @@
     "00677_a_disconnected_instagram_account_is_let_go.sql": "e7a2f5ccc22e598a1a83a583bbb1dfc731847a04d92fc7fb4e3c7978ac61cf21",
     "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571",
     "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
+    "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75",
     "00681_a_post_goes_up_on_the_new_records.sql": "87ce5f6a0d6e348d6a4eed6db7e56ab4c894f788e7094a67faeeeb2ab0c3bcc9",
     "00682_a_person_in_a_file_says_yes.sql": "332fe11dcd0724ea358999e4c074ad1f806eb1c831378aeb7b1b3b2baddd7ce3",
     "00683_a_post_comes_down.sql": "e8f1e21055569e4b6002b3f291dc88026040f4180730d4b49ba13732c42eb955"

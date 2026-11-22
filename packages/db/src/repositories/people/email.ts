@@ -38,3 +38,31 @@ export async function noteEmailTheyGave(
 /** An address kept on a person through its door (set_person_email). */
 export const setPersonEmail = async (db: Db, contactId: ContactId, email: string) =>
   db.rpc("set_person_email", { p_contact_id: contactId, p_email: email });
+
+/**
+ * A living person's name and the address on their page, or null for someone this workspace does not hold: erased, or
+ * a record combined into another. What a reply is addressed by, and when their record was made, read on the member's
+ * own session.
+ */
+export async function findPersonAddress(
+  db: Db,
+  tenantId: TenantId,
+  contactId: ContactId,
+): Promise<{ id: ContactId; name: string | null; email: string | null; createdAt: string } | null> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("id, display_name, wa_profile_name, email, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("id", contactId)
+    .is("erased_at", null)
+    .is("merged_into_contact_id", null)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "contacts");
+  if (!data) return null;
+  return {
+    id: data.id,
+    name: data.display_name ?? data.wa_profile_name,
+    email: data.email,
+    createdAt: data.created_at,
+  };
+}

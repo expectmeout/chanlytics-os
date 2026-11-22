@@ -93,6 +93,8 @@ const RECORDS = [
   // An ad opens its drawer on Campaigns › Ads (decision 0049, call 1); its account is connected on Connections.
   { ref: { kind: "ad", id: ID }, route: `campaigns/ads:ad:${ID}` },
   { ref: { kind: "ad_account" }, route: "admin/integrations", opens: { kind: "channel" } },
+  // A request someone sent through a form opens where it is answered, in the Inbox (00680).
+  { ref: { kind: "request", id: ID }, route: `inbox/rq-${ID}` },
 ];
 
 test("every kind of record says where it opens, or why it opens nowhere, and never both", () => {

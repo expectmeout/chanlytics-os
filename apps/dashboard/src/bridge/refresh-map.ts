@@ -347,6 +347,9 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST contacts": () => [...peopleAndAudiences(), ...calendarIfDrawn()],
   // A conversation begun from the Inbox: their thread is new or moved, and their row on People says so.
   "POST people/[id]/message": personAndThreads,
+  // A request answered from the Inbox (00680): its reply is a member's first message, read as one; marked answered, held
+  // or let through, it leaves or joins Needs you, which Today's read holds.
+  "POST forms/requests": personAndThreads,
   // A signer's name used, put back or declined (0052): the name is on every row and thread header that draws them, a greeting
   // counts it (the composers' audiences), and Leads' rows and peek say who the business's person is.
   "POST people/[id]/name": () => [...personAndThreads(), ...audiences(), ...leads()],
@@ -743,6 +746,10 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
     "the owner stopped watching a folder: every screen that says where it stands reads the folder once it answers",
   "POST sources/disconnect":
     "the owner disconnected Google Drive: every screen that says where it stands reads the folder once it answers",
+  "POST forms":
+    "a form made, changed, published or turned off: Campaigns › Forms reads its list and the open sheet again once it answers",
+  "POST forms/links":
+    "a link made for a place, renamed, stopped or started: the form's sheet reads its links again once it answers",
   "POST website-forms":
     "a website's key made, changed or ended: its row in Connections reads the keys again once it answers",
   // The door's answer names the calls it made, and the press re-reads each one's surfaces (bridge/ask/commit.ts tellDoorCalls).

@@ -138,7 +138,7 @@ test("two public doors under /api/ask: the voice agent's brain door, at its thre
   assert.ok(!paths.some((p) => p.startsWith("/api/v1/ask")), "every member route of Ask stays behind the gate");
 });
 
-test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe link, a partner's link, a sign-up's confirmation and a lead's own receptionist live under them", () => {
+test("nine public PREFIXES, and only a workspace's own pages and forms, a form's short link, the unsubscribe link, a partner's link, a sign-up's confirmation and a lead's own receptionist live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -185,7 +185,23 @@ test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe l
   // page is noindex and sends no referrer; a GET changes nothing, and its opening is counted by its own script; each
   // door makes the same-origin check, takes a bucket per network and acts through a service-role door that holds the
   // preview's limits (00497; previews/preview-routes.test.mjs). Making one theirs is behind sign-in, outside both.
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/preview/", "/api/v1/previews/"]);
+  //
+  // `/l/` joined with a business's own forms (00680; the Forms plan, F1): the short link to one place a form is shared,
+  // which a visitor opens from a post, a listing or a printed code with no account. It reads one link by a six-character
+  // code that says nothing by itself, counts the open for its day (never a visitor: no cookie, no address; a chat app's
+  // preview fetch is not counted) and sends the visitor on to the form under the business's page. Beside it, the same
+  // link drawn as a code and its one sheet to print, which show nothing the form's page does not. None takes input.
+  assert.deepEqual(prefixes, [
+    "/yes/",
+    "/b/",
+    "/.well-known/",
+    "/u/",
+    "/p/",
+    "/c/",
+    "/l/",
+    "/preview/",
+    "/api/v1/previews/",
+  ]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
@@ -201,14 +217,14 @@ test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe l
   // still holds pages and nothing else.
   for (const [dir, what, beneath] of [
     ["yes", "the opt-in page, its paper form and its desk sign", ["form", "page.tsx", "sign"]],
-    ["b", "the workspace's own page and its texting terms", ["page.tsx", "terms"]],
+    ["b", "the workspace's own page, its texting terms and its forms", ["[form]", "page.tsx", "terms"]],
   ]) {
     const at = path.join(ROOT, "apps/dashboard/app", dir);
     assert.deepEqual(fs.readdirSync(at), ["[slug]"], `nothing but ${what} may live under its public prefix`);
     assert.deepEqual(
       fs.readdirSync(path.join(at, "[slug]")).sort(),
       beneath,
-      `and ${what} are pages, not routes that take input`,
+      `and ${what} are what its public prefix holds, each argued here`,
     );
   }
   assert.deepEqual(
@@ -230,6 +246,23 @@ test("eight public PREFIXES, and only a workspace's own pages, the unsubscribe l
     ["page.tsx"],
     "the terms are a page, not a route that takes input",
   );
+  // `/b/<slug>/<form>` joined with a business's own forms (00680): the first page under this prefix that takes input,
+  // let in on these terms. It is drawn only for a form its owner published, in a workspace that has public pages. Its
+  // one write is the visitor's own request, through a service-role door that makes the person by the one rule every
+  // door uses (resolve_person: it fills what is empty, never overwrites, and writes nothing for a person who asked to be
+  // forgotten), holds a doubtful send for a look instead of telling anyone, and takes the same press once. It never
+  // takes a yes to offers, sends nothing to anyone, and is limited per sender and per form (form-page.ts;
+  // tests/forms/a-visitor-fills-in-a-form.test.mjs). One route file, and nothing else.
+  assert.deepEqual(
+    fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/[form]")),
+    ["route.ts"],
+    "a form's page is its one route: it draws the form and takes its send",
+  );
+  // Under /l/, the link's own door, its code and its sheet to print, and nothing else.
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l")), ["[code]"]);
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]")).sort(), ["code", "route.ts", "sign"]);
+  for (const part of ["code", "sign"])
+    assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/l/[code]", part)), ["route.ts"]);
   // Under /u/, one route and nothing else: the link's own door. A second file
   // here would be a second public way in, and it takes a new argument above.
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/u")), ["[token]"]);

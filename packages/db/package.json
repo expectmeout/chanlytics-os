@@ -100,6 +100,12 @@
       "import": "./src/repositories/files/index.ts",
       "default": "./src/repositories/files/index.ts"
     },
+    "./forms": {
+      "types": "./src/repositories/forms/index.ts",
+      "bundled": "./dist/forms.js",
+      "import": "./src/repositories/forms/index.ts",
+      "default": "./src/repositories/forms/index.ts"
+    },
     "./google": {
       "types": "./src/repositories/google/index.ts",
       "bundled": "./dist/google.js",
