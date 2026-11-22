@@ -136,6 +136,9 @@ export const ASK_KIND_TRAITS = {
   memory_forget: t("keep", "keeps", null, "keep", "forget"),
   // A yes for a photo or a video, or one taken back (00665): a record, but consent, so it never runs on a row alone.
   file_yes: t("keep", "keeps", null, "press", "keep"),
+  // Who is in a photo or a video, and one person's own yes (00691): consent too, so each waits for a press.
+  file_people: t("keep", "keeps", null, "press", "keep"),
+  person_yes: t("keep", "keeps", null, "press", "keep"),
   answer_style: t("keep", "keeps", null, "keep", "keep"),
   list: t("keep", "keeps", null, "keep", "list"),
   list_change: t("keep", "keeps", null, "keep", "change"),

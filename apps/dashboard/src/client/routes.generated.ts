@@ -170,6 +170,7 @@ export const ROUTES = {
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH ask/memory/[id]": { method: "PATCH", path: "/api/v1/ask/memory/[id]" },
   "PATCH files/[id]": { method: "PATCH", path: "/api/v1/files/[id]" },
+  "PATCH files/[id]/people": { method: "PATCH", path: "/api/v1/files/[id]/people" },
   "PATCH files/[id]/posts": { method: "PATCH", path: "/api/v1/files/[id]/posts" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH mailbox-connections/[id]": { method: "PATCH", path: "/api/v1/mailbox-connections/[id]" },
@@ -264,6 +265,7 @@ export const ROUTES = {
   "POST files/[id]/done": { method: "POST", path: "/api/v1/files/[id]/done" },
   "POST files/[id]/google": { method: "POST", path: "/api/v1/files/[id]/google" },
   "POST files/[id]/instagram": { method: "POST", path: "/api/v1/files/[id]/instagram" },
+  "POST files/[id]/people": { method: "POST", path: "/api/v1/files/[id]/people" },
   "POST files/[id]/restore": { method: "POST", path: "/api/v1/files/[id]/restore" },
   "POST files/[id]/yes": { method: "POST", path: "/api/v1/files/[id]/yes" },
   "POST files/[id]/yes/back": { method: "POST", path: "/api/v1/files/[id]/yes/back" },
@@ -618,6 +620,7 @@ export type Routes = {
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH ask/memory/[id]": typeof import("../../app/api/v1/ask/memory/[id]/route").PATCH;
   "PATCH files/[id]": typeof import("../../app/api/v1/files/[id]/route").PATCH;
+  "PATCH files/[id]/people": typeof import("../../app/api/v1/files/[id]/people/route").PATCH;
   "PATCH files/[id]/posts": typeof import("../../app/api/v1/files/[id]/posts/route").PATCH;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH mailbox-connections/[id]": typeof import("../../app/api/v1/mailbox-connections/[id]/route").PATCH;
@@ -712,6 +715,7 @@ export type Routes = {
   "POST files/[id]/done": typeof import("../../app/api/v1/files/[id]/done/route").POST;
   "POST files/[id]/google": typeof import("../../app/api/v1/files/[id]/google/route").POST;
   "POST files/[id]/instagram": typeof import("../../app/api/v1/files/[id]/instagram/route").POST;
+  "POST files/[id]/people": typeof import("../../app/api/v1/files/[id]/people/route").POST;
   "POST files/[id]/restore": typeof import("../../app/api/v1/files/[id]/restore/route").POST;
   "POST files/[id]/yes": typeof import("../../app/api/v1/files/[id]/yes/route").POST;
   "POST files/[id]/yes/back": typeof import("../../app/api/v1/files/[id]/yes/back/route").POST;

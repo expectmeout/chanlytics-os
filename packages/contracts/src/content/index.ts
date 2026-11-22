@@ -149,6 +149,7 @@ export type {
   TakeDownAnswer,
 } from "./places";
 export { fileYesSpec } from "./post-spec";
+export { filePeopleSpec, personYesSpec } from "./rights-spec";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,

@@ -160,6 +160,9 @@ export interface AskProposal {
     | "bring_in"
     // A yes for a photo or a video, for a use, said to AI, or one taken back (files/yes.ts, 00665).
     | "file_yes"
+    // Who is in a photo or a video, and one person's own yes (00691, content/rights-spec.ts).
+    | "file_people"
+    | "person_yes"
     // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts): nothing is made at Meta.
     | "ad_draft"
     // A campaign that would reach no one: the one thing to fix first, with its door (playbooks campaignFixCard). It
