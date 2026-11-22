@@ -1,4 +1,4 @@
--- 00682 (working number) · A person in a file says yes (the content loop PRD v3.2, pass 1b, M2; sections 2, 5.2, 5.3,
+-- 00682 · A person in a file says yes (the content loop PRD v3.2, pass 1b, M2; sections 2, 5.2, 5.3,
 -- 6.1 and 14.4; call 13).
 --
 -- A yes was kept per file and use (00665 file_consents), said by whoever the owner named as text, and a file's yes for a
@@ -22,15 +22,20 @@
 --   subject_ask_record     A member's door (add_files: whoever may reply to a person may note the ask they sent): when
 --                          a person was asked, on which channel, about which uses.
 --   subject_no_record      A member's door (settings): that the person said no, as the owner read their answer.
+--   file_subjects_erase_on_contact   A trigger on a person's tombstone: an erased person's rows in files are
+--                          deleted, as their form entries are (00675).
 --   post_as_approved       Re-made: a placement whose file has a person with no yes for posts, or whose people the
 --   post_approve           owner is not sure of, answers `rights` with that person's name: refused at the press, held
 --                          at its send.
 --
--- Erasure (decision 0036, PRD 14.4): a person's file_subjects rows go with them (the foreign key to contacts), and their
--- yes with those rows; the file's people state then says the owner must say who is in it again (unsure).
+-- Erasure (decision 0036, PRD 14.4): an erased person's row in People stays, as a tombstone (00027), so no foreign key
+-- takes their rows here. A trigger on that tombstone does (file_subjects_erase_on_contact): their file_subjects rows are
+-- deleted, their yes goes with those rows by its own key, and the file's people state then says the owner must say who
+-- is in it again (unsure). A person named in a file by a name alone, joined to nobody in People, is reached by no
+-- erasure: a name is not a key (as a review's reviewer is not, 00392).
 --
--- Locks: adding three columns to file_consents and one to files, and widening four CHECKs, each lock for a moment;
--- three seconds each and no more. Re-runnable. Deploy order: this file first, then the code (it calls both doors).
+-- Locks: adding three columns to file_consents and one to files, widening four CHECKs, and one trigger on contacts,
+-- each lock for a moment; three seconds each and no more. Re-runnable. Deploy order: this file first, then the code (it calls both doors).
 
 set local lock_timeout = '3s';
 
@@ -312,7 +317,8 @@ comment on function public.subject_no_record(uuid, uuid) is
 
 /* ------------------------------------------------------------------------- 5b. a person's row gone (erased) -- */
 
--- A person erased takes their rows in files with them (the foreign key to contacts): each file they were in then says
+-- A person's row in a file gone (an erasure deletes it, 5b2 below; a person deleted outright takes it by its key):
+-- each file they were in then says
 -- the owner must say who is in it again, and its standing for each use is restated (PRD 14.4).
 create or replace function public.file_subjects_gone()
 returns trigger
@@ -328,10 +334,38 @@ begin
 end $$;
 revoke all on function public.file_subjects_gone() from public, anon, authenticated;
 comment on function public.file_subjects_gone() is
-  'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
+  'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure deletes it: file_subjects_erase_on_contact) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
 drop trigger if exists file_subjects_gone on public.file_subjects;
 create trigger file_subjects_gone after delete on public.file_subjects
   for each row execute function public.file_subjects_gone();
+
+/* ------------------------------------------------------------- 5b2. an erasure reaches a person's rows in files -- */
+
+-- An erased person's row in People stays, as a tombstone (00027: erase_contact deletes what it names and writes
+-- erased_at), so no foreign key takes their rows in files. This does, as form_entries_erase_on_contact takes their form
+-- entries (00675). Each row deleted runs file_subjects_gone above, and the yes that named it goes by its own key
+-- (file_consents.subject_id). The records merged into them are erased as they are (00326), each its own tombstone.
+create or replace function public.file_subjects_erase_on_contact()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.file_subjects where tenant_id = new.tenant_id and contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+revoke all on function public.file_subjects_erase_on_contact() from public, anon, authenticated;
+comment on function public.file_subjects_erase_on_contact() is
+  'When a person is erased, their rows in files go with them, and their yes with those rows (00682, decision 0036; the content loop PRD''s 14.4): each file they were in is then unsure of who is in it.';
+
+drop trigger if exists contacts_erase_takes_file_subjects on public.contacts;
+create trigger contacts_erase_takes_file_subjects
+  after update of erased_at on public.contacts
+  for each row execute function public.file_subjects_erase_on_contact();
 
 /* ------------------------------------------------------------------------------------- 5c. the rights gap -- */
 

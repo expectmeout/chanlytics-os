@@ -486,10 +486,12 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // to People, so, as the picture itself, it leaves with the workspace; an erasure of a person has no key to it.
   // What a yes reaches and where it was said (00682): places and a message's id, never the person's words.
   file_consents: { who: WITH_WORKSPACE, ...all(NOT_PERSONAL, "scope", "evidence") },
-  // A person in a file, as the owner named them (00682): one who is in People goes with them (the row's foreign key to
-  // contacts, on the erasure's delete), and the file then says the owner must say who is in it again.
+  // A person in a file, as the owner named them (00682): one who is in People goes with them. An erased person's row
+  // in People stays as a tombstone, so no foreign key takes these: a trigger on the tombstone deletes them
+  // (file_subjects_erase_on_contact), their yes goes with each row, and the file then says the owner must say who is
+  // in it again. A name with nobody in People behind it is reached by no erasure: a name is not a key.
   // The ask (00682): the channel it went on and the uses it asked about, words of closed sets, never what was written.
-  file_subjects: { name: withPerson("erase_contact"), ...all(NOT_PERSONAL, "asked_via", "asked_uses") },
+  file_subjects: { name: withPerson("file_subjects_trigger"), ...all(NOT_PERSONAL, "asked_via", "asked_uses") },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
     // The uses a file has a yes for, and those taken back (00665): words of a closed set, never a person's.

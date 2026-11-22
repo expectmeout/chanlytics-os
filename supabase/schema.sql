@@ -10958,6 +10958,29 @@ COMMENT ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) IS 'A member'
 
 
 --
+-- Name: file_subjects_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.file_subjects_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.file_subjects where tenant_id = new.tenant_id and contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION file_subjects_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.file_subjects_erase_on_contact() IS 'When a person is erased, their rows in files go with them, and their yes with those rows (00682, decision 0036; the content loop PRD''s 14.4): each file they were in is then unsure of who is in it.';
+
+
+--
 -- Name: file_subjects_gone(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -10977,7 +11000,7 @@ end $$;
 -- Name: FUNCTION file_subjects_gone(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_subjects_gone() IS 'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
+COMMENT ON FUNCTION public.file_subjects_gone() IS 'Trigger (00682; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure deletes it: file_subjects_erase_on_contact) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
 
 
 --
@@ -57867,6 +57890,13 @@ CREATE TRIGGER contacts_erase_scrubs_events AFTER UPDATE OF erased_at ON public.
 
 
 --
+-- Name: contacts contacts_erase_takes_file_subjects; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_file_subjects AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.file_subjects_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erase_takes_form_entries; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -66229,6 +66259,14 @@ GRANT ALL ON FUNCTION public.file_sound_keep(p_tenant_id uuid, p_id uuid, p_part
 REVOKE ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO authenticated;
 GRANT ALL ON FUNCTION public.file_start(p_tenant_id uuid, p_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION file_subjects_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.file_subjects_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.file_subjects_erase_on_contact() TO service_role;
 
 
 --

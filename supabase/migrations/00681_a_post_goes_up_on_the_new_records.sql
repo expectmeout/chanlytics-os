@@ -1,4 +1,4 @@
--- 00681 (working number) · A post goes up on the new records (the content loop PRD v3.2, pass 1b, M1; sections 3, 5,
+-- 00681 · A post goes up on the new records (the content loop PRD v3.2, pass 1b, M1; sections 3, 5,
 -- 6, 8 and 14.4).
 --
 -- An approval is of an exact thing. Until now a post kept the file it showed and the words it went with, and nothing

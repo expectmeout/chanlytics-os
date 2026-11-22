@@ -640,6 +640,28 @@ async function seed() {
     reach: { name: "Ada", email: EMAIL.toUpperCase(), phone: PHONE },
   });
 
+  // A photo they are in, named by its owner (00682): the name goes with them by the erasure's trigger, and the photo
+  // is then unsure of who is in it.
+  made.photo = await insert("files", {
+    tenant_id: T,
+    kind: "image",
+    source: "upload",
+    status: "filed",
+    name: `erasure-${RUN}`,
+    mime: "image/jpeg",
+    bytes: 1000,
+    fingerprint: `fp-erasure-${RUN}`,
+    subjects_state: "named",
+  });
+  await insert("file_subjects", {
+    tenant_id: T,
+    file_id: made.photo,
+    contact_id: A,
+    name: WORDS,
+    label: "client",
+    how: "owner_named",
+  });
+
   // What their mail to a connected mailbox left there, and the workspace's word that they are a person (00483): both
   // go with them by the erasure's trigger.
   ok(
@@ -818,6 +840,15 @@ test(
     assert.equal(tomb.consent_channels, null, "the channels they said yes on went with the answer");
     assert.equal(tomb.marketing_channels, null);
     assert.equal(tomb.before, null, "what another system said of them went with them");
+    const [photo] = query(
+      `select subjects_state, (select count(*)::int from public.file_subjects s where s.file_id = f.id) as named
+       from public.files f where f.id = '${made.photo}'`,
+    );
+    assert.deepEqual(
+      [photo.subjects_state, photo.named],
+      ["unsure", 0],
+      "the photo they were in names nobody now, and says its owner must say who is in it again",
+    );
     const [lead] = query(`select mark_path, business_name from public.leads where tenant_id = '${T}'`);
     assert.deepEqual([lead.mark_path, lead.business_name], [null, ""], "the lead is blanked, its mark with it");
     const [{ n: threads }] = query(`select count(*)::int as n from public.conversations where contact_id = '${A}'`);

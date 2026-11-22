@@ -38,6 +38,8 @@ export const ERASURE_LEGS = {
     "mailbox_senders_on_erase: their address off the list of what a connected mailbox left, and a person said of it with it, and what Chanlytics read them to be (00495); what was said of a robot stays (00483)",
   form_entries_trigger:
     "form_entries_erase_on_contact: every form entry they sent deleted (00675); form_entries_held_erase_on_contact: an entry held for a look, which has no person yet, deleted by the address or the number typed into it (00680)",
+  file_subjects_trigger:
+    "file_subjects_erase_on_contact: their rows in the files they were named in deleted, their yes for each use with those rows, and each such file left unsure of who is in it until its owner says again (00682)",
 } as const;
 
 export type ErasureLeg = keyof typeof ERASURE_LEGS;

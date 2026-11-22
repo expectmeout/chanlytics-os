@@ -1,4 +1,4 @@
--- 00683 (working number) · A post comes down (the content loop PRD v3.2, pass 1b, M3 for posts; sections 5.3, 8 and
+-- 00683 · A post comes down (the content loop PRD v3.2, pass 1b, M3 for posts; sections 5.3, 8 and
 -- 8.3; call 13).
 --
 -- A post that was up could be taken off Google by its own press and nowhere else; a yes taken back held what waited

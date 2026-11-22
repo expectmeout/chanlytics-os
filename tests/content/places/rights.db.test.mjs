@@ -217,7 +217,14 @@ test("a person erased takes their row with them, and the file is unsure of who i
     "the person",
   ).id;
   ok(await name("owner", photo, "named", [{ name: "Lu", label: "client", contact_id: contact }]), "Lu");
-  ok(await db.from("contacts").delete().eq("id", contact), "the person erased");
+  // The owner erases them through the erasure's own door. Their row in People stays, as a tombstone, so nothing here
+  // goes by a foreign key: the trigger on the tombstone takes their rows in files (file_subjects_erase_on_contact).
+  ok(await as.owner.client.rpc("erase_contact", { p_contact_id: contact }), "the person erased");
+  assert.notEqual(
+    ok(await db.from("contacts").select("erased_at").eq("id", contact).single(), "the tombstone").erased_at,
+    null,
+    "the person's row stays, erased",
+  );
   assert.equal(ok(await db.from("file_subjects").select("id").eq("file_id", photo), "rows").length, 0);
   assert.equal(
     ok(await db.from("files").select("subjects_state").eq("id", photo).single(), "photo").subjects_state,

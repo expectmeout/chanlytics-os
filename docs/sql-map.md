@@ -22,8 +22,8 @@ nothing calls is neither named below with why nor dropped.
 | reader | 95 | 0 |
 | the server's | 440 | 368 |
 | computed column | 3 | 0 |
-| trigger | 119 | 88 |
-| all | 866 | 665 |
+| trigger | 120 | 89 |
+| all | 867 | 666 |
 
 ## Called by nothing
 
@@ -261,6 +261,7 @@ being read is dropped by a migration.
 | `file_search_words` | reader | a signed-in person, the server | SQL `files_found` | The words a file is found by, as one text (00597): |
 | `file_sound_keep` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | One part of what was heard of a video (00556): |
 | `file_start` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | A member's upload begins (00551): |
+| `file_subjects_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_file_subjects on contacts` | When a person is erased, their rows in files go with them, and their yes with those rows (00682, decision 0036; |
 | `file_subjects_gone` | trigger | the server | trigger `file_subjects_gone on file_subjects` | Trigger (00682; the content loop PRD's 14.4): |
 | `file_subjects_name` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the add_files permission (00682): |
 | `file_twin_fate` | the server's | the server | SQL `file_found`, `file_printed` | Which of two twins stays (00630), for a newcomer of this source, status and size against the twin by its id: |
