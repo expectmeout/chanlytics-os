@@ -5,10 +5,9 @@
  * `routes.ts`, not this module's. Where the page stands is said to the head the frame draws in Glass
  * (kit/head/frame-head.tsx).
  */
-import { useZonesStanding } from "./zones/head";
 import { TodayZones } from "./zones/page";
 
+/** The page, which says its own standing to the head as it draws (zones/page.tsx, zones/head.tsx useZonesStanding). */
 export function TodayRoute() {
-  useZonesStanding();
   return <TodayZones />;
 }

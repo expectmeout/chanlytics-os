@@ -23,7 +23,7 @@ import type { TodayCard } from "./calm/lead";
 import type { TodayMorning } from "./calm/evening";
 import { useTodayEvening } from "./zones/head";
 import { useWeekMoment } from "./calm/week";
-import { useNeedYouModel } from "./need-you-model";
+import { useNeedYouModel, type ToDoModel } from "./need-you-model";
 import { canDo } from "./shell";
 import { useFoundModel } from "./zones/found";
 import { useSetupActs } from "./zones/setup-card";
@@ -46,6 +46,8 @@ export interface TodayArrangement {
    * day. Only who truly needs you holds the card then: a to-do, setting up and what AI found wait for the morning.
    */
   morning: TodayMorning | null;
+  /** A to-do of the member's own is still open (a step due, a visit to mark, a review to answer): the page is not done. */
+  toDoLeft: boolean;
 }
 
 /** What the arrangement is worked out from: what each part will draw. */
@@ -81,6 +83,8 @@ interface ArrangementReads {
   foundFirst: string | null;
   /** What waits for morning once the business has closed for the day; null by day. */
   morning: TodayMorning | null;
+  /** Any to-do still open, drawn or past the rows drawn. */
+  todoLeft: boolean;
   /** The week's card while it is still to be seen (calm/week.tsx, W9), by its id; null where there is none. */
   week?: string | null;
 }
@@ -146,6 +150,30 @@ export function arrangementOf(reads: ArrangementReads): TodayArrangement {
     coral,
     card: todayCardOf(reads),
     morning: reads.morning,
+    toDoLeft: reads.todoLeft,
+  };
+}
+
+/** To do's model as the arrangement reads it: what it counts, holds, and kept in its place this visit. */
+type ToDoRead = Pick<ToDoModel, "count" | "read" | "kept" | "steps" | "visits">;
+
+/** Whether a to-do is still open: one the read holds that was not done here, or more counted than the read holds. */
+const toDoOpen = (todo: ToDoRead | null): boolean =>
+  !!todo && (todo.read.some((r) => !todo.kept[r.id]) || todo.count > todo.read.length);
+
+/** What waits for morning once the business has closed (W5), from the counts the page already holds; null by day. */
+function morningOf(
+  evening: boolean,
+  todo: ToDoRead | null,
+  found: ReturnType<typeof useFoundModel>,
+  setup: boolean,
+): TodayMorning | null {
+  if (!evening) return null;
+  return {
+    toDo: todo?.count ?? 0,
+    toDoDoor: todo?.steps?.to ?? todo?.visits?.to ?? null,
+    found: found.found.rows.length + found.found.rest.length,
+    setup,
   };
 }
 
@@ -160,16 +188,9 @@ export function useTodayArrangement(): TodayArrangement {
   const evening = useTodayEvening();
   const week = useWeekMoment();
   const todo = needYou?.todo ?? null;
-  const morning: TodayMorning | null = evening
-    ? {
-        toDo: todo?.count ?? 0,
-        toDoDoor: todo?.steps?.to ?? todo?.visits?.to ?? null,
-        found: found.found.rows.length + found.found.rest.length,
-        setup: setupActs,
-      }
-    : null;
   return arrangementOf({
-    morning,
+    morning: morningOf(evening, todo, found, setupActs),
+    todoLeft: toDoOpen(todo),
     week: week?.id ?? null,
     read: !!vm,
     known: found.shown,
