@@ -63,10 +63,20 @@ export const AI_WORDS = {
     gotIt: "Got it",
     reports: "See Reports",
     /** Said back as Got it is pressed: when the next one comes. */
-    kept: "Next week’s comes on Monday.",
+    kept: "Next week’s comes on Monday",
     answered: (n: number): string => `In the last 7 days AI answered ${some(n, "message", "messages")}.`,
     calls: (n: number): string => some(n, "call", "calls"),
     booked: (n: number): string => `${n} booked`,
+  },
+  /** A milestone of AI's bookings, said once in the card (W9): the count reached, and how many of them are new. */
+  milestone: {
+    kind: "A milestone",
+    label: "A milestone of AI’s bookings",
+    reached: (n: number): string => `AI’s ${n.toLocaleString("en-US")}th booking for you.`,
+    lately: (n: number, days: number): string => `${n} of them in the last ${days} days.`,
+    /** Said back as Got it is pressed: the count the next one is said at, or, past the last, that it is put away. */
+    kept: (next: number | null): string =>
+      next === null ? "Put away" : `Next is AI’s ${next.toLocaleString("en-US")}th booking`,
   },
   /** Let AI do more (W10): a kind AI still asks about whose drafts all went as written, and what one press changes. */
   more: {

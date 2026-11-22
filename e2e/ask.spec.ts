@@ -393,7 +393,10 @@ test.describe("Ask on a phone", () => {
     await page.getByTestId("phone-ask").tap();
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
-    await ask.getByTestId("ask-input").fill("how did the");
+    // On a phone the field stands in the frame's bar, outside the dialog (ask/line/draw.tsx, Today, calm's one bar): the
+    // page's to find, as the nightly found it was not the dialog's (red from 20 Nov 2026).
+    const field = page.getByTestId("ask-input");
+    await field.fill("how did the");
     // The takeover pushed one entry of its own as it opened (surfaces/ask/line/, S8): Back closes it and stays on Today.
     await page.goBack();
     await expect(ask).toHaveCount(0);
@@ -401,7 +404,7 @@ test.describe("Ask on a phone", () => {
     // The words are kept as typed (S9) and are back in the field on the next open.
     await page.getByTestId("phone-ask").tap();
     await expect(ask).toBeVisible();
-    await expect(ask.getByTestId("ask-input")).toHaveValue("how did the");
+    await expect(field).toHaveValue("how did the");
   });
 });
 

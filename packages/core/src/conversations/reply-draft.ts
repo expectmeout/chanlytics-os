@@ -16,6 +16,7 @@
  * What it writes is text: nothing leaves by any of this, and the reply's own door sends it on a press.
  */
 import {
+  holdDraftInstruction,
   REPLY_DRAFT_RULES,
   strangerCaller,
   replyDraftOwed,
@@ -240,6 +241,9 @@ function askOf(
     holdReason: replyDraftThread.holdReason,
     holdDetails: replyDraftThread.holdDetails,
     ...over,
+    // A member's change is theirs alone. Where nobody asked for one, a card that knows more than its reason says so
+    // (a time that isn't booked, contracts holdDraftInstruction): the draft is still the card's own.
+    instruction: over.instruction ?? holdDraftInstruction(replyDraftThread.holdReason, replyDraftThread.holdDetails),
   };
 }
 
