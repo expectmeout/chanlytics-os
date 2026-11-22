@@ -245,7 +245,32 @@ before(async () => {
     null,
   );
   // A video asked for (00613): its doors write it, a member reads where it stands.
-  await seed("pieces", { tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "seeded" });
+  ctx.piece = await seed("pieces", {
+    tenant_id: A,
+    shape: "hook_cut",
+    plan: {},
+    look: {},
+    edition: 1,
+    card_key: "seeded",
+  });
+  // A piece's version, a shape of it as sent, and what an owner approved (00690): members read them, their doors write them.
+  ctx.revision = await seed("piece_revisions", { tenant_id: A, piece_id: ctx.piece, n: 1, plan: {}, made_by: "owner" });
+  await seed("piece_renditions", {
+    tenant_id: A,
+    piece_id: ctx.piece,
+    revision: 1,
+    shape: "9x16",
+    file_id: ctx.file,
+    path: "seeded/video.mp4",
+    checksum: "a".repeat(64),
+  });
+  await seed("approvals", {
+    tenant_id: A,
+    subject_type: "piece_revision",
+    subject_id: ctx.revision,
+    snapshot: {},
+    snapshot_hash: "b".repeat(64),
+  });
   // What a person removed, by fingerprint, read by no member (00551).
   await seed("files_let_go", { tenant_id: A, fingerprint: "seeded" }, null);
   // A website's key and an entry it sent (00675): members read them, only their doors write them.
@@ -850,6 +875,24 @@ const TENANT_TABLES = {
   pieces: [
     "member",
     () => ({ tenant_id: A, shape: "hook_cut", plan: {}, look: {}, edition: 1, card_key: "a-strangers" }),
+  ],
+  // A piece's versions, its shapes and its approvals (00690): a member reads them, only their doors write them.
+  piece_revisions: ["member", () => ({ tenant_id: A, piece_id: ctx.piece, n: 9, plan: {}, made_by: "ai" })],
+  piece_renditions: [
+    "member",
+    () => ({
+      tenant_id: A,
+      piece_id: ctx.piece,
+      revision: 1,
+      shape: "1x1",
+      file_id: ctx.file,
+      path: "stranger/square.jpg",
+      checksum: "c".repeat(64),
+    }),
+  ],
+  approvals: [
+    "member",
+    () => ({ tenant_id: A, subject_type: "plan", subject_id: ctx.piece, snapshot: {}, snapshot_hash: "d".repeat(64) }),
   ],
   ask_journal_days: ["owner", () => ({ tenant_id: A, day: "2026-10-19", state: "quiet" })],
   ask_mornings: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId, day: "2026-10-20" })],
