@@ -186,6 +186,9 @@ const TABLES = [
   "reach_out_check_spend",
   // A conversation rehearsed or a real call reviewed (00476, decision 0069).
   "rehearsals",
+  // What a cause started, and each action of it (00676): a yes taken back, honoured, ad by ad.
+  "remediation_actions",
+  "remediations",
   // What was brought in, and what the profile and the website say (00477, 00479; decision 0073).
   "imports",
   "business_reads",

@@ -10,10 +10,12 @@
  */
 import { zoneDayKey } from "../shared/clock";
 import { recordOrEmpty } from "../shared/unknown";
-import { MIN_MS } from "../shared/time";
+import type { SchemaSet } from "../shared/schema-sets";
+import { HOUR_MS, MIN_MS } from "../shared/time";
 import type { AdState } from "./ads";
 import type { AdChangeOnWay } from "./change";
 import { adStateOf } from "./states";
+import type { AdWayIn } from "./way-in";
 
 /** What a tap on an ad opens, as its row keeps it (ads.door). */
 export type AdOpens = "whatsapp" | "instagram" | "messenger" | "call" | "form" | "website" | "other";
@@ -31,26 +33,62 @@ export interface AdBudgetLive {
   shared: boolean;
 }
 
-/** Why an ad needs its owner. */
-export type AdNeedsLive = "refused" | "unpaid" | "troubled" | "paused_at_platform";
+/**
+ * Why an ad needs its owner: the platform refused it, could not charge for it or found something wrong with it; AI
+ * can't answer the chat it opens while it is on (`way_in`); or it was paused at the platform while the owner has it on.
+ */
+export type AdNeedsLive = "refused" | "unpaid" | "troubled" | "way_in" | "paused_at_platform";
+
+/**
+ * Why Chanlytics holds an ad paused (ads.paused_by, 00676): Stop everything paused it; a remediation did (a yes taken
+ * back on its picture, so it runs again only with another); its owner's own Pause; or the owner's one press for them all.
+ */
+export type AdPausedBy = SchemaSet<"ads.paused_by">;
+
+/** What stands between AI and the chat a running ad opens, as the ad's row keeps it: one of adWayInOf's, never open. */
+export type AdWayClosed = Exclude<AdWayIn, "open">;
+
+/**
+ * How long Meta's word on an ad's number may stay unknown before a running ad says so and rings (00676 ad_way_in_keep
+ * waits the same hour): one read that could not tell wakes nobody.
+ */
+const AD_WAY_IN_UNREAD_MS = HOUR_MS;
 
 /**
  * Why the launch of an ad made here stopped part way: Meta refused a step (in its own words); what Meta held was not
- * what was approved; a make whose answer never came was never found; AI was stopped; the account was disconnected or
+ * what was approved; a make whose answer never came was never found; AI was stopped; AI could no longer answer the chat
+ * it opens, checked just before it was switched on; it was cancelled (by its owner, or for a yes taken back on its
+ * picture); the account was disconnected or
  * signed out; the picture could not be sent (a video, or one Files no longer holds); what was approved could not be
  * read whole; or turning ads on from here was switched off on this deployment before it finished.
  */
 export type AdStopped =
-  "refused" | "differs" | "unanswered" | "ai_stopped" | "disconnected" | "signed_out" | "picture" | "business" | "off";
+  | "refused"
+  | "differs"
+  | "unanswered"
+  | "ai_stopped"
+  | "way_in"
+  | "cancelled"
+  | "disconnected"
+  | "signed_out"
+  | "picture"
+  | "business"
+  | "off";
 
 /** A part of an ad made here that is still at the platform after its launch stopped, named and paused there. */
 export type AdPartLeft = "campaign" | "set" | "picture" | "ad";
 
-/** What an ad made here says of its launch: why it stopped, Meta's own words, and what was left at the platform. */
+/**
+ * What an ad made here says of its launch: why it stopped, Meta's own words, what was left at the platform, and whether a
+ * cancel is on its way to the job setting it up (the Ads plan's 4.7, point 8).
+ */
 export interface AdLaunchLive {
   stopped: AdStopped | null;
   said: string | null;
   left: AdPartLeft[];
+  /** Whether Turn on's job is still making it at Meta: what its owner may cancel. */
+  sending: boolean;
+  cancelling: boolean;
 }
 
 /**
@@ -100,6 +138,13 @@ export interface AdLiveDto {
   pending: "pausing" | "resuming" | null;
   /** Bumped on every change of the owner's: a press carries it, and a stale one is refused. */
   version: number;
+  /** Why Chanlytics holds it paused, where it does: what turning ads back on names (00676). */
+  paused_by: AdPausedBy | null;
+  /**
+   * An ad made here that is on: what stands between it and AI answering the chat it opens, once it stands (Meta's word
+   * not known counts after AD_WAY_IN_UNREAD_MS); null while AI answers it.
+   */
+  way_in: AdWayClosed | null;
   /** Whether it may be turned back on from here (adResumeRule). */
   resume: AdResume;
   /** Chanlytics' half, in the page's window: who first got in touch through it, and who of them has booked since. */
@@ -146,8 +191,8 @@ export interface AdsLiveDto {
   can_press: boolean;
   /**
    * When AI was stopped (Stop everything), as the workspace's settings keep it; null while AI runs. While it is, no ad
-   * is turned on from here, and the page says how many are still on, with the press that pauses them all (the Ads
-   * plan's G17).
+   * is turned on from here: the stop paused the ads made here itself, and the page says so, and how many made in Meta
+   * are still on, with the press that pauses them (the content loop PRD's 14.1, call 21, reversing the Ads plan's G17).
    */
   stopped_at: string | null;
   /**
@@ -196,6 +241,9 @@ interface AdStateFacts {
   budget_left_minor: number | null;
   /** An ad made here: where its launch stands (ads.launch); absent or null for one made at the platform. */
   launch?: unknown;
+  /** An ad made here: what stands in its way in, and since when (ads.way_in, way_in_at); absent before 00676. */
+  way_in?: string | null;
+  way_in_at?: string | null;
 }
 
 /** How long a last switch that went unanswered is followed before the page says it couldn't confirm it (the plan's 4.7). */
@@ -207,6 +255,23 @@ function unansweredOf(row: AdStateFacts, nowMs: number): "lately" | "long" | nul
   const sinceMs = typeof at === "string" ? Date.parse(at) : NaN;
   if (row.status !== "made" || !Number.isFinite(sinceMs)) return null;
   return nowMs - sinceMs >= UNCONFIRMED_AFTER_MS ? "long" : "lately";
+}
+
+const WAYS_CLOSED: readonly AdWayClosed[] = ["stopped", "paused", "no_number", "unread", "blocked"];
+
+/**
+ * What stands between an ad and AI answering the chat it opens, as its row keeps it, once it stands: at once for each but
+ * `unread`, which stands once Meta's word has stayed unknown for AD_WAY_IN_UNREAD_MS; null otherwise.
+ */
+export function adWayClosedOf(
+  row: { way_in?: string | null; way_in_at?: string | null },
+  nowMs: number,
+): AdWayClosed | null {
+  const closed = WAYS_CLOSED.find((one) => one === row.way_in);
+  if (!closed) return null;
+  if (closed !== "unread") return closed;
+  const sinceMs = typeof row.way_in_at === "string" ? Date.parse(row.way_in_at) : Number.NaN;
+  return Number.isFinite(sinceMs) && nowMs - sinceMs >= AD_WAY_IN_UNREAD_MS ? closed : null;
 }
 
 /**
@@ -226,6 +291,7 @@ export function adStateOfRow(row: AdStateFacts, at: { nowMs: number; timezone: s
       // What a total has spent is what the platform says is no longer left of it.
       spentMinor: total !== null && row.budget_left_minor !== null ? total - row.budget_left_minor : 0,
       unanswered: unansweredOf(row, at.nowMs),
+      wayClosed: adWayClosedOf(row, at.nowMs) !== null,
     },
     zoneDayKey(at.nowMs, at.timezone),
   );
@@ -242,7 +308,7 @@ export const adLeftOn = (state: AdState | "draft"): boolean =>
 /** Whether an ad may be turned back on from here, and what the press may then cost at most. */
 export type AdResume =
   | { ok: true; left_minor: number; ends_at: string }
-  | { ok: false; why: "not_paused" | "no_total" | "no_end" | "shared" | "nothing_left" | "ended" };
+  | { ok: false; why: "not_paused" | "picture" | "no_total" | "no_end" | "shared" | "nothing_left" | "ended" };
 
 /** What the rule reads of an ad's row. */
 interface AdResumeFacts {
@@ -253,6 +319,8 @@ interface AdResumeFacts {
   budget_left_minor: number | null;
   budget_shared: boolean | null;
   ends_at: string | null;
+  /** Why Chanlytics holds it paused (ads.paused_by); absent before 00676. */
+  paused_by?: string | null;
 }
 
 /**
@@ -267,6 +335,8 @@ export function adResumeRule(ad: AdResumeFacts, nowMs: number): AdResume {
   // An ad made here is paused by its own campaign, which holds nothing else: what the owner asked is what stands.
   const paused = ad.origin === "chanlytics" ? ad.intent === "paused" : ad.platform_state === "PAUSED";
   if (!paused) return { ok: false, why: "not_paused" };
+  // Paused because someone in its picture took back their yes: it runs again only with another picture (G16).
+  if (ad.paused_by === "remediation") return { ok: false, why: "picture" };
   if (ad.budget_kind !== "total") return { ok: false, why: "no_total" };
   if (ad.ends_at === null) return { ok: false, why: "no_end" };
   if (ad.budget_shared !== false) return { ok: false, why: "shared" };

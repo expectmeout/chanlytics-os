@@ -12,10 +12,25 @@ import "server-only";
  * the record, and pressed again, a stop looks again: whatever still sends is tried again and, once paused, joins the record.
  * A Resume that cannot bring something back keeps it in the record, so a Resume again brings back the rest.
  *
+ * Ads (the content loop PRD's 14.1, call 21, taken 21 Nov 2026; it reverses the Ads plan's G17, where the stop only told).
+ * While AI is stopped an ad still sends people to a WhatsApp nobody answers, and spends for it. So the stop pauses every
+ * ad made here that is on, in the same act, through the one door a pause of them all is kept by (ad_pause_all by `stop`,
+ * 00676), which marks each paused by the stop and tells Meta at its pace. Ads made in Meta's own tools are told of, never
+ * paused: the answer counts them, and the Ads page offers the owner's press. Resume never turns an ad back on, since that
+ * spends: it names the ads the stop paused, and turning them back on is the owner's own press on them.
+ *
  * A stop is always free: any member who may act may press it. Turning Ask's freedom on is an owner's or a partner's, since it
  * changes how the business runs.
  */
-import { AppError, parseTenantConfigResult, type AskStopped, type TenantId } from "@chanlytics/contracts";
+import {
+  AppError,
+  adLeftOn,
+  adStateOfRow,
+  parseTenantConfigResult,
+  type AskStopped,
+  type TenantId,
+} from "@chanlytics/contracts";
+import { findAdAccountForPage, listMadeAds, pauseAdsForStop } from "@chanlytics/db/ads";
 import { findConfigRow, findConfigRowVersioned, putTenantConfig, setSendingStopped } from "@chanlytics/db/workspace";
 import { listRunningPlaybookIds } from "@chanlytics/db/campaigns";
 import { logAndGoOn } from "@chanlytics/log";
@@ -77,6 +92,25 @@ async function readStopped(ctx: RouteContext, tenantId: TenantId): Promise<AskSt
   return parsed.ok ? ((parsed.config.ask as { stopped?: AskStopped } | undefined)?.stopped ?? null) : null;
 }
 
+/** An ad the stop paused that stands so: what the owner's own press turns back on, with the version it was drawn from. */
+interface StoppedAd {
+  id: string;
+  name: string;
+  version: number;
+}
+
+/** What a press did to ads, and what Resume says of them. */
+interface StopAds {
+  /** After a stop: the ads made here it paused just now. */
+  paused: number;
+  /** Ads made here still on after it: their pause could not be kept, so they still spend. */
+  still_on: number;
+  /** Ads made in Meta's own tools still on: told of, never paused by the stop. */
+  in_meta: number;
+  /** The ads the stop paused that stand so: Resume names them, and never turns them on. */
+  waiting: StoppedAd[];
+}
+
 /** What a press did, and what it could not: the page and Ask each say it in their own words. */
 export interface StopAnswer {
   /**
@@ -90,6 +124,49 @@ export interface StopAnswer {
   replies: boolean;
   /** After a stop, the sequences it could not pause: pressed again, it tries them again. */
   left: number;
+  ads: StopAds;
+}
+
+const NO_ADS: StopAds = { paused: 0, still_on: 0, in_meta: 0, waiting: [] };
+
+/**
+ * The ads of the workspace's ad account, as they stand: which are still on (contracts adLeftOn, the one reading of a
+ * badge), whose, and which the stop holds paused. None where no account is connected. A read that fails is said as none,
+ * and logged: the ads are not what decides whether sending stopped.
+ */
+async function adsNow(ctx: RouteContext, tenantId: TenantId): Promise<StopAds> {
+  const account = await findAdAccountForPage(ctx.supabase, tenantId, "meta");
+  if (!account || account.status !== "connected") return NO_ADS;
+  const at = { nowMs: Date.now(), timezone: account.timezone ?? "UTC" };
+  const rows = await listMadeAds(ctx.supabase, tenantId, account.id);
+  const on = rows.filter((row) => row.intent === "on" && adLeftOn(adStateOfRow({ ...row, way_in: null }, at)));
+  return {
+    paused: 0,
+    still_on: on.filter((row) => row.origin === "chanlytics").length,
+    in_meta: on.filter((row) => row.origin !== "chanlytics").length,
+    waiting: rows
+      .filter((row) => row.intent === "paused" && row.paused_by === "stop")
+      .map((row) => ({ id: row.id, name: row.name, version: row.version })),
+  };
+}
+
+/**
+ * The stop's pause of the ads made here that are on, on the service client (a stop may be pressed below the owner): one
+ * door, one transaction, each told to Meta at its pace. A database before 00676 has no such door, and then nothing is
+ * paused here: the Ads page offers the owner's press for every ad still on, as before.
+ */
+async function pauseAdsMadeHere(ctx: RouteContext, tenantId: TenantId): Promise<StopAds> {
+  const kept = await pauseAdsForStop(service(), { tenantId, userId: ctx.userId }).catch(logAndGoOn("stop ads", null));
+  const paused = kept?.outcome === "kept" ? kept.ads.filter((one) => one.outcome === "asked").length : 0;
+  const now = await adsNow(ctx, tenantId).catch(logAndGoOn("stop ads read", NO_ADS));
+  log.info("ads_paused_by_stop", {
+    tenant_id: tenantId,
+    paused,
+    still_on: now.still_on,
+    in_meta: now.in_meta,
+    door: kept?.outcome ?? "failed",
+  });
+  return { ...now, paused };
 }
 
 /** The stop on the workspace's own row, written or lifted on the service client (db setSendingStopped). */
@@ -138,6 +215,8 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
     else left.push(id);
   }
   const replies = await holdReplies(ctx, req, member, already?.reply ?? null);
+  // The ads made here, paused in the same act: while AI is stopped nobody answers the people an ad brings.
+  const ads = await pauseAdsMadeHere(ctx, tenantId);
   // What still goes out on its own, kept for the page to say: nothing, once the stop is written.
   const stillGoing = !written && (left.length > 0 || !replies.held);
   const stopped: AskStopped = {
@@ -150,7 +229,7 @@ export async function stopEverything(ctx: RouteContext, req: Request, member: Me
   await writeAskKey(tenantId, ctx.userId, "stopped", stopped);
   if (left.length > 0 || !replies.held)
     log.warn("ask_stop_left", { tenant_id: tenantId, left: left.length, replies: replies.held, written });
-  return { stopped: !stillGoing, paused: paused.size, replies: replies.held, left: left.length };
+  return { stopped: !stillGoing, paused: paused.size, replies: replies.held, left: left.length, ads };
 }
 
 /**
@@ -166,7 +245,7 @@ export async function resumeEverything(ctx: RouteContext, req: Request, member: 
   if (!was) {
     // A stop whose record was never kept (its press failed after the stop was written) is lifted all the same.
     await writeTheStop(tenantId, null);
-    return { stopped: false, paused: 0, replies: false, left: 0 };
+    return { stopped: false, paused: 0, replies: false, left: 0, ads: await adsAfterResume(ctx, tenantId) };
   }
   const still: string[] = [];
   for (const id of was.playbooks)
@@ -174,15 +253,21 @@ export async function resumeEverything(ctx: RouteContext, req: Request, member: 
   const reply =
     was.reply && !(await callOwn(req, "PUT", "policies", { class: "reply", mode: was.reply })) ? was.reply : null;
   await writeTheStop(tenantId, null);
+  // The ads the stop paused stay paused: turning them back on spends, so it is the owner's own press, which this names.
+  const ads = await adsAfterResume(ctx, tenantId);
   if (still.length === 0 && reply === null) {
     await writeAskKey(tenantId, ctx.userId, "stopped", null);
-    return { stopped: false, paused: 0, replies: false, left: 0 };
+    return { stopped: false, paused: 0, replies: false, left: 0, ads };
   }
   const kept: AskStopped = { at: was.at, playbooks: still, reply, resumed_at: new Date().toISOString() };
   await writeAskKey(tenantId, ctx.userId, "stopped", kept);
   log.warn("ask_resume_left", { tenant_id: tenantId, left: still.length, replies: reply !== null });
-  return { stopped: true, paused: still.length, replies: reply !== null, left: 0 };
+  return { stopped: true, paused: still.length, replies: reply !== null, left: 0, ads };
 }
+
+/** After a Resume: the ads the stop paused that stand so, named for the owner's own press. Nothing is turned on. */
+const adsAfterResume = (ctx: RouteContext, tenantId: TenantId): Promise<StopAds> =>
+  adsNow(ctx, tenantId).catch(logAndGoOn("resume ads read", NO_ADS));
 
 /** The switch (D10): Ask may act on its own, following the rows. Off by default, and an owner's or a partner's to turn on. */
 export async function setAskAlone(ctx: RouteContext, member: Member, on: boolean): Promise<{ alone: boolean }> {

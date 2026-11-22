@@ -82,6 +82,8 @@ export interface SheetActs extends AdChangeActs {
   resume: (id: string, version: number) => void;
   /** Ask Meta what stands of an ad whose last switch it never answered. */
   check: (id: string, version: number) => void;
+  /** Cancel an ad made here while it is set up. */
+  cancel: (id: string) => void;
   /** A press is on its way: the foot waits. */
   busy: boolean;
 }
@@ -158,20 +160,33 @@ function footOf(vm: SheetVM, acts: SheetActs, onClose: () => void): ReactNode {
         {SHEET.openMeta} <Icon name="chevron" size={12} />
       </LinkButton>
     );
+  if (foot.kind === "cancel")
+    return (
+      <Button
+        variant="danger"
+        disabled={acts.busy}
+        onClick={() => acts.cancel(vm.id)}
+        data-testid="ads-live-cancel"
+        {...gate("approve", GATE.change)}
+      >
+        {SHEET.cancel}
+      </Button>
+    );
   return null;
 }
 
 /** The words above the foot's press: what it will do, or why there is none. */
 function Above({ vm }: { vm: SheetVM }) {
   const { foot } = vm;
-  if (foot.kind === "pause" || foot.kind === "fix") return <p className="ads-conn-says">{foot.body}</p>;
+  if (foot.kind === "pause" || foot.kind === "fix" || foot.kind === "cancel")
+    return <p className="ads-conn-says">{foot.body}</p>;
   if (foot.kind === "check" || foot.kind === "left")
     return (
       <div className="ads-conn-need" data-tone="warn" data-testid="ads-live-launch">
         <span>{foot.line}</span>
       </div>
     );
-  if (foot.kind === "resume" || foot.kind === "in-meta")
+  if (foot.kind === "resume" || foot.kind === "in-meta" || foot.kind === "held")
     return (
       <div className="ads-conn-need" data-tone="calm" data-testid="ads-live-ask">
         <b>{foot.kind === "resume" ? foot.ask : foot.head}</b>

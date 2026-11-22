@@ -80,6 +80,20 @@ export interface FileYesTakenBack {
   files: string[];
   held: FileYesPost[];
   live: FileYesPost[];
+  /**
+   * For a yes for ads taken back (00676; the Ads plan's G16): every ad made here that shows one of the files, paused, or
+   * cancelled while it was set up, each with what came of it so far: `pending` until Meta says, `done` where Meta holds it
+   * paused already, `needs_person` where it can only be paused in Meta now.
+   */
+  ads: FileYesAd[];
+}
+
+/** One ad a yes taken back reached: which, what was asked of it, and what came of it so far. */
+export interface FileYesAd {
+  ad_id: string;
+  name: string;
+  act: "pause" | "cancel";
+  outcome: "done" | "pending" | "blocked" | "not_possible" | "needs_person";
 }
 
 /** One post a take-back held or found up: where, as what, its link once it is up, and when. */
@@ -153,7 +167,27 @@ const YES_PLACE_WORDS: Record<string, string> = {
   hand: "where you put it up",
 };
 
-/** What a take-back answered, in a sentence or two: what was held, and where one still stands. */
+/**
+ * The ads a take-back reached (G16), in a sentence: how many Chanlytics paused, and any it could not, which are paused in
+ * Meta by hand. Null where it reached none.
+ */
+function adsTakenBackSaid(ads: readonly unknown[]): string | null {
+  const outcomes = ads.map((ad) => textOrEmpty(recordOrEmpty(ad).outcome));
+  const paused = outcomes.filter((one) => one === "done" || one === "pending").length;
+  const byHand = outcomes.length - paused;
+  return (
+    [
+      paused ? `${paused === 1 ? "1 ad" : `${paused} ads`} that ${paused === 1 ? "shows" : "show"} it paused.` : null,
+      byHand
+        ? `${byHand === 1 ? "1 ad" : `${byHand} ads`} can only be paused in Meta now: pause ${byHand === 1 ? "it" : "them"} there.`
+        : null,
+    ]
+      .filter((line): line is string => line !== null)
+      .join(" ") || null
+  );
+}
+
+/** What a take-back answered, in a sentence or two: what was held, the ads paused, and where one still stands. */
 function takenBackSaid(data: unknown): string {
   const answer = recordOrEmpty(data);
   const held = listOrEmpty(answer.held).length;
@@ -162,6 +196,7 @@ function takenBackSaid(data: unknown): string {
   return [
     "Taken back.",
     held ? `${held} waiting ${held === 1 ? "post" : "posts"} held.` : null,
+    adsTakenBackSaid(listOrEmpty(answer.ads)),
     live.length ? `Still up on ${wordsJoined(live)}: take it down there.` : null,
   ]
     .filter((line): line is string => line !== null)

@@ -100,7 +100,7 @@ async function takeBackOutcome(
   });
   if (!created.proposal) return created;
   const tookBack =
-    "their yes is taken back, every post of it still waiting is held, and the card says where one is still up for them to take it down";
+    "their yes is taken back, every post of it still waiting is held, every ad made here that shows it is paused (it runs again only with another picture), and the card says where one is still up for them to take it down";
   return { ...created, result: JSON.stringify({ kept: theirs, note: keptNote(theirs, tookBack) }) };
 }
 

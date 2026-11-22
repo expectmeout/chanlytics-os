@@ -19,8 +19,6 @@ export const LEFT_WHOLE = {
   "apps/edge/lib/shared/log-events.ts": "the closed list of log events, one table an alert greps",
   "packages/contracts/src/shared/enums.ts": "every closed set, declared once on one page",
   "packages/core/src/deliver/deliver.ts": "the one send door, read as one",
-  "packages/db/src/repositories/erasure/registry.ts":
-    "every personal column's erasure, one table the completeness suite walks",
 };
 
 const NOT = /\.d\.ts$|\.generated\.|database\.types\.ts$|\.type-test\.|(^|\/)test\/|\.test\./;

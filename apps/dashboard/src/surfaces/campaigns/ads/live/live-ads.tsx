@@ -134,6 +134,7 @@ export function LiveAds(p: LiveAdsProps) {
         card={p.card}
         stop={p.stop ? <StopNotice stop={p.stop} className="ads-conn-need ads-live-notice" /> : null}
         onOpen={p.nav.push}
+        onPause={presses.pause}
       />
       <AdSheet
         vm={sheet}

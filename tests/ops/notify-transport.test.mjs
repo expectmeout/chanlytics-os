@@ -631,6 +631,10 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     // database writes the row and marks its mail owed; the account's read mails it (the edge's ads/mail.ts).
     "ad_refused",
     "ad_unpaid",
+    // An ad on that AI can't answer, and ads Chanlytics paused for the workspace (00676): both about money, mailed once
+    // as the business chooses; the database writes the row owing its mail, and the account's read mails it.
+    "ad_way_in",
+    "ads_paused",
     "alert",
     "billing",
     "broadcast_sent",
@@ -665,6 +669,9 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
       "ad_ended",
       "ad_quiet",
       "ad_spent",
+      // A launch here that couldn't finish, and a switch Meta never confirmed (00676): lines on the owner's bell.
+      "ad_unconfirmed",
+      "ad_unfinished",
       // A draft ad left for the owner (00659): a line on the owner's bell from the database, opening New ad.
       "ad_draft",
       // A member's morning cards from Ask (decision 0070): their own line, opening Today; no mail, no phone.

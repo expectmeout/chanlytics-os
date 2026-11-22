@@ -167,7 +167,14 @@ const world = (over = {}) => ({
     },
   ],
   tenant_channels: [
-    { id: "ch-wa", tenant_id: "A", kind: "whatsapp", status: "active", number_e164: "+15125550142", config: {} },
+    {
+      id: "ch-wa",
+      tenant_id: "A",
+      kind: "whatsapp",
+      status: "active",
+      number_e164: "+15125550142",
+      config: { standing: { can_send: "AVAILABLE", problems: [] } },
+    },
   ],
   google_listings:
     over.listing === null

@@ -110,6 +110,80 @@ export async function pauseAdsKept(
   };
 }
 
+/**
+ * Stop everything's pause (ad_pause_all by `stop`, 00676; the content loop PRD's 14.1, call 21): every ad made here that
+ * is on, paused in one transaction by the member who stopped, each the platform is to be told of at its pace; the owner
+ * told on the bell. An ad made in Meta is never paused by it. A database before 00676 answers `no_door`.
+ */
+export async function pauseAdsForStop(
+  db: Db,
+  by: { tenantId: TenantId; userId: string },
+): Promise<
+  { outcome: "kept"; ads: Array<AdPressKept & { adId: string }> } | { outcome: "not_allowed" } | { outcome: "no_door" }
+> {
+  const { data, error } = await db.rpc("ad_pause_all", {
+    p_tenant_id: by.tenantId,
+    p_actor: by.userId,
+    p_presses: null,
+    p_by: "stop",
+  });
+  if (error) {
+    if (isMissingDoor(error)) return { outcome: "no_door" };
+    throw new DbFailure(error, "ad_pause_all for the stop");
+  }
+  const answer = recordOrEmpty(data);
+  if (answer.outcome === "not_allowed") return { outcome: "not_allowed" };
+  if (answer.outcome !== "kept" || !Array.isArray(answer.ads)) throw new Error("ad_pause_all answered no outcome");
+  return {
+    outcome: "kept",
+    ads: answer.ads.map((one) => ({ adId: text(recordOrEmpty(one).ad_id) ?? "", ...pressKeptOf(one, "ad_pause_all") })),
+  };
+}
+
+/**
+ * What one ad of a turning back on came to: what ad_set_intent kept of it, or `not_stopped` where the stop did not pause
+ * it, or it stands paused for someone else now.
+ */
+export type AdResumedKept = { adId: string } & (AdPressKept | { outcome: "not_stopped"; version: number | null });
+
+/**
+ * The owner's press after a Resume (ad_resume_stopped, 00676): the ads the stop paused, each with the version it was drawn
+ * from, turned back on in one transaction, each the platform is to be told of at its pace. Never while AI is stopped.
+ */
+export async function resumeStoppedAds(
+  db: Db,
+  by: { tenantId: TenantId; userId: string },
+  presses: readonly { adId: string; version: number }[],
+): Promise<
+  | { outcome: "kept"; ads: AdResumedKept[] }
+  | { outcome: "stopped" }
+  | { outcome: "not_allowed" }
+  | { outcome: "no_door" }
+> {
+  const { data, error } = await db.rpc("ad_resume_stopped", {
+    p_tenant_id: by.tenantId,
+    p_actor: by.userId,
+    p_presses: presses.map((press) => ({ ad_id: press.adId, version: press.version })),
+  });
+  if (error) {
+    if (isMissingDoor(error)) return { outcome: "no_door" };
+    throw new DbFailure(error, "ad_resume_stopped");
+  }
+  const answer = recordOrEmpty(data);
+  if (answer.outcome === "stopped" || answer.outcome === "not_allowed") return { outcome: answer.outcome };
+  if (answer.outcome !== "kept" || !Array.isArray(answer.ads)) throw new Error("ad_resume_stopped answered no outcome");
+  return {
+    outcome: "kept",
+    ads: answer.ads.map((one): AdResumedKept => {
+      const ad = recordOrEmpty(one);
+      const adId = text(ad.ad_id) ?? "";
+      if (ad.outcome === "not_stopped")
+        return { adId, outcome: "not_stopped", version: typeof ad.version === "number" ? ad.version : null };
+      return { adId, ...pressKeptOf(one, "ad_resume_stopped") };
+    }),
+  };
+}
+
 /** What telling the platform of a press came to (ad_told, 00652). */
 export async function markAdTold(
   db: Db,
@@ -236,6 +310,12 @@ export interface AdMadeRow {
   budget_kind: string | null;
   budget_minor: number | null;
   budget_left_minor: number | null;
+  /** Why Chanlytics holds it paused, and what stands in its way in, since when (00676). */
+  paused_by: string | null;
+  way_in: string | null;
+  way_in_at: string | null;
+  /** What its owner approved, for an ad made here: the number its chat opens with (00666). */
+  approved: Json | null;
 }
 
 /** The most ads of one account that are looked through: what a read adopts at most. */
@@ -249,7 +329,7 @@ export async function listMadeAds(db: Db, tenantId: TenantId, accountId: string)
   const { data, error } = await tenantDb(db, tenantId)
     .from("ads")
     .select(
-      "id, name, version, platform, origin, platform_ad_id, platform_campaign_id, status, intent, launch, platform_state, ends_at, budget_kind, budget_minor, budget_left_minor",
+      "id, name, version, platform, origin, platform_ad_id, platform_campaign_id, status, intent, launch, platform_state, ends_at, budget_kind, budget_minor, budget_left_minor, paused_by, way_in, way_in_at, approved",
     )
     .eq("account_id", accountId)
     .eq("status", "made")

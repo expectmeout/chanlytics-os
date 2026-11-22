@@ -4,8 +4,19 @@
  * on its own: what still goes, that pressing again tries again, and the one other way to do it by hand (a sequence's own
  * pause on Campaigns, the Replies row above). Once the stop is written nothing goes out on its own, and a person's own
  * reply still does, so it says both.
+ *
+ * Ads (the content loop PRD's 14.1, call 21): the stop pauses the ads made here itself, and says how many; an ad made in
+ * Meta is told of, and paused from Ads. Resume never turns an ad on: it says how many the stop paused, and the owner's
+ * own press turns them back on.
  */
 import type { AskStopped } from "@chanlytics/contracts";
+
+/** An ad the stop paused that stands so, as the press's answer names it for the owner's own press. */
+export interface StoppedAd {
+  id: string;
+  name: string;
+  version: number;
+}
 
 /** What a press answered: whether Stop everything is wholly on, what it holds paused, replies, and what still sends. */
 export interface StopPressed {
@@ -13,6 +24,8 @@ export interface StopPressed {
   paused: number;
   replies: boolean;
   left: number;
+  /** The ads: made here and paused now, made here and still on, made in Meta and still on, and those it holds paused. */
+  ads: { paused: number; still_on: number; in_meta: number; waiting: StoppedAd[] };
 }
 
 /** The row: what it says, and whether its press stops (a first press, or again) or resumes. */
@@ -76,13 +89,47 @@ export function stopLineOf(kept: AskStopped | null): StopLine {
   };
 }
 
+const adsCount = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
+const wasWere = (n: number): string => (n === 1 ? "was" : "were");
+
+/** After a stop, what came of the ads: the ones made here it paused, and any still on, with where to pause them. */
+function adsStopped(ads: StopPressed["ads"]): string {
+  const on = ads.still_on + ads.in_meta;
+  return [
+    ads.paused > 0 ? `It paused ${adsCount(ads.paused)} made here.` : "",
+    ads.in_meta > 0 && ads.still_on === 0
+      ? `${adsCount(ads.in_meta)} made in Meta ${ads.in_meta === 1 ? "is" : "are"} still on: pause ${itThem(ads.in_meta)} on Ads.`
+      : "",
+    ads.still_on > 0 ? `${adsCount(on)} ${on === 1 ? "is" : "are"} still on: pause ${itThem(on)} on Ads.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /** What a press says: done, or what it could not do and the way to it. Whether it is a warning rides with the words. */
 export function stopSaid(press: StopLine["press"], answer: StopPressed): { words: string; warn: boolean } {
+  const ads = adsStopped(answer.ads);
+  const stillOn = answer.ads.still_on + answer.ads.in_meta > 0;
   if (press === "stop")
     return answer.stopped
-      ? { words: "Everything is paused. Nothing goes out on its own.", warn: false }
-      : { words: `Not everything stopped. ${stillGoing(answer.left, !answer.replies)}`, warn: true };
+      ? { words: ["Everything is paused. Nothing goes out on its own.", ads].filter(Boolean).join(" "), warn: stillOn }
+      : { words: `Not everything stopped. ${stillGoing(answer.left, !answer.replies)} ${ads}`.trim(), warn: true };
+  const held = answer.ads.waiting.length;
+  const kept = held > 0 ? ` ${adsCount(held)} ${wasWere(held)} paused with it, and stay paused.` : "";
   return answer.stopped
-    ? { words: `Not everything came back. ${stillHeld(answer.paused, answer.replies)}`, warn: true }
-    : { words: "Back as it was.", warn: false };
+    ? { words: `Not everything came back. ${stillHeld(answer.paused, answer.replies)}${kept}`, warn: true }
+    : { words: `Back as it was.${kept}`, warn: false };
+}
+
+/**
+ * After a Resume, the ads the stop paused that stand so, as a row with the owner's own press (turning an ad on spends,
+ * so Resume never does it); null where none waits.
+ */
+export function stoppedAdsLineOf(waiting: readonly StoppedAd[]): { hint: string; press: string } | null {
+  const n = waiting.length;
+  if (n === 0) return null;
+  return {
+    hint: `${adsCount(n)} made here ${wasWere(n)} paused with Stop everything, and ${n === 1 ? "stays" : "stay"} paused until you turn ${itThem(n)} back on.`,
+    press: n === 1 ? "Turn it back on" : `Turn ${n} back on`,
+  };
 }

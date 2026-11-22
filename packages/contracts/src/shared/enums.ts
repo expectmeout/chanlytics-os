@@ -934,6 +934,8 @@ export const DECISION_VERBS = [
   "turn_on_ad",
   "change_ad",
   "end_ad",
+  /** An ad cancelled while it is set up (00676; the Ads plan's 4.7, point 8): its owner's, or a yes taken back's. */
+  "cancel_ad",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

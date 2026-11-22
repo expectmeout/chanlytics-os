@@ -207,3 +207,21 @@ test("a door that refuses leaves the card failed, in the door's own words, never
   assert.equal(kept.outcome.receipt, "Not yours to change.");
   assert.equal(kept.outcome.undo, null);
 });
+
+test("a yes for ads taken back says the ads that show it were paused, and any only Meta can pause now (00676, G16)", async () => {
+  const { fileYesReceiptOf } = await import("@chanlytics/contracts");
+  const answer = {
+    held: [],
+    live: [],
+    ads: [
+      { ad_id: "a1", name: "First visit", act: "pause", outcome: "pending" },
+      { ad_id: "a2", name: "Consultation", act: "cancel", outcome: "pending" },
+      { ad_id: "a3", name: "Old one", act: "pause", outcome: "needs_person" },
+    ],
+  };
+  assert.equal(
+    fileYesReceiptOf({ back: true, who: "" }, answer),
+    "Taken back. 2 ads that show it paused. 1 ad can only be paused in Meta now: pause it there.",
+  );
+  assert.equal(fileYesReceiptOf({ back: true, who: "" }, { held: [], live: [], ads: [] }), "Taken back.");
+});

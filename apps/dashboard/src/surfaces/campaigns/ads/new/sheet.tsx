@@ -41,6 +41,9 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   service: "admin/business",
   address: "admin/business",
   whatsapp: "admin/integrations",
+  whatsapp_unread: null,
+  whatsapp_blocked: "admin/integrations",
+  paused: "admin/billing",
   picture: CONTENT_LIBRARY_ROUTE,
   picture_none: CONTENT_LIBRARY_ROUTE,
   picture_person: CONTENT_LIBRARY_ROUTE,
@@ -49,6 +52,12 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   account: null,
   account_reading: null,
   stopped: null,
+};
+
+/** Where the one thing missing is mended by asking again here: Meta reading the account, or WhatsApp's word on the number. */
+const MISSING_ASK: Partial<Record<AdCantDraft, "again" | "checkWhatsApp">> = {
+  account_reading: "again",
+  whatsapp_unread: "checkWhatsApp",
 };
 
 /** AI's mark at work while the draft is being written or changed, and at rest again after. */
@@ -251,7 +260,8 @@ function newAdParts(
   if (stand.at === "missing") {
     const words = MISSING[stand.missing];
     const door = MISSING_DOOR[stand.missing];
-    const press = stand.missing === "account_reading" ? acts.again : door ? () => props.onGo(door) : props.onClose;
+    const ask = MISSING_ASK[stand.missing];
+    const press = ask ? acts[ask] : door ? () => props.onGo(door) : props.onClose;
     return {
       title: NEW.opening,
       sub: null,

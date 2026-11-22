@@ -46,8 +46,9 @@ import type { Database } from "@chanlytics/db/types";
 import { DAY_MS, metaAdConfigOf, MIN_MS, SECOND_MS, type TenantId } from "@chanlytics/contracts";
 import type { ClaimedJob } from "@chanlytics/jobs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { logger } from "../shared/log.js";
+import { errField, logger } from "../shared/log.js";
 import { metaAdsApp, signInOf } from "./account-ops.js";
+import { keepWaysIn } from "./chat/answered.js";
 import { mailAdNotices } from "./mail.js";
 import {
   ADS_PACE,
@@ -445,6 +446,11 @@ export async function runAdRead(
     return out("failed", reading.calls);
   }
   const left = await countPressesLeft(db, tenantId, account.id, writes);
+  // Whether AI can answer each running ad's chat, kept before the read's bell measures (call 11). A failure here costs
+  // the read nothing: the next read judges again.
+  await keepWaysIn(db, log, { tenantId, account: { id: account.id, currency, timezone: account.timezone } }).catch(
+    (failure: unknown) => log.error("ads_way_in_failed", { error: errField(failure) }),
+  );
   const kept = await keepAdsRead(db, tenantId, account.id, readAgainFor(learned.read, left, nowMs));
   const read: ReadOut = {
     outcome: kept.outcome,

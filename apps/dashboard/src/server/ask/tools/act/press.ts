@@ -119,10 +119,29 @@ const RESUME_TITLE = "Resume all sending: start again every campaign and reply t
 
 const sequenceCount = (n: number): string => (n === 1 ? "1 sequence" : `${n} sequences`);
 
+const adCount = (n: number): string => (n === 1 ? "1 ad" : `${n} ads`);
+
+/**
+ * What Ask is to say of the ads after a stop (call 21): the ones made here it paused, and any still on, made in Meta
+ * (never paused by the stop) or whose pause did not hold, with where to pause them. Empty where there is nothing to say.
+ */
+function adsStopNote(ads: StopAnswer["ads"]): string {
+  const on = ads.still_on + ads.in_meta;
+  return [
+    ads.paused > 0 ? `It also paused ${adCount(ads.paused)} made here, so nothing is spent while nobody answers.` : "",
+    on > 0
+      ? `${adCount(on)} ${ads.still_on > 0 ? "" : "made in Meta "}still on: say Meta keeps charging while they run, and that they can pause them on Campaigns › Ads.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /** What Ask is to say of a stop: done, or what still goes out, that asking again tries again, and the one other way. */
 function stopNote(answer: StopAnswer): string {
+  const ads = adsStopNote(answer.ads);
   if (answer.stopped)
-    return "It is done: nothing goes out on its own until they resume, and their own replies still send. Say so in one sentence.";
+    return `It is done: nothing goes out on its own until they resume, and their own replies still send. Say so in one sentence. ${ads}`.trim();
   const still = [
     answer.left > 0 ? `${sequenceCount(answer.left)} it tried to pause still sending` : "",
     answer.replies ? "" : "replies still going out on their own",
@@ -131,19 +150,29 @@ function stopNote(answer: StopAnswer): string {
     answer.left > 0 ? "pause it on Campaigns" : "",
     answer.replies ? "" : "set Replies to Asks you on Settings › Autonomy",
   ].filter(Boolean);
-  return `It did not stop everything: ${still.join(", and ")}. Never say everything stopped. Say plainly, in a sentence or two, what still goes out, that asking to stop again tries again, and that they can ${other.join(" and ")}.`;
+  return `It did not stop everything: ${still.join(", and ")}. Never say everything stopped. Say plainly, in a sentence or two, what still goes out, that asking to stop again tries again, and that they can ${other.join(" and ")}. ${ads}`.trim();
+}
+
+/** What Ask is to say of the ads after a Resume: the stop's stay paused, and turning them back on is the owner's press. */
+function adsResumeNote(ads: StopAnswer["ads"]): string {
+  const held = ads.waiting.length;
+  return held > 0
+    ? `${adCount(held)} the stop paused ${held === 1 ? "stays" : "stay"} paused: never say they are back on. Say turning them back on is its own press, the owner's, on Campaigns › Ads or Settings › Autonomy.`
+    : "";
 }
 
 /** What Ask is to say of a Resume: done, or what is still paused, that asking again tries again, and the one other way. */
 function resumeNote(answer: StopAnswer): string {
-  if (!answer.stopped) return "It is done. Say so in one sentence: what Stop everything paused is going again.";
+  const ads = adsResumeNote(answer.ads);
+  if (!answer.stopped)
+    return `It is done. Say so in one sentence: what Stop everything paused is going again. ${ads}`.trim();
   const still = [
     answer.paused > 0 ? `${sequenceCount(answer.paused)} still paused` : "",
     answer.replies ? "replies still wait for a person" : "",
   ]
     .filter(Boolean)
     .join(", and ");
-  return `Not everything came back: ${still}. Never say everything is back. Say plainly, in a sentence or two, what is still paused, that asking to resume again tries again, and that they can start it on Campaigns or set Replies on Settings › Autonomy.`;
+  return `Not everything came back: ${still}. Never say everything is back. Say plainly, in a sentence or two, what is still paused, that asking to resume again tries again, and that they can start it on Campaigns or set Replies on Settings › Autonomy. ${ads}`.trim();
 }
 
 async function stopAll(t: ToolContext, input: { resume?: boolean | undefined }): Promise<ProposalOutcome> {

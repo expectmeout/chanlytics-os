@@ -113,6 +113,9 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     // An ad that can't run (00664): the Ads page, where a named one opens its ad's drawer.
     ad_refused: "/w/harbor/campaigns/ads",
     ad_unpaid: "/w/harbor/campaigns/ads",
+    // An ad on that AI can't answer, and ads Chanlytics paused for the workspace (00676): the Ads page too.
+    ad_way_in: "/w/harbor/campaigns/ads",
+    ads_paused: "/w/harbor/campaigns/ads",
     alert: "/w/harbor/today",
   };
   for (const kind of EMAILED_NOTIFICATION_KINDS) {

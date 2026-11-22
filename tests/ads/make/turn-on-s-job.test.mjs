@@ -8,7 +8,8 @@
  * was made is removed, or left named and paused where it cannot be. A write Meta never answered is never sent again: a
  * make is found by its tagged name, or past a few minutes unfound the launch stops; a switch is followed, and the ad
  * says it couldn't confirm it's on. A disconnect stops a launch where it is, and sends nothing more. While AI is
- * stopped, nothing is switched on.
+ * stopped, nothing is switched on. A cancel (00676) stops it at its next step, is read fresh before every switch, and
+ * leaves nothing running; and a way in that closed since the press (call 11) switches nothing on.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -244,16 +245,23 @@ function launchKeep(tables) {
           updated_at: new Date().toISOString(),
         });
     }
-    if (p_kept.status && ad.status === "sending")
+    if (p_kept.status && ad.status === "sending") {
       Object.assign(ad, {
         status: p_kept.status,
         platform_campaign_id: p_kept.campaign_id ?? ad.platform_campaign_id,
         platform_set_id: p_kept.set_id ?? ad.platform_set_id,
         platform_ad_id: p_kept.platform_ad_id ?? ad.platform_ad_id,
         platform_state: p_kept.platform_state ?? ad.platform_state,
-        launch: { ...ad.launch, ...(p_kept.launch ?? {}) },
+        launch: {
+          ...ad.launch,
+          ...(p_kept.launch ?? {}),
+          ...(p_kept.status === "failed" ? { stopped_at: new Date().toISOString() } : {}),
+        },
       });
-    else if (p_kept.launch) ad.launch = { ...ad.launch, ...p_kept.launch };
+      // Made all the same after its cancel (00676): paused at once by whoever cancelled it, told at Meta's pace.
+      if (p_kept.status === "made" && ad.launch.cancel)
+        Object.assign(ad, { intent: "paused", paused_by: "owner", intent_at: new Date().toISOString() });
+    } else if (p_kept.launch) ad.launch = { ...ad.launch, ...p_kept.launch };
     return { status: ad.status, intent: ad.intent, launch: ad.launch };
   };
 }
@@ -270,7 +278,7 @@ function disconnect(tables) {
 }
 
 /** A workspace whose owner turned an ad on: the ad, setting up, and its account with the picture in Files. */
-function world({ ad = {}, approved = APPROVED, stopped = null } = {}) {
+function world({ ad = {}, approved = APPROVED, stopped = null, standing = "AVAILABLE" } = {}) {
   resetBreakers();
   meta = freshMeta();
   asked.length = 0;
@@ -278,7 +286,19 @@ function world({ ad = {}, approved = APPROVED, stopped = null } = {}) {
   silentAt = null;
   onAsk = null;
   const tables = {
-    tenants: [{ id: T, name: "Harbor Studio", sending_stopped_at: stopped }],
+    tenants: [{ id: T, name: "Harbor Studio", status: "active", sending_stopped_at: stopped }],
+    // The number the ad opens a chat with, as Settings keeps what Meta last said of it: AI can answer it.
+    tenant_channels: [
+      {
+        id: "c4c4c4c4-8888-4000-8000-000000000001",
+        tenant_id: T,
+        kind: "whatsapp",
+        status: "active",
+        number_e164: "+13055550142",
+        config: { standing: { can_send: standing, problems: [] } },
+        created_at: "2026-11-01T00:00:00Z",
+      },
+    ],
     ad_accounts: [
       {
         id: ACCOUNT,
@@ -647,6 +667,82 @@ test("while AI is stopped no ad is switched on: the launch stops before its firs
   await w.run();
   assert.deepEqual(switches(), []);
   assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "ai_stopped", "remove"]);
+});
+
+/* ------------------------------------------------------------------------------- a cancel, and the way in -- */
+
+/** The owner's Cancel, as ad_launch_cancel keeps it on the launch (00676). */
+const cancel = (w) => {
+  w.ad().launch = { ...w.ad().launch, cancel: { at: new Date().toISOString(), by: "owner" } };
+};
+
+test("a launch cancelled while it is set up stops at its next step: what it made is removed, nothing is switched on", async () => {
+  const w = world();
+  // The owner presses Cancel while the ad set is being made.
+  onAsk = (name) => {
+    if (name === "set") cancel(w);
+  };
+  await w.run();
+  assert.deepEqual(switches(), [], "nothing the owner cancelled is ever switched on");
+  assert.ok(!names().includes("picture"), "nothing more is made after the cancel is seen");
+  assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "cancelled", "remove"]);
+  assert.ok(
+    w.tables.ad_objects.filter((part) => part.kind !== "picture").every((part) => part.state === "removed"),
+    "the campaign went, with everything under it",
+  );
+  assert.ok(w.ad().launch.stopped_at, "and when it stopped is kept");
+});
+
+test("a cancel kept before the job takes the launch up makes nothing at Meta", async () => {
+  const w = world();
+  cancel(w);
+  await w.run();
+  assert.deepEqual(names(), [], "not a dry run, not a make");
+  assert.deepEqual([w.ad().status, w.ad().launch.stopped], ["failed", "cancelled"]);
+});
+
+test("a cancel that lands after the read back is read fresh before the first switch: no switch goes", async () => {
+  const w = world();
+  onAsk = (name) => {
+    if (name === "read_back") cancel(w);
+  };
+  await w.run();
+  assert.deepEqual(switches(), []);
+  assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "cancelled", "remove"]);
+});
+
+test("a cancel that lands between two switches stops the rest, and the campaign, never switched, is removed", async () => {
+  const w = world();
+  onAsk = (name) => {
+    if (name === "switch_ad_2") cancel(w);
+  };
+  await w.run();
+  assert.deepEqual(switches(), ["switch_ad_1", "switch_ad_2"], "the campaign, the last switch, never went");
+  assert.equal(meta.campaign.status, "PAUSED", "so nothing ran");
+  assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "cancelled", "remove"]);
+});
+
+test("a cancel that lands after the last switch leaves the ad made and paused at once: nothing it cancelled runs on", async () => {
+  const w = world();
+  onAsk = (name) => {
+    if (name === "switch_campaign") cancel(w);
+  };
+  await w.run();
+  assert.deepEqual([w.ad().status, w.ad().intent, w.ad().paused_by], ["made", "paused", "owner"]);
+});
+
+test("a way in that closed since the press switches nothing on: Meta stopped the number, so the launch stops", async () => {
+  for (const [why, over] of [
+    ["blocked", { standing: "BLOCKED" }],
+    ["not known", { standing: "SOMETHING_NEW" }],
+    ["billing paused", {}],
+  ]) {
+    const w = world(over);
+    if (why === "billing paused") w.tables.tenants[0].status = "paused";
+    await w.run();
+    assert.deepEqual(switches(), [], why);
+    assert.deepEqual([w.ad().status, w.ad().launch.stopped, names().at(-1)], ["failed", "way_in", "remove"], why);
+  }
 });
 
 test("a video, or a picture Files no longer holds, stops it before Meta is sent a picture", async () => {

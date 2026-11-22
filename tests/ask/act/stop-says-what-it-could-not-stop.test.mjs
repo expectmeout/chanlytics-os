@@ -291,7 +291,11 @@ test("a stop that cannot be lifted fails the Resume, never says it is back, keep
   assert.equal(recordOf(tables), null);
 });
 
-const { stopLineOf, stopSaid } = await import(at("apps/dashboard/src/surfaces/settings/autonomy/stop-words.ts"));
+const { stopLineOf, stopSaid, stoppedAdsLineOf } = await import(
+  at("apps/dashboard/src/surfaces/settings/autonomy/stop-words.ts")
+);
+/** A press's answer with no ad to speak of. */
+const NO_ADS = { paused: 0, still_on: 0, in_meta: 0, waiting: [] };
 
 test("Settings › Autonomy never says paused while something still goes out: what, that pressing again tries again, and the other way", () => {
   const stopped = { at: "2026-11-13T10:00:00Z", playbooks: [WIN_BACK], reply: "auto" };
@@ -323,22 +327,52 @@ test("Settings › Autonomy never says paused while something still goes out: wh
 });
 
 test("what a press says, from its answer: done, or what it could not do and the way to it", () => {
-  assert.deepEqual(stopSaid("stop", { stopped: true, paused: 2, replies: true, left: 0 }), {
+  assert.deepEqual(stopSaid("stop", { stopped: true, paused: 2, replies: true, left: 0, ads: NO_ADS }), {
     words: "Everything is paused. Nothing goes out on its own.",
     warn: false,
   });
-  assert.deepEqual(stopSaid("stop", { stopped: false, paused: 0, replies: false, left: 0 }), {
+  assert.deepEqual(stopSaid("stop", { stopped: false, paused: 0, replies: false, left: 0, ads: NO_ADS }), {
     words:
       "Not everything stopped. Replies still go out on their own. Press Stop everything again to try again, or set Replies above to Asks you.",
     warn: true,
   });
-  assert.deepEqual(stopSaid("resume", { stopped: false, paused: 0, replies: false, left: 0 }), {
+  assert.deepEqual(stopSaid("resume", { stopped: false, paused: 0, replies: false, left: 0, ads: NO_ADS }), {
     words: "Back as it was.",
     warn: false,
   });
-  assert.deepEqual(stopSaid("resume", { stopped: true, paused: 2, replies: true, left: 0 }), {
+  assert.deepEqual(stopSaid("resume", { stopped: true, paused: 2, replies: true, left: 0, ads: NO_ADS }), {
     words:
       "Not everything came back. 2 sequences are still paused, and replies still wait for you. Press Resume again to try again, or start them on Campaigns and set Replies above as you had them.",
     warn: true,
   });
+});
+
+test("what a press says of the ads: the stop paused the ones made here; one made in Meta is still on; Resume turns none on", () => {
+  const stopped = { stopped: true, paused: 0, replies: true, left: 0 };
+  assert.deepEqual(stopSaid("stop", { ...stopped, ads: { ...NO_ADS, paused: 2, in_meta: 1 } }), {
+    words:
+      "Everything is paused. Nothing goes out on its own. It paused 2 ads made here. 1 ad made in Meta is still on: pause it on Ads.",
+    warn: true,
+  });
+  assert.equal(
+    stopSaid("stop", { ...stopped, ads: { ...NO_ADS, still_on: 2 } }).words,
+    "Everything is paused. Nothing goes out on its own. 2 ads are still on: pause them on Ads.",
+    "where the pause of the ads made here did not hold, they are said as still on",
+  );
+  const waiting = [
+    { id: "a1", name: "First visit", version: 4 },
+    { id: "a2", name: "Consultation", version: 4 },
+  ];
+  assert.deepEqual(
+    stopSaid("resume", { stopped: false, paused: 0, replies: false, left: 0, ads: { ...NO_ADS, waiting } }),
+    {
+      words: "Back as it was. 2 ads were paused with it, and stay paused.",
+      warn: false,
+    },
+  );
+  assert.deepEqual(stoppedAdsLineOf(waiting), {
+    hint: "2 ads made here were paused with Stop everything, and stay paused until you turn them back on.",
+    press: "Turn 2 back on",
+  });
+  assert.equal(stoppedAdsLineOf([]), null);
 });
