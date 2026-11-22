@@ -557,7 +557,7 @@ test("the wiring: one row component for People and Today, the queue in the comma
     'surfaceValue("today")',
     // The list draws from its model (need-you-model.ts), which the page and the head read too, with the card the page's
     // arrangement names; what the model hears is executed in zones/need-you-acts.test.mjs.
-    "<NeedYouList vm={vm} model={model} card={card} evening={evening} />",
+    "<NeedYouList vm={vm} model={model} card={card} evening={evening} beat={beat} />",
   ])
     assert.ok(queue.includes(s), s);
   assert.ok(

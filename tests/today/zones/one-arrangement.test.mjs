@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { setupSteps } from "@chanlytics/contracts";
 import { again, all, fresh, textOf, unmount } from "../../_stub-react.mjs";
 import { peopleWithSteps } from "../record/_world.mjs";
-import { headline } from "../_headline.mjs";
+import { headline, weekSeen } from "../_headline.mjs";
 import { NOW, W, dayWith, row } from "./_world.mjs";
 
 const { TodayZones } = await import("../../../apps/dashboard/src/surfaces/today/zones/page.tsx");
@@ -73,7 +73,7 @@ const morningWithAnIdea = () => ({
       },
     ],
     findings: [],
-    rested: {},
+    rested: weekSeen(),
     lately: [],
   },
 });

@@ -1,23 +1,24 @@
 /**
  * Once a week, what AI did (Working for you, 21 Nov 2026, W9): in the card while nobody waits, from the first look of the
- * week until Got it, one sentence of the last seven days in the business's own counts (Reports' headline, the days the
- * page already reads): the messages AI answered, and under it the calls and what was booked, which are the business's
- * and not said as AI's. Got it is kept for the member until the next Monday (need-you/rests.tsx), so it is said once a
+ * week until Got it, one sentence of the last seven days as Reports counts them (its "Last 7 days", today among them,
+ * so the card's numbers are the page's its door opens): the messages AI answered, and under it the calls and what was
+ * booked, which are the business's and not said as AI's. The days are the headline's the page holds, or the last thirty
+ * read once where the period this device picked is shorter than a week (days.ts). Got it is kept for the member until the next Monday (need-you/rests.tsx), so it is said once a
  * week, on any of their devices, and never before what they set aside is read. Nothing where the days are not read, or
  * AI answered nothing in them: no number the data can't back. A milestone (AI's 100th booking) waits for a count of AI's
  * bookings since the start, which nothing keeps yet.
  */
-import { DAY_MS, DEFAULT_TIMEZONE, dayInZone, type ReportHeadlineVM } from "@chanlytics/contracts";
+import { DAY_MS, DEFAULT_TIMEZONE, dayInZone } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
-import { useSurface } from "../../use-surface";
 import { AI_WORDS } from "../model/ai";
 import { useRests } from "../need-you/rests";
 import { useTodayOnPhone } from "../phone";
 import { appNavigate, useToast, workspaceClock } from "../shell";
+import { useLastDays, type LastDays } from "./days";
 import { CardActs, Lead } from "./lead";
 
-/** The days a week's sentence counts: the seven before today, today being still under way. */
+/** The days a week's sentence counts: Reports' last seven, today the last of them. */
 const WEEK_DAYS = 7;
 
 const WEEK_WORDS = AI_WORDS.week;
@@ -41,13 +42,13 @@ export interface WeekWords {
 }
 
 /**
- * The week's words from the period's days (oldest first, today last): the messages AI answered in the seven days before
- * today, and under them the calls and what was booked (only where every one of the seven days was counted). Null without
- * seven days before today, or where AI answered nothing in them.
+ * The week's words from the period's days (oldest first, today last): the messages AI answered in the last seven, and
+ * under them the calls and what was booked (only where every one of the seven days was counted, as the headline's last
+ * seven are). Null without seven days, or where AI answered nothing in them.
  */
-export function weekWords(days: ReportHeadlineVM["perDay"]): WeekWords | null {
-  if (days.length < WEEK_DAYS + 1) return null;
-  const week = days.slice(-(WEEK_DAYS + 1), -1);
+export function weekWords(days: LastDays): WeekWords | null {
+  if (days.length < WEEK_DAYS) return null;
+  const week = days.slice(-WEEK_DAYS);
   const answered = week.reduce((n, d) => n + d.answered, 0);
   if (answered === 0) return null;
   const calls = week.reduce((n, d) => n + d.calls, 0);
@@ -59,9 +60,9 @@ export function weekWords(days: ReportHeadlineVM["perDay"]): WeekWords | null {
 
 /** The week's card where it is still to be seen: its rest's id and its words; null where there is none to say. */
 export function useWeekMoment(): ({ id: string } & WeekWords) | null {
-  const headline = useSurface("reports_headline");
+  const days = useLastDays(WEEK_DAYS);
   const { rests, known } = useRests();
-  const words = headline ? weekWords(headline.perDay) : null;
+  const words = days ? weekWords(days) : null;
   const id = `week:${mondays().began}`;
   // Not before what the member set aside is read: a card they answered would show, then go.
   return words && known && !rests(id) ? { id, ...words } : null;
