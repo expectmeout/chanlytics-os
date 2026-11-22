@@ -35,6 +35,8 @@ export const GET = read({
         runs: r.runs,
         held_threads: r.heldThreads,
         previews_tried: r.previewsTried,
+        form_requests: r.formRequests,
+        form_held: r.formHeld,
         done_today: done,
         word,
         ai: r.ai,

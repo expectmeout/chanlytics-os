@@ -100,6 +100,24 @@ export const NEED_YOU_WORDS = {
     open: "Open the lead",
     part: (n: number) => `${n} lead${n === 1 ? "" : "s"} tried their preview`,
   },
+  /** A request sent through a form that nobody has answered (00680): Today's and the Inbox's row. */
+  form: {
+    someone: "Someone",
+    open: "Open the request",
+    status: "Sent a request",
+    /** A number alone: nothing can be texted to them first, so the request waits for their own message. */
+    phoneOnly: "Phone only · waiting for their message",
+  },
+  /** A form's entries held for a look that nobody has looked at in three days (00680): Today's quiet row. */
+  formHeld: {
+    aForm: "A form",
+    /** The row's own line: how many, and how long nobody has looked, since a row draws its line and not its status. */
+    sentence: (n: number, days: number) =>
+      `${n} held ${n === 1 ? "entry" : "entries"} · nobody has looked in ${days} days`,
+    status: "Held for a look",
+    open: "Open the form",
+    part: (n: number) => `${n} form ${n === 1 ? "entry" : "entries"} held for a look`,
+  },
   more: (n: number) => `${n} more in the Inbox`,
   /**
    * What a group of Need you could not hold, said as a press at that group's foot (9 Nov 2026): the people past the five

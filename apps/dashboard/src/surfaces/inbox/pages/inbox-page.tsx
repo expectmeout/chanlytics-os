@@ -35,6 +35,7 @@ import { ixBucketOf, ixNextMoveAt, ixOnPhone, ixRank } from "../rules";
 import { ixDrawnIn, ixSetAside, type IxNeedsYou } from "./needs-you-list";
 import { useNeedsYouParts } from "../../needs-you";
 import { threadReading, threadWhose, useSeeOpen, useSeen } from "../../seen";
+import { RequestSlot } from "../request/slot";
 import { canDo, gate, presenceAway } from "../shell";
 import { inboxData } from "../store";
 import { ThreadPane } from "../thread/thread-pane";
@@ -248,6 +249,8 @@ interface InboxProps {
   replies?: SequenceRepliesRead | null;
   /** `inbox/to-send`: Needs you, with its To send open (the Campaigns wiring review's lane 4). */
   toSendOpen?: boolean;
+  /** `inbox/rq-<id>`: a request someone sent through a form, drawn where a conversation is (request/pane.tsx). */
+  request?: string | null;
 }
 
 /** A link to a thread outside the loaded list, while it is read by its id: say it is on its way, and open nobody else's in its place. */
@@ -409,6 +412,7 @@ const inboxPage = (
     opening,
     replies,
     toSendOpen,
+    request,
     root,
   }: {
     root: RefObject<HTMLDivElement | null>;
@@ -417,6 +421,7 @@ const inboxPage = (
     opening: boolean;
     replies: SequenceRepliesRead | null;
     toSendOpen: boolean;
+    request: string | null;
   },
 ) => {
   const {
@@ -451,13 +456,14 @@ const inboxPage = (
   // A real thread's person beside it on a wide desk (thread-context.tsx): who they are, from People's row. Never on a
   // phone, where the list and the thread take turns and the header's door is the way to them.
   const personThread =
-    !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
+    !request && !requestedMissing && activeThread && activeThread.real && activeThread.clientId && !ixOnPhone()
       ? activeThread
       : null;
   const columns = personThread ? "with-context" : "";
 
   return (
-    <div ref={root} className={`inbox ${columns}`} data-takeover={phoneThreadOpen || undefined}>
+    // A request takes the screen on a phone as an open conversation does.
+    <div ref={root} className={`inbox ${columns}`} data-takeover={phoneThreadOpen || !!request || undefined}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -470,7 +476,7 @@ const inboxPage = (
         }}
         activeBucket={activeBucket}
         onBucketChange={handleBucket}
-        activeThreadId={activeThread?.id}
+        activeThreadId={request ? undefined : activeThread?.id}
         onSelectThread={selectThread}
         selected={selected}
         onToggleSelect={toggleSelect}
@@ -496,21 +502,25 @@ const inboxPage = (
         }}
         aside={aside}
       />
-      {ixOnPhone() && !phoneThreadOpen
-        ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
-          // data-takeover), and the pane was mounted all the same, keyed by the first thread: every bucket pressed that
-          // changed the first thread drew that whole thread again behind the list, 44 call cards in a workspace of one
-          // person's 44 calls, and the phone froze (8 Oct 2026). Nothing is drawn there until a tap opens a thread.
-          null
-        : requestedMissing
-          ? // A link to a thread outside the loaded list: it is read by its id (opening), and said to be on its way; one the
-            // server will not give is said missing in the pane. Nobody else's conversation opens in its place.
-            opening
-            ? openingThread()
-            : missingThread(ix)
-          : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
-            // seeded thread is the mockup's, and keeps this page's handlers.
-            threadPane(ix, onOpenClient)}
+      {/* A request someone sent through a form stands where a conversation would (request/slot.tsx). */}
+      <RequestSlot request={request} flash={ppFlash} />
+      {request
+        ? null
+        : ixOnPhone() && !phoneThreadOpen
+          ? // On a phone the list and the thread take turns on the screen (mobile.css hides the pane until the page wears
+            // data-takeover), and the pane was mounted all the same, keyed by the first thread: every bucket pressed that
+            // changed the first thread drew that whole thread again behind the list, 44 call cards in a workspace of one
+            // person's 44 calls, and the phone froze (8 Oct 2026). Nothing is drawn there until a tap opens a thread.
+            null
+          : requestedMissing
+            ? // A link to a thread outside the loaded list: it is read by its id (opening), and said to be on its way; one the
+              // server will not give is said missing in the pane. Nobody else's conversation opens in its place.
+              opening
+              ? openingThread()
+              : missingThread(ix)
+            : // The one thread (thread-pane.tsx): a real thread's verbs are the pane's own, the same in Conversations. A
+              // seeded thread is the mockup's, and keeps this page's handlers.
+              threadPane(ix, onOpenClient)}
       {personThread && <ThreadContext thread={personThread} onOpenClient={(id) => onOpenClient(id)} />}
 
       {sendingStrip(ix)}
@@ -543,6 +553,7 @@ export const Inbox = ({
   opening = false,
   replies = null,
   toSendOpen = false,
+  request = null,
 }: InboxProps) => {
   // The page draws again when the Inbox surface moves, as the frame drew it again; its list is the page's first part
   // (client/page-speed.ts), drawn once the Inbox's read is in, the empty Inbox included.
@@ -576,8 +587,9 @@ export const Inbox = ({
   useInboxKeys(withScreen);
   // The thread on screen is read (surfaces/seen.ts): beside the list on a desk, and on a phone while it is the screen.
   // A link's notice is nobody's thread. And a row opened or put back, here or in Conversations, draws the list again.
+  // With a request in the pane no conversation is on screen, so none is read by standing behind it.
   const open =
-    withScreen.activeThread && withScreen.activeThread.real && !withScreen.requestedMissing
+    !request && withScreen.activeThread && withScreen.activeThread.real && !withScreen.requestedMissing
       ? withScreen.activeThread
       : null;
   const reading = open && (!ixOnPhone() || withScreen.phoneThreadOpen) ? open : null;
@@ -607,5 +619,5 @@ export const Inbox = ({
       going: ixGoing,
     },
   );
-  return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, root });
+  return inboxPage(full, { density, onOpenClient, opening, replies, toSendOpen, request, root });
 };

@@ -20,6 +20,7 @@ import type { EscalationDto } from "../conversations/escalations";
 import type { ConversationDto } from "../conversations/thread-dto";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
+import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import { runDaysAt } from "../campaigns/playbooks/approval";
 import { runsThatWait, type WaitingRun } from "../waits/waits";
@@ -61,6 +62,10 @@ interface TodayBeside {
   heldThreads?: readonly ConversationDto[] | null;
   /** The leads who tried their own receptionist lately (decision 0079): each a row. Null or absent: not read. */
   previewsTried?: readonly PreviewTriedDto[] | null;
+  /** The requests sent through a form that nobody has answered (00680): each a row. Null or absent: not read. */
+  formRequests?: readonly FormOpenRequestDto[] | null;
+  /** Each form's entries held for a look that nobody has looked at in three days (00680). Null or absent: not read. */
+  formHeld?: readonly FormHeldDto[] | null;
   /** How many things the members dealt with today (TodayVM.done_today). Null or absent: not read. */
   doneToday?: number | null;
   /** What the workspace calls an appointment (TodayVM.word). Null or absent: not read. */
@@ -93,6 +98,8 @@ export function toTodayVM(
     searches,
     heldThreads: [...(beside.heldThreads ?? [])],
     previewsTried: [...(beside.previewsTried ?? [])],
+    formRequests: [...(beside.formRequests ?? [])],
+    formHeld: [...(beside.formHeld ?? [])],
   });
   // The runs waiting for a word that can still send them, by the business's days (the verb's own rule): null unread.
   const runsWaiting = beside.runs ? runsThatWait(beside.runs, runDaysAt(result.tz, now)).length : null;

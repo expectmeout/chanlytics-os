@@ -233,6 +233,9 @@ export const SERVER_NOTIFICATION_KINDS = [
   "ask_cards",
   // Someone used a form on the business's website (00488): the row opens their page; mailed as chosen, the phone told.
   "website_form",
+  // A request came through a form the business shares (00680): the row opens it in Inbox, where it is answered;
+  // mailed as chosen, the phone told. A test and an entry held for a look never ring.
+  "form_request",
   // Photos an import found wait in Files' Inbox for a person's word (00551): the row opens that page.
   "files_waiting",
   // A video the owner asked Ask for can be played (00613): the row opens it in Campaigns › Content, under Made.

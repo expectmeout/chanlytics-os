@@ -501,9 +501,31 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   },
   // What a person removed, by a hash of its bytes alone (00551).
   files_let_go: { fingerprint: NOT_PERSONAL },
-  // A website's entries go with their person; a key is the business's own (00675).
-  form_entries: all(withPerson("form_entries_trigger"), "answers", "ref", "words", "effects", "owed"),
+  // A website's entries, and a hosted form's requests (00680), go with their person: what they answered, who it was
+  // about as typed (reach), where it came from (source: a link's code, a page, a campaign's labels, never a click id)
+  // and the code its thank-you carried into a chat. One held for a look has no person yet, so the same leg finds it by
+  // the address or the number typed, and it goes at 30 days whoever it was (form_entries_purge). A key is the
+  // business's own (00675).
+  form_entries: all(
+    withPerson("form_entries_trigger"),
+    "answers",
+    "ref",
+    "words",
+    "effects",
+    "owed",
+    "reach",
+    "source",
+    "code",
+  ),
   form_keys: { name: WITH_WORKSPACE, hash: NOT_PERSONAL },
+  // A form (00680) is the business's own page: the word in its address, its draft and each version published, written
+  // by the owner for the public. No person the workspace serves is on a row, and they leave with the workspace. What
+  // happened to an entry (form_entry_links) is ids and a closed set alone.
+  form_versions: { description: WITH_WORKSPACE },
+  forms: all(WITH_WORKSPACE, "slug", "draft"),
+  // A link (00680): a code made at random, the kind of thing it opens, and where it is shared in the owner's own
+  // words for a place ("Google listing"), which leave with the workspace. A day of a link (link_days) is numbers alone.
+  links: { ...all(NOT_PERSONAL, "code", "subject_type"), place: WITH_WORKSPACE },
   // What Chanlytics read a sender to be (00495, decision 0080): their address, and in a few words what they wanted,
   // which never holds a name; their erasure takes it.
   mailbox_sender_reads: all(scrubbedBy("mailbox_trigger"), "address", "about"),

@@ -1,0 +1,58 @@
+/* Reports › Campaigns: Forms (forms-line.tsx): where each form's sentence and its places stand. Loaded with the line,
+   which is fetched as the Campaigns lens is drawn. Layout and the kit's tokens only. */
+.rpt-forms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.rpt-forms-one {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.rpt-forms-one h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.rpt-forms-nums {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+.rpt-forms-nums small {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.rpt-forms-nums[data-empty] {
+  color: var(--ink-muted);
+}
+.rpt-forms-by {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  min-width: 0;
+}
+.rpt-forms-by > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.rpt-forms-by dt {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.rpt-forms-by dd {
+  flex: none;
+  margin: 0;
+  color: var(--ink-muted);
+}

@@ -62,6 +62,23 @@ export async function takeFormEntry(db: Db, entry: FormEntryToTake): Promise<For
   return { outcome: row.outcome, entryId: row.entry_id, contactId: heldContactId(row.contact_id) };
 }
 
+/**
+ * Where an entry came from, kept beside its answers (00680; the Ads tracking plan's T4): the one shape, as the door
+ * cleaned it. Its own small write after the entry is kept: where it fails the entry stands, and says nothing of where
+ * its visitor came from.
+ */
+export async function keepFormEntrySource(
+  db: Db,
+  kept: { tenantId: TenantId; entryId: string; source: Json },
+): Promise<void> {
+  const { error } = await db
+    .from("form_entries")
+    .update({ source: kept.source })
+    .eq("tenant_id", kept.tenantId)
+    .eq("id", kept.entryId);
+  if (error) throw new DbFailure(error, "form_entries");
+}
+
 /** One effect's outcome as the entry keeps it: done, or failed with why, and what else the effect says of itself. */
 export interface FormEffectOutcome {
   state: "done" | "failed";
@@ -77,10 +94,25 @@ export interface FormEntryRow {
   id: string;
   contact_id: ContactId;
   form: "signup" | "request";
+  /** The version of a hosted form its visitor saw (00680); null for a website's own form, which has none. */
+  version_id: string | null;
+  /** The link a hosted form's entry came through, where it came through one. */
+  link_id: string | null;
+  /** Who a hosted form's entry is about, as typed; null for a website's own form, whose answers say it. */
+  reach: { name: string | null; email: string | null; phone: string | null } | null;
+  /** Where the entry came from, in the one shape (contracts Source); null where nothing was seen. */
+  source: Json | null;
   answers: Json;
   owed: string[];
   effects: Partial<Record<FormEffect, FormEffectOutcome>>;
   created_at: string;
+}
+
+/** Who an entry is about, read back from what was kept: each part text, or null. */
+function reachKept(kept: unknown): { name: string | null; email: string | null; phone: string | null } {
+  const row = recordOrEmpty(kept);
+  const part = (value: unknown) => (typeof value === "string" && value ? value : null);
+  return { name: part(row.name), email: part(row.email), phone: part(row.phone) };
 }
 
 /** One effect's outcome as the entry kept it, or null where it kept none (or a row that is not one). */
@@ -95,20 +127,27 @@ function effectOf(kept: unknown): FormEffectOutcome | null {
   };
 }
 
-/** The entry an effect is for, or null where it is gone (its person erased since). */
+/**
+ * The entry an effect is for, or null where it is gone (its person erased since) or has no person: one held for a look,
+ * or a test, owes nothing (00680).
+ */
 export async function findFormEntry(db: Db, tenantId: TenantId, entryId: string): Promise<FormEntryRow | null> {
   const { data, error } = await db
     .from("form_entries")
-    .select("id, contact_id, form, answers, owed, effects, created_at")
+    .select("id, contact_id, form, version_id, link_id, reach, source, answers, owed, effects, created_at")
     .eq("tenant_id", tenantId)
     .eq("id", entryId)
     .maybeSingle();
   if (error) throw new DbFailure(error, "form_entries");
-  if (!data) return null;
+  if (!data?.contact_id) return null;
   return {
     id: data.id,
     contact_id: heldContactId(data.contact_id),
     form: data.form === "signup" ? "signup" : "request",
+    version_id: data.version_id,
+    link_id: data.link_id,
+    reach: data.version_id ? reachKept(data.reach) : null,
+    source: data.source,
     answers: data.answers,
     owed: data.owed,
     effects: Object.fromEntries(
@@ -137,7 +176,10 @@ export async function settleFormEffect(
   return { settled: row.settled === true, gone: row.gone === true };
 }
 
-/** The entries accepted before `before` that told nobody yet, oldest first, at most `limit`: the watch's read. */
+/**
+ * The entries accepted before `before` that told nobody yet, oldest first, at most `limit`: the watch's read. One held
+ * for a look and a test tell nobody on purpose, and are not among them (00680).
+ */
 export async function listUntoldFormEntries(
   db: Db,
   before: string,
@@ -147,6 +189,8 @@ export async function listUntoldFormEntries(
     .from("form_entries")
     .select("tenant_id, id, created_at")
     .is("told_at", null)
+    .neq("state", "held")
+    .eq("test", false)
     .lt("created_at", before)
     .order("created_at")
     .limit(limit);

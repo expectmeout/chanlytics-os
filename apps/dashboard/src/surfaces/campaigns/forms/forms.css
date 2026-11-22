@@ -1,0 +1,377 @@
+/* Campaigns › Forms (page.tsx): where the list, the line to AI and a form's sheet stand. Every control in it is the
+   kit's, and the split and the pane are Campaigns' own (parts/split.tsx). These rules load with the view, which is
+   fetched the first time Forms is shown, so no other page pays for them. Layout and the kit's tokens only. */
+.fmv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4) var(--space-6);
+  overflow-y: auto;
+}
+.fmv-rows {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.fmv-row {
+  cursor: pointer;
+}
+.fmv-row [data-waits] {
+  color: var(--warn-ink);
+}
+.fmv-row[data-off] {
+  opacity: 0.6;
+}
+.fmv-ask,
+.fmv-edit,
+.fmv-share,
+.fmv-nexts,
+.fmv-tell,
+.fmv-more-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.fmv-ask-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.fmv-ask-head h3,
+.fmv-hd h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fmv-ask-head p,
+.fmv-hd p,
+.fmv-note,
+.fmv-state {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.fmv-three {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+/* AI's three at work stand in the line where they are drawn, at its own size: Files places them on a tile's corner. */
+.fmv-three .files-looking {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 22px;
+  height: 22px;
+}
+.fmv-three[data-small] .files-looking {
+  width: 15px;
+  height: 15px;
+}
+.fmv-state[data-waits] {
+  color: var(--warn-ink);
+  font-weight: var(--weight-medium);
+}
+.fmv-state[data-done] {
+  color: var(--ok-ink);
+}
+.fmv-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+/* A form's sheet: its parts' strip, its body, and its foot at the pane's edge. */
+.fmv-pane .fmv-parts {
+  align-self: flex-start;
+}
+.fmv-st[data-state="live"] {
+  color: var(--ok-ink);
+}
+.fmv-st[data-state="draft"] {
+  color: var(--warn-ink);
+}
+/* The foot's parts stand one over the other: the line to AI, then the press. */
+.fmv-foots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fmv-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.fmv-told {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* The form as a visitor sees it: each question pressed to change it. */
+.fmv-hd,
+.fmv-q {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+}
+.fmv-hd[role="button"],
+.fmv-q[role="button"] {
+  cursor: pointer;
+}
+.fmv-q[data-chosen] {
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-sunken);
+}
+.fmv-q strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fmv-q strong em {
+  margin-left: var(--space-2);
+  font-style: normal;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  color: var(--ink-muted);
+}
+.fmv-q > p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-blank {
+  height: var(--control-h-lg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--bg-sunken);
+}
+.fmv-blank[data-tall] {
+  height: calc(var(--control-h-lg) * 2);
+}
+.fmv-opts,
+.fmv-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fmv-opts span {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-choices {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.fmv-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  align-self: stretch;
+  min-width: 0;
+}
+.fmv-choice > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fmv-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fmv-tools-word {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-tools-end {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.fmv-more {
+  align-self: stretch;
+  justify-content: center;
+}
+.fmv-prop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.fmv-by {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-prop strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.fmv-prop p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+/* What happens next: a line each. */
+.fmv-next {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.fmv-next > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.fmv-next[data-chosen] > * {
+  flex: 1 1 auto;
+}
+.fmv-next strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.fmv-next span,
+.fmv-next em {
+  font-style: normal;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.fmv-next em {
+  flex: none;
+}
+/* Share: each place, the printed code, the numbers, the requests. */
+.fmv-share h4 {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--ink-muted);
+}
+.fmv-link,
+.fmv-printed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.fmv-printed {
+  align-items: flex-start;
+}
+.fmv-printed img {
+  flex: none;
+}
+.fmv-link > div,
+.fmv-printed > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.fmv-link[data-chosen] > :first-child {
+  flex: 1 1 auto;
+}
+.fmv-link strong,
+.fmv-printed strong,
+.fmv-ent strong {
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fmv-link code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.fmv-link span,
+.fmv-printed span {
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-link[data-stopped],
+.fmv-printed[data-stopped] {
+  opacity: 0.6;
+}
+.fmv-nums {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+.fmv-nums small {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-nums[data-empty] {
+  color: var(--ink-muted);
+}
+.fmv-ent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+.fmv-ent time {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.fmv-ent > span {
+  grid-column: 1 / -1;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.fmv-ent > span[data-waits] {
+  color: var(--warn-ink);
+}
+.fmv-ent > span[data-done] {
+  color: var(--ok-ink);
+}
+.fmv-ent > .fmv-acts {
+  grid-column: 1 / -1;
+}
+/* On a phone the foot's one press is as wide as the screen lets it be. */
+@media (max-width: 900px) {
+  .fmv-foot > :first-child {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}

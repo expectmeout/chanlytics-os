@@ -75,7 +75,21 @@ export const todayOverride: SurfaceOverride = {
   ...declareReads("today", {
     // And the business's settings (facts): whether Stop everything is on, which AI's line and sheet say (Working for you,
     // W1), so a stop pressed in another tab reaches this one. A save of them is rarer than any message the day hears.
-    reads: ["conversation", "hold", "call", "lead", "channel", "billing", "person", "visit", "send", "facts"],
+    // And a request someone sent through a form (00680): arriving, held, let through or answered, it joins or leaves
+    // the rows Need you counts, so a page left open says it without a reload.
+    reads: [
+      "conversation",
+      "hold",
+      "call",
+      "lead",
+      "channel",
+      "billing",
+      "person",
+      "visit",
+      "send",
+      "facts",
+      "request",
+    ],
     fresh: "live",
     omit: [
       {

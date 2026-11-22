@@ -47,6 +47,7 @@ apps/dashboard/app/
   b/
   c/
   data-deletion/
+  l/
   login/
   p/
   preview/
@@ -78,6 +79,7 @@ apps/dashboard/src/server/
   drafts/
   export/
   files/
+  forms/
   leads/
   lines/
   metrics/
@@ -139,6 +141,7 @@ packages/contracts/src/
   email/
   events/
   files/
+  forms/
   google/
   imports/
   jobs/
@@ -217,6 +220,7 @@ tests/
   events/
   files/
   fixtures/
+  forms/
   google/
   history/
   imports/

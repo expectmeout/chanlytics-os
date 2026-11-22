@@ -57,7 +57,8 @@ type GroupRow = Pick<TodayQueueRowVM, "kind" | "act" | "clock_ms" | "waitedMs" |
 
 /**
  * What a row asks of you: a call back, or a hold whose reason asks for one, is a call; a search waiting for an answer is
- * yours to approve, as a run is; every other person is a reply. Null for what nobody waits on: a call worth a listen, a
+ * yours to approve, as a run is; every other person is a reply, someone who asked through a form among them. Null for
+ * what nobody waits on: a call worth a listen, a
  * lead who tried their preview, a step and a visit to mark (To do's).
  */
 export function needYouVerbOf(todayQueue: Pick<TodayQueueRowVM, "kind" | "act">): NeedYouVerb | null {
@@ -68,7 +69,8 @@ export function needYouVerbOf(todayQueue: Pick<TodayQueueRowVM, "kind" | "act">)
     todayQueue.kind === "handoff" ||
     todayQueue.kind === "window" ||
     todayQueue.kind === "reply" ||
-    todayQueue.kind === "held"
+    todayQueue.kind === "held" ||
+    todayQueue.kind === "form"
   )
     return "reply";
   return null;
@@ -93,7 +95,8 @@ function needYouWorthOf(r: Pick<TodayQueueRowVM, "kind" | "act" | "booking" | "f
   if (r.booking || r.act === "confirm") return 0;
   const verb = needYouVerbOf(r);
   if (verb === "call") return 1;
-  if (r.kind === "reply") return 2;
+  // Someone new who asked, by a reach-out's reply or through a form: worth the same, before a word owed to someone known.
+  if (r.kind === "reply" || r.kind === "form") return 2;
   return verb ? 3 : 4;
 }
 
@@ -144,7 +147,7 @@ export function needYouGroupsOf<T extends GroupRow>(rows: readonly T[]): NeedYou
     waiting: fresh.filter((r) => r !== next),
     ok: rows.filter((r) => needYouVerbOf(r) === "approve"),
     old: people.filter(isOlder),
-    found: rows.filter((r) => r.kind === "call" || r.kind === "tried"),
+    found: rows.filter((r) => r.kind === "call" || r.kind === "tried" || r.kind === "form_held"),
   };
 }
 

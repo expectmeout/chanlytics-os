@@ -74,6 +74,8 @@ export const PUSH_KINDS = [
   "reply_held",
   // Someone used a form on the website (00488): a person who asked, best answered while they wait.
   "website_form",
+  // A request through a form the business shares (00680): a person who asked, best answered while they wait.
+  "form_request",
   // What Ask noticed this morning (D12, D20 of the answers canvas): one line a day at most, and each member may turn it off.
   "ask_cards",
 ] as const satisfies readonly ServerNotificationKind[];

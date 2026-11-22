@@ -40,6 +40,7 @@ export const EXPORT_SECTIONS = [
   "reviews",
   "leads",
   "reach_out_replies",
+  "form_entries",
 ] as const;
 
 /** A section of the owner's copy. */
@@ -123,6 +124,8 @@ export const EXPORT_OF = {
       why: "They are a copy of what the ad platform holds, and its own export gives them whole.",
     },
   },
+  // What people sent through a form, a business's own or its website's (00675, 00680): their answers, as sent.
+  request: { section: "form_entries" },
   rehearsal: {
     not_exported: {
       what: "Your rehearsals with AI",
@@ -196,6 +199,7 @@ export const PERSON_EXPORT_SECTIONS = [
   "rules",
   "leads",
   "reach_out_replies",
+  "form_entries",
 ] as const satisfies readonly ExportSection[];
 
 /** A section of one person's own copy. */

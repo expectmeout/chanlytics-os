@@ -34,6 +34,7 @@ export const MODEL_PURPOSES = [
   "file_look",
   "preview_starters",
   "ad_draft",
+  "form_draft",
 ] as const;
 
 export type ModelPurpose = (typeof MODEL_PURPOSES)[number];
@@ -374,6 +375,17 @@ export const MODEL_ROUTES = {
   // skill's own effort, with its thinking counted in what it may write. A line of the ledger of its own, so what ad
   // writing costs is read apart from every other draft. The owner waits on New ad for it, inside the edge's minute.
   ad_draft: {
+    attributed: "person",
+    model: OPUS_5_5,
+    fallback: SONNET_5_5,
+    timeoutMs: DRAFT_TRY_MS,
+    retries: 0,
+    maxTokens: 8000,
+  },
+  // A form drafted from its owner's sentence (the Forms plan, 3.7; 00680): the form drafter's craft call, on the
+  // model Ask's route asks, at the skill's own effort. A line of the ledger of its own, so what drafting forms costs
+  // is read apart. The owner waits on Campaigns › Forms for it, inside the edge's minute.
+  form_draft: {
     attributed: "person",
     model: OPUS_5_5,
     fallback: SONNET_5_5,

@@ -107,6 +107,8 @@ const NOTIFICATION_DELIVERY = {
   ads_paused: "email",
   // Someone used a form on the business's website (00488): mailed as the business chooses, and the phone told.
   website_form: "email",
+  // A request came through a form the business shares (00680): mailed as the business chooses, and the phone told.
+  form_request: "email",
 } as const satisfies Record<ServerNotificationKind, "email" | "bell">;
 
 /** A kept kind that is emailed. */
@@ -260,11 +262,11 @@ export const ALERT_TOPICS: readonly AlertTopic[] = [
   {
     key: "website_form",
     group: "worth_knowing",
-    title: "Someone used a form on your website",
-    what: "A sign-up for your offers, or a request. They're added to People, with what they asked on their page.",
+    title: "Someone used one of your forms",
+    what: "A request from a form you share waits in Inbox. One from your website is added to People, with what they asked.",
     email: "choice",
     phone: true,
-    kinds: ["website_form"],
+    kinds: ["website_form", "form_request"],
   },
   {
     key: "opted_out",

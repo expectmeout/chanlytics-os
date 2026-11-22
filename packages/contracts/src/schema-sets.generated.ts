@@ -29,7 +29,7 @@ export const SCHEMA_SETS = {
     "note_suggest", "reach_out_check", "reply_read", "booking_read", "lead_suggest", "ask_journal",
     "receptionist_review", "fix_route", "website_read", "sender_read", "file_look", "preview_starters",
     "ad_draft", "file_words", "file_hear", "lead_draft", "list_draft", "person_draft", "sequence_draft",
-    "yes_check",
+    "yes_check", "form_draft",
   ],
   "anthropic_profiles.enforcement_status": ["unrestricted", "pending", "restricted", "banned"],
   "anthropic_profiles.kind": ["person", "workspace"],
@@ -67,7 +67,7 @@ export const SCHEMA_SETS = {
   "contact_identities.channel": ["whatsapp", "voice", "sms", "email", "instagram"],
   "contacts.acquired_via": [
     "whatsapp", "sms", "email", "instagram", "call", "ad", "calendar", "import", "lead", "manual",
-    "website",
+    "website", "form",
   ],
   "contacts.consent": ["unknown", "opted_in", "opted_out"],
   "contacts.email_marketing": ["unknown", "opted_in", "opted_out"],
@@ -132,7 +132,10 @@ export const SCHEMA_SETS = {
   "files.status": ["inbox", "filed", "set_aside"],
   "files.who_in_it": ["not_asked", "no_one"],
   "form_entries.form": ["signup", "request"],
-  "form_entries.state": ["accepted", "processed"],
+  "form_entries.held_why": ["hidden_field", "too_fast", "too_many", "member"],
+  "form_entries.state": ["accepted", "processed", "held"],
+  "form_entry_links.kind": ["reply", "conversation", "visit", "marked"],
+  "forms.state": ["draft", "live", "off"],
   "google_reviews.origin": ["places", "profile"],
   "imports.source": [
     "google_reviews", "calendar", "clients_file", "mailbox", "contacts", "whatsapp_contacts",
@@ -226,7 +229,7 @@ export const SCHEMA_SETS = {
     "note_to_keep", "reply_held", "ask_cards", "website_form", "files_waiting", "video_ready", "post_up",
     "post_stopped", "preview_tried", "ad_account", "footage", "footage_in", "ad_refused", "ad_unpaid",
     "ad_ended", "ad_spent", "ad_quiet", "ad_draft", "ad_unfinished", "ad_unconfirmed", "ad_way_in",
-    "ads_paused",
+    "ads_paused", "form_request",
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": [

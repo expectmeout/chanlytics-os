@@ -123,6 +123,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   ask_cards: ["morning from AI", "mornings from AI"],
   // A morning's sign-ups on the website are one pile, each person on their own page.
   website_form: ["form sent on your website", "forms sent on your website"],
+  // A morning's requests from the forms a business shares are one pile, each answered in Inbox.
+  form_request: ["request from one of your forms", "requests from your forms"],
   // One batch of found photos is one line; a morning's several are still one page to open.
   files_waiting: ["set of photos waiting for you", "sets of photos waiting for you"],
   video_ready: ["video ready", "videos ready"],

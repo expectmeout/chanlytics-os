@@ -107,6 +107,16 @@ export function formEntryDoors(tables, { resolve, clock = Date.now }) {
         state: "accepted",
         told_at: null,
         created_at: now(),
+        // A website's own form has no hosted form, and is never a test or held (00680's columns, as the table defaults them).
+        form_id: null,
+        version_id: null,
+        link_id: null,
+        source: null,
+        reach: null,
+        test: false,
+        held_why: null,
+        code: null,
+        code_used_at: null,
       };
       entries.push(entry);
       event(a.p_tenant_id, "form_entry.accepted", entry.id, { form: a.p_form, owed: a.p_owed });

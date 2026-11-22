@@ -119,6 +119,8 @@ const SHAPED = {
   // A website entry's digest of its words, and the steps it owes (00675): hex and step names, as their CHECKs hold them.
   "form_entries.words": "e".repeat(64),
   "form_entries.owed": ["note", "notice"],
+  // The code a request's thank-you carries into a chat (00680): six characters of its own alphabet.
+  "form_entries.code": "ADA234",
 };
 
 before(async () => {
@@ -610,7 +612,8 @@ async function seed() {
     await db.from("ask_journal_days").insert({ tenant_id: T, day: "2026-10-20", state: "written", text: WORDS }),
     "ask_journal_days",
   );
-  // A website form they sent (00675): what they typed, the site's id for it and what came of it go with them.
+  // A website form they sent (00675): what they typed, the site's id for it and what came of it go with them, and so
+  // do who it was about as typed, where it came from and the code its thank-you carried (00680).
   await insert("form_entries", {
     tenant_id: T,
     contact_id: A,
@@ -620,6 +623,21 @@ async function seed() {
     words: SHAPED["form_entries.words"],
     owed: SHAPED["form_entries.owed"],
     effects: { note: { state: "failed", why: WORDS } },
+    reach: { name: "Ada", email: EMAIL, phone: PHONE },
+    source: { page: "/b/seeded/request", from: WORDS },
+    code: SHAPED["form_entries.code"],
+  });
+  // One held for a look (00680) has no person yet: the erasure finds it by the address or the number typed into it.
+  await insert("form_entries", {
+    tenant_id: T,
+    form: "request",
+    answers: { email: EMAIL, note: WORDS },
+    ref: `held ${WORDS}`.slice(0, 100),
+    words: SHAPED["form_entries.words"],
+    owed: [],
+    state: "held",
+    held_why: "too_fast",
+    reach: { name: "Ada", email: EMAIL.toUpperCase(), phone: PHONE },
   });
 
   // What their mail to a connected mailbox left there, and the workspace's word that they are a person (00483): both

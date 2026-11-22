@@ -524,5 +524,25 @@
     "kind": "on-open",
     "fresh": "Read once where the headline Today holds has too few days (this device picked a shorter period on Reports), kept an hour and shared by the week's card and the usual day.",
     "why": "The week's card and a day against a usual one say days that are over or nearly so: the last seven, and the same weekday four weeks back. They move slowly, and the usual day is asked for only once the day is done."
+  },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms": {
+    "kind": "on-open",
+    "fresh": "Read as Campaigns › Forms is drawn, after each press on a form or one of its links, and when the owner comes back to the tab.",
+    "why": "A form changes by its owner's own press, which reads it again. What moves without one is a request arriving, which Needs you says on Today and in the Inbox (the feed tells of form_entries since 00680); the list's last-request line catches up when the owner looks."
+  },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/sheet": {
+    "kind": "on-open",
+    "fresh": "Read as a form's sheet opens, after each press on the form, its links or one of its entries, and when the owner comes back to the tab.",
+    "why": "The sheet is one form's own page: its draft is the owner's to change, kept as it is typed and read back after. Its counts move once a request arrives, and are read again when the owner looks."
+  },
+  "apps/dashboard/src/bridge/verbs/forms.ts GET forms/requests": {
+    "kind": "on-open",
+    "fresh": "Read as a request opens in the Inbox, after each press on it, and again whenever Needs you moves (a teammate's answer, a reply that bounced, the person's own message with its code).",
+    "why": "A request is answered where it is open, and whether it is still open is Needs you's own count, which Today's read holds and the feed moves (form_entries, form_entry_links, messages): the page follows that."
+  },
+  "apps/dashboard/src/surfaces/reports/lenses/forms-line.tsx GET reports/forms": {
+    "kind": "on-open",
+    "fresh": "Read as Reports' Campaigns lens is drawn, and again each time the lens is come back to; nothing of it is kept once the lens goes.",
+    "why": "It says what the forms brought over thirty days, which moves by a request or a visit, never by the second. It is not Reports' surface, which follows the period Reports shows."
   }
 }

@@ -894,6 +894,8 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     "heldThreads",
     "going",
     "previewsTried", // not done today or the word: GET today's route reads those beside this reader
+    "formRequests", // the requests sent through a form that nobody has answered (00680)
+    "formHeld", // each form's entries held for a look that nobody has looked at in three days
     "ai",
   ]);
   // What Today says of AI beside the day (Working for you, W1 to W3): each part a read of its own, null where it fails

@@ -17,6 +17,7 @@ import { waWindow } from "../config/policy/prices";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { LeadSearchDto } from "../leads/leads";
+import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock, tzSince } from "./clock";
@@ -52,6 +53,10 @@ interface TodayInput {
   heldThreads: ConversationDto[];
   /** The leads who tried their own receptionist lately (decision 0079), newest first; empty where none was read. */
   previewsTried: PreviewTriedDto[];
+  /** The requests sent through a form that nobody has answered (00680), newest first; empty where none was read. */
+  formRequests: FormOpenRequestDto[];
+  /** Each form's entries held for a look that nobody has looked at in three days (00680); empty where none was read. */
+  formHeld: FormHeldDto[];
 }
 
 /**

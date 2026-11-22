@@ -237,6 +237,8 @@ const ANNOUNCES = {
     "Files, which the row opens, hears file: a video made here is a row there from its first byte, and its tile turns playable as the row does (00613).",
   website_form:
     "The person's page, which the row opens, hears contacts and person_notes: the person the form made and the note it suggested (00488).",
+  form_request:
+    "The Inbox, which the row opens on the request, reads the requests nobody has answered with the one count: the bell's new row is what tells an open page that one came (00680).",
   post_up:
     "Campaigns › Content, which the row opens on the piece, asks again while a post is on its way and hears file; the piece's record reads its posts as it opens (00616).",
   post_stopped:

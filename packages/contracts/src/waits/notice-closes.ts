@@ -159,6 +159,10 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A form sent on the website is told once · the person is in People, and what they asked waits on their page.",
   },
+  form_request: {
+    ends: "news",
+    why: "A request from a form is told once · it waits in Inbox, in Needs you, until it is answered.",
+  },
   files_waiting: {
     ends: "news",
     why: "Found photos are told once · they wait in Files' Inbox, which the page opens on while anything is there.",

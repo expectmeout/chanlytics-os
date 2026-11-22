@@ -21,11 +21,11 @@
  * Cross-workspace: the form names its workspace, and the key proves the site was given it.
  */
 import { heldTenantId, WebsiteFormBody, websiteFormPerson, type WebsiteFormInput } from "@chanlytics/contracts";
-import { takeFormEntry, type FormEntryTaken } from "@chanlytics/db/people";
+import { keepFormEntrySource, takeFormEntry, type FormEntryTaken } from "@chanlytics/db/people";
 import { json, refuse } from "../shared/http.js";
 import { errField, logger, type Logger } from "../shared/log.js";
 import { pg } from "../shared/pg.js";
-import { entryAnswersOf, entryOwes, entryWords } from "./form-entry.js";
+import { entryAnswersOf, entryOwes, entrySourceOf, entryWords } from "./form-entry.js";
 import { checkWebsiteFormKey } from "./form-key.js";
 import { checkSignupWouldAsk } from "./signup-confirm.js";
 
@@ -133,6 +133,13 @@ export async function receiveWebsiteForm(request: Request): Promise<Response> {
     owed: owed.join(","),
   });
   if (taken.outcome === "forgotten") return json(200, { ok: true, kept: false });
+  // Where they came from, beside the entry (T4): its own small write, never the reason a form is not answered.
+  const source = taken.outcome === "accepted" ? entrySourceOf(data) : null;
+  if (source) {
+    await keepFormEntrySource(db, { tenantId, entryId: taken.entryId, source }).catch((e: unknown) => {
+      log.error("form_entry_source_unkept", { tenant_id: tenantId, entry_id: taken.entryId, error: errField(e) });
+    });
+  }
   const owesAsk = owed.includes("confirm");
   const confirm = await confirmWillGo(db, log, { taken, owesAsk, data, email: person.email, nowMs });
   return json(200, { ok: true, kept: true, ...(confirm ? { confirm: "sent" } : {}) });

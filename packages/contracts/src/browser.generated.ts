@@ -337,6 +337,10 @@ export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS,
 export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesCountedOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
 export { FILE_YES_ASK, fileAdRightsOf, fileUseMay, fileUseOf, fileYesReceiptOf, fileYesSaidOf, fileYesTitleOf, fileYesUsesIn } from "./files/yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
+export { FORM_PARTS, FORMS_ROUTE, formsPlaceOf, formsRouteOf, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
+export { emailTypoFix } from "./forms/email-typo";
+export { CHOICE_KINDS, FORM_FIELD_KINDS, FORM_HELD_SAID_AFTER_DAYS, FORM_LIMITS } from "./forms/limits";
+export { requestLines, throughPlace } from "./forms/request-words";
 export { googleAudienceWords } from "./google/audience";
 export { BOOKING_PLATFORM_HOSTS, BOOKING_PLATFORM_TOOLS, bookingPageOf, bookingToolOfLink, onDomain } from "./google/booking-page";
 export { gainedOver, reviewIsNew, reviewNoticeIsAbout, reviewSnippet, toGoogleReviewVM, toGoogleVM } from "./google/google";
@@ -419,6 +423,7 @@ export { CALENDAR_UNREADABLE_TOLD_AFTER_MS, CALENDAR_UNREADABLE_WORDS, GOOGLE_SY
 export { memberJoinedBy, memberJoinedNotice, memberLeftBy, memberLeftNotice } from "./notices/member-news";
 export { bookedOnce, BOOKING_VIAS, bookingArriving, bookingChanged, CATCH_UP_VISITS, feedAdditionIsBooking, VISIT_CHANGES_TOLD, visitChangeNews, visitNews } from "./notices/visit-news";
 export { consultFirstOf, peopleVisitsOf, personLikeOf, poolListContext, poolRowOf, poolRowsOf, withVisitsOf } from "./people/audience-pool";
+export { formRequestNote, formRequestNotice } from "./people/doors/form-request";
 export { dealFill, dealSheetFill, noteFill, noteSheetFill, SAY_IT_DEAL_JSON_SCHEMA, SAY_IT_MAX, SAY_IT_NOTE_JSON_SCHEMA, SAY_IT_VERBS, SAY_IT_WORDS, sayItFilled } from "./people/doors/say-it";
 export { confirmPageWords, looksMadeUp, maskAddress, SIGNUP_ASK_LIMITS, SIGNUP_CONFIRM_MS, SIGNUP_CONFIRM_SOURCE, signupAddressKey, signupAskLine, signupAskOf, signupAskRefusal, signupConfirmEmail, signupConfirmEmailHtml } from "./people/doors/signup-confirm";
 export { websiteKeyWorks } from "./people/doors/website-keys";

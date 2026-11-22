@@ -31,7 +31,7 @@ import { refreshSurface, useFrameToast } from "../../frame-verbs";
 import { useFolderRow } from "../../files/footage/settings-row";
 import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import { Panel } from "../../kit/panel/panel";
-import { AskLooking } from "../../files/photo";
+import { AskLooking } from "../../files/looking";
 import { ABOUT_CONTENT } from "./model/ask-about";
 import { AskLine } from "./sheets/ask-change";
 

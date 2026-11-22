@@ -3446,47 +3446,74 @@ export type Database = {
       form_entries: {
         Row: {
           answers: Json
-          contact_id: string
+          code: string | null
+          code_used_at: string | null
+          contact_id: string | null
           created_at: string
           effects: Json
           form: string
+          form_id: string | null
+          held_why: string | null
           id: string
           key_id: string | null
+          link_id: string | null
           owed: string[]
+          reach: Json | null
           ref: string | null
+          source: Json | null
           state: string
           tenant_id: string
+          test: boolean
           told_at: string | null
+          version_id: string | null
           words: string
         }
         Insert: {
           answers: Json
-          contact_id: string
+          code?: string | null
+          code_used_at?: string | null
+          contact_id?: string | null
           created_at?: string
           effects?: Json
           form: string
+          form_id?: string | null
+          held_why?: string | null
           id?: string
           key_id?: string | null
+          link_id?: string | null
           owed: string[]
+          reach?: Json | null
           ref?: string | null
+          source?: Json | null
           state?: string
           tenant_id: string
+          test?: boolean
           told_at?: string | null
+          version_id?: string | null
           words: string
         }
         Update: {
           answers?: Json
-          contact_id?: string
+          code?: string | null
+          code_used_at?: string | null
+          contact_id?: string | null
           created_at?: string
           effects?: Json
           form?: string
+          form_id?: string | null
+          held_why?: string | null
           id?: string
           key_id?: string | null
+          link_id?: string | null
           owed?: string[]
+          reach?: Json | null
           ref?: string | null
+          source?: Json | null
           state?: string
           tenant_id?: string
+          test?: boolean
           told_at?: string | null
+          version_id?: string | null
           words?: string
         }
         Relationships: [
@@ -3498,6 +3525,13 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
+            foreignKeyName: "form_entries_form_id_same_workspace"
+            columns: ["tenant_id", "form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "form_entries_key_id_same_workspace"
             columns: ["tenant_id", "key_id"]
             isOneToOne: false
@@ -3505,7 +3539,93 @@ export type Database = {
             referencedColumns: ["tenant_id", "id"]
           },
           {
+            foreignKeyName: "form_entries_link_id_same_workspace"
+            columns: ["tenant_id", "link_id"]
+            isOneToOne: false
+            referencedRelation: "links"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "form_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_entries_version_id_same_workspace"
+            columns: ["tenant_id", "version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      form_entry_links: {
+        Row: {
+          appointment_id: string | null
+          conversation_id: string | null
+          created_at: string
+          created_by: string | null
+          entry_id: string
+          id: string
+          kind: string
+          message_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          entry_id: string
+          id?: string
+          kind: string
+          message_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          entry_id?: string
+          id?: string
+          kind?: string
+          message_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_entry_links_appointment_id_same_workspace"
+            columns: ["tenant_id", "appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entry_links_conversation_id_same_workspace"
+            columns: ["tenant_id", "conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entry_links_entry_id_same_workspace"
+            columns: ["tenant_id", "entry_id"]
+            isOneToOne: false
+            referencedRelation: "form_entries"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entry_links_message_id_same_workspace"
+            columns: ["tenant_id", "message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_entry_links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3550,6 +3670,108 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "form_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_versions: {
+        Row: {
+          description: Json
+          form_id: string
+          id: string
+          n: number
+          published_at: string
+          published_by: string | null
+          replaced_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          description: Json
+          form_id: string
+          id?: string
+          n: number
+          published_at?: string
+          published_by?: string | null
+          replaced_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          description?: Json
+          form_id?: string
+          id?: string
+          n?: number
+          published_at?: string
+          published_by?: string | null
+          replaced_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_versions_form_id_same_workspace"
+            columns: ["tenant_id", "form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "form_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forms: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          draft: Json
+          id: string
+          last_entry_at: string | null
+          live_version_id: string | null
+          slug: string
+          state: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          draft: Json
+          id?: string
+          last_entry_at?: string | null
+          live_version_id?: string | null
+          slug: string
+          state?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          draft?: Json
+          id?: string
+          last_entry_at?: string | null
+          live_version_id?: string | null
+          slug?: string
+          state?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forms_live_version_id_same_workspace"
+            columns: ["tenant_id", "live_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "forms_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5251,6 +5473,89 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      link_days: {
+        Row: {
+          day: string
+          link_id: string
+          opens: number
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          link_id: string
+          opens?: number
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          link_id?: string
+          opens?: number
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_days_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "link_days_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      links: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          id: string
+          place: string
+          printed: boolean
+          stopped_at: string | null
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Insert: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          place: string
+          printed?: boolean
+          stopped_at?: string | null
+          subject_id: string
+          subject_type: string
+          tenant_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          place?: string
+          printed?: boolean
+          stopped_at?: string | null
+          subject_id?: string
+          subject_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "links_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -10627,6 +10932,29 @@ export type Database = {
         }
         Returns: number
       }
+      form_code_link: {
+        Args: {
+          p_code: string
+          p_conversation_id: string
+          p_message_id?: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      form_code_new: { Args: never; Returns: string }
+      form_code_person: {
+        Args: { p_code: string; p_phone: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      form_entries_purge: { Args: never; Returns: number }
+      form_entry_hold: {
+        Args: { p_entry_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      form_entry_let_through: {
+        Args: { p_entry_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       form_entry_settled: {
         Args: {
           p_effect: string
@@ -10660,6 +10988,35 @@ export type Database = {
       form_key_make: {
         Args: { p_hash: string; p_name: string; p_tenant_id: string }
         Returns: string
+      }
+      form_publish: {
+        Args: { p_form_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      form_request_take: {
+        Args: {
+          p_answers: Json
+          p_form_id: string
+          p_held_why?: string
+          p_link_code?: string
+          p_reach: Json
+          p_ref: string
+          p_source?: Json
+          p_tenant_id: string
+          p_test?: boolean
+          p_version_id: string
+          p_words: string
+        }
+        Returns: Json
+      }
+      form_requests_open: { Args: { p_tenant_id: string }; Returns: Json }
+      form_results: {
+        Args: { p_days?: number; p_tenant_id: string }
+        Returns: Json
+      }
+      form_turn: {
+        Args: { p_form_id: string; p_on: boolean; p_tenant_id: string }
+        Returns: boolean
       }
       found_read_spend: {
         Args: {
@@ -11403,6 +11760,8 @@ export type Database = {
         Args: { p_line_id: string; p_tenant_id: string }
         Returns: Json
       }
+      link_code_new: { Args: never; Returns: string }
+      link_open: { Args: { p_code: string; p_count?: boolean }; Returns: Json }
       llm_tokens_since: {
         Args: { p_since: string; p_tenant: string }
         Returns: number

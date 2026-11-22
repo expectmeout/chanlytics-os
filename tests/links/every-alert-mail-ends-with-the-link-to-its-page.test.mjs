@@ -110,6 +110,8 @@ test("a mail with no route links the page the kind's list lives on", async () =>
     opted_out: "/w/harbor/people",
     // A website's form brings its person (#1895): the people the owner is told of, in People.
     website_form: "/w/harbor/people",
+    // A request through a form the business shares (00680): the Inbox, where it is answered.
+    form_request: "/w/harbor/inbox",
     // An ad that can't run (00664): the Ads page, where a named one opens its ad's drawer.
     ad_refused: "/w/harbor/campaigns/ads",
     ad_unpaid: "/w/harbor/campaigns/ads",
