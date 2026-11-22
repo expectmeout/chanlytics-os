@@ -16,6 +16,7 @@ import { PostOnInstagram } from "../../files/places/post-instagram";
 import { usePostRecord } from "../../files/post-record";
 import type { PieceFootActs } from "./piece-foot";
 import { usePieceDrafts, usePiecePosts, usePiecePresses, type PieceHands, type PiecePresses } from "./piece-presses";
+import { usePieceStanding } from "./piece-standing";
 import { readAhead } from "./read-ahead";
 import type { PieceNext } from "./model/piece-open";
 import { runAsAdOf } from "./model/run-as-ad";
@@ -146,6 +147,7 @@ export function ContentPiece({
   const { posts, takes } = at;
   const presses = usePiecePresses(hands, posts);
   const drafts = usePieceDrafts(hands, at, presses);
+  const standing = usePieceStanding(hands, posts, presses, drafts);
   useEffect(() => readAhead(held, file.id), [held, file.id]);
   // Its sheet, once its record is read, and once only: closed, it stays closed while the piece is open.
   const begun = useRef(false);
@@ -158,6 +160,8 @@ export function ContentPiece({
   // Where its owner said they posted it themselves: the page's, or its record's where the piece was read on its own.
   const byHand = made.by_hand ?? null;
   const acts = pieceActsOf({ ...hands, beside }, { drafts, presses });
+  // The person an ad waits for, where the owner named who is in it: Run as an ad's reason names them.
+  const adPerson = standing.askForAds();
   const shown = {
     made: { file, posts, by_hand: byHand },
     byHand: byHandPressOf(byHand, presses.change, flash),
@@ -169,10 +173,20 @@ export function ContentPiece({
     drafts,
     acts,
     doors: postedDoorsOf(hands),
+    standing,
     // New ad's route drafts for whoever may approve: an operator and above (server/ads/draft.ts).
     runAsAd: {
-      line: runAsAdOf(record.ad, file, canDo("approve")),
-      acts: runAsAdActsOf(file.id, navigate, { ask: acts.onAsk, makePost: acts.onMakePost }),
+      line: runAsAdOf(
+        record.ad,
+        file,
+        canDo("approve"),
+        adPerson ? { name: adPerson.name, canBeAsked: adPerson.conversation !== null && canDo("settings") } : null,
+      ),
+      acts: runAsAdActsOf(file.id, navigate, {
+        ask: acts.onAsk,
+        makePost: acts.onMakePost,
+        askPerson: () => (adPerson ? standing.askPersonForAds(adPerson) : acts.onAsk()),
+      }),
     },
   };
   // A phone opens the canvas's viewer, full screen and dark, in the split's open slot; a desk the pane beside the grid.

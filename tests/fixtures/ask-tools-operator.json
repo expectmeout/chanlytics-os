@@ -6445,6 +6445,24 @@
       "defer_loading": true
     },
     {
+      "name": "propose_take_down",
+      "description": "Take a made post or video down from everywhere it is up, and stop what of it still waits to go up. The card says what each place will be asked; each place is asked on its press and says when it is gone. It cannot be undone: taken down, it is posted again as a new post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "The post's or the video's name, as files says it.",
+            "maxLength": 120,
+            "minLength": 1
+          }
+        },
+        "required": ["file"],
+        "additionalProperties": false
+      },
+      "defer_loading": true
+    },
+    {
       "name": "propose_thread_verb",
       "description": "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is propose_reply with action draft, and how the receptionist treats one person is an owner's to set (propose_person with action mode). It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.",
       "input_schema": {
@@ -9788,6 +9806,24 @@
           "words": "Short answers, the key numbers in bold"
         }
       ],
+      "defer_loading": true
+    },
+    {
+      "name": "propose_take_down",
+      "description": "Take a made post or video down from everywhere it is up, and stop what of it still waits to go up. The card says what each place will be asked; each place is asked on its press and says when it is gone. It cannot be undone: taken down, it is posted again as a new post. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "The post's or the video's name, as files says it.",
+            "maxLength": 120,
+            "minLength": 1
+          }
+        },
+        "required": ["file"],
+        "additionalProperties": false
+      },
       "defer_loading": true
     },
     {

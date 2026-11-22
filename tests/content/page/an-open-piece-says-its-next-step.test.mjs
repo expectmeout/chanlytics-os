@@ -64,8 +64,9 @@ test("set aside, it leads with putting it back: never a post of it, nor one trie
   assert.deepEqual(pieceNextOf(aside, [], BOTH), { is: "put_back" });
   assert.deepEqual(pieceNextOf(aside, [post("instagram", "failed")], BOTH), { is: "put_back" });
   assert.deepEqual(pieceNextOf(aside, [post("instagram", "published")], BOTH), { is: "put_back" });
-  // A video posts nothing from here: its one act stays Save video.
-  assert.deepEqual(pieceNextOf({ ...aside, kind: "video" }, [], BOTH), { is: "save" });
+  // A video that goes nowhere from here keeps its one act, Save video; one Instagram takes as a reel is put back first.
+  assert.deepEqual(pieceNextOf({ ...aside, kind: "video" }, [], { instagram: false, google: false }), { is: "save" });
+  assert.deepEqual(pieceNextOf({ ...aside, kind: "video" }, [], BOTH), { is: "put_back" });
   // Put back, it is a post again, and Post leads.
   assert.deepEqual(pieceNextOf({ ...aside, status: "filed" }, [], BOTH), { is: "post" });
 });
@@ -83,8 +84,24 @@ test("one on its way says so, and whether it can still be stopped", () => {
   });
 });
 
-test("a video's step is to save it", () => {
-  assert.deepEqual(pieceNextOf({ kind: "video", source: "made" }, [], BOTH), { is: "save" });
+test("a video's step is to post it as a reel where Instagram takes one, and to save it where nothing posts one", () => {
+  const video = { kind: "video", source: "made" };
+  // Instagram is offered and takes a reel now (00690): Post leads, as a picture's does.
+  assert.deepEqual(pieceNextOf(video, [], BOTH), { is: "post" });
+  // One that stopped is tried again; one that is up, with nowhere else to go, leads with nothing.
+  assert.deepEqual(pieceNextOf(video, [post("instagram", "failed", { kind: "reel" })], BOTH), {
+    is: "again",
+    place: "instagram",
+  });
+  assert.deepEqual(
+    pieceNextOf(video, [post("instagram", "published", { kind: "reel" })], { instagram: false, google: false }),
+    {
+      is: "none",
+    },
+  );
+  // Nothing posts a video from here (no Instagram through Meta, or its record not read yet): it is saved, as before.
+  assert.deepEqual(pieceNextOf(video, [], { instagram: false, google: false }), { is: "save" });
+  assert.deepEqual(pieceNextOf(video, [], null), { is: "save" });
 });
 
 test("where it stands at a place, from the newest post there", () => {

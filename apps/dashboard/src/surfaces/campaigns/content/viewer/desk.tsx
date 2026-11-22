@@ -29,7 +29,9 @@ import { ViewerPicture } from "./picture";
 import { RunAsAd } from "./run-as-ad";
 import { draftHeadOf } from "./sheets";
 import { viewerClockOf } from "./clock";
-import { byHandOffered, removeAsk, type ViewerHands } from "./viewer";
+import { WhereItGoes } from "./goes";
+import { WhoIsInIt } from "./people";
+import { byHandOffered, footStandingOf, removeAsk, type ViewerHands } from "./viewer";
 
 /** What a phone opens over the viewer as a sheet of its own, standing in the desk pane's body. */
 type DeskOpen = "change" | "rename" | null;
@@ -159,7 +161,7 @@ function deskOpenedOf(
       title: head.title,
       sub: head.sub,
       close: head.cancel,
-      body: draftBody(drafts, null, hands.doors, at.facts),
+      body: draftBody(drafts, null, { doors: hands.doors, facts: at.facts, standing: hands.standing }),
       foot: draftFoot(drafts),
     };
   }
@@ -292,7 +294,15 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     sound: flip,
     lead: lead && !presses.busy ? onLead : null,
   });
-  const more = hands.may ? <ViewerMore file={file} desk acts={{ ...acts, onRename: () => setOpen("rename") }} /> : null;
+  const onChange = acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null);
+  const more = hands.may ? (
+    <ViewerMore
+      file={file}
+      desk
+      acts={{ ...acts, onChange, onRename: () => setOpen("rename"), save: { share: save.share, href: save.href } }}
+    />
+  ) : null;
+  const standing = footStandingOf(hands, { more, onTold: () => undefined });
   return (
     <CmPane
       bare
@@ -318,8 +328,8 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           </>
         ) : (
           <>
-            {viewerHasStatus(file) ? (
-              <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} desk />
+            {viewerHasStatus(file, next) ? (
+              <ViewerStatus posts={posts} next={next} clock={clock} opens={onStatus} pill={standing.pill} desk />
             ) : null}
             {(presses.problem ?? save.said) ? (
               <p className="cnv-desk-line" role="alert" data-testid="cnv-problem">
@@ -334,12 +344,12 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 busy={presses.busy}
                 save={save}
                 caption={file.kind === "video" ? says.words : null}
-                acts={{
-                  onLead,
-                  onAsk: acts.onAsk,
-                  onChange: acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null),
-                }}
-                desk={{ more }}
+                acts={{ onLead, onAsk: acts.onAsk, onChange }}
+                desk
+                more={standing.more}
+                leads={standing.leads}
+                ad={standing.ad}
+                takeDown={standing.takeDown}
               />
             )}
             {presses.asking ? null : (
@@ -351,9 +361,19 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                   clock={clock}
                   busy={presses.busy}
                 />
-                <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} />
+                <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
+                {standing.tell}
               </>
             )}
+            {/* The rest of the piece's sheet, in the phone's order: where it goes, who is in it, then its words. */}
+            <WhereItGoes lines={hands.standing.lines} on={hands.standing.goes} />
+            <WhoIsInIt
+              people={hands.standing.people}
+              seen={hands.standing.seen}
+              use="post"
+              clock={hands.standing.clock}
+              on={hands.standing.who}
+            />
             <ViewerFacts
               shown={says.details}
               may={hands.may}
@@ -365,6 +385,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
           </>
         )}
       </div>
+      {hands.standing.sheets}
     </CmPane>
   );
 }

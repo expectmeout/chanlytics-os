@@ -11,6 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { goesLinesOf, goesPillOf } from "@chanlytics/contracts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -219,6 +220,44 @@ const actsOf = (over = {}) => ({
   onDelete: noop,
   ...over,
 });
+/**
+ * Where the piece stands beyond its composer (piece-standing.tsx usePieceStanding), at rest: no placement's line, so its
+ * usual status says where it stands, nobody read as in it, and nothing to take down. A test of the lines hands its own.
+ */
+const standingOf = (over = {}) => ({
+  lines: [],
+  pill: null,
+  lead: null,
+  goes: {
+    busy: false,
+    about: ABOUT,
+    move: noop,
+    pull: noop,
+    askPerson: noop,
+    approve: noop,
+    words: noop,
+    deleted: noop,
+  },
+  who: {
+    busy: false,
+    may: true,
+    mayName: true,
+    about: ABOUT,
+    piece: "Saturdays fill first",
+    askPerson: noop,
+    said: noop,
+    noOne: noop,
+  },
+  people: null,
+  seen: null,
+  clock: { day: (at) => at, ahead: (at) => at },
+  adActions: [],
+  takeDown: null,
+  askForAds: () => null,
+  askPersonForAds: noop,
+  sheets: null,
+  ...over,
+});
 /** What piece.tsx hands the desk's pane and the phone's viewer alike. */
 const handsOf = ({
   kind = "image",
@@ -234,12 +273,14 @@ const handsOf = ({
   acts = {},
   byHand = null,
   runAsAd = null,
+  standing = {},
 } = {}) => ({
   made: { file: fileOf(kind, over), posts, by_hand: byHand },
+  standing: standingOf(standing),
   // "I posted it" as piece.tsx hands it (viewer/by-hand.tsx byHandPressOf): where it stands, and its three acts.
   byHand: { kept: byHand, say: noop, keepLink: async () => null, takeBack: noop },
   // "Run as an ad" as piece.tsx hands it (model/run-as-ad.ts): its line, none where the record says nothing.
-  runAsAd: { line: runAsAd, acts: { run: noop, yes: noop, post: noop, ask: noop, ads: noop } },
+  runAsAd: { line: runAsAd, acts: { run: noop, yes: noop, post: noop, ask: noop, ads: noop, ask_person: noop } },
   record,
   takes,
   may,
@@ -289,7 +330,8 @@ test("a post that is up on Instagram leads with the next place, and the row says
   for (const html of both({ posts: everywhere })) {
     assert.match(statusOf(html).said, /^On Instagram and Google · \S+/);
     assert.equal(count(html, "cnv-next"), 0, "nothing leads once it is up everywhere");
-    assert.equal(saysOf(html, "cnv-save"), "Save", "so Save takes the room, with its word");
+    assert.equal(count(html, "cnv-save"), 0, "Save rides More, with what else is left of the piece's acts");
+    assert.equal(count(html, "cnv-more"), 1);
   }
 });
 
@@ -318,8 +360,12 @@ test("a post on its way is said in the row, its Don't post the sheet's (which th
     assert.equal(count(html, "cnv-next"), 0, "nothing else leads");
     assert.deepEqual(statusOf(html), { tone: "going", said: "Posting to Instagram" });
     assert.equal(count(html, "cnv-pull"), 0, "one Don't post, in the sheet");
-    assert.doesNotMatch(html, /disabled=""/, "no press is drawn only to be dead");
-    assert.equal(saysOf(html, "cnv-save"), "Save", "Save takes the room the act that leads would");
+    assert.doesNotMatch(
+      html.replace(/<button[^>]*cnv-ask-send[^>]*>/g, ""),
+      /disabled=""/,
+      "no press is drawn only to be dead",
+    );
+    assert.equal(count(html, "cnv-save"), 0, "Save rides More");
   }
 });
 
@@ -336,15 +382,24 @@ test("a post that waits for its time is said in the row, and the next place stil
   }
 });
 
-test("a video Ask made leads with Save video, plays with its sound on the glass, and has no row of places", () => {
+test("a video AI made leads with Post where Instagram takes a reel, and with Save video where nothing posts one from here", () => {
+  // Instagram is offered and takes one now: it goes as a reel (00690), so Post leads and it has its row.
   for (const html of both({ kind: "video" })) {
+    assert.equal(saysOf(html, "cnv-next"), "Post");
+    assert.equal(count(html, "cnv-video-save"), 0);
+    assert.equal(count(html, "cnv-status"), 1, "where it stands is said, as a post's is");
+    assert.equal(count(html, "cnv-sound"), 1);
+  }
+  const NOWHERE = { instagram: false, google: false };
+  for (const html of both({ kind: "video", takes: NOWHERE })) {
     assert.equal(count(html, "cnv-next"), 0, "nothing posts a video from here (decision 0121)");
     assert.equal(count(html, "cnv-video-save"), 1);
     assert.match(html, /Save video<\/a>/, "Save video leads");
     assert.equal(count(html, "cnv-sound"), 1);
     assert.match(html, /aria-label="Sound on"[^>]*data-testid="cnv-sound"/, "muted until asked");
-    assert.equal(count(html, "cnv-status"), 0, "a video has no row of places");
-    assert.equal(count(html, "cnv-change"), 1, "what Ask made is changed by its one round press");
+    assert.equal(count(html, "cnv-status"), 0, "a video that goes nowhere has no row of places");
+    assert.equal(count(html, "cnv-change"), 0, "what AI made is changed by the line to AI at its foot");
+    assert.equal(count(html, "cnv-ask-line"), 1);
   }
   assert.match(desk({ kind: "video" }), /<kbd>Space<\/kbd>Sound/, "Space turns the sound on a desk");
   assert.doesNotMatch(desk({}), /<kbd>Space<\/kbd>/, "a picture has no sound to turn");
@@ -363,8 +418,8 @@ test("a reader sees where it stands and may save it, and is offered nothing that
   for (const html of both({ may: false, posts: [post("instagram", "queued")] }))
     assert.equal(count(html, "cnv-pull"), 0, "a post on its way is not theirs to stop");
   for (const html of both({ may: false })) assert.equal(count(html, "cnv-change"), 0, "Change it is not a reader's");
-  // A video has no row of places, for anyone: a reader may save it.
-  for (const html of both({ may: false, kind: "video" })) {
+  // A video that goes nowhere from here has no row of places, for anyone: a reader may save it.
+  for (const html of both({ may: false, kind: "video", takes: { instagram: false, google: false } })) {
     assert.equal(count(html, "cnv-status"), 0);
     assert.equal(count(html, "cnv-video-save"), 1);
   }
@@ -795,7 +850,8 @@ test("a story can go beside a post that waits: the switch offers the kind that i
 /** What the list reads of a piece (post-both.tsx PostBothPiece), with its record read and both places taking a post. */
 const pieceOf = (over = {}) => ({
   id: "ffffffff-0000-4000-8000-000000000001",
-  plan: { line: "Saturdays fill first", under: "Two chairs left this week" },
+  known: true,
+  fileKind: "image",
   posts: [],
   takes: { instagram: true, google: true },
   wont: { instagram: null, google: null },
@@ -867,7 +923,7 @@ test("a reader's list switches nothing, and the list waits for the record before
   assert.equal(reader.open, true, "where it stands is theirs to read");
   assert.deepEqual(reader.takes, { instagram: false, google: false }, "no place has a switch");
   assert.deepEqual([reader.draft.instagram, reader.draft.google, reader.sending], [false, false, false]);
-  const unread = S.bothAfter(pieceOf({ plan: null, takes: null, wont: null, offers: null }), [opens]);
+  const unread = S.bothAfter(pieceOf({ known: false, takes: null, wont: null, offers: null }), [opens]);
   assert.deepEqual([unread.ready, unread.open], [false, false]);
 });
 
@@ -1032,4 +1088,118 @@ test("a pasted link is kept as an address a browser opens, with its https where 
   assert.equal(S.handLinkOf("http://youtu.be/x"), "https://youtu.be/x");
   for (const not of ["", "   ", "my reel", "instagram", "https://"]) assert.equal(S.handLinkOf(not), null, not);
   assert.equal(S.handLinkOf(`https://example.com/${"x".repeat(500)}`), null, "longer than a link is kept");
+});
+
+/* ------------------------------------------------- where it goes, who is in it, take down (the journey canvas, Piece) */
+
+const PAOLA = {
+  id: "eeeeeeee-0000-4000-8000-000000000001",
+  file_id: "ffffffff-0000-4000-8000-000000000009",
+  name: "Paola Ruiz",
+  label: "client",
+  contact_id: "cccccccc-0000-4000-8000-000000000001",
+  conversation: { id: "dddddddd-0000-4000-8000-000000000001", channel: "whatsapp" },
+  yes: [],
+  took_back: [],
+  asked: null,
+  said_no_at: null,
+  answered: null,
+};
+/** The piece's standing as the hook builds it from its lines (contracts goesLinesOf), its presses noops. */
+const standingFrom = (posts, { people = null, takeDown = null, more = {} } = {}) => {
+  const lines = goesLinesOf(posts, { people, takeDown, when: (iso) => iso.slice(0, 10), nowMs: Date.now(), may: true });
+  return { lines, pill: goesPillOf(lines), people, ...more };
+};
+
+test("a post held for a person: the row names them, Ask leads in coral, and their line offers the ask", () => {
+  const held = post("instagram", "held", { held_why: "rights", held_reason: "Paola Ruiz hasn't said yes." });
+  const people = { state: "named", people: [PAOLA] };
+  const standing = {
+    ...standingFrom([held], { people }),
+    lead: { words: "Ask Paola Ruiz", press: noop },
+  };
+  for (const html of both({ posts: [held], standing })) {
+    assert.equal(statusOf(html).tone, "need");
+    assert.equal(statusOf(html).said.replace(/&#x27;/g, "'"), "Paola Ruiz hasn't said yes");
+    assert.equal(saysOf(html, "cnv-next"), "Ask Paola Ruiz", "the one fix leads, in place of Post again");
+  }
+  // On a desk the rest of the sheet stands under the acts: its line, then who is in it.
+  const html = desk({ posts: [held], standing });
+  assert.match(
+    html,
+    /data-testid="cnv-goes-said-instagram-picture"[^>]*>.*Paola Ruiz hasn(&#x27;|')t said yes to posts/s,
+  );
+  assert.equal(count(html, "cnv-goes-ask-instagram-picture"), 1);
+  assert.match(html, /data-testid="cnv-who-said-[^"]+"[^>]*>Hasn(&#x27;|')t said yes to posts/);
+  assert.equal(count(html, `cnv-who-ask-${PAOLA.id}`), 1);
+  assert.equal(count(html, `cnv-who-in-person-${PAOLA.id}`), 1, "a yes said face to face is kept from here too");
+});
+
+test("what she wrote since the ask is the owner's to read: her words, That's a yes and That's a no", () => {
+  const asked = { at: "2026-11-30T15:12:00Z", via: "whatsapp", uses: ["post"] };
+  const answered = {
+    ...PAOLA,
+    asked,
+    answered: { at: "2026-11-30T15:40:00Z", words: "Yes of course!!", message_id: "m1" },
+  };
+  const standing = standingFrom([], { people: { state: "named", people: [answered] } });
+  const html = desk({ standing });
+  assert.match(html, /<q[^>]*>Yes of course!!<\/q>/, "her own words are the record");
+  assert.equal(count(html, `cnv-who-yes-${PAOLA.id}`), 1);
+  assert.equal(count(html, `cnv-who-no-${PAOLA.id}`), 1);
+  // A reader is told where it stands, and is offered nothing to keep.
+  const reader = desk({
+    may: false,
+    standing: { ...standing, who: { ...standingOf().who, may: false, mayName: false } },
+  });
+  assert.equal(count(reader, `cnv-who-yes-${PAOLA.id}`), 0);
+});
+
+test("nobody said who is in it: it is said to AI, or that no one is; nobody in it says so with Change", () => {
+  const unknown = desk({
+    standing: standingFrom([], { people: { state: "not_asked", people: [] }, more: { seen: 2 } }),
+  });
+  assert.match(unknown, /AI sees 2 people in it\. Who are they\?/);
+  assert.equal(count(unknown, "cnv-who-none-press"), 1);
+  const none = desk({ standing: standingFrom([], { people: { state: "none", people: [] } }) });
+  assert.match(none, /No one(&#x27;|')s in it/);
+  assert.equal(count(none, "cnv-who-change"), 1);
+});
+
+test("Take down rides the acts while something is up, and only then; a take-down's lines say what each place said", () => {
+  const up = post("instagram", "published");
+  for (const html of both({ posts: [up], standing: { ...standingFrom([up]), takeDown: noop } }))
+    assert.equal(saysOf(html, "cnv-take-down-open"), "Take down");
+  for (const html of both({ posts: [up] })) assert.equal(count(html, "cnv-take-down-open"), 0);
+  const takeDown = {
+    cause: "owner_removed",
+    asked_at: new Date().toISOString(),
+    finished_at: null,
+    actions: [
+      {
+        id: "a1",
+        target: "post",
+        target_id: up.id,
+        act: "take_down",
+        outcome: "needs_person",
+        said: "Instagram didn't let Chanlytics take it down.",
+        started_at: new Date().toISOString(),
+        finished_at: new Date().toISOString(),
+        name: null,
+      },
+    ],
+  };
+  const html = desk({ posts: [up], standing: standingFrom([up], { takeDown }) });
+  assert.match(html, /Chanlytics can(&#x27;|')t take this down from Instagram/);
+  assert.equal(count(html, "cnv-goes-deleted-instagram-picture"), 1, "I deleted it");
+  assert.deepEqual(statusOf(html).tone, "need");
+});
+
+test("More holds what is left of the piece's acts: Save and, where it can be changed by hand, Change it", () => {
+  for (const html of both({ acts: { onChange: noop } })) {
+    assert.equal(count(html, "cnv-more"), 1);
+    assert.equal(count(html, "cnv-change"), 0, "the pen is gone: the line to AI is the foot's");
+    assert.equal(count(html, "cnv-ask-line"), 1);
+    assert.match(html, /placeholder="Tell AI what to change"/);
+  }
 });

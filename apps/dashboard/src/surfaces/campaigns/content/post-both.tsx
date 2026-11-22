@@ -19,10 +19,10 @@ import {
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_PLACES,
+  type GoesLine,
   type InstagramPostKind,
   type PostDto,
   type PostPlace,
-  type PostPlan,
 } from "@chanlytics/contracts";
 import { pageClock } from "@/bridge/zone";
 import { gateTitle } from "../../frame-verbs";
@@ -33,9 +33,11 @@ import { WhenDayTime, firstSlot } from "../broadcasts/when";
 import { postBothProblemOf, type PostBothDraft } from "./model/post-both";
 import { instagramAsOf, instagramKindsFree, type PieceTakes } from "./model/piece-open";
 import { placesOf, type PieceOffers, type PieceWont, type PlaceStanding } from "./model/places";
+import type { PieceStanding } from "./piece-standing";
 import { PlaceRow } from "./post-both-places";
 import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-both-sends";
 import { viewerClockOf } from "./viewer/clock";
+import { WhereItGoes } from "./viewer/goes";
 
 const COMPOSER_SAYS = CONTENT_WORDS.post;
 const SHEET = CONTENT_SHEET_WORDS.post;
@@ -46,7 +48,10 @@ export type PlaceDoors = Partial<Record<PostPlace, ReactNode>>;
 /** What the list reads of the piece: its posts, where it can go now, why a place can take none, and who is looking. */
 interface PostBothPiece {
   id: string;
-  plan: PostPlan | null;
+  /** Whether its record has been read: the list opens only then. */
+  known: boolean;
+  /** A picture or a video: what Instagram takes it as. */
+  fileKind: string;
   /** The caption that goes with it: the words on screen in its box, else as kept (postCaptionOf); null where it has none. */
   caption: string | null;
   posts: readonly PostDto[];
@@ -72,7 +77,7 @@ interface PostBothTells {
 
 /** The draft, its send, and what each place said back. */
 export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
-  const { id, plan, caption, takes, wont, offers, may } = piece;
+  const { id, known, fileKind, caption, takes, wont, offers, may } = piece;
   const { done, flash } = tell;
   const [held, setHeld] = useState<PostBothDraft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,7 +87,7 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
   // What a person who may post can send to now: a reader's list switches nothing.
   const open: PieceTakes | null = takes ? { instagram: may && takes.instagram, google: may && takes.google } : null;
   // What Instagram can take now: one of each kind at a time (00620), so a story while a post waits, and the other way round.
-  const kinds = instagramKindsFree(piece.posts);
+  const kinds = instagramKindsFree(piece.posts, fileKind);
   // The draft as it stands now: a place is on only while it can take the post, Instagram as a kind it can take. One that
   // stopped taking it since it was switched on (a post went on its way there, the place was disconnected) has no switch to
   // turn off, so it is off.
@@ -131,7 +136,8 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
     /** The kinds Instagram can take now: the track draws the other one off. */
     kinds,
     /** Whether the list can be opened yet: the piece's record has been read. */
-    ready: !!plan && !!takes,
+    ready: known && !!takes,
+    fileKind,
     sending,
     may,
     busy: busy || mover.busy,
@@ -146,9 +152,9 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
      * can take it where it is not up already. A second post to a place it is on is switched on by hand, never by opening it.
      */
     begin: () => {
-      if (!plan || !open) return;
+      if (!known || !open) return;
       setRefused({});
-      setHeld(postBothOpening(open, piece.posts, Date.now()));
+      setHeld(postBothOpening(open, piece.posts, Date.now(), fileKind));
     },
     cancel: () => {
       setRefused({});
@@ -185,31 +191,76 @@ export const postBothTitleOf = (both: Pick<PostBothState, "takes">): string =>
  * opening the list would switch a place on for whoever may post. Where the piece is up everywhere and nothing waits, there
  * is nothing to be told of: saying who can post there read as something still to do.
  */
-function readerMisses(both: Pick<PostBothState, "may" | "could" | "posts">, places: readonly PlaceStanding[]): boolean {
+function readerMisses(
+  both: Pick<PostBothState, "may" | "could" | "posts" | "fileKind">,
+  places: readonly PlaceStanding[],
+): boolean {
   if (both.may) return false;
   if (places.some((at) => at.pull || at.letGo || at.waitsToo?.pull)) return true;
   if (!both.could) return false;
-  const armed = postBothOpening(both.could, both.posts, Date.now());
+  const armed = postBothOpening(both.could, both.posts, Date.now(), both.fileKind);
   return armed.instagram || armed.google;
+}
+
+/**
+ * A place's row under the piece's lines: where the lines say where it stands there, the row keeps its switch alone, and
+ * a place that can take no post now and already has its line has no row. With no line there, the row is as it was.
+ */
+function rowUnderLines(at: PlaceStanding, lines: readonly GoesLine[]): PlaceStanding[] {
+  if (!lines.some((line) => line.place === at.place)) return [at];
+  if (!at.takes) return [];
+  return [
+    {
+      ...at,
+      stands: { is: "none" },
+      pull: null,
+      letGo: null,
+      kind: null,
+      movable: null,
+      making: false,
+      upToo: null,
+      waitsToo: null,
+    },
+  ];
 }
 
 /**
  * The list (the content canvas, PhAct "post"): a row per place, and what stops a send. The caption that goes with it follows
  * it, typed in place (viewer/details.tsx ViewerFacts), in the same sheet on a phone and the same body on a desk.
  */
-export function PostBoth({ both, doors = {} }: { both: PostBothState; doors?: PlaceDoors }) {
+export function PostBoth({
+  both,
+  doors = {},
+  standing,
+}: {
+  both: PostBothState;
+  doors?: PlaceDoors;
+  /** The piece's placements, a line each (viewer/goes.tsx): said over the places, which then keep only their switch. */
+  standing?: Pick<PieceStanding, "lines" | "goes">;
+}) {
   const { draft, takes, wont, offers } = both;
   if (!draft || !takes || !wont || !offers) return null;
   const clock = viewerClockOf();
-  const places = placesOf(both.posts, { takes, wont, offers }, Date.now());
+  const lines = standing?.lines ?? [];
+  const places = placesOf(both.posts, { takes, wont, offers }, Date.now()).flatMap((at) => rowUnderLines(at, lines));
   return (
     <div className="cnv-compose" data-testid="cnv-compose">
+      {standing ? <WhereItGoes lines={lines} on={standing.goes} /> : null}
       {/* Named as its sheet is. */}
-      <div className="cnv-dests" role="group" aria-label={postBothTitleOf(both)}>
-        {places.map((at) => (
-          <PlaceRow key={at.place} at={at} draft={draft} both={both} clock={clock} door={doors[at.place]} />
-        ))}
-      </div>
+      {places.length > 0 ? (
+        <div className="cnv-dests" role="group" aria-label={postBothTitleOf(both)}>
+          {places.map((at) => (
+            <PlaceRow
+              key={at.place}
+              at={at}
+              draft={draft}
+              both={both}
+              clock={clock}
+              door={lines.some((line) => line.place === at.place) ? null : doors[at.place]}
+            />
+          ))}
+        </div>
+      ) : null}
       {/* A reader sees where it stands and nothing to press: who can post is said, as a card says who can approve it. */}
       {readerMisses(both, places) ? (
         <p className="cnv-note" data-testid="cnv-cant-post">

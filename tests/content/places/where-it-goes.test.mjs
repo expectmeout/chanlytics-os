@@ -129,9 +129,10 @@ test("held since it was approved, for its reason, or by its place: each with its
   );
   assert.equal(passed.said, "“20% off” has ended since you approved this.");
   assert.deepEqual(
-    passed.acts.map((a) => a.says),
+    passed.acts.map((a) => a.says ?? a.hint),
     ["Leave it out", "Change the words", "Tell AI it still stands"],
   );
+  assert.deepEqual(passed.acts[2], { is: "say_ai", hint: "Tell AI it still stands", begin: "It still stands: " });
   const lost = one(post({ status: "held", held_why: "disconnected", held_reason: ON_INSTAGRAM.held.disconnected }));
   assert.equal(lost.said, "Instagram needs connecting again");
   assert.deepEqual(acts(lost), ["connect"]);

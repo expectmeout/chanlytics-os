@@ -562,6 +562,13 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST files/[id]/instagram": () => [...filesIfDrawn(), ...postMoved()],
   "DELETE files/[id]/instagram": postMoved,
   "PATCH files/[id]/posts": postMoved,
+  // A piece asked down, or its owner's "I deleted it" (00692): its posts move as each place answers.
+  "DELETE files/[id]/posts": postMoved,
+  "PUT files/[id]/posts": postMoved,
+  // Who is in a file, that one of them was asked, and what they answered (00691): a yes or one taken back moves its posts.
+  "POST files/[id]/people": filesAndContentIfDrawn,
+  "PUT files/[id]/people": filesAndContentIfDrawn,
+  "PATCH files/[id]/people": () => [...filesAndContentIfDrawn(), ...postMoved()],
   // A booking email held for a look and dismissed (00345): the Calendar's read carries the held list and its count, which the
   // Business tab's fold and the board's card both draw from, so the list says what is left at once. (Read again is a job: below.)
   "POST calendar/notices/[id]/dismiss": () => [calendarOverride],

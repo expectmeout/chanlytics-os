@@ -9,7 +9,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { postPublishOf, publishSpec } from "@chanlytics/contracts";
+import { postPublishOf, publishSpec, takeDownSpec } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -53,6 +53,8 @@ async function proposed({
   rights = { is: "ok" },
   stopped = false,
   video = false,
+  posts = [],
+  tool = "propose_publish",
 } = {}) {
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
@@ -109,7 +111,7 @@ async function proposed({
     ],
     tenant_config: [],
     google_connections: [],
-    posts: [],
+    posts: posts.map((post) => ({ ...post, tenant_id: tenant, file_id: MADE })),
   };
   const channel = {
     id: `cccccccc-cccc-4ccc-8ccc-${String(seq).padStart(12, "0")}`,
@@ -127,6 +129,7 @@ async function proposed({
   const doors = { file_rights_gap: () => rights };
   const ctx = { supabase: fakeDb(tables, {}, doors), userId: USER, email: "ada@example.com", params: {} };
   const tc = { ...newToolContext(ctx, tenant, "owner", "UTC", new Date()), question, askedEarlier: [], language: "en" };
+  if (tool === "propose_take_down") return buildProposal(tc, tool, { file: "open-late-on-fridays" });
   return buildProposal(tc, "propose_publish", { file: "open-late-on-fridays", places: ["instagram"], ...input });
 }
 
@@ -209,4 +212,54 @@ test("a made video goes as a reel, and a picture never does", async () => {
   assert.deepEqual([call.body.as, call.body.caption], ["reel", "Calls answered for you."]);
   assert.match(saidTo(await proposed({ input: { as: "reel" } })), /only a made video goes as a reel/);
   assert.match(saidTo(await proposed({ video: true, input: { places: ["google"] } })), /Google takes a picture/);
+});
+
+/** A post of the piece as the member's list reads it. */
+const postRow = (over = {}) => ({
+  id: `dddddddd-0000-4000-8000-${String(++seq).padStart(12, "0")}`,
+  place: "instagram",
+  kind: "picture",
+  caption: "Open late on Fridays.",
+  status: "published",
+  held_reason: null,
+  held_why: null,
+  permalink: "https://www.instagram.com/p/abc/",
+  external_id: "179",
+  scheduled_for: "2026-11-20T12:00:00Z",
+  published_at: new Date().toISOString(),
+  verified_at: new Date().toISOString(),
+  good_until: null,
+  error: null,
+  via: "press",
+  created_at: "2026-11-20T12:00:00Z",
+  ...over,
+});
+
+test("asked to take a piece down, AI's card says what each place will be asked, and its press is the piece's own", async () => {
+  const out = await proposed({
+    tool: "propose_take_down",
+    posts: [
+      postRow(),
+      postRow({ place: "google", external_id: "accounts/1/locations/2/localPosts/3", permalink: null }),
+      postRow({ kind: "story", status: "queued", published_at: null, scheduled_for: "2099-01-01T00:00:00Z" }),
+    ],
+  });
+  const card = cardOf(out);
+  assert.equal(card?.kind, "take_down");
+  assert.equal(card.title, "Take down “Open late on fridays”?");
+  // Never a promise the place has not kept: Instagram's delete from here is not proved, so the step is said as the owner's.
+  assert.match(card.summary, /Instagram post: You delete it in Instagram; Chanlytics checks it's gone/);
+  assert.match(card.summary, /Instagram story: Won't go up/);
+  assert.match(card.summary, /Google: Chanlytics takes it down/);
+  assert.deepEqual(takeDownSpec.commit({ payload: card.payload }), {
+    route: "DELETE files/[id]/posts",
+    params: { id: MADE },
+  });
+  assert.equal(takeDownSpec.needs, "partner", "a post comes down on an owner's or a manager's press");
+});
+
+test("nothing of it up or waiting: no card, said in a sentence", async () => {
+  const out = await proposed({ tool: "propose_take_down", posts: [postRow({ status: "pulled", published_at: null })] });
+  assert.equal(cardOf(out) ?? null, null);
+  assert.match(saidTo(out), /nothing of it is up or waiting/);
 });

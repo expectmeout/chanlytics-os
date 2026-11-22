@@ -6,7 +6,8 @@
  *
  *  - It may run: one quiet press, "Run as an ad", which opens New ad drafted around it.
  *  - It may not: why, in one line, with its one act, the way through and never the rule left with the owner. A press is
- *    never offered as if it could.
+ *    never offered as if it could. Where the owner named who is in it, a missing yes names the person and asks them (the
+ *    journey canvas, board Piece, cell 42).
  *  - No ad account is connected (never, or Meta signed it out): that, with its act, Open Ads, as New ad's one thing
  *    missing says it.
  *
@@ -15,11 +16,11 @@
  *
  * Pure: the record's answer in, the line out. The words are this page's alone.
  */
-import { CONTENT_SHEET_WORDS, CONTENT_WORDS, type FileDto } from "@chanlytics/contracts";
+import { CONTENT_SHEET_WORDS, CONTENT_WORDS, PIECE_PEOPLE_WORDS, type FileDto } from "@chanlytics/contracts";
 import type { PieceAdStands } from "@/server/content/ad-pictures";
 
 /** What the line's one act does: AI is told who said yes; a picture post is made from a video; AI is asked; Ads opens. */
-export type RunAsAdDoes = "yes" | "post" | "ask" | "ads";
+export type RunAsAdDoes = "yes" | "post" | "ask" | "ads" | "ask_person";
 
 /** The line under a made piece's acts: the press, or why not with its one act. */
 export type RunAsAdLine =
@@ -34,6 +35,7 @@ const RUN_AS_AD_WORDS = {
   noAccount: "No ad account is connected",
   openAds: "Open Ads",
   tellYes: "Tell AI who said yes",
+  personNamed: (name: string) => `${name} hasn't said yes to ads`,
   why: {
     person: "Someone in it hasn't said yes to ads",
     music: "It has music, which an ad can't carry yet",
@@ -64,8 +66,19 @@ export function runAsAdOf(
   stands: PieceAdStands | null | undefined,
   file: Pick<FileDto, "kind" | "status">,
   may: boolean,
+  /** The person in it whose yes to ads is missing, where the owner named who is in it: the reason names them. */
+  person: { name: string; canBeAsked: boolean } | null = null,
 ): RunAsAdLine | null {
   if (!stands || !may || file.status === "set_aside") return null;
+  if (stands.is === "wont" && stands.why === "person" && person)
+    return {
+      is: "why",
+      why: stands,
+      said: RUN_AS_AD_WORDS.personNamed(person.name),
+      act: person.canBeAsked
+        ? { words: PIECE_PEOPLE_WORDS.ask(person.name), does: "ask_person" }
+        : { words: RUN_AS_AD_WORDS.tellYes, does: "yes" },
+    };
   if (stands.is === "may") return { is: "press", words: RUN_AS_AD_WORDS.press };
   if (stands.is === "no_account")
     return {

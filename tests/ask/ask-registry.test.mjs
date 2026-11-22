@@ -307,6 +307,7 @@ const PARTNER_ACTS = [
   "propose_piece",
   "propose_post",
   "propose_publish",
+  "propose_take_down",
 ].sort();
 /** A role's reads and acts, sorted by name as the registry sorts them, the acts among the reads. */
 const withReads = (acts) => [...READS, ...acts].sort();
@@ -340,8 +341,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 31, 36, 36],
-    "a viewer thirteen reads and the search, an operator seventeen acts more (a new ad and who is in a file among them), a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
+    [14, 31, 37, 37],
+    "a viewer thirteen reads and the search, an operator seventeen acts more (a new ad and who is in a file among them), a partner and an owner the lead search, a post, a video, putting a post up, taking one down and bringing in what a link holds too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

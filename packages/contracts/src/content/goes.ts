@@ -29,6 +29,8 @@ export type GoesAct =
   | { is: "pull"; postId: string; says: string }
   | { is: "ask_person"; person: PiecePersonDto }
   | { is: "tell_ai"; says: string; prompt: string }
+  /** A line to AI the owner finishes: its hint, and what their words are begun with. */
+  | { is: "say_ai"; hint: string; begin: string }
   | { is: "approve"; says: string }
   | { is: "words"; says: string }
   | { is: "connect" }
@@ -53,6 +55,8 @@ export interface GoesLine {
 
 export const GOES_WORDS = {
   title: "Where it goes",
+  /** The line to AI at the piece's foot. */
+  tell: "Tell AI what to change",
   notYet: "Not yet",
   hereToo: "Post it here too",
   timed: (when: string) => `Goes up ${when}`,
@@ -70,6 +74,7 @@ export const GOES_WORDS = {
   seeIt: "See it",
   hasntSaidYes: (name: string) => `${name} hasn't said yes to posts`,
   sayWho: "Say who's in it before it's posted",
+  sayWhoHint: "Say who's in it",
   useAnother: "Use another clip",
   changed: "Changed since you approved it",
   lookAgain: "Look again",
@@ -198,7 +203,7 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
     const person = personToAskOf(known.people, "post");
     if (!person)
       return said(GOES_WORDS.sayWho, "you", {
-        acts: mine([{ is: "tell_ai", says: GOES_WORDS.sayWho, prompt: GOES_WORDS.ask.whoIsIn }]),
+        acts: mine([{ is: "say_ai", hint: GOES_WORDS.sayWhoHint, begin: GOES_WORDS.ask.whoIsIn }]),
       });
     return said(GOES_WORDS.hasntSaidYes(person.name), "you", {
       acts: mine([
@@ -215,7 +220,7 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
   const reason = post.held_reason ?? ON_INSTAGRAM.status.held;
   if (why === "reason_passed")
     return said(reason, "you", {
-      acts: mine([leave, words, { is: "tell_ai", says: GOES_WORDS.stillSo, prompt: GOES_WORDS.ask.stillSo }]),
+      acts: mine([leave, words, { is: "say_ai", hint: GOES_WORDS.stillSo, begin: GOES_WORDS.ask.stillSo }]),
     });
   if (why === "claim") return said(reason, "you", { acts: mine([words, leave]) });
   if (why === "money") return said(reason, "you", { acts: mine([leave]) });

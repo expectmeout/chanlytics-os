@@ -20,6 +20,7 @@ import {
   recordOrEmpty,
   type FileMime,
   type FileShows,
+  type FileYesUse,
   type FileVideoMime,
   type InstagramPostKind,
   type PostPlace,
@@ -295,6 +296,19 @@ export const fileVerbs = {
   /** Change time, for a post set for its time at either place (00621): the same post, set for another. */
   movePost: (id: string, postId: string, when: string) =>
     api()("PATCH files/[id]/posts", { params: { id }, body: { post_id: postId, when } }),
+  /** Take down (00692): the piece comes down everywhere it is up, and what waits for its time is let go. */
+  takeDown: (id: string) => api()("DELETE files/[id]/posts", { params: { id } }),
+  /** "I deleted it", of a post Chanlytics could not take down: the place is asked whether it is gone. */
+  deletedByHand: (id: string, postId: string) =>
+    api()("PUT files/[id]/posts", { params: { id }, body: { post_id: postId } }),
+  /** Who is in it (00691): these people, nobody, or not sure. */
+  sayWhoIsIn: (id: string, state: "none" | "unsure") =>
+    api()("POST files/[id]/people", { params: { id }, body: { state } }),
+  /** That a person in it was sent the ask, on which channel and about which uses. */
+  personAsked: (id: string, body: { subject_id: string; via: string; uses: FileYesUse[] }) =>
+    api()("PUT files/[id]/people", { params: { id }, body }),
+  /** What a person in it answered, as the owner read it: their yes, a no, or their yes taken back. */
+  personSaid: (id: string, body: PersonAnswer) => api()("PATCH files/[id]/people", { params: { id }, body }),
   change: (id: string, body: FileChange) => api()("PATCH files/[id]", { params: { id }, body }),
   /** Keep what was found online, or (`set_aside`) say it is not the business's: Keep and Not mine, for many at once. */
   keepMany: (ids: readonly string[], to: "filed" | "set_aside" = "filed") =>
@@ -303,6 +317,12 @@ export const fileVerbs = {
   /** Undo of a delete, for ten minutes after it (00616). */
   restore: (id: string) => api()("POST files/[id]/restore", { params: { id } }),
 };
+
+/** What PATCH files/[id]/people takes of a person's answer. */
+export type PersonAnswer =
+  | { subject_id: string; uses: FileYesUse[]; said_in: "message" | "in_person"; message_id?: string }
+  | { subject_id: string; said: "no" }
+  | { subject_id: string; said: "took_back"; uses?: FileYesUse[] };
 
 /**
  * A post's doors, by its place (Campaigns › Content's sheet, its Undo, its Change time): one shape, so a press never asks where

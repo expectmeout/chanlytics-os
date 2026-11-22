@@ -19,6 +19,7 @@ apps/edge/lib/
   calendar/
   campaigns/
   connections/
+  content/
   drafts/
   email/
   files/
@@ -166,6 +167,7 @@ packages/contracts/src/
 packages/core/src/
   calendar/
   campaigns/
+  content/
   conversations/
   deliver/
   events/
