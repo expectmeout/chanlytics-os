@@ -8,7 +8,10 @@ import {
   POST_PLACE_SAID,
   POST_PLACES,
   POST_SOON_MS,
+  PostAboutSchema,
   clockWhen,
+  intentOfAbout,
+  zoneDayKey,
   dateFormat,
   fileSaidOf,
   postCaptionProblem,
@@ -19,6 +22,8 @@ import {
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
+import { datedPhraseIn, evaluate } from "@chanlytics/core";
+import { isSendingStopped } from "@chanlytics/db/workspace";
 import { postClaimsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
 import * as readers from "../../../../readers/facts";
@@ -44,13 +49,24 @@ import { movesOf } from "./publish-move";
 const publishInput = z.object({
   file: z.string().min(1).max(120).optional().describe("Its name as files says it; left out, the question's post."),
   places: z.array(z.enum(POST_PLACES)).min(1),
-  as: z.enum(INSTAGRAM_POST_KINDS).optional().describe("On Instagram: picture (the feed) or story."),
+  as: z
+    .enum(INSTAGRAM_POST_KINDS)
+    .optional()
+    .describe("On Instagram: picture (the feed) or story for a made post; reel for a made video."),
   when: z
     .string()
     .max(20)
     .optional()
     .describe("YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now."),
   caption: z.string().max(2200).optional().describe("Only for other words they asked for. Left out, its own."),
+  about: PostAboutSchema.optional().describe(
+    "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service. Needed when the words name a day, an offer or a price.",
+  ),
+  fact: z
+    .string()
+    .max(200)
+    .optional()
+    .describe('Only a fact the owner said this turn, in their words ("Thursday still has openings"): kept as theirs.'),
 });
 
 type PublishInput = z.infer<typeof publishInput>;
@@ -147,22 +163,66 @@ async function captionOf(
   return { caption, isNew };
 }
 
+/** A made video goes to Instagram as a reel and nowhere else; a picture never as a reel. Why not, for the model, or null. */
+function kindRefusal(fileKind: string, places: readonly PostPlace[], as: PostPublish["as"] | undefined): string | null {
+  if (fileKind === "video" && places.includes("google"))
+    return "Google takes a picture, not a video. Say so, and offer Instagram as a reel";
+  if (fileKind === "video" && as !== undefined && as !== "reel")
+    return "a made video goes on Instagram as a reel: set as to reel";
+  if (fileKind !== "video" && as === "reel")
+    return "only a made video goes as a reel: this is a picture, so post or story";
+  return null;
+}
+
+/**
+ * The checks the card is held to when AI proposes it (the PRD's 6.2): AI is not paused, and words that date something say
+ * what they are about. The press checks again, and the send right before it goes. Why not, for the model, or null.
+ */
+async function checksRefusal(
+  toolContext: ToolContext,
+  at: { words: string; about: PostPublish["about"] | undefined; facts: PostPublish["facts"] },
+): Promise<string | null> {
+  if (await isSendingStopped(toolContext.ctx.supabase, toolContext.tenantId))
+    return "AI is paused in this workspace, so nothing posts. Say so: Resume in Settings › Autonomy";
+  const intent = intentOfAbout(at.about ?? undefined);
+  const verdict = evaluate({
+    reason: {
+      intent,
+      goodUntil: null,
+      nowMs: Date.now(),
+      zone: toolContext.timezone,
+      notes: [],
+      services: [],
+      facts: at.facts,
+      words: at.words,
+      moment: "propose",
+    },
+  });
+  if (verdict.ok) return null;
+  const dated = intent ? null : datedPhraseIn(at.words);
+  if (dated?.is === "day")
+    return `the words say "${dated.phrase}": set about.day to the date it means (YYYY-MM-DD), or ask them which day`;
+  if (dated?.is === "offer")
+    return `the words name "${dated.phrase}": set about.offer to it and its last day, or ask them when it ends`;
+  return verdict.refusals.map((r) => r.words).join(" ");
+}
+
 async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
   const named = input.file ?? toolContext.subjectFile;
   if (!named) return refuse("name the post with file, as files says it");
   const { files } = (await load(toolContext.rc, filesNamedForAsk, { names: [named] })).data;
   const file = filesNamed(files, [named]).found.at(0);
   if (!file) return refuse(`no file named ${named}; names come from files with action list`);
-  if (file.source !== "made" || file.kind === "video")
-    return refuse(
-      `${file.name} is not a post made here. A video is saved from Campaigns › Content and posted from the phone; a photo is made into a post first, with propose_post`,
-    );
+  if (file.source !== "made")
+    return refuse(`${file.name} is not a post made here. A photo is made into a post first, with propose_post`);
   const places = POST_PLACES.filter((p) => input.places.includes(p));
+  const shapeRefused = kindRefusal(file.kind, places, input.as);
+  if (shapeRefused) return refuse(shapeRefused);
   for (const place of places) {
     const why = await placeRefusal(toolContext, place);
     if (why) return refuse(why);
   }
-  const as = input.as ?? "picture";
+  const as = input.as ?? (file.kind === "video" ? "reel" : "picture");
   // The time first: only a time named can say that a post already set at a place asked is to move to it (00621).
   const when = whenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
@@ -177,6 +237,11 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   }
   const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
+  const facts = input.fact
+    ? [{ says: input.fact, until: input.about?.day ?? zoneDayKey(Date.now(), toolContext.timezone) }]
+    : [];
+  const checked = await checksRefusal(toolContext, { words: caption.caption, about: input.about, facts });
+  if (checked) return refuse(checked);
   const language = toolContext.language === "es" ? "es" : "en";
   const payload: PostPublish = {
     file_id: file.id,
@@ -188,13 +253,15 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
     caption: caption.caption,
     caption_new: caption.isNew,
     language,
+    about: input.about ?? null,
+    facts,
   };
   return propose({ kind: "publish", ...publishCardWords(payload, fileSaidOf(file.name)), payload: { ...payload } });
 }
 
 export const publishAct = defineAct({
   name: "propose_publish",
-  description: `Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. ${approvalWords("publish")}.`,
+  description: `Put a made post up on Instagram (post or story) and Google, or a made video on Instagram as a reel, now or at a named time; one already set moves to it. Words that name a day, an offer or a price say what they are about. The card says where and when. ${approvalWords("publish")}.`,
   kind: "publish",
   input: publishInput,
   label: "Putting a post up",

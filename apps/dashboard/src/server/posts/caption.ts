@@ -18,11 +18,13 @@ import {
   type TenantId,
 } from "@chanlytics/contracts";
 import {
+  findPieceOfFile,
   followPostCaption,
   getFileMade,
   keepPostCaption,
   keepVideoCaption,
   listFilePosts,
+  revisePiece,
   type FileMemberRow,
   type MemberPostRow,
 } from "@chanlytics/db/files";
@@ -89,13 +91,33 @@ async function keepCaption(
   const db = serviceDb();
   if (video) {
     if (!(await keepVideoCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
-    return;
+    return keepAsVersion(ctx, member, row, caption);
   }
   const posts = read ?? (await listFilePosts(ctx.supabase, member.tenantId, row.id));
   const refused = waitingRefusalOf(posts, caption);
   if (refused) throw new AppError("validation", refused);
   if (!(await keepPostCaption(db, member.tenantId, row.id, caption))) throw new AppError("not_found", W.gone);
   await followPostCaption(db, member.tenantId, row.id, caption || null);
+  await keepAsVersion(ctx, member, row, caption);
+}
+
+/**
+ * New words on a piece are its next version (00690 piece_revise): words alone, so no shape is drawn again, and each
+ * placement waiting with other words is held at its own send ("Changed since you approved it"). A made picture has no
+ * piece until it is first approved, and then its first version is what it was approved with.
+ */
+async function keepAsVersion(ctx: RouteContext, member: Member, row: FileMemberRow, caption: string): Promise<void> {
+  const pieceId = await findPieceOfFile(ctx.supabase, member.tenantId, row.id);
+  if (!pieceId) return;
+  await revisePiece(ctx.supabase, {
+    tenantId: member.tenantId,
+    pieceId,
+    revision: {
+      captions: { instagram: caption, google: caption },
+      changed: ["caption"],
+      made_by: member.role === "operator" ? "operator" : "owner",
+    },
+  });
 }
 
 /**

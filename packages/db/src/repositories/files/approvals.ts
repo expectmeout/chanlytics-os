@@ -82,6 +82,20 @@ export async function readPostAsApproved(db: Db, postId: string): Promise<AsAppr
   return answer.is === "before" ? { is: "before" } : { is: "changed" };
 }
 
+/** The piece a made file is, newest first (a video's, or a picture's once it was first approved); null for none. */
+export async function findPieceOfFile(db: Db, tenantId: TenantId, fileId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("pieces")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("file_id", fileId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "piece of file");
+  return data?.id ?? null;
+}
+
 /** A new version of a piece: what was approved before it is voided, and its waiting placements held in words. */
 export async function revisePiece(
   db: Db,

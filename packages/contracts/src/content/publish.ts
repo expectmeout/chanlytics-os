@@ -12,6 +12,7 @@ import type { FileMade } from "../files/views";
 import { isOneOf, nonBlankOrNull } from "../shared/unknown";
 import { CONTENT_ROUTE } from "./address";
 import { INSTAGRAM_POST_KINDS, POST_PLACES, type InstagramPostKind, type PostDto, type PostPlace } from "./posts";
+import { PostAboutSchema, ownersFactsOf, type OwnersFact, type PostAbout } from "./approvals";
 
 /**
  * A made post's caption, as Details says it, as Post it sends it and as Ask's card proposes it: theirs where they wrote one
@@ -44,6 +45,10 @@ export interface PostPublish {
   /** The caption is Ask's, not the one the post has: pressed, it is kept on the post first. */
   caption_new: boolean;
   language: "en" | "es";
+  /** What its words lean on that can change (a day, an offer, a service): the approval keeps it as the piece's intent. */
+  about: PostAbout | null;
+  /** A fact the owner said themselves this turn ("Thursday still has openings"), kept on the approval as theirs. */
+  facts: OwnersFact[];
 }
 
 /** The moves a payload names, each a place and the post waiting there; anything else is left out. */
@@ -69,6 +74,8 @@ export function postPublishOf(payload: Record<string, unknown>): PostPublish {
     caption: asText(payload.caption),
     caption_new: payload.caption_new === true,
     language: payload.language === "es" ? "es" : "en",
+    about: PostAboutSchema.safeParse(payload.about).data ?? null,
+    facts: ownersFactsOf(payload.facts),
   };
 }
 
@@ -130,19 +137,21 @@ export function publishCardWords(p: PostPublish, name: string): { title: string;
 function publishCallsOf(p: PostPublish): ProposalCall[] {
   const id = { id: p.file_id };
   const when = p.when ? { when: p.when } : {};
+  // What the words are about, and the owner's own fact: each place's approval keeps them (00690).
+  const approved = { ...(p.about ? { about: p.about } : {}), ...(p.facts.length ? { facts: p.facts } : {}) };
   const calls: ProposalCall[] = [];
-  const carried = p.places.includes("google") || (p.places.includes("instagram") && p.as === "picture");
+  const carried = p.places.includes("google") || (p.places.includes("instagram") && p.as !== "story");
   if (p.caption_new && !carried) calls.push({ route: "PATCH files/[id]", params: id, body: { caption: p.caption } });
   if (p.when)
     for (const move of p.moves)
       calls.push({ route: "PATCH files/[id]/posts", params: id, body: { post_id: move.post_id, when: p.when } });
   if (p.places.includes("google"))
-    calls.push({ route: "POST files/[id]/google", params: id, body: { summary: p.caption, ...when } });
+    calls.push({ route: "POST files/[id]/google", params: id, body: { summary: p.caption, ...when, ...approved } });
   if (p.places.includes("instagram"))
     calls.push({
       route: "POST files/[id]/instagram",
       params: id,
-      body: { as: p.as, ...(p.as === "story" ? {} : { caption: p.caption }), ...when },
+      body: { as: p.as, ...(p.as === "story" ? {} : { caption: p.caption }), ...when, ...approved },
     });
   return calls;
 }

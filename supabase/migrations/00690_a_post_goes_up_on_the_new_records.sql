@@ -587,7 +587,12 @@ begin
          intent = case when p_revision ? 'intent' then nullif(p_revision -> 'intent', 'null'::jsonb) else p.intent end,
          updated_at = now()
    where p.id = v_piece.id;
-  -- Every approval of a version before it no longer stands, and its placements still waiting are held in words.
+  -- Words alone moved: no shape changed, and each placement's own words are checked again right before its send
+  -- (post_as_approved), so a story, which shows none, is not held for them.
+  if (select coalesce(array_agg(c), '{}') from jsonb_array_elements_text(p_revision -> 'changed') c) <@ array['caption'] then
+    return jsonb_build_object('fate', 'revised', 'revision', v_n, 'held', 0);
+  end if;
+  -- The bytes moved: every approval of a version before it no longer stands, and its placements still waiting are held.
   update public.approvals a set voided_at = now(), voided_why = 'changed'
    where a.tenant_id = p_tenant_id and a.subject_type = 'piece_revision' and a.voided_at is null
      and a.subject_id in (select r.id from public.piece_revisions r where r.piece_id = v_piece.id and r.n < v_n);

@@ -5308,7 +5308,7 @@
     },
     {
       "name": "propose_publish",
-      "description": "Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Put a made post up on Instagram (post or story) and Google, or a made video on Instagram as a reel, now or at a named time; one already set moves to it. Words that name a day, an offer or a price say what they are about. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5328,8 +5328,8 @@
           },
           "as": {
             "type": "string",
-            "enum": ["picture", "story"],
-            "description": "On Instagram: picture (the feed) or story."
+            "enum": ["picture", "story", "reel"],
+            "description": "On Instagram: picture (the feed) or story for a made post; reel for a made video."
           },
           "when": {
             "type": "string",
@@ -5340,6 +5340,72 @@
             "type": "string",
             "description": "Only for other words they asked for. Left out, its own.",
             "maxLength": 2200
+          },
+          "about": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "offer": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "says": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "minLength": 1
+                      },
+                      "until": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["says"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "service": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service. Needed when the words name a day, an offer or a price."
+          },
+          "fact": {
+            "type": "string",
+            "description": "Only a fact the owner said this turn, in their words (\"Thursday still has openings\"): kept as theirs.",
+            "maxLength": 200
           }
         },
         "required": ["places"],
@@ -8504,7 +8570,7 @@
     },
     {
       "name": "propose_publish",
-      "description": "Put a made post up on Instagram (post or story) and Google, now or at a named time; one already set moves to it. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "description": "Put a made post up on Instagram (post or story) and Google, or a made video on Instagram as a reel, now or at a named time; one already set moves to it. Words that name a day, an offer or a price say what they are about. The card says where and when. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -8524,8 +8590,8 @@
           },
           "as": {
             "type": "string",
-            "enum": ["picture", "story"],
-            "description": "On Instagram: picture (the feed) or story."
+            "enum": ["picture", "story", "reel"],
+            "description": "On Instagram: picture (the feed) or story for a made post; reel for a made video."
           },
           "when": {
             "type": "string",
@@ -8536,6 +8602,72 @@
             "type": "string",
             "description": "Only for other words they asked for. Left out, its own.",
             "maxLength": 2200
+          },
+          "about": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "offer": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "says": {
+                        "type": "string",
+                        "maxLength": 120,
+                        "minLength": 1
+                      },
+                      "until": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["says"],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "service": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [],
+            "additionalProperties": false,
+            "description": "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service. Needed when the words name a day, an offer or a price."
+          },
+          "fact": {
+            "type": "string",
+            "description": "Only a fact the owner said this turn, in their words (\"Thursday still has openings\"): kept as theirs.",
+            "maxLength": 200
           }
         },
         "required": ["places"],
