@@ -85,6 +85,10 @@ test("a milestone (W9) is the highest count AI's bookings reached in the last da
 const NOW = Date.parse("2026-09-21T15:00:00Z");
 const TZ = "America/New_York";
 let made = 0;
+/** A workspace of the case's own: the server keeps AI's counts an hour per workspace, so no case reads another's. */
+const workspace = (n) => `cccccccc-cccc-4ccc-8ccc-${String(n).padStart(12, "0")}`;
+/** An hour, as long as the server keeps AI's counts. */
+const HOUR = 3_600_000;
 
 /** A visit on the record: when it is, when it was put on the book, and whose doing. */
 const visit = (startsAt, createdAt, over = {}) => ({
@@ -137,6 +141,50 @@ test("a history that cannot be read is none: no milestone and no word, never a z
     },
   };
   assert.equal(await findTodayHistory(away, TENANT, { zone: TZ, nowMs: NOW }), null);
+});
+
+test("AI's two counts are kept an hour per workspace, since the morning is read every few minutes; the weekday's four every time; a failure is not kept", async () => {
+  /** The workspace's record: twelve visits AI booked long ago, and one on a Monday before. */
+  const record = (tenant) => [
+    ...times(12, () => byAi("2026-06-01T15:00:00Z", { tenant_id: tenant })),
+    visit("2026-09-14T18:00:00Z", "2026-09-10T12:00:00Z", { tenant_id: tenant }),
+  ];
+  /** The record, counting each read of a table it is asked for. */
+  const counting = (tenant) => {
+    const db = fakeDb({ appointments: record(tenant) });
+    const asked = [];
+    return { asked, db: { from: (table) => (asked.push(table), db.from(table)) } };
+  };
+  const kept = workspace(1);
+  const first = counting(kept);
+  const read = await findTodayHistory(first.db, kept, { zone: TZ, nowMs: NOW });
+  assert.equal(first.asked.length, 6, "two counts of AI's bookings and four of the weekday");
+  assert.equal(read.booked_by_ai.total, 12);
+  // Twenty minutes on, as the morning is read again: AI's counts are the kept ones, the weekday's are counted.
+  const later = counting(kept);
+  const again = await findTodayHistory(later.db, kept, { zone: TZ, nowMs: NOW + 20 * 60_000 });
+  assert.equal(later.asked.length, 4, "only the weekday's four");
+  assert.deepEqual(again.booked_by_ai, read.booked_by_ai);
+  // Another workspace keeps its own.
+  const other = counting(workspace(2));
+  await findTodayHistory(other.db, workspace(2), { zone: TZ, nowMs: NOW + 20 * 60_000 });
+  assert.equal(other.asked.length, 6, "another workspace is counted for itself");
+  // Past the hour, counted again.
+  const hourOn = counting(kept);
+  await findTodayHistory(hourOn.db, kept, { zone: TZ, nowMs: NOW + HOUR });
+  assert.equal(hourOn.asked.length, 6, "an hour on: AI's counted again");
+  // A count that failed is no count: the next read counts again, at once.
+  const away = {
+    from: () => {
+      throw new Error("the database is away");
+    },
+  };
+  const failed = workspace(3);
+  assert.equal(await findTodayHistory(away, failed, { zone: TZ, nowMs: NOW }), null);
+  const back = counting(failed);
+  const recovered = await findTodayHistory(back.db, failed, { zone: TZ, nowMs: NOW + 60_000 });
+  assert.equal(back.asked.length, 6, "nothing of the failure was kept");
+  assert.equal(recovered.booked_by_ai.total, 12);
 });
 
 test("the milestone holds the card ahead of the week, says how many are new, has no door, and Got it puts it away past the days it is news", async () => {
