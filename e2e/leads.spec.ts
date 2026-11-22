@@ -602,7 +602,8 @@ test.describe("Leads on a phone", () => {
     await page.getByTestId("phone-ask").tap();
     const ask = page.getByTestId("ask-real");
     await expect(ask).toBeVisible();
-    await expect(ask.getByTestId("ask-input")).toHaveAttribute("placeholder", "Which businesses to find?");
+    // The field stands in the frame's bar on a phone, outside the dialog (ask/line/draw.tsx): the page's to find.
+    await expect(page.getByTestId("ask-input")).toHaveAttribute("placeholder", "Which businesses to find?");
     // The Find businesses section draws only with chips: on this workspace, more like its two kept searches (the
     // seed's `asked`), so a seed without them fails here, on the cause, and not on the note under it.
     await expect(ask.getByText(/Find more like/)).toHaveCount(2);
