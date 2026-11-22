@@ -550,6 +550,7 @@ export const SETTLERS: Record<JobKind, Settler | null> = {
   post_publish: settlePost,
   post_reconcile: settlePost,
   post_google: settlePost,
+  post_take_down: null,
   file_fetch: null,
   instagram_read: null,
   file_purge: null,

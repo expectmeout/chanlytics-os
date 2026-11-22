@@ -124,6 +124,7 @@ export const JOB_PAYLOADS = {
   // `seen: "ask"`: a post that went up and could not be read back is asked for again by its own id (00690 verified_at).
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string(), seen: z.string().optional() }),
   post_google: carrying({ post_id: z.string(), attempt: z.string() }),
+  post_take_down: carrying({ action_id: z.string(), attempt: z.string(), by_hand: z.string().optional() }),
   piece_make: carrying({ piece_id: z.string(), step: z.string(), tick: z.string() }),
   campaign_moments: CARRIES_NOTHING,
   reach_out_steps: CARRIES_NOTHING,

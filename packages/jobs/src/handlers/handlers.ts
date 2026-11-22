@@ -478,6 +478,12 @@ async function postReconcile(ctx: JobContext, job: ClaimedJob): Promise<void | {
   return ctx.posts.reconcile(job, ctx.deadline);
 }
 
+/** post_take_down: a post asked down at its place (00692). payload: { action_id, attempt, by_hand? } */
+async function postTakeDown(ctx: JobContext, job: ClaimedJob): Promise<void | { skipped: string }> {
+  if (!ctx.posts) throw new Error("post_take_down: this runtime holds no poster");
+  return ctx.posts.takeDown(job, ctx.deadline);
+}
+
 /** website_read: the business's website read for Check (00479, decision 0073), through what the edge injects. payload: { url }. */
 async function websiteRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
   if (!ctx.website) throw new Error("website_read: this runtime holds no website reader");
@@ -595,6 +601,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   post_publish: postPublish,
   post_reconcile: postReconcile,
   post_google: postGoogle,
+  post_take_down: postTakeDown,
   piece_make: pieceMake,
   campaign_moments: campaignMoments,
   reach_out_steps: reachOutSteps,

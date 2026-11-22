@@ -61,7 +61,7 @@ what the script writes.
 | [`fact_suggestions`](#fact_suggestions) | `packages/db/src/repositories/facts/suggestions.ts` | on, 1 policy |
 | [`file_consents`](#file_consents) | `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
 | [`file_subjects`](#file_subjects) | `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
-| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
+| [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/subjects.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
 | [`form_entries`](#form_entries) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
@@ -132,8 +132,8 @@ what the script writes.
 | [`rate_hits`](#rate_hits) | none | on, no policy, so only the service role reaches it |
 | [`reach_out_check_spend`](#reach_out_check_spend) | none | on, no policy, so only the service role reaches it |
 | [`rehearsals`](#rehearsals) | `packages/db/src/repositories/facts/rehearsals.ts` | on, 1 policy |
-| [`remediation_actions`](#remediation_actions) | none | on, 1 policy |
-| [`remediations`](#remediations) | none | on, 1 policy |
+| [`remediation_actions`](#remediation_actions) | `packages/db/src/repositories/files/take-down.ts` | on, 1 policy |
+| [`remediations`](#remediations) | `packages/db/src/repositories/files/take-down.ts` | on, 1 policy |
 | [`reply_turns`](#reply_turns) | none | on, no policy, so only the service role reaches it |
 | [`segment_members`](#segment_members) | `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 3 policies |
 | [`segments`](#segments) | `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/people/lists.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 4 policies |
@@ -1609,6 +1609,10 @@ A person in a file (00691; the content loop PRD's 5.3, principle 6): their name 
 | `how` | text | no |  |  |
 | `named_by` | uuid | yes |  |  |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `asked_at` | timestamp with time zone | yes |  |  |
+| `asked_via` | text | yes |  |  |
+| `asked_uses` | text[] | no | `'{}'::text[]` |  |
+| `said_no_at` | timestamp with time zone | yes |  |  |
 
 Foreign keys:
 
@@ -1625,7 +1629,7 @@ Foreign keys:
 
 A business's files (00551, decision 0099): one row a picture, whichever road brought it, from its bytes proven until they are gone. Its folder in the files bucket is <tenant>/<id>/, and its extension comes from mime.
 
-- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`
+- Owned by: `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts`, `packages/db/src/repositories/files/subjects.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3872,7 +3876,7 @@ Foreign keys:
 
 One action a remediation started on one thing it reached (00676; the content loop PRD's 5.3 and 8.3): cancel, pause or take down a post, an ad or a waiting post; its outcome, pending until the place says (done, blocked, not_possible, needs_person), with the place's own words; when Chanlytics started it and when the place confirmed it, kept apart. An ad's is settled by ads_settle_remediation as its row learns what the platform holds. Members read.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/take-down.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -3902,7 +3906,7 @@ Foreign keys:
 
 A cause and what it started (00676; the content loop PRD's section 5.3): a yes taken back, a person erased, a take-down the owner asked for, the stop, a claim withdrawn or expired, a connection lost; what it is about, who started it, and when its last action stopped being pending. Kept as the proof a yes was honoured, never what the person wrote. Members read; the doors that start one write it.
 
-- Owned by: none
+- Owned by: `packages/db/src/repositories/files/take-down.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 

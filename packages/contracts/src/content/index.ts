@@ -48,6 +48,8 @@ export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
 export type { BringIn, BringInRefusal } from "./bring-in";
 export { CHECK_WORDS, CONTENT_CHECKS } from "./check-words";
 export type { ContentCheck } from "./check-words";
+export { GOES_WORDS, goesLinesOf, goesPillOf } from "./goes";
+export type { GoesAct, GoesKnown, GoesLine, GoesTone } from "./goes";
 export {
   CONTENT_IDEAS,
   contentIdeaAsk,
@@ -109,6 +111,15 @@ export {
   PIECES_MAKING_MAX,
 } from "./piece-making";
 export type { PieceFail, PieceLookKept, PieceMachine, PieceStage, PieceStatus, PieceStep } from "./piece-making";
+export {
+  PERSON_ASK_WORDS,
+  personInitialsOf,
+  personSaidOf,
+  personStandsOf,
+  personToAskOf,
+  PIECE_PEOPLE_WORDS,
+} from "./piece-people";
+export type { PersonStands, PersonYesDto, PiecePeopleDto, PiecePersonDto } from "./piece-people";
 export { pieceSpec } from "./piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./piece-timeline";
 export type {
@@ -198,3 +209,25 @@ export type {
   ContentSourcesSaid,
   ContentSourcesState,
 } from "./sources";
+export {
+  placementSaid,
+  postCameDownAt,
+  postComingDownOf,
+  REMEDIATION_ACTS,
+  REMEDIATION_OUTCOMES,
+  REMEDIATION_TARGETS,
+  TAKE_DOWN_UNCONFIRMED_MS,
+  TAKE_DOWN_WORDS,
+  takeDownSpec,
+  takeDownWillOf,
+} from "./take-down";
+export type {
+  PieceTakeDownDto,
+  PostComingDown,
+  RemediationAct,
+  RemediationOutcome,
+  RemediationTarget,
+  TakeDownActionDto,
+  TakeDownSettled,
+  TakeDownWill,
+} from "./take-down";

@@ -1,6 +1,6 @@
 /**
  * A post made ready on Instagram (00611, decision 0121; 00690): post_prepare. The approved bytes (a picture's shape, or a
- * made video for a reel) are signed for a day and Instagram is asked, through its adapter (content/places/instagram.ts), to
+ * made video for a reel) are signed for a day and Instagram is asked, through its adapter (place.ts), to
  * make a container of them; once the container says it is ready, the send is scheduled for the post's time. Nothing here
  * puts anything in front of anyone: the container is Instagram's draft, and lapses in a day.
  *
@@ -19,7 +19,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   DAY_MS,
   INSTAGRAM_POST_KINDS,
-  MIN_MS,
   ON_INSTAGRAM,
   SECOND_MS,
   fileMadePathOf,
@@ -57,7 +56,7 @@ import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { readKeptSecret } from "./credentials.js";
 import { tellPostMoved } from "../files/post-told.js";
-import { INSTAGRAM_CALL_MS, instagramPlace, type InstagramPlaceDeps } from "../content/places/instagram.js";
+import { INSTAGRAM_CALL_MS, instagramPlace, type InstagramPlaceDeps } from "./place.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
 import type { TenantId } from "@chanlytics/contracts";
 
@@ -94,7 +93,7 @@ export function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
 /** The kind Instagram is sent: a picture, a story or a reel (00690); anything else is no post of ours to send. */
 export function instagramKindOf(post: PostRow): InstagramPostKind {
   if (isOneOf(INSTAGRAM_POST_KINDS, post.kind)) return post.kind;
-  throw new CertainFailure(`post ${post.id}: a ${post.kind} cannot go`, ON_INSTAGRAM.notSent);
+  throw new CertainFailure(`post ${post.id}: a ${String(post.kind)} cannot go`, ON_INSTAGRAM.notSent);
 }
 
 /** Who posts: the workspace's account connected through Meta, its token, and the app's secret; else why it may not now. */
@@ -118,6 +117,16 @@ export function placeFor(db: Db, post: PostRow, poster: MetaPoster, deps: PostDe
     ...deps,
     keptElsewhere: (ids) => listKeptPostIds(db, post.tenant_id, "instagram", [...ids]),
   });
+}
+
+/**
+ * Instagram's adapter for a post asked down (00692), or why the account cannot be asked from here: not connected, or
+ * posting not allowed, and the take-down is the owner's to do in Instagram.
+ */
+export async function takeDownPlaceFor(db: Db, post: PostRow): Promise<PlaceAdapter | { cant: string }> {
+  const posting = await findPoster(db, post.tenant_id);
+  if ("held" in posting) return { cant: ON_INSTAGRAM.takeDown.byHand };
+  return placeFor(db, post, posting.poster, {});
 }
 
 /** What a refusal comes to: the owner's words for good, or a throw to try again when it was only busy. */
@@ -184,22 +193,6 @@ export async function findOnTheAccount(
   });
   if (!state || state.is === "unknown") throw new Error(`post ${at.post.id}: the account's posts could not be read`);
   return state.is === "up" ? state.media : null;
-}
-
-/** How long after a post went up unseen Instagram is asked for it again. */
-const SEEN_AGAIN_MS = 2 * MIN_MS;
-
-/**
- * A post that went up and could not be read back (its address unknown, its being there unseen): asked for again two
- * minutes on, by its own id (post-send.ts verifyPublished). Until then it says it was posted, not that it is on Instagram.
- */
-export async function askAgainWhetherSeen(db: Db, post: PostRow, attempt: 1 | 2): Promise<void> {
-  await scheduleJobOnce(db, {
-    tenantId: post.tenant_id,
-    kind: "post_reconcile",
-    dueAt: new Date(Date.now() + SEEN_AGAIN_MS),
-    payload: { post_id: post.id, attempt: String(attempt), seen: "ask" },
-  });
 }
 
 /** What the picture says, for someone who cannot see it: the words drawn on it, in the order they are read. */

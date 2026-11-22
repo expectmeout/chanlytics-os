@@ -67,21 +67,8 @@ export {
   FILES_MAX,
   FILES_PAGE,
   isFileMime,
-  SUBJECT_HOWS,
-  SUBJECT_LABELS,
-  SUBJECTS_STATES,
 } from "./limits";
-export type {
-  FileLookStatus,
-  FileMime,
-  FileShows,
-  FileSource,
-  FileStatus,
-  FileWhoInIt,
-  FileYesUse,
-  SubjectLabel,
-  SubjectsState,
-} from "./limits";
+export type { FileLookStatus, FileMime, FileShows, FileSource, FileStatus, FileWhoInIt, FileYesUse } from "./limits";
 export {
   FILE_COPY_KEEP_S,
   FILE_COPY_SIDE,
@@ -171,6 +158,8 @@ export type {
   SourceReply,
   SourceWalkKind,
 } from "./sources";
+export { SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "./subjects";
+export type { SubjectLabel, SubjectsState } from "./subjects";
 export { VIDEO_TILE_WORDS } from "./tile-words";
 export {
   clockOf,
@@ -234,6 +223,7 @@ export {
   fileYesSaidOf,
   fileYesTitleOf,
   fileYesUsesIn,
+  fileYesUsesSaid,
 } from "./yes";
 export type { FileUseStands, FileYesAd, FileYesFacts, FileYesPost, FileYesTakenBack } from "./yes";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./zoom";

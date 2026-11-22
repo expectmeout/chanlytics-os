@@ -190,6 +190,18 @@ function world({
           held_why: p_to === "held" || late ? p_patch.held_why : null,
         });
         for (const k of ["permalink", "external_id", "account_id", "verified_at"]) if (p_patch[k]) p[k] = p_patch[k];
+        // As the door does (00690): up on Instagram unseen, its job that asks the account for it is written with the move.
+        if (p_to === "published" && p.place === "instagram" && !p.verified_at && p.external_id)
+          tables.jobs.push({
+            id: `job-seen-${tables.jobs.length + 1}`,
+            tenant_id: p.tenant_id,
+            kind: "post_reconcile",
+            payload: { post_id: p.id, attempt: "seen", seen: "ask" },
+            state: "scheduled",
+            attempts: 0,
+            due_at: new Date(Date.now() + 120_000).toISOString(),
+            spoke_at: null,
+          });
         return true;
       },
     },
@@ -333,7 +345,7 @@ test("a post that went up unseen says only that it was posted, and Instagram is 
   assert.equal(w.post().verified_at, null);
   assert.equal(postStandsSaid(w.post()), "Posted on Instagram");
   const asking = w.tables.jobs.find((j) => j.kind === "post_reconcile");
-  assert.deepEqual(asking?.payload, { post_id: POST, attempt: "1", seen: "ask" }, "asked for again, two minutes on");
+  assert.deepEqual(asking?.payload, { post_id: POST, attempt: "seen", seen: "ask" }, "asked for again, two minutes on");
   const again = { id: "job-2", tenant_id: T, kind: "post_reconcile", payload: asking.payload, attempts: 1 };
   // Still no answer: the job comes back, and nothing is said that is not known.
   await assert.rejects(postJobs(w.db, quick).reconcile(again), /did not say whether it is up/);
@@ -353,6 +365,10 @@ test("a post that went up unseen says only that it was posted, and Instagram is 
   const gone = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });
   await postJobs(gone.db, quick).publish(job("post_publish"));
   meta[`GET /${MEDIA}`] = [400, { error: { message: "Object does not exist", code: 100, error_subcode: 33 } }];
+  // Refused by its id proves nothing alone (Meta says the same of a post it may not show): the job comes back.
+  await assert.rejects(postJobs(gone.db, quick).reconcile(again), /did not say whether it is up/);
+  // The account's own list reads, and the post is not on it: gone.
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [] }];
   assert.deepEqual(await postJobs(gone.db, quick).reconcile(again), { skipped: "not_seen" });
   assert.equal(gone.post().verified_at, null);
 });

@@ -91,6 +91,10 @@ export const JOB_WRITERS = {
     clock: "deadman",
     why: "every wire's message (WhatsApp, a text, a DM) accepted and never finished is opened for a person",
   },
+  "apps/edge/lib/content/take-down.ts|post_take_down": {
+    ledger:
+      "the take-down that got no answer runs again and schedules the same next ask; its action stays pending, which the piece says",
+  },
   "apps/edge/lib/google/post-later.ts|post_google": {
     ledger: "Google's second and last ask, from inside the first, written before the post moves back to waiting",
   },

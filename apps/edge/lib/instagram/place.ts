@@ -138,12 +138,18 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
     },
 
     async status(post) {
-      // Its own id is known: asked for by it. A read Instagram refuses is a post it no longer has.
+      // Its own id is known: asked for by it.
       if (post.externalId) {
         const read = await call(metaMediaReadRequest(poster, post.externalId));
         const media = read.outcome === "ok" ? parseMetaMedia(read.json) : null;
         if (media) return { is: "up", media: placedOf(media), kept: keptOf(read) };
-        return { is: read.outcome === "refused" ? "not_up" : "unknown", kept: keptOf(read) };
+        if (read.outcome !== "refused") return { is: "unknown", kept: keptOf(read) };
+        // Refused by its id: Meta says the same of a post that is gone and of one this connection may not read. The
+        // account's own list, read with the same connection, settles it: readable and without the post, it is gone.
+        const account = await call(metaNewestMediaRequest(poster, post.kind));
+        if (account.outcome !== "ok") return { is: "unknown", kept: keptOf(account) };
+        const there = parseMetaMediaList(account.json).some((m) => m.id === post.externalId);
+        return { is: there ? "unknown" : "not_up", kept: keptOf(account) };
       }
       // Not known yet (a send whose answer never came): looked for on the account by its time and its words.
       const listed = await call(metaNewestMediaRequest(poster, post.kind));

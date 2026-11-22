@@ -424,6 +424,18 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["post_id", "attempt"],
     never: [],
   },
+  // A post asked down at its place (00692; the content loop PRD's 8.3): asking again is safe (a post already gone is
+  // read as gone), nothing reaches a person, and one a place never answers is ours to chase, not the owner's.
+  post_take_down: {
+    speaks: false,
+    retryWaitsMs: SLOW_TWICE,
+    told: "platform",
+    settles: "nothing",
+    wires: false,
+    longestCallMs: 25 * SECOND_MS,
+    ids: ["action_id", "attempt"],
+    never: [],
+  },
   // A workspace's hourly work, handed out by its clock (00569, decision 0115). Nothing here puts words on a wire: a moment's
   // run schedules its send, a step's plans it. Each asks what is due when it runs, so a second try runs only what the first
   // did not, and what fails for good is the platform's to mend and tried again the next hour anyway.

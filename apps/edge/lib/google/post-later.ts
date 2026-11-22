@@ -1,7 +1,7 @@
 /**
  * A post on its way to Google at its time (00616, the content redesign's stage 3; 00690): post_google. The picture was
  * drawn at the press and kept in the file's folder (`google.jpg`, the dashboard's server/posts/google.ts); here, at its
- * time, Google is asked to fetch it, once, after the recheck, through its adapter (content/places/google.ts), as
+ * time, Google is asked to fetch it, once, after the recheck, through its adapter (place.ts), as
  * Instagram's send is (instagram/post-send.ts).
  *
  * The recheck, right before the send: whoever set it may still post for the business, the post was not deleted, and it
@@ -12,36 +12,21 @@
  * sent again blind.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  CHECK_WORDS,
-  DAY_MS,
-  FILE_WORDS,
-  MIN_MS,
-  ON_INSTAGRAM,
-  SECOND_MS,
-  fileFolderOf,
-  postPlanOf,
-  recordOrEmpty,
-  type PostHeldWhy,
-} from "@chanlytics/contracts";
+import { DAY_MS, FILE_WORDS, MIN_MS, SECOND_MS, fileFolderOf, postPlanOf, recordOrEmpty } from "@chanlytics/contracts";
 import {
   closePostAttempt,
   filesBucket,
-  findFileForWork,
   findPostForWork,
-  mayStillPost,
   movePost,
   openPostAttempt,
-  readPostAsApproved,
   type PostRow,
 } from "@chanlytics/db/files";
-import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { CertainFailure } from "@chanlytics/core";
 import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
 import { tellPostMoved } from "../files/post-told.js";
-import { googlePlace } from "../content/places/google.js";
+import { googlePlace } from "./place.js";
 import { holdPlacement, readSendRecheck } from "../content/recheck.js";
 
 type Db = SupabaseClient<Database>;

@@ -195,8 +195,25 @@ export {
   watchedFolderOf,
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
-export { listFileSubjects, nameFileSubjects, recordSubjectYes } from "./subjects";
-export type { FileSubjectRow } from "./subjects";
+export {
+  listFileSubjects,
+  listPiecePeople,
+  listSubjectsStates,
+  nameFileSubjects,
+  recordSubjectAsk,
+  recordSubjectNo,
+  recordSubjectYes,
+  takeBackSubjectYes,
+} from "./subjects";
+export type { FileSubjectRow, PiecePersonRow, SubjectYesBack } from "./subjects";
+export {
+  beginPostTakeDown,
+  findPieceTakeDown,
+  findTakeDownAction,
+  markPostDeletedByHand,
+  settlePostTakeDown,
+} from "./take-down";
+export type { TakeDownBegun } from "./take-down";
 export { movePostTime } from "./waiting-posts";
 export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
 export type { FileYesKept } from "./yes";

@@ -1,5 +1,5 @@
 /**
- * Every place's sender answers in the same outcomes (the content loop PRD's 7 and 15.1; apps/edge/lib/content/places):
+ * Every place's sender answers in the same outcomes (the content loop PRD's 7 and 15.1; apps/edge/lib/<place>/place.ts):
  * a send is sent, refused in the owner's words, or unknown when no answer came, which proves nothing and is never read
  * as a refusal; a send whose answer was lost is found on the account afterwards by its caption; a take-down is done only
  * on the place's own yes, waits when no answer came, and goes to a person when the place refuses the connection it.
@@ -18,7 +18,7 @@ import { ON_INSTAGRAM, PLACE_CAPABILITIES, placeTakes } from "@chanlytics/contra
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { instagramPlace } = await import(at("apps/edge/lib/content/places/instagram.ts"));
+const { instagramPlace } = await import(at("apps/edge/lib/instagram/place.ts"));
 
 const ACCOUNT = "17841400000000001";
 const CONTAINER = "18000000000000001";
@@ -245,7 +245,7 @@ test("a take-down is done only on Meta's own yes; no answer waits; refused goes 
   assert.equal(noId.outcome, "not_possible");
 });
 
-test("a post whose own id is known is asked for by it: up, gone from the account, or no answer", async () => {
+test("a post whose own id is known is asked for by it: up, gone only where the account reads without it, or no answer", async () => {
   const sent = { postId: "p1", kind: "picture", externalId: MEDIA, caption: null, sentAt: SENT_AT };
   const up = meta({
     [`GET /${MEDIA}`]: [
@@ -261,8 +261,13 @@ test("a post whose own id is known is asked for by it: up, gone from the account
     [`GET /${MEDIA}`],
     "the account's list is not read",
   );
-  const gone = meta({ [`GET /${MEDIA}`]: [400, { error: { message: "Object does not exist", code: 100 } }] });
+  // Refused by its id, Meta says the same of a post that is gone and of one this connection may not read: the account's
+  // own list settles it. Readable and without the post, it is gone; unreadable, nothing is known.
+  const REFUSED = [400, { error: { message: "Object does not exist", code: 100 } }];
+  const gone = meta({ [`GET /${MEDIA}`]: REFUSED, [`GET /${ACCOUNT}/media`]: [200, { data: [] }] });
   assert.equal((await instagramPlace(poster, { fetch: gone.fetch }).status(sent)).is, "not_up");
+  const unread = meta({ [`GET /${MEDIA}`]: REFUSED });
+  assert.equal((await instagramPlace(poster, { fetch: unread.fetch }).status(sent)).is, "unknown");
   const silent = meta({ [`GET /${MEDIA}`]: "silent" });
   assert.equal((await instagramPlace(poster, { fetch: silent.fetch }).status(sent)).is, "unknown");
 });

@@ -808,6 +808,8 @@ export const LOG_EVENTS = [
   "sweep_health_paused_unreadable",
   "sweep_health_query_failed",
   "sweep_health_receipts_unreadable",
+  "take_down_settled",
+  "take_down_unconfirmed",
   "targets_unreadable",
   "template_category_write_failed",
   "template_quality_write_failed",

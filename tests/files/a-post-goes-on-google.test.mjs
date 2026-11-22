@@ -255,6 +255,8 @@ function placementDoors(posts, attempts) {
       return { fate: "pulled" };
     },
     service: {
+      // What a piece was drawn from, read for who is in it (00691): nothing here names a photo's people.
+      files_drawn_from: () => [],
       post_attempt_open: (a) => {
         const row = {
           id: `att-${attempts.length + 1}`,

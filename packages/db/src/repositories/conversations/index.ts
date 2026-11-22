@@ -36,6 +36,8 @@ export {
   linkHoldDecision,
   listHoldsHandedBack,
   listHoldsWaiting,
+  listMessageWords,
+  listPersonsWordsSince,
   listThreadMessages,
   MESSAGE_COLUMNS,
   pageConsentChanges,

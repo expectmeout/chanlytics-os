@@ -106,6 +106,7 @@ test("the shapes writers hand over are what their kind says", () => {
     post_publish: { post_id: "p", attempt: "1" },
     post_reconcile: { post_id: "p", attempt: "2" },
     post_google: { post_id: "p", attempt: "1" },
+    post_take_down: { action_id: "a", attempt: "2", by_hand: "yes" },
     piece_make: { piece_id: "p", step: "start", tick: "1" },
     campaign_moments: {},
     reach_out_steps: {},

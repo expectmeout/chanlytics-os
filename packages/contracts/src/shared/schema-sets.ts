@@ -49,9 +49,6 @@ import type {
   FILE_STATUSES,
   FILE_WHO_IN_IT,
   FILE_YES_SAID_IN,
-  SUBJECTS_STATES,
-  SUBJECT_HOWS,
-  SUBJECT_LABELS,
   FILE_YES_USES,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
@@ -59,6 +56,8 @@ import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIA
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
 import type { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, RENDITION_SHAPES, REVISION_MADE_BY } from "../content/approvals";
+import type { REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS } from "../content/take-down";
+import type { SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "../files/subjects";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -203,6 +202,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof APPROVAL_SUBJECTS>, SchemaSet<"approvals.subject_type">>>,
   Holds<Exactly<Of<typeof APPROVAL_VOID_WHYS>, SchemaSet<"approvals.voided_why">>>,
   Holds<Exactly<Of<typeof POST_HELD_WHYS>, SchemaSet<"posts.held_why">>>,
+  Holds<Exactly<Of<typeof REMEDIATION_ACTS>, SchemaSet<"remediation_actions.act">>>,
+  Holds<Exactly<Of<typeof REMEDIATION_OUTCOMES>, SchemaSet<"remediation_actions.outcome">>>,
+  Holds<Exactly<Of<typeof REMEDIATION_TARGETS>, SchemaSet<"remediation_actions.target_type">>>,
   Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
   Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
   Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,

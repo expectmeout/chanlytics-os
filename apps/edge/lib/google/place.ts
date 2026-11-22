@@ -8,7 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FILE_WORDS, PLACE_CAPABILITIES, type PlaceAdapter, type TenantId } from "@chanlytics/contracts";
 import type { Database } from "@chanlytics/db/types";
-import { postOnProfile, unpostOnProfile } from "../../google/local-posts.js";
+import { postOnProfile, unpostOnProfile } from "./local-posts.js";
 
 type Db = SupabaseClient<Database>;
 

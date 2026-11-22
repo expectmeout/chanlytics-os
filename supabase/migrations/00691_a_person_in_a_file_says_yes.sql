@@ -19,6 +19,9 @@
 --                          or that nobody is, or that the owner is not sure.
 --   subject_yes_record     A member's door (settings): a person's own yes for each use, with where it was said and its
 --                          evidence; the file's standing restated in the same transaction.
+--   subject_ask_record     A member's door (add_files: whoever may reply to a person may note the ask they sent): when
+--                          a person was asked, on which channel, about which uses.
+--   subject_no_record      A member's door (settings): that the person said no, as the owner read their answer.
 --   post_as_approved       Re-made: a placement whose file has a person with no yes for posts, or whose people the
 --   post_approve           owner is not sure of, answers `rights` with that person's name: refused at the press, held
 --                          at its send.
@@ -43,6 +46,14 @@ create table if not exists public.file_subjects (
   how         text not null check (how = any (array['owner_named', 'person_said'])),
   named_by    uuid references auth.users (id) on delete set null,
   created_at  timestamptz not null default now(),
+  -- The ask (call 13): when the owner sent it, on which channel, and the uses it asked about. Never sent from here.
+  asked_at    timestamptz,
+  asked_via   text check (asked_via is null or char_length(asked_via) between 1 and 40),
+  asked_uses  text[] not null default '{}'::text[]
+              check (asked_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']),
+  -- That they said no, as the owner read their answer: it stands until a yes is kept.
+  said_no_at  timestamptz,
+  constraint file_subjects_asked_whole check ((asked_at is null) = (asked_via is null)),
   constraint file_subjects_tenant_id_id_key unique (tenant_id, id),
   constraint file_subjects_file_id_same_workspace foreign key (tenant_id, file_id)
     references public.files (tenant_id, id) on delete cascade,
@@ -233,6 +244,9 @@ begin
       v_kept := v_kept + 1;
     end if;
   end loop;
+  -- A yes kept answers a no said before it.
+  update public.file_subjects s set said_no_at = null
+   where s.tenant_id = p_tenant_id and s.id = v_subject.id and s.said_no_at is not null and v_kept > 0;
   perform public.file_yes_restate(p_tenant_id, array[v_subject.file_id]);
   return jsonb_build_object('fate', 'kept', 'kept', v_kept);
 end $$;
@@ -240,6 +254,61 @@ revoke all on function public.subject_yes_record(uuid, uuid, text[], text, jsonb
 grant execute on function public.subject_yes_record(uuid, uuid, text[], text, jsonb) to authenticated, service_role;
 comment on function public.subject_yes_record(uuid, uuid, text[], text, jsonb) is
   'A member''s door, with the settings permission (00691; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
+
+/* ------------------------------------------------------------------------------ 5a. the ask, and a no -- */
+
+create or replace function public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uses text[] := coalesce(p_uses, '{}'::text[]);
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if nullif(btrim(coalesce(p_via, '')), '') is null or char_length(btrim(p_via)) > 40 then
+    raise exception 'Say how they were asked.' using errcode = '22023';
+  end if;
+  if cardinality(v_uses) = 0 or not (v_uses <@ array['post', 'ad', 'reply', 'cold_email', 'website']) then
+    raise exception 'Say what they were asked about.' using errcode = '22023';
+  end if;
+  update public.file_subjects s
+     set asked_at = now(), asked_via = btrim(p_via), asked_uses = v_uses, said_no_at = null
+   where s.tenant_id = p_tenant_id and s.id = p_subject_id;
+  return jsonb_build_object('fate', case when found then 'kept' else 'gone' end);
+end $$;
+revoke all on function public.subject_ask_record(uuid, uuid, text, text[]) from public, anon;
+grant execute on function public.subject_ask_record(uuid, uuid, text, text[]) to authenticated, service_role;
+comment on function public.subject_ask_record(uuid, uuid, text, text[]) is
+  'A member''s door, with the add_files permission (00691; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
+
+create or replace function public.subject_no_record(p_tenant_id uuid, p_subject_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  update public.file_subjects s set said_no_at = now()
+   where s.tenant_id = p_tenant_id and s.id = p_subject_id;
+  return jsonb_build_object('fate', case when found then 'kept' else 'gone' end);
+end $$;
+revoke all on function public.subject_no_record(uuid, uuid) from public, anon;
+grant execute on function public.subject_no_record(uuid, uuid) to authenticated, service_role;
+comment on function public.subject_no_record(uuid, uuid) is
+  'A member''s door, with the settings permission (00691; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
 
 /* ------------------------------------------------------------------------- 5b. a person's row gone (erased) -- */
 

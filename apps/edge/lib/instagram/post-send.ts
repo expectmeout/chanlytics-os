@@ -1,6 +1,6 @@
 /**
  * A post sent (00611, decision 0121; 00690): post_publish and post_reconcile, through Instagram's adapter
- * (content/places/instagram.ts). Publishing works like a payment: the send is made once, and an answer that never came
+ * (place.ts). Publishing works like a payment: the send is made once, and an answer that never came
  * proves nothing, so it is never sent again blind.
  *
  * Right before the send, the recheck: whoever approved it may still post for the business, the post was not pulled or
@@ -33,7 +33,6 @@ import { logger } from "../shared/log.js";
 import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
 import {
   HOLDABLE,
-  askAgainWhetherSeen,
   beginSecondAttempt,
   findOnTheAccount,
   findPoster,
@@ -179,8 +178,8 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
     accountId: posting.poster.accountId,
     seen: sent.seen,
   });
-  // Up, and not read back: asked for again in two minutes, so it says it is on Instagram only once it was seen there.
-  if (!sent.seen) await askAgainWhetherSeen(db, post, attempt);
+  // Up, and not read back: the move itself wrote the job that asks for it again in two minutes (00690 post_moved), so it
+  // says it is on Instagram only once it was seen there.
 }
 
 /**
@@ -275,7 +274,7 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
 }
 
 /** Instagram's three post jobs as the job runner is handed them, beside Google's at its time (lib/ops/jobs-tick.ts). */
-export function postJobs(db: Db, deps: PostDeps = {}): Omit<NonNullable<JobContext["posts"]>, "google"> {
+export function postJobs(db: Db, deps: PostDeps = {}): Omit<NonNullable<JobContext["posts"]>, "google" | "takeDown"> {
   return {
     prepare: (job, deadline) => preparePost(db, job, deadline, deps),
     publish: (job) => publishPost(db, job, deps),

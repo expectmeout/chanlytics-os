@@ -236,7 +236,7 @@ export interface TakeDownAnswer {
 }
 
 /**
- * One place's sender, assembled at the edge over its wire (apps/edge/lib/content/places/<place>.ts), each method one ask of
+ * One place's sender, assembled at the edge over its wire (apps/edge/lib/<place>/place.ts), each method one ask of
  * the place, read into these outcomes; what is kept of each send, and when to ask again, stays the post jobs'. A place
  * with no draft of its own (Google) has no `prepare` or `preparedState`; a place that cannot be asked what it holds has
  * no `status`; one with no delete of its own has no `takeDown`, and a take-down there is a step by hand shown before the

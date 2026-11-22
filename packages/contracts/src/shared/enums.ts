@@ -204,6 +204,12 @@ export const JOB_KINDS = [
    */
   "post_google",
   /**
+   * A post asked down at its place (00692; the content loop PRD's 8.3), payload { action_id, attempt, by_hand? }, in the bulk
+   * lane: one remediation action asked of the place, or, once the owner said they deleted it there, the place asked whether
+   * it is gone. The post is taken down only when the place said so.
+   */
+  "post_take_down",
+  /**
    * A video made from a business's clips (00613, decision 0122), payload { piece_id, step, tick }, one step a run, in the
    * lane of someone waiting who is not a customer: start reads the clips and starts the machine that draws it, wait asks
    * after the drawing and sends the video into the video platform. A wait that runs out of its run is the next tick.

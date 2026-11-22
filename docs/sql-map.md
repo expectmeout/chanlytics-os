@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 202 | 202 |
+| door | 207 | 207 |
 | reader | 92 | 0 |
-| the server's | 426 | 355 |
+| the server's | 429 | 358 |
 | computed column | 3 | 0 |
 | trigger | 117 | 86 |
-| all | 840 | 643 |
+| all | 848 | 651 |
 
 ## Called by nothing
 
@@ -93,7 +93,7 @@ being read is dropped by a migration.
 | `ads_paused_by_holds` | trigger | the server | trigger `ads_paused_by_holds on ads` | Trigger (00676): an ad that is not paused holds no paused_by: |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). |
-| `ads_remediate_files` | the server's | the server | SQL `file_yes_take_back` | The walk a yes taken back starts on ads (00676; |
+| `ads_remediate_files` | the server's | the server | SQL `post_take_down_begin`, `yes_taken_back_walk` | The walk a yes taken back, a person erased or the owner's own take-down starts on ads (00676, 00692; |
 | `ads_settle_remediation` | trigger | the server | trigger `ads_settle_remediation on ads` | Trigger (00676; the content loop PRD's 8.3): |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
@@ -132,7 +132,7 @@ being read is dropped by a migration.
 | `call_cost_usd` | reader | a signed-in person, the server | SQL `platform_metrics_roll` | A call's cost in dollars from the provider's own call_cost (K8): |
 | `call_status_rank` | reader | a signed-in person, the server | SQL `ingest_call` |  |
 | `call_transfer_answered` | reader | a signed-in person, the server | SQL `calls_note_transfer`; trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Whether a call's ending (calls.disconnection_reason) was a transfer and a person picked up (K7): |
-| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 29 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
+| `caller_has_permission` | door | a signed-in person, the server | SQL `ad_account_most`, `ask_memory_write` and 34 more; in `rule capability_activations_member_read on capability_activations`, `rule capability_activations_owner_delete on capability_activations` and 5 more | has_permission for the calling session: |
 | `calls_note_first_touch` | trigger | the server | trigger `calls_note_first_touch on calls`, `calls_note_first_touch_on_connect on calls` | The first touch of the person an inbound call made (K3): |
 | `calls_note_transfer` | trigger | the server | trigger `calls_note_transfer on calls`, `calls_note_transfer_on_update on calls` | Writes call.transferred { answered } when a call's ending becomes a transfer (K7), once per call: |
 | `campaign_answers` | reader | a signed-in person, the server | SQL `campaign_series` | What each person answered each campaign run: |
@@ -236,7 +236,7 @@ being read is dropped by a migration.
 | `file_copy_returning` | the server's | the server | code `packages/db/src/repositories/files/copies.ts` | The id the video platform gave a copy coming back (00654), kept on its row: |
 | `file_copy_settle` | the server's | the server | code `packages/db/src/repositories/files/copies.ts`; SQL `file_copies_follow_origin` | A copy that is away or lost set to what its origins now say (00654): |
 | `file_copy_standing` | the server's | the server | SQL `file_copy_gone`, `file_copy_return_begin` and 1 more | Why a file's copy cannot be fetched again, or null where an origin can give it back (00654): |
-| `file_drawn_from` | the server's | the server | SQL `file_rights_gap_of`, `file_yes_take_back` and 3 more | The ids, as text, of every file a made piece's `made` names (00665): |
+| `file_drawn_from` | the server's | the server | SQL `file_rights_gap_of`, `file_yes_take_back` and 4 more | The ids, as text, of every file a made piece's `made` names (00665): |
 | `file_found` | the server's | the server | code `packages/db/src/repositories/files/doors.ts` | The one door every road keeps a file by, after the server proved its bytes (00551), and judged by its look where it carries a print (00630). |
 | `file_free_name` | the server's | the server | SQL `file_change`, `file_found` and 6 more | The name itself where it is free in this workspace, else with -2, -3 (00551). |
 | `file_keep_many` | door | a signed-in person, the server | code `packages/db/src/repositories/files/doors.ts` | The Found online list's press (00551, 00619): |
@@ -269,9 +269,9 @@ being read is dropped by a migration.
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
 | `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665): |
-| `file_yes_restate` | the server's | the server | SQL `file_subjects_gone`, `file_subjects_name` and 3 more | files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00691): |
-| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665, 00676; |
-| `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
+| `file_yes_restate` | the server's | the server | SQL `file_subjects_gone`, `file_subjects_name` and 4 more | files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00691): |
+| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665, 00676, 00692; |
+| `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` and 1 more | The uses a door was handed, each once and in order; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612, 00668): |
@@ -595,7 +595,11 @@ being read is dropped by a migration.
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |
 | `post_report` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | I posted it (00620): a member, with the settings permission, says a made piece is up by their own hand, with its link or none. |
 | `post_shape` | the server's | the server | SQL `piece_words_keep`, `post_as_approved` | The shape a placement sends (00690, contracts renditionShapeOf): |
+| `post_take_down_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00692; |
+| `post_take_down_by_hand` | door | a signed-in person, the server | code `packages/db/src/repositories/files/take-down.ts` | A member's door, with the settings permission (00692; |
+| `post_take_down_settle` | the server's | the server | code `packages/db/src/repositories/files/take-down.ts` | The take-down job's door (00692; |
 | `post_unanswered` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A post sent with no answer (00611): |
+| `posts_take_down_start` | the server's | the server | SQL `post_take_down_begin`, `yes_taken_back_walk` | The walk a take-down starts on posts, the service's (00692; |
 | `preview_built` | the server's | the server | code `apps/edge/lib/previews/build.ts`, `apps/edge/lib/shared/log-events.ts` and 1 more | A preview's build answered (0079): |
 | `preview_called` | the server's | the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | A call to a preview ended (0079): |
 | `preview_claim` | door | a signed-in person, the server | code `packages/db/src/repositories/campaigns/lead-previews.ts` | Make it mine (0079): the signed-in caller claims a ready preview by its token. |
@@ -824,7 +828,10 @@ being read is dropped by a migration.
 | `stamp_email_sent` | the server's | the server | code `packages/db/src/repositories/email/email.ts` |  |
 | `start_playbook` | reader | a signed-in person, the server | code `apps/dashboard/src/server/campaigns/playbook-row.ts`, `apps/dashboard/src/server/campaigns/reach-outs/chain-acts.ts` and 2 more | A member starts a playbook and its line in the ledger together (00357): |
 | `stop_all_messages` | the server's | the server | code `packages/db/src/repositories/campaigns/email-offers.ts` | The unsubscribe page's second, confirmed act: |
+| `subject_ask_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the add_files permission (00691; |
+| `subject_no_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the settings permission (00691; |
 | `subject_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the settings permission (00691; |
+| `subject_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/subjects.ts` | A member's door, with the settings permission (00692; |
 | `sweep_health` | the server's | the server | code `apps/dashboard/src/server/console/health.ts`, `packages/db/src/repositories/console/health.ts` and 1 more; SQL `trigger_call_reconcile` | One row per registered clock (public.sweep_status): |
 | `sweep_mark_alerted` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Records that an alert was DELIVERED for each sweep in p_alerted, and clears the suppression stamp of each sweep in p_healthy. |
 | `sweep_schedules` | the server's | the server | nothing at run time |  |
@@ -887,3 +894,4 @@ being read is dropped by a migration.
 | `workspace_tell_at_commit` | trigger | the server | trigger `workspace_notices_told_at_commit on workspace_notices_pending` | Decision 0019 (00507): |
 | `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on ad_accounts`, `workspace_tell_delete on ads` and 103 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
 | `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on ad_accounts`, `workspace_tell_update on ads` and 11 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |
+| `yes_taken_back_walk` | the server's | the server | SQL `file_yes_take_back`, `subject_yes_take_back` | What a yes taken back starts, the service's, once for both doors (00692; |

@@ -3336,6 +3336,9 @@ export type Database = {
       }
       file_subjects: {
         Row: {
+          asked_at: string | null
+          asked_uses: string[]
+          asked_via: string | null
           contact_id: string | null
           created_at: string
           file_id: string
@@ -3344,9 +3347,13 @@ export type Database = {
           label: string
           name: string
           named_by: string | null
+          said_no_at: string | null
           tenant_id: string
         }
         Insert: {
+          asked_at?: string | null
+          asked_uses?: string[]
+          asked_via?: string | null
           contact_id?: string | null
           created_at?: string
           file_id: string
@@ -3355,9 +3362,13 @@ export type Database = {
           label: string
           name: string
           named_by?: string | null
+          said_no_at?: string | null
           tenant_id: string
         }
         Update: {
+          asked_at?: string | null
+          asked_uses?: string[]
+          asked_via?: string | null
           contact_id?: string | null
           created_at?: string
           file_id?: string
@@ -3366,6 +3377,7 @@ export type Database = {
           label?: string
           name?: string
           named_by?: string | null
+          said_no_at?: string | null
           tenant_id?: string
         }
         Relationships: [
@@ -12833,9 +12845,32 @@ export type Database = {
         Returns: Json
       }
       post_shape: { Args: { p_kind: string; p_place: string }; Returns: string }
+      post_take_down_begin: {
+        Args: { p_file_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_take_down_by_hand: {
+        Args: { p_post_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      post_take_down_settle: {
+        Args: { p_action_id: string; p_outcome: string; p_said: string }
+        Returns: Json
+      }
       post_unanswered: {
         Args: { p_attempt: string; p_post_id: string }
         Returns: boolean
+      }
+      posts_take_down_start: {
+        Args: {
+          p_actor: string
+          p_cancel: boolean
+          p_cause: string
+          p_files: string[]
+          p_subject_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
       }
       preview_built: {
         Args: { p_id: string; p_ok: boolean; p_why?: string }
@@ -14265,6 +14300,19 @@ export type Database = {
         }
         Returns: Json
       }
+      subject_ask_record: {
+        Args: {
+          p_subject_id: string
+          p_tenant_id: string
+          p_uses: string[]
+          p_via: string
+        }
+        Returns: Json
+      }
+      subject_no_record: {
+        Args: { p_subject_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       subject_yes_record: {
         Args: {
           p_evidence: Json
@@ -14272,6 +14320,15 @@ export type Database = {
           p_subject_id: string
           p_tenant_id: string
           p_uses: string[]
+        }
+        Returns: Json
+      }
+      subject_yes_take_back: {
+        Args: {
+          p_held?: string
+          p_subject_id: string
+          p_tenant_id: string
+          p_uses?: string[]
         }
         Returns: Json
       }
@@ -14503,6 +14560,17 @@ export type Database = {
         }[]
       }
       workspace_partner: { Args: { p_tenant: string }; Returns: Json }
+      yes_taken_back_walk: {
+        Args: {
+          p_actor: string
+          p_file_id: string
+          p_files: string[]
+          p_held: string
+          p_tenant_id: string
+          p_uses: string[]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

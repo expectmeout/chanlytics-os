@@ -179,6 +179,9 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   piece_make: { stopped: "Couldn't make a video", to: CONTENT_ROUTE },
   // A post on its way to Google at its time (00616): Content's Needs you holds it, and its piece says why.
   post_google: { stopped: "Couldn't post to Google", to: CONTENT_NEEDS_ROUTE },
+  // A post asked down at its place (00692). Not sent (kinds.ts: the platform's to chase): its piece says the place has
+  // not confirmed it, and that Chanlytics is on it.
+  post_take_down: { stopped: "Couldn't confirm a post came down", to: CONTENT_NEEDS_ROUTE },
   // A workspace's hourly work (00569). Not sent (kinds.ts: the platform's to mend), and the next hour tries again.
   campaign_moments: { stopped: "Couldn't run a campaign this hour", to: "today" },
   reach_out_steps: { stopped: "Couldn't run cold email this hour", to: "today" },

@@ -83,6 +83,47 @@ export async function findPersonsNewestConversation(
   return data?.id ?? null;
 }
 
+/**
+ * What a person wrote in a conversation since a moment, newest first: their own words as text, each with its id and when
+ * (the answer to an ask they were sent). A read that fails throws.
+ */
+export async function listPersonsWordsSince(
+  db: Db,
+  tenantId: TenantId,
+  conversationId: string,
+  since: string,
+): Promise<{ id: string; body: string; created_at: string }[]> {
+  const { data, error } = await db
+    .from("messages")
+    .select("id, body, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("conversation_id", conversationId)
+    .eq("direction", "inbound")
+    .eq("sender", "customer")
+    .eq("type", "text")
+    .gt("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (error) throw new DbFailure(error, "a person's words since");
+  return data.flatMap((m) => (m.body?.trim() ? [{ id: m.id, body: m.body, created_at: m.created_at }] : []));
+}
+
+/** The words of these messages, by id, under the caller's RLS: what a yes said in a message quotes. */
+export async function listMessageWords(
+  db: Db,
+  tenantId: TenantId,
+  ids: readonly string[],
+): Promise<{ id: string; body: string }[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await db
+    .from("messages")
+    .select("id, body")
+    .eq("tenant_id", tenantId)
+    .in("id", [...ids]);
+  if (error) throw new DbFailure(error, "messages' words");
+  return data.flatMap((m) => (m.body?.trim() ? [{ id: m.id, body: m.body }] : []));
+}
+
 /** One page (`from` to `to`) of the workspace's threads, or one person's, oldest first. */
 export const pageThreadRows = async (
   db: Db,

@@ -236,6 +236,7 @@ declare
   v_patch jsonb := coalesce(p_patch, '{}'::jsonb);
   -- Let go because its day passed before it could be sent: it says so, as a hold does.
   v_late boolean := p_to = 'pulled' and v_patch ->> 'held_why' = 'late';
+  v_moved boolean;
 begin
   update public.posts p
      set status = p_to,
@@ -252,12 +253,24 @@ begin
          error = case when v_patch ? 'error' then v_patch -> 'error' else p.error end,
          updated_at = now()
    where p.id = p_post_id and p.status = any (p_from);
-  return found;
+  v_moved := found;
+  -- Up on Instagram and not yet read back from the account: it is asked for by its own id two minutes on, written here
+  -- with the fact, so a run that dies after the move never leaves a post that is never seen. Its key is its own
+  -- ('seen'), apart from a send's two attempts.
+  if v_moved and p_to = 'published' then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    select p.tenant_id, 'post_reconcile', now() + interval '2 minutes',
+           jsonb_build_object('post_id', p.id, 'attempt', 'seen', 'seen', 'ask')
+      from public.posts p
+     where p.id = p_post_id and p.place = 'instagram' and p.verified_at is null and p.external_id is not null
+    on conflict do nothing;
+  end if;
+  return v_moved;
 end $$;
 revoke all on function public.post_moved(uuid, text[], text, jsonb) from public, anon, authenticated;
 grant execute on function public.post_moved(uuid, text[], text, jsonb) to service_role;
 comment on function public.post_moved(uuid, text[], text, jsonb) is
-  'A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+  'A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 /* ---------------------------------------------------------------------------------- 7. a piece and its version -- */
 

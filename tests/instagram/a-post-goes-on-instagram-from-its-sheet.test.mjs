@@ -254,7 +254,12 @@ function world({
       updated_at: "2026-11-01T12:00:00Z",
     },
   ];
-  const service = fakeDb({ tenant_channels: channels, files: kept, events: [], posts: rows, pieces }, {}, {});
+  const service = fakeDb(
+    { tenant_channels: channels, files: kept, events: [], posts: rows, pieces },
+    {},
+    // What a piece was drawn from, read for who is in it (00691): nothing here names a photo's people.
+    { files_drawn_from: () => [] },
+  );
   // The approval reads each shape it sends, and sums its bytes (posts/approve.ts).
   service.storage = {
     from: () => ({ download: async () => ({ data: new Blob([`bytes of ${tenant}`]), error: null }) }),
