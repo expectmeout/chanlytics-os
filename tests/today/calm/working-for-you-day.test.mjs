@@ -15,8 +15,9 @@ import { W, ZONE, answerWith, draw, json, redraw, wire } from "../zones/_world.m
 
 const { usualDayWords } = await import("../../../apps/dashboard/src/surfaces/today/model/lines.ts");
 const { arrangementOf } = await import("../../../apps/dashboard/src/surfaces/today/arrangement.ts");
-const { useTodayEvening } = await import("../../../apps/dashboard/src/surfaces/today/zones/head.tsx");
-const { MorningFold, TonightLine } = await import("../../../apps/dashboard/src/surfaces/today/calm/evening.tsx");
+const { headRestOf, useTodayEvening } = await import("../../../apps/dashboard/src/surfaces/today/zones/head.tsx");
+const { MorningFold, TonightLine, morningWaits } =
+  await import("../../../apps/dashboard/src/surfaces/today/calm/evening.tsx");
 const { WeekLead, useWeekMoment, weekWords } = await import("../../../apps/dashboard/src/surfaces/today/calm/week.tsx");
 const { LetAiDoMore, offerOf } = await import("../../../apps/dashboard/src/surfaces/today/calm/more.tsx");
 const { TodayKeys } = await import("../../../apps/dashboard/src/surfaces/today/calm/keys.tsx");
@@ -100,6 +101,7 @@ const READS = {
   foundFirst: null,
   morning: null,
   week: null,
+  todoLeft: false,
 };
 const MORNING = { toDo: 2, toDoDoor: "clients/steps", found: 3, setup: true };
 
@@ -126,6 +128,22 @@ test("once the day is over only who waits holds the card and the coral: a to-do,
     "queue",
     "never over someone who waits",
   );
+});
+
+test("the evening's head says the rest waits for morning only where something does; by day a to-do left is the arrangement's to say", () => {
+  const head = (over) =>
+    headRestOf({ count: 2, turned: true, sure: true, alert: false, forMorning: false, ahead: null, ...over });
+  assert.equal(head({ forMorning: true }), "The rest waits for morning.");
+  assert.equal(head({}), null, "REGRESSION: said with nothing folded into its line");
+  assert.equal(head({ forMorning: true, sure: false }), null, "never on a page unsure of itself");
+  assert.equal(
+    head({ count: 0, turned: false, ahead: "4 booked today, the first at 10 AM." }),
+    "4 booked today, the first at 10 AM.",
+  );
+  assert.equal(morningWaits({ toDo: 0, toDoDoor: null, found: 0, setup: false }), false);
+  assert.equal(morningWaits({ toDo: 0, toDoDoor: null, found: 1, setup: false }), true);
+  assert.equal(arrangementOf({ ...READS, todoLeft: true }).toDoLeft, true, "a to-do left: the page is not done");
+  assert.equal(arrangementOf(READS).toDoLeft, false);
 });
 
 test("what waits for morning is one line: it says what it holds, opens under itself, and its to-dos are a door", () => {

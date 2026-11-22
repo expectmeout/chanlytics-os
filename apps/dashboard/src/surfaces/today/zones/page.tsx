@@ -34,6 +34,7 @@ import { useTodayOnPhone } from "../phone";
 import { TodayAlertBand } from "./alert";
 import { DayZone } from "./day";
 import { DayCameTo, TodayEnd, TodayPins } from "./foot";
+import { useZonesStanding } from "./head";
 import { AskFound } from "./found";
 import { NeedYou } from "./need-you";
 import { TodayHistory } from "./history";
@@ -179,6 +180,8 @@ export function TodayZones() {
   // Today left: the last days are asked for again on the next visit.
   useEffect(() => forgetLastDays, []);
   const arranged = useTodayArrangement();
+  // The head's sentence, from the same draw as the page under it: what waits for morning is the page's to know.
+  useZonesStanding(arranged.morning);
   // The celebration, where the last who waited was answered here (W6): for its beat nothing holds the card, and the next
   // thing takes it after.
   const beat = useClearedBeat(arranged);
@@ -205,7 +208,7 @@ export function TodayZones() {
         <TodayOverHere />
         <AiSheet />
         <HeldSheet />
-        <TodayEnd />
+        <TodayEnd toDoLeft={arranged.toDoLeft} />
       </div>
     );
   return (
@@ -226,7 +229,7 @@ export function TodayZones() {
       <AiSheet />
       <HeldSheet />
       <TodayKeys />
-      <TodayEnd />
+      <TodayEnd toDoLeft={arranged.toDoLeft} />
     </div>
   );
 }

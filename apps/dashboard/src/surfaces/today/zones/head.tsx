@@ -40,6 +40,7 @@ import { TODAY_HELPERS } from "../helpers";
 import { useNeedYouLine } from "../need-you-model";
 import { useTodayOnPhone } from "../phone";
 import { useDayVm } from "./day-vm";
+import { morningWaits, type TodayMorning } from "../calm/evening";
 import { listenButton, useBriefWords, useSpeech } from "./listen";
 
 /**
@@ -145,23 +146,28 @@ export function useTodayEvening(): boolean {
 
 /**
  * The sentence's rest where AI's "since you last looked" says nothing: the day ahead in facts while nobody waits (W15), or,
- * once the business has closed with someone waiting, that the rest waits for morning (W5). Only on a page sure of itself.
+ * once the business has closed with someone waiting, that the rest waits for morning (W5), where something does: with
+ * nothing folded into its line there is no rest to wait. Only on a page sure of itself.
  */
-function restOfDay(at: {
+export function headRestOf(at: {
   count: number;
   turned: boolean;
   sure: boolean;
   alert: boolean;
-  evening: boolean;
+  forMorning: boolean;
   ahead: string | null;
 }): string | null {
   if (!at.sure) return null;
   if (at.count === 0) return !at.turned && !at.alert ? at.ahead : null;
-  return at.evening ? TODAY_LINE_WORDS.evening.rest : null;
+  return at.forMorning ? TODAY_LINE_WORDS.evening.rest : null;
 }
 
-/** Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. */
-export function useZonesStanding(): void {
+/**
+ * Today's standing, said to the frame's head as the page draws: the greeting, its one sentence, the figures. `morning` is
+ * the page's own arrangement's (null by day), handed over from the same draw, so the head says the rest waits for morning
+ * only where the page's one line for it holds something.
+ */
+export function useZonesStanding(morning: TodayMorning | null): void {
   const phone = useTodayOnPhone();
   const vm = useSurface("today");
   // Read from Need you's own model in the head's pass, never heard from the list as it draws: the line is there on the
@@ -187,9 +193,9 @@ export function useZonesStanding(): void {
   const ahead = dayAheadWords(useDayVm());
   // Only on a page sure of itself: behind or unread, its own sentence is the one that matters.
   const sure = quiet.kind === "sure" || quiet.kind === "settling";
-  // Once the day is over, whoever waits is said, and the rest waits for morning in its one line (W5).
-  const evening = useTodayEvening();
-  const rest = since ?? restOfDay({ count, turned, sure, alert: vm?.standing.tone === "alert", evening, ahead });
+  // Once the day is over, whoever waits is said, and the rest waits for morning in its one line where it holds any (W5).
+  const forMorning = !!morning && morningWaits(morning);
+  const rest = since ?? headRestOf({ count, turned, sure, alert: vm?.standing.tone === "alert", forMorning, ahead });
   const line = headLine && rest ? { lead: headLine.lead, rest } : headLine;
   // Only where the brief has news, and not once it plays: the header's capsule has it then (BriefPlaying).
   const listen = speech.can && brief && words?.news && speech.state !== "speaking" ? listenButton(speech, brief) : null;

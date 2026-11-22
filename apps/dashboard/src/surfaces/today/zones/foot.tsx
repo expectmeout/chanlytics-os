@@ -117,9 +117,11 @@ export function TodayPins() {
 /**
  * The page says it is done: its last line, once nobody waits and the page is sure of it (calm/quiet.ts). While a line is
  * down it says instead that this may not be everything, whoever waits; while it is checking, behind or could not read a
- * part, it just ends.
+ * part, it just ends. By day it is not said while a to-do of the member's own is left (`toDoLeft`, the page's
+ * arrangement's): "That's everything." under "Ask for a review, overdue" read as all done (the review of 22 Nov 2026).
+ * Once the day is over the to-dos wait for morning in their own line, and the end says AI stays on.
  */
-export function TodayEnd() {
+export function TodayEnd({ toDoLeft }: { toDoLeft: boolean }) {
   const quiet = useTodayQuiet("end");
   const waiting = useNeedsYou();
   // Nor under "Nothing can come in yet": it is only true of a business that is answering (9 Nov 2026), read.
@@ -136,6 +138,7 @@ export function TodayEnd() {
     );
   // "That's everything" under "2 need you" read as all done: while anyone waits the page just ends.
   if (quiet.kind !== "sure" || waiting !== 0 || answering !== true) return null;
+  if (toDoLeft && !closed) return null;
   return (
     <p className="tz-end calm-done" data-testid="today-end" {...SAYS_WHEN}>
       <Icon name="check" size={13} />
