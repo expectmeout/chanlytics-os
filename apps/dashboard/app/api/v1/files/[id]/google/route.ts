@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { FILE_GOOGLE_WORDS_MAX } from "@chanlytics/contracts";
+import { FILE_GOOGLE_WORDS_MAX, OwnersFactSchema, PostAboutSchema } from "@chanlytics/contracts";
 import { write } from "@/server/shared/route";
 import { fileScope } from "@/server/files/file";
 import { postFileToGoogle, takeFileOffGoogle } from "@/server/posts/google";
 import { pullFilePost } from "@/server/posts/instagram";
 
 /**
- * POST /api/v1/files/:id/google — `{ summary, when? }`: a kept post goes on the business's Google profile, in the business's name,
- * with those words under it. Whoever may save one, on their press alone, and it is public as soon as Google has looked at it.
+ * POST /api/v1/files/:id/google — `{ summary, when?, about?, facts? }`: a kept post goes on the business's Google profile, in the
+ * business's name, with those words under it; the press is the approval, of this picture and these words (00681). Whoever may save one, on their press alone, and it is public as soon as Google has looked at it.
  * Answers `{ name, search_url, state }`. With a `when` later than two minutes on (00616), it waits for its time: the picture is
  * drawn now, its job asks Google then, and it answers `{ name: null, search_url: null, state: "scheduled" }`.
  *
@@ -23,6 +23,8 @@ export const POST = write({
   input: z.object({
     summary: z.string().trim().min(1).max(FILE_GOOGLE_WORDS_MAX),
     when: z.iso.datetime({ offset: true }).optional(),
+    about: PostAboutSchema.optional(),
+    facts: z.array(OwnersFactSchema).max(5).optional(),
   }),
   handle: ({ ctx, input, member, row }) => postFileToGoogle(ctx, member, row, input),
 });

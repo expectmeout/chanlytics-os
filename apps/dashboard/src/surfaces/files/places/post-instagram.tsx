@@ -3,7 +3,7 @@
  * stopped, in Content's one sheet (Post it, campaigns/content/post-both.tsx); this is the door its row keeps to the post once
  * it is up.
  */
-import { ON_INSTAGRAM, type PostDto } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, postStandsSaid, type PostDto } from "@chanlytics/contracts";
 import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 
@@ -12,7 +12,7 @@ export function PostOnInstagram({ post }: { post: PostDto }) {
   return (
     <div className="files-made-from" data-testid="post-on-instagram" data-status={post.status}>
       <span className="files-from">
-        {ON_INSTAGRAM.status[post.status]}, {ON_INSTAGRAM.kind[post.kind]}
+        {postStandsSaid(post)}, {ON_INSTAGRAM.kind[post.kind]}
       </span>
       {post.status === "published" && post.permalink ? (
         <Button

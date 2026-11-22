@@ -3019,8 +3019,8 @@ declare
   v_out     jsonb := '[]'::jsonb;
   v_one     jsonb;
 begin
-  if p_cause not in ('yes_taken_back', 'person_erased') then
-    raise exception 'ads_remediate_files: a yes taken back or a person erased' using errcode = '22023';
+  if p_cause not in ('yes_taken_back', 'person_erased', 'owner_removed') then
+    raise exception 'ads_remediate_files: a yes taken back, a person erased or a take-down' using errcode = '22023';
   end if;
   -- Every ad made here that shows one of the files and has not ended: running or paused, or still being set up.
   for v_ad in
@@ -3078,7 +3078,7 @@ end $$;
 -- Name: FUNCTION ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back starts on ads (00676; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by file_yes_take_back.';
+COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00682; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by file_yes_take_back (00676) and post_take_down_begin.';
 
 
 --
@@ -3697,6 +3697,23 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) IS 'An erasure''s hand in the appointments (decision 0036): the person''s visits keep their time and service and lose the client''s name, number, address and note; the notices that made them, and any whose subject names them, lose the name. Answers how many visits changed. Service role only.';
+
+
+--
+-- Name: approval_hash(jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.approval_hash(p_snapshot jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$ select encode(sha256(convert_to(p_snapshot::text, 'UTF8')), 'hex') $$;
+
+
+--
+-- Name: FUNCTION approval_hash(p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.approval_hash(p_snapshot jsonb) IS 'The SHA-256, as hex, of a snapshot''s text as jsonb writes it (00681): what approvals.snapshot_hash keeps and post_as_approved checks.';
 
 
 --
@@ -27670,6 +27687,44 @@ COMMENT ON FUNCTION public.piece_file_begin(p_piece_id uuid, p_id uuid, p_media_
 
 
 --
+-- Name: piece_of_made_file(uuid, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_file public.files;
+  v_id   uuid;
+begin
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found then
+    return null;
+  end if;
+  if v_file.kind = 'video' then
+    select p.id into v_id from public.pieces p
+     where p.tenant_id = p_tenant_id and p.file_id = v_file.id and p.shape <> 'picture'
+     order by p.created_at desc limit 1;
+    return v_id;
+  end if;
+  insert into public.pieces (tenant_id, shape, plan, look, status, edition, file_id, card_key, created_by, made_at)
+  values (p_tenant_id, 'picture', coalesce(v_file.made -> 'plan', '{}'::jsonb), '{}'::jsonb, 'made', 1, v_file.id,
+          'post:' || v_file.id::text, p_actor, v_file.created_at)
+  on conflict (tenant_id, card_key) do nothing;
+  select p.id into v_id from public.pieces p where p.tenant_id = p_tenant_id and p.card_key = 'post:' || v_file.id::text;
+  return v_id;
+end $$;
+
+
+--
+-- Name: FUNCTION piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00681): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+
+
+--
 -- Name: piece_sent(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -27750,6 +27805,90 @@ $$;
 --
 
 COMMENT ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) IS 'The machine a video is being drawn on, kept or let go (00613); one kept is the drawing begun (stage). Answers whether the video is still being made. The service role''s.';
+
+
+--
+-- Name: piece_words_keep(uuid, uuid, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor     uuid := auth.uid();
+  v_words     text := nullif(btrim(p_caption), '');
+  v_piece     public.pieces;
+  v_rev       public.piece_revisions;
+  v_n         integer;
+  v_post      public.posts;
+  v_old       public.approvals;
+  v_snapshot  jsonb;
+  v_approval  uuid;
+  v_followed  integer := 0;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_piece from public.pieces p
+   where p.tenant_id = p_tenant_id and p.file_id = p_file_id order by p.created_at desc limit 1 for update;
+  if found then
+    select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_piece.revision;
+    -- A piece no placement was ever approved of keeps no version yet: its first is written at its first approval.
+    if found and (v_rev.captions ->> 'instagram' is distinct from coalesce(v_words, '')
+                  or v_rev.captions ->> 'google' is distinct from coalesce(v_words, '')) then
+      v_n := v_piece.revision + 1;
+      insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+      values (p_tenant_id, v_piece.id, v_n, v_rev.plan,
+              jsonb_build_object('instagram', coalesce(v_words, ''), 'google', coalesce(v_words, '')),
+              array['caption'], 'owner', v_actor);
+      update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+    end if;
+  end if;
+  for v_post in
+    select * from public.posts p
+     where p.tenant_id = p_tenant_id and p.file_id = p_file_id and p.status = 'queued' and p.kind <> 'story'
+       and p.caption is distinct from v_words
+     for update
+  loop
+    v_approval := v_post.approval_id;
+    select * into v_old from public.approvals a where a.tenant_id = p_tenant_id and a.id = v_post.approval_id;
+    if found and v_old.voided_at is null then
+      -- The same bytes, this placement alone, with the new words and the version they are: a new approval, by this member.
+      v_snapshot := v_old.snapshot
+        || jsonb_build_object(
+             'revision', jsonb_build_object('piece_id', v_post.piece_id, 'n', coalesce(v_n, v_post.revision)),
+             'placements', (select coalesce(jsonb_agg(e || jsonb_build_object('caption', v_words)), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'placements') e
+                             where e ->> 'place' = v_post.place and e ->> 'kind' = v_post.kind),
+             'renditions', (select coalesce(jsonb_agg(e), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'renditions') e
+                             where e ->> 'shape' = public.post_shape(v_post.place, v_post.kind)));
+      insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+      values (p_tenant_id, 'piece_revision',
+              coalesce((select r.id from public.piece_revisions r
+                         where r.piece_id = v_post.piece_id and r.n = coalesce(v_n, v_post.revision)), v_old.subject_id),
+              v_snapshot, public.approval_hash(v_snapshot), v_actor, v_old.policy_edition)
+      returning id into v_approval;
+    end if;
+    update public.posts p
+       set caption = v_words, approval_id = v_approval, revision = coalesce(v_n, p.revision),
+           approved_by = v_actor, approved_at = now(), updated_at = now()
+     where p.id = v_post.id;
+    v_followed := v_followed + 1;
+  end loop;
+  return jsonb_build_object('revision', coalesce(v_n, v_piece.revision), 'followed', v_followed);
+end $$;
+
+
+--
+-- Name: FUNCTION piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00681; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';
 
 
 --
@@ -29097,6 +29236,240 @@ COMMENT ON FUNCTION public.post_again(p_post_id uuid, p_from text) IS 'A post''s
 
 
 --
+-- Name: post_approve(uuid, uuid, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor      uuid := auth.uid();
+  v_file       public.files;
+  v_piece      public.pieces;
+  v_rev        public.piece_revisions;
+  v_n          integer;
+  v_captions   jsonb := '{}'::jsonb;
+  v_place      jsonb;
+  v_rendition  jsonb;
+  v_kept       public.piece_renditions;
+  v_busy       uuid;
+  v_approval   uuid;
+  v_id         uuid;
+  v_when       timestamptz;
+  v_later      boolean;
+  v_posts      jsonb := '[]'::jsonb;
+  v_snapshot   jsonb;
+  v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(v_places) <> 'array' or jsonb_array_length(v_places) not between 1 and 4 then
+    raise exception 'An approval names one to four placements.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_approval -> 'snapshot') is distinct from 'object' then
+    raise exception 'An approval carries its snapshot.' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|posts', 42));
+  select * into v_file from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id;
+  if not found or v_file.removed_at is not null then
+    return jsonb_build_object('fate', 'gone', 'posts', '[]'::jsonb);
+  end if;
+  if v_file.source <> 'made' then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if (v_place ->> 'place') is null or (v_place ->> 'place') <> all (array['instagram', 'google']) then
+      raise exception 'No such place: %.', v_place ->> 'place' using errcode = '22023';
+    end if;
+    if (case when v_file.kind = 'video'
+             then not (v_place ->> 'place' = 'instagram' and v_place ->> 'kind' = 'reel')
+             else (v_place ->> 'kind') is null or (v_place ->> 'kind') <> all (array['picture', 'story'])
+                  or (v_place ->> 'place' = 'google' and v_place ->> 'kind' <> 'picture') end) then
+      return jsonb_build_object('fate', 'wrong_kind', 'posts', '[]'::jsonb);
+    end if;
+    if char_length(coalesce(v_place ->> 'caption', '')) > (case when v_place ->> 'place' = 'google' then 1500 else 2200 end) then
+      raise exception 'Those words are longer than the place takes.' using errcode = '22023';
+    end if;
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    if v_when > now() + interval '30 days' then
+      raise exception 'A post goes within thirty days.' using errcode = '22023';
+    end if;
+    if (v_place ->> 'good_until') is not null and (v_place ->> 'good_until')::timestamptz < v_when then
+      return jsonb_build_object('fate', 'late', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  -- A Google press that died between its placement and its answer stops holding the next one after ten minutes (00616).
+  update public.posts p
+     set status = 'failed', updated_at = now(),
+         error = jsonb_build_object('code', null, 'subcode', null, 'words',
+                                    'Google did not say whether this went up. Look on your profile before posting it again.')
+   where p.file_id = p_file_id and p.place = 'google' and p.status = 'publishing'
+     and p.updated_at < now() - interval '10 minutes';
+  -- One of each kind on its way at a place (00620).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    select p.id into v_busy from public.posts p
+     where p.file_id = p_file_id and p.place = v_place ->> 'place' and p.kind = v_place ->> 'kind'
+       and p.status = any (array['queued', 'preparing', 'publishing', 'checking']);
+    if found then
+      return jsonb_build_object('fate', 'busy', 'post_id', v_busy, 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+
+  -- Its own statement: a row it writes is seen only by the next one.
+  v_id := public.piece_of_made_file(p_tenant_id, p_file_id, v_actor);
+  select * into v_piece from public.pieces p where p.id = v_id;
+  if not found then
+    return jsonb_build_object('fate', 'not_a_post', 'posts', '[]'::jsonb);
+  end if;
+  -- A shape already kept with other bytes is not what the owner saw: nothing is written past here.
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    select * into v_kept from public.piece_renditions r
+     where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_piece.revision
+     order by r.revision desc limit 1;
+    if found and (v_kept.checksum <> v_rendition ->> 'checksum' or v_kept.path <> v_rendition ->> 'path') then
+      return jsonb_build_object('fate', 'changed', 'posts', '[]'::jsonb);
+    end if;
+  end loop;
+  if p_approval ? 'intent' then
+    update public.pieces p set intent = nullif(p_approval -> 'intent', 'null'::jsonb), updated_at = now()
+     where p.id = v_piece.id and p.intent is distinct from nullif(p_approval -> 'intent', 'null'::jsonb);
+  end if;
+
+  -- The version it stands at, written the first time; words that differ from it are a new version (no new shapes).
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    if v_place ->> 'kind' <> 'story' then
+      v_captions := v_captions || jsonb_build_object(v_place ->> 'place', coalesce(v_place ->> 'caption', ''));
+    end if;
+  end loop;
+  v_n := v_piece.revision;
+  select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_n;
+  if not found then
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], 'owner', v_actor)
+    returning * into v_rev;
+  elsif exists (select 1 from jsonb_each_text(v_captions) c
+                 where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
+    v_n := v_n + 1;
+    insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+    values (p_tenant_id, v_piece.id, v_n, v_rev.plan, v_rev.captions || v_captions, array['caption'], 'owner', v_actor)
+    returning * into v_rev;
+    update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+  end if;
+
+  -- Its shapes as they are sent: kept the first time (checked above to be the same bytes every time after).
+  for v_rendition in select * from jsonb_array_elements(coalesce(p_approval -> 'renditions', '[]'::jsonb)) loop
+    if not exists (select 1 from public.piece_renditions r
+                    where r.piece_id = v_piece.id and r.shape = v_rendition ->> 'shape' and r.revision <= v_n) then
+      insert into public.piece_renditions (tenant_id, piece_id, revision, shape, file_id, path, checksum, bytes)
+      values (p_tenant_id, v_piece.id, v_n, v_rendition ->> 'shape', p_file_id, v_rendition ->> 'path',
+              v_rendition ->> 'checksum', nullif(v_rendition ->> 'bytes', '')::bigint);
+    end if;
+  end loop;
+
+  -- The snapshot names the version it is of, and its hash is taken here, of its own text, as post_as_approved takes it.
+  v_snapshot := jsonb_set(p_approval -> 'snapshot', '{revision}', jsonb_build_object('piece_id', v_piece.id, 'n', v_n));
+  insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+  values (p_tenant_id, 'piece_revision', v_rev.id, v_snapshot, public.approval_hash(v_snapshot), v_actor,
+          coalesce((p_approval ->> 'policy_edition')::integer, 1))
+  returning id into v_approval;
+
+  for v_place in select * from jsonb_array_elements(v_places) loop
+    v_when := greatest(coalesce((v_place ->> 'at')::timestamptz, now()), now());
+    v_later := v_place ->> 'place' = 'google' and v_when > now() + interval '2 minutes';
+    insert into public.posts (tenant_id, file_id, place, kind, caption, scheduled_for, approved_by, approved_at, via, status,
+                              piece_id, revision, approval_id, capability_edition, good_until)
+    values (p_tenant_id, p_file_id, v_place ->> 'place', v_place ->> 'kind',
+            case when v_place ->> 'kind' = 'story' then null else nullif(btrim(v_place ->> 'caption'), '') end,
+            v_when, v_actor, now(), coalesce(p_approval ->> 'via', 'press'),
+            case when v_place ->> 'place' = 'google' and not v_later then 'publishing' else 'queued' end,
+            v_piece.id, v_n, v_approval, nullif(v_place ->> 'capability_edition', '')::integer,
+            nullif(v_place ->> 'good_until', '')::timestamptz)
+    returning id into v_id;
+    if v_place ->> 'place' = 'instagram' then
+      -- Ten minutes ahead of its time, so Instagram has made it ready by then; as text, as a job's key is made of strings.
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_prepare', greatest(now(), v_when - interval '10 minutes'),
+              jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    elsif v_later then
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_google', v_when, jsonb_build_object('post_id', v_id, 'attempt', '1'));
+    end if;
+    v_posts := v_posts || jsonb_build_object('place', v_place ->> 'place', 'kind', v_place ->> 'kind', 'post_id', v_id);
+  end loop;
+  return jsonb_build_object('fate', 'approved', 'approval_id', v_approval, 'piece_id', v_piece.id, 'revision', v_n,
+                            'posts', v_posts);
+end $$;
+
+
+--
+-- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00681; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+
+
+--
+-- Name: post_as_approved(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_as_approved(p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_post       public.posts;
+  v_approval   public.approvals;
+  v_placement  jsonb;
+  v_rendition  jsonb;
+  v_live       public.piece_renditions;
+begin
+  select * into v_post from public.posts p where p.id = p_post_id;
+  if not found then
+    return jsonb_build_object('is', 'changed');
+  end if;
+  if v_post.approval_id is null then
+    return jsonb_build_object('is', 'before');
+  end if;
+  select * into v_approval from public.approvals a where a.tenant_id = v_post.tenant_id and a.id = v_post.approval_id;
+  if not found or v_approval.voided_at is not null or public.approval_hash(v_approval.snapshot) <> v_approval.snapshot_hash
+     or (v_approval.snapshot -> 'revision' ->> 'piece_id') is distinct from v_post.piece_id::text
+     or (v_approval.snapshot -> 'revision' ->> 'n') is distinct from v_post.revision::text then
+    return jsonb_build_object('is', 'changed');
+  end if;
+  select e into v_placement from jsonb_array_elements(v_approval.snapshot -> 'placements') e
+   where e ->> 'place' = v_post.place and e ->> 'kind' = v_post.kind limit 1;
+  select e into v_rendition from jsonb_array_elements(v_approval.snapshot -> 'renditions') e
+   where e ->> 'shape' = public.post_shape(v_post.place, v_post.kind) limit 1;
+  select * into v_live from public.piece_renditions r
+   where r.tenant_id = v_post.tenant_id and r.piece_id = v_post.piece_id
+     and r.shape = public.post_shape(v_post.place, v_post.kind) and r.revision <= v_post.revision
+   order by r.revision desc limit 1;
+  if v_placement is null or v_rendition is null or v_live.id is null
+     or (v_post.kind <> 'story' and btrim(coalesce(v_placement ->> 'caption', '')) <> btrim(coalesce(v_post.caption, '')))
+     or v_rendition ->> 'checksum' <> v_live.checksum or v_rendition ->> 'path' <> v_live.path then
+    return jsonb_build_object('is', 'changed');
+  end if;
+  -- What the send's own check of the reason reads beside it: why the piece exists, and any fact the owner stated.
+  return jsonb_build_object('is', 'stands', 'path', v_live.path,
+                            'intent', (select p.intent from public.pieces p where p.id = v_post.piece_id),
+                            'facts', coalesce(v_approval.snapshot -> 'facts', '[]'::jsonb));
+end $$;
+
+
+--
+-- Name: FUNCTION post_as_approved(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_as_approved(p_post_id uuid) IS 'Right before a send (00681; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+
+
+--
 -- Name: post_attempt_close(uuid, text, integer, jsonb, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29337,18 +29710,38 @@ CREATE FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_pa
     AS $$
 declare
   v_patch jsonb := coalesce(p_patch, '{}'::jsonb);
+  -- Let go because its day passed before it could be sent: it says so, as a hold does.
+  v_late boolean := p_to = 'pulled' and v_patch ->> 'held_why' = 'late';
+  v_moved boolean;
 begin
   update public.posts p
      set status = p_to,
-         held_reason = case when p_to = 'held' then left(coalesce(v_patch ->> 'held_reason', 'Held.'), 300) end,
+         held_reason = case when p_to = 'held' or v_late
+                            then left(coalesce(v_patch ->> 'held_reason', 'Held.'), 300) end,
+         held_why = case when p_to = 'held' or v_late then v_patch ->> 'held_why' end,
          permalink = coalesce(v_patch ->> 'permalink', p.permalink),
-         published_at = case when p_to = 'published' then coalesce((v_patch ->> 'published_at')::timestamptz, now())
+         published_at = case when p_to = 'published'
+                             then coalesce((v_patch ->> 'published_at')::timestamptz, p.published_at, now())
                              else p.published_at end,
          external_id = coalesce(v_patch ->> 'external_id', p.external_id),
+         account_id = coalesce(v_patch ->> 'account_id', p.account_id),
+         verified_at = coalesce((v_patch ->> 'verified_at')::timestamptz, p.verified_at),
          error = case when v_patch ? 'error' then v_patch -> 'error' else p.error end,
          updated_at = now()
    where p.id = p_post_id and p.status = any (p_from);
-  return found;
+  v_moved := found;
+  -- Up on Instagram and not yet read back from the account: it is asked for by its own id two minutes on, written here
+  -- with the fact, so a run that dies after the move never leaves a post that is never seen. Its key is its own
+  -- ('seen'), apart from a send's two attempts.
+  if v_moved and p_to = 'published' then
+    insert into public.jobs (tenant_id, kind, due_at, payload)
+    select p.tenant_id, 'post_reconcile', now() + interval '2 minutes',
+           jsonb_build_object('post_id', p.id, 'attempt', 'seen', 'seen', 'ask')
+      from public.posts p
+     where p.id = p_post_id and p.place = 'instagram' and p.verified_at is null and p.external_id is not null
+    on conflict do nothing;
+  end if;
+  return v_moved;
 end $$;
 
 
@@ -29356,7 +29749,7 @@ end $$;
 -- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611), with its held reason, link, time, post id or refusal from p_patch; nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00681), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 
 --
@@ -29451,6 +29844,174 @@ COMMENT ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_link 
 
 
 --
+-- Name: post_shape(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_shape(p_place text, p_kind text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO 'public'
+    AS $$ select case when p_place = 'google' then 'google' when p_kind = 'picture' then '4x5' else '9x16' end $$;
+
+
+--
+-- Name: FUNCTION post_shape(p_place text, p_kind text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_shape(p_place text, p_kind text) IS 'The shape a placement sends (00681, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
+
+
+--
+-- Name: post_take_down_begin(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_actor uuid := auth.uid();
+  v_posts jsonb;
+  v_ads   jsonb;
+begin
+  if v_actor is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_tenant_id::text || '|files', 42));
+  if not exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id) then
+    return jsonb_build_object('fate', 'gone', 'actions', '[]'::jsonb, 'ads', '[]'::jsonb);
+  end if;
+  v_posts := public.posts_take_down_start(p_tenant_id, v_actor, 'owner_removed', p_file_id::text, array[p_file_id], true);
+  -- The ads that show it stop spending in the same transaction (the canvas's confirm says so before the press).
+  v_ads := public.ads_remediate_files(p_tenant_id, v_actor, 'owner_removed', p_file_id::text, array[p_file_id]);
+  if jsonb_array_length(v_posts -> 'actions') = 0 and jsonb_array_length(v_ads) = 0 then
+    return jsonb_build_object('fate', 'nothing', 'actions', '[]'::jsonb, 'ads', '[]'::jsonb);
+  end if;
+  return jsonb_build_object('fate', 'begun', 'remediation_id', v_posts -> 'remediation_id',
+                            'actions', v_posts -> 'actions', 'ads', v_ads);
+end $$;
+
+
+--
+-- Name: FUNCTION post_take_down_begin(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
+
+
+--
+-- Name: post_take_down_by_hand(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- The newest take-down of this post that Chanlytics could not finish itself.
+  select * into v_action from public.remediation_actions r
+   where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p_post_id and r.act = 'take_down'
+   order by r.started_at desc, r.id desc
+   limit 1
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  if v_action.outcome = 'done' then
+    return jsonb_build_object('fate', 'done');
+  end if;
+  if v_action.outcome = 'pending' then
+    return jsonb_build_object('fate', 'asking');
+  end if;
+  -- It waits again: the place is asked whether the post is gone, and the answer settles it.
+  update public.remediation_actions r set outcome = 'pending', finished_at = null where r.id = v_action.id;
+  update public.remediations m set finished_at = null where m.id = v_action.remediation_id;
+  insert into public.jobs (tenant_id, kind, due_at, payload)
+  values (p_tenant_id, 'post_take_down', now(),
+          jsonb_build_object('action_id', v_action.id, 'attempt', 'hand-' || floor(extract(epoch from now()))::bigint::text,
+                             'by_hand', 'yes'));
+  return jsonb_build_object('fate', 'asking');
+end $$;
+
+
+--
+-- Name: FUNCTION post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
+
+
+--
+-- Name: post_take_down_settle(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_action public.remediation_actions;
+  v_file uuid;
+  v_place text;
+  v_places jsonb;
+begin
+  if p_outcome not in ('done', 'blocked', 'not_possible', 'needs_person') then
+    raise exception 'post_take_down_settle: an outcome a place can give' using errcode = '22023';
+  end if;
+  select * into v_action from public.remediation_actions r
+   where r.id = p_action_id and r.target_type = 'post' and r.act = 'take_down'
+     for update;
+  if not found then
+    return jsonb_build_object('fate', 'unknown');
+  end if;
+  -- Settled once: a second answer for an action already settled changes nothing (a job run twice).
+  if v_action.outcome <> 'pending' then
+    return jsonb_build_object('fate', 'settled', 'outcome', v_action.outcome);
+  end if;
+  update public.remediation_actions r
+     set outcome = p_outcome, said = nullif(left(btrim(coalesce(p_said, '')), 300), ''), finished_at = now()
+   where r.id = v_action.id;
+  if p_outcome = 'done' then
+    update public.posts p set status = 'taken_down', held_reason = null, held_why = null, updated_at = now()
+     where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id
+       and p.status = any (array['published', 'publishing', 'checking']);
+  end if;
+  update public.remediations m set finished_at = now()
+   where m.id = v_action.remediation_id and m.finished_at is null
+     and not exists (select 1 from public.remediation_actions x
+                      where x.remediation_id = m.id and x.outcome = 'pending');
+  select p.file_id, p.place into v_file, v_place from public.posts p
+   where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
+  select jsonb_agg(distinct q.place) into v_places
+    from public.remediation_actions x
+    join public.posts q on q.tenant_id = x.tenant_id and q.id = x.target_id
+   where x.remediation_id = v_action.remediation_id and x.target_type = 'post' and x.act = 'take_down'
+     and q.file_id = v_file
+  having bool_and(x.outcome = 'done');
+  return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
+                            'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
+end $$;
+
+
+--
+-- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+
+
+--
 -- Name: post_unanswered(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -29486,6 +30047,79 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) IS 'A post sent with no answer (00611): Checking, and its reconcile two minutes on, together. Answers whether it was being sent. The service role''s.';
+
+
+--
+-- Name: posts_take_down_start(uuid, uuid, text, text, uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_rem    uuid;
+  v_post   public.posts;
+  v_action uuid;
+  v_out    jsonb := '[]'::jsonb;
+begin
+  if p_cause is distinct from 'owner_removed' then
+    raise exception 'posts_take_down_start: the owner''s own take-down' using errcode = '22023';
+  end if;
+  for v_post in
+    select * from public.posts p
+     where p.tenant_id = p_tenant_id and p.file_id = any (p_files) and p.place <> 'hand'
+       and (   p.status = any (array['publishing', 'checking'])
+            -- A story lasts a day: one up for longer is gone already, and nothing is asked of the place.
+            or (p.status = 'published'
+                and not (p.kind = 'story' and coalesce(p.published_at, p.updated_at) < now() - interval '24 hours'))
+            or (p_cancel and p.status = any (array['queued', 'preparing', 'held', 'failed'])))
+       -- One take-down at a time for a post: an action still waiting on its place is the one.
+       and not exists (select 1 from public.remediation_actions r
+                        where r.tenant_id = p_tenant_id and r.target_type = 'post' and r.target_id = p.id
+                          and r.act = 'take_down' and r.outcome = 'pending')
+     order by p.created_at, p.id
+     for update
+  loop
+    if v_rem is null then
+      insert into public.remediations (tenant_id, cause, subject_type, subject_id, actor_user_id)
+      values (p_tenant_id, p_cause, 'file', p_subject_id, p_actor)
+      returning id into v_rem;
+    end if;
+    if v_post.status = any (array['queued', 'preparing', 'held', 'failed']) then
+      -- Still waiting, or stopped: let go here and now. The jobs read the row before they act, so it is never sent.
+      update public.posts p set status = 'pulled', held_reason = null, held_why = null, updated_at = now()
+       where p.id = v_post.id;
+      insert into public.remediation_actions (tenant_id, remediation_id, target_type, target_id, act, outcome,
+                                              finished_at)
+      values (p_tenant_id, v_rem, 'scheduled_post', v_post.id, 'cancel', 'done', now())
+      returning id into v_action;
+      v_out := v_out || jsonb_build_object('action_id', v_action, 'post_id', v_post.id, 'place', v_post.place,
+                                           'kind', v_post.kind, 'act', 'cancel', 'outcome', 'done');
+    else
+      insert into public.remediation_actions (tenant_id, remediation_id, target_type, target_id, act, outcome)
+      values (p_tenant_id, v_rem, 'post', v_post.id, 'take_down', 'pending')
+      returning id into v_action;
+      insert into public.jobs (tenant_id, kind, due_at, payload)
+      values (p_tenant_id, 'post_take_down', now(), jsonb_build_object('action_id', v_action, 'attempt', '1'));
+      v_out := v_out || jsonb_build_object('action_id', v_action, 'post_id', v_post.id, 'place', v_post.place,
+                                           'kind', v_post.kind, 'act', 'take_down', 'outcome', 'pending');
+    end if;
+  end loop;
+  if v_rem is not null
+     and not exists (select 1 from public.remediation_actions r where r.remediation_id = v_rem and r.outcome = 'pending')
+  then
+    update public.remediations m set finished_at = now() where m.id = v_rem;
+  end if;
+  return jsonb_build_object('remediation_id', v_rem, 'actions', v_out);
+end $$;
+
+
+--
+-- Name: FUNCTION posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00682; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause (owner_removed: the one cause that takes a post down) about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
 
 
 --
@@ -45357,6 +45991,45 @@ COMMENT ON COLUMN public.appointments.lapse_told IS 'Whether AI told the custome
 
 
 --
+-- Name: approvals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.approvals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    subject_type text NOT NULL,
+    subject_id uuid NOT NULL,
+    snapshot jsonb NOT NULL,
+    snapshot_hash text NOT NULL,
+    approved_by uuid,
+    approved_at timestamp with time zone DEFAULT now() NOT NULL,
+    policy_edition integer DEFAULT 1 NOT NULL,
+    voided_at timestamp with time zone,
+    voided_why text,
+    CONSTRAINT approvals_policy_edition_check CHECK ((policy_edition >= 1)),
+    CONSTRAINT approvals_snapshot_check CHECK ((jsonb_typeof(snapshot) = 'object'::text)),
+    CONSTRAINT approvals_snapshot_hash_check CHECK ((snapshot_hash ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT approvals_subject_type_check CHECK ((subject_type = ANY (ARRAY['piece_revision'::text, 'plan'::text, 'ad'::text]))),
+    CONSTRAINT approvals_voided_shape CHECK (((voided_at IS NULL) = (voided_why IS NULL))),
+    CONSTRAINT approvals_voided_why_check CHECK ((voided_why = ANY (ARRAY['changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'owner'::text])))
+);
+
+
+--
+-- Name: TABLE approvals; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.approvals IS 'What an owner approved, exactly (00681; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
+
+
+--
+-- Name: COLUMN approvals.snapshot; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.approvals.snapshot IS '{revision {piece_id, n}, renditions [{shape, file_id, path, checksum}], placements [{place, kind, at, caption}], uses, spend, facts [{says, until}]} (contracts PieceApprovalSnapshot).';
+
+
+--
 -- Name: ask_actions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -49074,7 +49747,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'form_request'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'form_request'::text, 'post_down'::text, 'post_by_hand'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -49605,6 +50278,68 @@ COMMENT ON TABLE public.piece_images IS 'The machine image a made video is drawn
 
 
 --
+-- Name: piece_renditions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.piece_renditions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    piece_id uuid NOT NULL,
+    revision integer NOT NULL,
+    shape text NOT NULL,
+    file_id uuid NOT NULL,
+    path text NOT NULL,
+    checksum text NOT NULL,
+    bytes bigint,
+    made_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT piece_renditions_bytes_check CHECK (((bytes IS NULL) OR (bytes > 0))),
+    CONSTRAINT piece_renditions_checksum_check CHECK ((checksum ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT piece_renditions_path_check CHECK (((char_length(path) >= 1) AND (char_length(path) <= 400))),
+    CONSTRAINT piece_renditions_revision_check CHECK ((revision >= 1)),
+    CONSTRAINT piece_renditions_shape_check CHECK ((shape = ANY (ARRAY['9x16'::text, '4x5'::text, '1x1'::text, '16x9'::text, 'google'::text])))
+);
+
+
+--
+-- Name: TABLE piece_renditions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00681; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
+
+
+--
+-- Name: piece_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.piece_revisions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    piece_id uuid NOT NULL,
+    n integer NOT NULL,
+    plan jsonb NOT NULL,
+    captions jsonb DEFAULT '{}'::jsonb NOT NULL,
+    changed text[] DEFAULT '{}'::text[] NOT NULL,
+    made_by text NOT NULL,
+    cost_cents integer DEFAULT 0 NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT piece_revisions_captions_check CHECK ((jsonb_typeof(captions) = 'object'::text)),
+    CONSTRAINT piece_revisions_changed_check CHECK ((changed <@ ARRAY['caption'::text, 'trim'::text, 'order'::text, 'sound'::text, 'layout'::text, 'first'::text])),
+    CONSTRAINT piece_revisions_cost_cents_check CHECK ((cost_cents >= 0)),
+    CONSTRAINT piece_revisions_made_by_check CHECK ((made_by = ANY (ARRAY['ai'::text, 'owner'::text, 'operator'::text]))),
+    CONSTRAINT piece_revisions_n_check CHECK ((n >= 1)),
+    CONSTRAINT piece_revisions_plan_check CHECK ((jsonb_typeof(plan) = 'object'::text))
+);
+
+
+--
+-- Name: TABLE piece_revisions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.piece_revisions IS 'One version of a piece (00681; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
+
+
+--
 -- Name: pieces; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -49625,11 +50360,15 @@ CREATE TABLE public.pieces (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     made_at timestamp with time zone,
+    revision integer DEFAULT 1 NOT NULL,
+    intent jsonb,
     CONSTRAINT pieces_card_key_shape CHECK (((char_length(card_key) >= 1) AND (char_length(card_key) <= 120))),
     CONSTRAINT pieces_failed_shape CHECK (((status = 'failed'::text) = (failed_why IS NOT NULL))),
     CONSTRAINT pieces_failed_why_check CHECK ((failed_why = ANY (ARRAY['clips'::text, 'draw'::text, 'store'::text, 'unknown'::text]))),
+    CONSTRAINT pieces_intent_shape CHECK (((intent IS NULL) OR (jsonb_typeof(intent) = 'object'::text))),
     CONSTRAINT pieces_plan_shape CHECK (((jsonb_typeof(plan) = 'object'::text) AND (jsonb_typeof(look) = 'object'::text))),
-    CONSTRAINT pieces_shape_check CHECK ((shape = ANY (ARRAY['hook_cut'::text, 'blocks'::text]))),
+    CONSTRAINT pieces_revision_shape CHECK ((revision >= 1)),
+    CONSTRAINT pieces_shape_check CHECK ((shape = ANY (ARRAY['hook_cut'::text, 'blocks'::text, 'picture'::text]))),
     CONSTRAINT pieces_stage_check CHECK ((stage = ANY (ARRAY['queued'::text, 'waiting_clip'::text, 'from_drive'::text, 'drawing'::text, 'saving'::text]))),
     CONSTRAINT pieces_status_check CHECK ((status = ANY (ARRAY['making'::text, 'made'::text, 'failed'::text])))
 );
@@ -49640,6 +50379,13 @@ CREATE TABLE public.pieces (
 --
 
 COMMENT ON TABLE public.pieces IS 'One row a video asked for (00613, decision 0122): its plan as pressed, the template''s edition it is drawn by, where it stands and the file it became. Written only through its doors.';
+
+
+--
+-- Name: COLUMN pieces.shape; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pieces.shape IS 'hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post''s piece (00681), its row written at its first approval, which no video job reads (stage is not read for one).';
 
 
 --
@@ -49668,6 +50414,20 @@ COMMENT ON COLUMN public.pieces.machine IS 'The machine it is being drawn on, wh
 --
 
 COMMENT ON COLUMN public.pieces.card_key IS 'The key of the card whose press asked for it: the same press twice is one video.';
+
+
+--
+-- Name: COLUMN pieces.revision; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pieces.revision IS 'The version the piece stands at (00681, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
+
+
+--
+-- Name: COLUMN pieces.intent; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.pieces.intent IS 'Why it exists (00681; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
 
 
 --
@@ -49911,11 +50671,22 @@ CREATE TABLE public.posts (
     error jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    piece_id uuid,
+    revision integer,
+    approval_id uuid,
+    capability_edition integer,
+    verified_at timestamp with time zone,
+    good_until timestamp with time zone,
+    account_id text,
+    held_why text,
+    CONSTRAINT posts_account_shape CHECK (((account_id IS NULL) OR ((char_length(account_id) >= 1) AND (char_length(account_id) <= 200)))),
     CONSTRAINT posts_attempts_shape CHECK (((attempts >= 0) AND (attempts <= 2))),
     CONSTRAINT posts_caption_shape CHECK (((caption IS NULL) OR (char_length(caption) <= 2200))),
-    CONSTRAINT posts_held_shape CHECK ((((status = 'held'::text) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)))),
+    CONSTRAINT posts_held_shape CHECK (((((status = 'held'::text) OR ((status = 'pulled'::text) AND (held_why = 'late'::text))) = (held_reason IS NOT NULL)) AND ((held_reason IS NULL) OR (char_length(held_reason) <= 300)) AND ((held_why IS NULL) OR (status = ANY (ARRAY['held'::text, 'pulled'::text]))))),
+    CONSTRAINT posts_held_why_check CHECK ((held_why = ANY (ARRAY['approver'::text, 'disconnected'::text, 'line_off'::text, 'removed'::text, 'stopped'::text, 'changed'::text, 'rights'::text, 'claim'::text, 'place'::text, 'money'::text, 'reason_passed'::text, 'late'::text]))),
     CONSTRAINT posts_kind_check CHECK ((kind = ANY (ARRAY['picture'::text, 'story'::text, 'reel'::text]))),
     CONSTRAINT posts_place_check CHECK ((place = ANY (ARRAY['instagram'::text, 'google'::text, 'hand'::text]))),
+    CONSTRAINT posts_revision_shape CHECK ((((revision IS NULL) OR (revision >= 1)) AND ((capability_edition IS NULL) OR (capability_edition >= 1)))),
     CONSTRAINT posts_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text, 'published'::text, 'held'::text, 'failed'::text, 'pulled'::text, 'taken_down'::text]))),
     CONSTRAINT posts_via_check CHECK ((via = ANY (ARRAY['press'::text, 'card'::text])))
 );
@@ -49940,6 +50711,62 @@ COMMENT ON COLUMN public.posts.status IS 'queued (approved, its job waiting), pr
 --
 
 COMMENT ON COLUMN public.posts.container_id IS 'The newest send''s container at the platform (publish_attempts holds each). Service role only.';
+
+
+--
+-- Name: COLUMN posts.piece_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.piece_id IS 'The piece this placement shows (00681); null for one approved before it, read as before.';
+
+
+--
+-- Name: COLUMN posts.revision; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.revision IS 'The version of the piece it shows (00681, piece_revisions.n).';
+
+
+--
+-- Name: COLUMN posts.approval_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.approval_id IS 'The approval it was approved in (00681); null for one approved before it, read as before.';
+
+
+--
+-- Name: COLUMN posts.capability_edition; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.capability_edition IS 'The place''s capability edition when it was approved (contracts PLACE_CAPABILITIES, 00681).';
+
+
+--
+-- Name: COLUMN posts.verified_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.verified_at IS 'When the place was seen holding it (00681): "On Instagram" is said only from then.';
+
+
+--
+-- Name: COLUMN posts.good_until; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.good_until IS 'The last moment it is still worth sending (00681; PRD 8.2), from the piece''s intent at approval: nothing is sent after it, by any road. Null where nothing dates it.';
+
+
+--
+-- Name: COLUMN posts.account_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.account_id IS 'The place''s own account it went to (00681): an Instagram account''s id, a Google location''s name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one.';
+
+
+--
+-- Name: COLUMN posts.held_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.posts.held_why IS 'Why it was held, or let go before it went (00681, contracts POST_HELD_WHYS): the recheck''s reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words.';
 
 
 --
@@ -51543,6 +52370,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: approvals approvals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.approvals
+    ADD CONSTRAINT approvals_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: approvals approvals_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.approvals
+    ADD CONSTRAINT approvals_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: ask_actions ask_actions_one_per_card; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -52631,6 +53474,54 @@ ALTER TABLE ONLY public.piece_images
 
 
 --
+-- Name: piece_renditions piece_renditions_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_renditions
+    ADD CONSTRAINT piece_renditions_once UNIQUE (piece_id, revision, shape);
+
+
+--
+-- Name: piece_renditions piece_renditions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_renditions
+    ADD CONSTRAINT piece_renditions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: piece_revisions piece_revisions_once; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_once UNIQUE (piece_id, n);
+
+
+--
+-- Name: piece_revisions piece_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: piece_revisions piece_revisions_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: piece_revisions piece_revisions_tenant_piece_n_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_tenant_piece_n_key UNIQUE (tenant_id, piece_id, n);
+
+
+--
 -- Name: pieces pieces_card_key_once; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -53433,6 +54324,20 @@ CREATE UNIQUE INDEX appointments_source_uq ON public.appointments USING btree (t
 --
 
 CREATE INDEX appointments_tenant_start ON public.appointments USING btree (tenant_id, starts_at);
+
+
+--
+-- Name: approvals_approved_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX approvals_approved_by ON public.approvals USING btree (approved_by) WHERE (approved_by IS NOT NULL);
+
+
+--
+-- Name: approvals_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX approvals_subject ON public.approvals USING btree (tenant_id, subject_type, subject_id);
 
 
 --
@@ -55242,6 +56147,27 @@ CREATE INDEX person_notes_steps_open ON public.person_notes USING btree (tenant_
 
 
 --
+-- Name: piece_renditions_file; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX piece_renditions_file ON public.piece_renditions USING btree (tenant_id, file_id);
+
+
+--
+-- Name: piece_renditions_revision; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX piece_renditions_revision ON public.piece_renditions USING btree (tenant_id, piece_id, revision);
+
+
+--
+-- Name: piece_revisions_created_by; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX piece_revisions_created_by ON public.piece_revisions USING btree (created_by) WHERE (created_by IS NOT NULL);
+
+
+--
 -- Name: pieces_created_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55253,6 +56179,13 @@ CREATE INDEX pieces_created_by ON public.pieces USING btree (created_by) WHERE (
 --
 
 CREATE INDEX pieces_file ON public.pieces USING btree (tenant_id, file_id) WHERE (file_id IS NOT NULL);
+
+
+--
+-- Name: pieces_one_picture; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX pieces_one_picture ON public.pieces USING btree (tenant_id, file_id) WHERE (shape = 'picture'::text);
 
 
 --
@@ -55312,6 +56245,13 @@ CREATE INDEX policies_person_reply_idx ON public.policies USING btree (tenant_id
 
 
 --
+-- Name: posts_approval; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_approval ON public.posts USING btree (tenant_id, approval_id) WHERE (approval_id IS NOT NULL);
+
+
+--
 -- Name: posts_approved_by; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -55337,6 +56277,13 @@ CREATE UNIQUE INDEX posts_one_by_hand ON public.posts USING btree (file_id) WHER
 --
 
 CREATE UNIQUE INDEX posts_one_on_its_way ON public.posts USING btree (file_id, place, kind) WHERE (status = ANY (ARRAY['queued'::text, 'preparing'::text, 'publishing'::text, 'checking'::text]));
+
+
+--
+-- Name: posts_piece; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX posts_piece ON public.posts USING btree (tenant_id, piece_id) WHERE (piece_id IS NOT NULL);
 
 
 --
@@ -55442,6 +56389,13 @@ CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (te
 --
 
 CREATE INDEX remediation_actions_pending_by_target ON public.remediation_actions USING btree (tenant_id, target_type, target_id) WHERE (outcome = 'pending'::text);
+
+
+--
+-- Name: remediation_actions_take_downs_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX remediation_actions_take_downs_open ON public.remediation_actions USING btree (tenant_id, started_at DESC) WHERE ((act = 'take_down'::text) AND (outcome <> 'done'::text));
 
 
 --
@@ -58372,6 +59326,22 @@ ALTER TABLE ONLY public.appointments
 
 
 --
+-- Name: approvals approvals_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.approvals
+    ADD CONSTRAINT approvals_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: approvals approvals_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.approvals
+    ADD CONSTRAINT approvals_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: ask_actions ask_actions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -59820,6 +60790,54 @@ ALTER TABLE ONLY public.person_notes
 
 
 --
+-- Name: piece_renditions piece_renditions_file_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_renditions
+    ADD CONSTRAINT piece_renditions_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: piece_renditions piece_renditions_revision_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_renditions
+    ADD CONSTRAINT piece_renditions_revision_same_workspace FOREIGN KEY (tenant_id, piece_id, revision) REFERENCES public.piece_revisions(tenant_id, piece_id, n) ON DELETE CASCADE;
+
+
+--
+-- Name: piece_renditions piece_renditions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_renditions
+    ADD CONSTRAINT piece_renditions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: piece_revisions piece_revisions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: piece_revisions piece_revisions_piece_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_piece_id_same_workspace FOREIGN KEY (tenant_id, piece_id) REFERENCES public.pieces(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: piece_revisions piece_revisions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.piece_revisions
+    ADD CONSTRAINT piece_revisions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: pieces pieces_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -59900,6 +60918,14 @@ ALTER TABLE ONLY public.policies
 
 
 --
+-- Name: posts posts_approval_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_approval_id_same_workspace FOREIGN KEY (tenant_id, approval_id) REFERENCES public.approvals(tenant_id, id) ON DELETE SET NULL (approval_id);
+
+
+--
 -- Name: posts posts_approved_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -59913,6 +60939,14 @@ ALTER TABLE ONLY public.posts
 
 ALTER TABLE ONLY public.posts
     ADD CONSTRAINT posts_file_id_same_workspace FOREIGN KEY (tenant_id, file_id) REFERENCES public.files(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: posts posts_piece_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.posts
+    ADD CONSTRAINT posts_piece_id_same_workspace FOREIGN KEY (tenant_id, piece_id) REFERENCES public.pieces(tenant_id, id) ON DELETE SET NULL (piece_id);
 
 
 --
@@ -60764,6 +61798,21 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY appointments_member_select ON public.appointments FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: approvals; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.approvals ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: approvals approvals_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY approvals_member_select ON public.approvals FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -62169,6 +63218,36 @@ CREATE POLICY person_notes_member_select ON public.person_notes FOR SELECT TO au
 ALTER TABLE public.piece_images ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: piece_renditions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.piece_renditions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: piece_renditions piece_renditions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY piece_renditions_member_select ON public.piece_renditions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: piece_revisions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.piece_revisions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: piece_revisions piece_revisions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY piece_revisions_member_select ON public.piece_revisions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: pieces; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -63302,6 +64381,14 @@ GRANT ALL ON FUNCTION public.appointments_note_change() TO service_role;
 
 REVOKE ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.appointments_scrub(p_tenant_id uuid, p_contact_id uuid, p_needles text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION approval_hash(p_snapshot jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.approval_hash(p_snapshot jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.approval_hash(p_snapshot jsonb) TO service_role;
 
 
 --
@@ -67299,6 +68386,14 @@ GRANT ALL ON FUNCTION public.piece_file_begin(p_piece_id uuid, p_id uuid, p_medi
 
 
 --
+-- Name: FUNCTION piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION piece_sent(p_piece_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -67320,6 +68415,15 @@ GRANT ALL ON FUNCTION public.piece_stage(p_piece_id uuid, p_stage text) TO servi
 
 REVOKE ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.piece_step(p_piece_id uuid, p_machine jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) TO authenticated;
+GRANT ALL ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) TO service_role;
 
 
 --
@@ -67547,6 +68651,23 @@ GRANT ALL ON FUNCTION public.post_again(p_post_id uuid, p_from text) TO service_
 
 
 --
+-- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION post_as_approved(p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_as_approved(p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_as_approved(p_post_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION post_attempt_close(p_attempt_id uuid, p_outcome text, p_http_status integer, p_answer jsonb, p_container_id text, p_external_id text, p_error jsonb); Type: ACL; Schema: public; Owner: -
 --
 
@@ -67607,11 +68728,53 @@ GRANT ALL ON FUNCTION public.post_report(p_tenant_id uuid, p_file_id uuid, p_lin
 
 
 --
+-- Name: FUNCTION post_shape(p_place text, p_kind text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_shape(p_place text, p_kind text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_shape(p_place text, p_kind text) TO service_role;
+
+
+--
+-- Name: FUNCTION post_take_down_begin(p_tenant_id uuid, p_file_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) TO service_role;
+
+
+--
 -- Name: FUNCTION post_unanswered(p_post_id uuid, p_attempt text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.post_unanswered(p_post_id uuid, p_attempt text) TO service_role;
+
+
+--
+-- Name: FUNCTION posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) TO service_role;
 
 
 --
@@ -70171,6 +71334,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.appointments TO service_role;
 
 
 --
+-- Name: TABLE approvals; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.approvals TO authenticated;
+GRANT ALL ON TABLE public.approvals TO service_role;
+
+
+--
 -- Name: TABLE ask_actions; Type: ACL; Schema: public; Owner: -
 --
 
@@ -71943,6 +73114,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.piece_images TO service_role;
 
 
 --
+-- Name: TABLE piece_renditions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.piece_renditions TO authenticated;
+GRANT ALL ON TABLE public.piece_renditions TO service_role;
+
+
+--
+-- Name: TABLE piece_revisions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.piece_revisions TO authenticated;
+GRANT ALL ON TABLE public.piece_revisions TO service_role;
+
+
+--
 -- Name: TABLE pieces; Type: ACL; Schema: public; Owner: -
 --
 
@@ -72045,6 +73232,20 @@ GRANT SELECT(updated_at) ON TABLE public.pieces TO authenticated;
 --
 
 GRANT SELECT(made_at) ON TABLE public.pieces TO authenticated;
+
+
+--
+-- Name: COLUMN pieces.revision; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(revision) ON TABLE public.pieces TO authenticated;
+
+
+--
+-- Name: COLUMN pieces.intent; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(intent) ON TABLE public.pieces TO authenticated;
 
 
 --
@@ -72213,6 +73414,62 @@ GRANT SELECT(created_at) ON TABLE public.posts TO authenticated;
 --
 
 GRANT SELECT(updated_at) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.piece_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(piece_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.revision; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(revision) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.approval_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(approval_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.capability_edition; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(capability_edition) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.verified_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(verified_at) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.good_until; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(good_until) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.account_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(account_id) ON TABLE public.posts TO authenticated;
+
+
+--
+-- Name: COLUMN posts.held_why; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT(held_why) ON TABLE public.posts TO authenticated;
 
 
 --

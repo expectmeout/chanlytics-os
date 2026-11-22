@@ -27,6 +27,8 @@ const FAN_OUTS = {
   "apps/dashboard/src/server/connections/mailbox-connections.ts|rows": "a workspace's mailboxes",
   "apps/dashboard/src/server/console/support.ts|askers .slice(0, ASKER_LOOKUPS)": "ASKER_LOOKUPS",
   "apps/dashboard/src/server/leads/send.ts|rows": "a workspace's mailboxes",
+  "apps/dashboard/src/server/posts/approve.ts|[...new Set(shapes)]":
+    "at most four shapes, one a placement (contracts RENDITION_SHAPES)",
   "apps/dashboard/src/server/posts/compose.ts|FONT_FILES": "a fixed list",
   "apps/dashboard/src/server/posts/compose.ts|spots":
     "a storyboard's stills: two a block at most, of PIECE_LIMITS.blocksMax blocks",

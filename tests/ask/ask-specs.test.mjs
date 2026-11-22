@@ -129,6 +129,8 @@ const KINDS = [
   "ad_draft",
   // A yes for a photo or a video, kept or taken back (00665).
   "file_yes",
+  // A made piece taken down everywhere it is up (00682).
+  "take_down",
   // A message on file changed from Ask (the message sheet's review, 12 Nov 2026): its words, its name, put away, deleted.
   "message_words",
   "message_rename",
@@ -226,6 +228,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     ad_draft: "approve",
     // A yes for a photo or a video is the settings permission's, as every change to a file is.
     file_yes: "settings",
+    // A take-down is the settings permission's, as putting a post up is.
+    take_down: "settings",
     // A message on file changed, as its sheet's own presses are: the approve permission's.
     message_words: "approve",
     message_rename: "approve",
@@ -723,6 +727,7 @@ const SHAPES = {
     }),
     card("file_yes", { file_id: FILE_ID, file: "chair-by-the-window", uses: [], back: true }),
   ],
+  take_down: [card("take_down", { file_id: FILE_ID, file: "chair-by-the-window" })],
   piece: [
     card("piece", {
       shape: "hook_cut",
@@ -1022,6 +1027,7 @@ test("every kind has a spec -- the twenty-one Ask proposed and every page's verb
     bring_in: ["POST content/bring-in"],
     ad_draft: ["POST ads/draft"],
     file_yes: ["POST files/[id]/yes", "POST files/[id]/yes/back"],
+    take_down: ["DELETE files/[id]/posts"],
     fix: [],
     message_words: ["POST templates/versions", "PUT templates/[id]"],
     message_rename: ["PUT templates/[id]"],
@@ -1077,6 +1083,7 @@ test("a spec's `needs` is the policy role of every route it names; the exception
       ["post", "partner"],
       ["publish", "partner"],
       ["settings", "partner"],
+      ["take_down", "partner"],
     ],
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))

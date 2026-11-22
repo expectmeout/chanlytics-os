@@ -38,6 +38,7 @@ export const ASK_PRESS_WORDS = [
   "send_to",
   "post",
   "post_it",
+  "take_down",
   "stop",
   "whisper",
   "ring_me",
@@ -201,6 +202,8 @@ export const ASK_KIND_TRAITS = {
   bring_in: t("find", "keeps", null, "press", "add"),
   // A post put up in public: always pressed, as the page's Post it is.
   publish: t("say", "public", null, "press", "post_it"),
+  // A post taken down everywhere it is up: public, never undone, always pressed.
+  take_down: t("change", "removes", null, "press", "take_down"),
   // Fix: its door, nothing to press.
   fix: t("fix", "keeps", null, "press", "open"),
 } satisfies Record<AskProposal["kind"], AskKindTraits>;

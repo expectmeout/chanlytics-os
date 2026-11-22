@@ -9,7 +9,7 @@ import {
   CONNECTIONS_PAGE,
   CONTENT_SHEET_WORDS,
   CONTENT_WORDS,
-  INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   type InstagramPostKind,
   type PostPlace,
 } from "@chanlytics/contracts";
@@ -18,10 +18,9 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Switch } from "../../kit/switch/switch";
 import type { PostBothDraft } from "./model/post-both";
+import { PLACE_GLYPH } from "./viewer/goes";
 import type { PlaceStanding } from "./model/places";
 import { viewerStandsSaid, type ViewerClock } from "./model/viewer-line";
-
-const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
 
 /** What a row reads of the list (post-both.tsx usePostBoth): who may post, what is out, and the list's own presses. */
 interface PlaceRowHands {
@@ -30,6 +29,8 @@ interface PlaceRowHands {
   pulling: boolean;
   /** The kinds Instagram can take now. */
   kinds: readonly InstagramPostKind[];
+  /** A picture or a video: what Instagram takes it as. */
+  fileKind: string;
   /** Why each place that refused a post did. */
   refused: Partial<Record<PostPlace, string>>;
   pull: (postId: string) => void;
@@ -70,12 +71,15 @@ function InstagramAs(props: {
   as: InstagramPostKind;
   /** The kinds that can go now: one with a post of its own on its way is drawn off, and its line under the place says why. */
   kinds: readonly InstagramPostKind[];
+  /** Every kind Instagram takes of this file: a picture as a post or a story; a video as a reel alone, which needs no choice. */
+  all: readonly InstagramPostKind[];
   choose: (as: InstagramPostKind) => void;
 }) {
   const { as, kinds, choose } = props;
+  if (props.all.length < 2) return null;
   return (
     <span className="cnv-as" role="group" aria-label={CONTENT_WORDS.post.asWhat}>
-      {INSTAGRAM_POST_KINDS.map((kind) => (
+      {props.all.map((kind) => (
         <Button
           key={kind}
           size="sm"
@@ -99,7 +103,7 @@ function PlaceEnd({ at, draft, both }: { at: PlaceStanding; draft: PostBothDraft
     return (
       <span className="cnv-dest-end">
         {place === "instagram" && draft.instagram ? (
-          <InstagramAs as={draft.as} kinds={both.kinds} choose={both.choose} />
+          <InstagramAs as={draft.as} kinds={both.kinds} all={instagramKindsFor(both.fileKind)} choose={both.choose} />
         ) : null}
         <Switch
           label={CONTENT_SHEET_WORDS.post.switchLabel(place)}
