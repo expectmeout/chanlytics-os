@@ -1,12 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import {
-  PLACE_CAPABILITIES,
-  TAKE_DOWN_WORDS,
-  capabilityStands,
-  fileSaidOf,
-  takeDownWillOf,
-} from "@chanlytics/contracts";
+import { TAKE_DOWN_WORDS, fileSaidOf, placeDeletes, takeDownWillOf } from "@chanlytics/contracts";
 import { readFilePosts } from "../../../../posts/record";
 import { load } from "../../../../shared/reader";
 import { filesNamedForAsk } from "../../../../readers/files";
@@ -32,7 +26,7 @@ async function takeDownOutcome(toolContext: ToolContext, input: { file: string }
   if (file.source !== "made")
     return refuse("only a post or a video made here is posted from here, so only one is taken down");
   const posts = await readFilePosts(toolContext.ctx, toolContext.tenantId, file.id);
-  const will = takeDownWillOf(posts, (place) => capabilityStands(PLACE_CAPABILITIES[place].remoteDelete), Date.now());
+  const will = takeDownWillOf(posts, placeDeletes, Date.now());
   if (will.length === 0) return refuse("nothing of it is up or waiting to go up. Say so in a few words");
   const name = fileSaidOf(file.name);
   return propose({

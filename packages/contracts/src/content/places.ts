@@ -149,6 +149,12 @@ export const PLACE_CAPABILITIES: Readonly<Record<PostPlace, PlaceCapabilities>> 
 export const capabilityStands = (proof: CapabilityProof | undefined): boolean =>
   !!proof && proof.is !== "not_so" && proof.is !== "to_prove";
 
+/** Whether a place takes a delete from here, by its table: proved or built, known not to, or not proved yet. */
+export const placeDeletes = (place: PostPlace): "yes" | "no" | "unproved" => {
+  const proof = PLACE_CAPABILITIES[place].remoteDelete;
+  return capabilityStands(proof) ? "yes" : proof.is === "to_prove" ? "unproved" : "no";
+};
+
 /** Whether a place takes a kind now, by its table. */
 export const placeTakes = (place: PostPlace, kind: PostKind): boolean =>
   capabilityStands(PLACE_CAPABILITIES[place].formats[kind]);

@@ -145,7 +145,7 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
-export { capabilityStands, PLACE_CAPABILITIES, placeTakes } from "./places";
+export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./places";
 export type {
   CapabilityProof,
   PlaceAdapter,

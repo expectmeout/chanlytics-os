@@ -280,11 +280,16 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     presses.clear();
     acts.onNext(next);
   };
-  const lead = hands.may ? viewerLeadOf(file, next) : null;
+  // The act P presses is the coral one: a line's own fix where one leads (Ask, Look again), else the piece's next step;
+  // none while a take-down of it is under way.
+  const step = hands.may && !hands.standing.holdsLead ? viewerLeadOf(file, next) : null;
+  const fix = hands.may ? hands.standing.lead : null;
+  const lead = fix ?? (step ? { words: step.words, press: onLead } : null);
   // Where it stands, opened: a post's list of places once its record is read (foot.tsx statusOpensOf).
   const onStatus = statusOpensOf({ ready: drafts.both.ready }, () => {
     presses.clear();
-    drafts.both.begin();
+    if (hands.standing.opensToRead) drafts.both.look();
+    else drafts.both.begin();
   });
   const playable = file.kind === "video" && file.media_status === "ready";
   const flip = playable ? () => setSound((on) => !on) : null;
@@ -292,7 +297,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     before: acts.onBefore,
     after: acts.onAfter,
     sound: flip,
-    lead: lead && !presses.busy ? onLead : null,
+    lead: lead && !presses.busy ? lead.press : null,
   });
   const onChange = acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null);
   const more = hands.may ? (
@@ -350,6 +355,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 leads={standing.leads}
                 ad={standing.ad}
                 takeDown={standing.takeDown}
+                holdsLead={standing.holdsLead}
               />
             )}
             {presses.asking ? null : (

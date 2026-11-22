@@ -247,8 +247,8 @@ test("asked to take a piece down, AI's card says what each place will be asked, 
   const card = cardOf(out);
   assert.equal(card?.kind, "take_down");
   assert.equal(card.title, "Take down “Open late on fridays”?");
-  // Never a promise the place has not kept: Instagram's delete from here is not proved, so the step is said as the owner's.
-  assert.match(card.summary, /Instagram post: You delete it in Instagram; Chanlytics checks it's gone/);
+  // Never a promise the place has not kept: Instagram's delete from here is not proved, so it is asked, and said so.
+  assert.match(card.summary, /Instagram post: Chanlytics asks Instagram\. If it can't, you delete it there/);
   assert.match(card.summary, /Instagram story: Won't go up/);
   assert.match(card.summary, /Google: Chanlytics takes it down/);
   assert.deepEqual(takeDownSpec.commit({ payload: card.payload }), {

@@ -167,7 +167,7 @@ export function AskPerson(props: {
               {draft.text === null ? W.writing : W.writtenByAi}
             </small>
             <LineField
-              rows={4}
+              rows={6}
               value={words}
               onChange={(event) => setTyped({ key: draft.key, text: event.currentTarget.value })}
               disabled={draft.text === null || busy}

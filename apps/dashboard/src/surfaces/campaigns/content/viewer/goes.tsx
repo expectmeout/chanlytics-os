@@ -5,6 +5,7 @@
  * this draws it, and hands each press to the pane. A place that can still take a post keeps its switch in the list under
  * these (post-both-places.tsx). One thing moves: the ring of a line that mends itself.
  */
+import { useId } from "react";
 import {
   CONNECTIONS_PAGE,
   GOES_WORDS,
@@ -141,12 +142,18 @@ function GoesRow({ line, on }: { line: GoesLine; on: GoesPresses }) {
 
 /** The piece's placements, each on its line; nothing where it is nowhere yet (the places it can go say so, under). */
 export function WhereItGoes({ lines, on }: { lines: readonly GoesLine[]; on: GoesPresses }) {
+  const titleId = useId();
   if (lines.length === 0) return null;
   return (
-    <div className="cnv-goes" role="group" aria-label={GOES_WORDS.title} data-testid="cnv-goes">
-      {lines.map((line) => (
-        <GoesRow key={line.key} line={line} on={on} />
-      ))}
-    </div>
+    <section className="cnv-who" aria-labelledby={titleId} data-testid="cnv-goes">
+      <h3 className="cnv-sect" id={titleId}>
+        {GOES_WORDS.title}
+      </h3>
+      <div className="cnv-goes">
+        {lines.map((line) => (
+          <GoesRow key={line.key} line={line} on={on} />
+        ))}
+      </div>
+    </section>
   );
 }

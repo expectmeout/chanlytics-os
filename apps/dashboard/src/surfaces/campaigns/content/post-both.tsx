@@ -156,6 +156,15 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
       setRefused({});
       setHeld(postBothOpening(open, piece.posts, Date.now(), fileKind));
     },
+    /**
+     * Opened to be read, with no place switched on: where the piece waits for something a new post would not mend (a
+     * person's yes, its connection, AI paused), so Post is never armed beside the line that says why it cannot go.
+     */
+    look: () => {
+      if (!known || !open) return;
+      setRefused({});
+      setHeld({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false });
+    },
     cancel: () => {
       setRefused({});
       mover.stop();

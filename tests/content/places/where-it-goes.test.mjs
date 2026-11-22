@@ -115,6 +115,15 @@ test("held for a person: the line names them, its fix asks them, and the piece's
   assert.equal(lines[0].acts[0].person.id, "subject-1");
   assert.equal(lines[0].acts[1].prompt, "Make it again without Paola Ruiz");
   assert.deepEqual(goesPillOf(lines), { said: "Paola Ruiz hasn't said yes", tone: "you", moving: false });
+  // Someone who said no, or took their yes back, is not asked again from the line: the way on is another clip.
+  const no = one(held, { people: { state: "named", people: [person({ said_no_at: ago(MIN) })] } });
+  assert.equal(no.said, "Paola Ruiz said no to posts");
+  assert.deepEqual(acts(no), ["tell_ai"]);
+  const back = one(held, {
+    people: { state: "named", people: [person({ took_back: [{ use: "post", at: ago(MIN) }] })] },
+  });
+  assert.equal(back.said, "Paola Ruiz took back their yes to posts");
+  assert.deepEqual(acts(back), ["tell_ai"]);
   // Nobody has said who is in it: the fix is to say so.
   const unsure = one(held, { people: { state: "unsure", people: [] } });
   assert.equal(unsure.said, GOES_WORDS.sayWho);
@@ -227,6 +236,12 @@ test("the piece's one status leads with what needs the owner, then what moves, a
   assert.ok(goesPillOf(mixed).moving);
   const changed = goesLinesOf([post({ status: "held", held_why: "changed", held_reason: "x" })], known());
   assert.equal(goesPillOf(changed).said, "Changed · approve it again");
+  // A refusal's reason is its line's to say: the status says where it did not go.
+  const refused = goesLinesOf(
+    [post({ status: "failed", error: ON_INSTAGRAM.refused.words, published_at: null })],
+    known(),
+  );
+  assert.deepEqual(goesPillOf(refused), { said: "Didn't post on Instagram", tone: "you", moving: false });
   assert.equal(goesPillOf([]), null);
 });
 
@@ -239,16 +254,16 @@ test("what the confirm says the press will do, a line a placement", () => {
       post({ id: "d", kind: "picture", status: "queued", published_at: null }),
       post({ id: "e", kind: "picture", status: "pulled", published_at: null }),
     ],
-    (place) => place === "google",
+    (place) => (place === "google" ? "yes" : "unproved"),
     NOW,
   );
   assert.deepEqual(
     will.map((w) => [w.name, w.will]),
     [
-      ["Instagram reel", "You delete it in Instagram; Chanlytics checks it's gone"],
+      ["Instagram reel", "Chanlytics asks Instagram. If it can't, you delete it there"],
+      ["Instagram post", "Won't go up"],
       ["Instagram story", "Gone already: a story lasts a day"],
       ["Google", "Chanlytics takes it down"],
-      ["Instagram post", "Won't go up"],
     ],
   );
 });

@@ -351,8 +351,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
-  margin-top: 4px;
+  gap: 0 14px;
 }
 .cnv-goes-words > .cnv-ask-line {
   margin-top: 6px;
@@ -371,6 +370,10 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-dim);
+}
+/* The lines' group stands a little clear of its label, as a card under a heading. */
+.cnv-sect + .cnv-goes {
+  margin-top: 5px;
 }
 .cnv-who-row {
   grid-template-columns: 30px minmax(0, 1fr);

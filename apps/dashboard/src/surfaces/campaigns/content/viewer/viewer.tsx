@@ -175,6 +175,7 @@ export function footStandingOf(hands: ViewerHands, at: { more: ReactNode; onTold
     leads: standing.lead,
     ad,
     takeDown: standing.takeDown,
+    holdsLead: standing.holdsLead,
     more: at.more,
     tell:
       may && made.file.source === "made" ? (
@@ -228,7 +229,8 @@ export function PieceViewer({ hands, over }: { hands: ViewerHands; over: boolean
   // Where it stands, opened: a post's list of places once its record is read (foot.tsx statusOpensOf).
   const onStatus = statusOpensOf({ ready: drafts.both.ready }, () => {
     presses.clear();
-    drafts.both.begin();
+    if (hands.standing.opensToRead) drafts.both.look();
+    else drafts.both.begin();
   });
   return (
     <section

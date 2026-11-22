@@ -104,6 +104,8 @@ export const TAKE_DOWN_WORDS = {
   no: "Keep",
   will: {
     takeDown: "Chanlytics takes it down",
+    /** A place whose delete from here is not proved yet: asked, and the owner's to do where it does not let it. */
+    asks: (place: string) => `Chanlytics asks ${place}. If it can't, you delete it there`,
     byHand: (place: string) => `You delete it in ${place}; Chanlytics checks it's gone`,
     storyGone: "Gone already: a story lasts a day",
     cancel: "Won't go up",
@@ -134,29 +136,38 @@ export const TAKE_DOWN_WORDS = {
 
 /**
  * What the confirm says the press will do, a line a placement (the canvas's cell 36): a post up is asked down where the
- * place takes that from here, or is the owner's to delete there; a story a day old is gone already; one still waiting
+ * place takes that from here, is asked where that is not proved yet, or is the owner's to delete there; a story a day
+ * old is gone already; one still waiting
  * will not go up. A post the owner put up by hand is theirs, and is no post of these.
  */
 export function takeDownWillOf(
   posts: readonly Pick<PostDto, "id" | "place" | "kind" | "status" | "published_at">[],
-  can: (place: PostPlace) => boolean,
+  /** Whether a place takes a delete from here: it does, it does not, or nobody has seen it do so yet (`unproved`). */
+  can: (place: PostPlace) => "yes" | "no" | "unproved",
   nowMs: number,
 ): TakeDownWill[] {
   const W = TAKE_DOWN_WORDS.will;
-  return posts.flatMap((post): TakeDownWill[] => {
-    const place = post.place;
-    const name = placementSaid(place, post.kind);
-    const glyph = place === "google" ? "google" : post.kind === "picture" ? "post" : post.kind;
-    const line = (will: string): TakeDownWill[] => [{ key: post.id, glyph, name, will }];
-    if (post.status === "published") {
-      const gone = post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS;
-      if (gone) return line(W.storyGone);
-      return line(can(place) ? W.takeDown : W.byHand(POST_PLACE_SAID[place]));
-    }
-    if (post.status === "publishing" || post.status === "checking") return line(W.takeDown);
-    if (post.status === "queued" || post.status === "preparing") return line(W.cancel);
-    return [];
-  });
+  // In the order the piece lists its placements: a reel, a post, a story, then Google.
+  const rank = (post: (typeof posts)[number]) =>
+    post.place === "google" ? 3 : ["reel", "picture", "story"].indexOf(post.kind);
+  return [...posts]
+    .sort((a, b) => rank(a) - rank(b))
+    .flatMap((post): TakeDownWill[] => {
+      const place = post.place;
+      const name = placementSaid(place, post.kind);
+      const glyph = place === "google" ? "google" : post.kind === "picture" ? "post" : post.kind;
+      const line = (will: string): TakeDownWill[] => [{ key: post.id, glyph, name, will }];
+      if (post.status === "published") {
+        const gone = post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS;
+        if (gone) return line(W.storyGone);
+        const takes = can(place);
+        const said = POST_PLACE_SAID[place];
+        return line(takes === "yes" ? W.takeDown : takes === "no" ? W.byHand(said) : W.asks(said));
+      }
+      if (post.status === "publishing" || post.status === "checking") return line(W.takeDown);
+      if (post.status === "queued" || post.status === "preparing") return line(W.cancel);
+      return [];
+    });
 }
 
 /** AI's card to take a piece down (the PRD's 12.1 act/take_down): the same press as the sheet's, and its receipt. */

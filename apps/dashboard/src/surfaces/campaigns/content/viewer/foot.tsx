@@ -207,9 +207,11 @@ export function ViewerActs(props: {
   ad?: { words: string; press: () => void } | null | undefined;
   /** Take down, while something of it is up. */
   takeDown?: (() => void) | null | undefined;
+  /** Nothing leads with a new post: a take-down of it is under way. */
+  holdsLead?: boolean | undefined;
 }) {
   const { file, next, may, busy, save, acts, desk } = props;
-  const step = may && acts.onLead ? viewerLeadOf(file, next) : null;
+  const step = may && acts.onLead && !props.holdsLead ? viewerLeadOf(file, next) : null;
   const lead = props.leads
     ? { words: props.leads.words, glyph: null, press: props.leads.press }
     : step
@@ -311,6 +313,7 @@ export function ViewerFoot(props: {
     leads: { words: string; press: () => void } | null;
     ad: { words: string; press: () => void } | null;
     takeDown: (() => void) | null;
+    holdsLead: boolean;
     more: ReactNode;
     tell: ReactNode;
   };
@@ -348,6 +351,7 @@ export function ViewerFoot(props: {
           leads={props.standing?.leads}
           ad={props.standing?.ad}
           takeDown={props.standing?.takeDown}
+          holdsLead={props.standing?.holdsLead}
         />
       )}
       {props.asking ? null : props.byHand}

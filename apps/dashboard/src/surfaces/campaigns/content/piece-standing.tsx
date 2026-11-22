@@ -18,12 +18,12 @@ import {
   type GoesAct,
   type GoesLine,
   type PiecePersonDto,
+  type PieceTakeDownDto,
   type PostDto,
   type PostPlace,
-  type TakeDownActionDto,
 } from "@chanlytics/contracts";
 import { askAbout, canDo } from "../../frame-verbs";
-import { fileVerbs } from "../../files/verbs";
+import { fileVerbs, type PersonAnswer } from "../../files/verbs";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
 import { AskPerson } from "./viewer/ask-person";
 import { viewerClockOf } from "./viewer/clock";
@@ -69,6 +69,72 @@ function standingLeadOf(lines: readonly GoesLine[], on: GoesPresses): StandingLe
   return first ? leadPressOf(first, on) : null;
 }
 
+/** While a line moves by itself, the piece is read again every few seconds: its line says each step as it is reached. */
+function useRereadWhileMoving(moving: boolean, rereadRecord: () => void, rereadPage: () => void): void {
+  useEffect(() => {
+    if (!moving) return undefined;
+    const timer = setInterval(() => {
+      rereadRecord();
+      rereadPage();
+    }, MOVING_READ_MS);
+    return () => clearInterval(timer);
+  }, [moving, rereadRecord, rereadPage]);
+}
+
+/** What a person answered, as PATCH files/[id]/people takes it: a yes for what they were asked about, a no, or a yes let go. */
+function personAnswerOf(person: PiecePersonDto, answer: PersonSaid): PersonAnswer {
+  if (answer.said !== "yes") return { subject_id: person.id, said: answer.said };
+  return {
+    subject_id: person.id,
+    uses: person.asked?.uses.length ? person.asked.uses : ["post"],
+    said_in: answer.saidIn,
+    ...(answer.messageId ? { message_id: answer.messageId } : {}),
+  };
+}
+
+/** Where a piece's take-down stands: still open (a place asked, or the owner's to finish), and whether a place is yet to answer. */
+function takeDownStandsOf(takeDown: PieceTakeDownDto | null): { open: boolean; asking: boolean } {
+  const actions = takeDown?.actions.filter((a) => a.act === "take_down") ?? [];
+  return {
+    open: actions.some((a) => a.outcome !== "done"),
+    asking: actions.some((a) => a.outcome === "pending"),
+  };
+}
+
+/** The two sheets a piece opens over itself: the ask a person is sent, and Take down's card. */
+function StandingSheets(props: {
+  file: { id: string; name: string; kind: string; seconds: number | null };
+  places: readonly PostPlace[];
+  posts: readonly PostDto[];
+  asking: { person: PiecePersonDto; ads: boolean } | null;
+  takingDown: boolean;
+  onAskClosed: () => void;
+  onAsked: (person: PiecePersonDto) => void;
+  onTakeDownClosed: () => void;
+  onTakeDownBegun: () => void;
+}) {
+  const { file, asking } = props;
+  const name = fileSaidOf(file.name);
+  return (
+    <>
+      <AskPerson
+        person={asking?.person ?? null}
+        adsFirst={asking?.ads ?? false}
+        piece={{ id: file.id, name, what: pieceWhatOf(file), places: props.places }}
+        onClose={props.onAskClosed}
+        onAsked={props.onAsked}
+      />
+      <TakeDownAsk
+        open={props.takingDown}
+        piece={{ id: file.id, name }}
+        posts={props.posts}
+        onClose={props.onTakeDownClosed}
+        onBegun={props.onTakeDownBegun}
+      />
+    </>
+  );
+}
+
 export function usePieceStanding(
   hands: PieceHands,
   posts: readonly PostDto[],
@@ -97,17 +163,11 @@ export function usePieceStanding(
     record.reread();
     reread();
   };
-  // While a line moves by itself, the piece is read again every few seconds: its line says each step as it is reached.
-  const moving = lines.some((line) => line.moving);
-  const rereadRecord = record.reread;
-  useEffect(() => {
-    if (!moving) return undefined;
-    const timer = setInterval(() => {
-      rereadRecord();
-      reread();
-    }, MOVING_READ_MS);
-    return () => clearInterval(timer);
-  }, [moving, rereadRecord, reread]);
+  useRereadWhileMoving(
+    lines.some((line) => line.moving),
+    record.reread,
+    reread,
+  );
   /** A press through one of Files' verbs: refused, it says why; either way the piece is read again. */
   const run = async (press: Promise<{ ok: true } | { ok: false; message: string }>, said?: string) => {
     setOut(true);
@@ -123,34 +183,27 @@ export function usePieceStanding(
   const openList = () => {
     if (!both.open) both.begin();
   };
+  const openToRead = () => {
+    if (!both.open) both.look();
+  };
   const goes: GoesPresses = {
     busy,
     about,
     move: (postId) => {
-      openList();
+      openToRead();
       both.moveTime(postId);
     },
     pull: presses.pull,
     askPerson: (person) => setAsking({ person, ads: false }),
     approve: openList,
     words: () => {
-      openList();
+      openToRead();
       focusCaption();
     },
     deleted: (postId) => void run(fileVerbs.deletedByHand(file.id, postId)),
   };
-  const said = (person: PiecePersonDto, answer: PersonSaid) => {
-    const body =
-      answer.said === "yes"
-        ? {
-            subject_id: person.id,
-            uses: person.asked?.uses.length ? person.asked.uses : (["post"] as const).slice(),
-            said_in: answer.saidIn,
-            ...(answer.messageId ? { message_id: answer.messageId } : {}),
-          }
-        : { subject_id: person.id, said: answer.said };
-    void run(fileVerbs.personSaid(file.id, body));
-  };
+  const said = (person: PiecePersonDto, answer: PersonSaid) =>
+    void run(fileVerbs.personSaid(file.id, personAnswerOf(person, answer)));
   const who: WhoPresses = {
     busy,
     may,
@@ -165,48 +218,52 @@ export function usePieceStanding(
     ...(record.instagram !== null ? (["instagram"] as const) : []),
     ...(record.connected ? (["google"] as const) : []),
   ];
-  const adActions: TakeDownActionDto[] = record.takeDown?.actions.filter((a) => a.target === "ad") ?? [];
-  // A take-down a place has not answered yet: the press is not offered twice.
-  const asksDown = record.takeDown?.actions.some((a) => a.act === "take_down" && a.outcome === "pending") ?? false;
+  // While a take-down is open nothing new is offered to go up; while a place is yet to answer, the press is not offered twice.
+  const down = takeDownStandsOf(record.takeDown);
   const sheets: ReactNode = aiMade ? (
-    <>
-      <AskPerson
-        person={asking?.person ?? null}
-        adsFirst={asking?.ads ?? false}
-        piece={{ id: file.id, name: fileSaidOf(file.name), what: pieceWhatOf(file), places }}
-        onClose={() => setAsking(null)}
-        onAsked={(person) => {
-          flash({ msg: <>{PERSON_ASK_WORDS.sent(person.name)}</> });
-          again();
-        }}
-      />
-      <TakeDownAsk
-        open={takingDown}
-        piece={{ id: file.id, name: fileSaidOf(file.name) }}
-        posts={posts}
-        onClose={() => setTakingDown(false)}
-        onBegun={() => {
-          flash({ msg: <>{TAKE_DOWN_WORDS.begun}</> });
-          again();
-        }}
-      />
-    </>
+    <StandingSheets
+      file={file}
+      places={places}
+      posts={posts}
+      asking={asking}
+      takingDown={takingDown}
+      onAskClosed={() => setAsking(null)}
+      onAsked={(person) => {
+        flash({ msg: <>{PERSON_ASK_WORDS.sent(person.name)}</> });
+        again();
+      }}
+      onTakeDownClosed={() => setTakingDown(false)}
+      onTakeDownBegun={() => {
+        flash({ msg: <>{TAKE_DOWN_WORDS.begun}</> });
+        again();
+      }}
+    />
   ) : null;
   return {
     lines,
     /** The piece's one status from its lines; null where it has no placement yet, and its usual status says it. */
     pill: goesPillOf(lines),
     lead: may ? standingLeadOf(lines, goes) : null,
+    /**
+     * Whether the list opens to be read, with nothing switched on: a line needs the owner for something another post
+     * would not mend. Look again and Try again are the ones a post does mend, and they arm its place as before.
+     */
+    opensToRead:
+      lines.some((line) => line.tone === "you" && line.acts[0]?.is !== "approve") ||
+      // After a take-down, or while nobody is sure who is in it, nothing is armed to go up by opening the list.
+      down.open ||
+      posts.some((p) => p.status === "taken_down") ||
+      record.people?.state === "unsure",
+    /** A take-down is under way or waits for the owner: nothing leads with a new post meanwhile. */
+    holdsLead: down.open,
     goes,
     who,
     people: aiMade ? record.people : null,
     /** How many people the look counted in the file, where it counted any. */
     seen: file.people?.count ?? null,
     clock,
-    /** The ads a take-down paused, for its receipt. */
-    adActions,
     /** Take down, where something of it is up and this person may: opens its card. Null where it is not offered. */
-    takeDown: may && aiMade && takeDownOffered(posts) && !asksDown ? () => setTakingDown(true) : null,
+    takeDown: may && aiMade && takeDownOffered(posts) && !down.asking ? () => setTakingDown(true) : null,
     /** The person an ad waits for, and the ask that names ads too (Run as an ad's reason). */
     askForAds: (): PiecePersonDto | null => personToAskOf(record.people, "ad"),
     askPersonForAds: (person: PiecePersonDto) => setAsking({ person, ads: true }),

@@ -8,10 +8,9 @@
  */
 import { useState } from "react";
 import {
-  PLACE_CAPABILITIES,
   POST_PLACE_SAID,
   TAKE_DOWN_WORDS as W,
-  capabilityStands,
+  placeDeletes,
   takeDownWillOf,
   type PostDto,
   type PostPlace,
@@ -45,7 +44,7 @@ export function TakeDownAsk(props: {
   const { piece, posts } = props;
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const will = takeDownWillOf(posts, (place) => capabilityStands(PLACE_CAPABILITIES[place].remoteDelete), Date.now());
+  const will = takeDownWillOf(posts, placeDeletes, Date.now());
   const places = upAt(posts).map((place) => POST_PLACE_SAID[place]);
   const close = () => {
     setProblem(null);

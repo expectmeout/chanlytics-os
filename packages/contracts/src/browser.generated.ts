@@ -278,7 +278,7 @@ export { pieceSpec } from "./content/piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
 export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } from "./content/pieces";
-export { capabilityStands, PLACE_CAPABILITIES, placeTakes } from "./content/places";
+export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./content/places";
 export { fileYesSpec } from "./content/post-spec";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_ON_ITS_WAY, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStandsSaid, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";

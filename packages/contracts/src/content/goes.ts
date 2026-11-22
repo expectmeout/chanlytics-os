@@ -6,7 +6,7 @@
  * its take-down, a clock and now are handed in.
  */
 import { DAY_MS } from "../shared/time";
-import { personToAskOf, type PiecePeopleDto, type PiecePersonDto } from "./piece-people";
+import { personStandsOf, personToAskOf, type PiecePeopleDto, type PiecePersonDto } from "./piece-people";
 import {
   ON_INSTAGRAM,
   POST_PLACE_SAID,
@@ -73,6 +73,8 @@ export const GOES_WORDS = {
     when ? `Was on ${POST_PLACE_SAID[place]} for a day · ${when}` : `Was on ${POST_PLACE_SAID[place]} for a day`,
   seeIt: "See it",
   hasntSaidYes: (name: string) => `${name} hasn't said yes to posts`,
+  saidNo: (name: string) => `${name} said no to posts`,
+  tookBack: (name: string) => `${name} took back their yes to posts`,
   sayWho: "Say who's in it before it's posted",
   sayWhoHint: "Say who's in it",
   useAnother: "Use another clip",
@@ -101,6 +103,7 @@ export const GOES_WORDS = {
   pill: {
     waitsFor: (name: string) => `${name} hasn't said yes`,
     changed: "Changed · approve it again",
+    didnt: (place: PostPlace) => `Didn't post on ${POST_PLACE_SAID[place]}`,
     places: (said: string, n: number) => (n > 1 ? `${said} · ${n} places` : said),
   },
 } as const;
@@ -205,12 +208,16 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
       return said(GOES_WORDS.sayWho, "you", {
         acts: mine([{ is: "say_ai", hint: GOES_WORDS.sayWhoHint, begin: GOES_WORDS.ask.whoIsIn }]),
       });
-    return said(GOES_WORDS.hasntSaidYes(person.name), "you", {
-      acts: mine([
-        { is: "ask_person", person },
-        { is: "tell_ai", says: GOES_WORDS.useAnother, prompt: GOES_WORDS.ask.without(person.name) },
-      ]),
-    });
+    const another: GoesAct = {
+      is: "tell_ai",
+      says: GOES_WORDS.useAnother,
+      prompt: GOES_WORDS.ask.without(person.name),
+    };
+    // Someone who said no, or took their yes back, is not asked again from here: the way on is another clip.
+    const stands = personStandsOf(person, "post").is;
+    if (stands === "no") return said(GOES_WORDS.saidNo(person.name), "you", { acts: mine([another]) });
+    if (stands === "took_back") return said(GOES_WORDS.tookBack(person.name), "you", { acts: mine([another]) });
+    return said(GOES_WORDS.hasntSaidYes(person.name), "you", { acts: mine([{ is: "ask_person", person }, another]) });
   }
   if (why === "changed")
     return said(GOES_WORDS.changed, "you", { acts: mine([{ is: "approve", says: GOES_WORDS.lookAgain }]) });
@@ -296,6 +303,9 @@ export function goesPillOf(lines: readonly GoesLine[]): { said: string; tone: Go
   if (asks?.is === "ask_person")
     return { said: GOES_WORDS.pill.waitsFor(asks.person.name), tone: "you", moving: false };
   if (lead.said === GOES_WORDS.changed) return { said: GOES_WORDS.pill.changed, tone: "you", moving: false };
+  // A refusal's reason is its line's to say: the pill says where it did not go.
+  if (lead.said.startsWith(GOES_WORDS.didnt(null)))
+    return { said: GOES_WORDS.pill.didnt(lead.place), tone: "you", moving: false };
   const same = lines.filter((line) => line.tone === lead.tone && line.said === lead.said).length;
   const timed = lead.tone === "" ? lines.filter((line) => line.tone === "").length : same;
   return { said: GOES_WORDS.pill.places(lead.said, timed), tone: lead.tone, moving: lead.moving };
