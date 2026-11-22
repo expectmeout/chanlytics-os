@@ -59404,11 +59404,11 @@ ALTER TABLE ONLY public.lines
 
 
 --
--- Name: link_days link_days_link_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: link_days link_days_link_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.link_days
-    ADD CONSTRAINT link_days_link_id_fkey FOREIGN KEY (link_id) REFERENCES public.links(id) ON DELETE CASCADE;
+    ADD CONSTRAINT link_days_link_id_same_workspace FOREIGN KEY (tenant_id, link_id) REFERENCES public.links(tenant_id, id) ON DELETE CASCADE;
 
 
 --

@@ -198,11 +198,14 @@ grant update (place, stopped_at) on public.links to authenticated;
 grant all on public.links to service_role;
 
 create table if not exists public.link_days (
-  link_id    uuid not null references public.links (id) on delete cascade,
+  link_id    uuid not null,
   tenant_id  uuid not null references public.tenants (id) on delete cascade,
   day        date not null,
   opens      integer not null default 0 check (opens >= 0),
-  constraint link_days_pkey primary key (link_id, day)
+  constraint link_days_pkey primary key (link_id, day),
+  -- A day is its link's, in its link's own workspace (as 00279 has every child name its parent).
+  constraint link_days_link_id_same_workspace foreign key (tenant_id, link_id)
+    references public.links (tenant_id, id) on delete cascade
 );
 
 create index if not exists link_days_workspace on public.link_days (tenant_id, day);

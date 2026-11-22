@@ -5510,11 +5510,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "link_days_link_id_fkey"
-            columns: ["link_id"]
+            foreignKeyName: "link_days_link_id_same_workspace"
+            columns: ["tenant_id", "link_id"]
             isOneToOne: false
             referencedRelation: "links"
-            referencedColumns: ["id"]
+            referencedColumns: ["tenant_id", "id"]
           },
           {
             foreignKeyName: "link_days_tenant_id_fkey"

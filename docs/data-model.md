@@ -2667,7 +2667,7 @@ A link's opens, counted by day (UTC) and written by link_open alone (00680). An 
 
 Foreign keys:
 
-- `link_id` → [`links`](#links) (`id`), on delete cascade
+- `tenant_id`, `link_id` → [`links`](#links) (`tenant_id`, `id`), on delete cascade
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
 
 | Policy | For | To | Using | With check |
