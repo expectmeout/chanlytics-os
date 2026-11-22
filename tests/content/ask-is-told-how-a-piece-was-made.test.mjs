@@ -96,7 +96,6 @@ const postPlan = (over = {}) => ({
   voice: "classic",
   layout: "band",
   language: "es",
-  people_agreed: true,
   at: null,
   ...over,
 });
@@ -123,7 +122,6 @@ const REEL_PLAN = {
   words_hold: "first",
   end_line: "Same chair. New me.",
   language: "es",
-  people_agreed: true,
   caption: "She asked for volume, and got it.",
 };
 /** One drawn from the clip and from the photo deleted since. */
@@ -138,7 +136,6 @@ const THIN_PLAN = {
   words_hold: "all",
   end_line: null,
   language: "en",
-  people_agreed: false,
   caption: null,
 };
 const pieceRow = (n, fileId, plan) => ({

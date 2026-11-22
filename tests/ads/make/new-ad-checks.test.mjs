@@ -190,14 +190,13 @@ test("5.1 row 4, a picture or video in the wrong shape or length: the feed's sha
   assert.deepEqual(checks({}, { picture: null }), [{ code: "picture", fault: "gone" }]);
 });
 
-test("5.1 row 5, music and a person who has not said yes to ads: neither is ever offered, and not known is not offered either (G15)", () => {
+test("5.1 row 5, music: never offered, and not known is not offered either (G15)", () => {
   // What Files says of a picture is read into these three answers by server/content/ad-pictures.ts; new-ad-draft.test.mjs
   // runs that reading over the database, a file at a time. Here: what each answer does to a draft.
   const fault = (over) => checks({}, { picture: picture(over) });
-  // Content's answer (contracts files/yes.ts): fine, or someone shown with no yes for ads (a yes for posts does not cover
-  // an ad), or music, heard or not heard yet. Each is never offered.
+  // The rights (contracts adRightsOf): fine, or music, heard or not heard yet, never offered. Who is in a picture is no
+  // rule: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
   assert.deepEqual(fault({ rights: null }), []);
-  assert.deepEqual(fault({ rights: "person" }), [{ code: "picture", fault: "person" }]);
   const video = { kind: "video", seconds: 20, width: 1080, height: 1080 };
   assert.deepEqual(fault({ ...video, rights: null }), []);
   assert.deepEqual(fault({ ...video, rights: "music" }), [{ code: "picture", fault: "music" }]);
@@ -347,7 +346,7 @@ test("several things at once are said in a draft's order: the account, the pictu
     }),
     facts({
       account: { currency: "USD", minDailyMinor: 500, checks: [{ id: "payment", ok: false }] },
-      picture: picture({ rights: "person" }),
+      picture: picture({ rights: "music" }),
     }),
   );
   assert.deepEqual(

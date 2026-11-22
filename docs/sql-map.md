@@ -36,6 +36,9 @@ being read is dropped by a migration.
 | `ai_usage_month` | a workspace's month of metered use, under its members' row-level security, for the billing page to read; proved by tests/ai/ai-usage.db.test.mjs |
 | `conversation_draft_keep` | Ask's reply draft as decision 0071 first kept it, superseded by conversation_draft_write (00538) and kept for a dashboard a deploy behind; tests/need-you/reply-drafts.db.test.mjs still proves its fence: dropped with that test, in a change of its own |
 | `erasure_digest_legacy` | the legacy digest of one value, read by hand and by the erasure tests: since 00640 erasure_digests_legacy holds the formula and every reader asks it for many; proved by tests/people/erasure/erasure-digest.db.test.mjs |
+| `file_yes_record` | a yes for one use of a file (00665), unread since 22 Nov 2026, when footage a business provides was taken as cleared and nobody in it asked: dropped with file_consents by a migration of its own; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs |
+| `file_yes_take_back` | a yes taken back (00665, 00676), unread since 22 Nov 2026 for the same reason as file_yes_record, and dropped with it; proved meanwhile by tests/content/yes/a-consent-taken-back.db.test.mjs and tests/ads/stop/the-stop-and-a-yes-pause-ads.db.test.mjs |
+| `files_drawn_from` | what a made piece was drawn from (00665), read only to judge who was in it, so unread since 22 Nov 2026 and dropped with file_consents |
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
@@ -266,12 +269,12 @@ being read is dropped by a migration.
 | `file_video_room` | the server's | the server | SQL `file_copy_return_begin`, `file_media_ready` and 3 more | Whether a video of this length may come in (00643): |
 | `file_video_sourced` | the server's | the server | code `packages/db/src/repositories/files/source-takes.ts` | A watched folder's clip on its way (00643), a sibling of file_video_found that takes the clip's size and length. |
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
-| `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665): |
+| `file_yes_record` | door | a signed-in person, the server | nothing at run time | A member's door, with the settings permission (00665): |
 | `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00665): |
-| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665, 00676; |
+| `file_yes_take_back` | door | a signed-in person, the server | nothing at run time | A member's door, with the settings permission (00665, 00676; |
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
-| `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
+| `files_drawn_from` | the server's | the server | nothing at run time | The service role's read (00665): |
 | `files_found` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | One page of one shelf of a workspace's files, newest first, and how many in all (00597, 00612, 00668): |
 | `files_ring_footage_in` | trigger | the server | trigger `files_ring_footage_in on files` | A trigger on files (00657): |
 | `files_tallied` | reader | a signed-in person, the server | code `packages/db/src/repositories/files/files.ts` | A workspace's Library counted (00657, the footage screens' call 4): |

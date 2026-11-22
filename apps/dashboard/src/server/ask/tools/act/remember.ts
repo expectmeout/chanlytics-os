@@ -67,11 +67,10 @@ function saidByThem(text: string, question: string): boolean {
 }
 
 /**
- * Whether `quote` is the member's own words in this question, copied, and long enough to state something: what a line,
- * or a yes for a file (act/files/yes.ts), is kept on as the turn is saved, with no press. A turn Ask asks itself (the
- * morning's) holds no member's words.
+ * Whether `quote` is the member's own words in this question, copied, and long enough to state something: what a line
+ * is kept on as the turn is saved, with no press. A turn Ask asks itself (the morning's) holds no member's words.
  */
-export function quotedInQuestion(toolContext: ToolContext, quote: string): boolean {
+function quotedInQuestion(toolContext: ToolContext, quote: string): boolean {
   const quoted = comparable(quote);
   if (quoted.split(" ").filter(Boolean).length < QUOTE_MIN_WORDS || isAskMorningQuestion(toolContext.question))
     return false;

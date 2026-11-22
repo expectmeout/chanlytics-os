@@ -9,7 +9,6 @@
  * puts them in the lookups. The server's table (proposals.ts) has them from the start.
  */
 import { adDraftSpec } from "../../ads/draft-card";
-import { fileYesSpec } from "../../content/post-spec";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
 import { followUpSpec } from "./follow-up";
@@ -53,8 +52,6 @@ export const ASK_ONLY_SPECS = {
   fix: fixSpec,
   // A new ad drafted on New ad's own route, and New ad opened on it (ads/draft-card.ts).
   ad_draft: adDraftSpec,
-  // A yes for a photo or a video, said to AI, or one taken back (files/yes.ts).
-  file_yes: fileYesSpec,
   // People's and its lists'.
   person_details: personDetailsSpec,
   list: listSpec,

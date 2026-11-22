@@ -132,7 +132,6 @@ function askAnswers(fileId: string): string {
               voice: "modern",
               layout: "over",
               language: "en",
-              people_agreed: false,
             },
             undo: "Undo",
             made_at: now,
@@ -200,7 +199,7 @@ test.describe("Files, from a photo to a post", () => {
 
       // Said by a person, over whatever the look says of a picture of coloured blocks: a post is made from what shows a place.
       const said = await page.request.patch(scoped(`/api/v1/files/${photoId}`, workspace), {
-        data: { shows: "storefront", who_in_it: "no_one" },
+        data: { shows: "storefront" },
         ...fromTheApp,
       });
       expect(said.ok(), "what a person says of it").toBeTruthy();

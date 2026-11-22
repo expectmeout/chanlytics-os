@@ -15,8 +15,6 @@ import {
   type FileShows,
   type FileSource,
   type FileStatus,
-  type FileWhoInIt,
-  type FileYesUse,
 } from "./limits";
 
 /** Where a page's <img> points: the route signs a fresh address, for the member's own session, each time it is asked. */
@@ -116,14 +114,10 @@ export interface FileDto {
    */
   owner_uploaded?: boolean;
   shows: FileShows | null;
-  who_in_it: FileWhoInIt;
   /**
-   * The uses it has a yes for that stands, and those whose every yes was taken back (00665 files.yes_for, yes_back): what
-   * the rule of who may be shown reads (yes.ts fileUseOf). Absent is none, as on a row read before them.
+   * Who the look counted; null until it has, or where it could not say. It describes the picture, for choosing and
+   * saying what is in it: footage a business provides is taken as cleared, so nobody in it is asked (22 Nov 2026).
    */
-  yes_for?: FileYesUse[];
-  yes_back?: FileYesUse[];
-  /** Who the look counted; null until it has, or where it could not say. */
   people: FilePeople | null;
   look_status: FileLookStatus;
   /** What the look saw, in a sentence; null until it has. */
@@ -219,25 +213,6 @@ export const FILE_GOOGLE_WORDS_MAX = 1500;
 
 /** What the look counted of the people in a picture: how many, and how many someone who knows them could recognize. */
 export type FilePeople = { count: number; recognizable: number };
-
-/**
- * Where who is in a picture stands, the one place that reads the two: a person's word first, and then what the look saw. Still
- * being looked at says nothing, so a question does not flash up and go. A look that saw no one who could be recognized leaves
- * nothing to ask; otherwise a person is asked, with how many were seen where that is known.
- */
-export type FileWhoStands =
-  | { is: "said"; who: Exclude<FileWhoInIt, "not_asked"> }
-  | { is: "looking" }
-  | { is: "clear" }
-  | { is: "ask"; seen: number | null };
-
-export function whoStandsOf(file: Pick<FileDto, "who_in_it" | "look_status" | "people">): FileWhoStands {
-  if (file.who_in_it !== "not_asked") return { is: "said", who: file.who_in_it };
-  if (file.look_status === "waiting") return { is: "looking" };
-  if (file.look_status === "done" && file.people && (file.people.count === 0 || file.people.recognizable === 0))
-    return { is: "clear" };
-  return { is: "ask", seen: file.people?.count ?? null };
-}
 
 /**
  * What the Inbox's one press takes: a photo the look read, that doesn't look like stock, and isn't a logo or a design. Where

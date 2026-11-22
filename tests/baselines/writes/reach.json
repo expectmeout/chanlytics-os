@@ -1,7 +1,7 @@
 {
-  "rows": 185,
+  "rows": 183,
   "same": 10,
-  "differ": 175,
+  "differ": 173,
   "writes": {
     "DELETE ask/memory/[id]": {
       "changes": "ask_memory_lines INSERT UPDATE"
@@ -1291,27 +1291,6 @@
         "notifications": "every page"
       }
     },
-    "POST files/[id]/yes": {
-      "changes": "file_consents INSERT · files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
-      "tells": "files · notifications",
-      "missing": {
-        "calendar_runs": "calendar",
-        "notifications": "every page"
-      }
-    },
-    "POST files/[id]/yes/back": {
-      "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · file_consents UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE · source_items UPDATE",
-      "tells": "ad_accounts · ads · files · notifications",
-      "missing": {
-        "conversations": "conversations, inbox",
-        "inbox": "inbox",
-        "notifications": "every page",
-        "person": "clients/person",
-        "reports_people": "reports/people",
-        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
-        "today": "today"
-      }
-    },
     "POST files/keep": {
       "changes": "files UPDATE · notifications INSERT UPDATE · source_items UPDATE",
       "tells": "files · notifications",
@@ -1322,19 +1301,18 @@
       }
     },
     "POST files/post": {
-      "changes": "file_consents INSERT · files INSERT UPDATE · notifications INSERT UPDATE · source_items UPDATE",
-      "tells": "files · notifications",
+      "changes": "files INSERT · notifications INSERT UPDATE",
+      "tells": "notifications",
+      "doors": "source_items",
       "missing": {
         "calendar_runs": "calendar",
         "notifications": "every page"
       }
     },
     "POST files/video": {
-      "changes": "file_consents INSERT · files UPDATE · notifications INSERT UPDATE · pieces INSERT UPDATE · source_items UPDATE",
-      "tells": "files · notifications",
-      "missing": {
-        "calendar_runs": "calendar",
-        "notifications": "every page"
+      "changes": "pieces INSERT UPDATE",
+      "extra": {
+        "files": "admin/files"
       }
     },
     "POST forms/requests": {

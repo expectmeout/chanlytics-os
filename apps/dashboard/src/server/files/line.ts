@@ -11,7 +11,6 @@ import {
   keptSaidOf,
   filesCountedOf,
   shelfOf,
-  whoStandsOf,
   type FileDto,
   type FileKind,
   type FileLook,
@@ -102,36 +101,17 @@ function qualitySaid(q: FileForAsk["quality"]): string | null {
   return words.length ? words.join(", ") : null;
 }
 
-/** The yeses kept for a picture, each for its use, or that none is. */
-function yesesSaid(file: Pick<FileDto, "yes_for" | "yes_back">): string[] {
-  const parts = [
-    file.yes_for?.length ? `yes to ${file.yes_for.join(", ")}` : null,
-    file.yes_back?.length ? `yes taken back for ${file.yes_back.join(", ")}` : null,
-  ].filter((part): part is string => part !== null);
-  return parts.length ? parts : ["no yes kept"];
-}
-
 /**
- * Who is in a picture, as a line says it, from the one place that reads a person's word beside the look's, and the yeses
- * kept for it, each for its use (00665). "No yes kept" is what keeps a recognizable person out of what Ask suggests: it is
- * the owner's to say, not Ask's to assume, and a yes for posts never covers an ad.
+ * Who is in a picture, as a line says it, from what the look counted: to choose by and to say what it shows. Nobody in
+ * it is asked: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
  */
-export function fileWhoSaid(
-  file: Pick<FileDto, "who_in_it" | "look_status" | "people" | "yes_for" | "yes_back">,
-): string {
-  const stands = whoStandsOf(file);
-  const count = file.people?.count ?? null;
-  const people = count === null ? "people" : `${count} ${count === 1 ? "person" : "people"}`;
-  switch (stands.is) {
-    case "said":
-      return "no one in it";
-    case "looking":
-      return "not looked at yet";
-    case "clear":
-      return count === 0 ? "no people" : `${people}, none recognizable`;
-    case "ask":
-      return [people, ...yesesSaid(file)].join(", ");
-  }
+export function fileWhoSaid(file: Pick<FileDto, "look_status" | "people">): string | null {
+  if (file.look_status === "waiting") return "not looked at yet";
+  const { people } = file;
+  if (!people) return null;
+  if (people.count === 0) return "no people";
+  const counted = `${people.count} ${people.count === 1 ? "person" : "people"}`;
+  return people.recognizable === 0 ? `${counted}, none recognizable` : counted;
 }
 
 /** What a look's state says, where it is not an ordinary one. */

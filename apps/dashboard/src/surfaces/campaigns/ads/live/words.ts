@@ -265,7 +265,7 @@ export const SHEET = {
       body: "Meta stopped it on its last day. Give it a new end date in Meta to run it again.",
     },
     picture: {
-      head: "Someone in its picture took back their yes",
+      head: "Its picture can't run any more",
       body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
     },
   },

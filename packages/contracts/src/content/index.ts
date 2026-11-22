@@ -101,7 +101,6 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
-export { fileYesSpec } from "./post-spec";
 export {
   HAND_LINK_MAX,
   INSTAGRAM_POST_KINDS,

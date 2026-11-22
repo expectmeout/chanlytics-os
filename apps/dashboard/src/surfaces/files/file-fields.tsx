@@ -1,16 +1,14 @@
 /**
- * What a person says of one file, in its sheet (decision 0099): its name, its shelf, and who is in it. Each is saved as it is said; a
- * member who may not change a file reads the same in words, with nothing dead to press.
+ * What a person says of one file, in its sheet (decision 0099): its name and its shelf. Each is saved as it is said. Who is
+ * in it is never asked: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
  */
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useId, useState } from "react";
 import {
   FILE_NAME_MAX,
   FILE_SHOWS,
   FILE_WORDS as W,
   fileNameOf,
   fileSaidOf,
-  fileYesSaidOf,
-  whoStandsOf,
   type FileDto,
   type FileMade,
   type FileShows,
@@ -18,7 +16,6 @@ import {
 import { Button } from "../kit/button/button";
 import { Field, fieldProblem } from "../kit/field/field";
 import { MoreMenu } from "../kit/more-menu/more-menu";
-import { gateTitle } from "../frame-verbs";
 import type { FileChange } from "./verbs";
 
 export /** What a press in the sheet is handed: whether it may, whether one is out, and how a word is said. */
@@ -70,84 +67,6 @@ function NameField({ file, change }: { file: FileDto; change: (body: FileChange)
   );
 }
 
-/**
- * Who is in it where someone may be (00665): the yeses that stand and what it still needs before it is posted or runs as
- * an ad, said plainly, then the line to AI where a yes is said (`tell`, the page's own: Content's line to AI on this
- * file), and a quiet "No one's in it" where the look saw someone who is not there. No yes is a press here: it is the
- * owner's word, said to AI, who keeps who said it and for what.
- */
-function WhoAsked({
-  file,
-  busy,
-  say,
-  tell,
-}: {
-  file: FileDto;
-  busy: boolean;
-  say: (body: FileChange) => void;
-  tell: ReactNode;
-}) {
-  const yes = fileYesSaidOf(file);
-  return (
-    <div className="files-who">
-      <p className="files-from" data-testid="fl-who-says">
-        {yes?.stands ?? W.whoAsk(file.people?.count ?? null)}
-      </p>
-      {yes?.needs ? (
-        <p className="files-from" data-testid="fl-who-needs">
-          {yes.needs}
-        </p>
-      ) : null}
-      {tell}
-      <span className="files-tries">
-        <Button
-          size="sm"
-          variant="quiet"
-          onClick={() => say({ who_in_it: "no_one" })}
-          disabled={busy}
-          data-testid="fl-who-no_one"
-        >
-          {W.who.no_one}
-        </Button>
-      </span>
-    </div>
-  );
-}
-
-/**
- * Who is in it, as it stands: where someone may be, what it needs and the line to AI; else one line and a quiet way to
- * change it. An answer takes the pressed button away, so focus goes to what stands in its place: left to itself it falls
- * to the sheet's first field, and on a phone that is a keyboard nobody asked for.
- */
-export function FileWho({ file, busy, say, tell = null }: Omit<SheetPress, "may"> & { tell?: ReactNode }) {
-  const [changing, setChanging] = useState(false);
-  const changeRef = useRef<HTMLButtonElement>(null);
-  const answered = useRef(false);
-  const stands = whoStandsOf(file);
-  useEffect(() => {
-    if (!answered.current || !changeRef.current) return;
-    answered.current = false;
-    changeRef.current.focus();
-  });
-  const answer = (body: FileChange) => {
-    answered.current = true;
-    setChanging(false);
-    say(body);
-  };
-  if (stands.is === "looking") return null;
-  if (stands.is === "ask" || changing) return <WhoAsked file={file} busy={busy} say={answer} tell={tell} />;
-  return (
-    <div className="files-who-line">
-      <p className="files-from" data-testid="fl-who-says">
-        {stands.is === "said" ? W.who[stands.who] : W.whoClear}
-      </p>
-      <Button ref={changeRef} size="sm" variant="quiet" onClick={() => setChanging(true)} data-testid="fl-who-change">
-        {W.whoChange}
-      </Button>
-    </div>
-  );
-}
-
 /** Its shelf, for a member who may say. */
 export function FileChoices({ file, busy, say }: Omit<SheetPress, "may">) {
   const shelfId = useId();
@@ -175,32 +94,6 @@ export function FileChoices({ file, busy, say }: Omit<SheetPress, "may">) {
         />
       }
     />
-  );
-}
-
-/** The same, for a member who may only read it: words, and why, with nothing to press that does nothing. */
-export function FileReads({ file }: { file: FileDto }) {
-  const stands = whoStandsOf(file);
-  const who =
-    stands.is === "said"
-      ? W.who[stands.who]
-      : stands.is === "clear"
-        ? W.whoClear
-        : (fileYesSaidOf(file)?.stands ?? null);
-  return (
-    <>
-      <p className="files-from">
-        {W.shelf}: {file.shows ? W.shows[file.shows] : W.shelfNone}
-      </p>
-      {who && (
-        <p className="files-from">
-          {W.who_label}: {who}
-        </p>
-      )}
-      <p className="files-from" data-testid="fl-reader">
-        {gateTitle("settings", W.mayChange)}
-      </p>
-    </>
   );
 }
 

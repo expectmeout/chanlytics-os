@@ -33,8 +33,6 @@ export const ADDED_SINCE = [
   "files.zoom",
   "guide",
   "inbox.search",
-  "keep_yes.give",
-  "keep_yes.take_back",
   "leads.back",
   "leads.ideas",
   "leads.lead",

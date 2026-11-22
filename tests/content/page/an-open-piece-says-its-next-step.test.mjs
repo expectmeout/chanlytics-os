@@ -144,13 +144,13 @@ const photo = (over = {}) => ({
   ...over,
 });
 
-test("a library file is kept where it waits, then made into a post, and asks first who is in it", () => {
+test("a library file is kept where it waits, then made into a post, whoever is in it", () => {
   assert.deepEqual(pieceNextOf(photo({ status: "inbox" }), [], null), { is: "keep" });
   assert.deepEqual(pieceNextOf(photo(), [], null), { is: "make" });
   assert.deepEqual(
     pieceNextOf(photo({ people: { count: 2, recognizable: 2 } }), [], null),
-    { is: "none" },
-    "who is in it is asked first",
+    { is: "make" },
+    "nobody in it is asked first: footage a business provides is taken as cleared (Ruben, 22 Nov 2026)",
   );
   assert.deepEqual(pieceNextOf(photo({ status: "set_aside" }), [], null), { is: "none" });
 });

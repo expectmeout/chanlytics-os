@@ -1012,14 +1012,14 @@ test("Run as an ad stands under the acts on a desk and a phone: the press where 
   }
   const why = {
     is: "why",
-    why: { is: "wont", why: "person" },
-    said: "Someone in it hasn't said yes to ads",
-    act: { words: "Tell AI who said yes", does: "yes" },
+    why: { is: "wont", why: "music" },
+    said: "It has music, which an ad can't carry yet",
+    act: { words: "Ask about it", does: "ask" },
   };
   for (const html of both({ runAsAd: why })) {
     assert.equal(count(html, "cnv-ad-run"), 0, "never offered as if it could run");
-    assert.match(html, /data-testid="cnv-ad-said">Someone in it hasn&#x27;t said yes to ads</);
-    assert.equal(saysOf(html, "cnv-ad-act"), "Tell AI who said yes");
+    assert.match(html, /data-testid="cnv-ad-said">It has music, which an ad can&#x27;t carry yet</);
+    assert.equal(saysOf(html, "cnv-ad-act"), "Ask about it");
   }
   // Where the record says nothing, nothing is drawn; and nothing while Delete asks in place of the acts.
   for (const html of both({})) assert.equal(count(html, "cnv-ad"), 0);

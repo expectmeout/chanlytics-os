@@ -20,7 +20,7 @@ export { adRoute, ADS_ROUTE, ADS_WORDS, adsScopeKey, adsScopeOfKey, isAdsParam, 
 export { addDays, daysBetween } from "./ads/ads";
 export { bookedAfterTouch } from "./ads/booked-after-touch";
 export { adAmountAfter, adApprovedMiles, adChangeFactsOf, adChangeIssue, adChangeLeast, adChangeMostOf, adChangeOnWayOf, adChangeSpendsMore } from "./ads/change";
-export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adMostOf, adPictureIssue, adSpecialKinds } from "./ads/draft";
+export { AD_BEFORE_AFTER, AD_BOOKED_TO_FORECAST, AD_MILES, AD_RUN_DAYS, adAmountIssue, adDraftOf, adEndIssue, adLeastTotal, adMostOf, adPictureIssue, adRightsOf, adSpecialKinds } from "./ads/draft";
 export { AD_DOORS_COUNTED, adLeftOn, adResumeRule, adStateOfRow, adWayClosedOf } from "./ads/live";
 export { minorPerUnit } from "./ads/money";
 export { AD_TOLD_MAX } from "./ads/said";
@@ -275,7 +275,6 @@ export { pieceSpec } from "./content/piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./content/piece-timeline";
 export { PIECE_WORDS, pieceWordsIn } from "./content/piece-words";
 export { PIECE_LIMITS, PIECE_SHAPES, PIECE_WORDS_HOLDS, PIECE_WORDS_PLACES, pieceCountOf, pieceFileIdsOf, pieceOpeningOf, piecePlanOf } from "./content/pieces";
-export { fileYesSpec } from "./content/post-spec";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_KINDS, POST_ON_ITS_WAY, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";
 export { CONTENT_SHEET_WORDS } from "./content/sheet-words";
@@ -335,8 +334,7 @@ export { cuesSaidOf, earWordsOf, fileSoundOf, languageCodeOf, languageNameOf, no
 export { FOLDER_STOPPED_WHYS, MEDIA_SOURCE_STATES, SOURCE_CONNECTION_HEALTHS, SOURCE_ITEM_STATES, SOURCE_ITEM_WHYS, SOURCE_REFUSALS, SOURCE_WALK_KINDS } from "./files/sources";
 export { VIDEO_TILE_WORDS } from "./files/tile-words";
 export { clockOf, isDigestStep, nextDigestStepOf, secondsOf, VIDEO_DIGEST_STEPS, VIDEO_FRAME_SIDE, VIDEO_SHEET_FRAMES, VIDEO_SHEET_PIXELS, VIDEO_SHEET_SIDE, VIDEO_SPAN_FRAMES, VIDEO_TILE_LABEL_PX, videoFrameSizeOf, videoFramesSaidOf, videoFrameWhatOf, videoPreviewOf, videoSheetPlanOf, videoSheetSaidOf, videoSheetWhatOf, videoSpanPlanOf, videoSpanWhatOf } from "./files/video";
-export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesCountedOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf, whoStandsOf } from "./files/views";
-export { FILE_YES_ASK, fileAdRightsOf, fileUseMay, fileUseOf, fileYesReceiptOf, fileYesSaidOf, fileYesTitleOf, fileYesUsesIn } from "./files/yes";
+export { FILE_GOOGLE_WORDS_MAX, FILE_SHELVES, fileFolderOf, fileNameOf, fileSaidOf, filesCountedOf, filesTallyOf, fileViewOf, inboxCleanOf, issuesSaidOf, postNameOf, postPathOf, shelfFilterOf, shelfOf, uploadNameOf } from "./files/views";
 export { boxInSource, boxShown, ZOOM_JPEG_QUALITY, zoomSizeOf } from "./files/zoom";
 export { FORM_PARTS, FORMS_ROUTE, formsPlaceOf, formsRouteOf, isFormsParam, requestAddress, requestIdOf } from "./forms/address";
 export { emailTypoFix } from "./forms/email-typo";

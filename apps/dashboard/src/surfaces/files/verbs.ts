@@ -193,7 +193,6 @@ async function addVideo(file: File, mime: FileVideoMime, onSent?: (sent: number)
 export interface FileChange {
   name?: string;
   shows?: FileShows;
-  who_in_it?: "no_one";
   status?: "filed" | "set_aside";
   /** A made piece's caption, written where it stands (server posts/caption.ts). */
   caption?: string;

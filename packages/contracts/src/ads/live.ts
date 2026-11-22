@@ -352,7 +352,7 @@ export function adResumeRule(ad: AdResumeFacts, nowMs: number): AdResume {
   // An ad made here is paused by its own campaign, which holds nothing else: what the owner asked is what stands.
   const paused = ad.origin === "chanlytics" ? ad.intent === "paused" : ad.platform_state === "PAUSED";
   if (!paused) return { ok: false, why: "not_paused" };
-  // Paused because someone in its picture took back their yes: it runs again only with another picture (G16).
+  // Paused by a remediation of its picture (00676, G16): it runs again only with another picture.
   if (ad.paused_by === "remediation") return { ok: false, why: "picture" };
   if (ad.budget_kind !== "total") return { ok: false, why: "no_total" };
   if (ad.ends_at === null) return { ok: false, why: "no_end" };

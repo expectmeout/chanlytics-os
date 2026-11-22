@@ -49,8 +49,7 @@ export async function changePiece(
   if (caption !== undefined) await keepCaption(ctx, member, row, { said: caption });
   // "I posted it", or not after all (by-hand.ts): the owner's word of a piece they put up themselves.
   if (posted !== undefined) await sayPostedByHand(ctx, member, row, posted);
-  const saysMore =
-    rest.name !== undefined || rest.shows !== undefined || rest.who_in_it !== undefined || rest.status !== undefined;
+  const saysMore = rest.name !== undefined || rest.shows !== undefined || rest.status !== undefined;
   return saysMore ? changeFile(ctx, member, row, rest) : { ok: true, stopped: [] };
 }
 

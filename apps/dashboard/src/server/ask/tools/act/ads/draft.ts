@@ -55,7 +55,6 @@ type AdPieceWhy = Extract<PieceAdStands, { is: "wont" }>["why"];
 
 /** Why a piece may not run as an ad, by Content's one rule (contracts ads/draft.ts adPictureIssue). Said to the model. */
 const AD_PIECE_WHY = {
-  person: "someone in it hasn't said yes to ads. Once the owner tells you who said yes, it can",
   music: "it has music, and an ad carries none yet",
   unheard: "its sound isn't heard yet, and an ad shows only a video heard to have no music",
   before_after: "it sets a before beside an after, which Meta refuses in an ad",

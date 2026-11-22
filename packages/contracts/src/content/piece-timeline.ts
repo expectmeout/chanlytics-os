@@ -31,8 +31,6 @@ export interface PieceSource {
   media_status: string | null;
   /** A clip's length: the row's where a card is made, the playback copy's own where the video is. Null for a photo. */
   seconds: number | null;
-  /** Someone recognizable is in it and no one has said they agreed (contracts whoStandsOf: `ask`). */
-  people_unasked: boolean;
 }
 
 /** The business's own, as the end card and the words wear it. */
@@ -85,10 +83,12 @@ export interface PieceTimeline {
 export type PieceRefused = { ok: false; wont: PieceWont; cut?: number };
 export type PieceCompiled = { ok: true; timeline: PieceTimeline } | PieceRefused;
 
-/** What a block is checked against: the files as they stand, whether those in them agreed, and the plan's language. */
+/**
+ * What a block is checked against: the files as they stand, and the plan's language. Who is in a clip or a photo is no
+ * check: footage a business provides is taken as cleared (Ruben, 22 Nov 2026).
+ */
 interface Checking {
   sources: readonly PieceSource[];
-  agreed: boolean;
   language: PieceLanguage;
 }
 /** A block that passed, as it is drawn and how long it plays; or why it did not. */
@@ -101,23 +101,21 @@ const sourceNamed = (checking: Checking, id: string): PieceSource | undefined =>
   checking.sources.find((s) => s.id === id);
 
 /** Why a clip can't be cut from, or null. */
-function clipWont(source: PieceSource | undefined, agreed: boolean): PieceWont | null {
+function clipWont(source: PieceSource | undefined): PieceWont | null {
   if (!source) return "file";
   if (source.kind !== "video") return "not_video";
   if (source.source === "made") return "made";
   if (source.status !== "filed") return "unkept";
   if (source.media_status !== "ready" || !(Number(source.seconds) > 0)) return "not_ready";
-  if (source.people_unasked && !agreed) return "people";
   return null;
 }
 
 /** Why a photo can't be shown, or null. */
-function photoWont(source: PieceSource | undefined, agreed: boolean): PieceWont | null {
+function photoWont(source: PieceSource | undefined): PieceWont | null {
   if (!source) return "file";
   if (source.kind !== "image") return "not_photo";
   if (source.source === "made") return "made";
   if (source.status !== "filed") return "unkept";
-  if (source.people_unasked && !agreed) return "people";
   return null;
 }
 
@@ -136,8 +134,8 @@ function stretchOf(
 /** A still picture as it is drawn: a photo, or a moment inside a ready clip; or why it can't be. */
 function shotDrawn(shot: PieceShot, checking: Checking): PieceShotDrawn | PieceWont {
   const source = sourceNamed(checking, shot.file_id);
-  if (shot.at === null) return photoWont(source, checking.agreed) ?? { source: shot.file_id, at: null };
-  const wont = clipWont(source, checking.agreed);
+  if (shot.at === null) return photoWont(source) ?? { source: shot.file_id, at: null };
+  const wont = clipWont(source);
   if (wont || !source) return wont ?? "file";
   return shot.at < Number(source.seconds) ? { source: source.id, at: hundredth(shot.at) } : "past_end";
 }
@@ -146,7 +144,7 @@ const labelFits = (label: string | null): boolean => label === null || Array.fro
 
 function clipPassed(block: Extract<PieceBlock, { is: "clip" }>, checking: Checking): Passed {
   const source = sourceNamed(checking, block.file_id);
-  const wont = clipWont(source, checking.agreed);
+  const wont = clipWont(source);
   if (wont || !source) return wont ?? "file";
   const stretch = stretchOf(block, Number(source.seconds));
   if (typeof stretch === "string") return stretch;
@@ -164,7 +162,7 @@ function clipPassed(block: Extract<PieceBlock, { is: "clip" }>, checking: Checki
 }
 
 function photoPassed(block: Extract<PieceBlock, { is: "photo" }>, checking: Checking): Passed {
-  const wont = photoWont(sourceNamed(checking, block.file_id), checking.agreed);
+  const wont = photoWont(sourceNamed(checking, block.file_id));
   if (wont) return wont;
   if (!inRange(block.seconds, PIECE_LIMITS.photoMinS, PIECE_LIMITS.photoMaxS)) return "block_length";
   if (!labelFits(block.label)) return "label";
@@ -270,7 +268,7 @@ export function compilePiece(plan: PiecePlan, sources: readonly PieceSource[], l
     return { ok: false, wont: "blocks" };
   const opening = openingWont(plan);
   if (opening) return opening;
-  const checking: Checking = { sources, agreed: plan.people_agreed, language: plan.language };
+  const checking: Checking = { sources, language: plan.language };
   const blocks: PieceBlockDrawn[] = [];
   let reel = 0;
   for (const [i, block] of plan.blocks.entries()) {

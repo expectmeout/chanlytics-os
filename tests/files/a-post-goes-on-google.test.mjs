@@ -82,7 +82,6 @@ const PLAN = {
   voice: "classic",
   layout: "band",
   language: "es",
-  people_agreed: false,
 };
 const fileRow = (over = {}) => ({
   id: PHOTO_ID,

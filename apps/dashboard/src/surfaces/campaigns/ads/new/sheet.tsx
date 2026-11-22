@@ -46,7 +46,6 @@ const MISSING_DOOR: Record<AdCantDraft, string | null> = {
   paused: "admin/billing",
   picture: CONTENT_LIBRARY_ROUTE,
   picture_none: CONTENT_LIBRARY_ROUTE,
-  picture_person: CONTENT_LIBRARY_ROUTE,
   picture_music: CONTENT_LIBRARY_ROUTE,
   picture_gone: CONTENT_ROUTE,
   account: null,

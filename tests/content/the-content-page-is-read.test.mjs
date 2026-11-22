@@ -89,7 +89,6 @@ const piece = (n, over = {}) => ({
     words_hold: "first",
     end_line: null,
     language: "en",
-    people_agreed: false,
   },
   look: {},
   status: "making",
