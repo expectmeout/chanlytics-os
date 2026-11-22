@@ -11,7 +11,7 @@ export type {
 } from "./handlers/handlers";
 export { incomingEmailOf } from "./handlers/incoming-email";
 export { askReplyDraftOf, replyDraftPortsOf } from "./handlers/reply-draft";
-export type { ReplyDraftEdge } from "./runner/context";
+export type { BookingLapseEdge, ReplyDraftEdge } from "./runner/context";
 export { KIND_POLICY, kindPolicyOf } from "./runner/kinds";
 export type { KindPolicy, KindSettles, KindTold } from "./runner/kinds";
 export {

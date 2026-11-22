@@ -197,6 +197,8 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   // A connected ad account's read (00650). Not sent (kinds.ts: the platform's to mend), and the clock hands the account
   // another; an account that cannot be read says so on its own card.
   ad_read: { stopped: "Couldn't update your ads", to: ADS_ROUTE },
+  // A time asked for that ran out (decision 0061). Not sent (kinds.ts: its conversation's card says reply to them).
+  booking_lapse: { stopped: "Couldn't tell a customer their time wasn't confirmed", to: "inbox" },
   canary: { stopped: "The background work's own check didn't finish", to: "today" },
 };
 
@@ -338,6 +340,8 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   member_joined: { icon: "users", tone: "ok", action: "Open Team", to: "admin/team" },
   /** A teammate left: news, neither good nor a warning, on the Team pane, where the seats are. */
   member_left: { icon: "users", tone: "", action: "Open Team", to: "admin/team" },
+  /** A time asked for ran out and AI told the customer: news, on the conversation, where what AI said is. */
+  booking_lapsed: { icon: "calendar", tone: "", action: "Open the conversation", to: "inbox", own: true },
   /** A note from a correction waits: news, on the Autonomy pane, where it is kept or dismissed. */
   note_to_keep: { icon: "edit", tone: "", action: "Open Autonomy", to: "admin/autonomy" },
   ask_cards: { icon: "sparkle", tone: "", action: "Open Today", to: "today" },

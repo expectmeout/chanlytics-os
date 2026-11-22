@@ -47,6 +47,7 @@ import { finishErasure } from "./erasure";
 import { askReplyDraftOf, replyDraft } from "./reply-draft";
 import { replyRead } from "./reply-read";
 import { runBookingRead } from "./booking-read";
+import { runBookingLapse, readLapsedRequest } from "./booking-lapse";
 import { deliveryPage, deliveryPageKey } from "../runner/delivery-page";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "../runner/context";
 import { emailIngest, lineProvision, outboundSend } from "./incoming-email";
@@ -345,6 +346,7 @@ async function eventDeliver(ctx: JobContext, job: ClaimedJob): Promise<void> {
     keepArrival: async (tenantId, appointmentId, at) => {
       await stampVisitArrival(ctx.db, tenantId, appointmentId, at);
     },
+    lapsedRequest: (tenantId, appointmentId) => readLapsedRequest(ctx.db, tenantId, appointmentId),
     memberJoined: (tenantId, invitationId) => findMemberJoined(ctx.db, tenantId, invitationId),
     memberTold: (tenantId, invitationId) =>
       wasNoticeKept(ctx.db, { tenantId, kind: "member_joined", subjectType: "invitation", subjectId: invitationId }),
@@ -612,6 +614,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   source_walk: sourceWalk,
   source_read: sourceRead,
   ad_read: adRead,
+  booking_lapse: runBookingLapse,
   canary,
 };
 

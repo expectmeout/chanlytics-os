@@ -220,6 +220,8 @@ const ANNOUNCES = {
   member_joined: "Settings, which the row opens at Team, hears memberships and invitations (00408).",
   member_left:
     "Settings, which the row opens at Team, hears memberships: the one who left is gone from the roster (00437).",
+  booking_lapsed:
+    "The conversation the row opens hears its messages and its hold: AI's message is in it, and the hold is resolved in the same transaction (decision 0061).",
   note_to_keep:
     "Settings, which the row opens at Autonomy, reads the notes waiting with its read; the feed does not tell of fact_suggestions, and a Keep or a Dismiss reads it again behind its verb (decision 0063).",
   reply_held:

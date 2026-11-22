@@ -543,6 +543,20 @@ export const KIND_POLICY: Record<JobKind, KindPolicy> = {
     ids: ["account_id"],
     never: [],
   },
+  // A time asked for that ran out (decision 0061, as amended 22 Nov 2026). Nothing here puts words on a wire: the message
+  // is a queued row the door writes in the statement that closes the request, so a second run finds the request closed
+  // and sends nothing. A writer that threw is asked again two minutes on, then ten; its last try, and a run that died,
+  // close the request for a person to reply to (settle.ts), which is also how its owner hears of it.
+  booking_lapse: {
+    speaks: false,
+    retryWaitsMs: TWICE,
+    told: "elsewhere",
+    settles: "ledger",
+    wires: false,
+    longestCallMs: 40 * SECOND_MS,
+    ids: ["appointment_id"],
+    never: ["body", "text"],
+  },
   // The ledger's own proof that it runs (00526): it does nothing, and Health says when it stops finishing.
   canary: {
     speaks: false,

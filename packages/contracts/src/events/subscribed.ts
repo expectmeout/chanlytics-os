@@ -13,6 +13,8 @@ export const SUBSCRIBED_EVENTS = {
     source: z.string().nullable().optional(),
     by: z.string().nullable().optional(),
     was_at: z.string().nullable().optional(),
+    // A request that ran out (00679): whether AI told the customer.
+    told: z.boolean().nullable().optional(),
   }),
   // The message that carried the link is the event's subject; nothing it carries is read (decision 0119).
   "booking_link.sent": z.looseObject({}),

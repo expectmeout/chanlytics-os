@@ -20,6 +20,7 @@ export {
   bookingChanged,
   CATCH_UP_VISITS,
   feedAdditionIsBooking,
+  requestLapsed,
   VISIT_CHANGES_TOLD,
   visitChangeNews,
   visitNews,

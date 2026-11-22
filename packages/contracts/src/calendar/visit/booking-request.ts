@@ -185,6 +185,8 @@ export const BOOKING_REQUEST_WORDS = {
   /** Its sheet's foot once answered: it is on no calendar, so it is changed with them, in their thread. */
   footBooked: "Booked by text · change it with them in their conversation",
   footCant: "Asked for by text · you couldn't take it",
+  /** Its foot where nobody answered before it ran out (decision 0061, as amended 22 Nov 2026). */
+  footLapsed: "Asked for by text · not confirmed in time",
   /** What the role gate says the two presses are, to a member who may not press them. */
   gate: "confirm a booking",
   /** What a page says once a press is taken: booked, and the reply waiting in the thread; or theirs to answer. */
@@ -211,7 +213,7 @@ export interface BookingRequestCardVM {
   /** Its start as a sentence to them says it: "tomorrow at 3:00 PM" (slotNear), which Can't do it's offer opens with. */
   near: string;
   service: string | null;
-  /** Whether it still takes its time on the calendar (it expires an hour before the slot, or a day after it was asked). */
+  /** Whether it still takes its time on the calendar (it expires an hour before the slot, or 23 hours after it was asked). */
   holds: boolean;
   /** Its day on the Calendar, its panel over it. */
   to: string;

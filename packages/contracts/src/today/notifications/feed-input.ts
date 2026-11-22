@@ -217,6 +217,13 @@ export const SERVER_NOTIFICATION_KINDS = [
    */
   "member_left",
   /**
+   * A time a customer asked for ran out with no answer, and AI told them (decision 0061, as amended 22 Nov 2026): news
+   * and no wait, a line on the bell that opens the conversation, told once from the record's appointment.changed event
+   * (core SUBSCRIBERS.visit_notice). No mail, no phone: its owner was nudged before it ran out. One the customer could
+   * not be told of is no news but a wait, and its conversation's hold says it (booking_reply).
+   */
+  "booking_lapsed",
+  /**
    * The receptionist can keep what an owner said when they corrected it (decision 0063, 00448 fact_suggest): a line on the
    * bell that opens Settings › Autonomy, where the note waits for Keep or Dismiss. Its words stay on the pane. No mail, no
    * phone; the answer closes it.
@@ -321,6 +328,7 @@ export type JobNewsKind = Extract<
   | "booking"
   | "member_joined"
   | "member_left"
+  | "booking_lapsed"
 >;
 
 /**

@@ -466,6 +466,14 @@ test("(decision 0061) a time a customer picked by text leads with Booked it, kee
     request: { thread_id: "cv-ana", open: false },
   });
   assert.equal(cant.footnote, "Asked for by text · you couldn't take it");
+  // Nobody answered it in time (decision 0061, as amended 22 Nov 2026): it says so, never that the owner couldn't take it.
+  const lapsed = sheet(AHEAD, {
+    ...request,
+    visit: { id: "v1", status: "cancelled" },
+    request: { thread_id: "cv-ana", open: false, lapsed: true },
+  });
+  assert.equal(lapsed.footnote, "Asked for by text · not confirmed in time");
+  assert.ok(!lapsed.more.some((m) => m.act === "cant"));
 });
 
 test("(00426) a visit whose person was found as a lead says where they came from: its sequence, a door to its People; else the lead, a door to it on Leads", async () => {

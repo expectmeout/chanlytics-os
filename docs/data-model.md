@@ -25,7 +25,7 @@ what the script writes.
 | [`ai_usage`](#ai_usage) | `packages/db/src/repositories/ai/usage.ts` | on, 1 policy |
 | [`anthropic_profiles`](#anthropic_profiles) | `packages/db/src/repositories/ai/anthropic-profiles.ts`, `packages/db/src/types.type-test.ts` | on, no policy, so only the service role reaches it |
 | [`appointment_notices`](#appointment_notices) | `packages/db/src/repositories/calendar/notices.ts` | on, 1 policy |
-| [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`appointments`](#appointments) | `packages/db/src/repositories/calendar/appointments/lapses.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`approvals`](#approvals) | none | on, 1 policy |
 | [`ask_actions`](#ask_actions) | `packages/db/src/repositories/ask/actions.ts` | on, 3 policies |
 | [`ask_journal_days`](#ask_journal_days) | `packages/db/src/repositories/ask/memory.ts` | on, 1 policy |
@@ -501,7 +501,7 @@ Foreign keys:
 
 One visit as a source stated it (decision 0002): a booking tool's notice, the calendar feed, a tool's door or a person; its client, what and with whom, and what became of it. Members read; the service role writes; the product never books.
 
-- Owned by: `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts`
+- Owned by: `packages/db/src/repositories/calendar/appointments/lapses.ts`, `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/calendar/arrivals.ts`, `packages/db/src/repositories/campaigns/freed-times.ts`, `packages/db/src/repositories/campaigns/late-reminders.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -535,6 +535,9 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 | `expires_at` | timestamp with time zone | yes |  | When a request the receptionist took stops taking its slot (00443): the sooner of a day after it was asked and an hour before the slot. Null for every other row. |
 | `conversation_id` | uuid | yes |  | The thread a request the receptionist took came from (00443): where its hold is, and where the owner answers the customer. |
 | `arrived_at` | timestamp with time zone | yes |  | When this visit arrived as a customer's booking (decision 0141): the created_at of the appointment.changed event the one rule calls a booking arriving (contracts bookingArriving), stamped by core's visit_arrival subscriber, the later of two where a hold was added and then confirmed. Null for a visit that is no customer's booking: a member's own entry, the owner's own diary, a calendar's first read. A day's bookings are counted from it (the dashboard's server/metrics/bookings.ts). |
+| `nudged_at` | timestamp with time zone | yes |  | When the owner of a request AI took was nudged that it is about to run out (00679): once, two hours before expires_at, for a request that lives longer than four. Null until then, and for every other row. |
+| `lapsed_at` | timestamp with time zone | yes |  | When a request AI took ran out with no answer and was closed (00679 booking_request_lapse). A request that had already run out when 00679 was applied carries its expires_at here and is left as it was. Null for every other row. |
+| `lapse_told` | boolean | yes |  | Whether AI told the customer when their request ran out (00679): true, or false where the message could not go and the conversation waits on a person's reply. Null for a row that never ran out through booking_request_lapse. |
 
 Foreign keys:
 

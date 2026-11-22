@@ -60,6 +60,8 @@ function world(
   candidates,
   {
     deadman_candidates = () => candidates,
+    // The requests the clock is due to act on (00679 booking_requests_due): none, unless a case names some.
+    booking_requests_due = () => [],
     messages = [],
     jobs = [],
     broadcasts = [],
@@ -86,9 +88,15 @@ function world(
     escalations: [],
   };
   const marks = [];
+  const nudges = [];
   const db = fakeDb(tables, fail, {
     ...vault,
     deadman_candidates,
+    booking_requests_due,
+    booking_request_nudged: (a) => {
+      nudges.push(a.p_appointment_id);
+      return true;
+    },
     deadman_mark_alerted: (a) => {
       marks.push(a.p_ids);
       return a.p_ids.length;
@@ -102,7 +110,7 @@ function world(
     },
   });
   setPg(db);
-  return { db, tables, marks, tick: () => knock(POST, "deadman") };
+  return { db, tables, marks, nudges, tick: () => knock(POST, "deadman") };
 }
 const bell = (w, tenant) => w.tables.notifications.filter((n) => n.tenant_id === tenant);
 /** The holds' events: owner_notice tells the owner of each, once, after the commit (decision 0043). */
@@ -1006,5 +1014,53 @@ test("the stranded runs failing to read does not cost the watchdog its tick", as
     assert.equal(body.stranded, 0);
   } finally {
     line.restore();
+  }
+});
+
+/* ------------------------------------------------- a time asked for has a clock */
+
+/** One row of booking_requests_due(): a request of Harbor's, asked by Ana for Saturday at two in New York. */
+const requestDue = (what, over = {}) => ({
+  what,
+  appointment_id: "dddddddd-0000-4000-8000-00000000d001",
+  tenant_id: A,
+  conversation_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  client_name: "Ana Ruiz",
+  starts_at: "2026-10-17T18:00:00.000Z",
+  service: "Balayage",
+  timezone: "America/New_York",
+  expires_at: new Date(Date.now() + (what === "nudge" ? 2 * H : -H)).toISOString(),
+  ...over,
+});
+
+test("a time asked for that ran out is handed to the ledger by the tick, once, and the door's answer keeps its shape", async () => {
+  const w = world([], { booking_requests_due: () => [requestDue("lapse")] });
+  assert.deepEqual(await answer(await w.tick()), [200, { ok: true, flagged: 0, ...quiet }]);
+  const jobs = w.tables.jobs.filter((j) => j.kind === "booking_lapse");
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0].tenant_id, A);
+  assert.deepEqual(jobs[0].payload.appointment_id, "dddddddd-0000-4000-8000-00000000d001");
+  // The next tick finds its job waiting and writes no second one.
+  await w.tick();
+  assert.equal(w.tables.jobs.filter((j) => j.kind === "booking_lapse").length, 1);
+});
+
+test("a time asked for that is about to run out nudges its owner once: the bell, the mail, and its stamp", async () => {
+  const w = world([], { booking_requests_due: () => [requestDue("nudge")] });
+  const mail = wire();
+  try {
+    await w.tick();
+    const rows = bell(w, A);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].kind, "deadman");
+    assert.match(rows[0].title, /^Ana Ruiz's time stops being held at /);
+    assert.equal(rows[0].route, "inbox/th-cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    assert.deepEqual(w.nudges, ["dddddddd-0000-4000-8000-00000000d001"]);
+    assert.equal(mail.mail().length, 1, "and the owner's own mailbox hears it");
+    // Asked again before the stamp is read (a tick that overlapped): the row is found, and no twin is kept.
+    await w.tick();
+    assert.equal(bell(w, A).length, 1);
+  } finally {
+    mail.restore();
   }
 });

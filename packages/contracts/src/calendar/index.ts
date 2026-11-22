@@ -215,6 +215,16 @@ export type {
   FreedTimeVerdict,
   StandingTime,
 } from "./visit/freed-time";
+export {
+  LAPSE_WIRES,
+  type LapseHold,
+  REQUEST_LAPSE_WORDS,
+  REQUEST_TOLD_WITHIN_MS,
+  requestLapsedNews,
+  requestLapseInstruction,
+  requestNudgeNews,
+  type RequestSaid,
+} from "./visit/request-lapse";
 export { visitTitleWithout } from "./visit/service";
 export type {
   CalendarBandVM,

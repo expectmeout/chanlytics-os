@@ -53,6 +53,7 @@ import { campaignRuns } from "../campaigns/reach-out/workspace-runs.js";
 import { googleReader } from "../google/sweep.js";
 import { textsReader } from "../sms/texts-sweep.js";
 import { adsReader } from "../ads/sweep.js";
+import { lapseEdge } from "../receptionist/request-clock.js";
 import { sourcesReader } from "../files/sources/sweep.js";
 import { feedNamesFor } from "../calendar/feed-names.js";
 import { offerFreedTime } from "../campaigns/freed-time-offer.js";
@@ -327,6 +328,8 @@ export async function tickJobs({ db, L, started }: SweepTick): Promise<Response>
               sources: sourcesReader(db),
               // A connected ad account's read (00650): its ads and their days, from its platform.
               ads: adsReader(db),
+              // A time asked for that ran out (decision 0061): the reply setting in force for the person it would tell.
+              lapses: lapseEdge(db),
               // A message its door recorded and acknowledged, answered here: a text (decision 0031, Phase 2), or a
               // WhatsApp message of a workspace the edge names for it (Phase 3).
               inbound: { answer: (claimed, deadline) => answerInboundJob(db, claimed, deadline) },

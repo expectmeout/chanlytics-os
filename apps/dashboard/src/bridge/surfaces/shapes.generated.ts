@@ -12,7 +12,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   audiences: "3cf311d9336ac944",
   billing: "9f5a6a4f8592c70a",
   broadcasts: "b6f49d12f80ff357",
-  calendar: "ab9596b33a0a4745",
+  calendar: "e5f0cb7bbf21255b",
   calendar_runs: "4859024c5ad61285",
   channels: "200700fcf97dd267",
   content: "ebbb54558609745e",

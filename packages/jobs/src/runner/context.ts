@@ -25,6 +25,7 @@ import type {
   ReplyDraftPorts,
   ReplyNotice,
   ReplyReadPorts,
+  RequestLapsePorts,
   Wire,
 } from "@chanlytics/core";
 import type { Database } from "@chanlytics/db/types";
@@ -35,6 +36,15 @@ import { DbFailure } from "@chanlytics/contracts";
 export type ReplyDraftEdge = {
   write: ReplyDraftPorts["write"];
   readSender: ReplyDraftPorts["sender"]["read"];
+};
+
+/** What a request that ran out needs of the edge beside the writer. */
+export type BookingLapseEdge = {
+  /**
+   * The reply setting in force for this person (the workspace's, their own where set, Asks you while everything is
+   * stopped), how long a reply waits under it, and whether billing paused the workspace. Throws when it cannot be read.
+   */
+  posture: RequestLapsePorts["posture"];
 };
 
 export interface PushReceipt {
@@ -314,6 +324,12 @@ export interface JobContext {
   ads?: {
     read: (job: ClaimedJob, deadline: number) => Promise<{ read: unknown } | { skipped: string }>;
   };
+  /**
+   * A time asked for that ran out (decision 0061, as amended), as the edge holds the workspace's runtime: the reply
+   * setting in force for the person it would tell. INJECTED like the writer it runs beside (`drafts`); a booking_lapse
+   * job in a runtime without both fails loudly.
+   */
+  lapses?: BookingLapseEdge;
   website?: {
     /** The site read and its facts kept (business_reads); no call starts after `deadline`. Throws on a failed read. */
     read: (job: ClaimedJob, deadline: number) => Promise<void>;

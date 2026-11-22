@@ -244,6 +244,7 @@ export const JOB_KINDS = [
    * and written to be run again: every write is once an ad and once a day.
    */
   "ad_read",
+  "booking_lapse", // a time asked for that ran out: AI tells the customer and it closes (0061 as amended, 00679)
   "canary", // the ledger's own proof that it runs, every minute, judged by its newest done row (00526)
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
@@ -635,6 +636,7 @@ export const EVENT_KINDS = [
   "appointment.booked",
   "appointment.moved",
   "appointment.cancelled",
+  "appointment.lapsed", // a request that ran out, closed (00679): { told, starts_at, service, contact_id }
   /** The owner answered from the WhatsApp Business app, so the receptionist stepped back until `until` (recordEchoAndPause). */
   "conversation.owner_replied",
   /** Stripe's own news of a payment and of a trial about to end (billing.ts notePayment, noteTrialEnding): never an amount. */

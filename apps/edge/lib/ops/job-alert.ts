@@ -40,6 +40,8 @@ const REDACTED: Record<JobNewsKind, (jobKind: string) => string> = {
   booking: (k) => `A booking arrived for a workspace, and nobody there could be told (job kind: ${k}).`,
   member_joined: (k) => `A teammate joined a workspace, and nobody there could be told (job kind: ${k}).`,
   member_left: (k) => `A teammate left a workspace, and nobody there could be told (job kind: ${k}).`,
+  booking_lapsed: (k) =>
+    `A time a customer asked for ran out with no answer in a workspace, and nobody there could be told (job kind: ${k}).`,
 };
 
 /**

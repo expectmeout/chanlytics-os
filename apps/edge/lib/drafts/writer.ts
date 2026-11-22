@@ -115,6 +115,15 @@ async function channelFor(db: Db, tenantId: TenantId, wire: ChannelKind): Promis
   return mailbox();
 }
 
+/**
+ * The workspace's runtime as a draft's writer loads it (channelFor), or null with no channel at all: what a request that
+ * ran out reads the reply setting in force from (receptionist/request-clock.ts).
+ */
+export async function loadDraftRuntime(db: Db, tenantId: TenantId, wire: ChannelKind): Promise<TenantRuntime | null> {
+  const routed = await channelFor(db, tenantId, wire);
+  return routed ? loadTenantRuntime(db, routed) : null;
+}
+
 /** Which day's gate holds a draft, by who is waiting on it. */
 async function gateOf(db: Db, tenantId: TenantId, rt: TenantRuntime, source: ReplyDraftAsk["source"]) {
   const limits = rt.policy["reply"]?.limits ?? {};

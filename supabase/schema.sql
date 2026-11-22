@@ -3587,7 +3587,8 @@ begin
   if tg_op = 'INSERT' then
     v_change := case when new.status = 'cancelled' then 'cancelled' else 'added' end;
   elsif new.status = 'cancelled' and old.status is distinct from 'cancelled' then
-    v_change := 'cancelled';
+    -- A request that ran out with no answer (00679) is not a cancellation: nobody cancelled it, and no time is offered on it.
+    v_change := case when new.lapse_told is not null and old.lapse_told is null then 'lapsed' else 'cancelled' end;
   elsif old.status = 'proposed' and new.status = 'booked' then
     v_change := 'confirmed';
   elsif new.status in ('kept', 'missed') and old.status is distinct from new.status then
@@ -3603,6 +3604,8 @@ begin
           -- Whose word it is, whatever source the visit came by: a signed-in member's, or the service's (00436).
           -- A move says the time it left (decision 0082, 00498): the freed time is that span.
           || case when v_change = 'moved' then jsonb_build_object('was_at', old.starts_at) else '{}'::jsonb end
+          -- A request that ran out says whether the customer was told (00679): its owner's note is told from it.
+          || case when v_change = 'lapsed' then jsonb_build_object('told', new.lapse_told) else '{}'::jsonb end
           || jsonb_build_object('by', case when auth.uid() is not null then 'member' else 'service' end));
   return null;
 end $$;
@@ -3612,7 +3615,7 @@ end $$;
 -- Name: FUNCTION appointments_note_change(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): added, confirmed, cancelled, kept, missed or moved, and nothing for a write that changes none of those; by is member when a signed-in member''s session made the write, service for the edge''s (a booking tool''s email, the calendar''s door). On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
+COMMENT ON FUNCTION public.appointments_note_change() IS 'appointment.changed {change, source, starts_at, by} in the same transaction as the write (00389, 00397, 00436): added, confirmed, cancelled, kept, missed, moved or lapsed, and nothing for a write that changes none of those; by is member when a signed-in member''s session made the write, service for the edge''s (a booking tool''s email, the calendar''s door). A request that ran out with no answer says lapsed and told (00679), never cancelled. On a feed''s row only a moved status is said (appointments_note_status): the feed''s door writes its own events (00348) and never moves a status, so that is a person''s word.';
 
 
 --
@@ -4516,6 +4519,116 @@ COMMENT ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_booke
 
 
 --
+-- Name: booking_request_lapse(uuid, text, jsonb, timestamp with time zone, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb DEFAULT NULL::jsonb, p_due_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_payload jsonb DEFAULT NULL::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_row     public.appointments%rowtype;
+  v_hold    uuid;
+  v_reason  text;
+  v_told    boolean := p_message is not null;
+  v_message uuid;
+begin
+  if p_appointment_id is null then
+    raise exception 'booking_request_lapse: a request is named' using errcode = '22004';
+  end if;
+  select * into v_row from public.appointments where id = p_appointment_id for update;
+  -- Answered, replaced, closed by an earlier run, or never a request: nothing moves, and nothing is sent.
+  if not found or v_row.source <> 'receptionist' or v_row.status <> 'proposed' then
+    return jsonb_build_object('outcome', 'answered');
+  end if;
+  -- Not before its time: until then its owner may still answer it.
+  if v_row.expires_at is null or v_row.expires_at > now() then
+    return jsonb_build_object('outcome', 'early');
+  end if;
+  -- The conversation's hold as it stands, held while this runs: the request's own, another reason's, or none.
+  if v_row.conversation_id is not null then
+    select e.id, e.reason into v_hold, v_reason
+      from public.escalations e
+     where e.tenant_id = v_row.tenant_id and e.conversation_id = v_row.conversation_id and e.state = 'open'
+     for update;
+  end if;
+  -- Nothing is sent under a hold that is no longer the request's: a person, or a failed send, has the conversation.
+  if v_reason is distinct from 'booking_request' then
+    v_told := false;
+  end if;
+  if v_told then
+    if (p_message ->> 'tenant_id')::uuid is distinct from v_row.tenant_id
+       or (p_message ->> 'conversation_id')::uuid is distinct from v_row.conversation_id then
+      raise exception 'booking_request_lapse: the message is for the request''s own conversation' using errcode = '22023';
+    end if;
+    -- The message and its send job, in this transaction (00527): queued with the close, or neither happened.
+    v_message := public.queue_send(p_message, coalesce(p_due_at, now()), coalesce(p_payload, '{}'::jsonb));
+  end if;
+  update public.appointments
+     set status = 'cancelled', lapsed_at = now(), lapse_told = v_told
+   where id = v_row.id;
+  -- Activity's line, beside the record's own appointment.changed (lapsed), which the owner's note is told from.
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (v_row.tenant_id, 'appointment.lapsed', 'appointment', 'appointment', v_row.id,
+          jsonb_build_object('told', v_told, 'starts_at', v_row.starts_at, 'service', v_row.service,
+                             'contact_id', v_row.contact_id));
+  if v_reason is distinct from 'booking_request' then
+    return jsonb_build_object('outcome', 'closed');
+  end if;
+  if v_told then
+    -- The conversation goes back to AI: contracts' hand_back move, and the hold resolved as the platform's own close
+    -- (no member is named as resolving it, and no decision is recorded, as 00539 conversation_set_aside closes one).
+    update public.conversations
+       set state = 'open', paused_until = null, snooze_until = null, assignee_user_id = null
+     where id = v_row.conversation_id and tenant_id = v_row.tenant_id and state <> 'archived';
+    update public.escalations set state = 'resolved' where id = v_hold;
+    return jsonb_build_object('outcome', 'told', 'message_id', v_message);
+  end if;
+  -- Nothing could be sent: the conversation waits on a person's reply, as it does after Can't. The hold's change is
+  -- told to its owner from its own event (escalation.changed), and asks for the reply's draft.
+  perform public.escalation_open(
+    v_row.tenant_id, v_row.conversation_id, 'booking_reply',
+    coalesce(nullif(btrim(coalesce(p_reply_words, '')), ''),
+             to_char(v_row.starts_at at time zone v_row.timezone, 'Dy FMDD Mon, FMHH12:MI AM')
+             || coalesce(' · ' || v_row.service, '') || ' wasn''t confirmed in time: reply to them'));
+  return jsonb_build_object('outcome', 'reply');
+end $$;
+
+
+--
+-- Name: FUNCTION booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) IS 'A request AI took that ran out with no answer, closed (00679, decision 0061 as amended), in one transaction under its row''s lock: cancelled, stamped lapsed_at and lapse_told, and said on the ledger as appointment.changed lapsed and appointment.lapsed. Handed a message while the conversation''s hold is still the request''s, it queues it with its send job (queue_send), resolves the hold and gives the conversation back to AI: {outcome: told, message_id}. Handed none, the hold takes p_reply_words as a reply a person owes (booking_reply): {outcome: reply}. A hold of another reason, or none, is left as it stands and nothing is sent: {outcome: closed}. A request no longer waiting answers {outcome: answered}, and one whose time has not come {outcome: early}, with nothing moved. The service role''s.';
+
+
+--
+-- Name: booking_request_nudged(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.booking_request_nudged(p_appointment_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_id uuid;
+begin
+  update public.appointments
+     set nudged_at = now()
+   where id = p_appointment_id and nudged_at is null and source = 'receptionist' and status = 'proposed'
+  returning id into v_id;
+  return v_id is not null;
+end $$;
+
+
+--
+-- Name: FUNCTION booking_request_nudged(p_appointment_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.booking_request_nudged(p_appointment_id uuid) IS 'Stamps that a request''s owner was nudged it is about to run out (00679): once, on an open request. True when this call stamped it. The service role''s.';
+
+
+--
 -- Name: booking_request_open(uuid, uuid, uuid, timestamp with time zone, timestamp with time zone, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4537,7 +4650,9 @@ begin
   if p_ends_at <= p_starts_at then
     raise exception 'booking_request_open: a slot ends after it starts' using errcode = '22023';
   end if;
-  v_expires := least(now() + interval '1 day', p_starts_at - interval '1 hour');
+  -- 23 hours, not a day (00679): when it runs out the customer is told, and WhatsApp carries a free reply only within
+  -- 24 hours of their last message.
+  v_expires := least(now() + interval '23 hours', p_starts_at - interval '1 hour');
   if v_expires <= now() then
     return jsonb_build_object('error', 'too_soon');
   end if;
@@ -4576,7 +4691,51 @@ end $$;
 -- Name: FUNCTION booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) IS 'A booking the receptionist asks for (00443, decision 0061): a proposed appointments row (source receptionist) that takes its slot until expires_at, and its thread''s hold (booking_request, through escalation_open) in one transaction; the person''s open request before it is cancelled. Answers {appointment: {id, expires_at}, replaced, hold}, or {error: too_soon} for a slot an hour away or less. The service role''s.';
+COMMENT ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) IS 'A booking the receptionist asks for (00443, decision 0061): a proposed appointments row (source receptionist) that takes its slot until expires_at, the sooner of 23 hours after it was asked (00679) and an hour before the slot, and its thread''s hold (booking_request, through escalation_open) in one transaction; the person''s open request before it is cancelled. Answers {appointment: {id, expires_at}, replaced, hold}, or {error: too_soon} for a slot an hour away or less. The service role''s.';
+
+
+--
+-- Name: booking_requests_due(integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.booking_requests_due(p_limit integer DEFAULT 50) RETURNS TABLE(what text, appointment_id uuid, tenant_id uuid, conversation_id uuid, client_name text, starts_at timestamp with time zone, service text, timezone text, expires_at timestamp with time zone)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  (select 'lapse'::text, a.id, a.tenant_id, a.conversation_id, a.client_name, a.starts_at, a.service, a.timezone,
+          a.expires_at
+     from public.appointments a
+    where a.source = 'receptionist' and a.status = 'proposed'
+      and a.lapsed_at is null
+      and a.conversation_id is not null
+      and a.expires_at <= now()
+    order by a.expires_at
+    limit greatest(1, least(coalesce(p_limit, 50), 200)))
+  union all
+  (select 'nudge'::text, a.id, a.tenant_id, a.conversation_id, a.client_name, a.starts_at, a.service, a.timezone,
+          a.expires_at
+     from public.appointments a
+    where a.source = 'receptionist' and a.status = 'proposed'
+      and a.lapsed_at is null and a.nudged_at is null
+      and a.conversation_id is not null
+      and a.expires_at > now()
+      and a.expires_at <= now() + interval '2 hours'
+      -- Only a request that lives longer than four hours: a shorter one would be nudged on top of the first alert.
+      and a.expires_at - a.created_at > interval '4 hours'
+      -- And only while its conversation still waits on its owner for it.
+      and exists (select 1 from public.escalations e
+                   where e.tenant_id = a.tenant_id and e.conversation_id = a.conversation_id
+                     and e.state = 'open' and e.reason = 'booking_request')
+    order by a.expires_at
+    limit greatest(1, least(coalesce(p_limit, 50), 200)));
+$$;
+
+
+--
+-- Name: FUNCTION booking_requests_due(p_limit integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.booking_requests_due(p_limit integer) IS 'What the request clock is due to act on (00679, decision 0061): `lapse`, the open requests whose expires_at has passed, and `nudge`, the ones within two hours of it that live longer than four, were not nudged, and whose conversation still holds for them; each oldest first, at most p_limit (200 at most). A request stamped lapsed_at is never listed. The service role''s.';
 
 
 --
@@ -45468,6 +45627,9 @@ CREATE TABLE public.appointments (
     expires_at timestamp with time zone,
     conversation_id uuid,
     arrived_at timestamp with time zone,
+    nudged_at timestamp with time zone,
+    lapsed_at timestamp with time zone,
+    lapse_told boolean,
     CONSTRAINT appointments_check CHECK ((ends_at > starts_at)),
     CONSTRAINT appointments_client_phone_check CHECK (((client_phone IS NULL) OR (client_phone ~ '^\+[1-9][0-9]{6,14}$'::text))),
     CONSTRAINT appointments_source_check CHECK ((source = ANY (ARRAY['calendar_feed'::text, 'booking_email'::text, 'booking_tool'::text, 'person'::text, 'receptionist'::text]))),
@@ -45501,6 +45663,27 @@ COMMENT ON COLUMN public.appointments.conversation_id IS 'The thread a request t
 --
 
 COMMENT ON COLUMN public.appointments.arrived_at IS 'When this visit arrived as a customer''s booking (decision 0141): the created_at of the appointment.changed event the one rule calls a booking arriving (contracts bookingArriving), stamped by core''s visit_arrival subscriber, the later of two where a hold was added and then confirmed. Null for a visit that is no customer''s booking: a member''s own entry, the owner''s own diary, a calendar''s first read. A day''s bookings are counted from it (the dashboard''s server/metrics/bookings.ts).';
+
+
+--
+-- Name: COLUMN appointments.nudged_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.nudged_at IS 'When the owner of a request AI took was nudged that it is about to run out (00679): once, two hours before expires_at, for a request that lives longer than four. Null until then, and for every other row.';
+
+
+--
+-- Name: COLUMN appointments.lapsed_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.lapsed_at IS 'When a request AI took ran out with no answer and was closed (00679 booking_request_lapse). A request that had already run out when 00679 was applied carries its expires_at here and is left as it was. Null for every other row.';
+
+
+--
+-- Name: COLUMN appointments.lapse_told; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.appointments.lapse_told IS 'Whether AI told the customer when their request ran out (00679): true, or false where the message could not go and the conversation waits on a person''s reply. Null for a row that never ran out through booking_request_lapse.';
 
 
 --
@@ -49107,7 +49290,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'post_down'::text, 'post_by_hand'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'post_down'::text, 'post_by_hand'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -63497,11 +63680,35 @@ GRANT ALL ON FUNCTION public.booking_request_answer(p_appointment_id uuid, p_boo
 
 
 --
+-- Name: FUNCTION booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.booking_request_lapse(p_appointment_id uuid, p_reply_words text, p_message jsonb, p_due_at timestamp with time zone, p_payload jsonb) TO service_role;
+
+
+--
+-- Name: FUNCTION booking_request_nudged(p_appointment_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.booking_request_nudged(p_appointment_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.booking_request_nudged(p_appointment_id uuid) TO service_role;
+
+
+--
 -- Name: FUNCTION booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.booking_request_open(p_tenant_id uuid, p_conversation_id uuid, p_contact_id uuid, p_starts_at timestamp with time zone, p_ends_at timestamp with time zone, p_service text, p_timezone text, p_words text) TO service_role;
+
+
+--
+-- Name: FUNCTION booking_requests_due(p_limit integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.booking_requests_due(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.booking_requests_due(p_limit integer) TO service_role;
 
 
 --

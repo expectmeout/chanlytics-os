@@ -2,6 +2,13 @@
  * The calendar domain: `@chanlytics/db/calendar`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
 export {
+  closeLapsedRequest,
+  findBookingRequest,
+  listBookingRequestsDue,
+  markBookingRequestNudged,
+} from "./appointments/lapses";
+export type { BookingRequestFacts, DueRequest, LapseMessage } from "./appointments/lapses";
+export {
   answerBookingRequest,
   type BookingRequestOpen,
   findAppointmentByClientStart,

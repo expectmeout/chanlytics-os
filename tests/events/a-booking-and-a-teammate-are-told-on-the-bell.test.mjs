@@ -138,8 +138,8 @@ test("a booking changed is one the customer cancelled or moved through their boo
   assert.equal(bookingArriving(event({ data: { change: "cancelled", source: "booking_email", by: "service" } })), null);
   assert.deepEqual(
     Object.keys(VISIT_CHANGES_TOLD).sort(),
-    ["added", "back", "cancelled", "confirmed", "kept", "missed", "moved", "vanished"],
-    "every change the record says of a visit (00389, 00348, 00397) is in the table, with what is told of it",
+    ["added", "back", "cancelled", "confirmed", "kept", "lapsed", "missed", "moved", "vanished"],
+    "every change the record says of a visit (00389, 00348, 00397, 00679) is in the table, with what is told of it",
   );
 });
 
