@@ -7,10 +7,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  BOOKING_REQUEST_WORDS,
   HOUR_MS,
   MIN_MS,
   REQUEST_LAPSE_WORDS,
   REQUEST_TOLD_WITHIN_MS,
+  holdDraftInstruction,
   requestLapseInstruction,
 } from "@chanlytics/contracts";
 import { importSrc } from "../../_source.mjs";
@@ -244,4 +246,35 @@ test("the rule says why, in one order: late, then the person, then the workspace
   assert.equal(lapseHoldOf({ ...base, paused: true, mode: "ask" }), "paused");
   assert.equal(lapseHoldOf({ ...base, mode: "ask", wire: "email" }), "asks_first");
   assert.equal(lapseHoldOf({ ...base, mode: "veto" }), null);
+});
+
+test("what AI is asked to write is the time, short enough for a text, with nothing confirmed or promised", () => {
+  const asked = requestLapseInstruction("Sat, Oct 17, 2:00 PM", "Balayage");
+  assert.match(asked, /They asked to book Sat, Oct 17, 2:00 PM for Balayage/);
+  assert.match(asked, /two or three short sentences/);
+  assert.match(asked, /Confirm no time yourself/);
+  assert.match(asked, /nothing about when the team will answer/);
+});
+
+test("a reply about a time that isn't booked is drafted knowing the time: the card's own line, less its words to the owner", () => {
+  // A request that ran out and could not be told: the draft the owner is handed says what AI would have said.
+  const ranOut = holdDraftInstruction("booking_reply", REQUEST_LAPSE_WORDS.reply("Sat, Oct 17, 2:00 PM", "Balayage"));
+  assert.match(ranOut, /Sat, Oct 17, 2:00 PM · Balayage wasn't confirmed in time/);
+  assert.doesNotMatch(ranOut, /reply to them/);
+  assert.match(ranOut, /two or three short sentences/);
+  assert.match(ranOut, /Confirm no time yourself/);
+  // The owner's own Can't leaves the same kind of card: its draft is told the same way.
+  const cant = holdDraftInstruction("booking_reply", BOOKING_REQUEST_WORDS.cant("Sat, Oct 17, 2:00 PM", "Balayage"));
+  assert.match(cant, /Couldn't book Sat, Oct 17, 2:00 PM · Balayage/);
+  assert.doesNotMatch(cant, /reply to them/);
+  // A card with no line of its own is still told what it is about; a line of any length is kept to one short line.
+  assert.match(holdDraftInstruction("booking_reply", null), /it isn't booked\. Tell them/);
+  const long = holdDraftInstruction("booking_reply", `${"x".repeat(400)}\nsecond line`);
+  assert.ok(long.length < 800, "a long line is clipped");
+  assert.doesNotMatch(long, /\n/);
+});
+
+test("any other card's draft is told nothing more than its reason", () => {
+  for (const reason of ["booking_request", "policy_ask", "send_failed", "stale", null])
+    assert.equal(holdDraftInstruction(reason, "Asked for Sat, Oct 17, 2:00 PM · Balayage"), null);
 });

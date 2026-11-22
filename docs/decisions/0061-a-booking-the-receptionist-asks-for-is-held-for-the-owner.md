@@ -3,8 +3,8 @@
 **Status:** Decided 15 October 2026, and built on the lane `receptionist/a-booking-request` from main's `e88afd8d2`, as
 migration 00443, merged in #1615 the same day. This is
 the AI-native plan's item 4, "the receptionist may REQUEST a booking that an owner confirms, never confirm one itself",
-which Ruben approved on 9 October 2026. **Amended 22 November 2026** (migration 00679, waiting for Ruben's word to
-push): a request has a clock, and one nobody answered is told to the customer once. It reverses point 6's "Nothing is
+which Ruben approved on 9 October 2026. **Amended 22 November 2026** (migration 00679, merged in #2510 the same day, and
+walked on production's demo workspace): a request has a clock, and one nobody answered is told to the customer once. It reverses point 6's "Nothing is
 sent to the customer by itself" and point 4's "its hold stays until a person answers", which Ruben confirmed the same
 day ("Yes, confirm"); the section "A request has a clock" below says what replaced them. It is the first step of the appointment spine the second-pass engine review drew
 (`Claude Video/docs/2026-10-11-chanlytics-engine-review-second-pass.md`, 4.6 and Lane 9). Ruben picked it on 15 October,
@@ -137,7 +137,13 @@ were read again against main at `133c654ae4`.
 7. **Where the message cannot go, the card becomes "reply to them", as Can't leaves it.** The request closes the same,
    and its hold takes the reason `booking_reply` with "Sat, Oct 18, 2:00 PM · Balayage wasn't confirmed in time: reply to
    them". The hold's own change tells the owner (decision 0043) and asks for the reply's draft (decision 0093), so a
-   draft is there wherever a reply can still go.
+   draft is there wherever a reply can still go: not on WhatsApp past its window, where only an approved message can.
+   **That draft is told the time** (contracts `holdDraftInstruction`, core `reply-draft.ts`): a `booking_reply` card's
+   draft is written from the card's own line, as AI's own message would have been, with what is open now, so Use draft
+   sends what AI would have said. It was first the ordinary draft, told the card's reason and nothing of the request,
+   and on the first walk it thanked the customer for their last message and never named the time. The owner's Can't
+   leaves the same card, and its draft is told the same way. Today's card says such a conversation apart from a request
+   still to confirm: "AI held it: the time they asked for isn't booked."
 8. **One clock, one job, one door.**
    - The watchdog's tick (every ten minutes) reads what is due, last and on its own
      (`apps/edge/lib/receptionist/request-clock.ts`, `booking_requests_due`): it nudges, and it hands each request that

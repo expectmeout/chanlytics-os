@@ -1,6 +1,7 @@
 /**
  * The calendar domain: `@chanlytics/db/calendar`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
+export { countBookedByAi, countVisitsKnownBy } from "./appointments/counts";
 export {
   closeLapsedRequest,
   findBookingRequest,

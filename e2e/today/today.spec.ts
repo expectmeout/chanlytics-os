@@ -214,7 +214,9 @@ test.describe("Today on a phone", () => {
     expect(box?.width).toBe(390);
     expect(box?.height).toBeGreaterThan(800);
     await expect(ask.getByTestId("ask-hero")).toBeVisible();
-    await expect(ask.getByTestId("ask-input")).not.toBeFocused();
+    // Its field stands in the frame's bar on a phone, outside the dialog (ask/line/draw.tsx), so it is the page's to find.
+    await expect(page.getByTestId("ask-input")).toBeVisible();
+    await expect(page.getByTestId("ask-input")).not.toBeFocused();
     // A pull down past the threshold from the head closes it, following the finger (kit/motion/swipe.ts touchSwipe): a let-go
     // past a third of the screen, 160px at most, leaves; this one travels 220px.
     const cdp = await page.context().newCDPSession(page);

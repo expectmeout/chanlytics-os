@@ -118,6 +118,25 @@ test("the job keeps what was written, with what it was handed", async () => {
   assert.deepEqual(kept.used, ["their email"]);
 });
 
+const NOT_BOOKED = "Wed, Nov 25, 4:00 PM · Onboarding wasn't confirmed in time: reply to them";
+const aboutABooking = (over = {}) =>
+  thread({ holdReason: "booking_reply", holdDetails: NOT_BOOKED, wire: "sms", theirAddress: null, ...over });
+
+test("a reply about a time that isn't booked is written knowing the time; any other card's draft is told nothing more", async () => {
+  const w = world({ thread: aboutABooking() });
+  assert.equal(await write(w), "kept");
+  const [, , asked] = w.calls("writeReply")[0];
+  // The card's own draft still: nobody asked for a change, and there are no words to change.
+  assert.deepEqual([asked.source, asked.given], ["hold", null]);
+  assert.match(asked.instruction, /Wed, Nov 25, 4:00 PM · Onboarding wasn't confirmed in time/);
+  assert.doesNotMatch(asked.instruction, /reply to them/);
+  assert.equal(w.calls("keep")[0][1].source, "hold");
+
+  const other = world();
+  assert.equal(await write(other), "kept");
+  assert.equal(other.calls("writeReply")[0][2].instruction, null);
+});
+
 test("the job run twice: what the first run kept is the answer, and no model is asked again", async () => {
   const row = { kind: "reply", for_message_id: "m1", rules: REPLY_DRAFT_RULES, state: "ready" };
   const w = world({ thread: thread({ kept: [row] }) });
@@ -314,6 +333,19 @@ test("Try again asks only of what is owed, takes a failed row, and a draft alrea
   const written = world({ thread: thread({ kept: [ready()] }), claim: false });
   assert.deepEqual(await rewrite(written, { instruction: null }), { done: true, draft: ready() });
   assert.equal(written.calls("writeReply").length, 0, "no model asked for what is already there");
+});
+
+test("Try again on a reply about a booking is told the time too; a member's own change is theirs alone", async () => {
+  const failed = world({ thread: aboutABooking({ kept: [ready({ state: "failed" })] }), claim: true });
+  assert.equal((await rewrite(failed, { instruction: null })).done, true);
+  const [, , again] = failed.calls("writeReply")[0];
+  assert.equal(again.source, "hold");
+  assert.match(again.instruction, /Onboarding wasn't confirmed in time/);
+
+  const changed = world({ thread: aboutABooking({ kept: [ready()] }), claim: false });
+  assert.equal((await rewrite(changed)).done, true);
+  const [, , asked] = changed.calls("writeReply")[0];
+  assert.deepEqual([asked.source, asked.instruction, asked.given], ["rewrite", "shorter", "Friday works."]);
 });
 
 test("Not a customer and Reply anyway: a door that moved no row says the thread moved", async () => {

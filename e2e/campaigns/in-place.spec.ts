@@ -27,6 +27,35 @@ const entries = (page: Page): Promise<number> => page.evaluate(() => window.hist
 /** The first row of a run waiting for an OK on a page's queue: a run's own, or the one row two or more fold into. */
 const runRow = (page: Page) => page.getByTestId("brief-run-row").or(page.getByTestId("brief-runs-row")).first();
 
+/**
+ * The same run as Today draws it since Today, calm (19 Nov 2026): a line among who waits, or the page's card where
+ * nobody waits before it. Looked for inside Today's own page, since an address moved by its hash leaves the page before
+ * it drawn for a frame, and the Inbox's row answered for Today's (the nightly, red since the redesign).
+ */
+const todayRun = (page: Page) =>
+  page.locator(".calm").locator('[data-testid="brief-run-row"], [data-testid="brief-runs-row"]').first();
+
+/**
+ * A run opened from Today without answering it. Its line is the press, whole. In the card it is the press beside
+ * Approve that shows who is on it, or the card's one press where an OK alone does not send it. False where Today names
+ * it past the three lines it draws, whose door is the Inbox's: there is nothing of it to press here.
+ */
+async function openOnToday(page: Page): Promise<boolean> {
+  const row = todayRun(page);
+  await expect(row).toBeAttached();
+  if ((await row.getAttribute("data-folded")) !== null) return false;
+  const line = row.locator('> .calm-fold > [role="button"]');
+  if (await line.count()) {
+    await line.click();
+    return true;
+  }
+  const card = page.getByTestId("today-card");
+  const see = card.getByRole("button", { name: "See who's on it", exact: true });
+  const opens = (await see.count()) ? see : card.getByTestId("today-card-act").filter({ hasText: /^(Open|Review)$/ });
+  await opens.click();
+  return true;
+}
+
 test.describe("Campaigns opens in place on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
@@ -43,10 +72,19 @@ test.describe("Campaigns opens in place on a real workspace", () => {
       ["/#/today", /^today$/],
     ] as const) {
       await page.goto(at);
-      const row = runRow(page);
-      await expect(row).toBeVisible();
+      await expect(page).toHaveURL(atRoute(route));
+      const onToday = route.test("today");
+      const row = onToday ? todayRun(page) : runRow(page);
       const before = await entries(page);
-      await row.locator(".cl-attn-who").click();
+      if (onToday) {
+        if (!(await openOnToday(page))) {
+          test.info().annotations.push({ type: "note", description: "Today names the run past its three lines" });
+          continue;
+        }
+      } else {
+        await expect(row).toBeVisible();
+        await row.locator(".cl-attn-who").click();
+      }
       await expect(page.getByTestId("see-run")).toBeVisible();
       expect(seeOf(page), at).toMatch(/^run:/);
       expect(routeOf(page.url()), at).toMatch(route);
@@ -56,7 +94,7 @@ test.describe("Campaigns opens in place on a real workspace", () => {
       await page.goBack();
       await expect(page.getByTestId("see-run")).toHaveCount(0);
       expect(seeOf(page), at).toBeNull();
-      await expect(runRow(page)).toBeVisible();
+      await expect(row).toBeVisible();
     }
   });
 
