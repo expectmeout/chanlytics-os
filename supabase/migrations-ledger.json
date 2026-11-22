@@ -84,7 +84,11 @@
     "00663": "claimed by the consent step's lane (cm-file-consents) and left empty: its file moved to 00665 once 00664 was applied above it",
     "00667": "left empty by Pause all's lane (cm-ads-pause-all), which claimed it and moved its own file to 00671 when 00668 went on production above it (21 Nov 2026)",
     "00669": "left empty by New ad's draft races (cm-ads-draft-races, #2493), which claimed it and moved its own file to 00672 when 00671 went on production above it (21 Nov 2026)",
-    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)"
+    "00670": "claimed by Change a running ad (cm-ads-change, #2491) and left empty: its file moved to 00673 once 00671 went on production above it (21 Nov 2026)",
+    "00681": "claimed by One real post on the new records (cm-first-post, #2512), a draft not yet on main: its file lands with that pull request (22 Nov 2026)",
+    "00682": "claimed by One real post on the new records (cm-first-post, #2512), a draft not yet on main: its file lands with that pull request (22 Nov 2026)",
+    "00683": "claimed by One real post on the new records (cm-first-post, #2512), a draft not yet on main: its file lands with that pull request (22 Nov 2026)",
+    "00684": "claimed by the review ask's two adds (cm-review-ask, branch campaigns/review-link-and-deal-won), a draft not yet on main: its file lands with that pull request (22 Nov 2026)"
   },
   "migrations": {
     "00001_foundation.sql": "f87cea930e07d7d98d896929eeb937b9cef3aae323b3defc7f425b23d2e20bf1",
@@ -682,6 +686,7 @@
     "00677_a_disconnected_instagram_account_is_let_go.sql": "e7a2f5ccc22e598a1a83a583bbb1dfc731847a04d92fc7fb4e3c7978ac61cf21",
     "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571",
     "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
-    "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75"
+    "00680_a_request_form_and_its_row.sql": "5ce91deb6f82fdf9a22ebb422d02d050f4b5ae83d15ac7a1e02237ae3684df75",
+    "00685_a_visit_is_worth_its_services_amount.sql": "3d1bc4f2f17a0e1392e0d5dee4fbb72668a50749202c61e242764be52a417c41"
   }
 }

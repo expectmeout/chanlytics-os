@@ -727,6 +727,8 @@ export type Database = {
           tool: string | null
           updated_at: string
           vanished_at: string | null
+          worth_currency: string | null
+          worth_minor: number | null
         }
         Insert: {
           all_day?: boolean
@@ -760,6 +762,8 @@ export type Database = {
           tool?: string | null
           updated_at?: string
           vanished_at?: string | null
+          worth_currency?: string | null
+          worth_minor?: number | null
         }
         Update: {
           all_day?: boolean
@@ -793,6 +797,8 @@ export type Database = {
           tool?: string | null
           updated_at?: string
           vanished_at?: string | null
+          worth_currency?: string | null
+          worth_minor?: number | null
         }
         Relationships: [
           {
@@ -14136,6 +14142,15 @@ export type Database = {
           why_it_fits: string
         }[]
       }
+      service_amounts: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          amount_minor: number
+          currency: string
+          key: string
+        }[]
+      }
+      service_key: { Args: { p_name: string }; Returns: string }
       session_has_partner_seat: { Args: never; Returns: boolean }
       session_shows_second_factor: { Args: never; Returns: boolean }
       set_contact_consent: {

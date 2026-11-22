@@ -539,6 +539,8 @@ One visit as a source stated it (decision 0002): a booking tool's notice, the ca
 | `nudged_at` | timestamp with time zone | yes |  | When the owner of a request AI took was nudged that it is about to run out (00679): once, two hours before expires_at, for a request that lives longer than four. Null until then, and for every other row. |
 | `lapsed_at` | timestamp with time zone | yes |  | When a request AI took ran out with no answer and was closed (00679 booking_request_lapse). A request that had already run out when 00679 was applied carries its expires_at here and is left as it was. Null for every other row. |
 | `lapse_told` | boolean | yes |  | Whether AI told the customer when their request ran out (00679): true, or false where the message could not go and the conversation waits on a person's reply. Null for a row that never ran out through booking_request_lapse. |
+| `worth_minor` | bigint | yes |  | What the visit is worth (00685; the Ads tracking plan's T6): its service's amount when the visit was written, a whole number of worth_currency's minor units, stamped by appointments_worth_stamp and never moved by a later change of the amount; stamped again only when the visit's service changes. A visit written before its service had an amount takes the first one the service is given (tenant_config_worth_stamp). Null where its service has had none, or it names none: a sum then leaves it out and counts it (ads_page_counts). |
+| `worth_currency` | text | yes |  | The currency worth_minor is in, ISO 4217 (00685). Null exactly where worth_minor is. |
 
 Foreign keys:
 

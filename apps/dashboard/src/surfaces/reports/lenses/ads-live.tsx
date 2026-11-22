@@ -9,14 +9,20 @@ import { ADS_ROUTE, ADS_WORDS } from "@chanlytics/contracts";
 import type { AdsLiveDto } from "@chanlytics/contracts";
 import { lensModel } from "../../campaigns/ads/live/model";
 import { LENS } from "../../campaigns/ads/live/words";
+import { WorthLine } from "../../campaigns/ads/live/worth-line";
 import { EmptyState } from "../../kit/empty/empty";
 import { Figure } from "../../kit/figure/figure";
 import { Icon } from "../../kit/icon/icon";
 import { LinkButton } from "../../kit/link-button/link-button";
 import { routeDoor } from "../../frame-verbs";
+import { visitWordHere } from "../../workspace-word";
 import { RptSection } from "../blocks";
 
-const saidOf = (dto: AdsLiveDto) => ({ timezone: dto.account.timezone ?? "UTC", nowMs: Date.now() });
+const saidOf = (dto: AdsLiveDto) => ({
+  timezone: dto.account.timezone ?? "UTC",
+  nowMs: Date.now(),
+  word: visitWordHere(),
+});
 
 /** The lens's head: the page's own sentence. */
 export const adsLiveHead = (dto: AdsLiveDto): string => lensModel(dto, saidOf(dto)).head;
@@ -59,6 +65,8 @@ export function AdsLiveLens({ dto, failed }: { dto: AdsLiveDto | null; failed: b
           {vm.back}
         </p>
       ) : null}
+      {/* What the bookings are worth beside what the ads spent: a line of its own too (the tracking plan's T6). */}
+      <WorthLine worth={vm.worth} className="rpt-ads-pane" testid="ads-lens-worth" />
       {vm.rows.length > 0 ? (
         <div className="ck-table-wrap">
           <table className="ck-table ads-res-table" data-testid="ads-lens-table">

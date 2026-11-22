@@ -128,7 +128,7 @@
     },
     "DELETE mailbox-connections/[id]": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -380,7 +380,7 @@
     },
     "PATCH mailbox-connections/[id]": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
@@ -438,18 +438,21 @@
       }
     },
     "POST ask/alone": {
-      "changes": "tenant_config UPDATE",
+      "changes": "appointments UPDATE · tenant_config UPDATE",
       "tells": "tenant_config",
       "extra": {
-        "broadcasts": "clients/get-yes, inbox, today",
-        "people": "clients/person, today",
         "playbooks": "broadcasts, today",
         "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "ask_morning": "today",
+        "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
+        "inbox": "inbox",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
@@ -464,12 +467,13 @@
       "changes": "ask_messages UPDATE"
     },
     "POST ask/stop": {
-      "changes": "ads UPDATE · notifications INSERT · remediation_actions UPDATE · remediations UPDATE · tenant_config UPDATE · tenants UPDATE",
+      "changes": "ads UPDATE · appointments UPDATE · notifications INSERT · remediation_actions UPDATE · remediations UPDATE · tenant_config UPDATE · tenants UPDATE",
       "tells": "ads · tenant_config · tenants",
       "extra": {
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "ask_morning": "today",
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
         "conversations": "conversations, inbox",
@@ -477,6 +481,7 @@
         "inbox": "inbox",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
         "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
@@ -643,7 +648,7 @@
     },
     "POST capabilities/[kind]": {
       "changes": "capability_activations INSERT UPDATE",
-      "doors": "ad_entries · anthropic_profiles · billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
+      "doors": "ad_entries · anthropic_profiles · appointments · billing_accounts · business_reads · business_records · contacts · conversations · google_connections · google_listings · google_reviews · imports · leads · lines · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_channels · tenant_config · tenants"
     },
     "POST channels/instagram/disconnect": {
       "changes": "",
@@ -1236,16 +1241,20 @@
       }
     },
     "POST fact-suggestions/[id]": {
-      "changes": "fact_suggestions UPDATE · notifications UPDATE · tenant_config UPDATE",
+      "changes": "appointments UPDATE · fact_suggestions UPDATE · notifications UPDATE · tenant_config UPDATE",
       "tells": "notifications · tenant_config",
       "missing": {
+        "ask_morning": "today",
         "audiences": "broadcasts",
-        "broadcasts": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "every page",
+        "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
+        "inbox": "inbox",
         "notifications": "every page",
-        "people": "clients, clients/get-yes, segments",
+        "people": "every page",
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
@@ -1681,7 +1690,7 @@
       }
     },
     "POST leads/[id]/name": {
-      "changes": "contacts UPDATE · leads UPDATE · notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE · tenant_config UPDATE · tenants UPDATE",
+      "changes": "appointments UPDATE · contacts UPDATE · leads UPDATE · notifications UPDATE · sequence_batches UPDATE · sequence_enrollments DELETE INSERT UPDATE · sequence_sends UPDATE · sequences UPDATE · tenant_config UPDATE · tenants UPDATE",
       "tells": "contacts · notifications · tenant_config · tenants",
       "extra": {
         "leads": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/person, conversations, inbox, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments, start, today"
@@ -1699,7 +1708,7 @@
         "live": "live, start, today",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
-        "people": "clients, clients/get-yes, clients/person, segments, today",
+        "people": "every page",
         "person": "clients/person",
         "playbooks": "every page",
         "reach_out_replies": "inbox, today",
@@ -1929,35 +1938,35 @@
     },
     "POST mailbox-connections/[id]/check": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/history": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/resume": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-connections/[id]/test": {
       "changes": "",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "setup": "every page"
       }
     },
     "POST mailbox-senders": {
       "changes": "mailbox_senders DELETE INSERT UPDATE",
-      "doors": "ad_entries · anthropic_profiles · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
+      "doors": "ad_entries · anthropic_profiles · appointments · contacts · conversations · imports · leads · mailbox_connections · mailbox_left · mailbox_sender_reads · messages · notifications · person_doubts · tenant_config",
       "door": {
         "audiences": "broadcasts",
         "conversations": "every page",
@@ -2372,15 +2381,19 @@
       }
     },
     "POST receptionist/keep": {
-      "changes": "rehearsals UPDATE · tenant_config UPDATE",
+      "changes": "appointments UPDATE · rehearsals UPDATE · tenant_config UPDATE",
       "tells": "tenant_config",
       "missing": {
+        "ask_morning": "today",
         "audiences": "broadcasts",
-        "broadcasts": "broadcasts",
+        "broadcasts": "broadcasts, clients/get-yes, inbox, today",
         "calendar": "every page",
+        "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
-        "people": "clients, clients/get-yes, segments",
+        "inbox": "inbox",
+        "people": "every page",
         "person": "clients/person",
         "playbooks": "campaigns/sequences/new, outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
@@ -2573,18 +2586,21 @@
       "changes": "ask_memory_lines INSERT UPDATE"
     },
     "POST settings/receptionist": {
-      "changes": "tenant_config UPDATE",
+      "changes": "appointments UPDATE · tenant_config UPDATE",
       "tells": "tenant_config",
       "extra": {
-        "broadcasts": "clients/get-yes, inbox, today",
-        "people": "clients/person, today",
         "playbooks": "broadcasts, today",
         "reports_campaigns": "reports, reports/campaigns",
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "ask_morning": "today",
+        "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
+        "inbox": "inbox",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
         "sequences": "broadcasts, campaigns, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
@@ -3060,16 +3076,20 @@
       }
     },
     "PUT settings": {
-      "changes": "tenant_config UPDATE · tenants UPDATE",
+      "changes": "appointments UPDATE · tenant_config UPDATE · tenants UPDATE",
       "tells": "tenant_config · tenants",
       "extra": {
         "setup": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients, clients/get-yes, clients/leads, clients/person, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, segments"
       },
       "missing": {
+        "ask_morning": "today",
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
+        "inbox": "inbox",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
+        "people": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace, broadcasts, calendar, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, clients/leads, conversations, inbox, leads, live, messages, outbound, reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews, start",
         "person": "clients/person",
         "reach_outs": "outbound",
         "reports": "reports, reports/ads, reports/campaigns, reports/people, reports/pipeline, reports/receptionist, reports/reviews",
