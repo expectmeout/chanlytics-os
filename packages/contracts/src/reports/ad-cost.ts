@@ -16,6 +16,9 @@ import { REPORT_MIN_N } from "./tiles";
 /** How many days back a platform's day is still settling: its counts keep moving until it is older than this. */
 export const AD_SETTLE_DAYS = 14;
 
+/** The days the Ads page and Reports › Ads count, and the days Meta's chats are set beside Chanlytics' over. */
+export const AD_PAGE_DAYS = 30;
+
 /** Whether a platform's day is still settling at `today` (both ISO days): it is no more than AD_SETTLE_DAYS back. */
 export const adDaySettling = (day: string, today: string): boolean => day >= addDays(today, -AD_SETTLE_DAYS);
 
@@ -39,4 +42,21 @@ export function adCostRule(figure: {
 }): AdCost {
   const eachMinor = figure.booked >= REPORT_MIN_N ? figure.spentMinor / figure.booked : null;
   return { eachMinor, soFar: eachMinor !== null && figure.days.some((day) => adDaySettling(day, figure.today)) };
+}
+
+/** Meta's count is said beside Chanlytics' once Meta has counted this many chats (the tracking plan's call 1). */
+const AD_CHATS_SAID_FROM = 10;
+/** The two have parted when Chanlytics kept fewer than this share of Meta's (call 1). */
+const AD_CHATS_KEPT_SHARE = 0.5;
+
+/**
+ * Meta's count of the chats an ad started beside the messages from it that reached Chanlytics, as one rule (the Ads
+ * tracking plan's T2 and its call 1), over the days Meta has settled (the read's, 00678 ad_chats_kept): said once Meta
+ * has counted AD_CHATS_SAID_FROM, and parted when Chanlytics kept fewer than half. Meta counts a chat written within
+ * seven days of a tap and Chanlytics a message when it arrives with the ad on it, so the two are never equal: the rule
+ * asks for half, not all. The drawer says it, and each read of an account at Meta tells Health of an ad that parted.
+ */
+export function adChatsKeptRule(figure: { meta: number; kept: number }): { said: boolean; parted: boolean } {
+  const enough = figure.meta >= AD_CHATS_SAID_FROM;
+  return { said: enough, parted: enough && figure.kept < figure.meta * AD_CHATS_KEPT_SHARE };
 }

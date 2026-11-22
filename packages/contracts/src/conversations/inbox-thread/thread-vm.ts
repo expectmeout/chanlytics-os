@@ -5,7 +5,7 @@ import { replyWhy, type ReplyWhyVM } from "../../config/brain";
 import { replyWindow } from "../../config/policy/prices";
 import { windowClockOf } from "../../config/policy/reply-limits";
 import { HELD_WORDS, readingOf } from "../standing";
-import { messageAt, type ConversationDto, type MessageDto } from "../thread-dto";
+import { messageAt, type AdNamedDto, type ConversationDto, type MessageDto } from "../thread-dto";
 import { agentFor, answerWireOf, isChatMessage, writtenChannelOf, THREAD_CHANNEL_WORDS } from "../thread-channel";
 import { contactName, contactMeta, initialsOf } from "../thread-contact";
 import { shortTime, bubbleTime, inboxThreadClock, type ThreadMoments } from "../thread-clock";
@@ -141,6 +141,69 @@ export function countdownClock(seconds: number): string {
 const headSubjectOf = (thread: string | null): Pick<InboxThreadVM, "emailSubject"> =>
   thread ? { emailSubject: thread } : {};
 
+/** An ad as the thread draws it, from the wire's (AdNamedDto): its door, and its name. */
+const adOfWire = (ad: AdNamedDto): { id: string | null; name: string | null } => ({ id: ad.ad_id, name: ad.name });
+
+/** The ad the person first came from, for the head; nothing for a person who came another way. */
+const headAdOf = (dto: ConversationDto): Pick<InboxThreadVM, "fromAd"> =>
+  dto.from_ad ? { fromAd: adOfWire(dto.from_ad) } : {};
+
+/**
+ * One message as the thread's timeline draws it. A note the platform wrote on the thread is a line between the words,
+ * not a bubble: drawn as a bubble it read "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2
+ * Oct 2026 audit). Their words that came from an ad wear its mark (the Ads tracking plan's T1).
+ */
+function threadEntryOf(
+  message: MessageDto,
+  at: { changed: ReadonlyMap<string, string>; tz: string; now: Date },
+): InboxThreadVM["timeline"][number] {
+  const { tz, now } = at;
+  if (message.type === "note") {
+    return {
+      type: "event" as const,
+      kind: "note",
+      at: bubbleTime(messageAt(message), tz, now),
+      body: `Note: ${messageText(message)}`,
+    };
+  }
+  const onPhone = message.type === "call_summary";
+  const media = mediaVM(message);
+  const reason = messageWhy(message);
+  return {
+    type: "msg" as const,
+    messageId: message.id,
+    from: message.sender === "customer" ? ("client" as const) : ("agent" as const),
+    channel: onPhone ? "phone" : writtenChannelOf(message.channel),
+    ...bubbleWhen(messageAt(message), tz, now),
+    ...bubbleWordsOf(message, at.changed),
+    ...(media ? { media } : {}),
+    ...(reason ? { why: reason } : {}),
+    ...(message.from_ad ? { fromAd: adOfWire(message.from_ad) } : {}),
+    // Who said it, per BUBBLE. The thread carries one agent identity, and the
+    // pane rendered that under every agent row — so a phone call summary was
+    // signed "by WhatsApp Receptionist", crediting the wrong assistant with
+    // work it did not do. The bubble already knows its own channel.
+    ...(message.sender !== "customer"
+      ? (() => {
+          const a = agentFor(onPhone ? "phone" : writtenChannelOf(message.channel));
+          return { agentName: a.name, agentGlyph: a.glyph };
+        })()
+      : {}),
+    ...(message.sender === "human" ? { byYou: true } : {}),
+    // The words Conversations says too (messageAuthor): a person's reply is the team's.
+    ...(message.sender === "human" && messageAuthor(message)
+      ? { byWords: (messageAuthor(message) as MessageAuthor).words }
+      : {}),
+    ...((via) => (via ? { via } : {}))(messageVia(message)),
+    // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
+    // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
+    // so this pane and the Conversations pane cannot describe the same message differently.
+    ...(message.sender !== "customer" && message.status ? { status: message.status, ...sentFactsOf(message) } : {}),
+    // A held draft is not a sent message and must not read as one.
+    ...(isHeldDraft(message) ? { pending: true as const, sendsAtMs: draftSendsAtMs(message) } : {}),
+  };
+}
+
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
@@ -181,53 +244,9 @@ export function toInboxThreadVM(
   ];
 
   const subjects = emailSubjectsOf(dto.messages);
-  const timeline: InboxThreadVM["timeline"] = dto.messages.map((message) => {
-    // A note the platform wrote on the thread is a line between the words, not a bubble: drawn as a bubble it read
-    // "by WhatsApp Receptionist · Delivered", a reply the customer never got (the 2 Oct 2026 audit).
-    if (message.type === "note") {
-      return {
-        type: "event" as const,
-        kind: "note",
-        at: bubbleTime(messageAt(message), tz, now),
-        body: `Note: ${messageText(message)}`,
-      };
-    }
-    const onPhone = message.type === "call_summary";
-    const media = mediaVM(message);
-    const reason = messageWhy(message);
-    return {
-      type: "msg" as const,
-      messageId: message.id,
-      from: message.sender === "customer" ? ("client" as const) : ("agent" as const),
-      channel: onPhone ? "phone" : writtenChannelOf(message.channel),
-      ...bubbleWhen(messageAt(message), tz, now),
-      ...bubbleWordsOf(message, subjects.changed),
-      ...(media ? { media } : {}),
-      ...(reason ? { why: reason } : {}),
-      // Who said it, per BUBBLE. The thread carries one agent identity, and the
-      // pane rendered that under every agent row — so a phone call summary was
-      // signed "by WhatsApp Receptionist", crediting the wrong assistant with
-      // work it did not do. The bubble already knows its own channel.
-      ...(message.sender !== "customer"
-        ? (() => {
-            const a = agentFor(onPhone ? "phone" : writtenChannelOf(message.channel));
-            return { agentName: a.name, agentGlyph: a.glyph };
-          })()
-        : {}),
-      ...(message.sender === "human" ? { byYou: true } : {}),
-      // The words Conversations says too (messageAuthor): a person's reply is the team's.
-      ...(message.sender === "human" && messageAuthor(message)
-        ? { byWords: (messageAuthor(message) as MessageAuthor).words }
-        : {}),
-      ...((via) => (via ? { via } : {}))(messageVia(message)),
-      // What became of it: the words for its status, why it failed (one sentence for the owner, drawn under "Didn't send"),
-      // and whether the words left (the receptionist's failed reply was drawn as a sent bubble, I1). Said in message-words.ts,
-      // so this pane and the Conversations pane cannot describe the same message differently.
-      ...(message.sender !== "customer" && message.status ? { status: message.status, ...sentFactsOf(message) } : {}),
-      // A held draft is not a sent message and must not read as one.
-      ...(isHeldDraft(message) ? { pending: true as const, sendsAtMs: draftSendsAtMs(message) } : {}),
-    };
-  });
+  const timeline: InboxThreadVM["timeline"] = dto.messages.map((message) =>
+    threadEntryOf(message, { changed: subjects.changed, tz, now }),
+  );
   if (escalation) {
     // insert chronologically — appending would read "reply, then flagged"
     const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
@@ -290,6 +309,7 @@ export function toInboxThreadVM(
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
+    ...headAdOf(dto),
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
