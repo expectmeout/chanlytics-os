@@ -3,7 +3,7 @@
  * stands beside it. Pure: the pane draws what these say.
  */
 import {
-  INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   POST_ON_ITS_WAY,
   POST_PLACES,
   POST_PULLABLE,
@@ -28,7 +28,7 @@ export type PieceTakes = Record<PostPlace, boolean>;
  * story wait apart (00620; contracts postPlaceTakenOf, the rule Ask's card keeps too).
  */
 export const instagramKindsFree = (posts: readonly PostDto[]): InstagramPostKind[] =>
-  INSTAGRAM_POST_KINDS.filter((kind) => !postPlaceTakenOf(posts, "instagram", kind));
+  instagramKindsFor("photo").filter((kind) => !postPlaceTakenOf(posts, "instagram", kind));
 
 /** What Instagram is posted as: the kind wanted where it can go now, else the one that can. */
 export const instagramAsOf = (free: readonly InstagramPostKind[], wanted: InstagramPostKind): InstagramPostKind =>

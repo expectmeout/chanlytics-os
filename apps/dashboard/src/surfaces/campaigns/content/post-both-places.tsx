@@ -9,7 +9,7 @@ import {
   CONNECTIONS_PAGE,
   CONTENT_SHEET_WORDS,
   CONTENT_WORDS,
-  INSTAGRAM_POST_KINDS,
+  instagramKindsFor,
   type InstagramPostKind,
   type PostPlace,
 } from "@chanlytics/contracts";
@@ -75,7 +75,7 @@ function InstagramAs(props: {
   const { as, kinds, choose } = props;
   return (
     <span className="cnv-as" role="group" aria-label={CONTENT_WORDS.post.asWhat}>
-      {INSTAGRAM_POST_KINDS.map((kind) => (
+      {instagramKindsFor("photo").map((kind) => (
         <Button
           key={kind}
           size="sm"

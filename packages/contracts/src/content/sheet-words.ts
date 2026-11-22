@@ -9,7 +9,7 @@ export const CONTENT_SHEET_WORDS = {
   post: {
     title: "Post it",
     /** Instagram's two ways, beside its switch. */
-    kinds: { picture: "Post", story: "Story" },
+    kinds: { picture: "Post", story: "Story", reel: "Reel" },
     /** "Instagram on", for a screen reader. */
     switchLabel: (place: PostPlace) => `Post to ${POST_PLACE_SAID[place]}`,
   },

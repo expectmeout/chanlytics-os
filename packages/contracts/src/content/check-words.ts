@@ -35,6 +35,7 @@ export const CHECK_WORDS = {
   needsDay: (phrase: string) => `This says ${quoteOf(phrase)}. Tell AI which day it's about.`,
   needsOffer: (phrase: string) => `This names ${quoteOf(phrase)}. Tell AI which offer it is and when it ends.`,
   late: (day: string) => `Too late to post. ${day} has passed.`,
+  afterItsDay: "This would go after its day has passed. Pick an earlier time.",
   offerEnded: (offer: string) =>
     `${quoteOf(offer)} has ended since you approved this. Leave it out, change the words, or tell AI it still runs.`,
   serviceGone: (service: string) =>

@@ -7,9 +7,19 @@
  * the edge is asked, its one send kept as an attempt, and settled by the answer: up, with Google's name for it, or refused in words.
  */
 import "server-only";
-import { AppError, DAY_MS, FILE_WORDS, POST_SOON_MS, SECOND_MS, type PostPlan } from "@chanlytics/contracts";
 import {
-  beginPost,
+  AppError,
+  DAY_MS,
+  FILE_WORDS,
+  ON_INSTAGRAM,
+  POST_SOON_MS,
+  SECOND_MS,
+  intentOfAbout,
+  type OwnersFact,
+  type PostAbout,
+  type PostPlan,
+} from "@chanlytics/contracts";
+import {
   closePostAttempt,
   findPlacementByName,
   movePost,
@@ -23,6 +33,7 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
+import { approvePlacements } from "./approve";
 import { getMaterial } from "./material";
 import { keepPostWords } from "./caption";
 import { getPhoto, googlePicturePathOf, postDrawn } from "./make";
@@ -96,7 +107,12 @@ export async function postFileToGoogle(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  input: { summary: string; when?: string | undefined },
+  input: {
+    summary: string;
+    when?: string | undefined;
+    about?: PostAbout | undefined;
+    facts?: OwnersFact[] | undefined;
+  },
 ): Promise<{ name: string | null; search_url: string | null; state: string | null }> {
   // Google takes a picture: a video made here is not a post for it.
   if (row.source !== "made" || row.kind === "video") throw new AppError("validation", ON_GOOGLE.notAPost);
@@ -107,23 +123,27 @@ export async function postFileToGoogle(
   if (google?.posted) return { name: google.posted.name, search_url: google.posted.search_url, state: null };
   // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
   await keepPostWords(ctx, member, row, input.summary);
+  // The picture is drawn and kept first: the approval is of its bytes (posts/approve.ts).
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
-  // Later than soon, it waits for its time on Google (00616 post_begin's own line); sooner, it goes at the press.
+  // Later than soon, it waits for its time on Google (00616's own line); sooner, it goes at the press.
   const later = !!input.when && Date.parse(input.when) - Date.now() > POST_SOON_MS;
-  const placed = await beginPost(ctx.supabase, {
-    tenantId: member.tenantId,
-    fileId: row.id,
-    place: "google",
-    kind: "picture",
-    caption: input.summary,
-    when: later ? (input.when ?? null) : null,
+  const placed = await approvePlacements(ctx, member, row, {
+    placements: [
+      { place: "google", kind: "picture", caption: input.summary, when: later ? (input.when ?? null) : null },
+    ],
+    intent: intentOfAbout(input.about),
+    facts: input.facts ?? [],
     via: "press",
+    connections: { google: "yes" },
+  }).catch((e: unknown) => {
+    throw e instanceof AppError && e.message === ON_INSTAGRAM.busy
+      ? new AppError("conflict", ON_GOOGLE.onItsWay, 409)
+      : e;
   });
-  if (placed.fate === "busy") throw new AppError("conflict", ON_GOOGLE.onItsWay, 409);
-  if (placed.fate !== "begun" || !placed.post_id) throw new AppError("not_found", FILE_WORDS.gone, 404);
+  const postId = placed.posts[0]?.post_id;
+  if (!postId) throw new AppError("not_found", FILE_WORDS.gone, 404);
   // Its time is its job's: the picture is kept in the folder, and Google is asked to fetch it then.
   if (later) return { name: null, search_url: null, state: "scheduled" };
-  const postId = placed.post_id;
   const db = serviceDb();
   const send = await openPostAttempt(db, {
     postId,

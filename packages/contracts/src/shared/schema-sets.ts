@@ -52,9 +52,10 @@ import type {
   FILE_YES_USES,
 } from "../files/limits";
 import type { SENDER_KINDS } from "../email/sender-reading";
-import type { POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
+import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
+import type { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, RENDITION_SHAPES, REVISION_MADE_BY } from "../content/approvals";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";
@@ -189,7 +190,13 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof POST_VIAS>, SchemaSet<"posts.via">>>,
 
   // A video made from a business's clips (00613, decision 0122).
-  Holds<Exactly<Of<typeof PIECE_SHAPES>, SchemaSet<"pieces.shape">>>,
+  // A video's shapes, and a made picture's piece (00690), which no video job draws.
+  Holds<Exactly<Of<typeof PIECE_SHAPES> | "picture", SchemaSet<"pieces.shape">>>,
+  Holds<Exactly<Of<typeof RENDITION_SHAPES>, SchemaSet<"piece_renditions.shape">>>,
+  Holds<Exactly<Of<typeof REVISION_MADE_BY>, SchemaSet<"piece_revisions.made_by">>>,
+  Holds<Exactly<Of<typeof APPROVAL_SUBJECTS>, SchemaSet<"approvals.subject_type">>>,
+  Holds<Exactly<Of<typeof APPROVAL_VOID_WHYS>, SchemaSet<"approvals.voided_why">>>,
+  Holds<Exactly<Of<typeof POST_HELD_WHYS>, SchemaSet<"posts.held_why">>>,
   Holds<Exactly<Of<typeof PIECE_STATUSES>, SchemaSet<"pieces.status">>>,
   Holds<Exactly<Of<typeof PIECE_STAGES>, SchemaSet<"pieces.stage">>>,
   Holds<Exactly<Of<typeof PIECE_FAILS>, SchemaSet<"pieces.failed_why">>>,

@@ -6,6 +6,7 @@
  * and the post is held ("Changed since you approved it. Look again."). The hash is taken where the snapshot is kept, in
  * one language: SHA-256 of the snapshot's own text as the database writes it.
  */
+import { z } from "zod";
 import { isObjectRecord, recordOrEmpty } from "../shared/unknown";
 import { DAY_KEY, shiftKey, zoneMidnight } from "../shared/zone/day-keys";
 import type { PostKind, PostPlace } from "./posts";
@@ -118,6 +119,34 @@ export type AsApproved =
   | { is: "changed" };
 
 const textOrNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
+
+const DAY = z.string().regex(DAY_KEY);
+
+/**
+ * What a press's words are about, as AI's card hands it to the approval (the PRD's 6.1): the day, an offer with its last
+ * day, a service. Each part optional; the approval keeps it as the piece's intent.
+ */
+export const PostAboutSchema = z.object({
+  day: DAY.nullish(),
+  offer: z.object({ says: z.string().trim().min(1).max(120), until: DAY.nullish() }).nullish(),
+  service: z.string().trim().min(1).max(120).nullish(),
+});
+export type PostAbout = z.infer<typeof PostAboutSchema>;
+
+/** A fact the owner stated on the card, kept on the approval until its day ends. */
+export const OwnersFactSchema = z.object({ says: z.string().trim().min(1).max(200), until: DAY });
+
+/** The intent an approval keeps for what a press said its words are about; null where they are about nothing. */
+export function intentOfAbout(about: PostAbout | undefined): PieceIntent | null {
+  if (!about) return null;
+  const intent: PieceIntent = {
+    ...EMPTY_INTENT,
+    day: about.day ?? null,
+    offer: about.offer ? { says: about.offer.says, until: about.offer.until ?? null } : null,
+    service: about.service ?? null,
+  };
+  return intentDates(intent) ? intent : null;
+}
 
 /** A piece's intent as the database keeps it (pieces.intent); null where it keeps none it can read. */
 export function pieceIntentOf(value: unknown): PieceIntent | null {
