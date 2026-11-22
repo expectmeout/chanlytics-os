@@ -5,12 +5,14 @@
  */
 // The whole-word cut the thread's lines use; Ask's own `clip` (ask/answer/normalize.ts) reaches this module through the
 // proposals, so importing it here would close a cycle.
+import { exactMoney } from "../ads/money";
 import { clipAtWord } from "../conversations/message-words";
 import { VISION_SWITCH_WORDS } from "../config/business-tab/abilities";
 import { newReceptionistDefaults } from "../config/workspace-config/brain-config";
 import { FALLBACK_DEFAULTS, FALLBACK_ROWS } from "../config/workspace-config/fallbacks";
 import { instructionsDraft } from "../config/workspace-config/resolve";
 import { formatPhoneDisplay, handoffE164 } from "../shared/phone";
+import { isList } from "../shared/unknown";
 import { phoneVoiceOf } from "../voice/phone-voices";
 import { PHONE_PACE_WORDS, type PhonePace } from "../voice/phone-pace";
 import { WALK_IN_WORDS, type WalkInsChoice } from "../config/business-tab/choices";
@@ -38,6 +40,8 @@ export type AskSettingsChange =
   | { op: "set_hours"; day: string; open: string | null; close: string | null }
   | { op: "add_note"; title: string; text: string; until?: string }
   | { op: "add_service"; name: string; duration_min?: number; price_note?: string }
+  /** What a visit of each service named is worth (the Ads tracking plan's T6): AI's proposal, approved once. */
+  | { op: "set_service_amounts"; amounts: ServiceAmountChange[] }
   | { op: "set_goal"; goal: string }
   /** The booking link {{booking link}} fills (a sequence to leads' step sheet puts it in where it is not set). */
   | { op: "set_booking_link"; link: string }
@@ -45,6 +49,13 @@ export type AskSettingsChange =
   | AskAnswersChange
   /** A row of Cold email (decision 0113): its reach_out section, as the page's folds write it. */
   | AskReachOutChange;
+
+/** One service's amount on the card: its name as the list has it, whole minor units, and the currency's code. */
+interface ServiceAmountChange {
+  name: string;
+  amount_minor: number;
+  currency: string;
+}
 
 /**
  * The changes a rehearsal's fix makes beside the cards' (decision 0069, R4: rehearsal/fix-router.ts): a service already
@@ -189,9 +200,36 @@ export function applySettingsChange<C extends Cfg>(config: C, change: AskSetting
       profile.services = services;
       break;
     }
+    case "set_service_amounts":
+      profile.services = servicesWithAmounts(profile.services, change.amounts);
+      break;
   }
   brain.profile = profile;
   return { ...config, brain };
+}
+
+/** A service's name as the owner reads it, case and spacing aside: how a change finds the one it names. */
+const serviceKey = (name: string): string => name.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * A service's name as the list spells it, found as a change finds one (case and spacing aside), or null where the list
+ * holds no such service: AI's proposal of an amount says the list's own name, and is refused for a name it lacks, since
+ * an amount adds no service.
+ */
+export function serviceListedAs(listed: readonly string[], name: string): string | null {
+  return listed.find((held) => serviceKey(held) === serviceKey(name)) ?? null;
+}
+
+/**
+ * The services with each one named given its amount, the pair Settings keep (ServiceSchema): found by its name as the
+ * owner reads it. A name the list does not hold is left alone: an amount adds no service.
+ */
+function servicesWithAmounts(list: unknown, amounts: readonly ServiceAmountChange[]): unknown[] {
+  const byName = new Map(amounts.map((one) => [serviceKey(one.name), one]));
+  return (isList(list) ? list : []).map((service): unknown => {
+    const one = byName.get(serviceKey(storedWordsOf(storedKeysOf(service).name)));
+    return one ? { ...storedKeysOf(service), amount_minor: one.amount_minor, currency: one.currency } : service;
+  });
 }
 
 /** A stored object as its keys, and anything else as none. */
@@ -227,9 +265,11 @@ function profileWithFix(profile: Record<string, unknown>, change: AskFixChange):
  */
 function servicesWith(list: unknown, change: Extract<AskFixChange, { op: "set_service" }>): unknown[] {
   const services = [...((list as unknown[] | undefined) ?? [])];
-  const key = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
   const at = services.findIndex(
-    (s) => !!s && typeof s === "object" && key(storedWordsOf((s as { name?: unknown }).name)) === key(change.name),
+    (s) =>
+      !!s &&
+      typeof s === "object" &&
+      serviceKey(storedWordsOf((s as { name?: unknown }).name)) === serviceKey(change.name),
   );
   const fields = {
     ...(change.duration_min ? { duration_min: change.duration_min } : {}),
@@ -405,6 +445,10 @@ export function describeSettingsChange(change: AskSettingsChange): string {
     }
     case "add_service":
       return `New service: ${change.name}${serviceTail(change)}`;
+    case "set_service_amounts":
+      return change.amounts
+        .map((one) => `${one.name.trim()} ${exactMoney(one.amount_minor, one.currency)}`)
+        .join(" · ");
     case "set_service":
       return `${change.name}${serviceTail(change) || ", as it is"}`;
     case "add_escalate_when":

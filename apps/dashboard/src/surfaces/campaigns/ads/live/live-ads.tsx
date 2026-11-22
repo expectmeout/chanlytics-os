@@ -30,6 +30,7 @@ import { StopNotice } from "./stop-notice";
 import type { StopHere } from "./stop-notice";
 import { useAdChanges } from "./use-change";
 import { useAdPresses } from "./use-press";
+import { visitWordHere } from "../../../workspace-word";
 
 interface LiveAdsProps {
   dto: AdsLiveDto;
@@ -53,7 +54,7 @@ interface LiveAdsProps {
 
 export function LiveAds(p: LiveAdsProps) {
   const { dto, address, phone } = p;
-  const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now() };
+  const said = { timezone: dto.account.timezone ?? p.timezone, nowMs: Date.now(), word: visitWordHere() };
   const vm = liveModel(dto, said);
   const sheet = sheetModel(dto, address.ad, said);
   const presses = useAdPresses({ ads: dto.ads, again: p.again, flash: p.flash });

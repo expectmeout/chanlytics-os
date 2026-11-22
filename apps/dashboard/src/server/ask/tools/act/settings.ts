@@ -15,8 +15,11 @@ import {
   WALK_INS_CHOICES,
   answerStyleOf,
   describeSettingsChange,
+  minorPerUnit,
+  parseTenantConfigResult,
   proposalBelowNeeds,
   recordOrEmpty,
+  serviceListedAs,
 } from "@chanlytics/contracts";
 import {
   actAction,
@@ -29,6 +32,7 @@ import {
 import { approvalWords, propose, refuse } from "../context/context";
 import { autonomyAction } from "./policy";
 import { load } from "../../../shared/reader";
+import { config as configRow } from "../../../readers/facts";
 import { memberViews } from "../../../readers/notifications";
 
 /**
@@ -40,6 +44,7 @@ const SETTINGS_TITLE: Record<Exclude<z.infer<typeof AskSettingsChangeSchema>["op
   add_closure: "Close for a day",
   set_hours: "Change the hours",
   add_service: "Add a service",
+  set_service_amounts: "What each service is worth",
   set_goal: "Your goal",
   set_tone: "Its voice",
   set_languages: "The languages it speaks",
@@ -141,9 +146,10 @@ function proposeSettings(
   const raw = input.change && typeof input.change === "object" ? recordOrEmpty(input.change) : null;
   if (!raw) return Promise.resolve(refuse("change is required"));
   const answers = typeof raw.op === "string" && raw.op in ASK_ANSWERS_ROWS;
-  // A row of Cold email (decision 0113) carries each op's own field, judged by the schema as it was sent.
+  // A row of Cold email (decision 0113) carries each op's own field, judged by the schema as it was sent; so do the
+  // services' amounts, which the worth action built itself.
   const parsed = AskSettingsChangeSchema.safeParse(
-    typeof raw.op === "string" && isReachOutChange({ op: raw.op })
+    typeof raw.op === "string" && (isReachOutChange({ op: raw.op }) || raw.op === "set_service_amounts")
       ? raw
       : answers
         ? answersChangeOf(raw)
@@ -277,6 +283,51 @@ const answersAction = actAction({
   build: (t, input) => proposeSettings(t, { change: input.row }),
 });
 
+/** The names Settings list as services, which an amount's service is found among. */
+async function listedServicesOf(toolContext: ToolContext): Promise<string[]> {
+  const stored = (await load(toolContext.rc, configRow, undefined)).data;
+  const parsed = parseTenantConfigResult(stored?.config ?? null);
+  return parsed.ok ? (parsed.config.brain?.profile?.services ?? []).map((service) => service.name) : [];
+}
+
+/**
+ * What a visit of each service is worth, as one card (the Ads tracking plan's T6 and its call 5): AI reads each amount
+ * from the service's own price note, and the owner approves them all once. A number of whole units becomes the
+ * currency's own minor units (contracts minorPerUnit), as Settings keep it. A service the list does not hold is refused
+ * by name with the names it does hold, since an amount adds no service; the rest is judged by the change's own schema.
+ */
+const worthAction = actAction({
+  kind: "settings",
+  input: z.object({
+    amounts: z.array(z.object({ name: z.string(), amount: z.number(), currency: z.string() })).min(1),
+  }),
+  examples: [{ amounts: [{ name: "Deep clean", amount: 90, currency: "USD" }] }],
+  label: "Preparing what each service is worth",
+  words: `Action worth sets what each service is worth each time it is booked, in money, for reports alone (what an ad's bookings were worth beside its cost): no customer is told it and no price changes. It takes amounts, one a service: name as workspace.settings lists it, amount in whole units, currency as three letters. Read each from the service's own price note ("from $45" is 45, a range its lower end), take the currency from the note and where the business is, and ask when unclear; leave out a service whose note names no figure, say which, and never guess. Call it when they ask what bookings or ads are worth, or to set amounts. ${approvalWords("settings")}.`,
+  build: async (toolContext, input) => {
+    if (!offeredTo(settingsAct, toolContext.role)) return refuse(proposalBelowNeeds("settings"));
+    const listed = await listedServicesOf(toolContext);
+    const found = input.amounts.map((one) => ({ ...one, listedAs: serviceListedAs(listed, one.name) }));
+    const missing = found.flatMap((one) => (one.listedAs === null ? [one.name] : []));
+    if (missing.length > 0)
+      return refuse(
+        `no service is called ${missing.join(", ")}: the services are ${listed.join(", ") || "none yet"}. An amount is for a service already listed.`,
+      );
+    // The card says each service as the list spells it, once: two amounts for one service would say one and keep another.
+    const amounts = found.map((one) => {
+      const currency = one.currency.trim().toUpperCase();
+      return {
+        name: one.listedAs ?? one.name,
+        amount_minor: Math.round(one.amount * minorPerUnit(currency)),
+        currency,
+      };
+    });
+    if (new Set(amounts.map((one) => one.name)).size < amounts.length)
+      return refuse("a service is named twice: give each service one amount");
+    return proposeSettings(toolContext, { change: { op: "set_service_amounts", amounts } });
+  },
+});
+
 /** The owner's goal for Ask (the operator, 15 Oct 2026, D13): one line Ask weighs every plan against, or cleared. */
 const goalAction = actAction({
   kind: "settings",
@@ -326,13 +377,14 @@ const answerStyleAction = actAction({
 export const propose_settings = defineActions({
   name: "propose_settings",
   description:
-    "Propose a settings change as a card the person approves, by action: what AI knows (closed days, hours, a note, a service), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), cold email (what its emails are written from), what it may do alone for a class of message (autonomy), or the business's goal for you.",
+    "Propose a settings change as a card the person approves, by action: what AI knows (closed days, hours, a note, a service), what a service is worth (worth), how it answers (voice, name, languages, what callers hear, its pace and who they reach, walk-ins, your own words, the messages when it can't answer, photos), cold email (what its emails are written from), what it may do alone for a class of message (autonomy), or the business's goal for you.",
   actions: {
     change: actAction({
       ...settingsAct,
       words: `Action change takes one change object: add_closure (date, an optional until for a range, an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (title, the text AI reads, an optional until, its last day) or add_service (name, an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, AI should know something, or they offer a new service. ${approvalWords("settings")}.`,
     }),
     answers: answersAction,
+    worth: worthAction,
     autonomy: autonomyAction,
     goal: goalAction,
     answer_style: answerStyleAction,

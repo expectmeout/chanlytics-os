@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { BOOKING_RULE_BOUNDS, DAYS, PROFILE_LIMITS as L, type BookingRuleKey } from "./config-rules";
+import { CURRENCY_CODE } from "../../shared/identity";
 import { E164 } from "../../shared/phone";
 import { DAY_KEY } from "../../shared/zone/day-keys";
 
@@ -77,6 +78,9 @@ export const ClosureSchema = z.object({
   note: z.string().max(L.closureNote).optional(),
 });
 
+/** The most a service's amount may be, in minor units: far above any visit, and far below where a sum stops being exact. */
+const SERVICE_AMOUNT_MAX_MINOR = 1_000_000_000_000;
+
 export const ServiceSchema = z
   .object({
     name: z.string().min(1).max(L.serviceName),
@@ -88,6 +92,14 @@ export const ServiceSchema = z
      * must not be forced into a field that looks like it can.
      */
     price_note: z.string().max(L.servicePrice).optional(),
+    /**
+     * What one visit of it is worth to the business (the Ads tracking plan's T6), beside the note and never read from
+     * it: a whole number of `currency`'s own minor units (ads/money.ts), set when the owner approves AI's proposal or
+     * types it. A report counts by it; no customer is ever told it (price-allowance.ts reads the note alone).
+     */
+    amount_minor: z.number().int().min(0).max(SERVICE_AMOUNT_MAX_MINOR).optional(),
+    /** The currency `amount_minor` is in, ISO 4217. An amount is the pair: one alone is none (00683 service_amounts). */
+    currency: z.string().regex(CURRENCY_CODE).optional(),
   })
   .strip();
 

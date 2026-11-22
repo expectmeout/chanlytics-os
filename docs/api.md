@@ -3207,7 +3207,7 @@ Writes; for a member of the workspace the request names, partner or above; count
 | Body field | Type | Required | Limits |
 | --- | --- | --- | --- |
 | `rehearsal_id` | string (uuid) | yes |  |
-| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
+| `change` | object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object or object | yes |  |
 | `via` | one of `"rehearsal"`, `"call_review"` | yes |  |
 | `channel` | one of `"whatsapp"`, `"voice"` | yes |  |
 

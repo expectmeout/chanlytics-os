@@ -167,6 +167,18 @@ export interface AdLiveDto {
    * line of its own: never in `people`, `booked` or the cost of a booked person. Absent where the read of it failed.
    */
   back?: { people: number; booked: number };
+  /**
+   * What the visits its people booked are worth (the tracking plan's T6): a sum a currency, never across; how many
+   * visits are in them; and how many were left out, their service having no amount. The visits are the ones that make
+   * its people booked (decision 0049, call 6). Absent where the database is a deploy behind and sums none.
+   */
+  worth?: { sums: AdWorthSum[]; visits: number; left_out: number };
+}
+
+/** Visits' worth in one currency: a whole number of its minor units (money.ts), beside its ISO 4217 code. */
+export interface AdWorthSum {
+  currency: string;
+  minor: number;
 }
 
 /** The Ads page's read. */
