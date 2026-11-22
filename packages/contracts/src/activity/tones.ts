@@ -62,6 +62,7 @@ const TONES: Record<string, Tone> = {
   "line.released": "warn",
   "google.unlinked": "warn",
   "google.disconnected": "warn",
+  "channel.disconnected": "warn",
   "mailbox_connection.held": "warn",
   "mailbox_connection.signed_out": "warn",
   "mailbox.offers_paused": "warn",

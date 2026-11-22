@@ -443,15 +443,15 @@ function rowSettings(
  * the team's does: in the row's body it stood in what a phone leaves between the tile and the pill.
  */
 function rowAsk(
-  o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { armed: string | null; kind: string },
+  o: Pick<ConnectionRowProps, "busy" | "setArm" | "confirm"> & { armed: string | null; kind: string; leaving?: string },
 ): ReactNode {
-  const { busy, setArm, confirm, armed, kind } = o;
+  const { busy, setArm, confirm, armed, kind, leaving } = o;
   if (armed === "disconnect" && kind === "instagram") {
     return (
       <Confirm
         className="set-row-ask"
         question="Disconnect Instagram?"
-        detail="Its DMs stop being answered here until you connect it again. Its conversations stay."
+        detail={leaving ?? ""}
         yes="Yes, disconnect"
         danger
         busy={busy}
@@ -599,7 +599,7 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
         </span>
       )}
       {settingsOpen && rowSettings({ ...props, says, panelId, owner, armed, fixing: press === "fix" })}
-      {rowAsk({ busy, setArm, confirm, armed, kind: r.kind })}
+      {rowAsk({ busy, setArm, confirm, armed, kind: r.kind, leaving: r.leaving })}
     </div>
   );
 };

@@ -8,14 +8,15 @@
  *               the public half of the app the dashboard builds the way out from.
  *   connect     The code becomes the business's own token (Meta app's id and secret); `debug_token` says what it may do;
  *               it must carry the account and its DMs, or nothing is written. The one account the business shared is
- *               read (several are refused with the list, to be connected again with one), refused when another
- *               workspace holds it, and subscribed to this app's webhook for the fields its permissions allow. Then, as
- *               the Instagram connect does: the row (the account's one row, whichever login connected it), the token in
- *               the Vault through the one door that writes a credential, and only then the row on. A row this workspace
- *               already had is put back as it was if the Vault would not keep the new token, so a working account never
- *               goes quiet for a failed connect. An account taken over from Instagram's own login has that login's
- *               subscription removed afterwards, best effort, so Meta sends each DM once.
- *   disconnect  The account's row turned off, and its subscription removed with the token, best effort.
+ *               read (several are refused with the list, to be connected again with one), refused while another
+ *               workspace has it connected or this one has a different account (account.ts refuseIfHeld), and subscribed
+ *               to this app's webhook for the fields its permissions allow. Then, as the Instagram connect does, one
+ *               write: the row (the account's one row, whichever login connected it), its token in the Vault, the row
+ *               on (keepConnection). A write that fails changes nothing, so a working account never goes quiet for a
+ *               failed connect. An account taken over from Instagram's own login has that login's subscription removed
+ *               afterwards, best effort, so Meta sends each DM once.
+ *   disconnect  The account let go (account.ts disconnectAccount, decision 0143): its row off and holding no account, its
+ *               token deleted, its subscription removed with the token it had, best effort.
  *
  * Every answer is JSON with `ok`; a refusal is a code (http.ts refuse) and Meta's words in `detail`. The lines carry the
  * account's id and handle, never a token.
@@ -28,7 +29,6 @@ import {
   metaAccountRequest,
   metaAssignedAccountsRequest,
   metaSubscribeRequest,
-  metaUnsubscribeRequest,
   metaWebhookFieldsOf,
   parseMetaAccount,
   parseMetaAssignedAccounts,
@@ -43,15 +43,10 @@ import {
   type MetaApp,
   type MetaTokenFacts,
 } from "@chanlytics/channels/meta";
-import { emitEvent, recordActivation } from "@chanlytics/db/events";
-import {
-  findInstagramAccountRow,
-  putChannelSecret,
-  setInstagramStatus,
-  writeInstagramAccount,
-} from "@chanlytics/db/channels";
+import { recordActivation } from "@chanlytics/db/events";
+import { findInstagramAccountRow } from "@chanlytics/db/channels";
 import { findWorkspaceNameAndConfig } from "@chanlytics/db/campaigns";
-import type { Database, Json } from "@chanlytics/db/types";
+import type { Database } from "@chanlytics/db/types";
 import { contentPreviewOf, isTenantId, recordOrNull, UUID, type TenantId } from "@chanlytics/contracts";
 import { logAndGoOn } from "@chanlytics/log";
 import { personFor, workspaceFor, type Admitted } from "../shared/admin-auth.js";
@@ -60,7 +55,7 @@ import { pg } from "../shared/pg.js";
 import { env } from "../shared/env.js";
 import { logger } from "../shared/log.js";
 import { metaAppId } from "../whatsapp/meta-graph.js";
-import { refuseIfHeldElsewhere } from "./connect.js";
+import { disconnectAccount, keepConnection, refuseIfHeld } from "./account.js";
 import { readKeptSecret, type InstagramSecret } from "./credentials.js";
 
 type Db = SupabaseClient<Database>;
@@ -228,7 +223,7 @@ async function connectThroughMeta(
   const account = await sharedAccountOf(log, app, token, facts.accountsByScope);
   if (account instanceof Response) return account;
   log = logger({ tenant_id: tenantId, account: account.id });
-  const held = await refuseIfHeldElsewhere(db, log, tenantId, account.id);
+  const held = await refuseIfHeld(db, log, tenantId, account.id);
   if (held) return held;
   let before: Awaited<ReturnType<typeof findInstagramAccountRow>>;
   try {
@@ -240,10 +235,19 @@ async function connectThroughMeta(
   // 2. Its events reach this app's webhook, for what its permissions allow.
   const unsubscribed = await subscribeThroughMeta(log, app, { id: account.id, token, scopes: facts.scopes });
   if (unsubscribed) return unsubscribed;
-  // 3. The row, then the token, then the row on.
+  // 3. The row, its token and the row on, in one write.
   const now = new Date().toISOString();
   const businessId = metaRefused(business) ? null : business;
-  const row = await writeInstagramAccount(db, {
+  const secret: InstagramSecret = {
+    access_token: token,
+    account_id: account.id,
+    expires_at: facts.expiresAt,
+    refreshed_at: now,
+    login: "meta",
+    business_id: businessId,
+    scopes: facts.scopes,
+  };
+  const row = await keepConnection(db, log, {
     tenantId,
     accountId: account.id,
     config: {
@@ -256,85 +260,20 @@ async function connectThroughMeta(
       scopes: facts.scopes,
       token_checked_at: now,
     },
+    secret,
   });
-  if (row === "taken") return refuse(409, "instagram_account_taken");
-  if ("failed" in row) {
-    log.info("ig_connect_channel_write_failed", { error: row.failed, login: "meta" });
-    return refuse(500, "channel_write_failed");
-  }
-  const secret: InstagramSecret = {
-    access_token: token,
-    account_id: account.id,
-    expires_at: facts.expiresAt,
-    refreshed_at: now,
-    login: "meta",
-    business_id: businessId,
-    scopes: facts.scopes,
-  };
-  try {
-    await putChannelSecret(db, row.id, { ...secret });
-  } catch (e) {
-    log.info("ig_connect_credentials_failed", { error: e instanceof Error ? e.message : String(e), login: "meta" });
-    await restoreRow(db, { tenantId, accountId: account.id, rowId: row.id }, before);
-    return refuse(500, "credentials_failed");
-  }
-  if (!(await setInstagramStatus(db, tenantId, row.id, "active"))) return refuse(500, "channel_write_failed");
+  if (row instanceof Response) return row;
   if (oldToken) await dropOldLogin(log, oldToken, account.id);
-  await emitEvent(db, tenantId, "channel.connected", "channel", row.id, {
-    kind: "instagram",
-    login: "meta",
-    account_id: account.id,
-    username: account.username,
-    by: userId,
-  }).catch(logAndGoOn("event channel.connected"));
   // The workspace's first line that answers, the funnel's first milestone, whichever wire it is.
   await recordActivation(db, tenantId, "line_live", "instagram").catch(logAndGoOn("record the line live", false));
-  log.info("meta_connected", { channel_id: row.id, username: account.username, scopes: facts.scopes.length });
-  return json(200, { ok: true, channel_id: row.id, account_id: account.id, username: account.username });
-}
-
-/** The row as it was before a connect whose token the Vault would not keep: its config and status back, or off if new. */
-async function restoreRow(
-  db: Db,
-  at: { tenantId: TenantId; accountId: string; rowId: string },
-  before: { status: string; config: Json } | null,
-): Promise<void> {
-  const { tenantId, accountId, rowId } = at;
-  if (!before) {
-    await setInstagramStatus(db, tenantId, rowId, "disabled");
-    return;
-  }
-  await writeInstagramAccount(db, { tenantId, accountId, config: before.config });
-  await setInstagramStatus(db, tenantId, rowId, before.status === "active" ? "active" : "disabled");
+  log.info("meta_connected", { channel_id: row.channelId, username: account.username, scopes: facts.scopes.length });
+  return json(200, { ok: true, channel_id: row.channelId, account_id: account.id, username: account.username });
 }
 
 /** Instagram's own login's subscription removed, best effort: Meta's now carries the account's DMs. */
 async function dropOldLogin(log: Log, oldToken: string, accountId: string): Promise<void> {
   const answer = await callInstagram(instagramUnsubscribeRequest(oldToken, accountId));
   log.info("meta_old_login_unsubscribed", { outcome: answer.outcome, status: answer.status });
-}
-
-async function disconnectFromMeta(
-  db: Db,
-  app: MetaApp | null,
-  tenantId: TenantId,
-  channelId: string,
-): Promise<Response> {
-  const log = logger({ tenant_id: tenantId, channel_id: channelId });
-  if (!(await setInstagramStatus(db, tenantId, channelId, "disabled"))) {
-    log.info("ig_disconnect_failed", { login: "meta" });
-    return refuse(404, "not_found");
-  }
-  // The row is off whatever the Vault says; a token that cannot be read leaves Meta's subscription standing, and an
-  // account no row routes is told to the platform, never answered.
-  const kept = await readKeptSecret(db, channelId).catch(logAndGoOn("read the token to unsubscribe", null));
-  let unsubscribed = "not_asked";
-  if (app && kept?.login === "meta" && kept.access_token && kept.account_id) {
-    const answer = await callInstagram(metaUnsubscribeRequest(kept.access_token, app.clientSecret, kept.account_id));
-    unsubscribed = answer.outcome;
-  }
-  log.info("meta_disconnected", { unsubscribed });
-  return json(200, { ok: true });
 }
 
 /** `status`: whether the app's login is held here, whether this workspace's switch is on, and the app's public half. */
@@ -382,7 +321,7 @@ export async function runMetaOp(auth: Admitted, body: Partial<MetaBody>): Promis
   if (op === "disconnect") {
     const channelId = String(body.channel_id ?? "");
     if (!UUID.test(channelId)) return refuse(400, "bad_request", "channel_id required");
-    return disconnectFromMeta(db, app, tenantId, channelId);
+    return disconnectAccount(db, { tenantId, userId }, channelId);
   }
   return refuse(400, "bad_request", "op is status, connect or disconnect");
 }

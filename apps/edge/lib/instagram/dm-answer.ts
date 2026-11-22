@@ -65,7 +65,7 @@ export async function answerDm(db: Db, job: ClaimedJob, deadline?: number): Prom
   if (!account || !ig?.item) throw new Error("inbound_answer: the payload names no Instagram DM");
   const message = inboundFromInstagram(ig.item, typeof ig.profile_name === "string" ? ig.profile_name : null);
   if (!message) throw new Error("inbound_answer: the payload's DM names no id or no sender");
-  const { channel: routed } = await resolveChannelDetailed(db, "instagram", account);
+  const { channel: routed } = await resolveChannelDetailed(db, "instagram", account, { fresh: true });
   if (!routed) throw new Error("inbound_answer: the account's Instagram channel could not be read, or is not active");
   if (routed.tenantId !== job.tenant_id)
     throw new Error("inbound_answer: the account written to is another workspace's now");

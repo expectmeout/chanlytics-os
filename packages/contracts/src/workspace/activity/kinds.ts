@@ -277,6 +277,18 @@ const CANCELED_BY_SYSTEM: Readonly<Record<string, string>> = {
 };
 
 /** The kinds whose sentence is written whole, by its own function. */
+/** An account's handle as a sentence names it, where its event holds one. */
+const handleBit = (p: Record<string, unknown>): string | null => {
+  const username = textAt(p, "username");
+  return username ? `@${username}` : null;
+};
+
+/** A channel connected: an Instagram account by its handle, a WhatsApp number by what Meta calls the business. */
+const channelConnectedWords = (p: Record<string, unknown>, base: string): string =>
+  textAt(p, "kind") === "instagram"
+    ? joinBits("An Instagram account was connected", [handleBit(p)])
+    : joinBits(base, [textAt(p, "verified_name")]);
+
 export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
   ["broadcast.sent", (p, base) => runEndWords("broadcast.sent", p, base)],
   ["broadcast.stopped", (p, base) => runEndWords("broadcast.stopped", p, base)],
@@ -293,7 +305,8 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   // it, not a person, and only because nothing used it. Any other removal is a person's, in the kind's own words.
   ["file.removed", fileRemovedWords],
   ["lead.call", (p, base) => joinBits(base, [wordOf(LEAD_CALL_OUTCOME_WORDS, textAt(p, "outcome"))])],
-  ["channel.connected", (p, base) => joinBits(base, [textAt(p, "verified_name")])],
+  ["channel.connected", channelConnectedWords],
+  ["channel.disconnected", (p, base) => joinBits(base, [handleBit(p)])],
   ["mailbox_connection.provider_wanted", (p, base) => joinBits(base, [textAt(p, "provider")])],
   // A mailbox a business connected (decision 0056): its address, and a hold with why.
   ...[
