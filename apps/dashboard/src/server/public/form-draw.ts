@@ -271,6 +271,7 @@ interface ThanksShown {
   /** The business's own thank-you words, written with the form. */
   thanks: string;
   name: string | null;
+  /** Their address, where a reply by email can go to it now: null where they gave none, or the business can send none. */
   email: string | null;
   /** Their number as they would read it, where it is the only way to reach them. */
   phoneOnly: string | null;
@@ -295,13 +296,17 @@ function roadLines(frame: FormPageFrame, thanks: ThanksShown): { lead: string; s
   if (thanks.chatHref) {
     return {
       lead: escapeHtml(fillWords(words.chat_only, parts)),
-      sub: bold(fillWords(words.or_call, parts), thanks.phoneOnly),
+      sub: thanks.phoneOnly ? bold(fillWords(words.or_call, parts), thanks.phoneOnly) : "",
     };
   }
-  return {
-    lead: `${escapeHtml(thanks.thanks)} ${bold(fillWords(words.will_call, parts), thanks.phoneOnly)}`,
-    sub: escapeHtml(fillWords(words.booked, parts)),
-  };
+  if (thanks.phoneOnly) {
+    return {
+      lead: `${escapeHtml(thanks.thanks)} ${bold(fillWords(words.will_call, parts), thanks.phoneOnly)}`,
+      sub: escapeHtml(fillWords(words.booked, parts)),
+    };
+  }
+  // An address the business cannot write to from here yet, and no other road: only that they will answer is said.
+  return { lead: `${escapeHtml(thanks.thanks)} ${escapeHtml(fillWords(words.booked, parts))}`, sub: "" };
 }
 
 /**
