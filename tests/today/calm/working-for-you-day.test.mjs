@@ -8,7 +8,7 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { SHORTCUTS, dayInZone, shiftKey, toCalendarVM, todayDay } from "@chanlytics/contracts";
-import { byTestId, press, redrawWanted, textOf } from "../../_stub-react.mjs";
+import { byTestId, press, quiet, redrawWanted, textOf } from "../../_stub-react.mjs";
 import { keysDrawn } from "../../_keys.mjs";
 import { until } from "../../shared/_until.mjs";
 import { W, ZONE, answerWith, draw, json, redraw, wire } from "../zones/_world.mjs";
@@ -20,6 +20,11 @@ const { MorningFold, TonightLine } = await import("../../../apps/dashboard/src/s
 const { WeekLead, useWeekMoment, weekWords } = await import("../../../apps/dashboard/src/surfaces/today/calm/week.tsx");
 const { LetAiDoMore, offerOf } = await import("../../../apps/dashboard/src/surfaces/today/calm/more.tsx");
 const { TodayKeys } = await import("../../../apps/dashboard/src/surfaces/today/calm/keys.tsx");
+const { forgetLastDays, useLastDays } = await import("../../../apps/dashboard/src/surfaces/today/calm/days.ts");
+const { useClearedBeat } = await import("../../../apps/dashboard/src/surfaces/today/calm/cleared.ts");
+const { cardPressed, forgetTodayMotion, handPressed } =
+  await import("../../../apps/dashboard/src/surfaces/today/calm/motion.ts");
+const { closeAiSheet, openAiSheet } = await import("../../../apps/dashboard/src/surfaces/today/ai/open.ts");
 const { typing } = await import("../../../apps/dashboard/src/surfaces/today/calm/held.tsx");
 const { clearRowStates } = await import("../../../apps/dashboard/src/surfaces/today/need-you/row-state.ts");
 const { setSurfaceValue } = await import("../../../apps/dashboard/src/surfaces/surface-values.ts");
@@ -206,20 +211,134 @@ test("a day against a usual one (W8) is said only with four weeks of that weekda
 
 const dayOf = (answered, calls = 0, booked = 0) => ({ messages: answered, answered, calls, newPeople: 0, booked });
 
-test("the week's words (W9) are the seven days before today: what AI answered, the calls and bookings under it, and nothing it cannot back", () => {
+test("the week's words (W9) are the last seven days as Reports counts them, today among them: what AI answered, the calls and bookings under it", () => {
   const seven = Array.from({ length: 7 }, () => dayOf(12, 2, 1));
-  assert.deepEqual(weekWords([...seven, dayOf(99, 9, 9)]), {
+  // Thirty days held: only the last seven are said, the days Reports' "Last 7 days" counts.
+  assert.deepEqual(weekWords([...Array.from({ length: 23 }, () => dayOf(99, 9, 9)), ...seven]), {
     sentence: "In the last 7 days AI answered 84 messages.",
     sub: "14 calls · 7 booked",
   });
-  assert.equal(weekWords(seven), null, "seven days and no today: not a week before today");
-  assert.equal(weekWords([...Array.from({ length: 7 }, () => dayOf(0, 3, 1)), dayOf(5)]), null, "AI answered nothing");
-  const uncounted = [...seven.map((d, at) => (at === 0 ? { ...d, booked: null } : d)), dayOf(1)];
+  assert.deepEqual(weekWords(seven)?.sub, "14 calls · 7 booked", "a week held is a week said");
+  assert.equal(weekWords(seven.slice(1)), null, "six days: not a week");
+  assert.equal(weekWords(Array.from({ length: 7 }, () => dayOf(0, 3, 1))), null, "AI answered nothing");
+  // REGRESSION (22 Nov 2026): the headline counts bookings for its last seven days alone, and the card read the seven
+  // BEFORE today, so one day was never counted and the card never said what was booked.
+  const asTheHeadlineCarries = [...Array.from({ length: 23 }, () => ({ ...dayOf(5, 1), booked: null })), ...seven];
+  assert.equal(weekWords(asTheHeadlineCarries).sub, "14 calls · 7 booked");
+  const uncounted = seven.map((d, at) => (at === 0 ? { ...d, booked: null } : d));
   assert.equal(weekWords(uncounted).sub, "14 calls", "a day whose bookings were not counted: no number of them");
-  assert.equal(weekWords([...Array.from({ length: 7 }, () => dayOf(1)), dayOf(1)]).sub, null);
+  assert.equal(weekWords(Array.from({ length: 7 }, () => dayOf(1))).sub, null);
 });
 
-const headline = () => ({ perDay: [...Array.from({ length: 7 }, () => dayOf(12, 2, 1)), dayOf(3)] });
+/** GET reports/headline as the route answers it, over these days. */
+const headlineDto = (days) => ({
+  period: "30d",
+  days,
+  empty: false,
+  messages_in: 0,
+  messages_before: null,
+  answered_ai: 0,
+  answered_you: 0,
+  unanswered: 0,
+  answered_share: null,
+  calls: 0,
+  booking: null,
+  daily: {
+    messages_in: Array.from({ length: days }, () => 3),
+    answered_ai: Array.from({ length: days }, () => 2),
+    calls: Array.from({ length: days }, () => 1),
+    new_contacts: Array.from({ length: days }, () => 0),
+  },
+});
+
+test("the last days (W8, W9) are the headline's own where it holds enough, else the last thirty, read once, and nothing is asked before it is wanted", async () => {
+  forget();
+  forgetLastDays();
+  // This device picked 7 days on Reports: a week is there to say, four weeks of a weekday are not.
+  setSurfaceValue("reports_headline", { period: "7d", perDay: Array.from({ length: 7 }, () => dayOf(2)) });
+  answerWith((u) =>
+    u.pathname === "/api/v1/reports/headline"
+      ? json(200, { ok: true, data: { headline: headlineDto(30) } })
+      : json(200, { ok: true, data: {} }),
+  );
+  const asks = () => wire.filter((w) => w.path === "/api/v1/reports/headline");
+  let wanted = false;
+  const seen = [];
+  const Probe = () => {
+    seen.push([useLastDays(7)?.length ?? null, useLastDays(29, wanted)?.length ?? null]);
+    return null;
+  };
+  draw(Probe);
+  assert.deepEqual(seen.at(-1), [7, null]);
+  assert.equal(asks().length, 0, "the day is not done: its usual day asks for nothing yet");
+  wanted = true;
+  redraw(Probe);
+  assert.deepEqual(seen.at(-1), [7, null], "asked for, not in yet");
+  await until(redrawWanted, "the last thirty read");
+  redraw(Probe);
+  assert.deepEqual(seen.at(-1), [7, 30], "REGRESSION: on a 7-day period the usual day and the week went silent");
+  assert.equal(asks().length, 1, "read once");
+  assert.match(asks()[0].query, /period=30d/);
+  // Whoever asks next shares the read.
+  draw(Probe);
+  await until(redrawWanted, "the read shared");
+  assert.equal(asks().length, 1);
+  forgetLastDays();
+  forget();
+});
+
+test("the celebration (W6) is owed where the last who waited was answered here: for its beat, held while a hand is busy, never for a read's doing", async () => {
+  const waitingOn = { card: { holder: "queue", id: "r1" }, waiting: true };
+  const found = { card: { holder: "found", id: "f1" }, waiting: false };
+  let at = waitingOn;
+  const seen = [];
+  const Probe = () => {
+    seen.push(useClearedBeat(at));
+    return null;
+  };
+  /** The page as React would leave it: drawn again while a draw asked for another. */
+  const settle = () => {
+    do {
+      quiet();
+      redraw(Probe);
+    } while (redrawWanted());
+    return seen.at(-1);
+  };
+  forgetTodayMotion();
+  draw(Probe);
+  assert.equal(settle(), null);
+  // A read moved the card (a teammate answered): nothing is celebrated.
+  at = found;
+  assert.equal(settle(), null, "no hand, no celebration");
+  // Answered here: the card's own press, then nobody waits.
+  at = waitingOn;
+  settle();
+  cardPressed();
+  at = found;
+  assert.equal(
+    settle(),
+    "on",
+    "REGRESSION: it stood only where nothing followed the card, and something nearly always does",
+  );
+  quiet();
+  await until(redrawWanted, "its beat over");
+  assert.equal(settle(), null, "then the next thing takes the card");
+  // A reply sent from the sheet over the page: held until the hand is free, then said.
+  at = waitingOn;
+  settle();
+  openAiSheet();
+  handPressed();
+  at = found;
+  assert.equal(settle(), "held", "never said behind a sheet (W23)");
+  closeAiSheet();
+  assert.equal(settle(), "on");
+  // Someone new arrives: it ends at once.
+  at = waitingOn;
+  assert.equal(settle(), null);
+  forgetTodayMotion();
+});
+
+const headline = () => ({ perDay: Array.from({ length: 7 }, () => dayOf(12, 2, 1)) });
 const morning = (rested = {}) =>
   setSurfaceValue("ask_morning", {
     fetchedAt: Date.now(),

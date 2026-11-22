@@ -28,6 +28,9 @@ const EASE_IN_OUT = "cubic-bezier(0.65, 0, 0.35, 1)";
 
 const still = (): boolean => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/** Whether the member asked for less motion: what only moves is then left out. */
+export const motionStill = still;
+
 /** What the page's card last held, and how tall it stood. */
 let lastCard: { key: string; height: number } | null = null;
 /** The count the head last drew. */
@@ -44,11 +47,21 @@ export function cardPressed(): void {
 /** Whether the card was pressed a moment ago: what has left it since was finished by that press, not by a read. */
 export const cardPressedLately = (): boolean => Date.now() - cardPressedAt < PRESS_HOLDS_MS;
 
+/** When a hand last pressed anything on the page or over it (a reply's Send in its sheet), heard by cleared.ts. */
+let handPressedAt = 0;
+export function handPressed(): void {
+  handPressedAt = Date.now();
+}
+
+/** Whether a hand pressed something a moment ago: who stopped waiting since was answered here, not by someone else. */
+export const handPressedLately = (): boolean => Date.now() - handPressedAt < PRESS_HOLDS_MS;
+
 /** Today is left: the next visit's first draw moves nothing. */
 export function forgetTodayMotion(): void {
   lastCard = null;
   lastCount = null;
   cardPressedAt = 0;
+  handPressedAt = 0;
 }
 
 /** The card's words arrive, a part at a time, and its room glides from the height the last card stood at. */
@@ -120,17 +133,34 @@ export function useCardHandOff(key: string): RefObject<HTMLDivElement | null> {
 }
 
 /**
- * How long the one celebration stands before its room folds (Working for you, W6): long enough for the three's sweep to
- * run once and the words to be read, never long enough to wait on.
+ * How long the one celebration stands before the next thing takes its place (Working for you, W6): long enough for the
+ * three's sweep to run once and the words to be read, never long enough to wait on.
  */
 export const CLEARED_BEAT_MS = 1400;
 
+/** What the card's room is remembered as while the celebration stands in it: the next card glides from its height. */
+const CLEARED_KEY = "cleared";
+
+/**
+ * The room the celebration stands in: where the card stood, at the height it stood at. It stays the page's last card, so
+ * the card that follows glides from it (useCardHandOff), and with none to follow the room folds (useCardGone).
+ */
+export function useClearedRoom(): RefObject<HTMLDivElement | null> {
+  const room = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const el = room.current;
+    if (!el || !lastCard) return;
+    el.style.height = `${lastCard.height}px`;
+    lastCard = { key: CLEARED_KEY, height: lastCard.height };
+  }, []);
+  return room;
+}
+
 /**
  * Where the card stood, once nothing holds it: its room folds shut, so the lines rise under it instead of jumping. The
- * ref of an empty box, and whether it is done (the box is then not drawn at all). Nothing where no card was drawn. `beat`
- * holds the room at the card's height that long first, for what it says (the one celebration, W6).
+ * ref of an empty box, and whether it is done (the box is then not drawn at all). Nothing where no card was drawn.
  */
-export function useCardGone(beat = 0): { room: RefObject<HTMLDivElement | null>; gone: boolean } {
+export function useCardGone(): { room: RefObject<HTMLDivElement | null>; gone: boolean } {
   const room = useRef<HTMLDivElement | null>(null);
   const [gone, setGone] = useState(() => lastCard === null || still());
   useLayoutEffect(() => {
@@ -144,13 +174,10 @@ export function useCardGone(beat = 0): { room: RefObject<HTMLDivElement | null>;
     const fold = el.animate([{ height: `${was.height}px` }, { height: "0px" }], {
       duration: SLOW_MS,
       easing: EASE_IN_OUT,
-      delay: beat,
-      fill: "backwards",
     });
     fold.onfinish = () => setGone(true);
     fold.oncancel = () => setGone(true);
     return () => fold.cancel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the room folds once, as it was drawn: a beat is read at its first draw
   }, []);
   return { room, gone };
 }

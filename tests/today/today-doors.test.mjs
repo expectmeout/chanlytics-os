@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import { toTodayVM, setupSteps } from "@chanlytics/contracts";
 import { installStubReact, fresh, again, kitPages, press, unmount } from "../_stub-react.mjs";
 import { importSrc } from "../_source.mjs";
-import { headline } from "./_headline.mjs";
+import { headline, weekSeen } from "./_headline.mjs";
 const { holdAsk } = await importSrc("apps/dashboard/src/surfaces/frame-verbs.ts");
 
 const ZONE = "America/New_York";
@@ -779,7 +779,7 @@ const morningWith = (...cards) => ({
     detail: "",
     cards,
     findings: [],
-    rested: {},
+    rested: weekSeen(),
     lately: [],
   },
 });
@@ -1005,7 +1005,7 @@ test("AI found holds what AI noticed, tagged as no idea of a model's, and says w
       detail: "",
       cards: [],
       findings: [noticed],
-      rested: {},
+      rested: weekSeen(),
       lately: [{ title: "Find gyms", said: "Found 40 gyms" }],
     },
   });
