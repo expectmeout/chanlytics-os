@@ -602,6 +602,7 @@ test("every connection says one word: Connect where it is not joined, Settings w
   let listing = byTestId(tree, "connection-google_listing");
   // One act on the row, its Settings, and the row is its press on a phone (settings.css): no ⋯, no address beside the name.
   assert.equal(listing.props["data-offers"], "one");
+  assert.equal(find(listing, (n) => n.props?.kind === "tone").props.label, "On", "one word for a row that works");
   assert.equal(
     find(listing, (n) => n.type === MoreMenu),
     null,
@@ -1227,13 +1228,13 @@ test("the WhatsApp row draws what Meta holds: a number whose account has no paym
   const tree = settle(Connections);
   const row = byTestId(tree, "connection-whatsapp");
   assert.equal(row.props["data-state"], "attention");
-  // The row is its name, its state and Fix, in coral (Ruben, 20 Oct 2026): what is wrong and the act that mends it are
-  // what Fix opens.
+  // The row is its name, what is wrong in a few words, and Fix in coral (Ruben, 20 Oct 2026): the rest is what Fix opens.
   assert.equal(
     find(row, (n) => n.props?.className === "set-team-mail"),
     null,
     "no sentence on the row",
   );
+  assert.equal(textOf(byTestId(row, "connection-whatsapp-line")), "Payment needed", "what is wrong, in a few words");
   assert.equal(byTestId(row, "connection-whatsapp-verb"), null, "and no act of its own beside Fix");
   const fix = byTestId(row, "connection-whatsapp-fix");
   assert.deepEqual([textOf(fix), fix.props.variant], ["Fix", "primary"]);
@@ -1380,7 +1381,7 @@ const emailSeam = (sending, mailbox = null) =>
     },
   });
 
-test("the mailboxes you write from: one Email card, each on its own line in contracts' words, and an Add for each provider offered", () => {
+test("the mailboxes you write from: one Email row, each mailbox a row under it, and Add a mailbox opens a Connect for each provider offered", () => {
   asRole("owner");
   const went = [];
   // The door gives a way to the provider (the real verb then leaves for it); the stub records who was asked for.
@@ -1408,17 +1409,21 @@ test("the mailboxes you write from: one Email card, each on its own line in cont
     ],
   });
   let tree = render(Connections);
-  // The mailbox canvas (#1865): the row is the Email card, its mailboxes its own lines, no block under it.
+  // The mailbox rows (21 Nov 2026): the row is Email, each mailbox a row of its own under it, no block under it.
   const row = byTestId(tree, "connection-mailbox");
-  assert.ok(row, "the Email card, with no hosted mailbox needed");
-  assert.equal(byTestId(tree, "connected-mailboxes"), null, "its mailboxes are the card's");
+  assert.ok(row, "the Email row, with no hosted mailbox needed");
+  assert.equal(byTestId(tree, "connected-mailboxes"), null, "its mailboxes are rows under it");
   assert.equal(textOf(find(row, (n) => n.props?.className === "set-team-name")), "Email");
   assert.equal(row.props["data-state"], "attention", "one held and one signed out: the row says so, not a green On");
   assert.match(textOf(row), /2 to look at/);
   // What each mailbox's row says and offers is its own test's (email/mailboxes/mailbox-row.test.mjs).
   assert.ok(byTestId(tree, "mailbox-sam@getharbor.com"));
+  press(byTestId(tree, "mailbox-fix-dana@getharbor.com"));
+  tree = settle(Connections);
   press(byTestId(tree, "mailbox-reconnect-dana@getharbor.com"));
   assert.deepEqual(went, [["microsoft", "m2"]], "Reconnect goes back to its own provider, for its own mailbox");
+  press(byTestId(tree, "mailbox-add"));
+  tree = settle(Connections);
   press(byTestId(tree, "mailbox-connect-google"));
   press(byTestId(tree, "mailbox-connect-microsoft"));
   assert.deepEqual(went, [
@@ -1427,7 +1432,7 @@ test("the mailboxes you write from: one Email card, each on its own line in cont
     ["microsoft", null],
   ]);
   tree = settle(Connections);
-  assert.equal(byTestId(tree, "mailbox-need-sam@getharbor.com"), null, "every record found: none to add");
+  assert.doesNotMatch(textOf(byTestId(tree, "mailbox-sam@getharbor.com")), /DNS/, "every record found: none to add");
 });
 
 test("no provider offered and none connected: the row is there, Later and greyed, with nothing to press and no block under it", () => {
@@ -1451,25 +1456,22 @@ test("no provider offered and none connected: the row is there, Later and greyed
     mailboxes: Array.from({ length: 10 }, (_, i) => mbx({ id: `m${i}`, address: `s${i}@getharbor.com` })),
   });
   const tree = render(Connections);
-  assert.ok(byTestId(tree, "connection-mailbox"), "the Email card");
+  assert.ok(byTestId(tree, "connection-mailbox"), "the Email row");
   assert.equal(byTestId(tree, "mailbox-connect-google"), null);
   assert.match(textOf(byTestId(tree, "mailbox-most")), /10 is the most/, "and why Add has gone");
 });
 
-test("a non-owner is told once why they can't act; the partner, who sets the workspace up, is not gated", () => {
-  const caret = (tree) => find(tree, (n) => n.type === MoreMenu && n.props.testid === "mailbox-more-sam@getharbor.com");
-  const words = (tree) => caret(tree).props.items.flatMap((it) => (it.label ? [it.label] : []));
+test("a non-owner is told once why they can't act, reads a mailbox's settings and is offered nothing; the partner, who sets the workspace up, is not gated", () => {
+  const SAM = "sam@getharbor.com";
+  const opened = () => (press(byTestId(render(Connections), `mailbox-settings-${SAM}`)), settle(Connections));
+  const offered = (t) => [byTestId(t, "mailbox-remove-ask"), byTestId(t, `mailbox-test-${SAM}`).props["aria-disabled"]];
   emailSeam({ providers: ["google"], mailboxes: [mbx()] });
   asRole("operator");
-  let tree = render(Connections);
-  assert.match(textOf(byTestId(tree, "mailbox-gate")), /Only an owner can connect, pause, resume or remove a mailbox/);
-  assert.deepEqual(words(tree), ["Send a test", "Pause sending"], "no Settings, no Remove");
-  assert.ok(caret(tree).props.items[1].gate["aria-disabled"], "Pause says why it can't");
+  assert.match(textOf(byTestId(render(Connections), "mailbox-gate")), /Only an owner can connect, pause/);
+  assert.deepEqual(offered(opened()).map(Boolean), [false, true], "settings read, no Remove, the test gated");
   // The partner sets the workspace up (ROLE_PERMS settings), as the doors' own role check admits them: nothing gated.
   asRole("partner");
-  tree = render(Connections);
-  assert.ok(words(tree).includes("Remove…"));
-  assert.deepEqual(caret(tree).props.items[1].gate, {});
+  assert.deepEqual(offered(opened()).map(Boolean), [true, false]);
   asRole("owner");
 });
 

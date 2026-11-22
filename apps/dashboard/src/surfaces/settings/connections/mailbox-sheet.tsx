@@ -1,11 +1,13 @@
 /**
- * A mailbox's settings, in the record kit's sheet (the mailbox canvas, 27 Oct 2026): beside the page on a desk, from
- * the bottom on a phone, where they unfolded inside the Email row before. Sending: the name it sends as, the most it
- * sends a day, whether it sends, and where its day, ramp and health stand. What it signs with, and the end of an email as
- * the preview, read by the rule the send reads (contracts mailboxSignsOf). Its backup address, and Remove, asked in the
- * foot. One Save, for what is typed and chosen; Ctrl or Cmd with Enter saves, by the sheet's rule.
+ * A mailbox's settings, in the record kit's sheet: beside the page on a desk, from the bottom on a phone, opened by the
+ * mailbox's row under Email (mailboxes-block.tsx). Where something needs mending it leads with what is wrong and the act
+ * that mends it (the block's `head`), as a row's Fix opens on it. Then Sending: the name it sends as, its daily limit,
+ * whether it sends, where its day stands in one line, and a test to itself. What it signs with, said once: Gmail's words
+ * or none as words, their own in the box they write it in (Ruben, 21 Nov 2026: a preview under them said it again). What
+ * it brought in; its backup address; and Remove, asked in the foot. One Save, for what is typed and chosen; Ctrl or Cmd
+ * with Enter saves, by the sheet's rule.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { MailboxConnectionDto, MailboxSignsChoice, SetupDto } from "@chanlytics/contracts";
 import { pageClock } from "@/bridge/zone";
 import { Confirm } from "../../kit/confirm/confirm";
@@ -19,7 +21,7 @@ import { connectedMailboxes } from "./connected-mailboxes";
 import { EmailSetupForm } from "./email-setup";
 
 const MAILBOXES = connectedMailboxes;
-/** Settings' words for what a mailbox signs with, and the card's and the sheet's (contracts). */
+/** Settings' words for what a mailbox signs with, and the sheet's (contracts). */
 const SIGNS = MAILBOXES.signs.words;
 const CARD = MAILBOXES.card;
 
@@ -32,6 +34,12 @@ interface SheetProps {
   businessName: string | null;
   owner: boolean;
   flash: (f: FrameFlash) => void;
+  /** What is wrong and the act that mends it, first; null while nothing needs mending. */
+  head: ReactNode;
+  /** What it brought in, with the act that fits its history; null where nothing is said. */
+  brought: ReactNode;
+  /** Send a test to itself, where it may send one (gated for a member who may not); null otherwise. */
+  test: ReactNode;
   onClose: () => void;
   /** Remove, once asked: the block's act, which closes the sheet when it is done. */
   onRemove: () => Promise<void>;
@@ -59,7 +67,7 @@ function problemsOf(name: string, signs: MailboxSignsChoice, signature: string, 
 
 /**
  * What the Gmail choice signs with, as words (Gmail's own markup is never drawn here), and when it was read; or that
- * none goes. Their own words are the field above, where they write them.
+ * none goes. Their own words are the box they write them in.
  */
 const SignsSaid = ({ m, choice }: { m: MailboxConnectionDto; choice: MailboxSignsChoice }) => {
   if (choice === "none")
@@ -77,42 +85,15 @@ const SignsSaid = ({ m, choice }: { m: MailboxConnectionDto; choice: MailboxSign
   );
 };
 
-/** The end of an email as their inbox shows it, under what it signs with as the send will (mailboxSignsOf). */
-const SignsPreview = (p: { m: MailboxConnectionDto; name: string; signs: MailboxSignsChoice; signature: string }) => {
-  const { m, name, signs, signature } = p;
-  // Write one, with nothing written yet: the save asks for it, so the preview says where it will go.
-  const unwritten = signs === "own" && !signature.trim();
-  const signed = unwritten
-    ? null
-    : MAILBOXES.signs.of(
-        {
-          signature: signs === "own" ? signature : null,
-          signature_off: signs === "none",
-          from_name: name,
-          gmail_signature_at: m.signs.gmail_read_at,
-        },
-        m.signs.gmail,
-      ).words;
-  return (
-    <div className="set-mbx-preview" data-testid="mailbox-preview">
-      <span className="set-mbx-preview-from">
-        <b>{name.trim() || m.from_name}</b> {m.address}
-      </span>
-      <span className="set-mbx-preview-body">{CARD.previewEnd}</span>
-      {signed ? (
-        <span className="set-mbx-preview-sig" data-testid="mailbox-preview-sig">
-          {signed}
-        </span>
-      ) : (
-        <span className="set-mbx-preview-none">{unwritten ? CARD.previewWrite : CARD.previewNone}</span>
-      )}
-    </div>
-  );
-};
-
-/** Whether it sends: a switch where the owner may pause or unpause it, and its day, ramp and health under it. */
-const SendingGroup = (p: { m: MailboxConnectionDto; on: boolean; setOn: (on: boolean) => void; locked: boolean }) => {
-  const { m, on, setOn, locked } = p;
+/** Whether it sends: a switch where the owner may pause or unpause it, where its day stands, and a test to itself. */
+const SendingSwitch = (p: {
+  m: MailboxConnectionDto;
+  on: boolean;
+  setOn: (on: boolean) => void;
+  locked: boolean;
+  test: ReactNode;
+}) => {
+  const { m, on, setOn, locked, test } = p;
   const can = MAILBOXES.acts(m);
   const switchable = can.pause || can.unpause;
   const id = `mailbox-sending-${m.id}`;
@@ -128,6 +109,7 @@ const SendingGroup = (p: { m: MailboxConnectionDto; on: boolean; setOn: (on: boo
             <span key={line}>{line}</span>
           ))}
         </span>
+        {test}
       </span>
       {switchable ? (
         <Switch
@@ -154,14 +136,12 @@ const BackupGroup = (p: {
   if (!hosted) return null;
   return (
     <section className="set-mbx-group" aria-labelledby="mailbox-backup-title" data-testid="mailbox-backup">
+      <h3 className="set-mbx-group-title" id="mailbox-backup-title">
+        {CARD.backup}
+      </h3>
       <div className="set-mbx-say">
-        <span className="set-mbx-say-words">
-          <span className="set-mbx-say-name" id="mailbox-backup-title">
-            {CARD.backup}
-          </span>
-          <span className="set-mbx-lines">
-            <span>{CARD.backupSays(hosted.address, p.m.address)}</span>
-          </span>
+        <span className="set-mbx-lines">
+          <span>{CARD.backupSays(hosted.address, p.m.address)}</span>
         </span>
         {!open ? <LinkButton onClick={() => setOpen(true)}>{CARD.changeName}</LinkButton> : null}
       </div>
@@ -172,8 +152,54 @@ const BackupGroup = (p: {
   );
 };
 
+/** What it signs with: Gmail's (its name, for a Microsoft mailbox), words of its own, or none, said once. */
+const SignatureGroup = (p: {
+  m: MailboxConnectionDto;
+  signs: MailboxSignsChoice;
+  setSigns: (choice: MailboxSignsChoice) => void;
+  signature: string;
+  setSignature: (words: string) => void;
+  problem: string | undefined;
+  locked: boolean;
+}) => {
+  const { m, signs, setSigns, signature, setSignature, problem, locked } = p;
+  return (
+    <section className="set-mbx-group" aria-labelledby={`mailbox-signs-label-${m.id}`} data-testid="mailbox-signs">
+      <h3 className="set-mbx-group-title" id={`mailbox-signs-label-${m.id}`}>
+        {CARD.signature}
+      </h3>
+      <Segmented
+        labelledBy={`mailbox-signs-label-${m.id}`}
+        value={signs}
+        onValueChange={setSigns}
+        readOnly={locked}
+        options={[
+          { value: "gmail", label: m.provider === "google" ? SIGNS.gmail : SIGNS.name, testid: "mailbox-signs-gmail" },
+          { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
+          { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
+        ]}
+      />
+      {signs === "own" ? (
+        <RecordField
+          id={`mailbox-signature-${m.id}`}
+          testid="mailbox-signature"
+          label={SIGNS.ownLabel}
+          value={signature}
+          onChange={setSignature}
+          rows={4}
+          problem={problem}
+          disabled={locked}
+        />
+      ) : (
+        <SignsSaid m={m} choice={signs} />
+      )}
+    </section>
+  );
+};
+
 /** A mailbox's settings, in a sheet: its Save is the sheet's, and Remove asks in its foot. */
-export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, onRemove }: SheetProps) => {
+export const MailboxSheet = (props: SheetProps) => {
+  const { m, email, businessName, owner, flash, head, brought, test, onClose, onRemove } = props;
   const [name, setName] = useState(m.from_name);
   const [signs, setSigns] = useState<MailboxSignsChoice>(MAILBOXES.signs.choiceOf(m));
   const [signature, setSignature] = useState(m.signature ?? "");
@@ -211,7 +237,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
       id="mailbox"
       testid={`mailbox-sheet-${m.address}`}
       title={m.address}
-      sub={`${MAILBOXES.providerWords[m.provider]} · ${pill}`}
+      sub={`${MAILBOXES.providerWords[m.provider]} · ${pill === "Connected" ? "On" : pill}`}
       onClose={onClose}
       onSave={owner ? () => void save() : null}
       saving={busy}
@@ -236,6 +262,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
         ) : null
       }
     >
+      {head}
       <section className="set-mbx-group" aria-labelledby="mailbox-sending-title">
         <h3 className="set-mbx-group-title" id="mailbox-sending-title">
           {CARD.sending}
@@ -244,7 +271,7 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
           <RecordField
             id={`mailbox-name-${m.id}`}
             testid="mailbox-name"
-            label="Name beside it"
+            label={CARD.senderName}
             value={name}
             onChange={setName}
             problem={problems.name}
@@ -253,53 +280,33 @@ export const MailboxSheet = ({ m, email, businessName, owner, flash, onClose, on
           <RecordField
             id={`mailbox-cap-${m.id}`}
             testid="mailbox-cap"
-            label="Most a day"
+            label={CARD.dailyLimit}
             value={cap}
             onChange={setCap}
             type="number"
-            unit="a day"
             problem={problems.cap}
             disabled={locked}
           />
         </div>
-        <SendingGroup m={m} on={on} setOn={setOn} locked={locked} />
+        <SendingSwitch m={m} on={on} setOn={setOn} locked={locked} test={test} />
       </section>
-      <section className="set-mbx-group" aria-labelledby={`mailbox-signs-label-${m.id}`} data-testid="mailbox-signs">
-        <h3 className="set-mbx-group-title" id={`mailbox-signs-label-${m.id}`}>
-          {CARD.signature}
-        </h3>
-        <Segmented
-          labelledBy={`mailbox-signs-label-${m.id}`}
-          value={signs}
-          onValueChange={setSigns}
-          readOnly={locked}
-          options={[
-            {
-              value: "gmail",
-              label: m.provider === "google" ? SIGNS.gmail : SIGNS.name,
-              testid: "mailbox-signs-gmail",
-            },
-            { value: "own", label: SIGNS.own, testid: "mailbox-signs-own" },
-            { value: "none", label: SIGNS.none, testid: "mailbox-signs-none" },
-          ]}
-        />
-        {signs === "own" ? (
-          <RecordField
-            id={`mailbox-signature-${m.id}`}
-            testid="mailbox-signature"
-            label={SIGNS.ownLabel}
-            value={signature}
-            onChange={setSignature}
-            rows={4}
-            problem={problems.signature}
-            disabled={locked}
-          />
-        ) : (
-          <SignsSaid m={m} choice={signs} />
-        )}
-        <span className="set-mbx-group-title set-mbx-preview-title">{CARD.preview}</span>
-        <SignsPreview m={m} name={name} signs={signs} signature={signature} />
-      </section>
+      <SignatureGroup
+        m={m}
+        signs={signs}
+        setSigns={setSigns}
+        signature={signature}
+        setSignature={setSignature}
+        problem={problems.signature}
+        locked={locked}
+      />
+      {brought ? (
+        <section className="set-mbx-group" aria-labelledby={`mailbox-brought-${m.id}`}>
+          <h3 className="set-mbx-group-title" id={`mailbox-brought-${m.id}`}>
+            {CARD.brought}
+          </h3>
+          {brought}
+        </section>
+      ) : null}
       <BackupGroup m={m} email={email} businessName={businessName} flash={flash} />
       {remove ? (
         <section className="set-mbx-group set-mbx-say" data-testid="mailbox-remove-group">

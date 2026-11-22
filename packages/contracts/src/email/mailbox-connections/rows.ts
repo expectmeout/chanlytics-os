@@ -3,7 +3,13 @@
 import type { Tone } from "../../shell/tone";
 import { clockNearWhen, clockTime } from "../../shared/clock";
 import { MIN_MS } from "../../shared/time";
-import { CUSTOMER_DOMAIN_DAILY_MAX, MAILBOX_RAMP, mailboxHoldWords } from "../mailbox-standing";
+import {
+  CUSTOMER_DOMAIN_DAILY_MAX,
+  MAILBOX_RAMP,
+  mailboxDailyCap,
+  mailboxHoldWords,
+  mailboxRampShare,
+} from "../mailbox-standing";
 import {
   MAILBOX_CONNECTIONS_MAX,
   MAILBOX_PROVIDER_WORDS,
@@ -48,7 +54,7 @@ export const MAILBOX_SIGNATURE_WORDS = {
   name: "Its name",
   own: "Write one",
   none: "None",
-  ownLabel: "Its signature",
+  ownLabel: "Signature text",
   ownHint: "Under every email it sends.",
   ownEmpty: "Write the signature, or choose another.",
   none_says: "Nothing goes under its emails, not even its name.",
@@ -82,42 +88,30 @@ export function mailboxGmailSignsWords(
 }
 
 /**
- * The Email card and its sheet (Settings › Connections, the mailbox canvas of 27 Oct 2026): facts in place of
- * sentences on the card, and the sheet's groups. What a fact says is the imports ledger's or the mailbox's own.
+ * Email's rows and a mailbox's sheet (Settings › Connections, the mailbox rows of 21 Nov 2026): the sheet's groups and
+ * fields, and what it brought in, which says the imports ledger's own line.
  */
 export const MAILBOX_CARD_WORDS = {
   inbox: "Inbox",
   contacts: "Contacts",
-  sends: "Sends",
-  signsAs: "Signs as",
-  sendsUpTo: (n: number) => `Up to ${n} a day`,
-  noSignature: "No signature",
   add: "Add a mailbox",
   sending: "Sending",
+  senderName: "Sender name",
+  dailyLimit: "Daily limit",
   /** The switch's name in the Sending group, which says "Sending" once already. */
   sendsNow: "Sends now",
   sendingOn: (address: string) => `Replies, first emails and campaign steps leave from ${address}.`,
   sendingOff: (address: string) => `Paused: nothing leaves from ${address}. What people write still comes in.`,
+  test: "Send a test",
+  testing: "Sending…",
   signature: "Signature",
-  preview: "How it ends their email",
-  previewEnd: "…\n\nTalk soon.",
-  previewNone: "Nothing under it, not even its name.",
-  previewWrite: "Write it above: it goes here.",
+  brought: "Brought in",
   backup: "Backup address",
   backupSays: (hosted: string, address: string) => `${hosted}: replies leave from it when ${address} can't send.`,
-  changeName: "Change the name",
+  changeName: "Change its sender name",
   removeSays: "Nothing more comes in or leaves from it. What it brought stays on each person.",
   remove: (address: string) => `Remove ${address}…`,
 } as const;
-
-/** What the card says a mailbox signs as: the first line of what it signs with, or that nothing goes. */
-export function mailboxSignsAsWords(mailboxConnection: Pick<MailboxConnectionDto, "signs">): string {
-  const first = (mailboxConnection.signs.words ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .find(Boolean);
-  return first ?? MAILBOX_CARD_WORDS.noSignature;
-}
 
 /**
  * "Read at 9:47 AM", or, past a late read, "Not read since yesterday 9:47 PM" (or "Mon 9:47 PM", or past a week "Oct 2 ·
@@ -179,20 +173,47 @@ export function mailboxRowWords(mailboxConnection: MailboxConnectionDto, nowMs: 
 }
 
 /**
- * What its sending stands at, a line each, under the row when asked for: its day (while it sends), its ramp, its
- * health, the customer domain's ceiling, and the ramp's rule. A paused or held mailbox's row says why already.
+ * How many it may send a day, said once (Ruben, 21 Nov 2026: "0 of 10 today", "Day 5 of its ramp · 10 a day, 20 after 3
+ * more days" and a cap of 40 read as three limits): what it sent today while it sends, what it may send now, and, while
+ * its ramp holds it under the owner's daily limit, what comes next and when.
+ */
+function mailboxPaceWords(mailboxConnection: MailboxConnectionDto): string {
+  const cap = mailboxDailyCap(mailboxConnection);
+  const step = MAILBOX_RAMP.find((s) => s.perDay > mailboxRampShare(mailboxConnection.sent_days));
+  const today =
+    mailboxConnection.state === "connected" && mailboxConnection.sent_today != null
+      ? `${mailboxConnection.sent_today} sent today · `
+      : "";
+  const ceiling = mailboxConnection.customer_domain && cap >= CUSTOMER_DOMAIN_DAILY_MAX;
+  if (!step || ceiling || cap >= mailboxConnection.daily_cap)
+    return today ? `${today}up to ${cap} a day` : `Up to ${cap} a day`;
+  const next = Math.min(step.perDay, mailboxConnection.daily_cap);
+  const left = step.days - mailboxConnection.sent_days;
+  const more = next < mailboxConnection.daily_cap ? ", then on up to the daily limit" : "";
+  return `${today}${cap} a day for now, ${next} after ${left} more day${left === 1 ? "" : "s"} of sending${more}`;
+}
+
+/** Whether its health says something wrong: a bounce, a refusal, an unsubscribe or a spam mark. Otherwise it says nothing. */
+const mailboxTroubled = (counts: MailboxConnectionDto["counts"]): boolean =>
+  !!counts && counts.bounced + counts.blocked + counts.unsubscribed + counts.complained > 0;
+
+/**
+ * What its sending stands at, a line each, in its settings: what it may send a day (the provider's own limit while it
+ * rests), its health where something went wrong, and the customer domain's ceiling. Held or signed out, its sheet's head
+ * says why, and nothing is said here.
  */
 export function mailboxSendingLines(mailboxConnection: MailboxConnectionDto, nowMs: number, tz: string): string[] {
   const result = mailboxWords(mailboxConnection, nowMs, tz);
-  const top = Math.max(...MAILBOX_RAMP.map((s) => s.perDay));
+  const sends = mailboxConnection.state === "connected" || mailboxConnection.state === "paused";
+  const resting = !!mailboxConnection.resting_until && Date.parse(mailboxConnection.resting_until) > nowMs;
   return [
-    mailboxConnection.state === "connected" ? result.day : null,
-    result.ramp,
-    result.health,
-    mailboxConnection.customer_domain && mailboxConnection.state === "connected"
-      ? customerDomainWords(mailboxConnection.host)
+    sends
+      ? resting && mailboxConnection.state === "connected"
+        ? result.day
+        : mailboxPaceWords(mailboxConnection)
       : null,
-    `A new mailbox starts at ${MAILBOX_RAMP[0].perDay} a day and grows with the days it sends, to ${top}.`,
+    mailboxTroubled(mailboxConnection.counts) ? result.health : null,
+    mailboxConnection.customer_domain && sends ? customerDomainWords(mailboxConnection.host) : null,
   ].filter((line): line is string => !!line);
 }
 
@@ -379,6 +400,8 @@ const DKIM_MADE_AT: Partial<Record<MailboxProvider, { label: string; href: strin
 /** The DNS sheet's words, and the line on the card that opens it. */
 export const MAILBOX_DNS_WORDS = {
   act: "Set up DNS",
+  /** A mailbox's state on its row while its domain lacks a record. */
+  pill: "DNS to add",
   need: (missing: number, found: number, total: number) =>
     `${missing} DNS record${missing === 1 ? "" : "s"} to add · ${found} of ${total} found`,
   title: (host: string) => `${host}'s DNS`,

@@ -63,7 +63,7 @@ interface AdsHere {
   slot: (element: HTMLElement | null) => void;
 }
 
-/** The place for the ad account's card in a group: an element the card is drawn into, never a box of its own. */
+/** The place for the ad account's row in a group: an element the row is drawn into, never a box of its own. */
 const adsSlotOf = (ads: AdsHere) => <div key="ads-account" className="conn-ads-slot" ref={ads.slot} />;
 
 /** What the browser came back from Google with, said once. */
@@ -392,6 +392,8 @@ function ConnectionGroups(props: {
   const [adsPlace, setAdsPlace] = useState<AdsPlace | null>(null);
   const [adsSlot, setAdsSlot] = useState<HTMLElement | null>(null);
   const { note, setNote, row } = props;
+  // Under the Meta row (the Instagram connection) where both stand in one group: the row is then that row's child.
+  const child = !!adsPlace && props.rows.some((r) => r.group === adsPlace.group && r.kind === "instagram");
   return (
     <>
       {connectionGroupsOf(props.rows).map(({ g, list }) =>
@@ -406,7 +408,7 @@ function ConnectionGroups(props: {
       )}
       {props.adsShown && (
         <Suspense fallback={null}>
-          <RealAdAccount slot={adsSlot} onPlace={setAdsPlace} />
+          <RealAdAccount slot={adsSlot} child={child} onPlace={setAdsPlace} />
         </Suspense>
       )}
     </>

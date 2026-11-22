@@ -24,6 +24,7 @@
 import { Fragment, useState, type MouseEvent, type ReactNode } from "react";
 import { SEQUENCES_ROUTE } from "@chanlytics/contracts";
 import type { ConnectionKind, ConnectionLine as Row, ConnectionVerb } from "./model/setup";
+import { VERB_DOING, rowPillWords } from "./model/row-words";
 import { Button } from "../../kit/button/button";
 import { Confirm } from "../../kit/confirm/confirm";
 import { Face } from "../../kit/face/face";
@@ -32,6 +33,7 @@ import { LinkButton } from "../../kit/link-button/link-button";
 import { StatePill } from "../../kit/pill/state-pill";
 import { canDo, gate, navigate } from "../../frame-verbs";
 
+/** Each verb's test id where it has one of its own; any other is the row's (`connection-<kind>-verb`). */
 const VERB_TESTID: Record<string, string> = {
   "verb:google-check": "google-check",
   "verb:google-connect": "google-connect",
@@ -44,25 +46,12 @@ const VERB_TESTID: Record<string, string> = {
   "verb:whatsapp-connect-keep": "connect-whatsapp-keep-btn",
   messages: "channel-messages",
 };
+
 /** What a verb does, for the gate's sentence: the retry of a line carries the line's id, so it is found by its prefix. */
 const doingOf = (to: string): string | undefined =>
   VERB_DOING[to] ?? (to.startsWith("verb:retry-line:") ? "set the line up again" : undefined);
 const mayPress = (verb: ConnectionVerb | null): boolean =>
   !!verb && (verb.who === "owner" ? canDo("team") : canDo("approve"));
-// What a connection's verb does, for the gate's sentence (contracts refusal.ts roleGate).
-const VERB_DOING: Record<string, string> = {
-  "verb:google-check": "read Google again",
-  "verb:google-connect": "connect Google",
-  "verb:google-disconnect": "disconnect Google",
-  "verb:instagram-connect": "connect Instagram",
-  "verb:instagram-disconnect": "disconnect Instagram",
-  "verb:meta-connect": "connect Meta",
-  "verb:meta-disconnect": "disconnect Meta",
-  "verb:whatsapp-connect": "connect WhatsApp",
-  "verb:whatsapp-connect-keep": "connect WhatsApp",
-  "verb:business-record": "fill in the business record",
-  "verb:email-setup": "set up email",
-};
 const verbGate = (verb: ConnectionVerb) =>
   mayPress(verb) ? {} : gate(verb.who === "owner" ? "team" : "approve", doingOf(verb.to));
 
@@ -112,12 +101,16 @@ const DETAIL_WORD: Partial<Record<ConnectionKind, string>> = {
   email: "Address",
 };
 
-/** A press anywhere on a one-act row presses its act, but for a control of its own, what it opened, or words picked. */
-const connRowPress = (e: MouseEvent<HTMLDivElement>) => {
-  const row = e && e.currentTarget;
-  const t = e && (e.target as Element | null);
-  if (!row || !t || !t.closest || !("querySelector" in row)) return;
-  if (t.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack, .set-int-open")) return;
+/**
+ * A press anywhere on a one-act row presses its act, but for a control of its own, what it opened, or words picked: a
+ * connection's row here, and the rows drawn the same way under it (a mailbox under Email, the ad account under Meta).
+ */
+export const connRowPress = (event: MouseEvent<HTMLDivElement>) => {
+  const row = event && event.currentTarget;
+  const target = event && (event.target as Element | null);
+  if (!row || !target || !target.closest || !("querySelector" in row)) return;
+  if (target.closest("button, a[href], input, select, textarea, [role='button'], .set-row-stack, .set-int-open"))
+    return;
   const picked = typeof window.getSelection === "function" ? window.getSelection() : null;
   if (picked && String(picked)) return;
   const act = row.querySelector<HTMLElement>(".set-int-actions button, .set-int-actions a[href]");
@@ -534,7 +527,13 @@ function connectionWords(
           </Button>
         ) : null}
       </span>
-      {wants && r.sentence ? (
+      {/* A row that waits on the owner says why; one to fix says what is wrong in its state's few words, where a
+          phone draws Fix in the state's place (on a desk the state says it). */}
+      {wants && r.state === "attention" ? (
+        <span className="set-team-mail set-int-why" data-testid={`connection-${r.kind}-line`}>
+          {r.stateWords}
+        </span>
+      ) : wants && r.sentence ? (
         <span className="set-team-mail" data-testid={`connection-${r.kind}-line`}>
           {r.sentence}
         </span>
@@ -586,8 +585,13 @@ export const ConnectionRow = (props: ConnectionRowProps) => {
         data-on={r.group === "connected" ? "true" : undefined}
         glyph={<Icon name={r.icon} size={15} />}
       />
-      {connectionWords(r, says, wants, { shown: press === "connect" || press === null, open, toggle, id: panelId })}
-      <StatePill kind="tone" value={r.tone} label={r.stateWords} />
+      {connectionWords(r, says, wants || press === "fix", {
+        shown: press === "connect" || press === null,
+        open,
+        toggle,
+        id: panelId,
+      })}
+      <StatePill kind="tone" value={r.tone} label={rowPillWords(r)} />
       {rowButton({ ...props, press, open: settingsOpen, toggle, panelId })}
       {offers === "one" && (
         <span className="set-int-chev" aria-hidden="true">
