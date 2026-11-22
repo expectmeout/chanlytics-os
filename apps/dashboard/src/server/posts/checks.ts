@@ -100,14 +100,14 @@ export async function readPlacementRefusals(
       moment: "before",
     },
   });
-  const each = placements.placements.map((p) =>
+  const each = placements.placements.map((placement) =>
     evaluate({
       publishing: {
-        place: p.place,
-        kind: p.kind,
+        place: placement.place,
+        kind: placement.kind,
         fileKind: file.kind,
-        connection: placements.connections[p.place] ?? "not_connected",
-        caption: p.caption,
+        connection: placements.connections[placement.place] ?? "not_connected",
+        caption: placement.caption,
         video:
           file.kind === "video"
             ? { mime: file.mime ?? null, bytes: file.bytes, ms: file.seconds === null ? null : file.seconds * 1000 }

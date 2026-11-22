@@ -116,7 +116,7 @@ export const GOES_WORDS = {
 } as const;
 
 /** What the lines read beside the posts. */
-export interface GoesKnown {
+interface GoesKnown {
   people: PiecePeopleDto | null;
   takeDown: PieceTakeDownDto | null;
   /** A short moment, in the page's zone: "Sat 5:26 PM". */

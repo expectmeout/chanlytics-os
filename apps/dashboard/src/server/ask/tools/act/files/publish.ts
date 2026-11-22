@@ -213,22 +213,43 @@ async function checksRefusal(toolContext: ToolContext, at: CardChecked): Promise
     : null;
 }
 
-async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
+/** The made post a call names and the places it asks for, or, in words for the model, why it cannot go as asked. */
+async function findPostAsked(toolContext: ToolContext, input: PublishInput) {
   const named = input.file ?? toolContext.subjectFile;
-  if (!named) return refuse("name the post with file, as files says it");
+  if (!named) return { refused: "name the post with file, as files says it" };
   const { files } = (await load(toolContext.rc, filesNamedForAsk, { names: [named] })).data;
   const file = filesNamed(files, [named]).found.at(0);
-  if (!file) return refuse(`no file named ${named}; names come from files with action list`);
+  if (!file) return { refused: `no file named ${named}; names come from files with action list` };
   if (file.source !== "made")
-    return refuse(`${file.name} is not a post made here. A photo is made into a post first, with propose_post`);
-  const places = POST_PLACES.filter((p) => input.places.includes(p));
+    return { refused: `${file.name} is not a post made here. A photo is made into a post first, with propose_post` };
+  const places = POST_PLACES.filter((place) => input.places.includes(place));
   const shapeRefused = kindRefusal(file.kind, places, input.as);
-  if (shapeRefused) return refuse(shapeRefused);
+  if (shapeRefused) return { refused: shapeRefused };
   for (const place of places) {
-    const why = await placeRefusal(toolContext, place);
-    if (why) return refuse(why);
+    const refusal = await placeRefusal(toolContext, place);
+    if (refusal) return { refused: refusal };
   }
-  const as = input.as ?? (file.kind === "video" ? "reel" : "picture");
+  return { file, places, as: input.as ?? (file.kind === "video" ? ("reel" as const) : ("picture" as const)) };
+}
+
+/**
+ * What the words are about and any fact the owner stated, as the approval keeps them. A fact is theirs only in their
+ * own words: AI never states one for them.
+ */
+function intentAsked(toolContext: ToolContext, input: PublishInput) {
+  if (input.fact && !quotedInQuestion(toolContext, input.fact))
+    return {
+      refused: "fact must be their own words in this question, copied exactly; ask them if they have not said it",
+    };
+  const about = input.about ?? null;
+  const until = about?.day ?? about?.offer?.until ?? zoneDayKey(Date.now(), toolContext.timezone);
+  return { about, facts: input.fact ? [{ says: input.fact, until }] : [] };
+}
+
+async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
+  const found = await findPostAsked(toolContext, input);
+  if (found.refused !== undefined) return refuse(found.refused);
+  const { file, places, as } = found;
   // The time first: only a time named can say that a post already set at a place asked is to move to it (00621).
   const when = whenOf(input.when, toolContext.timezone);
   if ("refused" in when) return refuse(when.refused);
@@ -243,12 +264,9 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   }
   const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
-  // A fact is theirs only in their own words: AI never states one for them.
-  if (input.fact && !quotedInQuestion(toolContext, input.fact))
-    return refuse("fact must be their own words in this question, copied exactly; ask them if they have not said it");
-  const about = input.about ?? null;
-  const until = about?.day ?? about?.offer?.until ?? zoneDayKey(Date.now(), toolContext.timezone);
-  const facts = input.fact ? [{ says: input.fact, until }] : [];
+  const intent = intentAsked(toolContext, input);
+  if (intent.refused !== undefined) return refuse(intent.refused);
+  const { about, facts } = intent;
   const atIso = when.at === null ? null : new Date(when.at).toISOString();
   const checked = await checksRefusal(toolContext, {
     file,

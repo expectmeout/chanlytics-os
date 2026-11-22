@@ -9,7 +9,7 @@ import { useState } from "react";
 import {
   PIECE_PEOPLE_WORDS as W,
   THREAD_CHANNEL_WORDS,
-  personInitialsOf,
+  entryOf,
   personSaidOf,
   personStandsOf,
   type FileYesUse,
@@ -19,6 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import { askAbout } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
+import { Face } from "../../../kit/face/face";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 import type { ViewerClock } from "../model/viewer-line";
 
@@ -42,8 +43,7 @@ export interface WhoPresses {
 }
 
 /** A channel as a line names it ("WhatsApp"); one this build has no word for is said as it is kept. */
-export const channelSaid = (via: string): string =>
-  Object.entries(THREAD_CHANNEL_WORDS).find(([channel]) => channel === via)?.[1] ?? via;
+export const channelSaid = (via: string): string => entryOf(THREAD_CHANNEL_WORDS, via) ?? via;
 
 const STAYS = (): void => undefined;
 
@@ -144,9 +144,7 @@ function PersonRow(props: { person: PiecePersonDto; use: FileYesUse; clock: View
   const quote = stands.is === "answered" ? stands.words : stands.is === "yes" ? stands.yes.quote : null;
   return (
     <div className="cnv-who-row" data-tone={says.tone || undefined} data-testid={`cnv-who-${person.id}`}>
-      <span className="cnv-who-initials" aria-hidden="true">
-        {personInitialsOf(person.name)}
-      </span>
+      <Face person={{ name: person.name }} size="sm" />
       <div className="cnv-goes-words">
         <b>{person.name}</b>
         <span className="cnv-who-said" data-testid={`cnv-who-said-${person.id}`}>

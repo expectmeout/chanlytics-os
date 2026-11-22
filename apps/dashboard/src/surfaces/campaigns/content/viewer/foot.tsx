@@ -18,7 +18,7 @@ import {
   type FileDto,
   type PostDto,
 } from "@chanlytics/contracts";
-import { type GoesTone } from "../model/goes";
+import type { GoesTone } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { useCopied } from "../../../kit/copy-button/copy-button";
 import { Icon } from "../../../kit/icon/icon";
@@ -50,7 +50,7 @@ interface ViewerLead {
  * The coral act for the piece's next step. A video Ask made leads with Post, which opens what a video can do today (save it,
  * or a post from it): Instagram takes no reel from here yet (decision 0121).
  */
-export function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: PieceNext): ViewerLead | null {
+function viewerLeadOf(file: Pick<FileDto, "kind" | "source">, next: PieceNext): ViewerLead | null {
   const step = W.piece.step;
   // A video: nothing posts one from here (decision 0121), so it is saved, and Save video leads (ViewerActs).
   if (next.is === "save") return null;
@@ -210,12 +210,7 @@ export function ViewerActs(props: {
   holdsLead?: boolean | undefined;
 }) {
   const { file, next, may, busy, save, acts, desk } = props;
-  const step = may && acts.onLead && !props.holdsLead ? viewerLeadOf(file, next) : null;
-  const lead = props.leads
-    ? { words: props.leads.words, glyph: null, press: props.leads.press }
-    : step
-      ? { ...step, press: acts.onLead ?? undefined }
-      : null;
+  const lead = actsLeadOf(props);
   // With More in the row, Save rides it; the row never stands as one small press alone, so Save keeps its room otherwise.
   const inMore = !!props.more;
   // A clip sent to the Library stays with whoever sent it: the one picture is saved, never a clip (as Files kept it).
@@ -259,33 +254,49 @@ export function ViewerActs(props: {
           {TAKE_DOWN_WORDS.act}
         </Button>
       ) : null}
-      {/* One round press beside the lead: Change it where Ask made the piece and this person may change it (the line to Ask is
-          in it), else Ask: a reader asks about it, and a Library file is asked about. */}
-      {inMore && may && file.source === "made" ? null : may && acts.onChange ? (
-        <Button
-          variant={quiet}
-          size={size}
-          iconOnly
-          onClick={acts.onChange}
-          aria-label={W.piece.changeIt}
-          data-testid="cnv-change"
-        >
-          <Icon name="pencil" size={desk ? 15 : 17} />
-        </Button>
-      ) : (
-        <Button
-          variant={quiet}
-          size={size}
-          iconOnly
-          onClick={acts.onAsk}
-          aria-label={W.piece.ask}
-          data-testid="cnv-ask"
-        >
-          <Icon name="three" size={desk ? 16 : 18} />
-        </Button>
+      {inMore && may && file.source === "made" ? null : (
+        <RoundPress onChange={may ? acts.onChange : undefined} onAsk={acts.onAsk} desk={!!desk} />
       )}
       {props.more}
     </div>
+  );
+}
+
+/**
+ * The act that leads the row: a line's own where one needs the owner (Ask Paola, Approve, Shorten it), else the piece's
+ * next step where this person may take it and no take-down of it is under way.
+ */
+export function actsLeadOf(props: {
+  file: FileDto;
+  next: PieceNext;
+  may: boolean;
+  acts: Pick<ViewerFootActs, "onLead">;
+  leads?: { words: string; press: () => void } | null | undefined;
+  holdsLead?: boolean | undefined;
+}): { words: string; glyph: string | null; press: (() => void) | undefined } | null {
+  if (props.leads) return { words: props.leads.words, glyph: null, press: props.leads.press };
+  if (!props.may || !props.acts.onLead || props.holdsLead) return null;
+  const step = viewerLeadOf(props.file, props.next);
+  return step ? { ...step, press: props.acts.onLead } : null;
+}
+
+/**
+ * One round press at the row's end: Change it where Ask made the piece and this person may change it (the line to Ask
+ * is in it), else Ask: a reader asks about it, and a Library file is asked about.
+ */
+function RoundPress(props: { onChange: (() => void) | null | undefined; onAsk: () => void; desk: boolean }) {
+  const { onChange, desk } = props;
+  return (
+    <Button
+      variant={desk ? "secondary" : "glass"}
+      size={desk ? "lg" : "touch"}
+      iconOnly
+      onClick={onChange ?? props.onAsk}
+      aria-label={onChange ? W.piece.changeIt : W.piece.ask}
+      data-testid={onChange ? "cnv-change" : "cnv-ask"}
+    >
+      {onChange ? <Icon name="pencil" size={desk ? 15 : 17} /> : <Icon name="three" size={desk ? 16 : 18} />}
+    </Button>
   );
 }
 

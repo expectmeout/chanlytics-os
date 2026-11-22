@@ -6,7 +6,7 @@
  */
 import { fileYesUsesSaid } from "../../files/yes";
 import type { FileYesUse } from "../../files/limits";
-import type { SubjectLabel, SubjectsState } from "../../files/subjects";
+import type { SubjectLabel, SubjectsState } from "./sets";
 
 /** A yes of one person's that stands, with where it was said and, where it was said in a message, their own words. */
 export interface PersonYesDto {
@@ -73,14 +73,6 @@ export function personStandsOf(person: PiecePersonDto, use: FileYesUse): PersonS
 /** The first person whose yes for a use is missing: who the piece's one fix names. Null where every one has said yes. */
 export const personToAskOf = (people: PiecePeopleDto | null, use: FileYesUse): PiecePersonDto | null =>
   people?.people.find((p) => personStandsOf(p, use).is !== "yes") ?? null;
-
-/** A person's initials, for their mark: "Paola Ruiz" is PR, "Maria" is MA. */
-export function personInitialsOf(name: string): string {
-  const words = name.trim().split(/\s+/u).filter(Boolean);
-  const first = words[0] ?? "";
-  const letters = words.length > 1 ? `${first.charAt(0)}${(words.at(-1) ?? "").charAt(0)}` : first.slice(0, 2);
-  return letters.toUpperCase() || "?";
-}
 
 /** The clock a line reads its times through: a short moment ("Mon 3:40 PM"), as the page's zone says it. */
 type SaysWhen = (iso: string) => string;

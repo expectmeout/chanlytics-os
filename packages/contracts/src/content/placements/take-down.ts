@@ -8,18 +8,7 @@ import { asText, type ProposalSpecAboveOperator } from "../../ask/proposals/spec
 import { DAY_MS } from "../../shared/time";
 import { contentRouteOf } from "../address";
 import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
-
-/** What a remediation's action came to (00676 remediation_actions.outcome). */
-export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person"] as const;
-export type RemediationOutcome = (typeof REMEDIATION_OUTCOMES)[number];
-
-/** What a remediation does to what it reached (00676 remediation_actions.act). */
-export const REMEDIATION_ACTS = ["cancel", "pause", "take_down"] as const;
-export type RemediationAct = (typeof REMEDIATION_ACTS)[number];
-
-/** What a remediation reaches (00676 remediation_actions.target_type). */
-export const REMEDIATION_TARGETS = ["post", "ad", "scheduled_post"] as const;
-export type RemediationTarget = (typeof REMEDIATION_TARGETS)[number];
+import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
 
 /** What a take-down job's door answers a place can give: everything but still waiting. */
 export type TakeDownSettled = Exclude<RemediationOutcome, "pending">;
@@ -98,7 +87,7 @@ export const TAKE_DOWN_WORDS = {
   title: (piece: string) => `Take down “${piece}”?`,
   /** What comes off, what stays, and that it cannot be undone. */
   body: (places: readonly string[]) =>
-    `It comes off ${places.join(" and ")}. Its numbers and what it brought stay here. This can't be undone.`,
+    `It comes off ${places.join(" and ")}, for good. Its numbers and what it brought stay here.`,
   bodyNowhere: "Nothing of it is up. What waits for its time won't go up.",
   yes: "Take it down",
   no: "Keep",
@@ -106,7 +95,7 @@ export const TAKE_DOWN_WORDS = {
     takeDown: "Chanlytics takes it down",
     /** A place whose delete from here is not proved yet: asked, and the owner's to do where it does not let it. */
     asks: (place: string) => `Chanlytics asks ${place}. If it can't, you delete it there`,
-    byHand: (place: string) => `You delete it in ${place}; Chanlytics checks it's gone`,
+    byHand: (place: string) => `You delete it in ${place}, and Chanlytics checks it's gone`,
     storyGone: "Gone already: a story lasts a day",
     cancel: "Won't go up",
     ad: "Paused, so it stops spending",
@@ -137,48 +126,52 @@ export const TAKE_DOWN_WORDS = {
 /**
  * What the bell says of a take-down (00692; the canvas's Today 6): a piece gone from every place it was asked down from,
  * and one a place would not take down for Chanlytics, which its owner deletes there. A piece that cannot be named is
- * "Your post", never a blank title. The second is closed by the first (waits/notice-mends.ts holds both titles).
+ * "A post", never a blank title. The second is closed by the first (waits/notice-mends.ts holds both titles).
  */
 export const TAKE_DOWN_BELL = {
-  down: (piece: string) => `Taken down · ${piece || "Your post"}`,
+  down: (piece: string) => `Taken down · ${piece || "A post"}`,
   downFrom: (places: readonly PostPlace[]) => `From ${places.map((place) => POST_PLACE_SAID[place]).join(" and ")}`,
-  byHand: (place: PostPlace, piece: string) => `Delete it in ${POST_PLACE_SAID[place]} · ${piece || "Your post"}`,
+  byHand: (place: PostPlace, piece: string) => `Delete it in ${POST_PLACE_SAID[place]} · ${piece || "A post"}`,
   byHandWhy: "Chanlytics couldn't take it down there",
 } as const;
+
+/** A post as the confirm reads it. */
+type DownPost = Pick<PostDto, "id" | "place" | "kind" | "status" | "published_at">;
+
+/** Whether a place takes a delete from here: it does, it does not, or nobody has seen it do so yet (`unproved`). */
+type PlaceTakesDown = (place: PostPlace) => "yes" | "no" | "unproved";
+
+/** The order the piece lists its placements in: a reel, a post, a story, then Google. */
+const downRankOf = (post: DownPost): number =>
+  post.place === "google" ? 3 : ["reel", "picture", "story"].indexOf(post.kind);
+
+/** What the press does to one post, in words; null where it does nothing to it (already let go, or never sent). */
+function downWordsOf(post: DownPost, can: PlaceTakesDown, nowMs: number): string | null {
+  const words = TAKE_DOWN_WORDS.will;
+  if (post.status === "publishing" || post.status === "checking") return words.takeDown;
+  if (post.status === "queued" || post.status === "preparing") return words.cancel;
+  if (post.status !== "published") return null;
+  if (post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS) return words.storyGone;
+  const takes = can(post.place);
+  if (takes === "yes") return words.takeDown;
+  const placeName = POST_PLACE_SAID[post.place];
+  return takes === "no" ? words.byHand(placeName) : words.asks(placeName);
+}
 
 /**
  * What the confirm says the press will do, a line a placement (the canvas's cell 36): a post up is asked down where the
  * place takes that from here, is asked where that is not proved yet, or is the owner's to delete there; a story a day
- * old is gone already; one still waiting
- * will not go up. A post the owner put up by hand is theirs, and is no post of these.
+ * old is gone already; one still waiting will not go up. A post the owner put up by hand is theirs, and is no post of
+ * these.
  */
-export function takeDownWillOf(
-  posts: readonly Pick<PostDto, "id" | "place" | "kind" | "status" | "published_at">[],
-  /** Whether a place takes a delete from here: it does, it does not, or nobody has seen it do so yet (`unproved`). */
-  can: (place: PostPlace) => "yes" | "no" | "unproved",
-  nowMs: number,
-): TakeDownWill[] {
-  const W = TAKE_DOWN_WORDS.will;
-  // In the order the piece lists its placements: a reel, a post, a story, then Google.
-  const rank = (post: (typeof posts)[number]) =>
-    post.place === "google" ? 3 : ["reel", "picture", "story"].indexOf(post.kind);
+export function takeDownWillOf(posts: readonly DownPost[], can: PlaceTakesDown, nowMs: number): TakeDownWill[] {
   return [...posts]
-    .sort((a, b) => rank(a) - rank(b))
+    .sort((a, b) => downRankOf(a) - downRankOf(b))
     .flatMap((post): TakeDownWill[] => {
-      const place = post.place;
-      const name = placementSaid(place, post.kind);
-      const glyph = place === "google" ? "google" : post.kind === "picture" ? "post" : post.kind;
-      const line = (will: string): TakeDownWill[] => [{ key: post.id, glyph, name, will }];
-      if (post.status === "published") {
-        const gone = post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS;
-        if (gone) return line(W.storyGone);
-        const takes = can(place);
-        const placeName = POST_PLACE_SAID[place];
-        return line(takes === "yes" ? W.takeDown : takes === "no" ? W.byHand(placeName) : W.asks(placeName));
-      }
-      if (post.status === "publishing" || post.status === "checking") return line(W.takeDown);
-      if (post.status === "queued" || post.status === "preparing") return line(W.cancel);
-      return [];
+      const will = downWordsOf(post, can, nowMs);
+      if (will === null) return [];
+      const glyph = post.place === "google" ? "google" : post.kind === "picture" ? "post" : post.kind;
+      return [{ key: post.id, glyph, name: placementSaid(post.place, post.kind), will }];
     });
 }
 

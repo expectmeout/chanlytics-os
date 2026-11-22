@@ -58,11 +58,15 @@ import type { PIECE_SHAPES } from "../content/pieces";
 import type {
   APPROVAL_SUBJECTS,
   APPROVAL_VOID_WHYS,
+  REMEDIATION_ACTS,
+  REMEDIATION_OUTCOMES,
+  REMEDIATION_TARGETS,
   RENDITION_SHAPES,
   REVISION_MADE_BY,
-} from "../content/placements/approvals";
-import type { REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS } from "../content/placements/take-down";
-import type { SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "../files/subjects";
+  SUBJECT_HOWS,
+  SUBJECT_LABELS,
+  SUBJECTS_STATES,
+} from "../content/placements/sets";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing/dtos";

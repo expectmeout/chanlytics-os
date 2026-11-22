@@ -18,7 +18,7 @@ import {
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
-import { fileVerbs } from "../../../files/verbs";
+import { takeDownPiece } from "@/bridge/verbs/pieces";
 
 const WILL_GLYPH = { reel: "instagram", story: "instagram", post: "instagram", google: "place", ad: "bolt" } as const;
 
@@ -53,7 +53,7 @@ export function TakeDownAsk(props: {
   const go = async () => {
     setBusy(true);
     setProblem(null);
-    const begun = await fileVerbs.takeDown(piece.id);
+    const begun = await takeDownPiece(piece.id);
     setBusy(false);
     if (!begun.ok) return setProblem(begun.message);
     props.onBegun();

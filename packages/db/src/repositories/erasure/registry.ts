@@ -488,7 +488,8 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   file_consents: { who: WITH_WORKSPACE, ...all(NOT_PERSONAL, "scope", "evidence") },
   // A person in a file, as the owner named them (00691): one who is in People goes with them (the row's foreign key to
   // contacts, on the erasure's delete), and the file then says the owner must say who is in it again.
-  file_subjects: { name: withPerson("erase_contact") },
+  // The ask (00691): the channel it went on and the uses it asked about, words of closed sets, never what was written.
+  file_subjects: { name: withPerson("erase_contact"), ...all(NOT_PERSONAL, "asked_via", "asked_uses") },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
     // The uses a file has a yes for, and those taken back (00665): words of a closed set, never a person's.

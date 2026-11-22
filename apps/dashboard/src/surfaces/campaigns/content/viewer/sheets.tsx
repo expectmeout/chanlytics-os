@@ -10,7 +10,7 @@ import { Sheet } from "../../../kit/sheet/sheet";
 import { NameField } from "../../../files/file-fields";
 import type { FileChange } from "../../../files/verbs";
 import { draftBody, draftFoot, type usePieceDrafts } from "../piece-presses";
-import type { PieceStanding } from "../piece-standing";
+import type { PieceStanding } from "../model/standing";
 import { postBothTitleOf, type PlaceDoors } from "../post-both";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 

@@ -341,6 +341,6 @@ test("the bell's words are the ones the mend is held to, at either place and for
     assert.equal(warns.sameSubject, true, "one piece's news never closes another's");
     for (const place of ["instagram", "google"]) assert.match(TAKE_DOWN_BELL.byHand(place, piece), warns.title);
   }
-  assert.equal(TAKE_DOWN_BELL.down(""), "Taken down · Your post", "never a blank title");
+  assert.equal(TAKE_DOWN_BELL.down(""), "Taken down · A post", "never a blank title");
   assert.equal(TAKE_DOWN_BELL.downFrom(["instagram", "google"]), "From Instagram and Google");
 });

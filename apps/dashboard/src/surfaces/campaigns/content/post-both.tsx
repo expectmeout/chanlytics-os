@@ -23,7 +23,7 @@ import {
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
-import { type GoesLine } from "./model/goes";
+import type { GoesLine } from "./model/goes";
 import { pageClock } from "@/bridge/zone";
 import { gateTitle } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";
@@ -33,7 +33,7 @@ import { WhenDayTime, firstSlot } from "../broadcasts/when";
 import { postBothProblemOf, type PostBothDraft } from "./model/post-both";
 import { instagramAsOf, instagramKindsFree, type PieceTakes } from "./model/piece-open";
 import { placesOf, type PieceOffers, type PieceWont, type PlaceStanding } from "./model/places";
-import type { PieceStanding } from "./piece-standing";
+import type { PieceStanding } from "./model/standing";
 import { PlaceRow } from "./post-both-places";
 import { postBothOpening, sendToEach, usePostMove, type Refusals } from "./post-both-sends";
 import { viewerClockOf } from "./viewer/clock";
@@ -88,6 +88,12 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
   const open: PieceTakes | null = takes ? { instagram: may && takes.instagram, google: may && takes.google } : null;
   // What Instagram can take now: one of each kind at a time (00620), so a story while a post waits, and the other way round.
   const kinds = instagramKindsFree(piece.posts, fileKind);
+  // The list opened over a draft, once the piece's record is read and its places are known: armed, or to be read.
+  const openWith = (draftOf: (takesNow: PieceTakes) => PostBothDraft) => {
+    if (!known || !open) return;
+    setRefused({});
+    setHeld(draftOf(open));
+  };
   // The draft as it stands now: a place is on only while it can take the post, Instagram as a kind it can take. One that
   // stopped taking it since it was switched on (a post went on its way there, the place was disconnected) has no switch to
   // turn off, so it is off.
@@ -151,20 +157,12 @@ export function usePostBoth(piece: PostBothPiece, tell: PostBothTells) {
      * place and the status row both): where a post stopped, that place alone, as what stopped there was; else every place that
      * can take it where it is not up already. A second post to a place it is on is switched on by hand, never by opening it.
      */
-    begin: () => {
-      if (!known || !open) return;
-      setRefused({});
-      setHeld(postBothOpening(open, piece.posts, Date.now(), fileKind));
-    },
+    begin: () => openWith((takesNow) => postBothOpening(takesNow, piece.posts, Date.now(), fileKind)),
     /**
      * Opened to be read, with no place switched on: where the piece waits for something a new post would not mend (a
      * person's yes, its connection, AI paused), so Post is never armed beside the line that says why it cannot go.
      */
-    look: () => {
-      if (!known || !open) return;
-      setRefused({});
-      setHeld({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false });
-    },
+    look: () => openWith(() => ({ as: instagramAsOf(kinds, "picture"), instagram: false, google: false })),
     cancel: () => {
       setRefused({});
       mover.stop();

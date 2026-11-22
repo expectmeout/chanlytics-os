@@ -16,13 +16,10 @@ import {
 import { recordYes, takeBackYes } from "@/server/files/yes";
 import { log } from "@/server/shared/log";
 import { personWordsOf, type RouteContext } from "@/server/shared/with-route";
-import { load } from "../../../../shared/reader";
-import { filesNamedForAsk } from "../../../../readers/files";
 import { actAction, defineActions, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
-import { filesNamed } from "../../read/files";
 import { quotedInQuestion } from "../remember";
-import { RIGHTS_ACTIONS } from "./rights";
+import { RIGHTS_ACTIONS, fileInput, findFileNamed, usesInput } from "./rights";
 
 /**
  * A yes for a photo or a video, said to AI (00665; the content PRD's step L4, its consent half). The owner tells AI, in a
@@ -37,18 +34,7 @@ import { RIGHTS_ACTIONS } from "./rights";
  * still up and where, for the owner to take down there.
  */
 
-const fileInput = z.string().min(1).max(120).describe("The photo's or the video's name, as files says it.");
 const quoteInput = z.string().describe("Their own words in this question that say it, copied exactly.");
-const usesInput = z
-  .array(z.enum(FILE_YES_USES))
-  .optional()
-  .describe("post, ad, reply, cold_email: each one they said; left out of take_back, every use.");
-
-/** The file a card names, or why none. */
-async function fileNamed(toolContext: ToolContext, name: string) {
-  const { files } = (await load(toolContext.rc, filesNamedForAsk, { names: [name] })).data;
-  return filesNamed(files, [name]).found.at(0) ?? null;
-}
 
 /** The result AI reads beside the card: kept as the answer is saved, or waiting for their press. */
 const keptNote = (theirs: boolean, done: string): string =>
@@ -61,7 +47,7 @@ async function giveOutcome(
   input: { file: string; uses?: FileYesUse[] | undefined; who: string; quote: string },
 ): Promise<ProposalOutcome> {
   if (isAskMorningQuestion(toolContext.question)) return refuse("a yes is kept only from what a member tells you");
-  const file = await fileNamed(toolContext, input.file);
+  const file = await findFileNamed(toolContext, input.file);
   if (!file) return refuse(`no file named ${input.file}; names come from files with action list`);
   const uses = FILE_YES_USES.filter((use) => input.uses?.includes(use) ?? false);
   if (uses.length === 0) return refuse("name what they said yes to: post, ad, reply or cold_email");
@@ -89,7 +75,7 @@ async function takeBackOutcome(
   input: { file: string; uses?: FileYesUse[] | undefined; quote: string },
 ): Promise<ProposalOutcome> {
   if (isAskMorningQuestion(toolContext.question)) return refuse("a yes is taken back only on a member's word");
-  const file = await fileNamed(toolContext, input.file);
+  const file = await findFileNamed(toolContext, input.file);
   if (!file) return refuse(`no file named ${input.file}; names come from files with action list`);
   const uses = FILE_YES_USES.filter((use) => input.uses?.includes(use) ?? false);
   const theirs = quotedInQuestion(toolContext, input.quote);

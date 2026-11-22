@@ -103,28 +103,21 @@ export {
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
 export { OwnersFactSchema, PostAboutSchema } from "./placements/approval-schemas";
 export {
-  APPROVAL_SUBJECTS,
-  APPROVAL_VOID_WHYS,
   goodUntilOf,
   intentOfAbout,
   ownersFactsOf,
   pieceIntentOf,
   postAboutOf,
-  RENDITION_SHAPES,
   renditionShapeOf,
-  REVISION_MADE_BY,
   rightsGapOf,
 } from "./placements/approvals";
 export type {
-  ApprovalVoidWhy,
   AsApproved,
   OwnersFact,
   PieceApprovalSnapshot,
   PieceIntent,
   PostAbout,
-  RenditionShape,
   RevisionChange,
-  RevisionMadeBy,
   RightsGap,
   SnapshotPlacement,
   SnapshotRendition,
@@ -133,7 +126,6 @@ export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
 export type { ContentCheck } from "./placements/check-words";
 export {
   PERSON_ASK_WORDS,
-  personInitialsOf,
   personSaidOf,
   personStandsOf,
   personToAskOf,
@@ -158,12 +150,31 @@ export type {
 } from "./placements/places";
 export { filePeopleSpec, personYesSpec } from "./placements/rights-spec";
 export {
-  placementSaid,
-  postCameDownAt,
-  postComingDownOf,
+  APPROVAL_SUBJECTS,
+  APPROVAL_VOID_WHYS,
   REMEDIATION_ACTS,
   REMEDIATION_OUTCOMES,
   REMEDIATION_TARGETS,
+  RENDITION_SHAPES,
+  REVISION_MADE_BY,
+  SUBJECT_HOWS,
+  SUBJECT_LABELS,
+  SUBJECTS_STATES,
+} from "./placements/sets";
+export type {
+  ApprovalVoidWhy,
+  RemediationAct,
+  RemediationOutcome,
+  RemediationTarget,
+  RenditionShape,
+  RevisionMadeBy,
+  SubjectLabel,
+  SubjectsState,
+} from "./placements/sets";
+export {
+  placementSaid,
+  postCameDownAt,
+  postComingDownOf,
   TAKE_DOWN_BELL,
   TAKE_DOWN_UNCONFIRMED_MS,
   TAKE_DOWN_WORDS,
@@ -173,9 +184,6 @@ export {
 export type {
   PieceTakeDownDto,
   PostComingDown,
-  RemediationAct,
-  RemediationOutcome,
-  RemediationTarget,
   TakeDownActionDto,
   TakeDownSettled,
   TakeDownWill,

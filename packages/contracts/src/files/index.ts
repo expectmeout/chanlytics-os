@@ -158,8 +158,6 @@ export type {
   SourceReply,
   SourceWalkKind,
 } from "./sources";
-export { SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "./subjects";
-export type { SubjectLabel, SubjectsState } from "./subjects";
 export { VIDEO_TILE_WORDS } from "./tile-words";
 export {
   clockOf,

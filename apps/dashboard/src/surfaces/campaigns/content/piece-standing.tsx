@@ -20,7 +20,8 @@ import {
 } from "@chanlytics/contracts";
 import { goesLinesOf, goesPillOf, type GoesAct, type GoesLine } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
-import { fileVerbs, type PersonAnswer } from "../../files/verbs";
+import { keepPersonAnswer, markDeletedByHand, sayWhoIsIn, type PersonAnswer } from "@/bridge/verbs/pieces";
+import type { PieceStanding } from "./model/standing";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
 import { AskPerson } from "./viewer/ask-person";
 import { viewerClockOf } from "./viewer/clock";
@@ -137,7 +138,7 @@ export function usePieceStanding(
   posts: readonly PostDto[],
   presses: Pick<PiecePresses, "busy" | "pull">,
   drafts: PieceDrafts,
-) {
+): PieceStanding {
   const { made, record, reread, flash } = hands;
   const { file } = made;
   const [asking, setAsking] = useState<{ person: PiecePersonDto; ads: boolean } | null>(null);
@@ -197,10 +198,10 @@ export function usePieceStanding(
       openToRead();
       focusCaption();
     },
-    deleted: (postId) => void run(fileVerbs.deletedByHand(file.id, postId)),
+    deleted: (postId) => void run(markDeletedByHand(file.id, postId)),
   };
   const answered = (person: PiecePersonDto, answer: PersonSaid) =>
-    void run(fileVerbs.personSaid(file.id, personAnswerOf(person, answer)));
+    void run(keepPersonAnswer(file.id, personAnswerOf(person, answer)));
   const whoPresses: WhoPresses = {
     busy,
     may,
@@ -209,7 +210,7 @@ export function usePieceStanding(
     piece: fileSaidOf(file.name),
     askPerson: (person) => setAsking({ person, ads: false }),
     said: answered,
-    noOne: () => void run(fileVerbs.sayWhoIsIn(file.id, "none")),
+    noOne: () => void run(sayWhoIsIn(file.id, "none")),
   };
   const places: PostPlace[] = [
     ...(record.instagram !== null ? (["instagram"] as const) : []),
@@ -267,5 +268,3 @@ export function usePieceStanding(
     sheets,
   };
 }
-
-export type PieceStanding = ReturnType<typeof usePieceStanding>;

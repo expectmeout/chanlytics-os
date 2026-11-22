@@ -1193,7 +1193,7 @@
           "action": "ask",
           "file": "chair-by-the-window",
           "person": "Paola",
-          "text": "Hi Paola! May we share the photo from your visit on our Instagram? A yes or no is perfect."
+          "text": "Hi Paola! May we share the photo you're in on our Instagram? A yes or no is perfect."
         }
       ],
       "defer_loading": true
@@ -3798,7 +3798,7 @@
           "action": "ask",
           "file": "chair-by-the-window",
           "person": "Paola",
-          "text": "Hi Paola! May we share the photo from your visit on our Instagram? A yes or no is perfect."
+          "text": "Hi Paola! May we share the photo you're in on our Instagram? A yes or no is perfect."
         },
         {
           "action": "person_yes",
@@ -7134,7 +7134,7 @@
           "action": "ask",
           "file": "chair-by-the-window",
           "person": "Paola",
-          "text": "Hi Paola! May we share the photo from your visit on our Instagram? A yes or no is perfect."
+          "text": "Hi Paola! May we share the photo you're in on our Instagram? A yes or no is perfect."
         },
         {
           "action": "person_yes",

@@ -72,7 +72,7 @@ async function threadOnCard(toolContext: ToolContext, id: string) {
   return { conv, who: personName };
 }
 
-export async function draftReply(
+export async function draftThreadReply(
   toolContext: ToolContext,
   input: { conversation_id: string; text: string; voice: string },
 ): Promise<ProposalOutcome> {
@@ -211,7 +211,7 @@ export const propose_reply = defineActions({
       label: "Drafting a reply",
       words:
         "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for its voice, and proposes a new reply on the conversation's own wire.",
-      build: draftReply,
+      build: draftThreadReply,
     }),
     steer: actAction({
       kind: "steer",

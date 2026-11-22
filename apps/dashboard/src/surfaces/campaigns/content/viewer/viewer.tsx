@@ -23,7 +23,7 @@ import { cmGoing } from "../../parts/split";
 import { useSave } from "../piece-foot";
 import type { PieceFootActs } from "../piece-foot";
 import type { PiecePresses, usePieceDrafts } from "../piece-presses";
-import type { PieceStanding } from "../piece-standing";
+import type { PieceStanding } from "../model/standing";
 import { AskLine } from "../sheets/ask-change";
 import { pieceNextOf, type PieceTakes } from "../model/piece-open";
 import type { RunAsAdLine } from "../model/run-as-ad";

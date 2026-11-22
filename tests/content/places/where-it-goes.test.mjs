@@ -9,7 +9,6 @@ import assert from "node:assert/strict";
 import {
   ON_INSTAGRAM,
   TAKE_DOWN_WORDS,
-  personInitialsOf,
   personSaidOf,
   personStandsOf,
   personToAskOf,
@@ -307,5 +306,4 @@ test("who is in it: where each person's yes for this use stands, in the owner's 
     "Maria",
   );
   assert.equal(personToAskOf({ state: "named", people: [yes] }, "post"), null);
-  assert.deepEqual(["Paola Ruiz", "Maria", " "].map(personInitialsOf), ["PR", "MA", "?"]);
 });

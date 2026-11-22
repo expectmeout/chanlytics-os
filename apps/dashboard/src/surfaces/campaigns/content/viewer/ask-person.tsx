@@ -17,13 +17,12 @@ import {
   type PiecePersonDto,
   type PostPlace,
 } from "@chanlytics/contracts";
-import { api } from "@/bridge/api";
+import { draftPersonAsk, markPersonAsked, sendPersonAsk } from "@/bridge/verbs/pieces";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { LineField } from "../../../kit/line/line";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
-import { fileVerbs } from "../../../files/verbs";
 import { channelSaid } from "./people";
 
 /** The piece the ask is about: its file, its name, and what it is ("the 15-second video", "the photo"). */
@@ -52,10 +51,10 @@ function useAskDraft(person: PiecePersonDto | null, piece: AskAboutPiece, uses: 
     if (!key || !contactId) return undefined;
     let live = true;
     setState({ key, text: null, problem: null });
-    void api()("POST people/[id]/draft", {
-      params: { id: contactId },
-      body: { how: "message", ...(wire && isOneOf(CONSENT_CHANNELS, wire) ? { wire } : {}), about },
-      once: true,
+    void draftPersonAsk(contactId, {
+      how: "message",
+      ...(wire && isOneOf(CONSENT_CHANNELS, wire) ? { wire } : {}),
+      about,
     }).then((answer) => {
       if (!live) return;
       // A draft that could not be written leaves the box empty for the owner's own words, with why.
@@ -66,6 +65,96 @@ function useAskDraft(person: PiecePersonDto | null, piece: AskAboutPiece, uses: 
     };
   }, [key, contactId, wire, about]);
   return state.key === key ? state : { key, text: null, problem: null };
+}
+
+/** Where the ask goes: the person's own thread. */
+type AskThread = NonNullable<PiecePersonDto["conversation"]>;
+
+/**
+ * The ask's send: the message through the one send door, then that they were asked, kept. One key for an ask, so a
+ * second press of the same words is the same message, never a second one. A note that could not be kept does not
+ * unsend what went, and says so. Answers whether it went and was kept.
+ */
+function useAskSend(ask: { piece: AskAboutPiece; uses: FileYesUse[]; onAsked: (person: PiecePersonDto) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const sendKey = useRef("");
+  const send = async (person: PiecePersonDto, thread: AskThread, words: string): Promise<boolean> => {
+    if (!words || busy) return false;
+    setBusy(true);
+    setProblem(null);
+    sendKey.current ||= crypto.randomUUID();
+    const sent = await sendPersonAsk(thread.id, words, sendKey.current);
+    if (!sent.ok) {
+      setBusy(false);
+      setProblem(sent.message);
+      return false;
+    }
+    const kept = await markPersonAsked(ask.piece.id, { subject_id: person.id, via: thread.channel, uses: ask.uses });
+    setBusy(false);
+    ask.onAsked(person);
+    if (!kept.ok) setProblem(kept.message);
+    return kept.ok;
+  };
+  const reset = () => {
+    setProblem(null);
+    sendKey.current = "";
+  };
+  return { busy, problem, send, reset };
+}
+
+/** The sheet's body: who it goes to and about what, AI's words where the owner changes them, and ads too. */
+function AskBody(props: {
+  person: PiecePersonDto;
+  thread: AskThread;
+  piece: AskAboutPiece;
+  uses: readonly FileYesUse[];
+  /** AI's words are still being written: the box waits for them. */
+  writing: boolean;
+  words: string;
+  onWords: (words: string) => void;
+  busy: boolean;
+  ads: boolean;
+  onAds: (ads: boolean) => void;
+  problem: string | null;
+}) {
+  const adsId = useId();
+  return (
+    <div className="cnv-ask-person">
+      <dl className="cnv-ask-to">
+        <dt>{W.to}</dt>
+        <dd data-testid="cnv-ask-person-to">
+          {props.person.name} · {channelSaid(props.thread.channel)}
+        </dd>
+        <dt>{W.about}</dt>
+        <dd>{W.aboutSaid(props.uses, placesSaid(props.piece.places))}</dd>
+      </dl>
+      <div className="cnv-ask-draft" data-busy={props.writing || undefined}>
+        <small>
+          <Icon name="three" size={13} />
+          {props.writing ? W.writing : W.writtenByAi}
+        </small>
+        <LineField
+          rows={6}
+          value={props.words}
+          onChange={(event) => props.onWords(event.currentTarget.value)}
+          disabled={props.writing || props.busy}
+          aria-label={W.changeWords}
+          maxLength={1000}
+          data-testid="cnv-ask-person-words"
+        />
+      </div>
+      <div className="cnv-ask-ads">
+        <span id={adsId}>{W.adsToo}</span>
+        <Switch labelledBy={adsId} checked={props.ads} onCheckedChange={props.onAds} data-testid="cnv-ask-person-ads" />
+      </div>
+      {props.problem ? (
+        <p className="cnv-note cnv-refused" role="alert" data-testid="cnv-ask-person-problem">
+          {props.problem}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function AskPerson(props: {
@@ -82,44 +171,21 @@ export function AskPerson(props: {
   const [adsPicked, setAds] = useState<boolean | null>(null);
   const ads = adsPicked ?? props.adsFirst ?? false;
   const [typed, setTyped] = useState<{ key: string; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const sendKey = useRef("");
-  const adsId = useId();
   const uses: FileYesUse[] = ads ? ["post", "ad"] : ["post"];
   const draft = useAskDraft(person, piece, uses);
   // What is sent is what is on screen: AI's words until the owner changes them, then theirs, for this draft.
   const words = typed?.key === draft.key ? typed.text : (draft.text ?? "");
-  const conversation = person?.conversation ?? null;
+  const thread = person?.conversation ?? null;
+  const sending = useAskSend({ piece, uses, onAsked: props.onAsked });
   const close = () => {
     setTyped(null);
-    setProblem(null);
     setAds(null);
-    sendKey.current = "";
+    sending.reset();
     props.onClose();
   };
+  const ready = person !== null && thread !== null;
   const send = async () => {
-    if (!person || !conversation || !words.trim() || busy) return;
-    setBusy(true);
-    setProblem(null);
-    // One key for this ask: a second press of the same words is the same message, never a second one.
-    sendKey.current ||= crypto.randomUUID();
-    const sent = await api()("POST conversations/[id]/reply", {
-      params: { id: conversation.id },
-      body: { text: words.trim() },
-      idempotencyKey: sendKey.current,
-    });
-    if (!sent.ok) {
-      setBusy(false);
-      setProblem(sent.message);
-      return;
-    }
-    // It went: that they were asked is kept. A note that could not be kept does not unsend it, and says so.
-    const kept = await fileVerbs.personAsked(piece.id, { subject_id: person.id, via: conversation.channel, uses });
-    setBusy(false);
-    if (!kept.ok) setProblem(kept.message);
-    props.onAsked(person);
-    if (kept.ok) close();
+    if (ready && (await sending.send(person, thread, words.trim()))) close();
   };
   return (
     <Sheet
@@ -136,8 +202,8 @@ export function AskPerson(props: {
             variant="primary"
             className="cnv-lead"
             onClick={() => void send()}
-            disabled={busy || !words.trim() || !conversation}
-            aria-busy={busy}
+            disabled={sending.busy || !words.trim() || !ready}
+            aria-busy={sending.busy}
             data-testid="cnv-ask-person-send"
           >
             <Icon name="send" size={14} />
@@ -146,41 +212,20 @@ export function AskPerson(props: {
         </div>
       }
     >
-      {person && conversation ? (
-        <div className="cnv-ask-person">
-          <dl className="cnv-ask-to">
-            <dt>{W.to}</dt>
-            <dd data-testid="cnv-ask-person-to">
-              {person.name} · {channelSaid(conversation.channel)}
-            </dd>
-            <dt>{W.about}</dt>
-            <dd>{W.aboutSaid(uses, placesSaid(piece.places))}</dd>
-          </dl>
-          <div className="cnv-ask-draft" data-busy={draft.text === null || undefined}>
-            <small>
-              <Icon name="three" size={13} />
-              {draft.text === null ? W.writing : W.writtenByAi}
-            </small>
-            <LineField
-              rows={6}
-              value={words}
-              onChange={(event) => setTyped({ key: draft.key, text: event.currentTarget.value })}
-              disabled={draft.text === null || busy}
-              aria-label={W.changeWords}
-              maxLength={1000}
-              data-testid="cnv-ask-person-words"
-            />
-          </div>
-          <div className="cnv-ask-ads">
-            <span id={adsId}>{W.adsToo}</span>
-            <Switch labelledBy={adsId} checked={ads} onCheckedChange={setAds} data-testid="cnv-ask-person-ads" />
-          </div>
-          {(problem ?? draft.problem) ? (
-            <p className="cnv-note cnv-refused" role="alert" data-testid="cnv-ask-person-problem">
-              {problem ?? draft.problem}
-            </p>
-          ) : null}
-        </div>
+      {ready ? (
+        <AskBody
+          person={person}
+          thread={thread}
+          piece={piece}
+          uses={uses}
+          writing={draft.text === null}
+          words={words}
+          onWords={(text) => setTyped({ key: draft.key, text })}
+          busy={sending.busy}
+          ads={ads}
+          onAds={setAds}
+          problem={sending.problem ?? draft.problem}
+        />
       ) : null}
     </Sheet>
   );

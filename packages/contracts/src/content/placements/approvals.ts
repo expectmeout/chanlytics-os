@@ -6,24 +6,10 @@
  * and the post is held ("Changed since you approved it. Look again."). The hash is taken where the snapshot is kept, in
  * one language: SHA-256 of the snapshot's own text as the database writes it.
  */
-import { isObjectRecord, recordOrEmpty } from "../../shared/unknown";
+import { isObjectRecord, nonBlankOrNull, recordOrEmpty } from "../../shared/unknown";
 import { DAY_KEY, shiftKey, zoneMidnight } from "../../shared/zone/day-keys";
 import type { PostKind, PostPlace } from "../posts";
-
-/** The shapes a piece is drawn in for its places (PRD 5.3): a story or a reel, a portrait post, a square, a wide, Google's. */
-export const RENDITION_SHAPES = ["9x16", "4x5", "1x1", "16x9", "google"] as const;
-export type RenditionShape = (typeof RENDITION_SHAPES)[number];
-
-/** What an approval can be of: a version of a piece and its placements, a week's plan (pass 3), an ad's Turn on. */
-export const APPROVAL_SUBJECTS = ["piece_revision", "plan", "ad"] as const;
-
-/** Why an approval stopped standing: the thing changed, a yes was taken back, a claim, the place, or the owner withdrew it. */
-export const APPROVAL_VOID_WHYS = ["changed", "rights", "claim", "place", "owner"] as const;
-export type ApprovalVoidWhy = (typeof APPROVAL_VOID_WHYS)[number];
-
-/** Who made a version of a piece. */
-export const REVISION_MADE_BY = ["ai", "owner", "operator"] as const;
-export type RevisionMadeBy = (typeof REVISION_MADE_BY)[number];
+import type { RenditionShape } from "./sets";
 
 /** What a version moved from the one before it. */
 export type RevisionChange = "caption" | "trim" | "order" | "sound" | "layout" | "first";
@@ -118,8 +104,6 @@ export type AsApproved =
   | { is: "before" }
   | { is: "changed" };
 
-const textElseNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
-
 /**
  * What a press's words are about, as AI's card hands it to the approval (the PRD's 6.1): the day, an offer with its last
  * day, a service, or AI's own word that they date nothing (a standing "Open Thursday to Saturday"). Each part optional;
@@ -136,12 +120,12 @@ export interface PostAbout {
 export function postAboutOf(value: unknown): PostAbout | null {
   if (!isObjectRecord(value)) return null;
   const offer = isObjectRecord(value.offer) ? value.offer : null;
-  const says = textElseNull(offer?.says);
-  const day = textElseNull(value.day);
+  const says = nonBlankOrNull(offer?.says);
+  const day = nonBlankOrNull(value.day);
   const about: PostAbout = {
     ...(day && DAY_KEY.test(day) ? { day } : {}),
-    ...(says ? { offer: { says, until: textElseNull(offer?.until) } } : {}),
-    ...(textElseNull(value.service) ? { service: textElseNull(value.service) } : {}),
+    ...(says ? { offer: { says, until: nonBlankOrNull(offer?.until) } } : {}),
+    ...(nonBlankOrNull(value.service) ? { service: nonBlankOrNull(value.service) } : {}),
     ...(value.nothing === true ? { nothing: true as const } : {}),
   };
   return Object.keys(about).length > 0 ? about : null;
@@ -164,14 +148,14 @@ export function pieceIntentOf(value: unknown): PieceIntent | null {
   if (!isObjectRecord(value)) return null;
   const kept = value;
   const offer = isObjectRecord(kept.offer) ? kept.offer : null;
-  const says = textElseNull(offer?.says);
+  const says = nonBlankOrNull(offer?.says);
   return {
-    goal: textElseNull(kept.goal),
-    opportunity_id: textElseNull(kept.opportunity_id),
-    call_to_action: textElseNull(kept.call_to_action),
-    day: textElseNull(kept.day),
-    offer: says ? { says, until: textElseNull(offer?.until) } : null,
-    service: textElseNull(kept.service),
+    goal: nonBlankOrNull(kept.goal),
+    opportunity_id: nonBlankOrNull(kept.opportunity_id),
+    call_to_action: nonBlankOrNull(kept.call_to_action),
+    day: nonBlankOrNull(kept.day),
+    offer: says ? { says, until: nonBlankOrNull(offer?.until) } : null,
+    service: nonBlankOrNull(kept.service),
   };
 }
 
@@ -182,7 +166,7 @@ export type RightsGap = { is: "ok" } | { is: "unsure" } | { is: "person"; name: 
 export function rightsGapOf(value: unknown): RightsGap {
   const kept = recordOrEmpty(value);
   if (kept.is === "ok") return { is: "ok" };
-  const name = textElseNull(kept.name);
+  const name = nonBlankOrNull(kept.name);
   return kept.is === "person" && name ? { is: "person", name } : { is: "unsure" };
 }
 
@@ -191,8 +175,9 @@ export function ownersFactsOf(value: unknown): OwnersFact[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((fact) => {
     const kept = recordOrEmpty(fact);
-    const says = textElseNull(kept.says);
-    const until = textElseNull(kept.until);
-    return says && until ? [{ says, until }] : [];
+    const says = nonBlankOrNull(kept.says);
+    const until = nonBlankOrNull(kept.until);
+    // A fact stands until a day: one kept with anything else for its last day is no fact to check words against.
+    return says && until && DAY_KEY.test(until) ? [{ says, until }] : [];
   });
 }

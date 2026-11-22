@@ -23,7 +23,7 @@ import { viewerSaidOf } from "../model/viewer-line";
 import { AskLine } from "../sheets/ask-change";
 import { PostedByHand } from "./by-hand";
 import { ViewerFacts } from "./details";
-import { ViewerActs, ViewerStatus, statusOpensOf, viewerHasStatus, viewerLeadOf } from "./foot";
+import { ViewerActs, ViewerStatus, actsLeadOf, statusOpensOf, viewerHasStatus } from "./foot";
 import { ViewerMore } from "./more";
 import { ViewerPicture } from "./picture";
 import { RunAsAd } from "./run-as-ad";
@@ -280,11 +280,16 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     presses.clear();
     acts.onNext(next);
   };
-  // The act P presses is the coral one: a line's own fix where one leads (Ask, Look again), else the piece's next step;
-  // none while a take-down of it is under way.
-  const step = hands.may && !hands.standing.holdsLead ? viewerLeadOf(file, next) : null;
-  const fix = hands.may ? hands.standing.lead : null;
-  const lead = fix ?? (step ? { words: step.words, press: onLead } : null);
+  // The act P presses is the coral one, as the row draws it: a line's own fix where one leads (Ask, Look again), else
+  // the piece's next step; none while a take-down of it is under way.
+  const lead = actsLeadOf({
+    file,
+    next,
+    may: hands.may,
+    acts: { onLead },
+    leads: hands.may ? hands.standing.lead : null,
+    holdsLead: hands.standing.holdsLead,
+  });
   // Where it stands, opened: a post's list of places once its record is read (foot.tsx statusOpensOf).
   const onStatus = statusOpensOf({ ready: drafts.both.ready }, () => {
     presses.clear();
@@ -297,7 +302,7 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
     before: acts.onBefore,
     after: acts.onAfter,
     sound: flip,
-    lead: lead && !presses.busy ? lead.press : null,
+    lead: lead?.press && !presses.busy ? lead.press : null,
   });
   const onChange = acts.onChange ?? (file.source === "made" ? () => setOpen("change") : null);
   const more = hands.may ? (
@@ -358,40 +363,53 @@ export function PieceDesk({ hands, over }: { hands: ViewerHands; over: boolean }
                 holdsLead={standing.holdsLead}
               />
             )}
-            {presses.asking ? null : (
-              <>
-                <PostedByHand
-                  press={hands.byHand}
-                  may={hands.may}
-                  offered={byHandOffered(file)}
-                  clock={clock}
-                  busy={presses.busy}
-                />
-                <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
-                {standing.tell}
-              </>
-            )}
-            {/* The rest of the piece's sheet, in the phone's order: where it goes, who is in it, then its words. */}
-            <WhereItGoes lines={hands.standing.lines} on={hands.standing.goes} />
-            <WhoIsInIt
-              people={hands.standing.people}
-              seen={hands.standing.seen}
-              use="post"
-              clock={hands.standing.clock}
-              on={hands.standing.who}
-            />
-            <ViewerFacts
-              shown={says.details}
-              may={hands.may}
-              busy={presses.busy}
-              say={presses.say}
-              caption={presses.caption}
-            />
+            <DeskSheetAtRest hands={hands} tell={standing.tell} details={says.details} clock={clock} />
             <DeskKeysLine beside={acts} sound={!!flip} lead={lead?.words} />
           </>
         )}
       </div>
       {hands.standing.sheets}
     </CmPane>
+  );
+}
+
+/**
+ * What the phone's one sheet holds, in the pane's body at rest and in the phone's order: posted by hand and the ad's
+ * reason (out of the way while a question is asked), the line to AI, where it goes, who is in it, then its words.
+ */
+function DeskSheetAtRest(props: {
+  hands: ViewerHands;
+  tell: ReactNode;
+  details: Parameters<typeof ViewerFacts>[0]["shown"];
+  /** The page's own clock, as the pane's status reads it. */
+  clock: ReturnType<typeof viewerClockOf>;
+}) {
+  const { hands } = props;
+  const { presses, standing } = hands;
+  return (
+    <>
+      {presses.asking ? null : (
+        <>
+          <PostedByHand
+            press={hands.byHand}
+            may={hands.may}
+            offered={byHandOffered(hands.made.file)}
+            clock={props.clock}
+            busy={presses.busy}
+          />
+          <RunAsAd line={hands.runAsAd.line} acts={hands.runAsAd.acts} busy={presses.busy} whyOnly />
+          {props.tell}
+        </>
+      )}
+      <WhereItGoes lines={standing.lines} on={standing.goes} />
+      <WhoIsInIt people={standing.people} seen={standing.seen} use="post" clock={standing.clock} on={standing.who} />
+      <ViewerFacts
+        shown={props.details}
+        may={hands.may}
+        busy={presses.busy}
+        say={presses.say}
+        caption={presses.caption}
+      />
+    </>
   );
 }

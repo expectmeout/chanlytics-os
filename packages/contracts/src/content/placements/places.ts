@@ -73,6 +73,7 @@ const INSTAGRAM_VIDEO: PlaceVideoLimits = {
   mimes: ["video/mp4", "video/quicktime"],
 };
 
+// screen-word: each `how` is the evidence a capability stands on, read by whoever builds a place, never shown on a page
 export const PLACE_CAPABILITIES: Readonly<Record<PostPlace, PlaceCapabilities>> = {
   instagram: {
     edition: 1,
