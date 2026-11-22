@@ -53,12 +53,14 @@ const rowOf = async (id) => ok(await db.from("tenant_channels").select("*").eq("
 const rowsOf = async (tenant) =>
   ok(await db.from("tenant_channels").select("id").eq("tenant_id", tenant).eq("kind", "instagram"), "the rows");
 const tokenOf = async (id) => ok(await db.rpc("get_channel_credentials", { p_channel_id: id }), "the token");
+/** What the ledger says of a workspace's channels: the doors' own two kinds (a workspace's making writes its own). */
 const eventsOf = async (tenant) =>
   ok(
     await db
       .from("events")
       .select("kind, category, subject_type, subject_id, data")
       .eq("tenant_id", tenant)
+      .in("kind", ["channel.connected", "channel.disconnected"])
       .order("created_at"),
     "the ledger",
   );
