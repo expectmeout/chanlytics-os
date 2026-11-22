@@ -139,13 +139,13 @@ function world({
       },
       {},
       {
-        // Who has not said yes (00691), and the words kept as the piece's next version (00690): asked by every press.
+        // Who has not said yes (00681), and the words kept as the piece's next version (00680): asked by every press.
         file_rights_gap: () => rights,
         piece_words_keep: (a) => {
           wordsKept.push(a.p_caption);
           return { revision: 1, followed: 0 };
         },
-        // 00690's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
+        // 00680's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
         post_approve: ({ p_tenant_id, p_file_id, p_approval }) => {
           const [placed] = p_approval.placements;
           begun.push({
@@ -257,7 +257,7 @@ function world({
   const service = fakeDb(
     { tenant_channels: channels, files: kept, events: [], posts: rows, pieces },
     {},
-    // What a piece was drawn from, read for who is in it (00691): nothing here names a photo's people.
+    // What a piece was drawn from, read for who is in it (00681): nothing here names a photo's people.
     { files_drawn_from: () => [] },
   );
   // The approval reads each shape it sends, and sums its bytes (posts/approve.ts).
@@ -497,7 +497,7 @@ test("a link that is no https address is refused before any door, and a photo of
   assert.deepEqual(w.doors, []);
 });
 
-test("the approval is of the exact bytes: each shape by its path and the full SHA-256 of what was read (00690)", async () => {
+test("the approval is of the exact bytes: each shape by its path and the full SHA-256 of what was read (00680)", async () => {
   const w = world();
   await route.POST.run(send(w, "POST", { as: "picture", caption: "  Open late on Fridays.  " }), w.ctx);
   const { approval } = w.begun[0];

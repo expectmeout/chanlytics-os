@@ -7,7 +7,7 @@ import { pullFilePost } from "@/server/posts/instagram";
 
 /**
  * POST /api/v1/files/:id/google — `{ summary, when?, about?, facts? }`: a kept post goes on the business's Google profile, in the
- * business's name, with those words under it; the press is the approval, of this picture and these words (00690). Whoever may save one, on their press alone, and it is public as soon as Google has looked at it.
+ * business's name, with those words under it; the press is the approval, of this picture and these words (00680). Whoever may save one, on their press alone, and it is public as soon as Google has looked at it.
  * Answers `{ name, search_url, state }`. With a `when` later than two minutes on (00616), it waits for its time: the picture is
  * drawn now, its job asks Google then, and it answers `{ name: null, search_url: null, state: "scheduled" }`.
  *

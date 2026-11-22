@@ -389,7 +389,7 @@ export interface JobContext {
     reconcile: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
     /** A post on its way to Google at its time (00616), asked once, after the recheck. */
     google: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
-    /** A post asked down at its place, or the place asked whether it is gone (00692). */
+    /** A post asked down at its place, or the place asked whether it is gone (00682). */
     takeDown: (job: ClaimedJob, deadline: number) => Promise<void | { skipped: string }>;
   };
   /**

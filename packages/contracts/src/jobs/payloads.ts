@@ -121,7 +121,7 @@ export const JOB_PAYLOADS = {
   copy_return: carrying({ file_id: z.string() }),
   post_prepare: carrying({ post_id: z.string(), attempt: z.string() }),
   post_publish: carrying({ post_id: z.string(), attempt: z.string() }),
-  // `seen: "ask"`: a post that went up and could not be read back is asked for again by its own id (00690 verified_at).
+  // `seen: "ask"`: a post that went up and could not be read back is asked for again by its own id (00680 verified_at).
   post_reconcile: carrying({ post_id: z.string(), attempt: z.string(), seen: z.string().optional() }),
   post_google: carrying({ post_id: z.string(), attempt: z.string() }),
   post_take_down: carrying({ action_id: z.string(), attempt: z.string(), by_hand: z.string().optional() }),

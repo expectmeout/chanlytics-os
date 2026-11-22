@@ -29,7 +29,7 @@ export const GET = read({
       readFileRecord(ctx, member, row),
       readPieceAd(readerContext(ctx, member), row),
     ]);
-    // Who is in a made piece, and its newest take-down (00691, 00692): read once its posts are known.
+    // Who is in a made piece, and its newest take-down (00681, 00682): read once its posts are known.
     const standing = await readPieceStanding(ctx, member, row, record.posts ?? []);
     return { ...record, ...(ad === null ? {} : { ad }), ...(standing ?? {}) };
   },

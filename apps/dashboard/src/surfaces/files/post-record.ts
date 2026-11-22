@@ -36,7 +36,7 @@ export function usePostRecord(file: FileDto, moved = "") {
   // A made piece's standing for an ad, where Ads is on: what Content's Run as an ad says. Kept with the file it was read
   // for, so the piece beside never says this one's word while its own record is on its way.
   const [ad, setAd] = useState<{ id: string; stands: PieceAdStands | null } | null>(null);
-  // A made piece's: who is in it, and its newest take-down (00691, 00692). Kept with the file they were read for.
+  // A made piece's: who is in it, and its newest take-down (00681, 00682). Kept with the file they were read for.
   const [standing, setStanding] = useState<{
     id: string;
     people: PiecePeopleDto | null;

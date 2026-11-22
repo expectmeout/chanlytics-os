@@ -145,7 +145,7 @@ const pieceRow = (n, fileId, plan) => ({
   id: `eeeeeeee-0000-4000-8000-00000000000${n}`,
   tenant_id: A,
   file_id: fileId,
-  // A video's piece: a made picture's (00690, shape `picture`) is no video's plan.
+  // A video's piece: a made picture's (00680, shape `picture`) is no video's plan.
   shape: "blocks",
   status: "made",
   plan,

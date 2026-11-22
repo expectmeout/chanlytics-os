@@ -1,5 +1,5 @@
 /**
- * Who is in a piece, as its sheet says it (00691; the content loop PRD's 5.3 and 21.3, call 13; the journey canvas, board
+ * Who is in a piece, as its sheet says it (00681; the content loop PRD's 5.3 and 21.3, call 13; the journey canvas, board
  * Piece, cells 25 to 35): each person the owner named, in the piece itself or in what it was drawn from, and where their
  * yes for one use stands. Rights are per person and per use, and never read from a face. Pure: the record and a clock are
  * handed in.

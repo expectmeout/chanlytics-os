@@ -1,5 +1,5 @@
 /**
- * AI's two cards for rights per person (00691; the content loop PRD's 5.3, 12.2, call 13): who is in a photo or a video, as
+ * AI's two cards for rights per person (00681; the content loop PRD's 5.3, 12.2, call 13): who is in a photo or a video, as
  * the owner or an operator tells AI (never read from a face), and one person's own yes, kept with where it was said. The
  * ask itself is a reply to that person in their conversation, drafted by AI and sent by the owner through the one send
  * door (the reply card); these keep what it came to. Each opens the file.

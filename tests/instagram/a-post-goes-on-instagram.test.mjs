@@ -137,7 +137,7 @@ function world({
     {
       get_channel_credentials: ({ p_channel_id }) => vault[p_channel_id] ?? null,
       has_permission: () => may,
-      // A post approved before approvals were kept (00690): read as before.
+      // A post approved before approvals were kept (00680): read as before.
       post_as_approved: () => ({ is: "before" }),
       post_attempt_open: ({ p_post_id, p_attempt_no, p_step, p_request }) => {
         let row = tables.publish_attempts.find(

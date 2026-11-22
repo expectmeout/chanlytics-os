@@ -52,7 +52,7 @@ export async function readFileRecord(ctx: RouteContext, member: Member, row: Fil
     const [sound, plan, posts, can] = await Promise.all([
       readFileSound(ctx.supabase, row.id),
       ours ? findPiecePlanOfFile(ctx.supabase, member.tenantId, row.id) : null,
-      // A made video's posts: its reel on Instagram (00690), and the one its owner put up by hand.
+      // A made video's posts: its reel on Instagram (00680), and the one its owner put up by hand.
       ours ? listFilePosts(ctx.supabase, member.tenantId, row.id) : [],
       ours ? readInstagramPostable(member.tenantId) : null,
     ]);
@@ -124,7 +124,7 @@ export async function findNewestPostLook(tenantId: TenantId): Promise<PostLook |
 }
 
 /**
- * A made piece's standing beyond its posts (GET files/[id]; 00691, 00692): who is in it, in the piece and in each photo or
+ * A made piece's standing beyond its posts (GET files/[id]; 00681, 00682): who is in it, in the piece and in each photo or
  * clip it was drawn from, and its newest take-down. Null for anything AI did not make.
  */
 export async function readPieceStanding(

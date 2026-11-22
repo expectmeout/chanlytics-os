@@ -484,11 +484,11 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   // platform's id for it and its error code are nobody's.
   // A yes for one use of a file (00665): who said it, as the owner named them to AI. A person in a picture is not joined
   // to People, so, as the picture itself, it leaves with the workspace; an erasure of a person has no key to it.
-  // What a yes reaches and where it was said (00691): places and a message's id, never the person's words.
+  // What a yes reaches and where it was said (00681): places and a message's id, never the person's words.
   file_consents: { who: WITH_WORKSPACE, ...all(NOT_PERSONAL, "scope", "evidence") },
-  // A person in a file, as the owner named them (00691): one who is in People goes with them (the row's foreign key to
+  // A person in a file, as the owner named them (00681): one who is in People goes with them (the row's foreign key to
   // contacts, on the erasure's delete), and the file then says the owner must say who is in it again.
-  // The ask (00691): the channel it went on and the uses it asked about, words of closed sets, never what was written.
+  // The ask (00681): the channel it went on and the uses it asked about, words of closed sets, never what was written.
   file_subjects: { name: withPerson("erase_contact"), ...all(NOT_PERSONAL, "asked_via", "asked_uses") },
   files: {
     ...all(WITH_WORKSPACE, "look", "made", "name", "source_ref", "sound", "sound_said"),
@@ -570,17 +570,17 @@ export const ERASURE_STRATEGIES: Readonly<Record<string, Readonly<Record<string,
   policies: { limits: NOT_PERSONAL },
   // A video asked for (00613, decision 0122): its plan holds the words the business chose to open and end it, and its look
   // the business's name, booking line and address. The machine it is drawn on and its card's key are nobody's.
-  // A made picture is a piece too (00690); why a piece exists (its intent: a day, an offer, a service) is the business's.
+  // A made picture is a piece too (00680); why a piece exists (its intent: a day, an offer, a service) is the business's.
   pieces: {
     ...all(WITH_WORKSPACE, "plan", "look", "intent"),
     ...all(NOT_PERSONAL, "machine", "card_key"),
   },
-  // A piece's versions (00690): its plan and its words per place are the business's own, as pieces.plan and posts.caption
+  // A piece's versions (00680): its plan and its words per place are the business's own, as pieces.plan and posts.caption
   // are; what moved between two versions is a closed list.
   piece_revisions: { ...all(WITH_WORKSPACE, "plan", "captions"), changed: NOT_PERSONAL },
-  // A shape as it is sent (00690): a path in the file's folder and its checksum, nobody's.
+  // A shape as it is sent (00680): a path in the file's folder and its checksum, nobody's.
   piece_renditions: all(NOT_PERSONAL, "path", "checksum"),
-  // What an owner approved (00690): the version, each shape by path and checksum, where, when, the business's own words and
+  // What an owner approved (00680): the version, each shape by path and checksum, where, when, the business's own words and
   // any fact the owner stated, the business's record; its hash is nobody's.
   approvals: { snapshot: WITH_WORKSPACE, snapshot_hash: NOT_PERSONAL },
   // Where a post went (00611, decision 0121): its caption is the business's own public words, and the rest is the platform's

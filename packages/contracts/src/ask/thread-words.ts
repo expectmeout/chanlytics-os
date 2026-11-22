@@ -160,7 +160,7 @@ export interface AskProposal {
     | "bring_in"
     // A yes for a photo or a video, for a use, said to AI, or one taken back (files/yes.ts, 00665).
     | "file_yes"
-    // Who is in a photo or a video, and one person's own yes (00691, content/rights-spec.ts).
+    // Who is in a photo or a video, and one person's own yes (00681, content/rights-spec.ts).
     | "file_people"
     | "person_yes"
     // A made piece taken down everywhere it is up (content/take-down.ts): what each place will be asked, and Take it down.

@@ -1,5 +1,5 @@
 /**
- * A post comes down only when its place said so (the content loop PRD's 5.3, 8.3 and 15.1; 00692): the take-down job asks
+ * A post comes down only when its place said so (the content loop PRD's 5.3, 8.3 and 15.1; 00682): the take-down job asks
  * the place once through its adapter and keeps what it said. Instagram's yes takes the post down; its refusal leaves the
  * step to the owner in words, with the post still up; no answer is asked again, further apart, and past a day fails to
  * us with the action still waiting. After "I deleted it" nothing is asked down: the account is read, and only an account
@@ -145,7 +145,7 @@ function world({ status = "published", outcome = "pending", connected = true } =
     {},
     {
       get_channel_credentials: () => ({ access_token: "bisu-token", account_id: ACCOUNT, login: "meta" }),
-      // The door as 00692 writes it: kept once; done, and only done, marks the post taken down.
+      // The door as 00682 writes it: kept once; done, and only done, marks the post taken down.
       post_take_down_settle: ({ p_action_id, p_outcome, p_said }) => {
         const row = tables.remediation_actions.find((r) => r.id === p_action_id);
         if (!row) return { fate: "unknown" };

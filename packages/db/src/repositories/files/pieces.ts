@@ -132,7 +132,7 @@ export async function findPiecePlanOfFile(db: Db, tenantId: TenantId, fileId: st
     .select("plan")
     .eq("tenant_id", tenantId)
     .eq("file_id", fileId)
-    // A made picture's piece (00690) is no video's plan.
+    // A made picture's piece (00680) is no video's plan.
     .neq("shape", "picture")
     .order("created_at", { ascending: false })
     .limit(1)
@@ -208,7 +208,7 @@ export async function findNewestPieceBegun(db: Db, tenantId: TenantId): Promise<
     .select("created_at")
     .eq("tenant_id", tenantId)
     .in("status", ["making", "made"])
-    // A made picture's piece is written at its first approval (00690): no video was begun then.
+    // A made picture's piece is written at its first approval (00680): no video was begun then.
     .neq("shape", "picture")
     .order("created_at", { ascending: false })
     .limit(1)

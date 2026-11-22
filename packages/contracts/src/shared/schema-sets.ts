@@ -204,7 +204,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof POST_VIAS>, SchemaSet<"posts.via">>>,
 
   // A video made from a business's clips (00613, decision 0122).
-  // A video's shapes, and a made picture's piece (00690), which no video job draws.
+  // A video's shapes, and a made picture's piece (00680), which no video job draws.
   Holds<Exactly<Of<typeof PIECE_SHAPES> | "picture", SchemaSet<"pieces.shape">>>,
   Holds<Exactly<Of<typeof RENDITION_SHAPES>, SchemaSet<"piece_renditions.shape">>>,
   Holds<Exactly<Of<typeof REVISION_MADE_BY>, SchemaSet<"piece_revisions.made_by">>>,

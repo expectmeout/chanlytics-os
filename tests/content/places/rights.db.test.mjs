@@ -1,5 +1,5 @@
 /**
- * Rights per person, on a real database (00691; the content loop PRD's 5.3, 6.1, 14.4, 15.1), with real sessions: who is
+ * Rights per person, on a real database (00681; the content loop PRD's 5.3, 6.1, 14.4, 15.1), with real sessions: who is
  * in a file is said by a member who may add files (an operator too), never a viewer; a person's own yes is kept by a
  * member who may change settings, with where it was said. A file's yes for a use stands only when every person named in
  * it has one. The gap follows a person into what was made from their photo, so the press on the made post is refused by

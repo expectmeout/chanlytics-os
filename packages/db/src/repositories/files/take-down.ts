@@ -1,5 +1,5 @@
 /**
- * A post taken down (00692; the content loop PRD's 5.3 and 8.3): the member's press that begins it and their "I deleted
+ * A post taken down (00682; the content loop PRD's 5.3 and 8.3): the member's press that begins it and their "I deleted
  * it" (each a door on the member's own session, which asks the settings permission itself), what the take-down job reads
  * and settles under the service role, and the read of a piece's newest take-down for its sheet.
  */
@@ -203,7 +203,7 @@ interface TakeDownOpenRow {
 
 /**
  * The take-downs a workspace still waits on, newest first, under the caller's RLS: each action not done whose post is
- * still up, the newest of each post (00692's index reads the few there are). A post that came down since, by a later
+ * still up, the newest of each post (00682's index reads the few there are). A post that came down since, by a later
  * take-down, is no longer one.
  */
 export async function listTakeDownsOpen(db: Db, tenantId: TenantId, limit: number): Promise<TakeDownOpenRow[]> {

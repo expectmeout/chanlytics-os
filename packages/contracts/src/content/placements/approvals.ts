@@ -2,7 +2,7 @@
  * An approval is of an exact thing (the content loop PRD's principle 3, section 5.3): what the owner pressed Approve on is
  * kept as a snapshot (the version of the piece, the bytes of each shape by checksum, where it goes, when, with which words),
  * with a hash over it. Right before the send the database builds the placement's part again from the post and its shape
- * as they stand, and checks the snapshot against its hash (00690 post_as_approved): anything that matters moved since,
+ * as they stand, and checks the snapshot against its hash (00680 post_as_approved): anything that matters moved since,
  * and the post is held ("Changed since you approved it. Look again."). The hash is taken where the snapshot is kept, in
  * one language: SHA-256 of the snapshot's own text as the database writes it.
  */
@@ -93,13 +93,13 @@ export function renditionShapeOf(place: PostPlace, kind: PostKind): RenditionSha
 }
 
 /**
- * Whether a placement still stands as it was approved, as the database answers it right before the send (00690
+ * Whether a placement still stands as it was approved, as the database answers it right before the send (00680
  * post_as_approved): it stands, with the path of the exact bytes approved; it was approved before approvals were kept
  * (read as before); or something that matters changed since.
  */
 export type AsApproved =
   | { is: "stands"; path: string; intent: PieceIntent | null; facts: OwnersFact[] }
-  /** A person in its file has no yes for posts that stands, or the owner is not sure who is in it (00691). */
+  /** A person in its file has no yes for posts that stands, or the owner is not sure who is in it (00681). */
   | { is: "rights"; name: string | null }
   | { is: "before" }
   | { is: "changed" };
@@ -159,7 +159,7 @@ export function pieceIntentOf(value: unknown): PieceIntent | null {
   };
 }
 
-/** Who stands between a file and a use (00691 file_rights_gap): nobody, nobody sure who is in it, or a person by name. */
+/** Who stands between a file and a use (00681 file_rights_gap): nobody, nobody sure who is in it, or a person by name. */
 export type RightsGap = { is: "ok" } | { is: "unsure" } | { is: "person"; name: string };
 
 /** The gap as the database answers it; anything it cannot read stands in the way as "unsure", never as nobody. */

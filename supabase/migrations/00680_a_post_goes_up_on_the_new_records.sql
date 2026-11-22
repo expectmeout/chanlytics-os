@@ -1,4 +1,4 @@
--- 00690 (working number) · A post goes up on the new records (the content loop PRD v3.2, pass 1b, M1; sections 3, 5,
+-- 00680 (working number) · A post goes up on the new records (the content loop PRD v3.2, pass 1b, M1; sections 3, 5,
 -- 6, 8 and 14.4).
 --
 -- An approval is of an exact thing. Until now a post kept the file it showed and the words it went with, and nothing
@@ -57,11 +57,11 @@ create unique index if not exists pieces_one_picture on public.pieces (tenant_id
 grant select (revision, intent) on public.pieces to authenticated;
 
 comment on column public.pieces.revision is
-  'The version the piece stands at (00690, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
+  'The version the piece stands at (00680, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
 comment on column public.pieces.intent is
-  'Why it exists (00690; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
+  'Why it exists (00680; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
 comment on column public.pieces.shape is
-  'hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post''s piece (00690), its row written at its first approval, which no video job reads (stage is not read for one).';
+  'hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post''s piece (00680), its row written at its first approval, which no video job reads (stage is not read for one).';
 
 /* ------------------------------------------------------------------------------------------ 2. piece_revisions -- */
 
@@ -99,7 +99,7 @@ grant select on public.piece_revisions to authenticated;
 grant all on public.piece_revisions to service_role;
 
 comment on table public.piece_revisions is
-  'One version of a piece (00690; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
+  'One version of a piece (00680; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
 
 /* ----------------------------------------------------------------------------------------- 3. piece_renditions -- */
 
@@ -135,7 +135,7 @@ grant select on public.piece_renditions to authenticated;
 grant all on public.piece_renditions to service_role;
 
 comment on table public.piece_renditions is
-  'One shape of a piece''s version as it is sent (00690; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
+  'One shape of a piece''s version as it is sent (00680; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
 
 /* ------------------------------------------------------------------------------------------------ 4. approvals -- */
 
@@ -168,7 +168,7 @@ grant select on public.approvals to authenticated;
 grant all on public.approvals to service_role;
 
 comment on table public.approvals is
-  'What an owner approved, exactly (00690; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
+  'What an owner approved, exactly (00680; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
 comment on column public.approvals.snapshot is
   '{revision {piece_id, n}, renditions [{shape, file_id, path, checksum}], placements [{place, kind, at, caption}], uses, spend, facts [{says, until}]} (contracts PieceApprovalSnapshot).';
 
@@ -215,14 +215,14 @@ grant select (piece_id, revision, approval_id, capability_edition, verified_at, 
 update public.posts p set verified_at = coalesce(p.published_at, p.updated_at)
  where p.place = 'instagram' and p.status = 'published' and p.permalink is not null and p.verified_at is null;
 
-comment on column public.posts.piece_id is 'The piece this placement shows (00690); null for one approved before it, read as before.';
-comment on column public.posts.revision is 'The version of the piece it shows (00690, piece_revisions.n).';
-comment on column public.posts.approval_id is 'The approval it was approved in (00690); null for one approved before it, read as before.';
-comment on column public.posts.capability_edition is 'The place''s capability edition when it was approved (contracts PLACE_CAPABILITIES, 00690).';
-comment on column public.posts.verified_at is 'When the place was seen holding it (00690): "On Instagram" is said only from then.';
-comment on column public.posts.good_until is 'The last moment it is still worth sending (00690; PRD 8.2), from the piece''s intent at approval: nothing is sent after it, by any road. Null where nothing dates it.';
-comment on column public.posts.account_id is 'The place''s own account it went to (00690): an Instagram account''s id, a Google location''s name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one.';
-comment on column public.posts.held_why is 'Why it was held, or let go before it went (00690, contracts POST_HELD_WHYS): the recheck''s reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words.';
+comment on column public.posts.piece_id is 'The piece this placement shows (00680); null for one approved before it, read as before.';
+comment on column public.posts.revision is 'The version of the piece it shows (00680, piece_revisions.n).';
+comment on column public.posts.approval_id is 'The approval it was approved in (00680); null for one approved before it, read as before.';
+comment on column public.posts.capability_edition is 'The place''s capability edition when it was approved (contracts PLACE_CAPABILITIES, 00680).';
+comment on column public.posts.verified_at is 'When the place was seen holding it (00680): "On Instagram" is said only from then.';
+comment on column public.posts.good_until is 'The last moment it is still worth sending (00680; PRD 8.2), from the piece''s intent at approval: nothing is sent after it, by any road. Null where nothing dates it.';
+comment on column public.posts.account_id is 'The place''s own account it went to (00680): an Instagram account''s id, a Google location''s name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one.';
+comment on column public.posts.held_why is 'Why it was held, or let go before it went (00680, contracts POST_HELD_WHYS): the recheck''s reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words.';
 
 /* ------------------------------------------------------------------------------------------- 6. post_moved -- */
 
@@ -270,7 +270,7 @@ end $$;
 revoke all on function public.post_moved(uuid, text[], text, jsonb) from public, anon, authenticated;
 grant execute on function public.post_moved(uuid, text[], text, jsonb) to service_role;
 comment on function public.post_moved(uuid, text[], text, jsonb) is
-  'A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+  'A placement moved from where it stood (p_from) to where it goes (00611, 00680), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 /* ---------------------------------------------------------------------------------- 7. a piece and its version -- */
 
@@ -304,7 +304,7 @@ begin
 end $$;
 revoke all on function public.piece_of_made_file(uuid, uuid, uuid) from public, anon, authenticated;
 comment on function public.piece_of_made_file(uuid, uuid, uuid) is
-  'The piece a made file is (00690): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+  'The piece a made file is (00680): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
 
 /* ------------------------------------------------------------------------------------ 8. the hash, and the check -- */
 
@@ -317,7 +317,7 @@ set search_path = public
 as $$ select encode(sha256(convert_to(p_snapshot::text, 'UTF8')), 'hex') $$;
 revoke all on function public.approval_hash(jsonb) from public, anon, authenticated;
 comment on function public.approval_hash(jsonb) is
-  'The SHA-256, as hex, of a snapshot''s text as jsonb writes it (00690): what approvals.snapshot_hash keeps and post_as_approved checks.';
+  'The SHA-256, as hex, of a snapshot''s text as jsonb writes it (00680): what approvals.snapshot_hash keeps and post_as_approved checks.';
 
 -- The shape a placement sends (contracts renditionShapeOf).
 create or replace function public.post_shape(p_place text, p_kind text)
@@ -328,7 +328,7 @@ set search_path = public
 as $$ select case when p_place = 'google' then 'google' when p_kind = 'picture' then '4x5' else '9x16' end $$;
 revoke all on function public.post_shape(text, text) from public, anon, authenticated;
 comment on function public.post_shape(text, text) is
-  'The shape a placement sends (00690, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
+  'The shape a placement sends (00680, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
 
 create or replace function public.post_as_approved(p_post_id uuid)
 returns jsonb
@@ -378,7 +378,7 @@ end $$;
 revoke all on function public.post_as_approved(uuid) from public, anon, authenticated;
 grant execute on function public.post_as_approved(uuid) to service_role;
 comment on function public.post_as_approved(uuid) is
-  'Right before a send (00690; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+  'Right before a send (00680; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
 
 /* ------------------------------------------------------------------------------------------- 9. post_approve -- */
 
@@ -561,7 +561,7 @@ end $$;
 revoke all on function public.post_approve(uuid, uuid, jsonb) from public, anon;
 grant execute on function public.post_approve(uuid, uuid, jsonb) to authenticated, service_role;
 comment on function public.post_approve(uuid, uuid, jsonb) is
-  'A member''s press, with the settings permission (00690; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+  'A member''s press, with the settings permission (00680; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 /* --------------------------------------------------------------------------------------- 10. piece_words_keep -- */
 
@@ -646,4 +646,4 @@ end $$;
 revoke all on function public.piece_words_keep(uuid, uuid, text) from public, anon;
 grant execute on function public.piece_words_keep(uuid, uuid, text) to authenticated, service_role;
 comment on function public.piece_words_keep(uuid, uuid, text) is
-  'A member''s door, with the settings permission (00690; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';
+  'A member''s door, with the settings permission (00680; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';

@@ -681,6 +681,9 @@
     "00676_the_stop_pauses_the_ads_made_here.sql": "1c01a6b6d2fb38197ce4a07e980030de5f8a14f38e86a17de261072d17fd9f94",
     "00677_a_disconnected_instagram_account_is_let_go.sql": "e7a2f5ccc22e598a1a83a583bbb1dfc731847a04d92fc7fb4e3c7978ac61cf21",
     "00678_an_ad_says_who_came_back_and_what_meta_counted.sql": "78608433a6079a5ee172ce4d04c0b54a7249e5ad4158eb53f6b8768cebb84571",
-    "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e"
+    "00679_a_time_asked_for_has_a_clock.sql": "05af95e8201d2baa3c7132dfb4e4076515260a1aab6c11eceebd3c5ffeddee2e",
+    "00680_a_post_goes_up_on_the_new_records.sql": "cf19ded4aaf36f244f0d95cbf140600a37d5d4eb137404e136129bd3afd2b69c",
+    "00681_a_person_in_a_file_says_yes.sql": "3afd33055e0d4c3b8eba66b56433c87ef0b81eacc848845d20e183d109eff80b",
+    "00682_a_post_comes_down.sql": "6942aa206aeeaa830ee6b87ddced91d3abd7fced8989954f32d616501cb29034"
   }
 }

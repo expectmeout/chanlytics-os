@@ -272,7 +272,7 @@ const READS = [
 const SEARCH = "tool_search_tool_bm25";
 /** The acts an operator may approve (D12): every card family but the lead search, a partner's. */
 const OPERATOR_ACTS = [
-  // Who is in a photo or a video, and the ask to one of them (00691): an operator names who is in the footage they add.
+  // Who is in a photo or a video, and the ask to one of them (00681): an operator names who is in the footage they add.
   // Keeping a yes, or taking one back, stays a partner's: those actions are not offered to an operator.
   "keep_yes",
   // A yes said to a card already waiting (the answers canvas, D15): the press, by another way.

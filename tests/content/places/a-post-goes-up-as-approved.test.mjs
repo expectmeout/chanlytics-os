@@ -1,5 +1,5 @@
 /**
- * A post goes up as it was approved, or not at all (the content loop PRD's 5.3, 6.1, 8.2 and 15.1; 00690): Instagram is
+ * A post goes up as it was approved, or not at all (the content loop PRD's 5.3, 6.1, 8.2 and 15.1; 00680): Instagram is
  * handed the exact bytes the approval names, and a reel its made video; a caption changed after approval holds the post
  * ("Changed since you approved it"); a post whose day passed is let go and never sent late, by any road; one whose offer
  * ended is held with the three ways on; what was sent keeps the account it went to and when Instagram was seen holding it.
@@ -190,7 +190,7 @@ function world({
           held_why: p_to === "held" || late ? p_patch.held_why : null,
         });
         for (const k of ["permalink", "external_id", "account_id", "verified_at"]) if (p_patch[k]) p[k] = p_patch[k];
-        // As the door does (00690): up on Instagram unseen, its job that asks the account for it is written with the move.
+        // As the door does (00680): up on Instagram unseen, its job that asks the account for it is written with the move.
         if (p_to === "published" && p.place === "instagram" && !p.verified_at && p.external_id)
           tables.jobs.push({
             id: `job-seen-${tables.jobs.length + 1}`,

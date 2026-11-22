@@ -165,7 +165,7 @@ const broughtIn = (db: Parameters<typeof historyImports>[0]) => ({
   posts: {
     ...postJobs(db),
     google: (job: ClaimedJob) => sendGooglePost(db, job),
-    // A post asked down where it is up (00692), each place through its own adapter.
+    // A post asked down where it is up (00682), each place through its own adapter.
     takeDown: (job: ClaimedJob) =>
       takePostDown(db, job, (post) =>
         post.place === "google"

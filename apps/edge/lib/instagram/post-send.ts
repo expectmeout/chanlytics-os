@@ -1,10 +1,10 @@
 /**
- * A post sent (00611, decision 0121; 00690): post_publish and post_reconcile, through Instagram's adapter
+ * A post sent (00611, decision 0121; 00680): post_publish and post_reconcile, through Instagram's adapter
  * (place.ts). Publishing works like a payment: the send is made once, and an answer that never came
  * proves nothing, so it is never sent again blind.
  *
  * Right before the send, the recheck: whoever approved it may still post for the business, the post was not pulled or
- * removed, everything is not stopped, it still stands as approved (00690 post_as_approved: its words, its bytes and its
+ * removed, everything is not stopped, it still stands as approved (00680 post_as_approved: its words, its bytes and its
  * version), and Instagram is still connected with posting allowed. Anything moved holds the post in words and sends
  * nothing, up to the moment of sending. Then the job says it is about to speak (ledger markSpoke), and Instagram is asked
  * to publish. A refusal fails the post in the owner's words, but for Instagram being busy on a first send, which is asked
@@ -178,7 +178,7 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
     accountId: posting.poster.accountId,
     seen: sent.seen,
   });
-  // Up, and not read back: the move itself wrote the job that asks for it again in two minutes (00690 post_moved), so it
+  // Up, and not read back: the move itself wrote the job that asks for it again in two minutes (00680 post_moved), so it
   // says it is on Instagram only once it was seen there.
 }
 

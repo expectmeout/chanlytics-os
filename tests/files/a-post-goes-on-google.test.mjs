@@ -175,7 +175,7 @@ function world({
       {
         post_approve: doors.approve,
         post_pull: doors.pull,
-        // Who has not said yes (00691), and the words kept as the piece's next version (00690): asked by every press.
+        // Who has not said yes (00681), and the words kept as the piece's next version (00680): asked by every press.
         file_rights_gap: () => ({ is: "ok" }),
         // As the door has it: every placement still queued, never a story, goes up with the new words.
         piece_words_keep: ({ p_file_id, p_caption }) => {
@@ -229,7 +229,7 @@ function placementDoors(posts, attempts) {
   const find = (id) => posts.find((p) => p.id === id);
   return {
     begin: (a) => placementDoors.begin(posts, a),
-    // 00690's door, over the same placements: the approval's one placement, as the press asked it.
+    // 00680's door, over the same placements: the approval's one placement, as the press asked it.
     approve: ({ p_file_id, p_approval }) => {
       const [placed] = p_approval.placements;
       const begun = placementDoors.begin(posts, {
@@ -255,7 +255,7 @@ function placementDoors(posts, attempts) {
       return { fate: "pulled" };
     },
     service: {
-      // What a piece was drawn from, read for who is in it (00691): nothing here names a photo's people.
+      // What a piece was drawn from, read for who is in it (00681): nothing here names a photo's people.
       files_drawn_from: () => [],
       post_attempt_open: (a) => {
         const row = {

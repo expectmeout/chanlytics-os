@@ -64,7 +64,7 @@ export function usePiecePosts(
   }, [piece.posts, recorded]);
   // What already holds a place is one rule, Ask's card's too (model/piece-open.ts pieceTakesOf, contracts postPlaceTakenOf).
   // Google up before each post was kept is the record's alone (`posted`).
-  // A made video goes to Instagram alone, as a reel (00690): Google takes none from here.
+  // A made video goes to Instagram alone, as a reel (00680): Google takes none from here.
   const video = piece.file.kind === "video";
   const known = record.read && piece.file.source === "made";
   const takes: PieceTakes | null = known

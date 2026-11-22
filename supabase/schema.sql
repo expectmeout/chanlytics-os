@@ -3078,7 +3078,7 @@ end $$;
 -- Name: FUNCTION ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00692; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by yes_taken_back_walk and post_take_down_begin.';
+COMMENT ON FUNCTION public.ads_remediate_files(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[]) IS 'The walk a yes taken back, a person erased or the owner''s own take-down starts on ads (00676, 00682; the Ads plan''s G16, the content loop PRD''s 5.3): every ad made here that shows one of p_files (ads.approved picture) and has not ended is paused for the remediation (ad_pause_all by remediation, which tells the owner on the bell), or, still being set up, its launch cancelled (ad_launch_cancel by remediation). One remediation of p_cause about the file p_subject_id, one action an ad: pending until the platform''s word settles it (ads_settle_remediation), done where nothing is left to tell, needs_person where its account is not connected. Answers [{ad_id, name, act, outcome}]. Called by yes_taken_back_walk and post_take_down_begin.';
 
 
 --
@@ -3713,7 +3713,7 @@ CREATE FUNCTION public.approval_hash(p_snapshot jsonb) RETURNS text
 -- Name: FUNCTION approval_hash(p_snapshot jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.approval_hash(p_snapshot jsonb) IS 'The SHA-256, as hex, of a snapshot''s text as jsonb writes it (00690): what approvals.snapshot_hash keeps and post_as_approved checks.';
+COMMENT ON FUNCTION public.approval_hash(p_snapshot jsonb) IS 'The SHA-256, as hex, of a snapshot''s text as jsonb writes it (00680): what approvals.snapshot_hash keeps and post_as_approved checks.';
 
 
 --
@@ -10786,7 +10786,7 @@ end $$;
 -- Name: FUNCTION file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'A member''s read, with the add_files permission (00691): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
+COMMENT ON FUNCTION public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'A member''s read, with the add_files permission (00681): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
 
 
 --
@@ -10824,7 +10824,7 @@ $$;
 -- Name: FUNCTION file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'Who stands between a file and a use (00691; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
+COMMENT ON FUNCTION public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text) IS 'Who stands between a file and a use (00681; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
 
 
 --
@@ -10977,7 +10977,7 @@ end $$;
 -- Name: FUNCTION file_subjects_gone(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_subjects_gone() IS 'Trigger (00691; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
+COMMENT ON FUNCTION public.file_subjects_gone() IS 'Trigger (00681; the content loop PRD''s 14.4): a person''s row in a file gone (an erasure reaches it through contacts) leaves the file unsure of who is in it, which holds every new use until the owner says, and restates its standing.';
 
 
 --
@@ -11032,7 +11032,7 @@ end $$;
 -- Name: FUNCTION file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) IS 'A member''s door, with the add_files permission (00691): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
+COMMENT ON FUNCTION public.file_subjects_name(p_tenant_id uuid, p_file_id uuid, p_state text, p_people jsonb) IS 'A member''s door, with the add_files permission (00681): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
 
 
 --
@@ -11522,7 +11522,7 @@ $$;
 -- Name: FUNCTION file_yes_restate(p_tenant_id uuid, p_ids uuid[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00691): a file whose people are named has a yes for a use only when every one of them has one that stands. Called by the doors that write a yes, in their own transaction.';
+COMMENT ON FUNCTION public.file_yes_restate(p_tenant_id uuid, p_ids uuid[]) IS 'files.yes_for and files.yes_back restated from file_consents for the files named (00665, 00681): a file whose people are named has a yes for a use only when every one of them has one that stands. Called by the doors that write a yes, in their own transaction.';
 
 
 --
@@ -11577,7 +11577,7 @@ end $$;
 -- Name: FUNCTION file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665, 00676, 00692; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, then what that starts (yes_taken_back_walk): every post of them still waiting held with p_held''s words, every one up asked down at its place, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), down (their take-down actions), ads ([{ad_id, name, act, outcome}])}.';
+COMMENT ON FUNCTION public.file_yes_take_back(p_tenant_id uuid, p_file_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00665, 00676, 00682; the content PRD''s section 8): the yes for each use named (every use where none is) taken back on a file and on every piece drawn from it, then what that starts (yes_taken_back_walk): every post of them still waiting held with p_held''s words, every one up asked down at its place, and, for ads, every ad made here that shows one of them paused or cancelled as a remediation (the Ads plan''s G16), in one transaction. Answers {taken_back, uses, files, held, live (posts up or on their way), down (their take-down actions), ads ([{ad_id, name, act, outcome}])}.';
 
 
 --
@@ -11600,7 +11600,7 @@ $$;
 -- Name: FUNCTION file_yes_uses(p_uses text[], p_every boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a door was handed, each once and in order; with none named and p_every, every use a yes can be for (00665, 00691: the website too).';
+COMMENT ON FUNCTION public.file_yes_uses(p_uses text[], p_every boolean) IS 'The uses a door was handed, each once and in order; with none named and p_every, every use a yes can be for (00665, 00681: the website too).';
 
 
 --
@@ -27158,7 +27158,7 @@ end $$;
 -- Name: FUNCTION piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00690): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
+COMMENT ON FUNCTION public.piece_of_made_file(p_tenant_id uuid, p_file_id uuid, p_actor uuid) IS 'The piece a made file is (00680): a video''s own, the newest that became it, or a made picture''s, written the first time it is asked for (shape picture). Null for a video no piece of this workspace became. Called by post_approve.';
 
 
 --
@@ -27325,7 +27325,7 @@ end $$;
 -- Name: FUNCTION piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00690; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';
+COMMENT ON FUNCTION public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text) IS 'A member''s door, with the settings permission (00680; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';
 
 
 --
@@ -28728,7 +28728,7 @@ begin
                         and s.id::text = any (public.file_drawn_from(v_file.made)))) then
     return jsonb_build_object('fate', 'taken_back', 'posts', '[]'::jsonb);
   end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00691):
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00681):
   -- nothing goes, and it says who.
   v_gap := public.file_rights_gap_of(p_tenant_id, p_file_id, 'post');
   if v_gap ->> 'is' <> 'ok' then
@@ -28863,7 +28863,7 @@ end $$;
 -- Name: FUNCTION post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00690; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, rights (name: who has not said yes, 00691), late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
+COMMENT ON FUNCTION public.post_approve(p_tenant_id uuid, p_file_id uuid, p_approval jsonb) IS 'A member''s press, with the settings permission (00680; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, rights (name: who has not said yes, 00681), late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
 
 --
@@ -28886,7 +28886,7 @@ begin
   if not found then
     return jsonb_build_object('is', 'changed');
   end if;
-  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00691).
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00681).
   v_gap := public.file_rights_gap_of(v_post.tenant_id, v_post.file_id, 'post');
   if v_gap ->> 'is' <> 'ok' then
     return jsonb_build_object('is', 'rights', 'name', v_gap ->> 'name');
@@ -28924,7 +28924,7 @@ end $$;
 -- Name: FUNCTION post_as_approved(p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_as_approved(p_post_id uuid) IS 'Right before a send (00690; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00691), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+COMMENT ON FUNCTION public.post_as_approved(p_post_id uuid) IS 'Right before a send (00680; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00681), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
 
 
 --
@@ -29207,7 +29207,7 @@ end $$;
 -- Name: FUNCTION post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
+COMMENT ON FUNCTION public.post_moved(p_post_id uuid, p_from text[], p_to text, p_patch jsonb) IS 'A placement moved from where it stood (p_from) to where it goes (00611, 00680), with its held reason and why (held_why), link, time, post id, the place''s account, when the place was seen holding it, or refusal from p_patch; let go late (pulled, held_why late) it keeps its words too. A post that moves to published on Instagram unseen (no verified_at) has its post_reconcile job written with it, two minutes on, which asks the account for it by its own id. Nothing when it stood anywhere else, so two runs never both move it. Answers whether it moved. The service role''s.';
 
 
 --
@@ -29315,7 +29315,7 @@ CREATE FUNCTION public.post_shape(p_place text, p_kind text) RETURNS text
 -- Name: FUNCTION post_shape(p_place text, p_kind text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_shape(p_place text, p_kind text) IS 'The shape a placement sends (00690, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
+COMMENT ON FUNCTION public.post_shape(p_place text, p_kind text) IS 'The shape a placement sends (00680, contracts renditionShapeOf): Google''s own, a portrait for a post, standing for a story or a reel.';
 
 
 --
@@ -29356,7 +29356,7 @@ end $$;
 -- Name: FUNCTION post_take_down_begin(p_tenant_id uuid, p_file_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) IS 'A member''s door, with the settings permission (00692; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
+COMMENT ON FUNCTION public.post_take_down_begin(p_tenant_id uuid, p_file_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): a piece comes down everywhere. Each post of it that is up is asked down at its place (a take_down action, pending until the place says, and its job), each one still waiting is let go, and every ad made here that shows it is paused, as remediations of the cause owner_removed, which keep who asked and when. Never an undo: a post taken down is posted again as a new post. Answers {fate: begun, nothing (nothing of it was up, waiting or showing), gone; remediation_id; actions [{action_id, post_id, place, kind, act, outcome}]; ads [{ad_id, name, act, outcome}]}.';
 
 
 --
@@ -29406,7 +29406,7 @@ end $$;
 -- Name: FUNCTION post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00692; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
+COMMENT ON FUNCTION public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid) IS 'A member''s door, with the settings permission (00682; the content loop PRD''s 8.3): "I deleted it", of a post Chanlytics could not take down itself. Its newest take-down waits again and the place is asked whether the post is gone (a post_take_down job that only reads); the post is taken_down once the place shows it is. Answers {fate: asking, done (already), unknown}.';
 
 
 --
@@ -29466,7 +29466,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00692; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00682; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
 
 
 --
@@ -29577,7 +29577,7 @@ end $$;
 -- Name: FUNCTION posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00692; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
+COMMENT ON FUNCTION public.posts_take_down_start(p_tenant_id uuid, p_actor uuid, p_cause text, p_subject_id text, p_files uuid[], p_cancel boolean) IS 'The walk a take-down starts on posts, the service''s (00682; the content loop PRD''s 5.3 and 8.3): one remediation of p_cause about the file p_subject_id. Every post of p_files that is up, or past holding on its way, and not the owner''s own by hand, gets a take_down action, pending, and its post_take_down job; a story up for more than a day is gone already and is left; a post with a take-down still pending is left to it. With p_cancel, every one still waiting or stopped is let go (pulled) as a cancel action, done at once. Answers {remediation_id (null where nothing was reached), actions [{action_id, post_id, place, kind, act, outcome}]}.';
 
 
 --
@@ -42463,7 +42463,7 @@ end $$;
 -- Name: FUNCTION subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) IS 'A member''s door, with the add_files permission (00691; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
+COMMENT ON FUNCTION public.subject_ask_record(p_tenant_id uuid, p_subject_id uuid, p_via text, p_uses text[]) IS 'A member''s door, with the add_files permission (00681; call 13): that a person in a file was asked for their yes, now, on the channel named, about the uses named. The ask itself is a reply the member sent through the one send door; this keeps when. A no said before it no longer stands: they are being asked again. Answers {fate: kept, gone}.';
 
 
 --
@@ -42491,7 +42491,7 @@ end $$;
 -- Name: FUNCTION subject_no_record(p_tenant_id uuid, p_subject_id uuid); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) IS 'A member''s door, with the settings permission (00691; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
+COMMENT ON FUNCTION public.subject_no_record(p_tenant_id uuid, p_subject_id uuid) IS 'A member''s door, with the settings permission (00681; call 13): that a person in a file said no, as the owner read their answer. Nothing changes for the file: without their yes no new use stood already. A yes kept later answers it (subject_yes_record). Answers {fate: kept, gone}.';
 
 
 --
@@ -42546,7 +42546,7 @@ end $$;
 -- Name: FUNCTION subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) IS 'A member''s door, with the settings permission (00691; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
+COMMENT ON FUNCTION public.subject_yes_record(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb) IS 'A member''s door, with the settings permission (00681; call 13): a person''s own yes for each use named, said to AI, in a message (p_evidence names it) or in person, kept as theirs on the file they are in; a yes that already stands is not kept twice. The file''s standing restated. Answers {fate: kept, gone; kept (how many)}.';
 
 
 --
@@ -42608,7 +42608,7 @@ end $$;
 -- Name: FUNCTION subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00692; call 13): one person''s own yes for each use named (every use where none is) taken back, the file they are in and every piece drawn from it restated, then what that starts (yes_taken_back_walk): posts still waiting held, posts up asked down, ads paused. Answers {fate: taken_back, none (no yes of theirs stood), gone; taken_back; uses; files; held; live; down; ads}.';
+COMMENT ON FUNCTION public.subject_yes_take_back(p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_held text) IS 'A member''s door, with the settings permission (00682; call 13): one person''s own yes for each use named (every use where none is) taken back, the file they are in and every piece drawn from it restated, then what that starts (yes_taken_back_walk): posts still waiting held, posts up asked down, ads paused. Answers {fate: taken_back, none (no yes of theirs stood), gone; taken_back; uses; files; held; live; down; ads}.';
 
 
 --
@@ -44910,7 +44910,7 @@ end $$;
 -- Name: FUNCTION yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) IS 'What a yes taken back starts, the service''s, once for both doors (00692; the content loop PRD''s section 8): for posts, every post of p_files still waiting held (rights, with p_held''s words) and every one up asked down at its place (posts_take_down_start); for ads, every ad made here that shows one of them paused or cancelled (ads_remediate_files). Answers {held, live (posts up or on their way), down (the take-down actions), ads}.';
+COMMENT ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) IS 'What a yes taken back starts, the service''s, once for both doors (00682; the content loop PRD''s section 8): for posts, every post of p_files still waiting held (rights, with p_held''s words) and every one up asked down at its place (posts_take_down_start); for ads, every ad made here that shows one of them paused or cancelled (ads_remediate_files). Answers {held, live (posts up or on their way), down (the take-down actions), ads}.';
 
 
 --
@@ -45715,7 +45715,7 @@ CREATE TABLE public.approvals (
 -- Name: TABLE approvals; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.approvals IS 'What an owner approved, exactly (00690; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
+COMMENT ON TABLE public.approvals IS 'What an owner approved, exactly (00680; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
 
 
 --
@@ -46814,14 +46814,14 @@ COMMENT ON COLUMN public.file_consents.said_in IS 'ai (said to AI, in the conver
 -- Name: COLUMN file_consents.subject_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.file_consents.subject_id IS 'The person in the file this yes is theirs (00691, file_subjects); null for a yes kept before people were named, read as before.';
+COMMENT ON COLUMN public.file_consents.subject_id IS 'The person in the file this yes is theirs (00681, file_subjects); null for a yes kept before people were named, read as before.';
 
 
 --
 -- Name: COLUMN file_consents.evidence; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.file_consents.evidence IS 'Where it was said (00691): the message it was said in, who kept it. Never the person''s words.';
+COMMENT ON COLUMN public.file_consents.evidence IS 'Where it was said (00681): the message it was said in, who kept it. Never the person''s words.';
 
 
 --
@@ -46855,7 +46855,7 @@ CREATE TABLE public.file_subjects (
 -- Name: TABLE file_subjects; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.file_subjects IS 'A person in a file (00691; the content loop PRD''s 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.';
+COMMENT ON TABLE public.file_subjects IS 'A person in a file (00681; the content loop PRD''s 5.3, principle 6): their name as the owner or an operator gave it, a client, staff or someone else, the person in People where the workspace knows them, and how it is known. Never filled from a face. Members read; file_subjects_name writes. A person erased takes their rows with them.';
 
 
 --
@@ -47180,7 +47180,7 @@ COMMENT ON COLUMN public.files.yes_back IS 'The uses whose every yes on this fil
 -- Name: COLUMN files.subjects_state; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.files.subjects_state IS 'Whether the people in it are known (00691): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say).';
+COMMENT ON COLUMN public.files.subjects_state IS 'Whether the people in it are known (00681): not_asked, none (nobody is in it), named (file_subjects says who), unsure (the owner is not sure: no new use until they say).';
 
 
 --
@@ -49847,7 +49847,7 @@ CREATE TABLE public.piece_renditions (
 -- Name: TABLE piece_renditions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00690; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
+COMMENT ON TABLE public.piece_renditions IS 'One shape of a piece''s version as it is sent (00680; the content loop PRD''s 5.3, 11): its made file, the path of its bytes in the file''s folder and their full SHA-256, read when the row was written. Never changed once written; a version''s shapes are the newest drawn at or before it. Members read; post_approve writes.';
 
 
 --
@@ -49879,7 +49879,7 @@ CREATE TABLE public.piece_revisions (
 -- Name: TABLE piece_revisions; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.piece_revisions IS 'One version of a piece (00690; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
+COMMENT ON TABLE public.piece_revisions IS 'One version of a piece (00680; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
 
 
 --
@@ -49928,7 +49928,7 @@ COMMENT ON TABLE public.pieces IS 'One row a video asked for (00613, decision 01
 -- Name: COLUMN pieces.shape; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.pieces.shape IS 'hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post''s piece (00690), its row written at its first approval, which no video job reads (stage is not read for one).';
+COMMENT ON COLUMN public.pieces.shape IS 'hook_cut or blocks: a video and how it is drawn (00613, 00615); picture: a made post''s piece (00680), its row written at its first approval, which no video job reads (stage is not read for one).';
 
 
 --
@@ -49963,14 +49963,14 @@ COMMENT ON COLUMN public.pieces.card_key IS 'The key of the card whose press ask
 -- Name: COLUMN pieces.revision; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.pieces.revision IS 'The version the piece stands at (00690, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
+COMMENT ON COLUMN public.pieces.revision IS 'The version the piece stands at (00680, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
 
 
 --
 -- Name: COLUMN pieces.intent; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.pieces.intent IS 'Why it exists (00690; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
+COMMENT ON COLUMN public.pieces.intent IS 'Why it exists (00680; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
 
 
 --
@@ -50260,56 +50260,56 @@ COMMENT ON COLUMN public.posts.container_id IS 'The newest send''s container at 
 -- Name: COLUMN posts.piece_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.piece_id IS 'The piece this placement shows (00690); null for one approved before it, read as before.';
+COMMENT ON COLUMN public.posts.piece_id IS 'The piece this placement shows (00680); null for one approved before it, read as before.';
 
 
 --
 -- Name: COLUMN posts.revision; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.revision IS 'The version of the piece it shows (00690, piece_revisions.n).';
+COMMENT ON COLUMN public.posts.revision IS 'The version of the piece it shows (00680, piece_revisions.n).';
 
 
 --
 -- Name: COLUMN posts.approval_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.approval_id IS 'The approval it was approved in (00690); null for one approved before it, read as before.';
+COMMENT ON COLUMN public.posts.approval_id IS 'The approval it was approved in (00680); null for one approved before it, read as before.';
 
 
 --
 -- Name: COLUMN posts.capability_edition; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.capability_edition IS 'The place''s capability edition when it was approved (contracts PLACE_CAPABILITIES, 00690).';
+COMMENT ON COLUMN public.posts.capability_edition IS 'The place''s capability edition when it was approved (contracts PLACE_CAPABILITIES, 00680).';
 
 
 --
 -- Name: COLUMN posts.verified_at; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.verified_at IS 'When the place was seen holding it (00690): "On Instagram" is said only from then.';
+COMMENT ON COLUMN public.posts.verified_at IS 'When the place was seen holding it (00680): "On Instagram" is said only from then.';
 
 
 --
 -- Name: COLUMN posts.good_until; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.good_until IS 'The last moment it is still worth sending (00690; PRD 8.2), from the piece''s intent at approval: nothing is sent after it, by any road. Null where nothing dates it.';
+COMMENT ON COLUMN public.posts.good_until IS 'The last moment it is still worth sending (00680; PRD 8.2), from the piece''s intent at approval: nothing is sent after it, by any road. Null where nothing dates it.';
 
 
 --
 -- Name: COLUMN posts.account_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.account_id IS 'The place''s own account it went to (00690): an Instagram account''s id, a Google location''s name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one.';
+COMMENT ON COLUMN public.posts.account_id IS 'The place''s own account it went to (00680): an Instagram account''s id, a Google location''s name. Set at the send; an account can leave a workspace and another come (decision 0143), so a later read or take-down asks this one.';
 
 
 --
 -- Name: COLUMN posts.held_why; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.posts.held_why IS 'Why it was held, or let go before it went (00690, contracts POST_HELD_WHYS): the recheck''s reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words.';
+COMMENT ON COLUMN public.posts.held_why IS 'Why it was held, or let go before it went (00680, contracts POST_HELD_WHYS): the recheck''s reasons, one of the seven checks, changed since it was approved, or late. held_reason says it in words.';
 
 
 --
