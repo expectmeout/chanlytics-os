@@ -38,7 +38,6 @@ export {
   mailboxRecordStateWords,
   mailboxRowWords,
   mailboxSendingLines,
-  mailboxSignsAsWords,
   mailboxSignsChoiceOf,
   SPF_LOOKUPS_MAX,
 } from "./mailbox-connections/rows";

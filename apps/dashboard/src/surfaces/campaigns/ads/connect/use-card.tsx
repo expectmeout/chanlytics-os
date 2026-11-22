@@ -15,6 +15,7 @@ import { useAdPresses } from "../live/use-press";
 import { useAdsLive } from "../live/use-live";
 import type { AdsLiveHere } from "../live/use-live";
 import { ConnectCard } from "./card";
+import type { AdCardActs } from "./card";
 import { connectCard } from "./card-model";
 import type { ConnectCardVM } from "./card-model";
 import { CardSheet } from "./card-sheet";
@@ -38,6 +39,11 @@ interface AdsConnection {
   vm: ConnectCardVM | null;
   /** The card, with its sheet and Disconnect. */
   card: ReactNode;
+  /**
+   * What a page that draws the account as a row of its own takes instead of the card (Settings › Connections): its
+   * presses, and the sheet and Disconnect the card would open, drawn wherever that page draws them.
+   */
+  parts: { acts: AdCardActs; sheets: ReactNode } | null;
   /** AI stopped with ads still on, and the press that pauses them all; null otherwise. */
   stop: StopHere | null;
 }
@@ -79,15 +85,14 @@ export function useAdsConnection(on: boolean, timezone: string, title: string, s
   // Disconnect is the owner's, on an account that is connected or that Meta signed Chanlytics out of.
   const status = account.dto?.meta?.status;
   const mayLeave = account.dto?.can_connect === true && (status === "connected" || status === "revoked");
-  const card =
+  const acts: AdCardActs = {
+    connect: account.connect,
+    choose: (id) => void account.choose(id),
+    open: () => setOpen(true),
+  };
+  const sheets =
     vm === null ? null : (
       <>
-        <ConnectCard
-          title={title}
-          vm={vm}
-          acts={{ connect: account.connect, choose: (id) => void account.choose(id), open: () => setOpen(true) }}
-          stop={stopIn === "card" && stop ? <StopNotice stop={stop} className="ads-conn-need" /> : null}
-        />
         <CardSheet
           open={open}
           vm={vm}
@@ -124,5 +129,17 @@ export function useAdsConnection(on: boolean, timezone: string, title: string, s
         {toast}
       </>
     );
-  return { account, held, live, vm, card, stop };
+  const card =
+    vm === null ? null : (
+      <>
+        <ConnectCard
+          title={title}
+          vm={vm}
+          acts={acts}
+          stop={stopIn === "card" && stop ? <StopNotice stop={stop} className="ads-conn-need" /> : null}
+        />
+        {sheets}
+      </>
+    );
+  return { account, held, live, vm, card, parts: vm === null ? null : { acts, sheets }, stop };
 }

@@ -16,6 +16,8 @@ import {
 } from "@chanlytics/contracts";
 import { canDo } from "../../frame-verbs";
 import { lineCodes, waConnect, waStanding, type SignupDoor } from "./whatsapp";
+import { igConnect } from "./instagram";
+import { metaConnect } from "./meta";
 
 /** One read of the codes, painted if the page that asked still wants it; a read that fails changes nothing: the page keeps what it has. */
 function askCodes(paint: (codes: LineCodeDto[]) => void): void {
@@ -78,3 +80,37 @@ export function useSignupAhead(
     if (offered) waConnect.prepare(door);
   }, [offered, door]);
 }
+
+/** A login's door as the pane asks it: Instagram's own (instagram.ts) or Meta's (meta.ts). */
+interface LoginDoor<D> {
+  config: () => Promise<D>;
+  held: () => D | null;
+  outcome: () => string | null;
+}
+
+/**
+ * A login's door, asked once (`undefined` while asking, null where it could not be read: the row says Later or leaves the
+ * offer out), and what the browser came back from that login with, said once under its row until Ok.
+ */
+function useLoginDoor<D>(login: LoginDoor<D>) {
+  // What the tab last held, drawn at once (pane-reads.ts): the row said it was asking, and changed as the answer came.
+  const [door, setDoor] = useState<D | null | undefined>(() => login.held() ?? undefined);
+  const [note, setNote] = useState<string | null>(() => login.outcome());
+  useEffect(() => {
+    let on = true;
+    login
+      .config()
+      .then((c) => on && setDoor(c))
+      .catch(() => on && setDoor(null));
+    return () => {
+      on = false;
+    };
+  }, [login]);
+  return { door, note, clearNote: () => setNote(null) };
+}
+
+/** Both logins' doors, asked as Connections opens: Instagram's own, and Meta's (the Meta link). */
+export function useLogins() {
+  return { ig: useLoginDoor(igConnect), meta: useLoginDoor(metaConnect) };
+}
+export type Logins = ReturnType<typeof useLogins>;

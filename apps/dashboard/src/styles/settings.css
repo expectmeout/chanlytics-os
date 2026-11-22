@@ -547,20 +547,30 @@
   column-gap: var(--set-lead-gap);
 }
 .set-conn > * { grid-column: 1 / -1; }
-.set-conn > .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
-.set-conn > .set-int-row > .pill { justify-self: start; }
+.set-conn .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
+.set-conn .set-int-row > .pill { justify-self: start; }
 .set-int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 /* The mailboxes block's foot holds a Connect for each provider and the admin's link: on a narrow pane they wrap. */
 .set-dom-foot .set-int-actions { flex-wrap: wrap; }
 /* The group is called Later; its rows do not each say so again. */
-.set-conn > .set-int-row[data-state="later"] > .pill { display: none; }
-.set-conn > .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
+.set-conn .set-int-row[data-state="later"] > .pill { display: none; }
+.set-conn .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
 /* What a row opens under itself (the locations to choose among, the business
    record) starts where the row's words do. */
 .set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
-/* The workspace's ad account (ad-account-real.tsx), in its group under the Meta row: the Ads page's own card, across
-   the group's columns, set apart from the rows as each row is from the next. */
-.set-conn > .conn-ads-slot { padding: var(--set-row-y) 0; border-top: 1px solid var(--line); }
+/* The workspace's ad account (ad-account-real.tsx): a row drawn into the place the pane keeps for it, which stands
+   aside so the row takes the group's columns as every row does. (So the rules above and below name a row inside the
+   group, not only its child.) */
+.set-conn > .conn-ads-slot { display: contents; }
+.set-conn > .conn-ads-slot > * { grid-column: 1 / -1; }
+/* A row under another (a mailbox under Email, the ad account under Meta): its words start where its parent's name does,
+   its first column empty, and the hairline above it starts there too, so the two read as one connection. */
+.set-conn .set-int-row[data-child="true"] { border-top: 0; }
+.set-conn .set-int-row[data-child="true"]::after { content: ""; position: absolute; top: 0; right: 0; left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: 1px solid var(--line); }
+/* A row's quiet line where it says something is wrong: amber, as what needs you is. */
+.set-int-notes[data-tone="warn"] { color: var(--warn-ink); }
+/* What a row to fix says is wrong, beside Fix: a phone's, where Fix stands in the state's place; a desk's state says it. */
+.set-team-mail.set-int-why { display: none; color: var(--warn-ink); }
 /* A row's Settings (row.tsx rowSettings), opened in place on a line of its own under its name: what it is attached to,
    what it says, and its acts. Ruben, 20 Oct 2026: the number is said here, never on the row. */
 .set-int-open { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 2px 0 6px; }
@@ -574,29 +584,29 @@
 .set-int-fix:last-child { padding-bottom: 0; border-bottom: 0; }
 .set-int-problem { font-size: var(--set-hint); line-height: 1.5; color: var(--ink); text-wrap: pretty; }
 /* An open row is one piece: the pointer's ground would wash its Settings with it. */
-.set-conn > .set-int-row[data-open="true"]::before { background: none; }
+.set-conn .set-int-row[data-open="true"]::before { background: none; }
 /* A note about the group, after its rows. */
 .set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
 /* A row's phone pieces (row.tsx ConnectionRow): a desktop keeps its button in the group's column. A row whose button
    is Settings is that button's press at every width, as a record row is. The ⋯ and the detail beside a name are the
    Ad accounts card's (ad-accounts.tsx, a demo's), whose rows still carry two acts. */
 .set-int-chev, .set-int-more { display: none; }
-.set-conn > .set-int-row[data-offers="one"] { cursor: pointer; }
+.set-conn .set-int-row[data-offers="one"] { cursor: pointer; }
 /* On a phone a connection is a row of People's kind (25 Sep; they were 77 to 145px): the tile, its name, its state,
    and its button behind the row -- a Settings row is its press with a chevron, which turns as it opens -- never a
    line of boxed buttons under the words. A Connect row keeps its button, in the state's place; a Later row is its
    name. */
 @media (max-width: 640px) {
-  .set-conn > .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
-  .set-conn > .set-int-row > .set-int-tile { align-self: start; }
+  .set-conn .set-int-row { align-items: center; min-height: 56px; padding: 10px 0; row-gap: 3px; }
+  .set-conn .set-int-row > .set-int-tile { align-self: start; }
   .set-int-detail { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--set-hint); line-height: 1.45; }
   .set-int-sep { display: none; }
   /* A connected row is its name, what it is attached to and its state: the sentence under it (last message 3d ago)
      is a desktop's. A row that wants something keeps its sentence, which says what. */
-  .set-conn > .set-int-row[data-state="connected"] .set-team-mail,
-  .set-conn > .set-int-row[data-state="later"] .set-team-mail { display: none; }
-  .set-conn > .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
-  .set-conn > .set-int-row[data-offers="primary"] > .pill { display: none; }
+  .set-conn .set-int-row[data-state="connected"] .set-team-mail,
+  .set-conn .set-int-row[data-state="later"] .set-team-mail { display: none; }
+  .set-conn .set-int-row:is([data-offers="one"], [data-offers="menu"], [data-offers="none"]) > .set-int-actions { display: none; }
+  .set-conn .set-int-row[data-offers="primary"] > .pill { display: none; }
   /* A row that wants something has its button beside its name, in the state's place, and its sentence and notes run
      under both, as every row's do below (7 Oct: beside the button they were a column two words wide, and the WhatsApp
      row stood 700px tall with its button halfway down it). */
@@ -604,27 +614,29 @@
      had what the group's longest button left: 108px for a name and its press beside "Connect your calendar", and
      "Phone line" stood on two lines beside "Get a line", "Google Business Profile" on three (seen on production,
      8 Oct 2026). The buttons still end on one edge, the card's. */
-  .set-conn > .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
-  .set-conn > .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
-  .set-conn > .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
-  .set-conn > .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
+  .set-conn .set-int-row[data-offers="primary"] { grid-template-columns: var(--set-lead) minmax(0, 1fr) auto; }
+  .set-conn .set-int-row[data-offers="primary"] > :first-child { align-self: center; }
+  .set-conn .set-int-row[data-offers="primary"] > .set-int-actions { grid-column: 3 / -1; }
+  .set-conn .set-int-row[data-offers="primary"] .set-team-name { white-space: normal; }
   /* Every row does: its name stands beside its state and its act, and what it says runs under them, the row's width
      (8 Oct: a number that had just connected said how to try it in the name's own column, 115px wide and twelve lines
      tall, beside its state). The state is what follows the words, named by its place rather than as `.pill`, a kit
      class a page's rule may not name again (the kit-primitives measure); a row's act, its chevron or its menu ends the line. */
-  .set-conn > .set-int-row > .set-team-body { display: contents; }
-  .set-conn > .set-int-row > :first-child { grid-row: 1; }
-  .set-conn > .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
-  .set-conn > .set-int-row > .set-team-body + * { grid-column: 3; grid-row: 1; }
-  .set-conn > .set-int-row > :is(.set-int-actions, .set-int-chev, .set-int-more) { grid-column: 4; grid-row: 1; }
+  .set-conn .set-int-row > .set-team-body { display: contents; }
+  .set-conn .set-int-row > :first-child { grid-row: 1; }
+  .set-conn .set-int-row .set-int-head { grid-column: 2; grid-row: 1; }
+  .set-conn .set-int-row > .set-team-body + * { grid-column: 3; grid-row: 1; }
+  .set-conn .set-int-row > :is(.set-int-actions, .set-int-chev, .set-int-more) { grid-column: 4; grid-row: 1; }
   /* The press beside a name is a finger's 44px here around a 13px glyph (mobile.css): its box reaches 8px over the
      name's end and 8px toward the row's button, so the name is not charged for the room a thumb needs. */
   .set-int-head > :nth-child(2) { margin-inline: -8px; }
-  .set-conn > .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
-  .set-conn > .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
-  .set-conn > .set-int-row[data-open="true"] > .set-int-chev { rotate: 90deg; }
-  .set-conn > .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
-  .set-conn > .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
+  .set-conn .set-int-row :is(.set-team-mail, .set-int-notes) { grid-column: 2 / -1; }
+  .set-conn .set-int-row[data-offers="one"] > .set-int-chev { display: inline-flex; justify-self: end; color: var(--ink-faint); transition: rotate var(--duration-fast) var(--ease-out); }
+  .set-conn .set-int-row[data-open="true"] > .set-int-chev { rotate: 90deg; }
+  .set-conn .set-int-row[data-offers="menu"] > .set-int-more { display: inline-flex; justify-self: end; }
+  .set-conn .set-int-row[data-state="later"] { min-height: 48px; padding: 6px 0; }
+  .set-conn .set-int-row[data-child="true"] { min-height: 48px; }
+  .set-team-mail.set-int-why { display: block; }
   .set-conn > .set-row-stack { padding-left: 0; }
   /* The listing's note is a desktop's paragraph: on a phone it was 100px under a group whose rows say what they are. */
   .set-conn > .set-card-foot { display: none; }
@@ -1970,42 +1982,20 @@ html.frame-on .bt-link { position: relative; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* A mailbox's act and the rest on its caret, one split pill with a hairline between (mailboxes-block.tsx
-   mailboxActions; Ruben, 20 Oct 2026: no three dots), as a sequence's head draws its act and its More. */
-/* What a mailbox signs with, under its choice in its settings (00487): Gmail's signature as words, never its markup, and
-   when it was read; or that none goes. */
-/* Email, as one card (mailboxes-block.tsx EmailCard; the mailbox canvas, 27 Oct 2026): the row's tile, words, state and
-   act on the group's columns, the card's facts and foot under its words. Facts in place of sentences: a label over each
-   value, a hairline between them. The foot is what was left in the mailbox and Add a mailbox. */
-.set-conn > .set-mbx-one { align-items: start; }
+/* Email's foot (mailboxes-block.tsx EmailCard), under its mailboxes and starting where their words do: what a connect
+   came back with, what was left in the mailbox today, and Add a mailbox, which opens what connecting brings and a
+   Connect for each provider. */
+.set-conn > .set-mbx-foot { grid-column: 2 / -1; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-1) 0 var(--space-3); }
 .set-mbx-says { margin: 0; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); overflow-wrap: break-word; }
-.set-mbx-below { grid-column: 2 / -1; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; padding: var(--space-2) 0 var(--space-1); }
-/* As many to a line as the pane has room for, each whole: in a narrow pane (a 1024px window) four in a row were cut to
-   "414 email…" and "Up to 4…" (seen on production, 27 Oct 2026). */
-.set-mbx-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-3) var(--space-5); margin: 0; }
-.set-mbx-fact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.set-mbx-fact dt { font-size: var(--text-xs); color: var(--ink-dim); }
-.set-mbx-fact dd { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
-.set-mbx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-2); border-top: 1px dashed var(--line); }
-/* What a new mailbox brings (decision 0086): its line, and its two ways once opened, on a row of their own under the foot. */
-.set-mbx-choice { flex: 1 0 100%; min-width: 0; }
-/* A fact's act (Stop, Resume, Try again, Bring in the last 6 months) on a line of its own under the fact's words. */
-.set-mbx-fact-act { display: block; }
-.set-mbx-left { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.set-mbx-add { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.set-mbx-left { align-self: stretch; min-width: 0; display: flex; flex-direction: column; }
 .set-mbx-left .set-dom { grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
 .set-mbx-left .set-dom > :empty { display: none; }
 /* Show who stays on its line's end at every width (a phone's set-dom put it two rows down, under nothing). */
 .set-mbx-left .set-dom .set-int-actions { grid-column: 2; grid-row: 1; justify-content: flex-end; }
-/* Several mailboxes: a flat line each under the card's words, which already start where the row's words do -- its
-   address and what came in, its state, its act -- never a box around them (the card's provider is said by each). */
-.set-mbx-below > .set-domains { margin: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
-.set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto auto; padding: var(--space-2) 0; border-top: 1px dashed var(--line); }
-.set-mbx-below > .set-domains > .set-dom:first-child { border-top: 0; }
-.set-mbx-below > .set-domains > .set-dom > :is(svg, .cap) { display: none; }
-/* What a mailbox's domain still lacks, one line where its records stood (mailboxes-block.tsx dnsNeed; the mailbox
-   canvas's D1): amber, as what needs you is. */
-.set-mbx-need { align-self: flex-start; justify-self: start; display: inline-flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); padding: 3px var(--space-3) 3px var(--space-2); border-radius: var(--radius-xl); background: var(--warn-soft); color: var(--warn-ink); font-size: var(--text-xs); font-weight: 600; line-height: 1.5; }
-.set-mbx-need::before { content: ""; width: 6px; height: 6px; border-radius: var(--radius-circle); background: currentColor; flex: none; }
+.set-mbx-foot > .set-dom { align-self: stretch; grid-template-columns: minmax(0, 1fr) auto; padding: var(--space-1) 0; border-top: 0; }
+.set-mbx-foot > .set-dom > :empty { display: none; }
+.set-mbx-foot > .set-dom .set-int-actions { grid-column: 2; grid-row: 1; }
 /* A mailbox's domain records (dns-sheet.tsx): how many are found, a record each with its state in words and its parts
    to copy, a record DNS has one line, and Check again in the foot. */
 .set-dns-top { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-2); }
@@ -2040,28 +2030,15 @@ html.frame-on .bt-link { position: relative; }
 .set-mbx-two { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: var(--space-3); align-items: start; }
 .set-mbx-say { display: flex; align-items: flex-start; gap: var(--space-3); }
 .set-mbx-say > :last-child { margin-left: auto; flex: none; }
+.set-mbx-say-words > :last-child:not(.set-mbx-lines) { align-self: flex-start; margin-top: var(--space-1); }
 .set-mbx-group.set-mbx-say { flex-direction: row; align-items: center; }
 .set-mbx-say-words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.set-mbx-say-name { font-size: var(--text-base); font-weight: 600; color: var(--ink); }
+.set-mbx-say-name { font-size: var(--set-label); font-weight: 500; color: var(--ink); }
 .set-mbx-lines { display: flex; flex-direction: column; gap: 2px; font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
-/* The end of an email as their inbox shows it, and what signs it: what is sent is what is seen. */
-.set-mbx-preview-title { margin-top: var(--space-1); }
-.set-mbx-preview { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-inset-fill); font-size: var(--text-sm); line-height: 1.5; }
-.set-mbx-preview-from { padding-bottom: var(--space-2); border-bottom: 1px solid var(--line); font-size: var(--text-xs); color: var(--ink-dim); overflow-wrap: anywhere; }
-.set-mbx-preview-from b { font-weight: 600; color: var(--ink); }
-.set-mbx-preview-body { white-space: pre-line; color: var(--ink); }
-.set-mbx-preview-sig { white-space: pre-line; color: var(--ink-dim); overflow-wrap: anywhere; }
-.set-mbx-preview-none { font-size: var(--text-xs); font-style: italic; color: var(--ink-dim); }
+/* What its sheet leads with where it needs mending: what is wrong, in the ink, and the act that mends it. */
+.set-mbx-mend { align-items: flex-start; }
 @media (max-width: 720px) {
-  /* On a phone the card's words, facts and foot run the row's width under its name; its facts two by two. */
-  .set-conn > .set-mbx-one .set-mbx-says { grid-column: 2 / -1; }
-  .set-conn > .set-mbx-one > .set-mbx-below { grid-column: 1 / -1; }
-  .set-mbx-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
   .set-mbx-two { grid-template-columns: minmax(0, 1fr) 112px; }
-  /* A mailbox of several: its words beside its state, its act under them. */
-  .set-mbx-below > .set-domains > .set-dom { grid-template-columns: minmax(0, 1fr) auto; }
-  .set-mbx-below > .set-domains > .set-dom > :nth-child(4) { grid-column: 2; grid-row: 1; }
-  .set-mbx-below > .set-domains > .set-dom .set-int-actions { grid-column: 1 / -1; grid-row: 2; justify-content: flex-start; }
 }
 /* The group across the form: its name, the choice at its own width, then what it signs with across the row. */
 .set-mbx-signs-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
@@ -2086,25 +2063,6 @@ html.frame-on .bt-link { position: relative; }
   margin: 0;
   font-size: var(--text-xs);
   color: var(--ink-dim);
-}
-.set-mbx-acts {
-  display: inline-flex;
-  align-items: stretch;
-}
-.set-mbx-acts > :first-child:not(:last-child) {
-  border-start-end-radius: 0;
-  border-end-end-radius: 0;
-}
-.set-mbx-acts .set-mbx-caret {
-  justify-content: center;
-  width: 28px;
-  padding: 0;
-}
-.set-mbx-acts > :last-child:not(:first-child) .set-mbx-caret {
-  margin-left: -1px;
-  border-left-color: var(--line-strong);
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
 }
 /* The records to publish, as a registrar's form asks for them: what each is for, its type, the part before the
    domain, the value, the priority. Each name and value copies on its own; a quiet dot says whether it reads yet. */
