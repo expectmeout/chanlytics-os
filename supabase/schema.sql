@@ -44692,6 +44692,13 @@ end $$;
 
 
 --
+-- Name: FUNCTION workspace_tell_row_change(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table and the operation, once per transaction for each workspace, table and event, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
+
+
+--
 -- Name: yes_taken_back_walk(uuid, uuid, uuid, uuid[], text[], text); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -44745,13 +44752,6 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.yes_taken_back_walk(p_tenant_id uuid, p_actor uuid, p_file_id uuid, p_files uuid[], p_uses text[], p_held text) IS 'What a yes taken back starts, the service''s, once for both doors (00692; the content loop PRD''s section 8): for posts, every post of p_files still waiting held (rights, with p_held''s words) and every one up asked down at its place (posts_take_down_start); for ads, every ad made here that shows one of them paused or cancelled (ads_remediate_files). Answers {held, live (posts up or on their way), down (the take-down actions), ads}.';
-
-
---
--- Name: FUNCTION workspace_tell_row_change(); Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON FUNCTION public.workspace_tell_row_change() IS 'Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): the table and the operation, once per transaction for each workspace, table and event, kept in workspace_notices_pending and sent at the commit with the commit''s clock as `at` (00507). Never a row.';
 
 
 --
@@ -46602,7 +46602,7 @@ CREATE TABLE public.file_consents (
     CONSTRAINT file_consents_said_in_check CHECK ((said_in = ANY (ARRAY['ai'::text, 'before'::text, 'message'::text, 'in_person'::text]))),
     CONSTRAINT file_consents_taken_back_shape CHECK (((taken_back_by IS NULL) OR (taken_back_at IS NOT NULL))),
     CONSTRAINT file_consents_use_check CHECK ((use = ANY (ARRAY['post'::text, 'ad'::text, 'reply'::text, 'cold_email'::text, 'website'::text]))),
-    CONSTRAINT file_consents_who_check CHECK (((char_length(who) >= 1) AND (char_length(who) <= 120) AND (who = btrim(who))))
+    CONSTRAINT file_consents_who_check CHECK ((((char_length(who) >= 1) AND (char_length(who) <= 120)) AND (who = btrim(who))))
 );
 
 
@@ -56414,13 +56414,6 @@ CREATE TRIGGER ask_memory_lines_set_updated_at BEFORE UPDATE ON public.ask_memor
 
 
 --
--- Name: file_subjects file_subjects_gone; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER file_subjects_gone AFTER DELETE ON public.file_subjects FOR EACH ROW EXECUTE FUNCTION public.file_subjects_gone();
-
-
---
 -- Name: sequence_batches batch_closes_its_notices; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -56754,6 +56747,13 @@ CREATE TRIGGER events_outbox_copy AFTER INSERT ON public.events FOR EACH ROW EXE
 --
 
 CREATE TRIGGER fact_suggestions_set_updated_at BEFORE UPDATE ON public.fact_suggestions FOR EACH ROW EXECUTE FUNCTION extensions.moddatetime('updated_at');
+
+
+--
+-- Name: file_subjects file_subjects_gone; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER file_subjects_gone AFTER DELETE ON public.file_subjects FOR EACH ROW EXECUTE FUNCTION public.file_subjects_gone();
 
 
 --

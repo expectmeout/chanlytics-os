@@ -29,7 +29,7 @@ const facts = {
 };
 
 /** The cards Content's own pages commit, which the guide says on Content, and a yes for one of its files (00665). */
-const CONTENT_VERBS = ["post", "piece", "publish", "bring_in", "file_yes"];
+const CONTENT_VERBS = ["post", "piece", "publish", "take_down", "bring_in", "file_yes", "file_people", "person_yes"];
 
 test("the view Content says is read by its address's own predicate, whichever of its tabs is shown", () => {
   // The page says its view as its param with its tab (bridge/ask/context.ts contentContext): one predicate reads both.
