@@ -9,15 +9,18 @@
  * to the visitor; a test tells nobody; a form published while a visitor has the version before open is taken for a
  * day, and after that their answers are carried over; a database that fails the write is never a thank-you.
  */
-import { test, beforeEach } from "node:test";
+import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { A, consultForm, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
+import { A, consultForm, emailWire, FORM, formWorld, LINK, V1 } from "./_form-requests.mjs";
 import { formTestPath, requestCodeOf } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+// The dashboard may ask the edge whether email can send (the thank-you promises a reply by email only then).
+process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
+for (const name of ["DIAG_KEY", "VERCEL_ENV", "EDGE_URL"]) delete process.env[name];
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -25,8 +28,16 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setLinkPageClient } = await import(at("apps/dashboard/src/server/public/link-page.ts"));
 const { drawFormPage, takeFormPost } = await import(at("apps/dashboard/src/server/public/form-page.ts"));
 const { linkGet } = await import(at("apps/dashboard/src/server/public/form-link.ts"));
+const { getEmailWire } = await import(at("apps/dashboard/src/server/connections/email-readiness.ts"));
 
-beforeEach(() => setRateStore(memoryStore()));
+/** The edge's answer about email: it can send as each test begins, and the salon has its mailbox (formWorld). */
+const wire = emailWire(getEmailWire);
+after(() => wire.undo());
+
+beforeEach(async () => {
+  setRateStore(memoryStore());
+  await wire.says(true);
+});
 
 const ADDRESS = "https://app.chanlytics.com/b/luma-salon/colour-consultation";
 const BROWSER = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Instagram 350.0";
@@ -458,6 +469,56 @@ test("a number only: the chat is the one press where the business has it, and a 
   assert.match(noChat, /Luma Salon will call you on <b>/);
   assert.equal(noChat.includes("wa.me"), false);
   assert.equal(tables.form_entries[0].reach.phone, "+17865550199");
+});
+
+test("a reply by email is promised only where one can go: with no email connected the thank-you says the roads that can carry one", async () => {
+  const EMAIL_PROMISE = "replies by email";
+  // No mailbox, and a chat: the chat is the road, and the address is promised nothing.
+  const first = world({ email: false });
+  const withChat = await (await send(ANA)).text();
+  assert.match(withChat, /<h1>Thanks, Ana<\/h1>/);
+  assert.equal(withChat.includes(EMAIL_PROMISE), false, "no reply by email is promised");
+  assert.match(
+    withChat,
+    /One more step: send the message that opens in WhatsApp, and Luma Salon will answer you there\./,
+  );
+  assert.equal(withChat.includes("Or wait for a call"), false, "no call is promised to a request that left no number");
+  assert.equal(first.tables.form_entries[0].reach.email, "ana.ruiz@example.com", "the request is kept whole");
+
+  // No mailbox, no chat, and a number as well as an address: the call is the road.
+  world({ email: false, chat: false });
+  const both = await (await send({ ...ANA, "a.f3phon": "(786) 555-0199" })).text();
+  assert.equal(both.includes(EMAIL_PROMISE), false);
+  assert.match(both, /Thanks, we have your request\. Luma Salon will call you on <b>[^<]*786[^<]*<\/b>\./);
+
+  // No mailbox, no chat, an address alone: only that they will answer is said, once.
+  world({ email: false, chat: false });
+  const alone = await (await send(ANA)).text();
+  assert.equal(alone.includes(EMAIL_PROMISE), false);
+  assert.match(
+    alone,
+    /<p class="lead">Thanks, we have your request\. Luma Salon will answer you\. Nothing is booked until they confirm a time with you\.<\/p>/,
+  );
+  assert.equal(alone.includes('<p class="sub">'), false, "and nothing is said twice under it");
+  assert.equal(alone.includes("will call you"), false);
+
+  // A mailbox, on a deployment whose email cannot send: the same no.
+  await wire.says(false);
+  world({ chat: false });
+  assert.equal((await (await send(ANA)).text()).includes(EMAIL_PROMISE), false);
+
+  // An edge that does not answer is not a yes: nothing nobody could check is promised, and the request is still kept.
+  await wire.says(null);
+  const unasked = world({ chat: false });
+  const res = await send(ANA);
+  assert.equal(res.status, 200);
+  assert.equal((await res.text()).includes(EMAIL_PROMISE), false);
+  assert.equal(unasked.tables.form_entries.length, 1);
+
+  // And where it can go, it is promised, to the address they gave.
+  await wire.says(true);
+  world({ chat: false });
+  assert.match(await (await send(ANA)).text(), /Luma Salon replies by email, to <b>ana\.ruiz@example\.com<\/b>\./);
 });
 
 test("a form in Spanish says everything in Spanish", async () => {

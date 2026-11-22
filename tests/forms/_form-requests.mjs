@@ -427,6 +427,34 @@ export const consultForm = (over = {}) => ({
   ...over,
 });
 
+/**
+ * The edge's answer about the deployment's email, as the dashboard asks it (connections/email-readiness.ts): it can
+ * send (true, as a test begins), it cannot (false), or the edge does not answer (null). `says` sets the answer and has
+ * the dashboard ask again at once, so what it kept from the answer before is not read; `undo` gives the network back.
+ * `getEmailWire` is that module's own, as the test imported it.
+ */
+export function emailWire(getEmailWire) {
+  const real = globalThis.fetch;
+  let ready = true;
+  globalThis.fetch = async (url, init) => {
+    if (new URL(String(url)).pathname !== "/api/admin/email/wire") return real(url, init);
+    if (ready === null) throw new Error("the edge is away");
+    return new Response(JSON.stringify({ ok: true, ready, offers: false }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  return {
+    says: async (next) => {
+      ready = next;
+      await getEmailWire({ fresh: true });
+    },
+    undo: () => {
+      globalThis.fetch = real;
+    },
+  };
+}
+
 export const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 export const FORM = "f0f0f0f0-f0f0-4f0f-8f0f-f0f0f0f0f0f0";
 export const V1 = "11111111-1111-4111-8111-111111111111";
@@ -439,6 +467,7 @@ export const LINK = "22222222-2222-4222-8222-222222222222";
  */
 export function formWorld({
   chat = true,
+  email = true,
   forgotten = null,
   state = "live",
   description = consultForm(),
@@ -483,6 +512,8 @@ export function formWorld({
           },
         ]
       : [],
+    // The business's mailbox: with it, and an edge that says its email can send (emailWire below), a reply by email can go.
+    mailboxes: email ? [{ tenant_id: A, local_part: "luma" }] : [],
     contacts,
     forms: [
       {

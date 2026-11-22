@@ -48,6 +48,8 @@ import {
   type FormRead,
 } from "@chanlytics/db/forms";
 import { findPersonAddress } from "@chanlytics/db/people";
+import { logAndGoOn } from "@chanlytics/log";
+import { findEmailReady } from "../connections/email-readiness";
 import { readerStamp, stableJson, type Reader, type ReaderContext } from "../shared/reader";
 
 /** How far back a form's sheet counts what it brought. */
@@ -119,19 +121,30 @@ export async function findFormOrRefuse(
   return { ...form, draft: form.draft };
 }
 
+/**
+ * Whether a reply by email can go now, as the sheet says it (connections findEmailReady, the send door's own answer).
+ * A read that failed, and an edge that could not be asked, are "could not be checked": never a no, and never ready.
+ */
+async function sheetEmailOf(rc: Pick<ReaderContext, "ctx" | "tenantId">): Promise<FormSheetDto["email"]> {
+  const email = await findEmailReady(rc.ctx.supabase, rc.tenantId).catch(logAndGoOn("a form's email readiness", null));
+  if (!email) return { ready: false, why: null, connect: false, unchecked: true };
+  return { ready: email.ready, why: email.why, connect: email.mend === "connect", unchecked: email.unchecked === true };
+}
+
 /** A form's sheet: the form as it is being changed, where it is shared and what each place brought, and its entries. */
 export const formSheet: Reader<{ form: string }, FormSheetDto> = {
   name: "form_sheet",
   async read(rc, args) {
     const db = rc.ctx.supabase;
     const form = await findFormOrRefuse(rc, args.form);
-    const [live, links, results, entries, open, chat] = await Promise.all([
+    const [live, links, results, entries, open, chat, email] = await Promise.all([
       form.liveVersionId ? findFormVersion(db, rc.tenantId, form.liveVersionId) : null,
       listFormLinks(db, rc.tenantId, form.id),
       readFormResults(db, rc.tenantId, RESULT_DAYS),
       listFormEntries(db, { tenantId: rc.tenantId, formId: form.id, limit: SHEET_ENTRIES }),
       listOpenFormRequests(db, rc.tenantId),
       findOldestActiveChannel(db, rc.tenantId, "whatsapp"),
+      sheetEmailOf(rc),
     ]);
     const mine = results.places.filter((place) => place.formId === form.id);
     const sum = (pick: (place: (typeof mine)[number]) => number) =>
@@ -176,6 +189,7 @@ export const formSheet: Reader<{ form: string }, FormSheetDto> = {
       entries: rows.filter((row) => row.standing !== "held"),
       held: rows.filter((row) => row.standing === "held"),
       chat: chat !== null,
+      email,
       can_change: mayChange(rc),
     };
     return { data, rows: [], stamp: readerStamp() };
