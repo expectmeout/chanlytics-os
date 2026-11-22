@@ -7,12 +7,12 @@
  * bell could do, and a kind the database does not take yet (00616 not applied) is logged and let go.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { POST_PLACES, isOneOf } from "@chanlytics/contracts";
-import { findFileForWork, type PostRow } from "@chanlytics/db/files";
+import { POST_PLACES, TAKE_DOWN_BELL, fileSaidOf, isOneOf, type TenantId } from "@chanlytics/contracts";
+import { findFileForWork, type PostRow, type TakeDownKept } from "@chanlytics/db/files";
 import { logAndGoOn } from "@chanlytics/log";
 import type { Database } from "@chanlytics/db/types";
 import { recordNotification } from "../shared/alerts/notify.js";
-import { POST_BELL, postBellRouteOf, postWaited } from "./post-bell";
+import { POST_BELL, postBellRouteOf, postWaited, takeDownBellRouteOf } from "./post-bell";
 
 type Db = SupabaseClient<Database>;
 
@@ -47,6 +47,42 @@ export async function tellPostMoved(db: Db, post: PostRow, moved: PostMoved): Pr
           route: postBellRouteOf(post.file_id, true),
           about,
         },
+    db,
+  );
+}
+
+/**
+ * A take-down's news, told on the bell (00692; the canvas's Today 6). A place that would not take a post down for
+ * Chanlytics while the post is still up leaves it to the owner: told once, at the first answer, never again at each
+ * "I deleted it" that found it still there (the piece's own line says that, to the person looking at it). And once every
+ * place the piece was asked down from says done, that it is gone, which closes the first (contracts NOTICE_MENDS).
+ * Both are about the piece, and open it at its lines. Never a failed job, as above.
+ */
+export async function tellTakeDownMoved(
+  db: Db,
+  tenantId: TenantId,
+  kept: TakeDownKept,
+  left: { toOwner: boolean },
+): Promise<void> {
+  const { fileId, place, down } = kept;
+  if (!kept.kept || !fileId || (!down && !(left.toOwner && place))) return;
+  const file = await findFileForWork(db, tenantId, fileId).catch(
+    logAndGoOn("take-down's piece for its bell line", null),
+  );
+  const name = fileSaidOf(file?.name ?? "");
+  const row = { route: takeDownBellRouteOf(fileId), about: { type: "file", id: fileId } };
+  if (down) {
+    await recordNotification(
+      tenantId,
+      { kind: "post_down", title: TAKE_DOWN_BELL.down(name), body: TAKE_DOWN_BELL.downFrom(down), ...row },
+      db,
+    );
+    return;
+  }
+  if (!place) return;
+  await recordNotification(
+    tenantId,
+    { kind: "post_by_hand", title: TAKE_DOWN_BELL.byHand(place, name), body: TAKE_DOWN_BELL.byHandWhy, ...row },
     db,
   );
 }

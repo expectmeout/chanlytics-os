@@ -11,7 +11,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { goesLinesOf, goesPillOf } from "@chanlytics/contracts";
+import { goesLinesOf, goesPillOf } from "../../../apps/dashboard/src/surfaces/campaigns/content/model/goes.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

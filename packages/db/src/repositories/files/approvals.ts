@@ -23,7 +23,7 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 
 /** What an approval came to (00690 post_approve). */
-export const APPROVE_FATES = [
+const APPROVE_FATES = [
   "approved",
   "busy",
   "gone",

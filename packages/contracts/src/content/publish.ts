@@ -12,7 +12,7 @@ import type { FileMade } from "../files/views";
 import { isOneOf, nonBlankOrNull } from "../shared/unknown";
 import { CONTENT_ROUTE } from "./address";
 import { INSTAGRAM_POST_KINDS, POST_PLACES, type InstagramPostKind, type PostDto, type PostPlace } from "./posts";
-import { ownersFactsOf, postAboutOf, type OwnersFact, type PostAbout } from "./approvals";
+import { ownersFactsOf, postAboutOf, type OwnersFact, type PostAbout } from "./placements/approvals";
 
 /**
  * A made post's caption, as Details says it, as Post it sends it and as Ask's card proposes it: theirs where they wrote one

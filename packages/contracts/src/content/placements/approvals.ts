@@ -6,9 +6,9 @@
  * and the post is held ("Changed since you approved it. Look again."). The hash is taken where the snapshot is kept, in
  * one language: SHA-256 of the snapshot's own text as the database writes it.
  */
-import { isObjectRecord, recordOrEmpty } from "../shared/unknown";
-import { DAY_KEY, shiftKey, zoneMidnight } from "../shared/zone/day-keys";
-import type { PostKind, PostPlace } from "./posts";
+import { isObjectRecord, recordOrEmpty } from "../../shared/unknown";
+import { DAY_KEY, shiftKey, zoneMidnight } from "../../shared/zone/day-keys";
+import type { PostKind, PostPlace } from "../posts";
 
 /** The shapes a piece is drawn in for its places (PRD 5.3): a story or a reel, a portrait post, a square, a wide, Google's. */
 export const RENDITION_SHAPES = ["9x16", "4x5", "1x1", "16x9", "google"] as const;
@@ -26,8 +26,7 @@ export const REVISION_MADE_BY = ["ai", "owner", "operator"] as const;
 export type RevisionMadeBy = (typeof REVISION_MADE_BY)[number];
 
 /** What a version moved from the one before it. */
-export const REVISION_CHANGES = ["caption", "trim", "order", "sound", "layout", "first"] as const;
-export type RevisionChange = (typeof REVISION_CHANGES)[number];
+export type RevisionChange = "caption" | "trim" | "order" | "sound" | "layout" | "first";
 
 /**
  * Why a piece exists, written by whoever drafts it, where its words lean on something that can change (PRD 6.1): the day
@@ -43,7 +42,7 @@ export interface PieceIntent {
   service: string | null;
 }
 
-export const EMPTY_INTENT: PieceIntent = {
+const EMPTY_INTENT: PieceIntent = {
   goal: null,
   opportunity_id: null,
   call_to_action: null,
@@ -53,7 +52,7 @@ export const EMPTY_INTENT: PieceIntent = {
 };
 
 /** Whether an intent leans on nothing that can change: a piece with no day, offer or service dates nothing. */
-export const intentDates = (intent: PieceIntent | null): boolean =>
+const intentDates = (intent: PieceIntent | null): boolean =>
   !!intent && (intent.day !== null || intent.offer !== null || intent.service !== null);
 
 /**
@@ -119,7 +118,7 @@ export type AsApproved =
   | { is: "before" }
   | { is: "changed" };
 
-const textOrNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
+const textElseNull = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value : null);
 
 /**
  * What a press's words are about, as AI's card hands it to the approval (the PRD's 6.1): the day, an offer with its last
@@ -137,12 +136,12 @@ export interface PostAbout {
 export function postAboutOf(value: unknown): PostAbout | null {
   if (!isObjectRecord(value)) return null;
   const offer = isObjectRecord(value.offer) ? value.offer : null;
-  const says = textOrNull(offer?.says);
-  const day = textOrNull(value.day);
+  const says = textElseNull(offer?.says);
+  const day = textElseNull(value.day);
   const about: PostAbout = {
     ...(day && DAY_KEY.test(day) ? { day } : {}),
-    ...(says ? { offer: { says, until: textOrNull(offer?.until) } } : {}),
-    ...(textOrNull(value.service) ? { service: textOrNull(value.service) } : {}),
+    ...(says ? { offer: { says, until: textElseNull(offer?.until) } } : {}),
+    ...(textElseNull(value.service) ? { service: textElseNull(value.service) } : {}),
     ...(value.nothing === true ? { nothing: true as const } : {}),
   };
   return Object.keys(about).length > 0 ? about : null;
@@ -165,14 +164,14 @@ export function pieceIntentOf(value: unknown): PieceIntent | null {
   if (!isObjectRecord(value)) return null;
   const kept = value;
   const offer = isObjectRecord(kept.offer) ? kept.offer : null;
-  const says = textOrNull(offer?.says);
+  const says = textElseNull(offer?.says);
   return {
-    goal: textOrNull(kept.goal),
-    opportunity_id: textOrNull(kept.opportunity_id),
-    call_to_action: textOrNull(kept.call_to_action),
-    day: textOrNull(kept.day),
-    offer: says ? { says, until: textOrNull(offer?.until) } : null,
-    service: textOrNull(kept.service),
+    goal: textElseNull(kept.goal),
+    opportunity_id: textElseNull(kept.opportunity_id),
+    call_to_action: textElseNull(kept.call_to_action),
+    day: textElseNull(kept.day),
+    offer: says ? { says, until: textElseNull(offer?.until) } : null,
+    service: textElseNull(kept.service),
   };
 }
 
@@ -183,7 +182,7 @@ export type RightsGap = { is: "ok" } | { is: "unsure" } | { is: "person"; name: 
 export function rightsGapOf(value: unknown): RightsGap {
   const kept = recordOrEmpty(value);
   if (kept.is === "ok") return { is: "ok" };
-  const name = textOrNull(kept.name);
+  const name = textElseNull(kept.name);
   return kept.is === "person" && name ? { is: "person", name } : { is: "unsure" };
 }
 
@@ -192,8 +191,8 @@ export function ownersFactsOf(value: unknown): OwnersFact[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((fact) => {
     const kept = recordOrEmpty(fact);
-    const says = textOrNull(kept.says);
-    const until = textOrNull(kept.until);
+    const says = textElseNull(kept.says);
+    const until = textElseNull(kept.until);
     return says && until ? [{ says, until }] : [];
   });
 }

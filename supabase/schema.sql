@@ -29260,6 +29260,9 @@ CREATE FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p
     AS $$
 declare
   v_action public.remediation_actions;
+  v_file uuid;
+  v_place text;
+  v_places jsonb;
 begin
   if p_outcome not in ('done', 'blocked', 'not_possible', 'needs_person') then
     raise exception 'post_take_down_settle: an outcome a place can give' using errcode = '22023';
@@ -29286,8 +29289,17 @@ begin
    where m.id = v_action.remediation_id and m.finished_at is null
      and not exists (select 1 from public.remediation_actions x
                       where x.remediation_id = m.id and x.outcome = 'pending');
+  select p.file_id, p.place into v_file, v_place from public.posts p
+   where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
+  select jsonb_agg(distinct q.place) into v_places
+    from public.remediation_actions x
+    join public.posts q on q.tenant_id = x.tenant_id and q.id = x.target_id
+   where x.remediation_id = v_action.remediation_id and x.target_type = 'post' and x.act = 'take_down'
+     and q.file_id = v_file
+  having bool_and(x.outcome = 'done');
   return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
-                            'tenant_id', v_action.tenant_id);
+                            'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
 end $$;
 
 
@@ -29295,7 +29307,7 @@ end $$;
 -- Name: FUNCTION post_take_down_settle(p_action_id uuid, p_outcome text, p_said text); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00692; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id}.';
+COMMENT ON FUNCTION public.post_take_down_settle(p_action_id uuid, p_outcome text, p_said text) IS 'The take-down job''s door (00692; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
 
 
 --
@@ -49095,7 +49107,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'post_down'::text, 'post_by_hand'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -55573,6 +55585,13 @@ CREATE INDEX rehearsals_tenant_kind_created ON public.rehearsals USING btree (te
 --
 
 CREATE INDEX remediation_actions_pending_by_target ON public.remediation_actions USING btree (tenant_id, target_type, target_id) WHERE (outcome = 'pending'::text);
+
+
+--
+-- Name: remediation_actions_take_downs_open; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX remediation_actions_take_downs_open ON public.remediation_actions USING btree (tenant_id, started_at DESC) WHERE ((act = 'take_down'::text) AND (outcome <> 'done'::text));
 
 
 --

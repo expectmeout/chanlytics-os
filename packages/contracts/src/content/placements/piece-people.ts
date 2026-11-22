@@ -4,9 +4,9 @@
  * yes for one use stands. Rights are per person and per use, and never read from a face. Pure: the record and a clock are
  * handed in.
  */
-import { fileYesUsesSaid } from "../files/yes";
-import type { FileYesUse } from "../files/limits";
-import type { SubjectLabel, SubjectsState } from "../files/subjects";
+import { fileYesUsesSaid } from "../../files/yes";
+import type { FileYesUse } from "../../files/limits";
+import type { SubjectLabel, SubjectsState } from "../../files/subjects";
 
 /** A yes of one person's that stands, with where it was said and, where it was said in a message, their own words. */
 export interface PersonYesDto {
@@ -125,11 +125,11 @@ export function personSaidOf(
   if (stands.is === "yes") {
     const uses = fileYesUsesSaid([use, ...stands.also]);
     const where = WHERE_SAID[stands.yes.said_in] ?? "";
-    const said = `said yes to ${uses}${where}`;
+    const yesLine = `said yes to ${uses}${where}`;
     return {
       line: team
-        ? `On your team · ${said}`
-        : `${said.charAt(0).toUpperCase()}${said.slice(1)} · ${when(stands.yes.at)}`,
+        ? `On your team · ${yesLine}`
+        : `${yesLine.charAt(0).toUpperCase()}${yesLine.slice(1)} · ${when(stands.yes.at)}`,
       tone: "ok",
     };
   }

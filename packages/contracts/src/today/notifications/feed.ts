@@ -351,6 +351,10 @@ const SERVER_LOOK: Record<string, ServerLook> = {
   /** A lead tried the preview they were sent: good news, and its row names the lead to open, with their number. */
   preview_tried: { icon: "users", tone: "ok", action: "Open the lead", to: "clients/leads", own: true },
   post_stopped: { icon: "image", tone: "warn", action: "Post again", to: CONTENT_NEEDS_ROUTE, own: true },
+  // A take-down (00692): gone from every place it was asked down from is good news; one a place leaves to the owner is
+  // a warning until it is gone. Each row opens the piece, where its lines say what each place answered.
+  post_down: { icon: "check", tone: "ok", action: "See it", to: CONTENT_ROUTE, own: true },
+  post_by_hand: { icon: "alert", tone: "warn", action: "Open the post", to: CONTENT_ROUTE, own: true },
   // An ad account that needs its owner (00653): signed out by Meta, or a payment Meta cannot take. Its row opens Ads.
   ad_account: { icon: "shield", tone: "warn", action: "Open Ads", to: ADS_ROUTE, own: true },
   // An owner's ads (00658): each row names one ad and opens its drawer, so its door says so. Meta not running one until

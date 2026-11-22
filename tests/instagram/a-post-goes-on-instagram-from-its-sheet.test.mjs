@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
-import { CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -537,7 +537,7 @@ test("an owner's own words are theirs: a day named in them is approved as typed,
   const late = world();
   await assert.rejects(
     route.POST.run(send(late, "POST", { as: "picture", caption: "Thursday!", about: { day: "2020-01-02" } }), late.ctx),
-    (e) => e.message === CHECK_WORDS.late("Thursday"),
+    (e) => e.message === CONTENT_CHECK_WORDS.late("Thursday"),
   );
   assert.equal(late.begun.length, 0);
 });
@@ -555,7 +555,7 @@ test("a person named in it who has not said yes stops the press by name, and not
   const unsure = world({ rights: { is: "unsure" } });
   await assert.rejects(
     route.POST.run(send(unsure, "POST", { as: "story" }), unsure.ctx),
-    (e) => e.message === CHECK_WORDS.notYetSaid(null),
+    (e) => e.message === CONTENT_CHECK_WORDS.notYetSaid(null),
   );
 });
 
@@ -577,6 +577,6 @@ test("a made video goes as a reel, from its own file, and a picture never does",
   const short = world({ file: { kind: "video", mime: "video/mp4", seconds: 2, bytes: 100_000 } });
   await assert.rejects(
     route.POST.run(send(short, "POST", { as: "reel", caption: "Quick." }), short.ctx),
-    (e) => e.message === CHECK_WORDS.video,
+    (e) => e.message === CONTENT_CHECK_WORDS.video,
   );
 });

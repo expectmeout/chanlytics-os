@@ -5,6 +5,9 @@
 -- and answered what was up, for the owner to take down by hand. A take-down is a remediation (00676): a cause, and one
 -- action for each thing it reached, pending until the place says, and a post is `taken_down` only once it did.
 --
+--   notifications             Two kinds more on the bell: post_down (a piece gone from every place it was asked down
+--                             from) and post_by_hand (a place leaves a post to its owner to delete).
+--   remediation_actions       One index: the take-downs not finished, newest first, which Today's line reads.
 --   job_kinds                 post_take_down, in the bulk lane: one action asked of its place, or, after the owner said
 --                             they deleted it there themselves, the place asked whether it is gone.
 --   file_yes_uses             Re-made: every use includes the website (00691).
@@ -16,7 +19,8 @@
 --                             theirs.
 --   post_take_down_begin      A member's door (settings): the piece comes down everywhere, and its ads pause.
 --   post_take_down_settle     The job's door: what the place said. done marks the post taken_down; a remediation is
---                             finished once none of its actions is pending.
+--                             finished once none of its actions is pending. It answers the piece and its place, and,
+--                             once every place the piece was asked down from says done, those places, for the bell.
 --   post_take_down_by_hand    A member's door (settings): "I deleted it". The action waits again, and the place is asked
 --                             whether the post is gone.
 --   yes_taken_back_walk       What a yes taken back starts, once, for both doors: posts still waiting held (rights),
@@ -24,11 +28,32 @@
 --   file_yes_take_back        Re-made over the walk: a post up is asked down, where it was only answered.
 --   subject_yes_take_back     A member's door (settings): one person's own yes taken back, and the same walk.
 --
--- Locks: no table is changed; one row into job_kinds. Three seconds each and no more. Re-runnable. Deploy order: this
+-- Locks: notifications' kind check is re-made (a brief ACCESS EXCLUSIVE, as 00676 did, and a read of its rows to hold
+-- them to it); one small index on remediation_actions; one row into job_kinds. Three seconds each and no more. Re-runnable. Deploy order: this
 -- file first, then the code (the job runner refuses a kind it does not hold, so the kind's row and its handler arrive
 -- in one change).
 
 set local lock_timeout = '3s';
+
+/* ------------------------------------------------------------------------------------------ 0. the bell's kinds -- */
+
+alter table public.notifications drop constraint if exists notifications_kind_check;
+alter table public.notifications add constraint notifications_kind_check
+  check (kind = any (array['handoff', 'deadman', 'call', 'number', 'sweep', 'job_failed', 'playbook',
+                           'calendar_people', 'alert', 'review', 'billing', 'template_ready', 'template_blocked',
+                           'broadcast_sent', 'broadcast_stopped', 'leads_ready', 'leads_question', 'note_for_you',
+                           'reach_out_replied', 'reach_out_day', 'booking_notice', 'opted_out', 'booking',
+                           'member_joined', 'member_left', 'note_to_keep', 'reply_held', 'ask_cards', 'website_form',
+                           'files_waiting', 'video_ready', 'post_up', 'post_stopped', 'preview_tried',
+                           'ad_account', 'footage', 'footage_in',
+                           'ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet', 'ad_draft',
+                           'ad_unfinished', 'ad_unconfirmed', 'ad_way_in', 'ads_paused',
+                           'post_down', 'post_by_hand']));
+
+-- The take-downs not finished, newest first: Today's line reads the few a workspace holds (a place that left a post
+-- to its owner, or one that has not answered in a day), never every action it ever kept.
+create index if not exists remediation_actions_take_downs_open
+  on public.remediation_actions (tenant_id, started_at desc) where act = 'take_down' and outcome <> 'done';
 
 /* ------------------------------------------------------------------------------------------------ 1. the job kind -- */
 
@@ -247,6 +272,9 @@ set search_path = public
 as $$
 declare
   v_action public.remediation_actions;
+  v_file uuid;
+  v_place text;
+  v_places jsonb;
 begin
   if p_outcome not in ('done', 'blocked', 'not_possible', 'needs_person') then
     raise exception 'post_take_down_settle: an outcome a place can give' using errcode = '22023';
@@ -273,13 +301,22 @@ begin
    where m.id = v_action.remediation_id and m.finished_at is null
      and not exists (select 1 from public.remediation_actions x
                       where x.remediation_id = m.id and x.outcome = 'pending');
+  select p.file_id, p.place into v_file, v_place from public.posts p
+   where p.tenant_id = v_action.tenant_id and p.id = v_action.target_id;
+  -- The piece is down once every place this take-down asked for it says done: those places, for the bell's one line.
+  select jsonb_agg(distinct q.place) into v_places
+    from public.remediation_actions x
+    join public.posts q on q.tenant_id = x.tenant_id and q.id = x.target_id
+   where x.remediation_id = v_action.remediation_id and x.target_type = 'post' and x.act = 'take_down'
+     and q.file_id = v_file
+  having bool_and(x.outcome = 'done');
   return jsonb_build_object('fate', 'kept', 'outcome', p_outcome, 'post_id', v_action.target_id,
-                            'tenant_id', v_action.tenant_id);
+                            'tenant_id', v_action.tenant_id, 'file_id', v_file, 'place', v_place, 'down', v_places);
 end $$;
 revoke all on function public.post_take_down_settle(uuid, text, text) from public, anon, authenticated;
 grant execute on function public.post_take_down_settle(uuid, text, text) to service_role;
 comment on function public.post_take_down_settle(uuid, text, text) is
-  'The take-down job''s door (00692; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id}.';
+  'The take-down job''s door (00692; the content loop PRD''s 8.3): what a place said of one action, kept once. done marks the post taken_down, and only done does; blocked (the place refused), not_possible and needs_person (done by hand there) keep the place''s own words. A remediation is finished once none of its actions is pending. Answers {fate: kept, settled (it was already), unknown; outcome; post_id; tenant_id; file_id and place, the post''s; down, the places the piece came down from once every one this take-down asked says done, else null}.';
 
 create or replace function public.post_take_down_by_hand(p_tenant_id uuid, p_post_id uuid)
 returns jsonb

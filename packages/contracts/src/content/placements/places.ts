@@ -12,12 +12,11 @@
  * (22 Nov: the Meta link's own token reads a post's caption, its kind, its saves and its shares). Google's stays as the
  * code holds it until a customer's listing proves it: Chanlytics meets nobody in person, so it has no listing of its own.
  */
-import { MIN_MS } from "../shared/time";
-import type { PostKind, PostPlace } from "./posts";
+import { MIN_MS } from "../../shared/time";
+import type { PostKind, PostPlace } from "../posts";
 
 /** How a capability stands at a place, and how that is known. */
-export const CAPABILITY_STANDINGS = ["proved", "by_hand", "built", "not_so", "to_prove"] as const;
-export type CapabilityStanding = (typeof CAPABILITY_STANDINGS)[number];
+export type CapabilityStanding = "proved" | "by_hand" | "built" | "not_so" | "to_prove";
 
 /** One capability: how it stands, the day that was seen (null where it never was), and what showed it. */
 export interface CapabilityProof {
@@ -27,21 +26,19 @@ export interface CapabilityProof {
 }
 
 /** What a place can do beside the kinds it takes. */
-export const PLACE_CAPABILITY_KEYS = [
-  "directPublish",
-  "scheduling",
-  "remoteDelete",
-  "editAfterPublish",
-  "perPostMetrics",
-  "commentRead",
-  "commentReply",
-  "remoteStatusCheck",
-  "linkInCaption",
-] as const;
-export type PlaceCapabilityKey = (typeof PLACE_CAPABILITY_KEYS)[number];
+export type PlaceCapabilityKey =
+  | "directPublish"
+  | "scheduling"
+  | "remoteDelete"
+  | "editAfterPublish"
+  | "perPostMetrics"
+  | "commentRead"
+  | "commentReply"
+  | "remoteStatusCheck"
+  | "linkInCaption";
 
 /** A video a place takes: how long, how big, and in which containers. */
-export interface PlaceVideoLimits {
+interface PlaceVideoLimits {
   minMs: number;
   maxMs: number;
   maxBytes: number;

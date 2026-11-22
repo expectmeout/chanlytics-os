@@ -12,7 +12,6 @@ import {
   CONSENT_CHANNELS,
   PERSON_ASK_WORDS as W,
   POST_PLACE_SAID,
-  THREAD_CHANNEL_WORDS,
   isOneOf,
   type FileYesUse,
   type PiecePersonDto,
@@ -25,9 +24,10 @@ import { LineField } from "../../../kit/line/line";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { Switch } from "../../../kit/switch/switch";
 import { fileVerbs } from "../../../files/verbs";
+import { channelSaid } from "./people";
 
 /** The piece the ask is about: its file, its name, and what it is ("the 15-second video", "the photo"). */
-export interface AskAboutPiece {
+interface AskAboutPiece {
   id: string;
   name: string;
   what: string;
@@ -36,11 +36,6 @@ export interface AskAboutPiece {
 }
 
 const placesSaid = (places: readonly PostPlace[]): string => places.map((p) => POST_PLACE_SAID[p]).join(" and ");
-
-const channelSaid = (via: string): string =>
-  isOneOf(Object.keys(THREAD_CHANNEL_WORDS), via)
-    ? THREAD_CHANNEL_WORDS[via as keyof typeof THREAD_CHANNEL_WORDS]
-    : via;
 
 /** The words AI wrote, asked for as the sheet opens and again when ads are added: what was asked for, and what came. */
 function useAskDraft(person: PiecePersonDto | null, piece: AskAboutPiece, uses: readonly FileYesUse[]) {

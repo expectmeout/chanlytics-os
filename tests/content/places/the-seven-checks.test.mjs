@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { evaluate, verdictWords, wordsNeedAbout } from "@chanlytics/core";
-import { CHECK_WORDS, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = Date.parse("2026-11-24T15:00:00Z"); // a Tuesday morning in New York
@@ -52,7 +52,7 @@ const OK = { is: "ok" };
 
 test("authorization: whoever acts may still act for the business", () => {
   assert.equal(refused({ authorization: { may: true, approving: true } }), null);
-  assert.equal(refused({ authorization: { may: false, approving: true } }).words, CHECK_WORDS.mayNot);
+  assert.equal(refused({ authorization: { may: false, approving: true } }).words, CONTENT_CHECK_WORDS.mayNot);
   assert.deepEqual(refused({ authorization: { may: false, approving: false } }), {
     check: "authorization",
     code: "approver",
@@ -62,14 +62,17 @@ test("authorization: whoever acts may still act for the business", () => {
 
 test("rights are per person: a yes taken back, a person who has not said yes by name, and nobody sure who is in it", () => {
   assert.equal(refused({ rights: { takenBack: false, gap: OK } }), null);
-  assert.equal(refused({ rights: { takenBack: true, gap: OK } }).words, CHECK_WORDS.takenBack);
+  assert.equal(refused({ rights: { takenBack: true, gap: OK } }).words, CONTENT_CHECK_WORDS.takenBack);
   const paola = refused({ rights: { takenBack: false, gap: { is: "person", name: "Paola" } } });
   assert.deepEqual(paola, {
     check: "rights",
     code: "rights",
     words: "Paola hasn't said yes to being in posts. Ask them, or use another clip.",
   });
-  assert.equal(refused({ rights: { takenBack: false, gap: { is: "unsure" } } }).words, CHECK_WORDS.notYetSaid(null));
+  assert.equal(
+    refused({ rights: { takenBack: false, gap: { is: "unsure" } } }).words,
+    CONTENT_CHECK_WORDS.notYetSaid(null),
+  );
 });
 
 test("claims: AI's words are held to the owner's; the owner's own words are theirs", () => {
@@ -86,22 +89,25 @@ test("publishing: the place takes the kind, the connection allows it, the words 
   const video = (v) =>
     says({ kind: "reel", fileKind: "video", video: { mime: "video/mp4", bytes: 1e6, ms: 13_000, ...v } });
   assert.equal(video({}), null);
-  assert.equal(video({ ms: 2_000 }).words, CHECK_WORDS.video);
-  assert.equal(video({ mime: "video/webm" }).words, CHECK_WORDS.video);
-  assert.equal(video({ bytes: 400 * 1024 * 1024 }).words, CHECK_WORDS.video);
+  assert.equal(video({ ms: 2_000 }).words, CONTENT_CHECK_WORDS.video);
+  assert.equal(video({ mime: "video/webm" }).words, CONTENT_CHECK_WORDS.video);
+  assert.equal(video({ bytes: 400 * 1024 * 1024 }).words, CONTENT_CHECK_WORDS.video);
   assert.equal(says({ place: "google", kind: "picture", fileKind: "video" }).check, "publishing");
   assert.equal(says({ connection: "not_connected" }).code, "disconnected");
-  assert.equal(says({ connection: "line_off" }).words, CHECK_WORDS.lineOff);
-  assert.equal(says({ place: "google", caption: "x".repeat(1501) }).words, CHECK_WORDS.tooLong("google", 1500));
+  assert.equal(says({ connection: "line_off" }).words, CONTENT_CHECK_WORDS.lineOff);
+  assert.equal(says({ place: "google", caption: "x".repeat(1501) }).words, CONTENT_CHECK_WORDS.tooLong("google", 1500));
   assert.match(says({ caption: "#a ".repeat(31) }).words, /30 hashtags/);
 });
 
 test("money and automation: within the limit; nothing goes while AI is paused, and AI never posts alone", () => {
   assert.equal(refused({ money: { costCents: 0, leftCents: 0, limitCents: 4000 } }), null);
-  assert.equal(refused({ money: { costCents: 500, leftCents: 100, limitCents: 4000 } }).words, CHECK_WORDS.money(40));
+  assert.equal(
+    refused({ money: { costCents: 500, leftCents: 100, limitCents: 4000 } }).words,
+    CONTENT_CHECK_WORDS.money(40),
+  );
   assert.equal(refused({ money: { costCents: 500, leftCents: null, limitCents: null } }), null);
-  assert.equal(refused({ automation: { stopped: true, pressedBy: "owner" } }).words, CHECK_WORDS.stopped);
-  assert.equal(refused({ automation: { stopped: false, pressedBy: "ai" } }).words, CHECK_WORDS.aiAlone);
+  assert.equal(refused({ automation: { stopped: true, pressedBy: "owner" } }).words, CONTENT_CHECK_WORDS.stopped);
+  assert.equal(refused({ automation: { stopped: false, pressedBy: "ai" } }).words, CONTENT_CHECK_WORDS.aiAlone);
   assert.equal(refused({ automation: { stopped: false, pressedBy: "owner" } }), null);
 });
 
@@ -135,7 +141,7 @@ test("the reason: too late, an offer or a service the business does not say, eac
   const after = refused({
     reason: reason({ intent: friday, goodUntil: goodUntilOf(friday, ZONE), atMs: Date.parse("2026-11-29T15:00:00Z") }),
   });
-  assert.equal(after.words, CHECK_WORDS.afterItsDay);
+  assert.equal(after.words, CONTENT_CHECK_WORDS.afterItsDay);
   const offer = intent({ offer: { says: "20% off", until: null } });
   // Before it is approved, it is a claim the business does not make (PRD 6.3); at the send, it ended since.
   assert.equal(
@@ -143,7 +149,7 @@ test("the reason: too late, an offer or a service the business does not say, eac
     "“20% off” isn't one of your offers. Add it, or change the words.",
   );
   const ended = refused({ reason: reason({ intent: offer, moment: "send" }) });
-  assert.equal(ended.words, CHECK_WORDS.offerEnded("20% off"));
+  assert.equal(ended.words, CONTENT_CHECK_WORDS.offerEnded("20% off"));
   assert.match(ended.words, /Leave it out, change the words, or tell AI/);
   assert.doesNotMatch(ended.words, /anyway/i);
   assert.equal(
@@ -172,11 +178,11 @@ test("the reason: too late, an offer or a service the business does not say, eac
   assert.equal(refused({ reason: reason({ intent: service, services: ["balayage", "Cut"] }) }), null);
   assert.equal(
     refused({ reason: reason({ intent: service, services: ["Cut"] }) }).words,
-    CHECK_WORDS.notAService("Balayage"),
+    CONTENT_CHECK_WORDS.notAService("Balayage"),
   );
   assert.equal(
     refused({ reason: reason({ intent: service, services: ["Cut"], moment: "send" }) }).words,
-    CHECK_WORDS.serviceGone("Balayage"),
+    CONTENT_CHECK_WORDS.serviceGone("Balayage"),
   );
 });
 
@@ -207,10 +213,10 @@ test("evaluate asks every check its facts reach and answers every refusal at onc
   assert.equal(
     verdictWords(verdict),
     [
-      CHECK_WORDS.notYetSaid("Paola"),
-      CHECK_WORDS.notConnected("instagram"),
-      CHECK_WORDS.stopped,
-      CHECK_WORDS.notAService("Balayage"),
+      CONTENT_CHECK_WORDS.notYetSaid("Paola"),
+      CONTENT_CHECK_WORDS.notConnected("instagram"),
+      CONTENT_CHECK_WORDS.stopped,
+      CONTENT_CHECK_WORDS.notAService("Balayage"),
     ].join(" "),
   );
 });

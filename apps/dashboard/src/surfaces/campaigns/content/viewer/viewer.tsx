@@ -10,7 +10,8 @@
  * presses and its drafts are the pane's own (piece.tsx ContentPiece, piece-presses.tsx), handed in.
  */
 import { useRef, useState, type ReactNode } from "react";
-import { CONTENT_WORDS as W, FILE_WORDS, GOES_WORDS, fileSaidOf, type ContentMadeDto } from "@chanlytics/contracts";
+import { CONTENT_WORDS as W, FILE_WORDS, fileSaidOf, type ContentMadeDto } from "@chanlytics/contracts";
+import { GOES_WORDS } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { Confirm } from "../../../kit/confirm/confirm";
 import { Icon } from "../../../kit/icon/icon";

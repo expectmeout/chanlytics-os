@@ -14,7 +14,7 @@
  * plan reserves a week's cost (pass 3); a rung other than "AI asks first" waits for the Autonomy pane's content rows.
  */
 import {
-  CHECK_WORDS,
+  CONTENT_CHECK_WORDS,
   ON_INSTAGRAM,
   PLACE_CAPABILITIES,
   capabilityStands,
@@ -47,7 +47,11 @@ const refusal = (check: ContentCheck, code: PostHeldWhy, words: string): PolicyR
 /** Authorization: whoever acts may still act for the business with the permission the act needs. */
 export function mayAct(actor: { may: boolean; approving: boolean }): PolicyRefusal | null {
   if (actor.may) return null;
-  return refusal("authorization", "approver", actor.approving ? CHECK_WORDS.mayNot : ON_INSTAGRAM.held.approver);
+  return refusal(
+    "authorization",
+    "approver",
+    actor.approving ? CONTENT_CHECK_WORDS.mayNot : ON_INSTAGRAM.held.approver,
+  );
 }
 
 /**
@@ -56,14 +60,14 @@ export function mayAct(actor: { may: boolean; approving: boolean }): PolicyRefus
  * in it (00691 file_rights_gap).
  */
 export function rightsFor(files: { takenBack: boolean; gap: RightsGap }): PolicyRefusal | null {
-  if (files.takenBack) return refusal("rights", "rights", CHECK_WORDS.takenBack);
+  if (files.takenBack) return refusal("rights", "rights", CONTENT_CHECK_WORDS.takenBack);
   if (files.gap.is === "ok") return null;
-  return refusal("rights", "rights", CHECK_WORDS.notYetSaid(files.gap.is === "person" ? files.gap.name : null));
+  return refusal("rights", "rights", CONTENT_CHECK_WORDS.notYetSaid(files.gap.is === "person" ? files.gap.name : null));
 }
 
 /** Claim evidence: words AI wrote are held to what the owner said (the caller's rule); the owner's own words are theirs. */
 export function evaluateClaimPolicy(words: { aiWrote: boolean; problem: string | null }): PolicyRefusal | null {
-  return words.aiWrote && words.problem ? refusal("claims", "claim", CHECK_WORDS.claim(words.problem)) : null;
+  return words.aiWrote && words.problem ? refusal("claims", "claim", CONTENT_CHECK_WORDS.claim(words.problem)) : null;
 }
 
 /** What a placement asks of its place: where, as what, of which file, through which connection, with which words. */
@@ -77,39 +81,39 @@ export interface PlaceAsked {
 }
 
 /** Why a video cannot go as a reel, by the place's own limits; null where it can, or where nothing is known to say no. */
-function videoProblem(asked: PlaceAsked): string | null {
-  const limits = PLACE_CAPABILITIES[asked.place].limits.video;
-  if (!limits || !asked.video) return null;
-  const { mime, bytes, ms } = asked.video;
-  if (mime && !limits.mimes.includes(mime)) return CHECK_WORDS.video;
-  if (bytes !== null && bytes > limits.maxBytes) return CHECK_WORDS.video;
-  if (ms !== null && (ms < limits.minMs || ms > limits.maxMs)) return CHECK_WORDS.video;
+function videoProblem(placement: PlaceAsked): string | null {
+  const limits = PLACE_CAPABILITIES[placement.place].limits.video;
+  if (!limits || !placement.video) return null;
+  const { mime, bytes, ms } = placement.video;
+  if (mime && !limits.mimes.includes(mime)) return CONTENT_CHECK_WORDS.video;
+  if (bytes !== null && bytes > limits.maxBytes) return CONTENT_CHECK_WORDS.video;
+  if (ms !== null && (ms < limits.minMs || ms > limits.maxMs)) return CONTENT_CHECK_WORDS.video;
   return null;
 }
 
 /** Why the place does not take this kind of this file, in words; null where it does. */
-function kindProblem(asked: PlaceAsked): string | null {
-  if (asked.place === "instagram" && !instagramKindsFor(asked.fileKind).some((kind) => kind === asked.kind))
+function kindProblem(placement: PlaceAsked): string | null {
+  if (placement.place === "instagram" && !instagramKindsFor(placement.fileKind).some((kind) => kind === placement.kind))
     return ON_INSTAGRAM.wrongKind;
-  const google = asked.place === "google" && (asked.fileKind === "video" || asked.kind !== "picture");
-  if (google || !capabilityStands(PLACE_CAPABILITIES[asked.place].formats[asked.kind]))
-    return CHECK_WORDS.notTaken(asked.place, ON_INSTAGRAM.kind[asked.kind]);
+  const google = placement.place === "google" && (placement.fileKind === "video" || placement.kind !== "picture");
+  if (google || !capabilityStands(PLACE_CAPABILITIES[placement.place].formats[placement.kind]))
+    return CONTENT_CHECK_WORDS.notTaken(placement.place, ON_INSTAGRAM.kind[placement.kind]);
   return null;
 }
 
 /** Publishing: the place takes this kind (section 7), the connection allows it, and the words fit the place's limits. */
-export function placeAllows(asked: PlaceAsked): PolicyRefusal | null {
-  const kind = kindProblem(asked);
+export function placeAllows(placement: PlaceAsked): PolicyRefusal | null {
+  const kind = kindProblem(placement);
   if (kind) return refusal("publishing", "place", kind);
-  if (asked.connection === "not_connected")
-    return refusal("publishing", "disconnected", CHECK_WORDS.notConnected(asked.place));
-  if (asked.connection === "line_off") return refusal("publishing", "line_off", CHECK_WORDS.lineOff);
-  const max = PLACE_CAPABILITIES[asked.place].limits.captionMax;
-  if (asked.caption && asked.caption.length > max)
-    return refusal("publishing", "place", CHECK_WORDS.tooLong(asked.place, max));
-  const words = asked.place === "instagram" && asked.caption ? postCaptionProblem(asked.caption) : null;
+  if (placement.connection === "not_connected")
+    return refusal("publishing", "disconnected", CONTENT_CHECK_WORDS.notConnected(placement.place));
+  if (placement.connection === "line_off") return refusal("publishing", "line_off", CONTENT_CHECK_WORDS.lineOff);
+  const max = PLACE_CAPABILITIES[placement.place].limits.captionMax;
+  if (placement.caption && placement.caption.length > max)
+    return refusal("publishing", "place", CONTENT_CHECK_WORDS.tooLong(placement.place, max));
+  const words = placement.place === "instagram" && placement.caption ? postCaptionProblem(placement.caption) : null;
   if (words) return refusal("publishing", "place", words);
-  const video = asked.kind === "reel" ? videoProblem(asked) : null;
+  const video = placement.kind === "reel" ? videoProblem(placement) : null;
   return video ? refusal("publishing", "place", video) : null;
 }
 
@@ -120,13 +124,13 @@ export function budgetAllows(money: {
   limitCents: number | null;
 }): PolicyRefusal | null {
   if (money.leftCents === null || money.costCents <= money.leftCents) return null;
-  return refusal("money", "money", CHECK_WORDS.money(Math.round((money.limitCents ?? 0) / 100)));
+  return refusal("money", "money", CONTENT_CHECK_WORDS.money(Math.round((money.limitCents ?? 0) / 100)));
 }
 
 /** Automation: nothing goes while everything is stopped, and AI never posts alone while its rung asks first. */
 export function automationAllows(at: { stopped: boolean; pressedBy: "owner" | "ai" }): PolicyRefusal | null {
-  if (at.stopped) return refusal("automation", "stopped", CHECK_WORDS.stopped);
-  return at.pressedBy === "ai" ? refusal("automation", "stopped", CHECK_WORDS.aiAlone) : null;
+  if (at.stopped) return refusal("automation", "stopped", CONTENT_CHECK_WORDS.stopped);
+  return at.pressedBy === "ai" ? refusal("automation", "stopped", CONTENT_CHECK_WORDS.aiAlone) : null;
 }
 
 /** A date written out: "Dec 2", "2 de diciembre", "12/2". */
@@ -168,7 +172,7 @@ export interface ReasonAsked {
   moment: "before" | "send";
 }
 
-const sameWords = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+const wordsMatch = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
 const holds = (text: string, part: string): boolean => text.toLowerCase().includes(part.trim().toLowerCase());
 
 /** The day a reason was about, as a sentence names it: "Thursday". */
@@ -183,11 +187,12 @@ const factCovers = (facts: readonly OwnersFact[], words: string, today: string):
   facts.some((f) => f.until >= today && holds(f.says, words));
 
 /** Too late: its last moment has gone by, or the time it is being set for comes after it. */
-function lateRefusal(asked: ReasonAsked): PolicyRefusal | null {
-  if (!asked.goodUntil) return null;
-  const until = Date.parse(asked.goodUntil);
-  if (until < asked.nowMs) return refusal("reason", "late", CHECK_WORDS.late(dayNamed(asked.intent, asked.zone)));
-  return until < asked.atMs ? refusal("reason", "late", CHECK_WORDS.afterItsDay) : null;
+function lateRefusal(reason: ReasonAsked): PolicyRefusal | null {
+  if (!reason.goodUntil) return null;
+  const until = Date.parse(reason.goodUntil);
+  if (until < reason.nowMs)
+    return refusal("reason", "late", CONTENT_CHECK_WORDS.late(dayNamed(reason.intent, reason.zone)));
+  return until < reason.atMs ? refusal("reason", "late", CONTENT_CHECK_WORDS.afterItsDay) : null;
 }
 
 /**
@@ -196,29 +201,29 @@ function lateRefusal(asked: ReasonAsked): PolicyRefusal | null {
  * offered. A piece with no intent leans on nothing Chanlytics tracks. There is no bare "post anyway": a reason that no
  * longer stands says the three ways on.
  */
-export function reasonStands(asked: ReasonAsked): PolicyRefusal | null {
-  const late = lateRefusal(asked);
+export function reasonStands(reason: ReasonAsked): PolicyRefusal | null {
+  const late = lateRefusal(reason);
   if (late) return late;
-  const { intent } = asked;
+  const { intent } = reason;
   if (!intent) return null;
-  const today = zoneDayKey(asked.nowMs, asked.zone);
-  const before = asked.moment === "before";
+  const today = zoneDayKey(reason.nowMs, reason.zone);
+  const before = reason.moment === "before";
   const offer = intent.offer;
   if (offer) {
-    const runs = (offer.until === null || offer.until >= today) && asked.says.some((line) => holds(line, offer.says));
-    if (!runs && !factCovers(asked.facts, offer.says, today))
+    const runs = (offer.until === null || offer.until >= today) && reason.says.some((line) => holds(line, offer.says));
+    if (!runs && !factCovers(reason.facts, offer.says, today))
       return refusal(
         "reason",
         "reason_passed",
-        before ? CHECK_WORDS.notAnOffer(offer.says) : CHECK_WORDS.offerEnded(offer.says),
+        before ? CONTENT_CHECK_WORDS.notAnOffer(offer.says) : CONTENT_CHECK_WORDS.offerEnded(offer.says),
       );
   }
   const service = intent.service;
-  if (service && !asked.services.some((s) => sameWords(s, service)) && !factCovers(asked.facts, service, today))
+  if (service && !reason.services.some((s) => wordsMatch(s, service)) && !factCovers(reason.facts, service, today))
     return refusal(
       "reason",
       "reason_passed",
-      before ? CHECK_WORDS.notAService(service) : CHECK_WORDS.serviceGone(service),
+      before ? CONTENT_CHECK_WORDS.notAService(service) : CONTENT_CHECK_WORDS.serviceGone(service),
     );
   return null;
 }

@@ -5,19 +5,26 @@
  * it ended by itself; a take-down says the place's answer and never guesses it. Pure: the posts, the people in the piece,
  * its take-down, a clock and now are handed in.
  */
-import { DAY_MS } from "../shared/time";
-import { personStandsOf, personToAskOf, type PiecePeopleDto, type PiecePersonDto } from "./piece-people";
 import {
+  DAY_MS,
   ON_INSTAGRAM,
   POST_PLACE_SAID,
   POST_PULLABLE,
+  TAKE_DOWN_WORDS,
+  personStandsOf,
+  personToAskOf,
+  placementSaid,
+  postCameDownAt,
+  postComingDownOf,
   postStoppedWhyOf,
   postWaitsForItsTime,
+  type PiecePeopleDto,
+  type PiecePersonDto,
+  type PieceTakeDownDto,
   type PostDto,
   type PostKind,
   type PostPlace,
-} from "./posts";
-import { TAKE_DOWN_WORDS, placementSaid, postCameDownAt, postComingDownOf, type PieceTakeDownDto } from "./take-down";
+} from "@chanlytics/contracts";
 
 /** A line's tone: up, moving, the owner's to act on, ended, or plain. */
 export type GoesTone = "ok" | "live" | "you" | "gone" | "";
@@ -86,7 +93,7 @@ export const GOES_WORDS = {
   needsConnecting: (place: PostPlace) => `${POST_PLACE_SAID[place]} needs connecting again`,
   connect: "Connect",
   paused: "AI is paused · nothing posts",
-  didnt: (why: string | null) => (why ? `Didn't post · ${why}` : "Didn't post"),
+  didnt: (reason: string | null) => (reason ? `Didn't post · ${reason}` : "Didn't post"),
   tryAgain: "Try again",
   shorten: "Shorten it",
   makeAgain: "Make it again",
@@ -104,7 +111,7 @@ export const GOES_WORDS = {
     waitsFor: (name: string) => `${name} hasn't said yes`,
     changed: "Changed · approve it again",
     didnt: (place: PostPlace) => `Didn't post on ${POST_PLACE_SAID[place]}`,
-    places: (said: string, n: number) => (n > 1 ? `${said} · ${n} places` : said),
+    places: (words: string, n: number) => (n > 1 ? `${words} · ${n} places` : words),
   },
 } as const;
 
@@ -120,7 +127,7 @@ export interface GoesKnown {
 }
 
 /** The order a piece's placements are listed in. */
-const ORDER: readonly (readonly [PostPlace, PostKind])[] = [
+const GOES_ORDER: readonly (readonly [PostPlace, PostKind])[] = [
   ["instagram", "reel"],
   ["instagram", "picture"],
   ["instagram", "story"],
@@ -128,7 +135,7 @@ const ORDER: readonly (readonly [PostPlace, PostKind])[] = [
 ];
 
 type Said = Pick<GoesLine, "said" | "tone" | "note" | "moving" | "acts">;
-const said = (line: string, tone: GoesTone, more: Partial<Said> = {}): Said => ({
+const lineSaysOf = (line: string, tone: GoesTone, more: Partial<Said> = {}): Said => ({
   said: line,
   tone,
   note: null,
@@ -144,9 +151,9 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
   const down = postComingDownOf(post, known.takeDown, known.nowMs);
   if (!down) return null;
   const { place } = post;
-  if (down.is === "asking") return said(TAKE_DOWN_WORDS.asking(place), "live", { moving: true });
+  if (down.is === "asking") return lineSaysOf(TAKE_DOWN_WORDS.asking(place), "live", { moving: true });
   if (down.is === "unconfirmed")
-    return said(TAKE_DOWN_WORDS.unconfirmed(place), "", {
+    return lineSaysOf(TAKE_DOWN_WORDS.unconfirmed(place), "", {
       note: TAKE_DOWN_WORDS.unconfirmedNote(known.when(down.since)),
     });
   // The place could not, or refused: the step by hand, with the place's own link, and the owner's word once it is done.
@@ -159,7 +166,7 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
       ]
     : [];
   const stillUp = down.said === TAKE_DOWN_WORDS.stillUp(place);
-  return said(TAKE_DOWN_WORDS.cant(place), "you", {
+  return lineSaysOf(TAKE_DOWN_WORDS.cant(place), "you", {
     note: stillUp ? down.said : TAKE_DOWN_WORDS.cantHow(place, KIND_SAID[post.kind]),
     acts,
   });
@@ -169,11 +176,12 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
 function upSaid(post: PostDto, known: GoesKnown): Said {
   const at = post.published_at ? known.when(post.published_at) : null;
   const ended = post.kind === "story" && !!post.published_at && known.nowMs - Date.parse(post.published_at) > DAY_MS;
-  if (ended) return said(GOES_WORDS.storyEnded(post.place, at), "gone");
+  if (ended) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
   const see: GoesAct[] = post.permalink ? [{ is: "see", href: post.permalink }] : [];
   // Instagram's is said to be on the account only once the account was read holding it (PRD 8.2).
-  if (post.place === "instagram" && !post.verified_at) return said(ON_INSTAGRAM.unverified, "live", { acts: see });
-  return said(GOES_WORDS.up(post.place, at), "ok", { acts: see });
+  if (post.place === "instagram" && !post.verified_at)
+    return lineSaysOf(ON_INSTAGRAM.unverified, "live", { acts: see });
+  return lineSaysOf(GOES_WORDS.up(post.place, at), "ok", { acts: see });
 }
 
 /** A post on its way: set for its time, or going up now, step by step. */
@@ -188,24 +196,24 @@ function onItsWaySaid(post: PostDto, known: GoesKnown): Said {
             : []),
         ]
       : [];
-    return said(GOES_WORDS.timed(known.when(post.scheduled_for)), "", { acts });
+    return lineSaysOf(GOES_WORDS.timed(known.when(post.scheduled_for)), "", { acts });
   }
   if (post.status === "checking")
-    return said(GOES_WORDS.checking(place), "live", { moving: true, note: GOES_WORDS.checkingNote(place) });
-  if (post.status === "preparing") return said(GOES_WORDS.gettingReady(place), "live", { moving: true });
-  return said(GOES_WORDS.posting(place), "live", { moving: true });
+    return lineSaysOf(GOES_WORDS.checking(place), "live", { moving: true, note: GOES_WORDS.checkingNote(place) });
+  if (post.status === "preparing") return lineSaysOf(GOES_WORDS.gettingReady(place), "live", { moving: true });
+  return lineSaysOf(GOES_WORDS.posting(place), "live", { moving: true });
 }
 
 /** A post the recheck held: what stands in the way, and its one fix. */
 function heldSaid(post: PostDto, known: GoesKnown): Said {
-  const why = post.held_why;
+  const heldWhy = post.held_why;
   const mine = (acts: GoesAct[]): GoesAct[] => (known.may ? acts : []);
   const leave: GoesAct = { is: "pull", postId: post.id, says: GOES_WORDS.leaveOut };
   const words: GoesAct = { is: "words", says: GOES_WORDS.changeWords };
-  if (why === "rights") {
+  if (heldWhy === "rights") {
     const person = personToAskOf(known.people, "post");
     if (!person)
-      return said(GOES_WORDS.sayWho, "you", {
+      return lineSaysOf(GOES_WORDS.sayWho, "you", {
         acts: mine([{ is: "say_ai", hint: GOES_WORDS.sayWhoHint, begin: GOES_WORDS.ask.whoIsIn }]),
       });
     const another: GoesAct = {
@@ -215,35 +223,37 @@ function heldSaid(post: PostDto, known: GoesKnown): Said {
     };
     // Someone who said no, or took their yes back, is not asked again from here: the way on is another clip.
     const stands = personStandsOf(person, "post").is;
-    if (stands === "no") return said(GOES_WORDS.saidNo(person.name), "you", { acts: mine([another]) });
-    if (stands === "took_back") return said(GOES_WORDS.tookBack(person.name), "you", { acts: mine([another]) });
-    return said(GOES_WORDS.hasntSaidYes(person.name), "you", { acts: mine([{ is: "ask_person", person }, another]) });
+    if (stands === "no") return lineSaysOf(GOES_WORDS.saidNo(person.name), "you", { acts: mine([another]) });
+    if (stands === "took_back") return lineSaysOf(GOES_WORDS.tookBack(person.name), "you", { acts: mine([another]) });
+    return lineSaysOf(GOES_WORDS.hasntSaidYes(person.name), "you", {
+      acts: mine([{ is: "ask_person", person }, another]),
+    });
   }
-  if (why === "changed")
-    return said(GOES_WORDS.changed, "you", { acts: mine([{ is: "approve", says: GOES_WORDS.lookAgain }]) });
-  if (why === "disconnected" || why === "line_off" || why === "place")
-    return said(GOES_WORDS.needsConnecting(post.place), "you", { acts: mine([{ is: "connect" }]) });
-  if (why === "stopped") return said(GOES_WORDS.paused, "you");
+  if (heldWhy === "changed")
+    return lineSaysOf(GOES_WORDS.changed, "you", { acts: mine([{ is: "approve", says: GOES_WORDS.lookAgain }]) });
+  if (heldWhy === "disconnected" || heldWhy === "line_off" || heldWhy === "place")
+    return lineSaysOf(GOES_WORDS.needsConnecting(post.place), "you", { acts: mine([{ is: "connect" }]) });
+  if (heldWhy === "stopped") return lineSaysOf(GOES_WORDS.paused, "you");
   const reason = post.held_reason ?? ON_INSTAGRAM.status.held;
-  if (why === "reason_passed")
-    return said(reason, "you", {
+  if (heldWhy === "reason_passed")
+    return lineSaysOf(reason, "you", {
       acts: mine([leave, words, { is: "say_ai", hint: GOES_WORDS.stillSo, begin: GOES_WORDS.ask.stillSo }]),
     });
-  if (why === "claim") return said(reason, "you", { acts: mine([words, leave]) });
-  if (why === "money") return said(reason, "you", { acts: mine([leave]) });
-  return said(reason, "you", { acts: mine([{ is: "pull", postId: post.id, says: GOES_WORDS.dismiss }]) });
+  if (heldWhy === "claim") return lineSaysOf(reason, "you", { acts: mine([words, leave]) });
+  if (heldWhy === "money") return lineSaysOf(reason, "you", { acts: mine([leave]) });
+  return lineSaysOf(reason, "you", { acts: mine([{ is: "pull", postId: post.id, says: GOES_WORDS.dismiss }]) });
 }
 
 /** A post the place refused: its reason in the owner's words, and the one thing to do. */
 function failedSaid(post: PostDto, known: GoesKnown): Said {
-  const why = postStoppedWhyOf(post);
+  const stoppedWhy = postStoppedWhyOf(post);
   const fix: GoesAct =
-    why === ON_INSTAGRAM.refused.words
+    stoppedWhy === ON_INSTAGRAM.refused.words
       ? { is: "words", says: GOES_WORDS.shorten }
-      : why === ON_INSTAGRAM.refused.video || why === ON_INSTAGRAM.refused.picture
+      : stoppedWhy === ON_INSTAGRAM.refused.video || stoppedWhy === ON_INSTAGRAM.refused.picture
         ? { is: "tell_ai", says: GOES_WORDS.makeAgain, prompt: GOES_WORDS.ask.again }
         : { is: "approve", says: GOES_WORDS.tryAgain };
-  return said(GOES_WORDS.didnt(why), "you", {
+  return lineSaysOf(GOES_WORDS.didnt(stoppedWhy), "you", {
     acts: known.may ? [fix, { is: "pull", postId: post.id, says: GOES_WORDS.dismiss }] : [],
   });
 }
@@ -254,7 +264,7 @@ function postSaid(post: PostDto, known: GoesKnown): Said | null {
   if (down) return down;
   if (post.status === "taken_down") {
     const at = postCameDownAt(post, known.takeDown);
-    return said(TAKE_DOWN_WORDS.cameDown(at ? known.when(at) : null), "gone");
+    return lineSaysOf(TAKE_DOWN_WORDS.cameDown(at ? known.when(at) : null), "gone");
   }
   if (post.status === "published") return upSaid(post, known);
   if (post.status === "held") return heldSaid(post, known);
@@ -262,7 +272,7 @@ function postSaid(post: PostDto, known: GoesKnown): Said | null {
   // Let go because its day went by: said, since it never went. One the owner let go says nothing: the place is free again.
   if (post.status === "pulled")
     return post.held_why === "late" && post.held_reason
-      ? said(post.held_reason.replace(/\.$/u, "").replace(". ", " · "), "gone", { note: GOES_WORDS.lateNote })
+      ? lineSaysOf(post.held_reason.replace(/\.$/u, "").replace(". ", " · "), "gone", { note: GOES_WORDS.lateNote })
       : null;
   return onItsWaySaid(post, known);
 }
@@ -275,7 +285,7 @@ function postSaid(post: PostDto, known: GoesKnown): Said | null {
  */
 export function goesLinesOf(posts: readonly PostDto[], known: GoesKnown): GoesLine[] {
   const newestFirst = [...posts].sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return ORDER.flatMap(([place, kind]) => {
+  return GOES_ORDER.flatMap(([place, kind]) => {
     const there = newestFirst.filter((p) => p.place === place && p.kind === kind);
     const lines = there.flatMap((post) => {
       const line = postSaid(post, known);

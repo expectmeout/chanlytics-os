@@ -7,17 +7,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  GOES_WORDS,
   ON_INSTAGRAM,
   TAKE_DOWN_WORDS,
-  goesLinesOf,
-  goesPillOf,
   personInitialsOf,
   personSaidOf,
   personStandsOf,
   personToAskOf,
   takeDownWillOf,
 } from "@chanlytics/contracts";
+import {
+  GOES_WORDS,
+  goesLinesOf,
+  goesPillOf,
+} from "../../../apps/dashboard/src/surfaces/campaigns/content/model/goes.ts";
 
 const NOW = Date.parse("2026-12-01T18:00:00Z");
 const ago = (ms) => new Date(NOW - ms).toISOString();

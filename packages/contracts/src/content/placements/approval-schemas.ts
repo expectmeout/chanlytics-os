@@ -3,7 +3,7 @@
  * schemas, apart from content/approvals.ts so the card code a page loads never carries a schema library. The server's.
  */
 import { z } from "zod";
-import { DAY_KEY } from "../shared/zone/day-keys";
+import { DAY_KEY } from "../../shared/zone/day-keys";
 import type { OwnersFact, PostAbout } from "./approvals";
 
 const DAY = z.string().regex(DAY_KEY);

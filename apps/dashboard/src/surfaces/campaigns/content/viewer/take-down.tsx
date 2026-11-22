@@ -20,7 +20,7 @@ import { Icon } from "../../../kit/icon/icon";
 import { Sheet } from "../../../kit/sheet/sheet";
 import { fileVerbs } from "../../../files/verbs";
 
-const GLYPH = { reel: "instagram", story: "instagram", post: "instagram", google: "place", ad: "bolt" } as const;
+const WILL_GLYPH = { reel: "instagram", story: "instagram", post: "instagram", google: "place", ad: "bolt" } as const;
 
 /** Whether a piece has anything a take-down would reach: a post up, on its way, or still waiting. */
 export const takeDownOffered = (posts: readonly Pick<PostDto, "status">[]): boolean =>
@@ -53,9 +53,9 @@ export function TakeDownAsk(props: {
   const go = async () => {
     setBusy(true);
     setProblem(null);
-    const asked = await fileVerbs.takeDown(piece.id);
+    const begun = await fileVerbs.takeDown(piece.id);
     setBusy(false);
-    if (!asked.ok) return setProblem(asked.message);
+    if (!begun.ok) return setProblem(begun.message);
     props.onBegun();
     close();
     return undefined;
@@ -91,7 +91,7 @@ export function TakeDownAsk(props: {
         <ul>
           {will.map((line) => (
             <li key={line.key} data-testid={`cnv-take-down-will-${line.glyph}`}>
-              <Icon name={GLYPH[line.glyph]} size={15} />
+              <Icon name={WILL_GLYPH[line.glyph]} size={15} />
               <div>
                 {line.name}
                 <span>{line.will}</span>
@@ -100,7 +100,7 @@ export function TakeDownAsk(props: {
           ))}
           {props.adShows ? (
             <li data-testid="cnv-take-down-will-ad">
-              <Icon name={GLYPH.ad} size={15} />
+              <Icon name={WILL_GLYPH.ad} size={15} />
               <div>
                 {W.adShowing}
                 <span>{W.will.ad}</span>

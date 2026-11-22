@@ -20,7 +20,7 @@ type Db = SupabaseClient<Database>;
 /** Who is in a file, as said: nobody, not sure, or these people. Answers whether the file was there. */
 export async function nameFileSubjects(
   db: Db,
-  said: {
+  named: {
     tenantId: TenantId;
     fileId: string;
     state: Exclude<SubjectsState, "not_asked">;
@@ -28,10 +28,10 @@ export async function nameFileSubjects(
   },
 ): Promise<{ fate: "kept" | "gone"; added: number }> {
   const { data, error } = await db.rpc("file_subjects_name", {
-    p_tenant_id: said.tenantId,
-    p_file_id: said.fileId,
-    p_state: said.state,
-    p_people: said.people,
+    p_tenant_id: named.tenantId,
+    p_file_id: named.fileId,
+    p_state: named.state,
+    p_people: named.people,
   });
   if (error) throw new DbFailure(error, "file subjects name");
   const answer = recordOrEmpty(data);
@@ -98,13 +98,13 @@ export async function listFileSubjects(db: Db, tenantId: TenantId, fileId: strin
 /** That a person was asked for their yes (subject_ask_record), as the member who sent the ask. */
 export async function recordSubjectAsk(
   db: Db,
-  asked: { tenantId: TenantId; subjectId: string; via: string; uses: FileYesUse[] },
+  ask: { tenantId: TenantId; subjectId: string; via: string; uses: FileYesUse[] },
 ): Promise<{ fate: "kept" | "gone" }> {
   const { data, error } = await db.rpc("subject_ask_record", {
-    p_tenant_id: asked.tenantId,
-    p_subject_id: asked.subjectId,
-    p_via: asked.via,
-    p_uses: asked.uses,
+    p_tenant_id: ask.tenantId,
+    p_subject_id: ask.subjectId,
+    p_via: ask.via,
+    p_uses: ask.uses,
   });
   if (error) throw new DbFailure(error, "subject ask record");
   return { fate: recordOrEmpty(data).fate === "kept" ? "kept" : "gone" };

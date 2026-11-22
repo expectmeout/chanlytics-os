@@ -231,7 +231,7 @@ export const SCHEMA_SETS = {
     "note_to_keep", "reply_held", "ask_cards", "website_form", "files_waiting", "video_ready", "post_up",
     "post_stopped", "preview_tried", "ad_account", "footage", "footage_in", "ad_refused", "ad_unpaid",
     "ad_ended", "ad_spent", "ad_quiet", "ad_draft", "ad_unfinished", "ad_unconfirmed", "ad_way_in",
-    "ads_paused",
+    "ads_paused", "post_down", "post_by_hand",
   ],
   "page_vitals.device": ["desk", "phone"],
   "page_vitals.metric": [

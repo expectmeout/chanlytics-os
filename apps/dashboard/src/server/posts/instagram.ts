@@ -57,7 +57,7 @@ async function refusalBefore(member: Member, row: FileMemberRow): Promise<AppErr
 }
 
 /** What a press on Instagram carries: how it goes, its words, its time, and what AI's card said its words are about. */
-export interface InstagramPress {
+interface InstagramPress {
   as: InstagramPostKind;
   caption?: string | undefined;
   when?: string | undefined;

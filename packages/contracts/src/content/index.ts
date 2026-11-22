@@ -13,43 +13,8 @@ export {
   isContentParam,
 } from "./address";
 export type { ContentList, ContentPlace, ContentView } from "./address";
-export { OwnersFactSchema, PostAboutSchema } from "./approval-schemas";
-export {
-  APPROVAL_SUBJECTS,
-  APPROVAL_VOID_WHYS,
-  EMPTY_INTENT,
-  goodUntilOf,
-  intentDates,
-  intentOfAbout,
-  ownersFactsOf,
-  pieceIntentOf,
-  postAboutOf,
-  RENDITION_SHAPES,
-  renditionShapeOf,
-  REVISION_CHANGES,
-  REVISION_MADE_BY,
-  rightsGapOf,
-} from "./approvals";
-export type {
-  ApprovalVoidWhy,
-  AsApproved,
-  OwnersFact,
-  PieceApprovalSnapshot,
-  PieceIntent,
-  PostAbout,
-  RenditionShape,
-  RevisionChange,
-  RevisionMadeBy,
-  RightsGap,
-  SnapshotPlacement,
-  SnapshotRendition,
-} from "./approvals";
 export { BRING_IN_WORDS, bringInOf, bringInSpec } from "./bring-in";
 export type { BringIn, BringInRefusal } from "./bring-in";
-export { CHECK_WORDS, CONTENT_CHECKS } from "./check-words";
-export type { ContentCheck } from "./check-words";
-export { GOES_WORDS, goesLinesOf, goesPillOf } from "./goes";
-export type { GoesAct, GoesKnown, GoesLine, GoesTone } from "./goes";
 export {
   CONTENT_IDEAS,
   contentIdeaAsk,
@@ -61,8 +26,8 @@ export {
 export type { ContentIdea, ContentIdeaFiles } from "./ideas";
 export { META_LINE_OFF_WHY, META_LINE_WORDS, META_LINES, metaLinesOf } from "./lines";
 export type { MetaLines } from "./lines";
-export { CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS } from "./note";
-export type { ContentTodayDto } from "./note";
+export { CONTENT_TODAY_DOWN, CONTENT_TODAY_PIECES, CONTENT_TODAY_WORDS, contentDownOf } from "./note";
+export type { ContentDownDto, ContentTodayDto } from "./note";
 export {
   CONTENT_FAILED_DAYS,
   CONTENT_LINES_PAGE,
@@ -111,15 +76,6 @@ export {
   PIECES_MAKING_MAX,
 } from "./piece-making";
 export type { PieceFail, PieceLookKept, PieceMachine, PieceStage, PieceStatus, PieceStep } from "./piece-making";
-export {
-  PERSON_ASK_WORDS,
-  personInitialsOf,
-  personSaidOf,
-  personStandsOf,
-  personToAskOf,
-  PIECE_PEOPLE_WORDS,
-} from "./piece-people";
-export type { PersonStands, PersonYesDto, PiecePeopleDto, PiecePersonDto } from "./piece-people";
 export { pieceSpec } from "./piece-spec";
 export { compilePiece, pieceWordsOnBlocks } from "./piece-timeline";
 export type {
@@ -145,7 +101,46 @@ export {
   piecePlanOf,
 } from "./pieces";
 export type { PieceLanguage, PiecePlan, PieceShape, PieceWont, PieceWordsHold, PieceWordsPlace } from "./pieces";
-export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./places";
+export { OwnersFactSchema, PostAboutSchema } from "./placements/approval-schemas";
+export {
+  APPROVAL_SUBJECTS,
+  APPROVAL_VOID_WHYS,
+  goodUntilOf,
+  intentOfAbout,
+  ownersFactsOf,
+  pieceIntentOf,
+  postAboutOf,
+  RENDITION_SHAPES,
+  renditionShapeOf,
+  REVISION_MADE_BY,
+  rightsGapOf,
+} from "./placements/approvals";
+export type {
+  ApprovalVoidWhy,
+  AsApproved,
+  OwnersFact,
+  PieceApprovalSnapshot,
+  PieceIntent,
+  PostAbout,
+  RenditionShape,
+  RevisionChange,
+  RevisionMadeBy,
+  RightsGap,
+  SnapshotPlacement,
+  SnapshotRendition,
+} from "./placements/approvals";
+export { CONTENT_CHECK_WORDS, CONTENT_CHECKS } from "./placements/check-words";
+export type { ContentCheck } from "./placements/check-words";
+export {
+  PERSON_ASK_WORDS,
+  personInitialsOf,
+  personSaidOf,
+  personStandsOf,
+  personToAskOf,
+  PIECE_PEOPLE_WORDS,
+} from "./placements/piece-people";
+export type { PersonStands, PersonYesDto, PiecePeopleDto, PiecePersonDto } from "./placements/piece-people";
+export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./placements/places";
 export type {
   CapabilityProof,
   PlaceAdapter,
@@ -160,7 +155,31 @@ export type {
   SendOutcome,
   SentPlacement,
   TakeDownAnswer,
-} from "./places";
+} from "./placements/places";
+export { filePeopleSpec, personYesSpec } from "./placements/rights-spec";
+export {
+  placementSaid,
+  postCameDownAt,
+  postComingDownOf,
+  REMEDIATION_ACTS,
+  REMEDIATION_OUTCOMES,
+  REMEDIATION_TARGETS,
+  TAKE_DOWN_BELL,
+  TAKE_DOWN_UNCONFIRMED_MS,
+  TAKE_DOWN_WORDS,
+  takeDownSpec,
+  takeDownWillOf,
+} from "./placements/take-down";
+export type {
+  PieceTakeDownDto,
+  PostComingDown,
+  RemediationAct,
+  RemediationOutcome,
+  RemediationTarget,
+  TakeDownActionDto,
+  TakeDownSettled,
+  TakeDownWill,
+} from "./placements/take-down";
 export { fileYesSpec } from "./post-spec";
 export {
   HAND_LINK_MAX,
@@ -196,7 +215,6 @@ export type {
 } from "./posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./publish";
 export type { PostPublish } from "./publish";
-export { filePeopleSpec, personYesSpec } from "./rights-spec";
 export { CONTENT_SHEET_WORDS } from "./sheet-words";
 export { CONTENT_SOURCE_WORDS, contentSourcesSaid } from "./sources";
 export type {
@@ -209,25 +227,3 @@ export type {
   ContentSourcesSaid,
   ContentSourcesState,
 } from "./sources";
-export {
-  placementSaid,
-  postCameDownAt,
-  postComingDownOf,
-  REMEDIATION_ACTS,
-  REMEDIATION_OUTCOMES,
-  REMEDIATION_TARGETS,
-  TAKE_DOWN_UNCONFIRMED_MS,
-  TAKE_DOWN_WORDS,
-  takeDownSpec,
-  takeDownWillOf,
-} from "./take-down";
-export type {
-  PieceTakeDownDto,
-  PostComingDown,
-  RemediationAct,
-  RemediationOutcome,
-  RemediationTarget,
-  TakeDownActionDto,
-  TakeDownSettled,
-  TakeDownWill,
-} from "./take-down";

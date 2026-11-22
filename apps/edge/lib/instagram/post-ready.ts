@@ -79,7 +79,7 @@ const LOOKS: Readonly<Record<InstagramPostKind, { everyMs: number; times: number
   reel: { everyMs: 10 * SECOND_MS, times: 6 },
 };
 /** The longest one call to Instagram waits (KIND_POLICY longestCallMs is 20 s). */
-export const POST_CALL_MS = INSTAGRAM_CALL_MS;
+const POST_CALL_MS = INSTAGRAM_CALL_MS;
 
 /** Where a post still stands while nothing was sent: it can be held from here. */
 export const HOLDABLE: readonly PostStatus[] = ["queued", "preparing"];

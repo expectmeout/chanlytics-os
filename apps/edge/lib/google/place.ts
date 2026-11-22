@@ -12,8 +12,8 @@ import { postOnProfile, unpostOnProfile } from "./local-posts.js";
 
 type Db = SupabaseClient<Database>;
 
-const GOOGLE_SAYS = FILE_WORDS.google;
-const NOTHING_KEPT = { status: null, json: null };
+const GOOGLE_PLACE_SAYS = FILE_WORDS.google;
+const NO_ANSWER_KEPT = { status: null, json: null };
 
 /** Google's adapter, for one made file of one workspace, as the member who approved it. */
 export function googlePlace(db: Db, at: { tenantId: TenantId; fileId: string; by: string | null }): PlaceAdapter {
@@ -41,24 +41,28 @@ export function googlePlace(db: Db, at: { tenantId: TenantId; fileId: string; by
         };
       const lost = answer.error === "not_connected" || answer.error === "no_token";
       const words = lost
-        ? GOOGLE_SAYS.heldNoConnection
-        : `${GOOGLE_SAYS.refused}${answer.detail ? ` ${answer.detail.slice(0, 200)}` : ""}`;
+        ? GOOGLE_PLACE_SAYS.heldNoConnection
+        : `${GOOGLE_PLACE_SAYS.refused}${answer.detail ? ` ${answer.detail.slice(0, 200)}` : ""}`;
       return {
         is: "refused",
         refusal: { words, code: null, subcode: null, busy: "busy" in answer && !!answer.busy, connectionLost: lost },
-        kept: NOTHING_KEPT,
+        kept: NO_ANSWER_KEPT,
       };
     },
 
     async takeDown(post) {
-      if (!post.externalId) return { outcome: "not_possible", said: GOOGLE_SAYS.refused, kept: NOTHING_KEPT };
+      if (!post.externalId) return { outcome: "not_possible", said: GOOGLE_PLACE_SAYS.refused, kept: NO_ANSWER_KEPT };
       const answer = await unpostOnProfile(db, at.tenantId, { fileId: at.fileId, by: at.by, name: post.externalId });
-      if (answer.ok) return { outcome: "done", said: null, kept: NOTHING_KEPT };
+      if (answer.ok) return { outcome: "done", said: null, kept: NO_ANSWER_KEPT };
       if (answer.error === "not_connected" || answer.error === "no_token")
-        return { outcome: "needs_person", said: GOOGLE_SAYS.heldNoConnection, kept: NOTHING_KEPT };
+        return { outcome: "needs_person", said: GOOGLE_PLACE_SAYS.heldNoConnection, kept: NO_ANSWER_KEPT };
       if (answer.error === "not_found")
-        return { outcome: "not_possible", said: GOOGLE_SAYS.refused, kept: NOTHING_KEPT };
-      return { outcome: "blocked", said: answer.detail?.slice(0, 300) ?? GOOGLE_SAYS.refused, kept: NOTHING_KEPT };
+        return { outcome: "not_possible", said: GOOGLE_PLACE_SAYS.refused, kept: NO_ANSWER_KEPT };
+      return {
+        outcome: "blocked",
+        said: answer.detail?.slice(0, 300) ?? GOOGLE_PLACE_SAYS.refused,
+        kept: NO_ANSWER_KEPT,
+      };
     },
   };
 }

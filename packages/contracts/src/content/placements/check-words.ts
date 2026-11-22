@@ -3,7 +3,7 @@
  * happened, and the one thing to do. A reason that no longer stands offers the three ways on and never "post anyway":
  * leave it out, change the words, or the owner says the fact themselves (call 40).
  */
-import { POST_PLACE_SAID, type PostPlace } from "./posts";
+import { POST_PLACE_SAID, type PostPlace } from "../posts";
 
 /** The seven checks, in the order they are asked (PRD 6.1). */
 export const CONTENT_CHECKS = [
@@ -17,9 +17,9 @@ export const CONTENT_CHECKS = [
 ] as const;
 export type ContentCheck = (typeof CONTENT_CHECKS)[number];
 
-const quoteOf = (words: string): string => `“${words}”`;
+const inQuotes = (words: string): string => `“${words}”`;
 
-export const CHECK_WORDS = {
+export const CONTENT_CHECK_WORDS = {
   mayNot: "Only an owner or a manager can approve a post.",
   takenBack: "Someone in it took back their yes to posts. Use another photo or clip.",
   /** PRD 6.3's words: a person named in it with no yes for this use, or nobody sure who is in it. */
@@ -38,12 +38,12 @@ export const CHECK_WORDS = {
   stopped: "AI is paused. Resume to post.",
   aiAlone: "AI asks first before it posts. Approve it to post.",
   /** Before it is approved: what the words lean on is not something the business says of itself (PRD 6.3, Claim). */
-  notAnOffer: (offer: string) => `${quoteOf(offer)} isn't one of your offers. Add it, or change the words.`,
-  notAService: (service: string) => `${quoteOf(service)} isn't one of your services. Add it, or change the words.`,
+  notAnOffer: (offer: string) => `${inQuotes(offer)} isn't one of your offers. Add it, or change the words.`,
+  notAService: (service: string) => `${inQuotes(service)} isn't one of your services. Add it, or change the words.`,
   late: (day: string) => `Too late to post. ${day} has passed.`,
   afterItsDay: "This would go after its day has passed. Pick an earlier time.",
   offerEnded: (offer: string) =>
-    `${quoteOf(offer)} has ended since you approved this. Leave it out, change the words, or tell AI it still runs.`,
+    `${inQuotes(offer)} has ended since you approved this. Leave it out, change the words, or tell AI it still runs.`,
   serviceGone: (service: string) =>
-    `${quoteOf(service)} is no longer one of your services. Leave it out, change the words, or tell AI you still offer it.`,
+    `${inQuotes(service)} is no longer one of your services. Leave it out, change the words, or tell AI you still offer it.`,
 } as const;

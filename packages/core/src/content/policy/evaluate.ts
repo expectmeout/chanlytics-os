@@ -3,7 +3,7 @@
  * has facts for is asked, in the PRD's order. The answer is ok, or every refusal at once, so a card or a press says all
  * that stands in the way in one go rather than one refusal per try.
  */
-import type { ContentCheck } from "@chanlytics/contracts";
+import { CONTENT_CHECKS, type ContentCheck } from "@chanlytics/contracts";
 import {
   automationAllows,
   budgetAllows,
@@ -40,19 +40,9 @@ const CHECKS: Readonly<{ [K in ContentCheck]: (facts: PolicyFacts) => PolicyRefu
   reason: (f) => (f.reason ? reasonStands(f.reason) : null),
 };
 
-const ORDER: readonly ContentCheck[] = [
-  "authorization",
-  "rights",
-  "claims",
-  "publishing",
-  "money",
-  "automation",
-  "reason",
-];
-
 /** Every check the facts reach, in order: ok, or each refusal. */
 export function evaluate(facts: PolicyFacts): PolicyVerdict {
-  const refusals = ORDER.flatMap((check) => {
+  const refusals = CONTENT_CHECKS.flatMap((check) => {
     const refused = CHECKS[check](facts);
     return refused ? [refused] : [];
   });

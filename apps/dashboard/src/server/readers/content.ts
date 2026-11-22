@@ -22,10 +22,13 @@ import {
   piecePlanOf,
   recordOrEmpty,
   shelfFilterOf,
+  CONTENT_TODAY_DOWN,
   CONTENT_TODAY_PIECES,
+  contentDownOf,
   contentIdeaFilesOf,
   reviewIdeaTitleOf,
   contentPieceMarkOf,
+  type ContentDownDto,
   type ContentLineDto,
   type ContentMakingDto,
   type ContentPageDto,
@@ -51,6 +54,7 @@ import {
   listPostsStopped,
   listPostsTimed,
   listPostsUp,
+  listTakeDownsOpen,
   type MemberFilePostRow,
   type MemberPostRow,
   type PieceStandingRow,
@@ -173,6 +177,42 @@ async function postLinesOf(db: Db, tenantId: TenantId, posts: readonly MemberFil
   return posts.flatMap((post) => {
     const file = files.get(post.file_id);
     return file ? [{ post: postDtoOf(post), file }] : [];
+  });
+}
+
+/** How many open take-downs Today's read looks through for the few it names: more than it names, since some only wait. */
+const TAKE_DOWNS_READ = 10;
+
+/**
+ * The take-downs Today names (contracts ContentDownDto): the posts still up that a place left to the owner, or has not
+ * answered about in a day, newest first, each with its piece where that is still there and in use. One a piece: its
+ * own lines say each place. A read that fails says nothing, as the rest of the note does not wait on it.
+ */
+async function takeDownsOpen(db: Db, tenantId: TenantId, now: number): Promise<ContentDownDto[]> {
+  const open = await listTakeDownsOpen(db, tenantId, TAKE_DOWNS_READ);
+  const named = open.flatMap((row) => {
+    const is = contentDownOf(row, now);
+    return is && isOneOf(POST_PLACES, row.place) ? [{ is, place: row.place, fileId: row.file_id }] : [];
+  });
+  // The owner's to finish before one that only waits; a piece is named once.
+  const first = [...named.filter((d) => d.is === "by_hand"), ...named.filter((d) => d.is === "unconfirmed")]
+    .filter((d, at, all) => all.findIndex((other) => other.fileId === d.fileId) === at)
+    .slice(0, CONTENT_TODAY_DOWN);
+  if (first.length === 0) return [];
+  const files = new Map(
+    (
+      await listFilesByIds(
+        db,
+        tenantId,
+        first.map((d) => d.fileId),
+      )
+    )
+      .filter((f) => f.status === "filed")
+      .map((f) => [f.id, fileDtoOf(f)]),
+  );
+  return first.flatMap((d) => {
+    const file = files.get(d.fileId);
+    return file ? [{ is: d.is, place: d.place, file }] : [];
   });
 }
 
@@ -307,6 +347,7 @@ async function contentTodayOf(
     page: Awaited<ReturnType<typeof madePage>>;
     standing: readonly PieceStandingRow[];
     stopped: readonly MemberFilePostRow[];
+    down: ContentDownDto[];
     now: number;
   },
 ): Promise<ContentTodayDto> {
@@ -324,6 +365,7 @@ async function contentTodayOf(
     // Ready to post: a video is to be saved, and is not counted (contracts contentPieceMarkOf).
     ready: whole ? week.filter((m) => contentPieceMarkOf(m, held.now).is === "ready").length : null,
     stopped: stoppedLines[0] ?? null,
+    down: held.down,
   };
 }
 
@@ -337,12 +379,13 @@ export const contentNote: Reader<undefined, { today: ContentTodayDto }> = {
   async read(rc) {
     const db = rc.ctx.supabase;
     const now = rc.now.getTime();
-    const [standing, stopped, page] = await Promise.all([
+    const [standing, stopped, page, down] = await Promise.all([
       piecesStillStanding(db, rc.tenantId, new Date(now - CONTENT_FAILED_DAYS * DAY_MS).toISOString()),
       postsStillStopped(db, rc.tenantId),
       madePage(db, rc.tenantId, { limit: CONTENT_PAGE }),
+      takeDownsOpen(db, rc.tenantId, now).catch(logAndGoOn("content note: open take-downs", [])),
     ]);
-    const today = await contentTodayOf(db, rc.tenantId, { page, standing, stopped, now });
+    const today = await contentTodayOf(db, rc.tenantId, { page, standing, stopped, down, now });
     return { data: { today }, rows: [], stamp: readerStamp() };
   },
 };

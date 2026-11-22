@@ -3,14 +3,7 @@
  * (begin, pull) ask the settings permission themselves; the edge's (an attempt opened and closed, a placement moved) are the
  * service role's alone, and a move is a compare-and-set, so two runs never both move one post.
  */
-import {
-  DbFailure,
-  recordOrEmpty,
-  type PostHeldWhy,
-  type PostKind,
-  type PostPlace,
-  type PostStatus,
-} from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty, type PostHeldWhy, type PostPlace, type PostStatus } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
 import { asJson } from "../../shared/json";
@@ -19,43 +12,6 @@ import type { TenantId } from "@chanlytics/contracts";
 type Db = SupabaseClient<Database>;
 export type PostRow = Database["public"]["Tables"]["posts"]["Row"];
 export type PostAttemptRow = Database["public"]["Tables"]["publish_attempts"]["Row"];
-
-/** What a press came to: the post begun, the one already on its way, or why none could be. */
-export type PostBegun = {
-  fate: "begun" | "busy" | "gone" | "not_a_post" | "not_yet";
-  post_id: string | null;
-};
-
-const BEGUN_FATES: readonly PostBegun["fate"][] = ["begun", "busy", "gone", "not_a_post", "not_yet"];
-
-/** A member's press, which is the approval: the placement written, and for Instagram its first job. */
-export async function beginPost(
-  db: Db,
-  post: {
-    tenantId: TenantId;
-    fileId: string;
-    place: PostPlace;
-    kind: PostKind;
-    caption: string | null;
-    when: string | null;
-    via: "press" | "card";
-  },
-): Promise<PostBegun> {
-  const { data, error } = await db.rpc("post_begin", {
-    p_tenant_id: post.tenantId,
-    p_file_id: post.fileId,
-    p_place: post.place,
-    p_kind: post.kind,
-    p_caption: post.caption ?? "",
-    ...(post.when ? { p_when: post.when } : {}),
-    p_via: post.via,
-  });
-  if (error) throw new DbFailure(error, "post begin");
-  const answer = recordOrEmpty(data);
-  const fate = BEGUN_FATES.find((f) => f === answer.fate);
-  if (!fate) throw new Error("post begin: no fate answered");
-  return { fate, post_id: typeof answer.post_id === "string" ? answer.post_id : null };
-}
 
 /** A member's Don't post: pulled while nothing has been sent, else late with where it stands. */
 export async function pullPost(db: Db, postId: string): Promise<{ fate: "pulled" | "late" | "unknown" }> {

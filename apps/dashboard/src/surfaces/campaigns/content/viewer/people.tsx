@@ -9,7 +9,6 @@ import { useState } from "react";
 import {
   PIECE_PEOPLE_WORDS as W,
   THREAD_CHANNEL_WORDS,
-  isOneOf,
   personInitialsOf,
   personSaidOf,
   personStandsOf,
@@ -42,10 +41,9 @@ export interface WhoPresses {
   noOne: () => void;
 }
 
-const channelSaid = (via: string): string =>
-  isOneOf(Object.keys(THREAD_CHANNEL_WORDS), via)
-    ? THREAD_CHANNEL_WORDS[via as keyof typeof THREAD_CHANNEL_WORDS]
-    : via;
+/** A channel as a line names it ("WhatsApp"); one this build has no word for is said as it is kept. */
+export const channelSaid = (via: string): string =>
+  Object.entries(THREAD_CHANNEL_WORDS).find(([channel]) => channel === via)?.[1] ?? via;
 
 const STAYS = (): void => undefined;
 

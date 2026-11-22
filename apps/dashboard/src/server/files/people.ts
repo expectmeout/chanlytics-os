@@ -120,9 +120,9 @@ export async function takePersonsYesBack(
 
 /** How much of a person's own words a line quotes. */
 const QUOTE_CHARS = 200;
-const quoted = (words: string): string => {
-  const said = words.trim().replace(/\s+/gu, " ");
-  return said.length > QUOTE_CHARS ? `${said.slice(0, QUOTE_CHARS).trimEnd()}…` : said;
+const quoteShort = (words: string): string => {
+  const flat = words.trim().replace(/\s+/gu, " ");
+  return flat.length > QUOTE_CHARS ? `${flat.slice(0, QUOTE_CHARS).trimEnd()}…` : flat;
 };
 
 const messageIdOf = (evidence: unknown): string | null => {
@@ -136,7 +136,7 @@ function yesesOf(row: PiecePersonRow, quotes: ReadonlyMap<string, string>): Pers
     const yes = row.consents.find((c) => c.use === use && !c.taken_back_at);
     if (!yes) return [];
     const words = quotes.get(messageIdOf(yes.evidence) ?? "");
-    return [{ use, said_in: yes.said_in, at: yes.said_at, quote: words ? quoted(words) : null }];
+    return [{ use, said_in: yes.said_in, at: yes.said_at, quote: words ? quoteShort(words) : null }];
   });
 }
 
@@ -149,7 +149,7 @@ function tookBackOf(row: PiecePersonRow, yes: readonly PersonYesDto[]): PiecePer
 }
 
 /** One person as the sheet reads them: where an ask can go, what stands, and what they wrote since they were asked. */
-async function personOf(
+async function piecePersonOf(
   ctx: RouteContext,
   member: Member,
   row: PiecePersonRow,
@@ -162,7 +162,7 @@ async function personOf(
     : null;
   const channel = conversation ? await replyChannelOf(ctx, { id: conversation, tenant_id: tenantId }) : null;
   const yes = yesesOf(row, quotes);
-  const asked =
+  const ask =
     subject.asked_at && subject.asked_via
       ? {
           at: subject.asked_at,
@@ -171,8 +171,8 @@ async function personOf(
         }
       : null;
   // What they wrote since the ask is theirs to be read as a yes or a no, until one of the two is kept.
-  const open = asked !== null && !subject.said_no_at && !yes.some((y) => y.at > asked.at);
-  const wrote = open && conversation ? await listPersonsWordsSince(ctx.supabase, tenantId, conversation, asked.at) : [];
+  const open = ask !== null && !subject.said_no_at && !yes.some((y) => y.at > ask.at);
+  const wrote = open && conversation ? await listPersonsWordsSince(ctx.supabase, tenantId, conversation, ask.at) : [];
   const newest = wrote[0];
   return {
     id: subject.id,
@@ -183,9 +183,9 @@ async function personOf(
     conversation: conversation && channel ? { id: conversation, channel } : null,
     yes,
     took_back: tookBackOf(row, yes),
-    asked,
+    asked: ask,
     said_no_at: subject.said_no_at,
-    answered: newest ? { at: newest.created_at, words: quoted(newest.body), message_id: newest.id } : null,
+    answered: newest ? { at: newest.created_at, words: quoteShort(newest.body), message_id: newest.id } : null,
   };
 }
 
@@ -221,10 +221,10 @@ export async function readPiecePeople(
     listPiecePeople(ctx.supabase, member.tenantId, fileIds),
     listSubjectsStates(ctx.supabase, member.tenantId, fileIds),
   ]);
-  const said = rows.flatMap((row) => row.consents.flatMap((c) => messageIdOf(c.evidence) ?? []));
-  const words = await listMessageWords(ctx.supabase, member.tenantId, [...new Set(said)]);
+  const quotedIds = rows.flatMap((row) => row.consents.flatMap((c) => messageIdOf(c.evidence) ?? []));
+  const words = await listMessageWords(ctx.supabase, member.tenantId, [...new Set(quotedIds)]);
   const quotes = new Map(words.map((m) => [m.id, m.body]));
-  const people = await Promise.all(rows.map((row) => personOf(ctx, member, row, quotes)));
+  const people = await Promise.all(rows.map((row) => piecePersonOf(ctx, member, row, quotes)));
   return {
     state: peopleStateOf(states, piece.drawnFrom.length > 0 ? piece.drawnFrom : [piece.id], people.length),
     people,

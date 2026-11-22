@@ -12,16 +12,13 @@ import {
   SECOND_MS,
   TAKE_DOWN_WORDS,
   fileSaidOf,
-  goesLinesOf,
-  goesPillOf,
   personToAskOf,
-  type GoesAct,
-  type GoesLine,
   type PiecePersonDto,
   type PieceTakeDownDto,
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
+import { goesLinesOf, goesPillOf, type GoesAct, type GoesLine } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
 import { fileVerbs, type PersonAnswer } from "../../files/verbs";
 import type { PieceHands, PiecePresses, usePieceDrafts } from "./piece-presses";
@@ -37,7 +34,7 @@ type PieceDrafts = ReturnType<typeof usePieceDrafts>;
 const MOVING_READ_MS = 5 * SECOND_MS;
 
 /** The coral act a line that needs the owner leads with, in place of the piece's usual next step. */
-export interface StandingLead {
+interface StandingLead {
   words: string;
   press: () => void;
 }
@@ -169,12 +166,12 @@ export function usePieceStanding(
     reread,
   );
   /** A press through one of Files' verbs: refused, it says why; either way the piece is read again. */
-  const run = async (press: Promise<{ ok: true } | { ok: false; message: string }>, said?: string) => {
+  const run = async (press: Promise<{ ok: true } | { ok: false; message: string }>, flashed?: string) => {
     setOut(true);
     const answer = await press;
     setOut(false);
     if (!answer.ok) flash({ tone: "danger", msg: <>{answer.message}</> });
-    else if (said) flash({ msg: <>{said}</> });
+    else if (flashed) flash({ msg: <>{flashed}</> });
     again();
   };
   const busy = out || presses.busy;
@@ -202,16 +199,16 @@ export function usePieceStanding(
     },
     deleted: (postId) => void run(fileVerbs.deletedByHand(file.id, postId)),
   };
-  const said = (person: PiecePersonDto, answer: PersonSaid) =>
+  const answered = (person: PiecePersonDto, answer: PersonSaid) =>
     void run(fileVerbs.personSaid(file.id, personAnswerOf(person, answer)));
-  const who: WhoPresses = {
+  const whoPresses: WhoPresses = {
     busy,
     may,
     mayName,
     about,
     piece: fileSaidOf(file.name),
     askPerson: (person) => setAsking({ person, ads: false }),
-    said,
+    said: answered,
     noOne: () => void run(fileVerbs.sayWhoIsIn(file.id, "none")),
   };
   const places: PostPlace[] = [
@@ -257,7 +254,7 @@ export function usePieceStanding(
     /** A take-down is under way or waits for the owner: nothing leads with a new post meanwhile. */
     holdsLead: down.open,
     goes,
-    who,
+    who: whoPresses,
     people: aiMade ? record.people : null,
     /** How many people the look counted in the file, where it counted any. */
     seen: file.people?.count ?? null,

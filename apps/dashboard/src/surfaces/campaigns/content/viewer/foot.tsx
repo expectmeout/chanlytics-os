@@ -16,15 +16,15 @@ import {
   FILE_WORDS,
   TAKE_DOWN_WORDS,
   type FileDto,
-  type GoesTone,
   type PostDto,
-  type PostPlace,
 } from "@chanlytics/contracts";
+import { type GoesTone } from "../model/goes";
 import { Button } from "../../../kit/button/button";
 import { useCopied } from "../../../kit/copy-button/copy-button";
 import { Icon } from "../../../kit/icon/icon";
 import { Press } from "../../../kit/press";
 import { SaveButton, type useSave } from "../piece-foot";
+import { PLACE_GLYPH } from "./goes";
 import type { PieceNext } from "../model/piece-open";
 import { pieceStatusOf } from "../model/places";
 import type { ViewerClock } from "../model/viewer-line";
@@ -38,7 +38,6 @@ const PILL_TONE = { ok: "up", live: "going", you: "need", gone: "none", "": "tim
 >;
 
 /** Each place's glyph, as the canvas draws it on the act that posts there. */
-const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
 
 /** The coral act: its words and its glyph. */
 interface ViewerLead {

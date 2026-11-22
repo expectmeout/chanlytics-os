@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { CHECK_WORDS, ON_INSTAGRAM, postStandsSaid } from "@chanlytics/contracts";
+import { CONTENT_CHECK_WORDS, ON_INSTAGRAM, postStandsSaid } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const k of ["RESEND_API_KEY", "SUPABASE_URL", "META_APP_ID"]) delete process.env[k];
@@ -275,7 +275,7 @@ test("a post whose day passed is let go, never sent late, and says so", async ()
   assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "late" });
   assert.equal(w.post().status, "pulled");
   assert.equal(w.post().held_why, "late");
-  assert.equal(w.post().held_reason, CHECK_WORDS.late("Thursday"));
+  assert.equal(w.post().held_reason, CONTENT_CHECK_WORDS.late("Thursday"));
   assert.equal(calls.length, 0);
 });
 
@@ -295,7 +295,7 @@ test("an offer that ended since approval holds the post with the three ways on; 
   });
   assert.deepEqual(await postJobs(ended.db, quick).publish(job("post_publish")), { skipped: "held" });
   assert.equal(ended.post().held_why, "reason_passed");
-  assert.equal(ended.post().held_reason, CHECK_WORDS.offerEnded("20% off"));
+  assert.equal(ended.post().held_reason, CONTENT_CHECK_WORDS.offerEnded("20% off"));
   // A note still in force says it runs: it goes.
   const runs = world({
     status: "preparing",
@@ -332,7 +332,7 @@ test("a person named in it with no yes for posts holds the post at its send, by 
   const w = world({ status: "preparing", asApproved: { is: "rights", name: "Paola" } });
   assert.deepEqual(await postJobs(w.db, quick).publish(job("post_publish")), { skipped: "held" });
   assert.equal(w.post().held_why, "rights");
-  assert.equal(w.post().held_reason, CHECK_WORDS.notYetSaid("Paola"));
+  assert.equal(w.post().held_reason, CONTENT_CHECK_WORDS.notYetSaid("Paola"));
   assert.equal(w.post().held_reason, "Paola hasn't said yes to being in posts. Ask them, or use another clip.");
   assert.equal(calls.length, 0);
 });

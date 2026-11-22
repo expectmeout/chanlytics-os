@@ -3,7 +3,7 @@
  * as its piece's caption changes, are approvals.ts keepPieceWords (00690): the save is the approval of the new words. Apart
  * from posts.ts, which holds the placement's own doors and reads and stands at the width a module may (repo/size).
  */
-import { DbFailure, recordOrEmpty, type TenantId } from "@chanlytics/contracts";
+import { DbFailure, recordOrEmpty } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../types";
 

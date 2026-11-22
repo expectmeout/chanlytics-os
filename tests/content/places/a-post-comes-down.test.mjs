@@ -4,13 +4,17 @@
  * step to the owner in words, with the post still up; no answer is asked again, further apart, and past a day fails to
  * us with the action still waiting. After "I deleted it" nothing is asked down: the account is read, and only an account
  * that reads and no longer holds the post settles it. An action already settled asks nothing.
+ *
+ * And the bell (the canvas's Today 6): a place that leaves a post still up to its owner rings once, "Delete it in
+ * Instagram", never again at each "I deleted it" that found it still there; a piece gone from every place it was asked
+ * down from rings "Taken down", which closes the first.
  */
 import { test, after, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { ON_INSTAGRAM, TAKE_DOWN_WORDS } from "@chanlytics/contracts";
+import { DAY_MS, MIN_MS, ON_INSTAGRAM, TAKE_DOWN_BELL, TAKE_DOWN_WORDS, warningsMendedBy } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const k of ["RESEND_API_KEY", "SUPABASE_URL", "META_APP_ID"]) delete process.env[k];
@@ -19,7 +23,7 @@ process.env.META_APP_SECRET = "meta-secret-for-posts";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
-const { takePostDown, TAKE_DOWN_WAITS_MS } = await import(at("apps/edge/lib/content/take-down.ts"));
+const { takePostDown } = await import(at("apps/edge/lib/content/take-down.ts"));
 const { takeDownPlaceFor } = await import(at("apps/edge/lib/instagram/post-ready.ts"));
 
 const T = "aaaa1111-4444-4000-8000-000000000021";
@@ -61,7 +65,19 @@ function world({ status = "published", outcome = "pending", connected = true } =
   const now = new Date().toISOString();
   const tables = {
     tenants: [{ id: T, timezone: "America/New_York", sending_stopped_at: null }],
-    files: [{ id: FILE, tenant_id: T, kind: "image", source: "made", status: "filed", removed_at: null, made: null }],
+    files: [
+      {
+        id: FILE,
+        tenant_id: T,
+        name: "The finish",
+        kind: "image",
+        source: "made",
+        status: "filed",
+        removed_at: null,
+        made: null,
+      },
+    ],
+    notifications: [],
     tenant_channels: connected
       ? [
           {
@@ -136,7 +152,16 @@ function world({ status = "published", outcome = "pending", connected = true } =
         if (row.outcome !== "pending") return { fate: "settled", outcome: row.outcome };
         Object.assign(row, { outcome: p_outcome, said: p_said || null, finished_at: new Date().toISOString() });
         if (p_outcome === "done") post().status = "taken_down";
-        return { fate: "kept", outcome: p_outcome, post_id: row.target_id, tenant_id: row.tenant_id };
+        return {
+          fate: "kept",
+          outcome: p_outcome,
+          post_id: row.target_id,
+          tenant_id: row.tenant_id,
+          file_id: FILE,
+          place: "instagram",
+          // The piece is down once every place this take-down asked says done: here, the one.
+          down: p_outcome === "done" ? ["instagram"] : null,
+        };
       },
     },
   );
@@ -148,7 +173,9 @@ function world({ status = "published", outcome = "pending", connected = true } =
     payload: { action_id: ACTION, attempt: "1", ...payload },
   });
   const run = (payload) => takePostDown(db, job(payload), (p) => takeDownPlaceFor(db, p));
-  return { db, tables, action, post, run };
+  /** The bell's rows as kept: kind, title, body, and whether each is closed. */
+  const bell = () => tables.notifications.map((n) => [n.kind, n.title, n.body, !!n.closed_at]);
+  return { db, tables, action, post, run, bell };
 }
 
 test("Instagram takes it down: asked once, and only then is the post taken down", async () => {
@@ -187,19 +214,30 @@ test("no answer proves nothing: the action waits, and the place is asked again l
   const [again] = w.tables.jobs;
   assert.deepEqual(again.payload, { action_id: ACTION, attempt: "2" });
   const wait = Date.parse(again.due_at) - before;
-  assert.ok(wait >= TAKE_DOWN_WAITS_MS[0] && wait < TAKE_DOWN_WAITS_MS[0] + 5000, `two minutes on, was ${wait}`);
+  assert.ok(wait >= 2 * MIN_MS && wait < 2 * MIN_MS + 5000, `two minutes on, was ${wait}`);
 });
 
 test("a day with no answer fails to us, and the action still waits", async () => {
   const w = world();
-  const last = String(TAKE_DOWN_WAITS_MS.length + 1);
-  await assert.rejects(w.run({ attempt: last }), /no answer from the place in a day/);
+  // Each ask that gets no answer schedules the next, further on: run them one after another until one gives up.
+  let waited = 0;
+  let gaveUp = null;
+  for (let attempt = 1; attempt < 20 && !gaveUp; attempt += 1) {
+    const before = Date.now();
+    const scheduled = w.tables.jobs.length;
+    const ran = await w.run({ attempt: String(attempt) }).catch((e) => e);
+    if (ran instanceof Error) {
+      gaveUp = ran;
+      assert.equal(w.tables.jobs.length, scheduled, "nothing more is scheduled: it is ours to chase now");
+    } else {
+      const again = w.tables.jobs.at(-1);
+      assert.equal(again.payload.attempt, String(attempt + 1));
+      waited += Date.parse(again.due_at) - before;
+    }
+  }
+  assert.match(gaveUp?.message ?? "", /no answer from the place in a day/);
   assert.equal(w.action().outcome, "pending");
-  assert.equal(w.tables.jobs.length, 0, "nothing more is scheduled: it is ours to chase now");
-  assert.ok(
-    TAKE_DOWN_WAITS_MS.reduce((a, b) => a + b, 0) >= 24 * 3_600_000,
-    "the asks span a day before it is given up",
-  );
+  assert.ok(waited >= DAY_MS - 1000, `the asks span a day before it is given up, was ${waited}`);
 });
 
 test("a post still being sent is not asked down before its place has it", async () => {
@@ -242,4 +280,67 @@ test("an action already settled asks nothing", async () => {
   const w = world({ outcome: "done" });
   assert.deepEqual(await w.run(), { skipped: "done" });
   assert.deepEqual(calls, []);
+});
+
+/* ------------------------------------------------------------------------------------------------------ the bell -- */
+
+test("Instagram refuses: the bell says to delete it there, about the piece, and opens it at its lines", async () => {
+  meta[`DELETE /${MEDIA}`] = [400, { error: { message: "(#10) Application does not have permission", code: 10 } }];
+  const w = world();
+  await w.run();
+  assert.deepEqual(w.bell(), [
+    ["post_by_hand", "Delete it in Instagram · The finish", "Chanlytics couldn't take it down there", false],
+  ]);
+  const [row] = w.tables.notifications;
+  assert.deepEqual([row.subject_type, row.subject_id], ["file", FILE]);
+  assert.match(row.route, new RegExp(FILE), "the row opens the piece");
+});
+
+test("Instagram takes it down: the bell says so once, with where from", async () => {
+  meta[`DELETE /${MEDIA}`] = [200, { success: true }];
+  const w = world();
+  await w.run();
+  assert.deepEqual(w.bell(), [["post_down", "Taken down · The finish", "From Instagram", false]]);
+});
+
+test("I deleted it, and it is still there: the bell is not rung a second time", async () => {
+  meta[`GET /${MEDIA}`] = [200, { id: MEDIA, permalink: "https://www.instagram.com/p/abc/" }];
+  const w = world();
+  await w.run({ by_hand: "yes" });
+  assert.equal(w.action().outcome, "needs_person");
+  assert.deepEqual(w.bell(), [], "the piece's own line says it is still up, to the person looking at it");
+});
+
+test("I deleted it, and it is gone: taken down closes the row that asked for it", async () => {
+  meta[`DELETE /${MEDIA}`] = [400, { error: { message: "(#10) Application does not have permission", code: 10 } }];
+  const w = world();
+  await w.run();
+  // "I deleted it": the action waits again (post_take_down_by_hand), and the account no longer holds the post.
+  Object.assign(w.action(), { outcome: "pending", finished_at: null });
+  meta[`GET /${MEDIA}`] = GONE;
+  meta[`GET /${ACCOUNT}/media`] = [200, { data: [] }];
+  await w.run({ by_hand: "yes" });
+  assert.equal(w.post().status, "taken_down");
+  assert.deepEqual(w.bell(), [
+    ["post_by_hand", "Delete it in Instagram · The finish", "Chanlytics couldn't take it down there", true],
+    ["post_down", "Taken down · The finish", "From Instagram", false],
+  ]);
+});
+
+test("a post that was never up rings nothing: there is nothing for its owner to delete", async () => {
+  const w = world({ status: "failed" });
+  await w.run();
+  assert.equal(w.action().outcome, "not_possible");
+  assert.deepEqual(w.bell(), []);
+});
+
+test("the bell's words are the ones the mend is held to, at either place and for a piece with no name", () => {
+  for (const piece of ["The finish", ""]) {
+    const [warns] = warningsMendedBy({ kind: "post_down", title: TAKE_DOWN_BELL.down(piece) });
+    assert.equal(warns?.kind, "post_by_hand");
+    assert.equal(warns.sameSubject, true, "one piece's news never closes another's");
+    for (const place of ["instagram", "google"]) assert.match(TAKE_DOWN_BELL.byHand(place, piece), warns.title);
+  }
+  assert.equal(TAKE_DOWN_BELL.down(""), "Taken down · Your post", "never a blank title");
+  assert.equal(TAKE_DOWN_BELL.downFrom(["instagram", "google"]), "From Instagram and Google");
 });

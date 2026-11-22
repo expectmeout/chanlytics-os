@@ -18,10 +18,9 @@ import { Button } from "../../kit/button/button";
 import { Icon } from "../../kit/icon/icon";
 import { Switch } from "../../kit/switch/switch";
 import type { PostBothDraft } from "./model/post-both";
+import { PLACE_GLYPH } from "./viewer/goes";
 import type { PlaceStanding } from "./model/places";
 import { viewerStandsSaid, type ViewerClock } from "./model/viewer-line";
-
-const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
 
 /** What a row reads of the list (post-both.tsx usePostBoth): who may post, what is out, and the list's own presses. */
 interface PlaceRowHands {

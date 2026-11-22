@@ -4,10 +4,10 @@
  * confirming are two times, kept apart, and a post is taken down only once its place said so. Never an Undo: a post
  * taken down is posted again as a new post.
  */
-import { asText, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
-import { DAY_MS } from "../shared/time";
-import { contentRouteOf } from "./address";
-import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "./posts";
+import { asText, type ProposalSpecAboveOperator } from "../../ask/proposals/spec";
+import { DAY_MS } from "../../shared/time";
+import { contentRouteOf } from "../address";
+import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
 
 /** What a remediation's action came to (00676 remediation_actions.outcome). */
 export const REMEDIATION_OUTCOMES = ["done", "pending", "blocked", "not_possible", "needs_person"] as const;
@@ -135,6 +135,18 @@ export const TAKE_DOWN_WORDS = {
 } as const;
 
 /**
+ * What the bell says of a take-down (00692; the canvas's Today 6): a piece gone from every place it was asked down from,
+ * and one a place would not take down for Chanlytics, which its owner deletes there. A piece that cannot be named is
+ * "Your post", never a blank title. The second is closed by the first (waits/notice-mends.ts holds both titles).
+ */
+export const TAKE_DOWN_BELL = {
+  down: (piece: string) => `Taken down · ${piece || "Your post"}`,
+  downFrom: (places: readonly PostPlace[]) => `From ${places.map((place) => POST_PLACE_SAID[place]).join(" and ")}`,
+  byHand: (place: PostPlace, piece: string) => `Delete it in ${POST_PLACE_SAID[place]} · ${piece || "Your post"}`,
+  byHandWhy: "Chanlytics couldn't take it down there",
+} as const;
+
+/**
  * What the confirm says the press will do, a line a placement (the canvas's cell 36): a post up is asked down where the
  * place takes that from here, is asked where that is not proved yet, or is the owner's to delete there; a story a day
  * old is gone already; one still waiting
@@ -161,8 +173,8 @@ export function takeDownWillOf(
         const gone = post.kind === "story" && nowMs - Date.parse(post.published_at ?? "") > STORY_LASTS_MS;
         if (gone) return line(W.storyGone);
         const takes = can(place);
-        const said = POST_PLACE_SAID[place];
-        return line(takes === "yes" ? W.takeDown : takes === "no" ? W.byHand(said) : W.asks(said));
+        const placeName = POST_PLACE_SAID[place];
+        return line(takes === "yes" ? W.takeDown : takes === "no" ? W.byHand(placeName) : W.asks(placeName));
       }
       if (post.status === "publishing" || post.status === "checking") return line(W.takeDown);
       if (post.status === "queued" || post.status === "preparing") return line(W.cancel);

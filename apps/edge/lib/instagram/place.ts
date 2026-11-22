@@ -53,10 +53,13 @@ export interface InstagramPlaceDeps extends InstagramDeps {
   keptElsewhere?: (ids: readonly string[]) => Promise<readonly string[]>;
 }
 
-const keptOf = (answer: InstagramAnswer): PlaceAnswerKept => ({ status: answer.status || null, json: answer.json });
+const answerKeptOf = (answer: InstagramAnswer): PlaceAnswerKept => ({
+  status: answer.status || null,
+  json: answer.json,
+});
 
 /** Instagram's refusal, in the owner's sentence for what was sent. */
-export function instagramRefusalOf(answer: Pick<InstagramAnswer, "status" | "json">, kind: PostKind): PlaceRefusal {
+function instagramRefusalOf(answer: Pick<InstagramAnswer, "status" | "json">, kind: PostKind): PlaceRefusal {
   const r = metaPostRefusalOf(answer, kind);
   return { words: ON_INSTAGRAM.refused[r.refusal], code: r.code, subcode: r.subcode, busy: r.refusal === "busy" };
 }
@@ -75,8 +78,8 @@ async function dayUsed(poster: MetaPoster, deps: InstagramDeps): Promise<boolean
 }
 
 /** Where a container stands, as Instagram says it. */
-function stateOf(answer: InstagramAnswer, kind: InstagramPostKind): PreparedState {
-  const kept = keptOf(answer);
+function preparedStateOf(answer: InstagramAnswer, kind: InstagramPostKind): PreparedState {
+  const kept = answerKeptOf(answer);
   if (answer.outcome === "refused") return { is: "gone", kept };
   if (answer.outcome !== "ok") return { is: "unknown", kept };
   const status = parseMetaContainerStatus(answer.json);
@@ -113,28 +116,28 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
         caption: post.caption,
         says: post.says,
       });
-      const made = await call(metaContainerRequest(poster, fields));
-      if (made.outcome === "refused")
-        return { is: "refused", refusal: instagramRefusalOf(made, post.kind), kept: keptOf(made) };
-      if (made.outcome !== "ok") return { is: "unknown", kept: keptOf(made) };
-      return { is: "made", ref: parseMetaCreatedId(made.json), kept: keptOf(made) };
+      const container = await call(metaContainerRequest(poster, fields));
+      if (container.outcome === "refused")
+        return { is: "refused", refusal: instagramRefusalOf(container, post.kind), kept: answerKeptOf(container) };
+      if (container.outcome !== "ok") return { is: "unknown", kept: answerKeptOf(container) };
+      return { is: "made", ref: parseMetaCreatedId(container.json), kept: answerKeptOf(container) };
     },
 
     async preparedState(ref, kind) {
-      return stateOf(await call(metaContainerStatusRequest(poster, ref)), kind);
+      return preparedStateOf(await call(metaContainerStatusRequest(poster, ref)), kind);
     },
 
     async publish(post, ref) {
       if (!ref) throw new Error(`post ${post.postId}: no container to publish`);
       const sent = await call(metaPublishRequest(poster, ref));
       if (sent.outcome === "refused")
-        return { is: "refused", refusal: instagramRefusalOf(sent, post.kind), kept: keptOf(sent) };
-      if (sent.outcome !== "ok") return { is: "unknown", kept: keptOf(sent) };
+        return { is: "refused", refusal: instagramRefusalOf(sent, post.kind), kept: answerKeptOf(sent) };
+      if (sent.outcome !== "ok") return { is: "unknown", kept: answerKeptOf(sent) };
       const mediaId = parseMetaCreatedId(sent.json);
       // Its address, for the sheet's See it, read back from the account: a read that fails leaves it up without one.
       const read = await call(metaMediaReadRequest(poster, mediaId));
       const media = (read.outcome === "ok" ? parseMetaMedia(read.json) : null) ?? { id: mediaId };
-      return { is: "sent", media: placedOf(media), kept: keptOf(sent), seen: read.outcome === "ok" };
+      return { is: "sent", media: placedOf(media), kept: answerKeptOf(sent), seen: read.outcome === "ok" };
     },
 
     async status(post) {
@@ -142,18 +145,18 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
       if (post.externalId) {
         const read = await call(metaMediaReadRequest(poster, post.externalId));
         const media = read.outcome === "ok" ? parseMetaMedia(read.json) : null;
-        if (media) return { is: "up", media: placedOf(media), kept: keptOf(read) };
-        if (read.outcome !== "refused") return { is: "unknown", kept: keptOf(read) };
+        if (media) return { is: "up", media: placedOf(media), kept: answerKeptOf(read) };
+        if (read.outcome !== "refused") return { is: "unknown", kept: answerKeptOf(read) };
         // Refused by its id: Meta says the same of a post that is gone and of one this connection may not read. The
         // account's own list, read with the same connection, settles it: readable and without the post, it is gone.
         const account = await call(metaNewestMediaRequest(poster, post.kind));
-        if (account.outcome !== "ok") return { is: "unknown", kept: keptOf(account) };
+        if (account.outcome !== "ok") return { is: "unknown", kept: answerKeptOf(account) };
         const there = parseMetaMediaList(account.json).some((m) => m.id === post.externalId);
-        return { is: there ? "unknown" : "not_up", kept: keptOf(account) };
+        return { is: there ? "unknown" : "not_up", kept: answerKeptOf(account) };
       }
       // Not known yet (a send whose answer never came): looked for on the account by its time and its words.
       const listed = await call(metaNewestMediaRequest(poster, post.kind));
-      if (listed.outcome !== "ok") return { is: "unknown", kept: keptOf(listed) };
+      if (listed.outcome !== "ok") return { is: "unknown", kept: answerKeptOf(listed) };
       const newest = parseMetaMediaList(listed.json);
       const kept = deps.keptElsewhere ? await deps.keptElsewhere(newest.map((m) => m.id)) : [];
       const found = metaMediaSentBy(
@@ -161,22 +164,22 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
         { at: post.sentAt, caption: post.caption },
       );
       return found
-        ? { is: "up", media: placedOf(found), kept: keptOf(listed) }
-        : { is: "not_up", kept: keptOf(listed) };
+        ? { is: "up", media: placedOf(found), kept: answerKeptOf(listed) }
+        : { is: "not_up", kept: answerKeptOf(listed) };
     },
 
     async takeDown(post) {
       if (!post.externalId)
         return { outcome: "not_possible", said: ON_INSTAGRAM.takeDown.noId, kept: { status: null, json: null } };
-      const asked = await callInstagram(
+      const removal = await callInstagram(
         metaDeleteRequest(poster, post.externalId),
         { timeoutMs: INSTAGRAM_CALL_MS },
         deps,
       );
-      const kept = keptOf(asked);
-      if (asked.outcome === "ok" && parseMetaDeleted(asked.json)) return { outcome: "done", said: null, kept };
+      const kept = answerKeptOf(removal);
+      if (removal.outcome === "ok" && parseMetaDeleted(removal.json)) return { outcome: "done", said: null, kept };
       // No answer proves nothing: it may be gone. The action waits, and the post is asked about again.
-      if (asked.outcome !== "ok" && asked.outcome !== "refused") return { outcome: "pending", said: null, kept };
+      if (removal.outcome !== "ok" && removal.outcome !== "refused") return { outcome: "pending", said: null, kept };
       // Meta refused the connection the delete (its permission, or the post is not this account's to delete): by hand.
       return { outcome: "needs_person", said: ON_INSTAGRAM.takeDown.byHand, kept };
     },

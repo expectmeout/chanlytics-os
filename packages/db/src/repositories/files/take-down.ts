@@ -6,6 +6,7 @@
 import {
   DbFailure,
   MIN_MS,
+  POST_PLACES,
   REMEDIATION_ACTS,
   REMEDIATION_OUTCOMES,
   REMEDIATION_TARGETS,
@@ -13,6 +14,7 @@ import {
   listOrEmpty,
   recordOrEmpty,
   type PieceTakeDownDto,
+  type PostPlace,
   type TakeDownActionDto,
   type TakeDownSettled,
 } from "@chanlytics/contracts";
@@ -75,11 +77,20 @@ export async function findTakeDownAction(
   return data;
 }
 
-/** What the place said of one action (post_take_down_settle), under the service role. Answers whether this call kept it. */
+/** What keeping a place's answer came to: whether this call kept it, the piece and place it was about, and the news. */
+export interface TakeDownKept {
+  kept: boolean;
+  fileId: string | null;
+  place: PostPlace | null;
+  /** The places the piece came down from, once every one this take-down asked says done; null until then. */
+  down: PostPlace[] | null;
+}
+
+/** What the place said of one action (post_take_down_settle), under the service role. */
 export async function settlePostTakeDown(
   db: Db,
   settled: { actionId: string; outcome: TakeDownSettled; said: string | null },
-): Promise<boolean> {
+): Promise<TakeDownKept> {
   const { data, error } = await db.rpc("post_take_down_settle", {
     p_action_id: settled.actionId,
     p_outcome: settled.outcome,
@@ -87,7 +98,15 @@ export async function settlePostTakeDown(
     p_said: settled.said ?? "",
   });
   if (error) throw new DbFailure(error, "post take down settle");
-  return recordOrEmpty(data).fate === "kept";
+  const answer = recordOrEmpty(data);
+  const down = listOrEmpty(answer.down);
+  return {
+    kept: answer.fate === "kept",
+    fileId: typeof answer.file_id === "string" ? answer.file_id : null,
+    place: isOneOf(POST_PLACES, answer.place) ? answer.place : null,
+    // In the order the places are listed everywhere: Instagram, then Google.
+    down: down.length > 0 ? POST_PLACES.filter((place) => down.includes(place)) : null,
+  };
 }
 
 const actionDtoOf = (row: ActionRow): TakeDownActionDto[] =>
@@ -171,4 +190,55 @@ export async function findPieceTakeDown(
       : null,
     actions: kept,
   };
+}
+
+/** A take-down still open on a post that is still up: the post, its piece and place, and where its action stands. */
+interface TakeDownOpenRow {
+  post_id: string;
+  file_id: string;
+  place: string;
+  outcome: string;
+  started_at: string;
+}
+
+/**
+ * The take-downs a workspace still waits on, newest first, under the caller's RLS: each action not done whose post is
+ * still up, the newest of each post (00692's index reads the few there are). A post that came down since, by a later
+ * take-down, is no longer one.
+ */
+export async function listTakeDownsOpen(db: Db, tenantId: TenantId, limit: number): Promise<TakeDownOpenRow[]> {
+  const open = await db
+    .from("remediation_actions")
+    .select("target_id, outcome, started_at")
+    .eq("tenant_id", tenantId)
+    .eq("act", "take_down")
+    .eq("target_type", "post")
+    .neq("outcome", "done")
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (open.error) throw new DbFailure(open.error, "open take-downs");
+  if (open.data.length === 0) return [];
+  const up = await db
+    .from("posts")
+    .select("id, file_id, place")
+    .eq("tenant_id", tenantId)
+    .eq("status", "published")
+    .in("id", [...new Set(open.data.map((a) => a.target_id))]);
+  if (up.error) throw new DbFailure(up.error, "open take-downs' posts");
+  const posts = new Map(up.data.map((p) => [p.id, p]));
+  const named = new Set<string>();
+  return open.data.flatMap((action) => {
+    const post = posts.get(action.target_id);
+    if (!post || named.has(post.id)) return [];
+    named.add(post.id);
+    return [
+      {
+        post_id: post.id,
+        file_id: post.file_id,
+        place: post.place,
+        outcome: action.outcome,
+        started_at: action.started_at,
+      },
+    ];
+  });
 }

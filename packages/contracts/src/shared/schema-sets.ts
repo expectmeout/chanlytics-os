@@ -55,8 +55,13 @@ import type { SENDER_KINDS } from "../email/sender-reading";
 import type { POST_HELD_WHYS, POST_KINDS, POSTED_PLACES, POST_STATUSES, POST_VIAS } from "../content/posts";
 import type { PIECE_FAILS, PIECE_STAGES, PIECE_STATUSES } from "../content/piece-making";
 import type { PIECE_SHAPES } from "../content/pieces";
-import type { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, RENDITION_SHAPES, REVISION_MADE_BY } from "../content/approvals";
-import type { REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS } from "../content/take-down";
+import type {
+  APPROVAL_SUBJECTS,
+  APPROVAL_VOID_WHYS,
+  RENDITION_SHAPES,
+  REVISION_MADE_BY,
+} from "../content/placements/approvals";
+import type { REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS } from "../content/placements/take-down";
 import type { SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "../files/subjects";
 import type { MODEL_CALL_OUTCOMES } from "../ai/usage";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "../lines/a2p-enums";

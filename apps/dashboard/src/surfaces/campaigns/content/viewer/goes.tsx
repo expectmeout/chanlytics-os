@@ -8,20 +8,19 @@
 import { useId } from "react";
 import {
   CONNECTIONS_PAGE,
-  GOES_WORDS,
   PIECE_PEOPLE_WORDS,
   TAKE_DOWN_WORDS,
-  type GoesAct,
-  type GoesLine,
   type PiecePersonDto,
   type PostPlace,
 } from "@chanlytics/contracts";
+import { GOES_WORDS, type GoesAct, type GoesLine } from "../model/goes";
 import { askAbout, routeDoor } from "../../../frame-verbs";
 import { Button } from "../../../kit/button/button";
 import { Icon } from "../../../kit/icon/icon";
 import { AskLine, type ChangeAbout } from "../sheets/ask-change";
 
-const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
+/** Each place's mark, wherever a placement is drawn: the list, its lines and the foot. */
+export const PLACE_GLYPH = { instagram: "instagram", google: "place" } as const satisfies Record<PostPlace, string>;
 
 /** What a line's presses do, each the pane's own. */
 export interface GoesPresses {
@@ -111,7 +110,7 @@ const STAYS = (): void => undefined;
 /** One placement: its glyph and name, where it stands with its tone's dot, a quieter note, and its acts. */
 function GoesRow({ line, on }: { line: GoesLine; on: GoesPresses }) {
   const at = `${line.place}-${line.kind}`;
-  const said = line.acts.filter((act) => act.is !== "say_ai");
+  const buttons = line.acts.filter((act) => act.is !== "say_ai");
   const toAi = line.acts.find((act) => act.is === "say_ai");
   return (
     <div className="cnv-goes-line" data-tone={line.tone || undefined} data-testid={`cnv-goes-${at}`}>
@@ -125,9 +124,9 @@ function GoesRow({ line, on }: { line: GoesLine; on: GoesPresses }) {
           {line.said}
         </span>
         {line.note ? <p className="cnv-note">{line.note}</p> : null}
-        {said.length > 0 ? (
+        {buttons.length > 0 ? (
           <span className="cnv-goes-acts">
-            {said.map((act, i) => (
+            {buttons.map((act, i) => (
               <GoesActPress key={`${act.is}-${i}`} act={act} lead={i === 0 && line.tone === "you"} on={on} at={at} />
             ))}
           </span>

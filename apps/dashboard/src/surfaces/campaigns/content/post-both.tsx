@@ -19,11 +19,11 @@ import {
   ON_INSTAGRAM,
   POST_AHEAD_DAYS_MAX,
   POST_PLACES,
-  type GoesLine,
   type InstagramPostKind,
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
+import { type GoesLine } from "./model/goes";
 import { pageClock } from "@/bridge/zone";
 import { gateTitle } from "../../frame-verbs";
 import { Button } from "../../kit/button/button";

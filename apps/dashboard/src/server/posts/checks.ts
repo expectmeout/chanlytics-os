@@ -42,7 +42,7 @@ export interface CheckedFile {
 }
 
 /** What is being asked, and what its caller already read. */
-export interface PlacementsAsked {
+interface PlacementsAsked {
   tenantId: TenantId;
   zone: string;
   file: CheckedFile;
@@ -75,35 +75,38 @@ const latestOf = (placements: readonly PlacementAsked[], nowMs: number): number 
   Math.max(nowMs, ...placements.map((p) => (p.when ? Date.parse(p.when) : nowMs)));
 
 /** Every refusal that stands in the way of these placements, as one line of the owner's words; empty where none does. */
-export async function readPlacementRefusals(db: SupabaseClient<Database>, asked: PlacementsAsked): Promise<string> {
-  const { file, intent, zone } = asked;
+export async function readPlacementRefusals(
+  db: SupabaseClient<Database>,
+  placements: PlacementsAsked,
+): Promise<string> {
+  const { file, intent, zone } = placements;
   const nowMs = Date.now();
   const leans = !!intent?.offer || !!intent?.service;
   const [gap, business] = await Promise.all([
-    readRightsGap(db, asked.tenantId, file.id),
-    leans ? asked.config().then((config) => businessSays(config, zone)) : { says: [], services: [] },
+    readRightsGap(db, placements.tenantId, file.id),
+    leans ? placements.config().then((config) => businessSays(config, zone)) : { says: [], services: [] },
   ]);
   const whole = evaluate({
     rights: { takenBack: !file.yes_for?.includes("post") && !!file.yes_back?.includes("post"), gap },
-    automation: { stopped: asked.stopped, pressedBy: "owner" },
+    automation: { stopped: placements.stopped, pressedBy: "owner" },
     reason: {
       intent,
       goodUntil: goodUntilOf(intent, zone),
-      atMs: latestOf(asked.placements, nowMs),
+      atMs: latestOf(placements.placements, nowMs),
       nowMs,
       zone,
       ...business,
-      facts: asked.facts,
+      facts: placements.facts,
       moment: "before",
     },
   });
-  const each = asked.placements.map((p) =>
+  const each = placements.placements.map((p) =>
     evaluate({
       publishing: {
         place: p.place,
         kind: p.kind,
         fileKind: file.kind,
-        connection: asked.connections[p.place] ?? "not_connected",
+        connection: placements.connections[p.place] ?? "not_connected",
         caption: p.caption,
         video:
           file.kind === "video"

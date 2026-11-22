@@ -32,12 +32,12 @@ export interface SendHold {
 }
 
 /** What a post sends: the approved bytes' path (null for one approved before approvals were kept), and how it was made. */
-export interface SendBytes {
+interface SendBytes {
   path: string | null;
   made: unknown;
 }
 
-const hold = (held: string, why: PostHeldWhy): SendHold => ({ held, why });
+const holdFor = (held: string, cause: PostHeldWhy): SendHold => ({ held, why: cause });
 
 /** Who has not said yes, as the send's own check answered it. */
 const gapOf = (approved: AsApproved): RightsGap => {
@@ -77,17 +77,17 @@ export async function readSendRecheck(
   ask: { approver: boolean },
 ): Promise<SendHold | SendBytes> {
   if (ask.approver && (!post.approved_by || !(await mayStillPost(db, post.tenant_id, post.approved_by))))
-    return hold(ON_INSTAGRAM.held.approver, "approver");
+    return holdFor(ON_INSTAGRAM.held.approver, "approver");
   const file = await findFileForWork(db, post.tenant_id, post.file_id);
-  if (!file || file.removed_at) return hold(ON_INSTAGRAM.held.removed, "removed");
+  if (!file || file.removed_at) return holdFor(ON_INSTAGRAM.held.removed, "removed");
   // Stop everything: it stays down, and is its owner's to post again once they resume.
-  if (await isSendingStopped(db, post.tenant_id)) return hold(ON_INSTAGRAM.held.stopped, "stopped");
+  if (await isSendingStopped(db, post.tenant_id)) return holdFor(ON_INSTAGRAM.held.stopped, "stopped");
   const approved = await readPostAsApproved(db, post.id);
-  if (approved.is === "changed") return hold(ON_INSTAGRAM.held.changed, "changed");
+  if (approved.is === "changed") return holdFor(ON_INSTAGRAM.held.changed, "changed");
   const reason = await readReasonFacts(db, post, approved);
   const verdict = evaluate({ rights: { takenBack: false, gap: gapOf(approved) }, ...(reason ? { reason } : {}) });
   const [first] = verdict.ok ? [] : verdict.refusals;
-  if (first) return hold(first.words, first.code);
+  if (first) return holdFor(first.words, first.code);
   return { path: approved.is === "stands" ? approved.path : null, made: file.made };
 }
 

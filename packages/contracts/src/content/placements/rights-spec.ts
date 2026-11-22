@@ -4,9 +4,9 @@
  * ask itself is a reply to that person in their conversation, drafted by AI and sent by the owner through the one send
  * door (the reply card); these keep what it came to. Each opens the file.
  */
-import { asText, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "../ask/proposals/spec";
-import { fileYesUsesIn } from "../files/yes";
-import { contentRouteOf } from "./address";
+import { asText, rec, type ProposalSpec, type ProposalSpecAboveOperator } from "../../ask/proposals/spec";
+import { fileYesUsesIn } from "../../files/yes";
+import { contentRouteOf } from "../address";
 
 const openFile = ({ payload }: { payload: Record<string, unknown> }) => {
   const id = asText(payload.file_id);

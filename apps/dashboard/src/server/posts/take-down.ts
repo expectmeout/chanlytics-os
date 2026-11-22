@@ -33,9 +33,9 @@ export async function sayDeletedByHand(
 ) {
   const posts = await listFilePosts(ctx.supabase, member.tenantId, row.id);
   if (!posts.some((p) => p.id === input.post_id)) throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
-  const said = await markPostDeletedByHand(ctx.supabase, member.tenantId, input.post_id);
-  if (said.fate === "unknown") throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
-  return { asking: said.fate === "asking" };
+  const marked = await markPostDeletedByHand(ctx.supabase, member.tenantId, input.post_id);
+  if (marked.fate === "unknown") throw new AppError("not_found", ON_INSTAGRAM.gone, 404);
+  return { asking: marked.fate === "asking" };
 }
 
 /** The piece's newest take-down, for its sheet; null where nothing of it was ever asked down. */

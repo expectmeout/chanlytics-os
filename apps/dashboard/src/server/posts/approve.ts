@@ -11,7 +11,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import {
   AppError,
-  CHECK_WORDS,
+  CONTENT_CHECK_WORDS,
   ON_INSTAGRAM,
   PLACE_CAPABILITIES,
   fileMadePathOf,
@@ -40,7 +40,7 @@ import { readPlacementRefusals, type PlacementAsked } from "./checks";
 import { googlePicturePathOf } from "./make";
 
 /** What a press approves: its placements, what its words are about, any fact the owner stated, and who pressed. */
-export interface ApprovalAsked {
+interface ApprovalAsked {
   placements: PlacementAsked[];
   intent: PieceIntent | null;
   facts: OwnersFact[];
@@ -63,8 +63,8 @@ async function readShapes(tenantId: TenantId, row: FileMemberRow, shapes: readon
     [...new Set(shapes)].map(async (shape) => {
       const path = shapePathOf(tenantId, row, shape);
       const read = await bucket().download(path);
-      if (read.error || !read.data) {
-        log.error("post_approve_shape_unread", { tenant_id: tenantId, shape, error: read.error?.message ?? "none" });
+      if (read.error) {
+        log.error("post_approve_shape_unread", { tenant_id: tenantId, shape, error: read.error.message });
         throw new AppError("unavailable", ON_INSTAGRAM.notSent);
       }
       const bytes = Buffer.from(await read.data.arrayBuffer());
@@ -79,14 +79,14 @@ function refusedFate(answer: PostsApproved): AppError {
   if (answer.fate === "gone") return new AppError("not_found", ON_INSTAGRAM.gone, 404);
   if (answer.fate === "not_a_post") return new AppError("validation", ON_INSTAGRAM.notAPost);
   if (answer.fate === "wrong_kind") return new AppError("validation", ON_INSTAGRAM.wrongKind);
-  if (answer.fate === "taken_back") return new AppError("conflict", CHECK_WORDS.takenBack, 409);
-  if (answer.fate === "rights") return new AppError("conflict", CHECK_WORDS.notYetSaid(answer.rightsName), 409);
+  if (answer.fate === "taken_back") return new AppError("conflict", CONTENT_CHECK_WORDS.takenBack, 409);
+  if (answer.fate === "rights") return new AppError("conflict", CONTENT_CHECK_WORDS.notYetSaid(answer.rightsName), 409);
   if (answer.fate === "changed") return new AppError("conflict", ON_INSTAGRAM.held.changed, 409);
-  return new AppError("validation", CHECK_WORDS.afterItsDay);
+  return new AppError("validation", CONTENT_CHECK_WORDS.afterItsDay);
 }
 
 /** The words a placement goes with: none for a story, else what was written, trimmed. */
-const wordsOf = (p: PlacementAsked): string | null => (p.kind === "story" ? null : p.caption?.trim() || null);
+const placementWordsOf = (p: PlacementAsked): string | null => (p.kind === "story" ? null : p.caption?.trim() || null);
 
 /**
  * The approval: the checks, the words kept, the shapes' bytes read and summed, then the one door. Answers what the door
@@ -96,29 +96,29 @@ export async function approvePlacements(
   ctx: RouteContext,
   member: Member,
   row: FileMemberRow,
-  asked: ApprovalAsked,
+  approval: ApprovalAsked,
 ): Promise<PostsApproved> {
   const zone = member.facts?.timezone ?? "UTC";
   const refused = await readPlacementRefusals(ctx.supabase, {
     tenantId: member.tenantId,
     zone,
     file: row,
-    placements: asked.placements,
-    intent: asked.intent,
-    facts: asked.facts,
-    connections: asked.connections,
+    placements: approval.placements,
+    intent: approval.intent,
+    facts: approval.facts,
+    connections: approval.connections,
     stopped: await isSendingStopped(ctx.supabase, member.tenantId),
     config: () => getStoredConfig(ctx.supabase, member.tenantId),
   });
   if (refused) throw new AppError("validation", refused);
   // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
-  const words = asked.placements.map(wordsOf).find((w) => w !== null);
+  const words = approval.placements.map(placementWordsOf).find((w) => w !== null);
   if (words) await keepPostWords(ctx, member, row, words);
-  const goodUntil = goodUntilOf(asked.intent, zone);
+  const goodUntil = goodUntilOf(approval.intent, zone);
   const shapes = await readShapes(
     member.tenantId,
     row,
-    asked.placements.map((p) => renditionShapeOf(p.place, p.kind)),
+    approval.placements.map((p) => renditionShapeOf(p.place, p.kind)),
   );
   const now = new Date().toISOString();
   const renditions: SnapshotRendition[] = shapes.map(({ shape, path, checksum }) => ({
@@ -130,27 +130,32 @@ export async function approvePlacements(
   const snapshot: Omit<PieceApprovalSnapshot, "revision"> & { revision: null } = {
     revision: null,
     renditions,
-    placements: asked.placements.map((p) => ({ place: p.place, kind: p.kind, at: p.when ?? now, caption: wordsOf(p) })),
+    placements: approval.placements.map((p) => ({
+      place: p.place,
+      kind: p.kind,
+      at: p.when ?? now,
+      caption: placementWordsOf(p),
+    })),
     uses: ["post"],
     spend: null,
-    facts: asked.facts,
+    facts: approval.facts,
   };
   const answer = await approvePosts(ctx.supabase, {
     tenantId: member.tenantId,
     fileId: row.id,
     approval: jsonCopyOf({
       snapshot,
-      intent: asked.intent,
+      intent: approval.intent,
       renditions: shapes,
-      placements: asked.placements.map((p) => ({
+      placements: approval.placements.map((p) => ({
         place: p.place,
         kind: p.kind,
         at: p.when,
-        caption: wordsOf(p),
+        caption: placementWordsOf(p),
         good_until: goodUntil,
         capability_edition: PLACE_CAPABILITIES[p.place].edition,
       })),
-      via: asked.via,
+      via: approval.via,
     }),
   });
   if (answer.fate !== "approved") throw refusedFate(answer);
