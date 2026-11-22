@@ -64,6 +64,15 @@ export const REQUEST_LAPSE_WORDS = {
 } as const;
 
 /**
+ * How a time that isn't booked is said, whoever sends it: what both instructions below end on. Short enough for a text
+ * (the first one written, on the demo workspace, ran to 470 characters, 22 Nov 2026).
+ */
+const NOT_BOOKED_INSTRUCTION =
+  "Tell them so, plainly and kindly, in the language they write in, and say sorry. If open times are listed below, " +
+  "offer one or two of them; if none are, ask what other time would suit them. Confirm no time yourself, and say " +
+  "nothing about when the team will answer. Keep it to two or three short sentences.";
+
+/**
  * What AI is asked to write to the customer, handed to the draft writer as an instruction (edge drafts/writer.ts), which
  * adds what is open on the calendar now. The writer's own checks hold what it writes: no price it was not given, and no
  * promise of when the team will answer.
@@ -71,11 +80,29 @@ export const REQUEST_LAPSE_WORDS = {
 export function requestLapseInstruction(when: string, service: string | null): string {
   return (
     `They asked to book ${when}${service ? ` for ${service}` : ""} and were told the team would confirm it. ` +
-    "Nobody confirmed it in time, and that time is no longer held for them. Tell them so, plainly and kindly, in the " +
-    "language they write in, and say sorry that it couldn't be confirmed. If open times are listed below, offer one " +
-    "or two of them; if none are, ask what other time would suit them. Confirm no time yourself, and say nothing " +
-    "about when the team will answer."
+    `Nobody confirmed it in time, and that time is no longer held for them. ${NOT_BOOKED_INSTRUCTION}`
   );
+}
+
+/** The most of a card's line that is handed on: its one line, never a page of it. */
+const CARD_LINE_MAX = 200;
+
+/**
+ * What a card's own reply draft is told beyond its reason (core conversations/reply-draft.ts), or null for a card whose
+ * draft answers what they wrote and nothing more. A reply about a time that isn't booked (`booking_reply`: a request
+ * that ran out and could not be told, or the owner's Can't) is drafted knowing which time, from the card's own line less
+ * its words to the owner, so Use draft sends what AI would have said. The first such draft, written knowing only the
+ * card's reason, thanked the customer for their last message and never named the time (the walk of 22 Nov 2026). The
+ * line is the app's own (REQUEST_LAPSE_WORDS.reply, BOOKING_REQUEST_WORDS.cant), never a customer's words.
+ */
+export function holdDraftInstruction(reason: string | null, holdLine: string | null): string | null {
+  if (reason !== "booking_reply") return null;
+  const kept = (holdLine ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/:\s*reply to them\s*$/i, "")
+    .trim()
+    .slice(0, CARD_LINE_MAX);
+  return `They asked to book a time, and it isn't booked${kept ? `: ${kept}` : ""}. ${NOT_BOOKED_INSTRUCTION}`;
 }
 
 /** What a request's notices say of it: who asked, for when, in the business's words. */
@@ -118,7 +145,9 @@ export function requestNudgeNews(request: RequestSaid, expiresAtMs: number, tz: 
 /**
  * The owner's one note once a request ran out and AI's message to the customer is queued: who, which time, and that AI
  * is letting them know. Said as under way, never as done: the message may still wait its hold window, and the send door
- * has the last word. News and no wait: a line on the bell that opens the conversation, where AI's message is.
+ * has the last word. News and no wait: a line on the bell that opens the conversation, where AI's message is. Its body
+ * is one line, since the bell's row shows a note's first line alone: with the time first, the row never said AI was
+ * telling them (the walk of 22 Nov 2026).
  */
 export function requestLapsedNews(request: RequestSaid): Omit<JobNews, "sourceEvent"> {
   return {
@@ -126,7 +155,7 @@ export function requestLapsedNews(request: RequestSaid): Omit<JobNews, "sourceEv
     route: addressOf({ kind: "conversation", id: request.conversationId }),
     about: { type: "conversation", id: request.conversationId },
     subject: `${whose(request.who)} time wasn't confirmed`.slice(0, 200),
-    body: `${requestLine(request)}\nAI is letting them know it couldn't be confirmed.`,
+    body: `AI is letting them know · ${requestLine(request)}`,
     redactedBody: "A time a customer asked for ran out with no answer, and nobody could be told.",
   };
 }

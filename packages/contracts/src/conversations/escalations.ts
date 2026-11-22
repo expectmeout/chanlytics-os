@@ -156,7 +156,8 @@ const ESCALATION_REASON_HELD: Record<EscalationReason, string> = {
   carriers: "texting isn't approved for this number yet",
   email_review: "email replies wait for you",
   booking_request: "booking a time needs you",
-  booking_reply: "booking a time needs you",
+  // A reply, not a press: said apart from the request above, whose card is confirmed (the walk of 22 Nov 2026).
+  booking_reply: "the time they asked for isn't booked",
   wrote_while_held: "your team has this conversation",
 };
 
