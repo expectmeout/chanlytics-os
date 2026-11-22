@@ -23,7 +23,7 @@ export const usesInput = z
   .array(z.enum(FILE_YES_USES))
   .optional()
   .describe("post, ad, reply, cold_email: each one they said; left out of take_back, every use.");
-const personInput = z.string().min(1).max(120).describe("The person's name, as who is in it names them.");
+const personInput = z.string().min(1).max(120).describe("Their name, as who is in it has it.");
 
 /** The file a call names, or null where the workspace holds none by that name. */
 export async function findFileNamed(toolContext: ToolContext, name: string) {
@@ -115,17 +115,16 @@ export const RIGHTS_ACTIONS = {
     kind: "file_people",
     input: z.object({
       file: fileInput,
-      state: z.enum(["named", "none", "unsure"]).describe("named with people; none when nobody is in it; unsure."),
+      state: z.enum(["named", "none", "unsure"]).describe("none when nobody is in it."),
       people: z
         .array(z.object({ name: personInput, label: z.enum(SUBJECT_LABELS) }))
         .max(20)
         .optional()
-        .describe("Each person in it, as the owner named them: a client, staff or other."),
+        .describe("Each person in it, as named to you."),
     }),
     examples: [{ file: "chair-by-the-window", state: "named", people: [{ name: "Paola", label: "client" }] }],
     label: "Saying who is in it",
-    words:
-      "Action people takes file, state and people: only as the person asking says, never from a face. The card waits for their press.",
+    words: "Action people takes file, state and people: only as the asker says, never from a face.",
     build: peopleOutcome,
   }),
   ask: actAction({
@@ -147,7 +146,7 @@ export const RIGHTS_ACTIONS = {
       },
     ],
     label: "Drafting the ask",
-    words: "Action ask takes file, person and text: a reply in that person's own conversation, sent only by its press.",
+    words: "Action ask takes file, person and text: a reply in their own conversation, sent only by its press.",
     build: askOutcome,
   }),
   person_yes: actAction({
@@ -158,12 +157,12 @@ export const RIGHTS_ACTIONS = {
       uses: usesInput,
       said_in: z
         .enum(["ai", "message", "in_person"])
-        .describe("message when they wrote it; in_person when told face to face."),
-      message_id: z.string().max(40).optional().describe("The message they said it in, as a read returned it."),
+        .describe("message when they wrote it; in_person when said face to face."),
+      message_id: z.string().max(40).optional().describe("The message they said it in."),
     }),
     examples: [{ file: "chair-by-the-window", person: "Paola", uses: ["post"], said_in: "message" }],
     label: "Keeping their yes",
-    words: `Action person_yes takes file, person, uses, said_in and message_id: only a yes the person gave. ${approvalWords("person_yes")}.`,
+    words: `Action person_yes takes file, person, uses, said_in and message_id: only a yes they gave. ${approvalWords("person_yes")}.`,
     build: personYesOutcome,
   }),
 };

@@ -171,7 +171,10 @@ test(
     const hidden = ok(await as.stranger.client.from("remediation_actions").select("id").eq("id", action), "stranger");
     assert.equal(hidden.length, 0);
     // The place could not: by hand, the post still up.
-    assert.equal(ok(await settle(action, "needs_person", "Delete it in the Instagram app."), "settle").fate, "kept");
+    const left = ok(await settle(action, "needs_person", "Delete it in the Instagram app."), "settle");
+    assert.equal(left.fate, "kept");
+    // The piece and the place, for the bell's line; not down, since its place left it to the owner.
+    assert.deepEqual([left.file_id, left.place, left.down], [made, "instagram", null]);
     assert.equal((await statusOf(up)).status, "published");
     assert.equal((await actionOf(action)).said, "Delete it in the Instagram app.");
     // "I deleted it": it waits again, and its job only reads.
@@ -189,8 +192,13 @@ test(
     );
     assert.equal(read.length, 1);
     // Gone: down, once.
-    assert.equal(ok(await settle(action, "done"), "done").fate, "kept");
+    const gone = ok(await settle(action, "done"), "done");
+    assert.equal(gone.fate, "kept");
+    assert.deepEqual(gone.down, ["instagram"], "every place this take-down asked says done: said once, for the bell");
     assert.equal((await statusOf(up)).status, "taken_down");
+    // The bell takes the take-down's two kinds (00692).
+    for (const kind of ["post_down", "post_by_hand"])
+      ok(await db.from("notifications").insert({ tenant_id: A, kind, title: "A take-down", body: "" }), kind);
     assert.deepEqual(ok(await settle(action, "blocked", "late"), "again"), { fate: "settled", outcome: "done" });
     assert.deepEqual(ok(await byHand("owner", up), "by hand, after"), { fate: "done" });
     const finished = ok(

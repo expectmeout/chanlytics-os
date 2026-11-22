@@ -39,6 +39,7 @@ being read is dropped by a migration.
 | `page_freshness` | read by hand: docs/runbook.md, what tabs could not hear or read, `select * from page_freshness(7)` as the service role |
 | `platform_admin_add` | an operator adds the Console's staff by hand, as the service role: deliberately not reachable from the app (00467, decision 0066) |
 | `platform_role` | the Console's role for the calling session (decision 0066), answered only past the second factor; proved by tests/console/console.db.test.mjs |
+| `post_begin` | a member's press as 00616 kept a post, superseded by post_approve (00690) and kept for a dashboard a deploy behind, which still calls it between this migration and its code; dropped by a migration of its own once that code is live |
 | `resume_email_offers` | the back office turns a workspace's offers by email back on by hand once its list is fixed; the notice that stopped them says the statement (apps/edge/lib/email/offer-gates.ts) |
 | `sweep_schedules` | read by hand and by the sweep-health suites: every sweep's schedule as pg_cron holds it (00019) |
 | `workspace_days` | a member's rolled days of their own workspace (K10), for the back office's member view; proved by its database test |
@@ -589,7 +590,7 @@ being read is dropped by a migration.
 | `post_as_approved` | the server's | the server | code `packages/db/src/repositories/files/approvals.ts` | Right before a send (00690; |
 | `post_attempt_close` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A send's answer and outcome kept (00611), the answer cut to 4 KB, and its container and post ids copied to the placement. |
 | `post_attempt_open` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | One send of a post opened (00611), with the request as sent and never a token. |
-| `post_begin` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | A member's press, with the settings permission (00611, 00616, 00620, 00665): |
+| `post_begin` | door | a signed-in person, the server | nothing at run time | A member's press, with the settings permission (00611, 00616, 00620, 00665): |
 | `post_move` | door | a signed-in person, the server | code `packages/db/src/repositories/files/waiting-posts.ts` | A member's Change time, with the settings permission (00621): |
 | `post_moved` | the server's | the server | code `packages/db/src/repositories/files/posts.ts` | A placement moved from where it stood (p_from) to where it goes (00611, 00690), with its held reason and why (held_why), link, time, post id, the place's account, when the place was seen holding it, o |
 | `post_pull` | door | a signed-in person, the server | code `packages/db/src/repositories/files/posts.ts` | Don't post (00611, 00619, 00620): |

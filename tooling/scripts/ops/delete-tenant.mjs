@@ -111,8 +111,9 @@ const TABLES = [
   "decisions",
   "escalations",
   "events",
-  // A yes for one use of a file, and who said it (00665).
+  // A yes for one use of a file, and who said it (00665); the people an owner named in a file (00691).
   "file_consents",
+  "file_subjects",
   // A business's files (00551): the rows here, and their bytes in the files bucket below.
   "files",
   "files_let_go",
@@ -124,6 +125,10 @@ const TABLES = [
   "publish_attempts",
   // Each video asked for (00613, decision 0122); the video itself is a file, above.
   "pieces",
+  // A piece's versions, its shapes as sent, and what an owner approved (00690).
+  "piece_revisions",
+  "piece_renditions",
+  "approvals",
   "sequence_lead_words",
   // The notes an owner's corrections suggest keeping (00448, decision 0063).
   "fact_suggestions",

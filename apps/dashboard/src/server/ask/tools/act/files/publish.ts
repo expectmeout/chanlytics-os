@@ -62,13 +62,13 @@ const publishInput = z.object({
     .describe("YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now."),
   caption: z.string().max(2200).optional().describe("Only for other words they asked for. Left out, its own."),
   about: PostAboutSchema.optional().describe(
-    "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service; or nothing true where they date nothing. Needed when the words name a day, an offer or a price.",
+    "What the words lean on: their day (YYYY-MM-DD), an offer with its last day, a service, or nothing true where they date nothing. Needed when they name a day, an offer or a price.",
   ),
   fact: z
     .string()
     .max(200)
     .optional()
-    .describe('Only a fact the owner said this turn, in their words ("Thursday still has openings"): kept as theirs.'),
+    .describe("Only a fact the owner said this turn, in their words: kept as theirs."),
 });
 
 type PublishInput = z.infer<typeof publishInput>;

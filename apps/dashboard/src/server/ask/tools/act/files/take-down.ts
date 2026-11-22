@@ -39,7 +39,7 @@ async function takeDownOutcome(toolContext: ToolContext, input: { file: string }
 
 export const takeDownAct = defineAct({
   name: "propose_take_down",
-  description: `Take a made post or video down from everywhere it is up, and stop what of it still waits to go up. The card says what each place will be asked; each place is asked on its press and says when it is gone. It cannot be undone: taken down, it is posted again as a new post. ${approvalWords("take_down")}.`,
+  description: `Take a made post or video down everywhere it is up, and stop what of it still waits. The card says what each place is asked. It cannot be undone. ${approvalWords("take_down")}.`,
   kind: "take_down",
   input: takeDownInput,
   label: "Taking a post down",

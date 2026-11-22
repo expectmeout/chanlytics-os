@@ -28,8 +28,9 @@
 --   file_yes_take_back        Re-made over the walk: a post up is asked down, where it was only answered.
 --   subject_yes_take_back     A member's door (settings): one person's own yes taken back, and the same walk.
 --
--- Locks: notifications' kind check is re-made (a brief ACCESS EXCLUSIVE, as 00676 did, and a read of its rows to hold
--- them to it); one small index on remediation_actions; one row into job_kinds. Three seconds each and no more. Re-runnable. Deploy order: this
+-- Locks: notifications' kind check is re-made with two kinds added to those it holds (a brief ACCESS EXCLUSIVE, as 00676
+-- did, and a read of its rows to hold them to it); one small index on remediation_actions; one row into job_kinds. Three
+-- seconds each and no more. Re-runnable. Deploy order: this
 -- file first, then the code (the job runner refuses a kind it does not hold, so the kind's row and its handler arrive
 -- in one change).
 
@@ -37,18 +38,32 @@ set local lock_timeout = '3s';
 
 /* ------------------------------------------------------------------------------------------ 0. the bell's kinds -- */
 
-alter table public.notifications drop constraint if exists notifications_kind_check;
-alter table public.notifications add constraint notifications_kind_check
-  check (kind = any (array['handoff', 'deadman', 'call', 'number', 'sweep', 'job_failed', 'playbook',
-                           'calendar_people', 'alert', 'review', 'billing', 'template_ready', 'template_blocked',
-                           'broadcast_sent', 'broadcast_stopped', 'leads_ready', 'leads_question', 'note_for_you',
-                           'reach_out_replied', 'reach_out_day', 'booking_notice', 'opted_out', 'booking',
-                           'member_joined', 'member_left', 'note_to_keep', 'reply_held', 'ask_cards', 'website_form',
-                           'files_waiting', 'video_ready', 'post_up', 'post_stopped', 'preview_tried',
-                           'ad_account', 'footage', 'footage_in',
-                           'ad_refused', 'ad_unpaid', 'ad_ended', 'ad_spent', 'ad_quiet', 'ad_draft',
-                           'ad_unfinished', 'ad_unconfirmed', 'ad_way_in', 'ads_paused',
-                           'post_down', 'post_by_hand']));
+-- Two kinds more, added to the kinds the check holds as it stands, in its own order: read from the check itself, never
+-- written out again here. A change applied beside this one can have added a kind this file has not seen (00679's
+-- booking_lapsed was on production before it merged), and a list written out here would have taken it away, or failed on
+-- its rows. Whichever of the two is applied first, both keep their kinds.
+do $$
+declare
+  v_kinds text[];
+  v_kind text;
+begin
+  select array_agg(found.m[1] order by found.at) into v_kinds
+    from pg_constraint c
+    cross join lateral regexp_matches(pg_get_constraintdef(c.oid), '''([a-z0-9_]+)''', 'g') with ordinality as found(m, at)
+   where c.conrelid = 'public.notifications'::regclass and c.conname = 'notifications_kind_check';
+  if coalesce(cardinality(v_kinds), 0) = 0 then
+    raise exception 'notifications_kind_check: the kinds it holds could not be read';
+  end if;
+  foreach v_kind in array array['post_down', 'post_by_hand'] loop
+    if not v_kind = any (v_kinds) then
+      v_kinds := v_kinds || v_kind;
+    end if;
+  end loop;
+  alter table public.notifications drop constraint notifications_kind_check;
+  execute 'alter table public.notifications add constraint notifications_kind_check check (kind = any (array['
+    || (select string_agg(quote_literal(k.kind), ', ' order by k.at) from unnest(v_kinds) with ordinality as k(kind, at))
+    || ']))';
+end $$;
 
 -- The take-downs not finished, newest first: Today's line reads the few a workspace holds (a place that left a post
 -- to its owner, or one that has not answered in a day), never every action it ever kept.

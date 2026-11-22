@@ -27,7 +27,6 @@ function peopleIn(value: unknown): { name: string; label: string; contact_id: st
 /** Who is in it: these people, nobody, or the owner is not sure. An operator may say it, as they add the footage. */
 export const filePeopleSpec: ProposalSpec = {
   needs: "operator",
-  doing: "say who is in a photo or a video",
   gate: "approve",
   commit: ({ payload }) => {
     const state = asText(payload.state);

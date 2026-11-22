@@ -1458,7 +1458,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.deepEqual(
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      ["keep_yes", ["give", "take_back"]],
+      ["keep_yes", ["give", "take_back", "people", "ask", "person_yes"]],
       ["press_card", ["yes", "stop"]],
       ["propose_ad", []],
       ["propose_bring_in", []],
@@ -1505,6 +1505,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
         ],
       ],
       ["propose_settings", ["change", "answers", "autonomy", "goal", "answer_style"]],
+      ["propose_take_down", []],
       ["propose_thread_verb", []],
       // A fact the person tells Ask to keep (decision 0070).
       ["remember", []],
