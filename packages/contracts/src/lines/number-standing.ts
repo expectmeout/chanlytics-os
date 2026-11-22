@@ -212,6 +212,18 @@ const PAYMENT_SENTENCE: Record<PaymentTrouble, string> = {
  * it may not, replies included (the final review of 6 October).
  */
 const REPLIES_STILL_GO = "Replies to customers who write first still go out.";
+
+/**
+ * Whether a reply to someone who wrote first goes out from a number, by Meta's word for whether it may send: AVAILABLE and
+ * LIMITED let it (a limit counts the conversations a business starts, never a reply), BLOCKED does not, and anything else,
+ * nothing read or a word of Meta's that is none of the three, is not known (null). THE derivation: Connections' row says
+ * "replies still go" from it, and an ad that opens a WhatsApp chat asks it of the number it names (ads/way-in.ts). A payment
+ * method missing is not in it: the row says a reply to someone who wrote first still goes without one.
+ */
+export function repliesGoOf(canSend: string | null): boolean | null {
+  if (canSend === "AVAILABLE" || canSend === "LIMITED") return true;
+  return canSend === "BLOCKED" ? false : null;
+}
 /** Where to add one when Meta's own page for it cannot be opened (the business or the account is not known). */
 const ADD_ONE_IN_SUITE = "Add one in Meta Business Suite › Billing.";
 /** The same, for a card on file that has a problem: it is fixed there, not added. */
@@ -248,7 +260,7 @@ export function standingRow(numberStanding: NumberStanding): StandingLine | null
     const href = addPaymentMethodLink(numberStanding.owner_business_id, numberStanding.waba_id);
     const words = [
       PAYMENT_SENTENCE[payment],
-      ...(numberStanding.can_send === "BLOCKED" ? [] : [REPLIES_STILL_GO]),
+      ...(repliesGoOf(numberStanding.can_send) === false ? [] : [REPLIES_STILL_GO]),
       ...(href ? [] : [payment === "missing" ? ADD_ONE_IN_SUITE : FIX_IT_IN_SUITE]),
     ];
     return {

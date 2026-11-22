@@ -8,18 +8,19 @@
  * Meta took it, the edge has asked for the account's read, and the page looks again a few times over the next minutes
  * until that read is in. No Undo is offered on it: there is nothing known to undo.
  *
- * While AI is stopped, one press pauses every ad still on (the Ads plan's G17, live/stop.ts): one request, which the
- * server answers only once every pause in it is kept, each told to Meta at Meta's pace after, so a tab closed after the
- * press leaves none running. One toast says what it came to and what Meta still bills.
+ * While AI is stopped, one press pauses every ad still on (live/stop.ts): one request, which the server answers only once
+ * every pause in it is kept, each told to Meta at Meta's pace after, so a tab closed after the press leaves none running.
+ * One toast says what it came to and what Meta still bills. Once AI runs again, one press turns back on the ads the stop
+ * paused, the same way; Resume never does (call 21). And Cancel stops an ad made here while it is set up.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { adResumeRule, MIN_MS, SECOND_MS } from "@chanlytics/contracts";
 import type { AdLiveDto } from "@chanlytics/contracts";
 import { api } from "@/bridge/api";
-import { pressAdCheck, pressPauseAll } from "@/bridge/verbs/ads";
+import { pressAdCancel, pressAdCheck, pressPauseAll, pressResumeStopped } from "@/bridge/verbs/ads";
 import type { FrameFlash } from "../../../frame-verbs";
 import type { SheetActs } from "./ad-sheet";
-import { STOP, SHEET } from "./words";
+import { STOP, STOPPED_ADS, SHEET } from "./words";
 
 type Press = "pause" | "resume";
 
@@ -92,6 +93,25 @@ function pausedAllSaid(tally: PausedAll, of: number): FrameFlash {
   return { msg: tally.soon > 0 ? STOP.pausedSoon(of) : STOP.paused(of) };
 }
 
+/** The one toast turning back on the ads the stop paused says: on their way, part refused, none taken, or no answer. */
+async function resumeTogether(targets: readonly AdLiveDto[]): Promise<FrameFlash> {
+  const answer = await pressResumeStopped(targets);
+  if (answer === null) return { tone: "warn", msg: STOPPED_ADS.notKnown(targets.length) };
+  if (!answer.ok) return { tone: "warn", msg: answer.message };
+  const taken = answer.data.ads.filter((one) => ["soon", "same", "took_back"].includes(one.outcome)).length;
+  if (taken === 0) return { tone: "warn", msg: STOPPED_ADS.notTaken };
+  return { msg: STOPPED_ADS.resumed(taken) };
+}
+
+/** Cancel, on an ad being set up: on its way, made already (and paused at once), or refused in the server's words. */
+async function cancelOf(ad: AdLiveDto | undefined, id: string): Promise<FrameFlash> {
+  const answer = await pressAdCancel(id);
+  if (answer === null) return { tone: "warn", msg: SHEET.failed };
+  if (!answer.ok) return { tone: "warn", msg: answer.message };
+  const name = ad?.name ?? "";
+  return answer.data.outcome === "made" ? { msg: SHEET.cancelledLate(name) } : { msg: SHEET.cancelled(name) };
+}
+
 /** When the page looks again after a change Meta gave no answer to: the account's read is asked for two minutes on. */
 const UNSURE_LOOKS_MS: readonly number[] = [30 * SECOND_MS, 150 * SECOND_MS, 5 * MIN_MS];
 
@@ -120,9 +140,10 @@ interface PressesOf {
   flash: (flash: FrameFlash) => void;
 }
 
-/** The drawer's two presses, and the stop's one that pauses every ad still on. */
-type AdPresses = Pick<SheetActs, "busy" | "pause" | "resume" | "check"> & {
+/** The drawer's presses, the stop's one that pauses every ad still on, and the one that turns the stop's back on. */
+type AdPresses = Pick<SheetActs, "busy" | "pause" | "resume" | "check" | "cancel"> & {
   pauseAll: (ads: readonly AdLiveDto[]) => void;
+  resumeStopped: (ads: readonly AdLiveDto[]) => void;
 };
 
 export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
@@ -162,11 +183,29 @@ export function useAdPresses({ ads, again, flash }: PressesOf): AdPresses {
     },
     [again, flash],
   );
+  const together = useCallback(
+    async (pressing: () => Promise<FrameFlash>): Promise<void> => {
+      setBusy(true);
+      const flashed = await pressing();
+      setBusy(false);
+      again();
+      flash(flashed);
+    },
+    [again, flash],
+  );
   return {
     busy,
     check: (id, version) => void checkAd({ setBusy, flash, again, looks: looks.current }, id, version),
     pause: (id, version) => void press("pause", id, version, true),
     resume: (id, version) => void press("resume", id, version, true),
+    cancel: (id) =>
+      void together(() =>
+        cancelOf(
+          ads.find((one) => one.id === id),
+          id,
+        ),
+      ),
     pauseAll: (targets) => void pauseAll(targets),
+    resumeStopped: (targets) => void (targets.length > 0 && together(() => resumeTogether(targets))),
   };
 }

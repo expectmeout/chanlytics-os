@@ -34,7 +34,7 @@ import { BusinessLimitRows } from "../business/tab";
 import { SetDial, SetRow } from "./controls";
 import { AutOwnModes } from "./own-modes";
 import { PolModeRow, PolPhoneRows, PolicyTable, polMode, useSetPhone } from "./matrix";
-import { stopLineOf, stopSaid } from "./stop-words";
+import { stopLineOf, stopSaid, stoppedAdsLineOf, type StoppedAd } from "./stop-words";
 import { autonomyVerbs } from "./verbs";
 
 /** A step of a dial: its word, and the value it stores. */
@@ -257,6 +257,8 @@ function AskOnItsOwn({
   flash: (f: FrameFlash) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // The ads a Resume left paused, which the owner's own press turns back on: held from the Resume's answer.
+  const [waiting, setWaiting] = useState<readonly StoppedAd[]>([]);
   const toggle = async () => {
     setBusy(true);
     const r = await autonomyVerbs.setAskAlone(!alone);
@@ -275,7 +277,25 @@ function AskOnItsOwn({
     setBusy(false);
     if (!r.ok) return flash({ tone: "danger", msg: <>{r.message}</> });
     const sentence = stopSaid(line.press, r.answer);
+    setWaiting(line.press === "resume" ? r.answer.ads.waiting : []);
     flash(sentence.warn ? { tone: "warn", msg: <>{sentence.words}</> } : { msg: <>{sentence.words}</> });
+  };
+  const adsLine = stopped === null ? stoppedAdsLineOf(waiting) : null;
+  const turnBackOn = async () => {
+    setBusy(true);
+    const answer = await autonomyVerbs.turnStoppedAdsOn(waiting);
+    setBusy(false);
+    if (!answer.ok) return flash({ tone: "danger", msg: <>{answer.message}</> });
+    setWaiting([]);
+    flash({
+      msg: (
+        <>
+          {answer.taken === 1
+            ? "1 ad turns back on as soon as Meta takes the change."
+            : `${answer.taken} ads turn back on as soon as Meta takes the change.`}
+        </>
+      ),
+    });
   };
   return (
     <section className="rec-card set-card" data-testid="aut-ask-alone">
@@ -316,6 +336,25 @@ function AskOnItsOwn({
           </Button>
         }
       />
+      {adsLine ? (
+        <RecordRow
+          id="aut-stopped-ads"
+          label="Ads paused with it"
+          hint={adsLine.hint}
+          value={
+            <Button
+              size="sm"
+              variant="quiet"
+              onClick={turnBackOn}
+              aria-disabled={busy || undefined}
+              data-testid="aut-stopped-ads-press"
+              {...gate("ads", "turn ads back on")}
+            >
+              {adsLine.press}
+            </Button>
+          }
+        />
+      ) : null}
     </section>
   );
 }

@@ -12,6 +12,7 @@ import {
   adStandingOf,
   parseTenantConfigResult,
   adStateOfRow,
+  adWayClosedOf,
   metaAdConfigOf,
   personName,
   zoneDayKey,
@@ -19,6 +20,7 @@ import {
   type AdLiveDto,
   type AdMadeHereLive,
   type AdOpens,
+  type AdPausedBy,
   type AdStopped,
   type AdPeopleLiveDto,
   type AdsLiveDto,
@@ -63,19 +65,27 @@ interface ReadAt {
   nowMs: number;
 }
 
-/** Why an ad that needs its owner does, from the platform's own word for it. */
-function needsOf(state: AdLiveDto["state"], platformWord: string | null): AdLiveDto["needs"] {
+/**
+ * Why an ad that needs its owner does: the platform's own word for it first, then AI not able to answer the chat it opens
+ * while it is on (call 11), then its being paused at the platform while the owner has it on.
+ */
+function needsOf(state: AdLiveDto["state"], row: AdRow, nowMs: number): AdLiveDto["needs"] {
   if (state !== "needs-you") return null;
-  if (platformWord === "DISAPPROVED") return "refused";
-  if (platformWord === "PENDING_BILLING_INFO") return "unpaid";
-  return platformWord === "WITH_ISSUES" ? "troubled" : "paused_at_platform";
+  if (row.platform_state === "DISAPPROVED") return "refused";
+  if (row.platform_state === "PENDING_BILLING_INFO") return "unpaid";
+  if (row.platform_state === "WITH_ISSUES") return "troubled";
+  return adWayClosedOf(row, nowMs) !== null ? "way_in" : "paused_at_platform";
 }
+
+const PAUSED_BYS: readonly AdPausedBy[] = ["stop", "remediation", "owner", "owner_all"];
 
 const LAUNCH_STOPS: readonly AdStopped[] = [
   "refused",
   "differs",
   "unanswered",
   "ai_stopped",
+  "way_in",
+  "cancelled",
   "disconnected",
   "signed_out",
   "picture",
@@ -92,6 +102,9 @@ function launchOf(row: AdRow, left: ReadonlyMap<string, AdLaunchLive["left"]>): 
     stopped: LAUNCH_STOPS.find((stop) => stop === launch.stopped) ?? null,
     said: metaWords,
     left: left.get(row.id) ?? [],
+    sending: row.status === "sending",
+    // A cancel kept and the job not yet at its next step: the drawer says it is stopping.
+    cancelling: row.status === "sending" && launch.cancel != null,
   };
 }
 
@@ -148,7 +161,7 @@ function adOf(
     made_here: madeHereOf(row, at),
     opens: opensOf(row.door),
     state,
-    needs: needsOf(state, row.platform_state),
+    needs: needsOf(state, row, at.nowMs),
     issue: row.platform_issue,
     ends_at: row.ends_at,
     budget:
@@ -162,6 +175,8 @@ function adOf(
           },
     pending: pendingOf(row),
     version: row.version,
+    paused_by: PAUSED_BYS.find((by) => by === row.paused_by) ?? null,
+    way_in: row.origin === "chanlytics" && row.intent === "on" ? adWayClosedOf(row, at.nowMs) : null,
     resume: adResumeRule(row, at.nowMs),
     people: people.people,
     booked: people.booked,

@@ -220,6 +220,23 @@ export const NOTICE_ENDS: Record<ServerNotificationKind, NoticeEnd> = {
     ends: "news",
     why: "A draft ad left for the owner is told once while it waits · the row closes itself once the owner opens it.",
   },
+  // Closed by the database itself as each read finds the cause gone (00676 ad_bell_ring, ad_way_in_keep, ad_resume_stopped).
+  ad_unfinished: {
+    ends: "news",
+    why: "A launch that couldn't finish is told once · nothing was spent, and its drawer says why and what was left in Meta.",
+  },
+  ad_unconfirmed: {
+    ends: "news",
+    why: "A switch Meta never answered is told once · the row closes itself once a read says what Meta holds.",
+  },
+  ad_way_in: {
+    ends: "news",
+    why: "An ad on that AI can't answer is told once · the row closes itself once AI can answer it, or it stops running.",
+  },
+  ads_paused: {
+    ends: "news",
+    why: "Ads Chanlytics paused for the workspace are told once · the row closes itself once they are turned back on.",
+  },
 };
 
 /** The kinds whose rows a source judges (for the server's close and the hold rows: kindsEndedBy("hold")). */

@@ -73,12 +73,18 @@ interface AdKept {
    * while it is still being followed, `long` once that has taken longer than a few minutes. Null otherwise.
    */
   unanswered: "lately" | "long" | null;
+  /**
+   * An ad made here that the owner has on, while something stands between it and AI answering the chat it opens (decision
+   * 0050, call 11; live.ts reads it off its row). False otherwise.
+   */
+  wayClosed: boolean;
 }
 
 /**
  * An ad's badge, at `today` (an ISO day in the account's zone). In order: what Chanlytics is still doing; a run that is
  * over (its total spent, then ended by its owner, its platform or its last day); a last switch not yet confirmed; what
- * the platform will not run until the owner acts; and then what the platform says against what the owner asked. A word
+ * the platform will not run until the owner acts; an ad on whose chat AI can't answer; and then what the platform says
+ * against what the owner asked. A word
  * Chanlytics does not know is never read as On.
  */
 export function adStateOf(ad: AdKept, today: string): AdState | "draft" {
@@ -92,6 +98,8 @@ export function adStateOf(ad: AdKept, today: string): AdState | "draft" {
   if (ad.unanswered === "long") return "unconfirmed";
   if (ad.unanswered === "lately") return "setting-up";
   if (says === "refused" || says === "unpaid" || says === "troubled") return "needs-you";
+  // On, and nobody would answer the people it brings: the owner is to know before it spends more (call 11).
+  if (ad.intent === "on" && ad.wayClosed) return "needs-you";
   // The platform's word on whether it runs wins over what was asked: an ad resumed there is spending.
   if (says === "running") return "on";
   if (ad.intent === "paused") return "paused";

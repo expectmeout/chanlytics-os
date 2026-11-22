@@ -272,6 +272,23 @@ export const SERVER_NOTIFICATION_KINDS = [
    * is kept with its words, once to each owner while their row is open, and closed when the owner keeps it.
    */
   "ad_draft",
+  /**
+   * An ad made here whose launch couldn't finish (not by its owner's own Cancel), or whose last switch Meta never answered
+   * past a few minutes (00676; the Ads plan's 4.7, points 6 and 7): worked out by the database from each read, as the
+   * five above are.
+   */
+  "ad_unfinished",
+  "ad_unconfirmed",
+  /**
+   * An ad made here that is on while AI can't answer the chat it opens (00676; decision 0050, call 11): rung by the read
+   * that keeps its way in, in the read's words, which say what it can still spend; closed once its way in opens.
+   */
+  "ad_way_in",
+  /**
+   * Ads Chanlytics paused for the workspace (00676; the content loop PRD's 12.5): Stop everything paused the ones made
+   * here, or a yes taken back paused the one that shows the person. Told to each owner but the one who acted.
+   */
+  "ads_paused",
 ] as const;
 
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];

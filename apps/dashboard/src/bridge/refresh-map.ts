@@ -712,6 +712,9 @@ export const REFRESHES_NOTHING: Partial<Record<RouteKey, string>> = {
   "POST ads/[id]/end": "an owner ended an ad: the Ads page reads its ads again once the press answers",
   "POST ads/[id]/fix": "AI rewrote an ad Meta turned down: New ad opens on the draft, and reads it as it opens",
   "POST ads/pause-all": "an owner paused every ad still on: the Ads page reads its ads again once it answers",
+  "POST ads/resume-stopped":
+    "an owner turned back on the ads Stop everything paused: the Ads page reads its ads again once it answers",
+  "POST ads/[id]/cancel": "an owner cancelled an ad being set up: the Ads page reads its ads again once it answers",
   "POST ads/turn-on": "an owner turned an ad on: the Ads page reads its ads again as New ad opens the ad it made",
   "POST ads/account/disconnect":
     "the owner disconnected their ad account: its card and the Ads page read the account once it answers",

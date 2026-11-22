@@ -6,7 +6,9 @@
  * What must hold. Setting up, Couldn't finish with what was left, Couldn't confirm it's on with Check, In review, On
  * and Meta turned it down are each said in a word and a line, never a system's word. An ad made here reads as made
  * here, with this app's own presses, never "Made in Meta Ads Manager". Its drawer says where it shows. Paused, it turns
- * back on here with the most it can cost named; while AI is stopped it does not.
+ * back on here with the most it can cost named; while AI is stopped it does not. While it is set up its owner may cancel
+ * it (00676). Paused because someone in its picture took back their yes, it is never turned back on, here or in Meta's
+ * door. On while AI can't answer the people it brings, it needs its owner, says why, and AI's line is its Pause.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +18,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { liveModel, sheetModel } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/model.ts"));
+const { LIVE, SHEET } = await import(at("apps/dashboard/src/surfaces/campaigns/ads/live/words.ts"));
 const { adLeftOn, adResumeRule, adStateOfRow } = await import(at("packages/contracts/src/ads/live.ts"));
+const { AD_WAY_IN_SAID, adWayInRowOf } = await import(at("packages/contracts/src/ads/way-in.ts"));
 
 const SAID = { timezone: "America/New_York" };
 const NOW = Date.parse("2026-11-21T15:00:00Z");
@@ -27,7 +31,7 @@ const ad = (over = {}) => ({
   name: "First visit",
   made_in_platform: false,
   shown_on: ["facebook"],
-  launch: { stopped: null, said: null, left: [] },
+  launch: { stopped: null, said: null, left: [], sending: false, cancelling: false },
   opens: "whatsapp",
   state: "on",
   needs: null,
@@ -36,6 +40,8 @@ const ad = (over = {}) => ({
   budget: { kind: "total", minor: 7500, left_minor: 6200, shared: false },
   pending: null,
   version: 2,
+  paused_by: null,
+  way_in: null,
   resume: { ok: false, why: "not_paused" },
   people: 0,
   booked: 0,
@@ -80,11 +86,12 @@ test("an ad made here reads as made here: where it shows, this app's own press, 
   assert.deepEqual(liveModel(page([ad()]), SAID).notes, [], "no note about ads made in Meta: there are none");
 });
 
-test("Setting up: said as it is, with nothing to press while Turn on's job has it", () => {
+test("Setting up: said as it is; its owner may Cancel while Turn on's job makes it, and is told once it is stopping", () => {
   const setting = ad({
     state: "setting-up",
     spend_minor: 0,
     budget: { kind: "total", minor: 7500, left_minor: 7500, shared: false },
+    launch: { stopped: null, said: null, left: [], sending: true, cancelling: false },
   });
   assert.deepEqual(
     [rowOf(setting).line, rowOf(setting).tone],
@@ -93,9 +100,101 @@ test("Setting up: said as it is, with nothing to press while Turn on's job has i
   const drawer = drawerOf(setting);
   assert.equal(drawer.line, "Setting up · Meta checks it before anyone sees it");
   assert.deepEqual(drawer.foot, {
+    kind: "cancel",
+    body: "It stops before it runs. What Chanlytics made at Meta is removed, and nothing is spent.",
+  });
+  // Someone who may not press is told what happens, with nothing to press.
+  assert.deepEqual(drawerOf(setting, { can_press: false }).foot, {
     kind: "none",
     line: "Chanlytics is making it at Meta, paused, then checking it against what you approved before turning it on.",
   });
+  // Cancelled, and the job not at its next step yet: it says it is stopping, and offers the press no more.
+  const stopping = ad({ ...setting, launch: { ...setting.launch, cancelling: true } });
+  assert.equal(rowOf(stopping).line, "Cancelling · nothing is turned on");
+  assert.deepEqual(drawerOf(stopping).foot, { kind: "none", line: SHEET.cancelling });
+  // A switch still being followed is setting up too, but the ad is made: nothing to cancel, Pause is its press then.
+  const following = ad({ ...setting, launch: { ...setting.launch, sending: false } });
+  assert.equal(drawerOf(following).foot.kind, "none");
+  // Once its launch stopped for the cancel, it says why in a word.
+  const cancelled = ad({
+    state: "couldnt-finish",
+    launch: { ...setting.launch, sending: false, stopped: "cancelled" },
+  });
+  assert.equal(rowOf(cancelled).line, "Couldn't finish · it was cancelled. Nothing was spent");
+});
+
+test("paused because someone in its picture took back their yes: never turned back on here, nor sent to Meta to be", () => {
+  const held = ad({ state: "paused", paused_by: "remediation", resume: { ok: false, why: "picture" } });
+  assert.deepEqual(drawerOf(held).foot, {
+    kind: "held",
+    head: "Someone in its picture took back their yes",
+    body: "So Chanlytics paused it, and it runs again only with another picture. Make a new ad from + New.",
+  });
+  const row = {
+    origin: "chanlytics",
+    intent: "paused",
+    platform_state: "CAMPAIGN_PAUSED",
+    budget_kind: "total",
+    budget_left_minor: 6200,
+    budget_shared: false,
+    ends_at: "2026-12-04T04:59:00Z",
+    paused_by: "remediation",
+  };
+  assert.deepEqual(adResumeRule(row, NOW), { ok: false, why: "picture" }, "the rule says so wherever it is asked");
+  assert.equal(adResumeRule({ ...row, paused_by: "stop" }, NOW).ok, true, "the stop's pause is the owner's to undo");
+});
+
+test("on while AI can't answer the people it brings: Needs you, why in the drawer, its Pause, and AI's line is that Pause", () => {
+  const facts = {
+    platform: "meta",
+    status: "made",
+    intent: "on",
+    platform_state: "ACTIVE",
+    ends_at: "2026-12-04T04:59:00Z",
+    budget_kind: "total",
+    budget_minor: 7500,
+    budget_left_minor: 6200,
+    launch: null,
+  };
+  const at = { nowMs: NOW, timezone: "America/New_York" };
+  assert.equal(adStateOfRow({ ...facts, way_in: null }, at), "on");
+  assert.equal(adStateOfRow({ ...facts, way_in: "blocked", way_in_at: "2026-11-21T14:59:00Z" }, at), "needs-you");
+  // Meta's word not known: one read that could not tell is nothing yet; an hour of it is.
+  assert.equal(adStateOfRow({ ...facts, way_in: "unread", way_in_at: "2026-11-21T14:30:00Z" }, at), "on");
+  assert.equal(adStateOfRow({ ...facts, way_in: "unread", way_in_at: "2026-11-21T13:59:00Z" }, at), "needs-you");
+  assert.equal(
+    adStateOfRow(
+      { ...facts, intent: "paused", platform_state: "CAMPAIGN_PAUSED", way_in: "blocked", way_in_at: "x" },
+      at,
+    ),
+    "paused",
+    "a paused ad spends nothing: it needs no one",
+  );
+
+  const closed = ad({ state: "needs-you", needs: "way_in", way_in: "blocked" });
+  assert.equal(rowOf(closed).line, LIVE.needs.way_in);
+  assert.deepEqual(drawerOf(closed).foot, {
+    kind: "pause",
+    body: `${AD_WAY_IN_SAID.blocked} Pause it, and Meta stops charging while nobody answers.`,
+  });
+  const vm = liveModel(page([closed]), { ...SAID, nowMs: NOW });
+  assert.deepEqual(vm.ai, {
+    kind: "way_in",
+    text: "First visit is on, and AI can't answer the people it brings. Pause it?",
+    ad: { id: "first", version: 2 },
+  });
+  assert.equal(liveModel(page([closed], { can_press: false }), { ...SAID, nowMs: NOW }).ai?.kind ?? null, null);
+
+  // The bell's row, in the read's words: what it can still spend, in the account's own money.
+  assert.deepEqual(adWayInRowOf({ name: "First visit", wayIn: "blocked", leftMinor: 6420, currency: "USD" }), {
+    title: "“First visit” is on, and AI can't answer it",
+    body: `${AD_WAY_IN_SAID.blocked} It can still spend $64.20 of its total. Pause it, or open it to see what to mend.`,
+  });
+  assert.match(
+    adWayInRowOf({ name: "A", wayIn: "unread", leftMinor: null, currency: "USD" }).body,
+    /Meta charges while/,
+  );
+  assert.match(adWayInRowOf({ name: "A", wayIn: "paused", leftMinor: 7000, currency: "USD" }).body, /spend \$70 of/);
 });
 
 test("Couldn't finish: why in a word, Meta's own reason in quotes, what was left in Meta with Open Meta, nothing spent", () => {

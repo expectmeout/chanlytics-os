@@ -677,6 +677,7 @@
     "00672_a_draft_ad_s_words_are_asked_for_once.sql": "8c56a5f7d21e098e50e090ec3d62d8646d45c1c8bc8fdd404ce3d7ce35e67bb2",
     "00673_an_owner_changes_a_running_ad.sql": "60946aceaca12e426a983a1e450f8915689e29647cf182fc3b61f6ec33f1b343",
     "00674_a_stopped_folder_s_clips_come_back.sql": "c239a41fb5e030af1d4b681679a50c759cfa06e28fc5217804c82e24368af118",
-    "00675_a_website_s_form_is_kept_as_its_own_entry.sql": "f6a22d82764be2fed977c96a847edd6fbb65253ac3b28cb3e34c16972176208b"
+    "00675_a_website_s_form_is_kept_as_its_own_entry.sql": "f6a22d82764be2fed977c96a847edd6fbb65253ac3b28cb3e34c16972176208b",
+    "00676_the_stop_pauses_the_ads_made_here.sql": "1c01a6b6d2fb38197ce4a07e980030de5f8a14f38e86a17de261072d17fd9f94"
   }
 }

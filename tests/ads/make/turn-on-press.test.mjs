@@ -78,7 +78,14 @@ function tablesOf(tenantId, over = {}) {
       },
     ],
     tenants: [
-      { id: tenantId, name: "Harbor", timezone: TZ, appointment_word: "appointment", sending_stopped_at: null },
+      {
+        id: tenantId,
+        name: "Harbor",
+        timezone: TZ,
+        appointment_word: "appointment",
+        sending_stopped_at: null,
+        ...over.tenant,
+      },
     ],
     tenant_config: [
       {
@@ -99,8 +106,15 @@ function tablesOf(tenantId, over = {}) {
         },
       },
     ],
-    tenant_channels: [
-      { id: "ch-wa", tenant_id: tenantId, kind: "whatsapp", status: "active", number_e164: "+13055550142", config: {} },
+    tenant_channels: over.channels ?? [
+      {
+        id: "ch-wa",
+        tenant_id: tenantId,
+        kind: "whatsapp",
+        status: "active",
+        number_e164: "+13055550142",
+        config: { standing: { can_send: over.canSend ?? "AVAILABLE", problems: [] } },
+      },
     ],
     ad_accounts: [
       {
@@ -169,10 +183,19 @@ function tablesOf(tenantId, over = {}) {
 let handed;
 let edgeSays;
 let writes;
+/**
+ * What Meta answers about the number at the press, as the edge's standing door does: its word, kept on the channel the
+ * draft reads (the last press's tables), and how often it was asked.
+ */
+let metaSays;
+let asked;
+let current;
 const real = globalThis.fetch;
 beforeEach(() => {
   handed = [];
   writes = "live";
+  metaSays = () => ({ status: 200, canSend: "AVAILABLE" });
+  asked = 0;
   edgeSays = () => ({
     status: 202,
     body: { ok: true, outcome: "kept", ad_id: "a0a0a0a0-9999-4000-8000-000000000001" },
@@ -191,6 +214,13 @@ beforeEach(() => {
         writes,
         app: { client_id: "1", config_id: "2", redirect_uri: "https://app.example.com/cb" },
       });
+    if (where.endsWith("/api/admin/whatsapp/standing")) {
+      asked += 1;
+      const said = metaSays();
+      if (said.status !== 200) return json(said.status, { ok: false, error: said.error ?? "meta_failed" });
+      for (const line of current.tenant_channels) line.config = { standing: { can_send: said.canSend, problems: [] } };
+      return json(200, { ok: true, kept: "changed", can_send: said.canSend });
+    }
     if (where.endsWith("/api/admin/ads/turn-on")) {
       handed.push(JSON.parse(String(init?.body ?? "{}")));
       const said = edgeSays();
@@ -209,6 +239,7 @@ function press(over = {}, role = "owner") {
   seat += 1;
   const tenantId = `a0a0a0a0-9999-4000-8000-${String(seat).padStart(12, "0")}`;
   const tables = tablesOf(tenantId, over);
+  current = tables;
   const db = fakeDb(
     tables,
     {},
@@ -334,6 +365,52 @@ test("while AI is stopped, for anyone but the owner, or where the edge turns not
     edgeSays = () => ({ status: code === "ad_account_not_owner" ? 403 : 409, body: { ok: false, error: code } });
     assert.equal(await refusal(press()()), words, code);
   }
+});
+
+test("Meta is asked about the ad's number at every press, and its word now decides, never what was kept before", async () => {
+  // Kept as able to send six hours ago; Meta says now the number is blocked: the ad would bring people nobody answers.
+  metaSays = () => ({ status: 200, canSend: "BLOCKED" });
+  assert.equal(
+    await refusal(press()()),
+    "WhatsApp can't send from your number, so nothing was made. Connections says why.",
+  );
+  assert.equal(asked, 1, "asked once, at the press");
+  assert.deepEqual(handed, []);
+  // Kept as blocked; a card was added a minute ago and Meta says now it may send: the press goes on.
+  metaSays = () => ({ status: 200, canSend: "AVAILABLE" });
+  assert.equal((await press({ canSend: "BLOCKED" })()).outcome, "kept");
+  assert.equal(handed.length, 1);
+  assert.equal(handed[0].ad.whatsapp, "+13055550142", "the number Meta was asked about is the one the ad names");
+});
+
+test("where Meta can't be asked about the number, nothing is turned on, whatever was kept: Check again", async () => {
+  const unheard =
+    "WhatsApp didn't say if your number can answer this ad's chats, so nothing was made. Check again in a moment.";
+  for (const said of [
+    { status: 502, error: "meta_failed" },
+    { status: 503, error: "no_token" },
+  ]) {
+    metaSays = () => said;
+    assert.equal(await refusal(press()()), unheard, said.error);
+  }
+  // Meta answered with a word that is none of its three: not known is not a yes.
+  metaSays = () => ({ status: 200, canSend: "UNDER_REVIEW" });
+  assert.equal(await refusal(press()()), unheard);
+  assert.deepEqual(handed, []);
+});
+
+test("no number connected, or the workspace paused, is no Turn on, each in words an owner can act on", async () => {
+  metaSays = () => ({ status: 409, error: "no_channel" });
+  assert.equal(
+    await refusal(press({ channels: [] })()),
+    "Connect WhatsApp first: the ad opens a chat with your number. Nothing was made.",
+  );
+  metaSays = () => ({ status: 200, canSend: "AVAILABLE" });
+  assert.equal(
+    await refusal(press({ tenant: { status: "paused" } })()),
+    "This workspace is paused, so no ad is turned on. Nothing was made.",
+  );
+  assert.deepEqual(handed, []);
 });
 
 test("what the press takes: its key and what it showed, and nothing else", () => {

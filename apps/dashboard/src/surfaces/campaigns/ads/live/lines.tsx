@@ -23,12 +23,21 @@ function LineParts({ mark, children }: { mark: ReactNode; children: ReactNode })
 }
 
 /**
- * AI's one line: keeping an ad going is Meta's own page, in a tab of its own; the first ad is New ad opened over the
- * page, as + New opens it and under the same gate, so Back closes it.
+ * AI's one line: an ad on that AI can't answer is paused by the line itself, the owner's press, as its drawer's Pause;
+ * keeping an ad going is Meta's own page, in a tab of its own; the first ad is New ad opened over the page, as + New
+ * opens it and under the same gate, so Back closes it.
  */
-function AiLine({ line, onOpen }: { line: AiLineVM; onOpen: (route: string) => void }) {
+function AiLine({ line, onOpen, onPause }: { line: AiLineVM } & Pick<AdsLinesProps, "onOpen" | "onPause">) {
   const parts = <LineParts mark={<Icon name="three" size={16} />}>{line.text}</LineParts>;
   const common = { className: "ads-ai-line", "data-kind": line.kind, "data-testid": "ads-ai-line" } as const;
+  if (line.kind === "way_in") {
+    const { ad } = line;
+    return (
+      <Press onClick={() => onPause(ad.id, ad.version)} {...gate("approve", GATE.change)} {...common}>
+        {parts}
+      </Press>
+    );
+  }
   if (line.kind === "extend")
     return (
       <Press href={line.href} target="_blank" rel="noopener noreferrer" {...common}>
@@ -60,14 +69,16 @@ interface AdsLinesProps {
   needsYou: NeedsYouLineVM | null;
   /** Open an address over the page, pushed so Back closes it (New ad). */
   onOpen: (route: string) => void;
+  /** Pause an ad, as its drawer's Pause does. */
+  onPause: (id: string, version: number) => void;
 }
 
 /** AI's line and who needs you, each where it has something to say; nothing where neither has. */
-export function AdsLines({ ai, needsYou, onOpen }: AdsLinesProps) {
+export function AdsLines({ ai, needsYou, onOpen, onPause }: AdsLinesProps) {
   if (!ai && !needsYou) return null;
   return (
     <div className="ads-lines">
-      {ai ? <AiLine line={ai} onOpen={onOpen} /> : null}
+      {ai ? <AiLine line={ai} onOpen={onOpen} onPause={onPause} /> : null}
       {needsYou ? <NeedsYouLine line={needsYou} /> : null}
     </div>
   );

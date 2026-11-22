@@ -255,6 +255,14 @@ const ANNOUNCES = {
     "The ad's drawer on Campaigns › Ads, which the row opens, reads who each ad brought as the page comes on screen and when the owner comes back to the tab; the row closes itself at the read after someone writes from it (00658).",
   footage:
     "Settings › Connections, which the row opens, reads the watched folder's standing (GET sources) as its row comes on screen and when the owner comes back to the tab; the feed does not tell of media_sources or source_connections, and the row closes by itself once the database sees it mended (00657).",
+  ad_unfinished:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads as the page comes on screen and when the owner comes back to the tab, with why its launch stopped and what was left in Meta (00676).",
+  ad_unconfirmed:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads as the page comes on screen and when the owner comes back to the tab, with Check; the row closes itself at the read that settles the switch (00676).",
+  ad_way_in:
+    "The ad's drawer on Campaigns › Ads, which the row opens, reads the account's ads as the page comes on screen and when the owner comes back to the tab, with why AI can't answer and Pause; the row closes itself at the read that finds the way in open or the ad stopped (00676).",
+  ads_paused:
+    "Campaigns › Ads, which the row opens on the first of them, reads the account's ads as the page comes on screen and when the owner comes back to the tab, with why each is paused; the row closes itself once they are turned back on (00676).",
   ad_draft:
     "New ad, which the row opens, reads the workspace's kept draft as it opens (POST ads/draft) and judges it afresh from the business as it stands; the feed does not tell of ad_drafts, so New ad already open reads it again when it is next opened (00659).",
   footage_in:

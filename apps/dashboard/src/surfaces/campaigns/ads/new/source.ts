@@ -4,7 +4,7 @@
  */
 import type { AdPreviewAnswer } from "@/server/ads/preview-shape";
 import type { AdDraftAnswer, AdDraftState, AdWordsAnswer } from "@/server/ads/draft-shape";
-import { askAdDraft, askAdWords, pressTurnOn, type TurnOnPressed } from "@/bridge/verbs/ads";
+import { askAdDraft, askAdWords, askWhatsAppStanding, pressTurnOn, type TurnOnPressed } from "@/bridge/verbs/ads";
 import { askAdPreview } from "./meta-preview";
 
 /** What the screen asks the ad writer for. */
@@ -23,6 +23,8 @@ export interface AdSource {
   words: (body: AdWordsAsk) => Promise<AdWordsAnswer | null>;
   /** Turn on, under the press's own key, carrying what the press showed: the ad, or the server's words for no. */
   turnOn: (key: string, expect: TurnOnPressed) => Promise<{ ad: string } | { refused: string } | null>;
+  /** Check again: WhatsApp is asked now whether the number can answer an ad's chat; a source with none reads again alone. */
+  checkWhatsApp?: () => Promise<boolean>;
 }
 
 /** The workspace's own routes. A refusal is no answer: the screen says it could not, in its own words. */
@@ -41,4 +43,5 @@ export const LIVE_AD_SOURCE: AdSource = {
     if (answer === null) return null;
     return answer.ok ? { ad: answer.data.ad_id } : { refused: answer.message };
   },
+  checkWhatsApp: askWhatsAppStanding,
 };

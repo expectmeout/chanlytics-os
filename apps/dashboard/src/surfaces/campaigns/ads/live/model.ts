@@ -19,6 +19,7 @@ import {
   newAdRoute,
   waitedSince,
 } from "@chanlytics/contracts";
+import { AD_WAY_IN_SAID } from "@chanlytics/contracts";
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
@@ -78,7 +79,11 @@ export interface LiveNoticeVM {
  * address, where AI writes the ad and nothing runs until the owner turns it on; `extend` opens Meta's own page, where an
  * ad made there is kept going.
  */
-export type AiLineVM = { kind: "first"; text: string; route: string } | { kind: "extend"; text: string; href: string };
+export type AiLineVM =
+  | { kind: "first"; text: string; route: string }
+  | { kind: "extend"; text: string; href: string }
+  /** An ad on whose chat AI can't answer: the line is its Pause, with the version it was drawn from. */
+  | { kind: "way_in"; text: string; ad: { id: string; version: number } };
 
 /** Who an ad brought and needs you now, as one amber line: how many, then who, and the press that opens them. */
 export interface NeedsYouLineVM {
@@ -147,7 +152,7 @@ function stoppedLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said): string {
 function lineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): string {
   const ends = dayOf(ad.ends_at, said);
   if (dto.account.status !== "connected") return stoppedLineOf(ad, dto, said);
-  if (ad.state === "setting-up") return LIVE.settingUp;
+  if (ad.state === "setting-up") return ad.launch?.cancelling ? LIVE.cancelling : LIVE.settingUp;
   if (ad.state === "couldnt-finish") return LIVE.couldntFinish(LIVE.stoppedWhy[ad.launch?.stopped ?? "unanswered"]);
   if (ad.state === "unconfirmed") return LIVE.unconfirmed;
   if (ad.pending === "pausing") return LIVE.pausing;
@@ -281,13 +286,17 @@ function endingSoonOf(dto: AdsLiveDto, clock: Said): { ad: AdLiveDto; day: strin
 /**
  * AI's one line (the Ads plan's 6.3; decision 0050, call 12): rules in code, no model asked, and it only proposes. It
  * speaks only on a connected account that has been read, and never while AI is stopped, when no ad is turned on and no
- * draft is written (G17). First an ad worth keeping going, since its days run out; then, on an account whose card is
- * ready where no ad was made here yet, the first one. An ad Meta stopped is its own row's amber line, with Meta's
+ * draft is written. First an ad spending while AI can't answer the people it brings (decision 0050, call 11), since
+ * that money buys nothing, with its Pause, for the owner; then an ad worth keeping going, since its days run out; then,
+ * on an account whose card is ready where no ad was made here yet, the first one. An ad Meta stopped is its own row's amber line, with Meta's
  * reason in its drawer, so AI does not say it again. A full calendar's pause waits for a read of the calendar the page
  * does not make.
  */
 function aiLineOf(dto: AdsLiveDto, clock: Said): AiLineVM | null {
   if (dto.account.status !== "connected" || firstReadOf(dto.account) !== null || dto.stopped_at !== null) return null;
+  const closed = dto.can_press ? dto.ads.find((ad) => ad.needs === "way_in" && ad.pending === null) : undefined;
+  if (closed)
+    return { kind: "way_in", text: AI_LINE.wayIn(closed.name), ad: { id: closed.id, version: closed.version } };
   const ending = endingSoonOf(dto, clock);
   if (ending)
     return {
@@ -384,6 +393,10 @@ export type SheetFootVM =
   | { kind: "left"; line: string }
   /** An ad made here that Meta turned down: Fix it, and a door to ask Meta to look again (the plan's C8). */
   | { kind: "fix"; body: string }
+  /** An ad made here being set up: its owner's Cancel (the plan's 4.7, point 8). */
+  | { kind: "cancel"; body: string }
+  /** Paused, and not to be turned back on from here or in Meta: why, and what to do instead. */
+  | { kind: "held"; head: string; body: string }
   | { kind: "none"; line: string | null };
 
 export interface SheetVM {
@@ -430,9 +443,17 @@ function sheetLineOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: strin
     : [word, end, money].filter(Boolean).join(" · ");
 }
 
-/** The foot of an ad made here while Turn on's job has it, or after it stopped part way; null for any other. */
-function launchFootOf(ad: AdLiveDto): SheetFootVM | null {
-  if (ad.state === "setting-up") return { kind: "none", line: SHEET.settingUp };
+/**
+ * The foot of an ad made here while Turn on's job has it, or after it stopped part way; null for any other. Its owner may
+ * cancel it while the job is still making it, and is told it is stopping once they have.
+ */
+function launchFootOf(ad: AdLiveDto, owner: boolean): SheetFootVM | null {
+  if (ad.state === "setting-up") {
+    if (ad.launch?.cancelling) return { kind: "none", line: SHEET.cancelling };
+    return owner && ad.launch?.sending
+      ? { kind: "cancel", body: SHEET.cancelBody }
+      : { kind: "none", line: SHEET.settingUp };
+  }
   if (ad.state !== "couldnt-finish") return null;
   const left = ad.launch?.left ?? [];
   return left.length > 0
@@ -444,7 +465,7 @@ function launchFootOf(ad: AdLiveDto): SheetFootVM | null {
 function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): SheetFootVM {
   if (dto.account.status === "revoked") return { kind: "none", line: SHEET.signedOut };
   if (dto.account.status === "disconnected") return { kind: "none", line: SHEET.leftInMeta };
-  const launching = launchFootOf(ad);
+  const launching = launchFootOf(ad, dto.can_press);
   if (launching) return launching;
   if (over(ad) || ad.pending !== null) return { kind: "none", line: null };
   if (!dto.can_press) return { kind: "none", line: SHEET.ownerOnly };
@@ -452,7 +473,11 @@ function footOf(ad: AdLiveDto, dto: AdsLiveDto, said: Said, currency: string): S
   if (ad.made_here && ad.needs === "refused") return { kind: "fix", body: FIX.body };
   // Its last switch went unanswered: nothing is sent again, and Check asks Meta what stands (the plan's 4.7, 7).
   if (ad.state === "unconfirmed") return { kind: "check", line: SHEET.unconfirmed };
+  // On, and AI can't answer the people it brings (call 11): why, and the press that stops the spend.
+  if (ad.needs === "way_in" && ad.way_in) return { kind: "pause", body: SHEET.wayIn(AD_WAY_IN_SAID[ad.way_in]) };
   if (ad.state !== "paused") return { kind: "pause", body: SHEET.pauseBody };
+  // Someone in its picture took back their yes: it runs again only with another picture, here or in Meta (G16).
+  if (!ad.resume.ok && ad.resume.why === "picture") return { kind: "held", ...SHEET.cant.picture };
   if (!ad.resume.ok) return { kind: "in-meta", ...SHEET.cant[ad.resume.why] };
   // While AI is stopped no ad is turned on from here (the Ads plan's G17).
   if (dto.stopped_at) return { kind: "none", line: SHEET.stopped };

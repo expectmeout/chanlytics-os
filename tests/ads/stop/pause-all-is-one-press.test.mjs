@@ -268,3 +268,77 @@ test("a refusal of the whole is said in an owner's words, never a code", async (
     message: "Couldn't pause them just now. Nothing was changed. Try again.",
   });
 });
+
+/* ----------------------------------------------------------------- turning back on, and a cancel (00676) --- */
+
+/**
+ * The two doors 00676 adds behind the same press door, as they answer: the ads the stop paused turned back on by the
+ * owner (ad_resume_stopped), and a launch cancelled (ad_launch_cancel). Meta is asked nothing in either request.
+ */
+function laterWorld({ owner = true, stopped = false } = {}) {
+  Object.assign(process.env, { ADS_WORKSPACES: T, ADS_WRITES: "live" });
+  const kept = { resumed: [], cancels: [] };
+  const rpcs = {
+    has_permission: ({ p_permission }) => owner && p_permission === "ads",
+    ad_resume_stopped: ({ p_actor, p_presses }) => {
+      if (!(owner && p_actor === U)) return { outcome: "not_allowed" };
+      if (stopped) return { outcome: "stopped" };
+      return {
+        outcome: "kept",
+        ads: p_presses.map((press) => {
+          if (press.ad_id === AD(2)) return { ad_id: press.ad_id, outcome: "not_stopped", version: 5 };
+          kept.resumed.push(press.ad_id);
+          return { ad_id: press.ad_id, outcome: "asked", version: press.version + 1, tell: true };
+        }),
+      };
+    },
+    ad_launch_cancel: ({ p_ad_id, p_actor }) => {
+      if (!(owner && p_actor === U)) return { outcome: "not_allowed" };
+      kept.cancels.push(p_ad_id);
+      return p_ad_id === AD(3) ? { outcome: "made", version: 4 } : { outcome: "asked", version: 2 };
+    },
+  };
+  setPg(fakeDb({ ad_accounts: [], ads: [] }, {}, rpcs));
+  const press = (body) => runAdPress(auth, { tenant_id: T, user_id: U, ...body });
+  return { kept, press };
+}
+
+test("turning back on the ads the stop paused is the owner's one press: each says what it came to, Meta asked nothing", async () => {
+  const w = laterWorld();
+  const [status, body] = await heard(
+    await w.press({
+      op: "resume_all",
+      ads: [
+        { ad_id: AD(1), version: 4 },
+        { ad_id: AD(2), version: 5 },
+      ],
+    }),
+  );
+  assert.equal(status, 200);
+  assert.deepEqual(body.ads, [
+    { ad_id: AD(1), outcome: "soon", version: 5 },
+    { ad_id: AD(2), outcome: "not_stopped", version: 5 },
+  ]);
+  assert.deepEqual(w.kept.resumed, [AD(1)], "only one the stop paused");
+  assert.deepEqual(metaAsked, []);
+});
+
+test("never while AI is stopped, and never for anyone but the owner", async () => {
+  const set = { op: "resume_all", ads: [{ ad_id: AD(1), version: 4 }] };
+  const [status, body] = await heard(await laterWorld({ stopped: true }).press(set));
+  assert.deepEqual([status, body.error], [409, "ai_stopped"]);
+  const [refused] = await heard(await laterWorld({ owner: false }).press(set));
+  assert.equal(refused, 403);
+});
+
+test("a cancel is kept for the job to stop the launch at its next step; one made already says so, and Meta hears nothing", async () => {
+  const w = laterWorld();
+  const [status, body] = await heard(await w.press({ op: "cancel", ad_id: AD(1) }));
+  assert.deepEqual([status, body.outcome], [200, "asked"]);
+  const [, late] = await heard(await w.press({ op: "cancel", ad_id: AD(3) }));
+  assert.equal(late.outcome, "made", "made already: its Pause stops it");
+  assert.deepEqual(w.kept.cancels, [AD(1), AD(3)]);
+  assert.deepEqual(metaAsked, []);
+  const [refused] = await heard(await laterWorld({ owner: false }).press({ op: "cancel", ad_id: AD(1) }));
+  assert.equal(refused, 403, "the owner alone");
+});

@@ -71,11 +71,18 @@ export type AdLaunchStep = {
   platform_state?: string | null;
 };
 
-/** Where the ad stands once its door kept the step: a launch the owner's account let go of is not taken further. */
+/**
+ * Where the ad stands once its door kept the step: a launch the owner's account let go of is not taken further, and one
+ * its owner cancelled (or a yes taken back did, 00676) stops at its next step.
+ */
 export interface AdLaunchAfter {
   status: string;
   intent: string;
+  cancelled: boolean;
 }
+
+/** Whether an ad's launch, as its row keeps it, holds a cancel (ad_launch_cancel, 00676). */
+const launchCancelledOf = (launch: unknown): boolean => recordOrEmpty(launch).cancel != null;
 
 /** One step of a launch kept (ad_launch_keep, 00666). */
 export async function keepAdLaunch(
@@ -91,7 +98,79 @@ export async function keepAdLaunch(
   });
   if (error) throw new DbFailure(error, "ad_launch_keep");
   const answer = recordOrEmpty(data);
-  return { status: launchTextOf(answer.status) ?? "not_found", intent: launchTextOf(answer.intent) ?? "on" };
+  return {
+    status: launchTextOf(answer.status) ?? "not_found",
+    intent: launchTextOf(answer.intent) ?? "on",
+    cancelled: launchCancelledOf(answer.launch),
+  };
+}
+
+/** What a cancel came to at its door: kept, asked already, too late (made), over (stopped), or refused. */
+export interface AdCancelKept {
+  outcome: "asked" | "same" | "made" | "stopped" | "not_found" | "not_allowed" | "no_door";
+  version: number | null;
+}
+
+const CANCEL_OUTCOMES = ["asked", "same", "made", "stopped", "not_found", "not_allowed"] as const;
+
+/**
+ * The owner cancels an ad while it is set up (ad_launch_cancel, 00676; the Ads plan's 4.7, point 8): kept on its launch,
+ * with the decision, and its account's job brought within a minute, which stops it at its next step. Nothing is sent to
+ * the platform here.
+ */
+export async function cancelAdLaunch(
+  db: Db,
+  by: { tenantId: TenantId; userId: string },
+  adId: string,
+): Promise<AdCancelKept> {
+  const { data, error } = await db.rpc("ad_launch_cancel", {
+    p_tenant_id: by.tenantId,
+    p_actor: by.userId,
+    p_ad_id: adId,
+  });
+  if (error) {
+    if (isMissingDoor(error)) return { outcome: "no_door", version: null };
+    throw new DbFailure(error, "ad_launch_cancel");
+  }
+  const answer = recordOrEmpty(data);
+  const outcome = CANCEL_OUTCOMES.find((one) => one === answer.outcome);
+  if (!outcome) throw new Error("ad_launch_cancel answered no outcome");
+  return { outcome, version: typeof answer.version === "number" ? answer.version : null };
+}
+
+/** Whether a launch was cancelled since it was last read: asked fresh before every switch, never trusted from memory. */
+export async function isAdLaunchCancelled(db: Db, tenantId: TenantId, adId: string): Promise<boolean> {
+  const { data, error } = await tenantDb(db, tenantId).from("ads").select("launch").eq("id", adId).maybeSingle();
+  if (error) throw new DbFailure(error, "whether a launch was cancelled");
+  return launchCancelledOf(data?.launch);
+}
+
+/** One running ad's way in, as an account's read judged it, with the bell's words should it ring. */
+export type AdWayInKept = { ad_id: string; way_in: string | null; title?: string; body?: string };
+
+/**
+ * What one read of an account learned of its running ads' ways in (ad_way_in_keep, 00676; decision 0050, call 11): kept
+ * where they moved, the bell rung in the words handed where one closed (an unknown word only once it stood an hour), and
+ * a row closed once its way in opened. A database before 00676 answers null, and nothing is kept.
+ */
+export async function keepAdWayIns(
+  db: Db,
+  tenantId: TenantId,
+  accountId: string,
+  ways: readonly AdWayInKept[],
+): Promise<{ moved: number; rung: number; closed: number } | null> {
+  const { data, error } = await db.rpc("ad_way_in_keep", {
+    p_tenant_id: tenantId,
+    p_account_id: accountId,
+    p_ways: [...ways],
+  });
+  if (error) {
+    if (isMissingDoor(error)) return null;
+    throw new DbFailure(error, "ad_way_in_keep");
+  }
+  const answer = recordOrEmpty(data);
+  const count = (value: unknown): number => (typeof value === "number" ? value : 0);
+  return { moved: count(answer.moved), rung: count(answer.rung), closed: count(answer.closed) };
 }
 
 /** A launch still on its way: the ad, what was approved, where its launch stands, and what it has made so far. */

@@ -1,7 +1,7 @@
 /**
- * AI stopped with ads still on, as one amber line with its one press (the Ads plan's G17; stop.ts aiStopOf says it): at
- * the top of the Ads page, and in the ad account's card in Settings › Connections. The press is the owner's, and
- * pauses every ad still on.
+ * AI stopped, and the ads, as one amber line with its one press (the content loop PRD's 14.1, call 21; stop.ts aiStopOf
+ * says it): at the top of the Ads page, and in the ad account's card in Settings › Connections. The press is the owner's:
+ * while AI is stopped it pauses every ad still on, and once AI runs again it turns back on the ads the stop paused.
  */
 import { Button } from "../../../kit/button/button";
 import { gate } from "../../../frame-verbs";
@@ -11,7 +11,7 @@ import type { StopVM } from "./stop";
 /** The stop, as the hook that holds the page's read hands it over: what to say, the press, and whether it is under way. */
 export interface StopHere {
   vm: StopVM;
-  pauseAll: () => void;
+  press: () => void;
   busy: boolean;
 }
 
@@ -24,7 +24,7 @@ export function StopNotice({ stop, className }: { stop: StopHere; className?: st
       {vm.press ? (
         <Button
           size="sm"
-          onClick={stop.pauseAll}
+          onClick={stop.press}
           disabled={stop.busy}
           data-testid="ads-stop-pause"
           {...gate("approve", GATE.change)}

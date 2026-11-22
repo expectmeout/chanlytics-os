@@ -21,8 +21,26 @@ export { endAdDraftWriting, findAdDraft, keepAdDraft, keepAdMost, markAdDraftWri
 export type { AdDraftKept, AdDraftRow, AdDraftWriter, AdDraftWriting } from "./drafts";
 export { keepAdEntry, readAdNamed, readAdSaid } from "./entries";
 export type { AdEntryKept, AdNamed } from "./entries";
-export { keepAdLaunch, keepTurnOn, listAdLaunches, listAdsLeftParts, listAdsMadeHere } from "./launches";
-export type { AdLaunchAfter, AdLaunchRow, AdLaunchStep, AdMadeHereRow, AdPartKept, AdTurnOnKept } from "./launches";
+export {
+  cancelAdLaunch,
+  isAdLaunchCancelled,
+  keepAdLaunch,
+  keepAdWayIns,
+  keepTurnOn,
+  listAdLaunches,
+  listAdsLeftParts,
+  listAdsMadeHere,
+} from "./launches";
+export type {
+  AdCancelKept,
+  AdLaunchAfter,
+  AdLaunchRow,
+  AdLaunchStep,
+  AdMadeHereRow,
+  AdPartKept,
+  AdTurnOnKept,
+  AdWayInKept,
+} from "./launches";
 export { findAd, listAdPeople, listAdsByIds, listAdsOfAccount, readAdsPageCounts } from "./page";
 export type { AdPersonRow, AdRow, AdsPageCounts } from "./page";
 export {
@@ -32,9 +50,11 @@ export {
   listMadeAds,
   listPendingAds,
   markAdTold,
+  pauseAdsForStop,
   pauseAdsKept,
+  resumeStoppedAds,
   setAdIntent,
 } from "./presses";
-export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept } from "./presses";
+export type { AdIntent, AdMadeRow, AdPendingRow, AdPressKept, AdResumedKept } from "./presses";
 export { askAdRead, handOutAdReads, keepAdsRead, listHeldAdIds } from "./reads";
 export type { AdDayReadRow, AdReadRow, AdsReadKept, AdsReadOutcome } from "./reads";

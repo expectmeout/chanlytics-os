@@ -20,10 +20,10 @@ nothing calls is neither named below with why nor dropped.
 | --- | --- | --- |
 | door | 197 | 197 |
 | reader | 89 | 0 |
-| the server's | 414 | 346 |
+| the server's | 419 | 351 |
 | computed column | 3 | 0 |
-| trigger | 114 | 84 |
-| all | 817 | 627 |
+| trigger | 116 | 85 |
+| all | 824 | 633 |
 
 ## Called by nothing
 
@@ -53,12 +53,13 @@ being read is dropped by a migration.
 | `ad_account_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ads_read_keep` | Service-role only: what a read of a connected ad account at its platform learned (00649, 00653, 00658; |
 | `ad_account_revoked` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts` | Service-role only: the platform took Chanlytics' access to an ad account back (00649, 00653; |
 | `ad_accounts_close_ad_bell` | trigger | the server | trigger `ad_accounts_close_ad_bell on ad_accounts` | A trigger on ad_accounts (00658): |
-| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666): an ad account disconnected by its owner or signed out by the platform stops every launch of its ads still on its way. |
+| `ad_accounts_stop_launches` | trigger | the server | trigger `ad_accounts_stop_launches on ad_accounts` | Trigger (00666, 00676): |
 | `ad_bell_cause` | the server's | the server | SQL `ad_bell_causes`, `ad_bell_ring` | The key one of the bell's five ad causes is known by, read off one of its ads (00658): |
-| `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every made ad of one ad account under each of the bell's five ad causes at a moment, with the cause's key (00658): |
-| `ad_bell_hearers` | the server's | the server | SQL `ad_bell_ring` | Who hears the bell's five ad notices (00658): |
-| `ad_bell_ring` | the server's | the server | SQL `ads_read_keep` | The bell's five ad notices for one ad account, after a good read (00658, decision 0050 call 15): |
-| `ad_bell_words` | the server's | the server | SQL `ad_bell_ring` | The title and body of one of the bell's five ad notices (00658): |
+| `ad_bell_causes` | the server's | the server | SQL `ad_bell_ring`, `ads_read_keep` | Every ad of one ad account under each of the bell's ad causes at a moment, with the cause's key (00658, 00666, 00676): |
+| `ad_bell_hearers` | the server's | the server | SQL `ad_bell_paused`, `ad_bell_ring` and 1 more | Who hears the bell's five ad notices (00658): |
+| `ad_bell_paused` | the server's | the server | SQL `ad_pause_all` | The bell's ads_paused row (00676; |
+| `ad_bell_ring` | the server's | the server | SQL `ads_read_keep` | The bell's ad notices for one ad account, after a good read (00658, 00664, 00676; |
+| `ad_bell_words` | the server's | the server | SQL `ad_bell_paused`, `ad_bell_ring` | The title and body of one of the bell's ad notices (00658, 00676): |
 | `ad_change_keep` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: an owner changes a running ad made here (00673; |
 | `ad_change_told` | the server's | the server | code `packages/db/src/repositories/ads/changes.ts` | Service-role only: what telling the platform of an owner's change to an ad came to (00673; |
 | `ad_credentials_drop` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 1 more | Service-role only: deletes an ad account's token from Vault (00648). |
@@ -69,22 +70,28 @@ being read is dropped by a migration.
 | `ad_draft_written` | door | a signed-in person, the server | code `packages/db/src/repositories/ads/drafts.ts` | A member's door (00672): |
 | `ad_entry_keep` | the server's | the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `messages_note_first_touch` | The one door that writes an ad's entry (decision 0049, 00644), by its message's id. |
 | `ad_held_for` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | The one ad Chanlytics holds for a platform's id for an ad (00666): |
-| `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666; |
+| `ad_launch_cancel` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts`; SQL `ads_remediate_files` | Service-role only: an ad made here cancelled while it is set up (00676; |
+| `ad_launch_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what the launch of an ad made here came to, step by step (00666, 00676; |
 | `ad_may_resume` | the server's | the server | SQL `ad_set_intent`, `ad_told` | Whether an ad may be turned back on from Chanlytics (00652; |
 | `ad_named` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/entries.ts`; SQL `people_series` | The ad a first touch names (contacts.acquired_ref), as a page says it (decision 0049, call 2; |
-| `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: an owner pauses every ad of a set at once (00671; |
+| `ad_pause_all` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ads_remediate_files` | Service-role only: ads paused together, each through ad_set_intent, in one transaction, in the ads' own order (00671, 00676; |
 | `ad_people` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | One ad's people in a window, newest first, a page at a time (00651; |
 | `ad_people_in` | reader | a signed-in person, the server | SQL `ad_people`, `ads_page_counts` | The people an ad brought in a window, a row a person (00651; |
 | `ad_ref_parts` | reader | a signed-in person, the server | SQL `ad_named`, `ad_people_in` | A first touch's reference (contacts.acquired_ref) as its platform and the platform's id for the ad (00651, decision 0049 call 4): |
-| `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all` | Service-role only: an owner pauses an ad or turns it back on (00652; |
-| `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all` | Service-role only: an owner's press that the platform will not take yet (00652). |
+| `ad_resume_stopped` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: the owner turns back on the ads Stop everything paused, after Resume, as a press of its own that names them (00676; |
+| `ad_set_intent` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_pause_all`, `ad_resume_stopped` | Service-role only: an ad paused or turned back on (00652, 00676; |
+| `ad_tell_ask` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts`; SQL `ad_launch_keep`, `ad_pause_all` and 1 more | Service-role only: an owner's press that the platform will not take yet (00652). |
 | `ad_told` | the server's | the server | code `packages/db/src/repositories/ads/presses.ts` | Service-role only: what telling a platform of an owner's press came to (00652; |
 | `ad_turn_on` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: an owner turns an ad on (00666; |
+| `ad_way_in_keep` | the server's | the server | code `packages/db/src/repositories/ads/launches.ts` | Service-role only: what stands between each running ad made here and AI answering the chat it opens, as one read of its account worked it out (00676; |
 | `add_person` | door | a signed-in person, the server | code `packages/db/src/repositories/people/people.ts` | Owner or operator adds a person by their number, their address or both, through resolve_person (00342): |
 | `ads_hand_out` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | The ads clock's one statement (00650, decision 0049): |
 | `ads_page_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/ads/page.ts` | The Ads page's totals for a window, counted whole (00651; |
+| `ads_paused_by_holds` | trigger | the server | trigger `ads_paused_by_holds on ads` | Trigger (00676): an ad that is not paused holds no paused_by: |
 | `ads_read_ask` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: a platform's notice that something changed in an ad account, a connect just finished, or a change whose answer never came (00650). |
 | `ads_read_keep` | the server's | the server | code `packages/db/src/repositories/ads/reads.ts` | Service-role only: what one read of a connected ad account learned, kept in one transaction (00650, 00658, decision 0049). |
+| `ads_remediate_files` | the server's | the server | SQL `file_yes_take_back` | The walk a yes taken back starts on ads (00676; |
+| `ads_settle_remediation` | trigger | the server | trigger `ads_settle_remediation on ads` | Trigger (00676; the content loop PRD's 8.3): |
 | `ads_sweep_ask` | the server's | the server | the clock, `ads-sweep` | The ads clock (00650): |
 | `ai_failures_hour` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspaces whose model calls failed (no answer, a rejected request, an unusable answer) or whose receptionist turns ended in brain_error at least p_min times in the last hour (the larger of the tw |
 | `ai_shadow_agreement` | the server's | the server | nothing at run time | A second model's agreement with the primary over the last p_days, per purpose, question and port: |
@@ -255,7 +262,7 @@ being read is dropped by a migration.
 | `file_was_used` | the server's | the server | SQL `source_files_remove`, `source_files_tally` and 1 more | Whether a file was used (00654): |
 | `file_yes_record` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665): |
 | `file_yes_restate` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | files.yes_for and files.yes_back restated from file_consents for the files named (00665): |
-| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665; |
+| `file_yes_take_back` | door | a signed-in person, the server | code `packages/db/src/repositories/files/yes.ts` | A member's door, with the settings permission (00665, 00676; |
 | `file_yes_uses` | the server's | the server | SQL `file_yes_record`, `file_yes_take_back` | The uses a yes door was handed, each once and sorted; |
 | `files_are_full` | the server's | the server | SQL `file_video_found`, `file_video_sourced` | Whether a workspace's Library holds its thousand files (00643): |
 | `files_drawn_from` | the server's | the server | code `packages/db/src/repositories/files/yes.ts` | The service role's read (00665): |
@@ -284,7 +291,7 @@ being read is dropped by a migration.
 | `handover_accept` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: |
 | `handover_decline` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The addressee of a handover (0016) says no. |
 | `handovers_mine` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The open handovers (0016) addressed to the caller's confirmed email: |
-| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 37 more | Whether this user may do this in this workspace, by role: |
+| `has_permission` | the server's | the server | code `packages/db/src/repositories/ads/accounts.ts`, `packages/db/src/repositories/files/posts.ts`; SQL `ad_account_connect`, `ad_account_disconnect` and 39 more | Whether this user may do this in this workspace, by role: |
 | `has_relationship` | computed column | a signed-in person, the server | code `packages/contracts/src/consent/asks.ts`, `packages/contracts/src/consent/consent.ts` and 9 more; SQL `offers_email_reach` | Whether a person has a relationship with the business on record (spec 4.1): |
 | `held_draft_outcome` | reader | a signed-in person, the server | SQL `held_drafts_by_intent` | What became of one of the receptionist's held drafts (decision 0063), from its status and its error: |
 | `held_drafts_by_intent` | reader | a signed-in person, the server | code `packages/db/src/repositories/facts/held-drafts.ts` | The Autonomy pane's evidence (decision 0063): |
@@ -464,7 +471,7 @@ being read is dropped by a migration.
 | `note_person_email` | the server's | the server | code `packages/db/src/repositories/people/email.ts` | An address a customer wrote in their own message, kept on their row only where none is on file, under the row's lock (00593): |
 | `note_yes_on_channel` | the server's | the server | SQL `ingest_inbound` | Called by ingest_inbound for a START, in the transaction that keeps the message (00592; |
 | `notification_mark` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
-| `notifications_close_about` | the server's | the server | SQL `ad_accounts_close_ad_bell`, `ad_bell_ring` and 9 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
+| `notifications_close_about` | the server's | the server | SQL `ad_accounts_close_ad_bell`, `ad_bell_ring` and 11 more | Closes a workspace's open bell rows of the given kinds about one subject (and of one title, where given) within the bell's window (contracts BELL_WINDOW_DAYS), each once, and answers how many it close |
 | `notifications_read_through` | door | a signed-in person, the server | code `apps/dashboard/src/server/notices/bell.ts`, `packages/db/src/repositories/notices/devices.ts` | A member reads their bell through (00614, 00622, decision 0124). |
 | `notifications_seen` | door | a signed-in person, the server | code `packages/db/src/repositories/notices/devices.ts` |  |
 | `number_drift` | the server's | the server | code `packages/db/src/repositories/ops/health.ts` | Where lines and tenant_channels disagree in a way that is actually wrong: |

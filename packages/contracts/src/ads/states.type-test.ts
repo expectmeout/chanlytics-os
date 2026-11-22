@@ -8,8 +8,9 @@
  * A type test: the positives are `Holds<Exactly<…>>` (schema-sets.ts), and each line under `@ts-expect-error <why>` must
  * not compile. Nothing imports this file, so no build reaches it.
  */
-import type { Exactly, Holds } from "../shared/schema-sets";
+import type { Exactly, Holds, SchemaSet } from "../shared/schema-sets";
 import type { AdState } from "./ads";
+import type { AdWayClosed } from "./live";
 import type { MetaAdWord, adStateOf } from "./states";
 
 type MetaLists =
@@ -35,4 +36,6 @@ type _States = [
   Holds<Exactly<Exclude<MetaAdWord, "WITH_ISSUES">, MetaLists>>,
   // @ts-expect-error "too early to judge" is a reading from counts and age, never a badge the rule gives
   Holds<Exactly<ReturnType<typeof adStateOf>, AdState | "draft" | "too-early">>,
+  // What stands in a running ad's way in, as its row keeps it, is the database's own set (ads.way_in, 00676).
+  Holds<Exactly<AdWayClosed, SchemaSet<"ads.way_in">>>,
 ];

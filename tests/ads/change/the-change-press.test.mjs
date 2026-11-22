@@ -97,7 +97,15 @@ function tablesOf(tenantId, over = {}) {
       },
     ],
     tenant_channels: [
-      { id: "ch-wa", tenant_id: tenantId, kind: "whatsapp", status: "active", number_e164: "+13055550142", config: {} },
+      {
+        id: "ch-wa",
+        tenant_id: tenantId,
+        kind: "whatsapp",
+        status: "active",
+        number_e164: "+13055550142",
+        // What Meta last said of the number, as a connected one keeps it: a draft opens a chat AI can answer.
+        config: { standing: { can_send: "AVAILABLE", problems: [] } },
+      },
     ],
     ad_accounts: [
       {
