@@ -49,9 +49,10 @@ export type AskMorningCard = Omit<AskProposal, "outcome">;
  * The business's own history, as Today says it (Working for you, W9 and W15; built 22 Nov 2026): how many visits AI has
  * booked, for a milestone said once ("AI's 100th booking for you."), and how many visits each of the last weeks' same
  * weekday held by this hour, for the one word the head may say of the day ahead ("A light Monday"). Read beside the
- * morning, once a visit to Today, never with the day's own read: a count of every booking is no read to repeat as a
- * conversation moves. The read says its own lengths of time (`days`, and one count a week), so the page never says a
- * window the server did not count. What is said from it is the page's own (today/calm/week.tsx, today/model/lines.ts).
+ * morning, as often as the morning is read, never with the day's own read: a count of every booking is no read to repeat
+ * as a conversation moves, and the server keeps AI's counts an hour (dashboard server/metrics/history.ts). The read says
+ * its own lengths of time (`days`, and one count a week), so the page never says a window the server did not count. What
+ * is said from it is the page's own (today/calm/week.tsx, today/model/lines.ts).
  */
 interface TodayHistoryDto {
   /** AI's bookings that nobody took back: all of them, and those of the last `days` days. */
