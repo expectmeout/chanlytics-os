@@ -202,13 +202,15 @@ test("Campaigns' crumbs are its first view's at every address but Ads, a sheet o
   assert.equal(c("sequences").crumbs.at(-1), "Run");
   rememberRun({ id: "b-old", name: "Win-back · 2026-08-01", run_for: "2026-08-01", state: "sent" });
   assert.equal(c("sequences").crumbs.at(-1), "Win-back · 2026-08-01");
-  // The strip: Campaigns and Content (every workspace's, decision 0125), and Ads only where it is drawn. Messages folded into
-  // Campaigns (Campaigns, one tab, 17 Nov 2026): each message is inside the campaign that sends it.
+  // The strip: Campaigns, Content (every workspace's, decision 0125) and Forms (every workspace's, 00680), and Ads only
+  // where it is drawn. Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): each message is inside the
+  // campaign that sends it.
   assert.deepEqual(
     c(null).views.tabs.map((t) => [t.id, t.label, t.to]),
     [
       ["sequences", "Campaigns", "campaigns/sequences"],
       ["content", "Content", "campaigns/content"],
+      ["forms", "Forms", "campaigns/forms"],
     ],
   );
   // Messages' addresses are Campaigns' list's: a message's opens the message over it, Campaigns' tab lit, one head.

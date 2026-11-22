@@ -1,9 +1,13 @@
 # 0038 · The receptionist places a call
 
-**Status:** Proposed on 7 October 2026, with "A conversation begins from the Inbox"
+**Status:** Decided on 22 November 2026, with eight amendments (their own section below), and not built. Ruben took the
+proposal as amended that day ("take all recommended calls and continue what can start"), on the whole-product review's
+reading of it (`Claude Video/docs/2026-11-22-vision-four-features-checked.md`, section 1). It was proposed on 7 October
+2026, with "A conversation begins from the Inbox"
 (`docs/superpowers/specs/2026-10-07-a-conversation-begins-from-the-inbox-design.md`), which leaves it out on purpose:
-in that lane a call is the member's own phone, with a brief. Nothing here is built. Written against commit `b6e2a2722`
-(main, 7 October 2026). Where this note and the code disagree, the code wins.
+in that lane a call is the member's own phone, with a brief. Written against commit `b6e2a2722` (main, 7 October 2026);
+the status was read again at `7afb306c81` (22 November 2026), where no call is placed to a customer and the Business
+page still says so. Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -18,6 +22,9 @@ The receptionist answers the phone and never places a call.
   (`apps/edge/lib/voice/call-start.ts`, `planCallStart`).
 - What is recorded of a call is written by `ingest_call`, which opens the person's thread as it does for a call coming
   in, and every reader of `calls` reads it as one a person made to the business.
+- Since this note was written, the code places one call: the daily proof of a line (decision 0092) rings a workspace of
+  Chanlytics' own from the platform's number (`apps/edge/lib/voice/watch/voice-canary.ts`). No call is placed to a
+  customer.
 
 Read on 7 October 2026, outside the code:
 
@@ -34,12 +41,41 @@ Read on 7 October 2026, outside the code:
 
 ## Decision
 
-Proposed: the receptionist may place a call to one person when, and only when, a member asks for that call, the
+The receptionist may place a call to one person when, and only when, a member asks for that call, the
 person has said yes to calls from the business in writing and that yes is on record, and the hour is one a call may be
 placed in where they are. It never calls by itself: no playbook, no campaign and no sweep places a call.
 
 The promise on the Business page changes with it, in the same change, to what is then true: it answers the line, and
 it calls a customer only when a member asks and the customer has agreed to be called.
+
+## Eight amendments (22 November 2026)
+
+An outside review of the whole product read this note against the code and asked for more care before it was
+accepted. Each amendment was read against this note's own text, and Ruben took the eight together. They change the
+Shape where they say so, and they answer the first and third of the open questions.
+
+1. **How the yes is taken.** For a call that sells, the yes is a form the person signs; its wording is counsel's. For
+   a call about something of theirs (a visit, a proposal, a call back they asked for), their own message is enough.
+   It is the Shape's own line between the two, with the form made the default for the first.
+2. **The words agreed to are kept.** Each yes keeps which version of the form's words the person saw, beside who gave
+   it, when, in what words and how.
+3. **The hour is the shorter day.** Where the person's state sets a shorter day than 8am to 9pm, the state's hours
+   hold. Which states, and their hours, are read on each state's own page before step 4, and not from this note.
+4. **What a call says first.** The business's name, that this is AI, and that calls are recorded: what the standard
+   greeting says on a call coming in (`packages/contracts/src/voice/greeting.ts`), said on a call going out too.
+5. **Limits.** A workspace has a cap on calls a day and on calls at once. One ask places one call at most, however
+   often the button is pressed or the provider is asked again: the ask's own id is the key the provider takes.
+6. **Someone else answers.** AI names the business and itself, asks for the person, says nothing about them or about
+   why it calls, and ends the call.
+7. **No answer.** Nothing is left unless the member wrote a voicemail, and there is no second try unless the member
+   asks again.
+8. **A call back the person asked for.** The record of an ask is shaped so that a call back a person asked for could
+   one day start a call without a member's press. That way is not built and stays off, and turning it on is a
+   decision of its own. Until then a member asks, every time.
+
+Taken with them: this is offered in the United States only, which answers the second open question; and it is built
+after the request form and the ads' tracking, since it is not on the road to a first customer. Step 4's button is
+worded when it is built, by `docs/words.md`: the screens say "AI", where this note says "the receptionist".
 
 ## Shape
 
@@ -94,6 +130,10 @@ Each ships on its own, in either deploy order.
 
 ## Open questions
 
-- Whether a yes to calls is taken by the customer's own message ("Yes, call me") or only by a signed form.
-- Whether a workspace outside the United States is offered this at all before its own law is read.
-- What the receptionist says when a person answers who is not the person on record.
+Answered on 22 November 2026: how the yes is taken (amendment 1), a workspace outside the United States (not
+offered), and who answers (amendment 6). Still open, and counsel's before step 4:
+
+- The form's wording for a call that sells.
+- Each state's calling hours, where they are shorter than 8am to 9pm.
+- Whether a written yes is enough for a number on a do-not-call list.
+- A voicemail the member wrote.

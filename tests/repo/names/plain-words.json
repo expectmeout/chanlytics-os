@@ -31,6 +31,7 @@
   "counts",
   "ctx",
   "data",
+  "delete",
   "deps",
   "detail",
   "done",
@@ -93,6 +94,7 @@
   "pick",
   "picture",
   "post",
+  "problem",
   "props",
   "provider",
   "purpose",
@@ -144,6 +146,7 @@
   "version",
   "view",
   "was",
+  "whole",
   "win",
   "write",
   "zone"

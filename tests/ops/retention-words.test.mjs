@@ -40,10 +40,16 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
     model_prompts: 400,
     tenant_config_versions: 400,
     ad_days: 760,
+    form_entries_held: 30,
+    form_entries_test: 7,
   });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
   const words = retentionWords();
+  assert.match(
+    words,
+    /An entry of one of a business's forms that was held for a look is removed after 30 days if nobody lets it through, and a test of a form after 7\./,
+  );
   assert.match(words, /^Call audio is kept for 90 days and then removed · transcripts stay with the conversation\./);
   assert.match(words, /Providers' receipts, delivery records, unplaced messages and AI usage are kept for 30 days\./);
   assert.match(words, /Conversations with AI untouched for 90 days, and notifications after 90 days, are removed/);

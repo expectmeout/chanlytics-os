@@ -9249,7 +9249,7 @@ CREATE FUNCTION public.events_note_first_touch() RETURNS trigger
     AS $$
 declare
   v_word text := NEW.data ->> 'source';
-  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website', 'ad') then v_word else 'manual' end;
+  v_via  text := case when v_word in ('calendar', 'lead', 'import', 'website', 'ad', 'form') then v_word else 'manual' end;
 begin
   perform public.person_set_first_touch(
     NEW.tenant_id,
@@ -9269,7 +9269,7 @@ end $$;
 -- Name: FUNCTION events_note_first_touch(); Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website, ad; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one, and the ad''s (data.ad_ref, keyed by its platform: meta:<id>) for a person an ad''s own door added (0049, 00644). The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
+COMMENT ON FUNCTION public.events_note_first_touch() IS 'The first touch of a person added at a door (K3): the source of the contact.added event beside them (calendar, lead, import, website, ad, form; any other word or none is manual), through person_set_first_touch, with the lead''s id as the ref where the event names one, and the ad''s (data.ad_ref, keyed by its platform: meta:<id>) for a person an ad''s own door added (0049, 00644). The mapping is people_list''s came_from for a door, written once. Never fails the event''s writer: a failure is a warning.';
 
 
 --
@@ -11860,6 +11860,131 @@ COMMENT ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text, p
 
 
 --
+-- Name: form_code_link(uuid, text, uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid DEFAULT NULL::uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_entry  public.form_entries%rowtype;
+  v_writer uuid;
+  v_owed   text[] := array['note', 'notice'];
+begin
+  if p_tenant_id is null or nullif(btrim(coalesce(p_code, '')), '') is null or p_conversation_id is null then
+    return jsonb_build_object('linked', false);
+  end if;
+  select * into v_entry from public.form_entries e
+   where e.tenant_id = p_tenant_id and e.code = upper(btrim(p_code)) and e.code_used_at is null
+     and not e.test and e.created_at > now() - interval '30 days'
+   for update;
+  if not found then
+    return jsonb_build_object('linked', false);
+  end if;
+  select c.contact_id into v_writer from public.conversations c
+   where c.tenant_id = p_tenant_id and c.id = p_conversation_id;
+  if v_writer is null then
+    return jsonb_build_object('linked', false);
+  end if;
+  -- A held entry whose code arrives in a chat is let through: a person's own phone wrote. The one who wrote is its
+  -- person, and its event is written now.
+  if v_entry.state = 'held' and v_entry.contact_id is null then
+    update public.form_entries
+       set contact_id = v_writer, state = 'accepted', held_why = null, owed = v_owed
+     where tenant_id = p_tenant_id and id = v_entry.id;
+    update public.forms set last_entry_at = now() where tenant_id = p_tenant_id and id = v_entry.form_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry.id,
+            jsonb_build_object('form', 'request', 'owed', to_jsonb(v_owed), 'form_id', v_entry.form_id));
+    v_entry.contact_id := v_writer;
+  end if;
+  insert into public.form_entry_links (tenant_id, entry_id, kind, conversation_id, message_id)
+  values (p_tenant_id, v_entry.id, 'conversation', p_conversation_id, p_message_id)
+  on conflict do nothing;
+  -- Good once: the same code written again, from anywhere, links nothing.
+  update public.form_entries set code_used_at = now() where tenant_id = p_tenant_id and id = v_entry.id;
+  return jsonb_build_object('linked', true, 'entry_id', v_entry.id,
+                            'same_person', v_entry.contact_id is not distinct from v_writer);
+end $$;
+
+
+--
+-- Name: FUNCTION form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid) IS 'After a message that carries a request''s code is kept (00680): the conversation is linked to the request (form_entry_links, kind conversation, with the message), which answers it, and the code is spent. A held entry whose code arrives is let through as the one who wrote, its event written then. A code that is unknown, spent, a test''s or older than 30 days links nothing. Answers {linked, entry_id, same_person}. The service role''s alone.';
+
+
+--
+-- Name: form_code_new(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_code_new() RETURNS text
+    LANGUAGE sql
+    SET search_path TO 'public', 'extensions'
+    AS $$
+  select string_agg(substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 1 + (get_byte(r.b, g.i) % 32), 1), '' order by g.i)
+    from (select gen_random_bytes(6) as b) r, generate_series(0, 5) as g(i);
+$$;
+
+
+--
+-- Name: FUNCTION form_code_new(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_code_new() IS 'A request''s code (00680): six characters of capitals and digits nobody misreads (no I, O, 0 or 1), made at random.';
+
+
+--
+-- Name: form_code_person(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_code_person(p_tenant_id uuid, p_code text, p_phone text) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_contact uuid;
+  v_email   text;
+  v_has     text;
+begin
+  if p_tenant_id is null or nullif(btrim(coalesce(p_code, '')), '') is null
+     or nullif(btrim(coalesce(p_phone, '')), '') is null then
+    return false;
+  end if;
+  select e.contact_id into v_contact from public.form_entries e
+   where e.tenant_id = p_tenant_id and e.code = upper(btrim(p_code)) and e.code_used_at is null
+     and not e.test and e.created_at > now() - interval '30 days';
+  if v_contact is null then
+    return false;
+  end if;
+  select c.email, c.phone_e164 into v_email, v_has from public.contacts c
+   where c.tenant_id = p_tenant_id and c.id = v_contact and c.erased_at is null;
+  -- Only a person with an address and no number, and a number nobody here has: the door then finds them by their
+  -- address and fills the number that was empty. Any other case is left as it is, and two people stay two.
+  if v_email is null or v_has is not null
+     or exists (select 1 from public.contacts o where o.tenant_id = p_tenant_id and o.phone_e164 = btrim(p_phone)) then
+    return false;
+  end if;
+  begin
+    perform public.resolve_person(p_tenant_id, '', '', btrim(p_phone), v_email, '', 'asserted', 'form',
+                                  jsonb_build_object('by', 'request_code'));
+  exception when sqlstate 'PE001' then
+    return false;
+  end;
+  return true;
+end $$;
+
+
+--
+-- Name: FUNCTION form_code_person(p_tenant_id uuid, p_code text, p_phone text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_code_person(p_tenant_id uuid, p_code text, p_phone text) IS 'Before a message that carries a request''s code is kept (00680): where the request''s person has an address and no number, and nobody in the workspace has the number that wrote, the number is added to that person through resolve_person (which fills what is empty and never overwrites), so the conversation is theirs. Anything else changes nothing. Answers whether a number was added. The service role''s alone.';
+
+
+--
 -- Name: form_entries_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -11880,6 +12005,169 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.form_entries_erase_on_contact() IS 'When a person is erased, their website form entries go with them (00675, decision 0036).';
+
+
+--
+-- Name: form_entries_follow_merge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_follow_merge() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.merged_into_contact_id is not null and old.merged_into_contact_id is null then
+    update public.form_entries e
+       set contact_id = new.merged_into_contact_id
+     where e.tenant_id = new.tenant_id and e.contact_id = new.id;
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entries_follow_merge(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_follow_merge() IS 'When two records of one person are combined, the form entries of the one merged away go to the one kept (00680, decision 0028): a request is answered from the person''s one page, and a website entry is counted for them once.';
+
+
+--
+-- Name: form_entries_held_erase_on_contact(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_held_erase_on_contact() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+begin
+  if new.erased_at is not null and old.erased_at is null then
+    delete from public.form_entries e
+     where e.tenant_id = new.tenant_id and e.state = 'held' and e.contact_id is null
+       and ((old.email is not null and lower(e.reach ->> 'email') = lower(old.email))
+            or (old.phone_e164 is not null and e.reach ->> 'phone' = old.phone_e164));
+  end if;
+  return null;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entries_held_erase_on_contact(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_held_erase_on_contact() IS 'When a person is erased, the held form entries typed with their address or their number go too (00680, decision 0036): a held entry has no person yet, so it is found by what was typed.';
+
+
+--
+-- Name: form_entries_purge(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entries_purge() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_gone integer;
+begin
+  -- A held entry nobody let through goes after 30 days; a test after 7 (contracts RETENTION_DAYS).
+  delete from public.form_entries e
+   where (e.state = 'held' and e.created_at < now() - interval '30 days')
+      or (e.test and e.created_at < now() - interval '7 days');
+  get diagnostics v_gone = row_count;
+  return v_gone;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entries_purge(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entries_purge() IS 'A held form entry nobody let through goes after 30 days, and a test after 7 (00680; contracts RETENTION_DAYS form_entries_held and form_entries_test). The health sweep runs it. Answers how many went.';
+
+
+--
+-- Name: form_entry_hold(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_held integer;
+begin
+  update public.form_entries
+     set state = 'held', held_why = 'member'
+   where tenant_id = p_tenant_id and id = p_entry_id and form_id is not null and state <> 'held' and not test;
+  get diagnostics v_held = row_count;
+  return v_held > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION form_entry_hold(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) IS 'A request a member says is not a real one, held (00680): it leaves every count and waits in its form''s held pile, where form_entry_let_through brings it back. Answers whether one was held. The service role''s alone; the route that calls it asks the member''s role.';
+
+
+--
+-- Name: form_entry_let_through(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_entry   public.form_entries%rowtype;
+  v_person  jsonb;
+  v_contact uuid;
+  v_owed    text[] := array['note', 'notice'];
+begin
+  select * into v_entry from public.form_entries e
+   where e.tenant_id = p_tenant_id and e.id = p_entry_id and e.state = 'held'
+   for update;
+  if not found then
+    return jsonb_build_object('outcome', 'gone', 'entry_id', p_entry_id, 'contact_id', null);
+  end if;
+  -- A request a member had set aside has its person and has told its owner already: it is only a request again.
+  if v_entry.contact_id is not null then
+    update public.form_entries e
+       set held_why = null,
+           state = case when exists (select 1 from unnest(e.owed) o
+                                      where (e.effects -> o ->> 'state') is distinct from 'done')
+                        then 'accepted' else 'processed' end
+     where e.tenant_id = p_tenant_id and e.id = p_entry_id;
+    return jsonb_build_object('outcome', 'back', 'entry_id', p_entry_id, 'contact_id', v_entry.contact_id);
+  end if;
+  -- Its person is resolved now, and its event written now: everything it should have started starts now. A person
+  -- who asked to be forgotten is not made again, and the entry goes.
+  begin
+    v_person := public.resolve_person(
+      p_tenant_id, '', '', coalesce(v_entry.reach ->> 'phone', ''), coalesce(v_entry.reach ->> 'email', ''),
+      coalesce(v_entry.reach ->> 'name', ''), 'found', 'form', jsonb_build_object('form_id', v_entry.form_id));
+  exception when sqlstate 'PE001' then
+    delete from public.form_entries e where e.tenant_id = p_tenant_id and e.id = p_entry_id;
+    return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+  end;
+  v_contact := (v_person ->> 'contact_id')::uuid;
+  update public.form_entries
+     set contact_id = v_contact, state = 'accepted', held_why = null, owed = v_owed
+   where tenant_id = p_tenant_id and id = p_entry_id;
+  update public.forms set last_entry_at = now() where tenant_id = p_tenant_id and id = v_entry.form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', p_entry_id,
+          jsonb_build_object('form', 'request', 'owed', to_jsonb(v_owed), 'form_id', v_entry.form_id));
+  return jsonb_build_object('outcome', 'accepted', 'entry_id', p_entry_id, 'contact_id', v_contact);
+end $$;
+
+
+--
+-- Name: FUNCTION form_entry_let_through(p_tenant_id uuid, p_entry_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) IS 'A held form entry let through (00680): one held with no person has its person resolved now and its form_entry.accepted written now, so its note and its notice start then; one a member had set aside is a request again, and tells nobody twice. Answers {outcome: accepted|back|forgotten|gone, entry_id, contact_id}: a forgotten person''s entry is deleted. The service role''s alone; the route that calls it asks the member''s role.';
 
 
 --
@@ -12166,6 +12454,334 @@ end $_$;
 --
 
 COMMENT ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) IS 'An owner''s or a partner''s door (00675; caller_has_permission settings): a website''s key kept by its name and its sha-256, the key itself made and shown once by the dashboard. At most ten keys that still work a workspace (22023). Answers the key''s id.';
+
+
+--
+-- Name: form_publish(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_form    public.forms%rowtype;
+  v_live    jsonb;
+  v_version uuid;
+  v_n       integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  select * into v_form from public.forms f
+   where f.tenant_id = p_tenant_id and f.id = p_form_id
+   for update;
+  if not found then
+    raise exception 'That form is not there.' using errcode = 'P0002';
+  end if;
+  if v_form.live_version_id is not null then
+    select v.description into v_live from public.form_versions v
+     where v.tenant_id = p_tenant_id and v.id = v_form.live_version_id;
+  end if;
+  -- Nothing changed since the live version: the form is live again as it was, and no version is made.
+  if v_live is not null and v_live = v_form.draft then
+    update public.forms set state = 'live', updated_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+    return jsonb_build_object('version_id', v_form.live_version_id, 'made', false);
+  end if;
+  select coalesce(max(v.n), 0) + 1 into v_n from public.form_versions v
+   where v.tenant_id = p_tenant_id and v.form_id = p_form_id;
+  insert into public.form_versions (tenant_id, form_id, n, description, published_by)
+  values (p_tenant_id, p_form_id, v_n, v_form.draft, auth.uid())
+  returning id into v_version;
+  -- The version before is taken for a day more, so a page left open is not refused.
+  update public.form_versions set replaced_at = now()
+   where tenant_id = p_tenant_id and id = v_form.live_version_id and replaced_at is null;
+  update public.forms set state = 'live', live_version_id = v_version, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id;
+  return jsonb_build_object('version_id', v_version, 'made', true, 'n', v_n);
+end $$;
+
+
+--
+-- Name: FUNCTION form_publish(p_tenant_id uuid, p_form_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) IS 'A member''s door (00680; is_acting_member): a form''s draft made its next version and the form live. The version before is taken for a day more (replaced_at). A draft equal to the live version makes no version: the form is only live again. Answers {version_id, made, n}; P0002 for a form that is not the workspace''s.';
+
+
+--
+-- Name: form_request_take(uuid, uuid, uuid, text, jsonb, jsonb, text, jsonb, text, boolean, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb DEFAULT NULL::jsonb, p_link_code text DEFAULT NULL::text, p_test boolean DEFAULT false, p_held_why text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_form     public.forms%rowtype;
+  v_replaced timestamptz;
+  v_entry    uuid;
+  v_code     text;
+  v_contact  uuid;
+  v_link     uuid;
+  v_person   jsonb;
+  v_test     boolean := coalesce(p_test, false);
+  v_state    text := 'accepted';
+  v_owed     text[] := array['note', 'notice'];
+begin
+  if p_tenant_id is null then
+    raise exception 'Workspace not found.' using errcode = 'P0002';
+  end if;
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' or p_reach is null or jsonb_typeof(p_reach) <> 'object' then
+    raise exception 'The answers and the person are objects.' using errcode = '22023';
+  end if;
+  if nullif(btrim(coalesce(p_ref, '')), '') is null then
+    raise exception 'A hosted form''s entry carries the id its page made.' using errcode = '22023';
+  end if;
+  select * into v_form from public.forms f where f.tenant_id = p_tenant_id and f.id = p_form_id;
+  if not found then
+    raise exception 'That form is not there.' using errcode = 'P0002';
+  end if;
+  -- Once: the page made the entry's id before it sent, so the same press sent twice is one entry.
+  select e.id, e.code, e.contact_id into v_entry, v_code, v_contact
+    from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+  if v_entry is not null then
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'code', v_code);
+  end if;
+  if v_form.state <> 'live' then
+    return jsonb_build_object('outcome', 'closed', 'entry_id', null, 'contact_id', null);
+  end if;
+  -- The version the visitor saw: the live one, or the one before it for a day after it was replaced.
+  if p_version_id is distinct from v_form.live_version_id then
+    select v.replaced_at into v_replaced from public.form_versions v
+     where v.tenant_id = p_tenant_id and v.form_id = p_form_id and v.id = p_version_id;
+    if v_replaced is null or v_replaced < now() - interval '1 day' then
+      return jsonb_build_object('outcome', 'stale', 'entry_id', null, 'contact_id', null,
+                                'version_id', v_form.live_version_id);
+    end if;
+  end if;
+  -- The link it came through, where it is this form's own.
+  if nullif(btrim(coalesce(p_link_code, '')), '') is not null then
+    select l.id into v_link from public.links l
+     where l.tenant_id = p_tenant_id and l.code = lower(btrim(p_link_code))
+       and l.subject_type = 'form' and l.subject_id = p_form_id;
+  end if;
+
+  if v_test then
+    -- A test: no person, nothing owed, no event. It tells nobody and counts nowhere.
+    v_state := 'processed';
+    v_owed := '{}';
+  elsif p_held_why is not null then
+    -- Doubtful: kept for a look with no person, never dropped, never the bell.
+    v_state := 'held';
+    v_owed := '{}';
+  else
+    -- The person through the one door. A person who asked to be forgotten is not made again, and nothing of theirs
+    -- is written: the door's own writes are taken back with it.
+    begin
+      v_person := public.resolve_person(
+        p_tenant_id, '', '', coalesce(p_reach ->> 'phone', ''), coalesce(p_reach ->> 'email', ''),
+        coalesce(p_reach ->> 'name', ''), 'found', 'form', jsonb_build_object('form_id', p_form_id));
+    exception when sqlstate 'PE001' then
+      return jsonb_build_object('outcome', 'forgotten', 'entry_id', null, 'contact_id', null);
+    end;
+    v_contact := (v_person ->> 'contact_id')::uuid;
+  end if;
+
+  -- The code its thank-you carries into a chat: the workspace's own, so one is tried until none holds it.
+  loop
+    v_code := public.form_code_new();
+    exit when not exists (select 1 from public.form_entries e where e.tenant_id = p_tenant_id and e.code = v_code);
+  end loop;
+
+  begin
+    insert into public.form_entries (tenant_id, contact_id, form, answers, ref, words, owed, state, form_id,
+                                     version_id, link_id, source, reach, test, held_why, code)
+    values (p_tenant_id, v_contact, 'request', p_answers, btrim(p_ref), p_words, v_owed, v_state, p_form_id,
+            p_version_id, v_link, p_source, p_reach, v_test,
+            case when v_state = 'held' then p_held_why end, v_code)
+    returning id into v_entry;
+  exception when unique_violation then
+    -- The same page id at the same moment: the other post kept it.
+    select e.id, e.code, e.contact_id into v_entry, v_code, v_contact
+      from public.form_entries e where e.tenant_id = p_tenant_id and e.ref = btrim(p_ref);
+    return jsonb_build_object('outcome', 'again', 'entry_id', v_entry, 'contact_id', v_contact, 'code', v_code);
+  end;
+
+  if v_test then
+    return jsonb_build_object('outcome', 'test', 'entry_id', v_entry, 'contact_id', null, 'code', v_code);
+  end if;
+  if v_state = 'held' then
+    return jsonb_build_object('outcome', 'held', 'entry_id', v_entry, 'contact_id', null, 'code', v_code);
+  end if;
+
+  update public.forms set last_entry_at = now() where tenant_id = p_tenant_id and id = p_form_id;
+  insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+  values (p_tenant_id, 'form_entry.accepted', 'contact', 'form_entry', v_entry,
+          jsonb_build_object('form', 'request', 'owed', to_jsonb(v_owed), 'form_id', p_form_id));
+  return jsonb_build_object('outcome', 'accepted', 'entry_id', v_entry, 'contact_id', v_contact, 'code', v_code,
+                            'person', v_person ->> 'outcome');
+end $$;
+
+
+--
+-- Name: FUNCTION form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) IS 'The hosted form door''s one write (00680; the Forms plan, 3.2): once by the page''s own id; a form that is not live answers closed; a version that is neither live nor replaced within a day answers stale with the live one; then the person through resolve_person as a form''s, the entry and its form_entry.accepted event, together. A test (p_test) and a doubtful entry (p_held_why) are kept with no person and no event. Answers {outcome: accepted|again|closed|stale|forgotten|held|test, entry_id, contact_id, code}: forgotten writes nothing at all (PE001). The service role''s alone.';
+
+
+--
+-- Name: form_requests_open(uuid); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_requests_open(p_tenant_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- A request is open until a link answers it: a member's word, a conversation that took it over, or a reply whose
+  -- message did not fail and was not taken back. Sixty days: an older one stays in its form's own list.
+  select coalesce(jsonb_agg(r.line order by r.created_at desc), '[]'::jsonb)
+    from (
+      select e.created_at,
+             jsonb_build_object(
+               'id', e.id, 'form_id', e.form_id, 'version_id', e.version_id, 'contact_id', e.contact_id,
+               'created_at', e.created_at, 'answers', e.answers, 'reach', e.reach, 'place', l.place,
+               'heading', v.description ->> 'heading',
+               'unreached', exists (
+                 select 1 from form_entry_links k
+                   join messages m on m.tenant_id = k.tenant_id and m.id = k.message_id
+                  where k.tenant_id = e.tenant_id and k.entry_id = e.id and k.kind = 'reply'
+                    and m.status = 'failed')) as line
+        from form_entries e
+        join form_versions v on v.tenant_id = e.tenant_id and v.id = e.version_id
+        left join links l on l.tenant_id = e.tenant_id and l.id = e.link_id
+       where e.tenant_id = p_tenant_id
+         and e.form_id is not null and e.state <> 'held' and not e.test
+         and e.created_at > now() - interval '60 days'
+         and not exists (
+               select 1 from form_entry_links k
+                where k.tenant_id = e.tenant_id and k.entry_id = e.id
+                  and (k.kind in ('marked', 'conversation')
+                       or (k.kind = 'reply' and exists (
+                             select 1 from messages m
+                              where m.tenant_id = k.tenant_id and m.id = k.message_id
+                                and m.status not in ('failed', 'canceled')))))
+       order by e.created_at desc
+       limit 200) r;
+$$;
+
+
+--
+-- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_requests_open(p_tenant_id uuid) IS 'The requests of a workspace''s hosted forms nobody has answered (00680; the Forms plan, 3.5), newest first, 200 at most over sixty days, read under the member''s own row rules: each with its answers, who it is about as typed, its form''s heading, the place it came through, and whether a reply to it failed to reach them (unreached). Answered is a marked link, a conversation link, or a reply whose message did not fail and was not taken back.';
+
+
+--
+-- Name: form_results(uuid, integer); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_results(p_tenant_id uuid, p_days integer DEFAULT 30) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  with win as (
+    select now() - make_interval(days => greatest(1, least(coalesce(p_days, 30), 366))) as since
+  ), asked as (
+    -- Each request in the window: whether its person was new with it, whether it became a conversation (a reply that
+    -- left, or their own message with its code), and whether a visit followed by the rule an ad's is read by (00678):
+    -- a visit asked for in a chat and confirmed there, or one a member added, made after the request and starting after.
+    select e.form_id, e.link_id, e.contact_id,
+           c.created_at > e.created_at - interval '1 minute' as new_person,
+           exists (select 1 from form_entry_links k
+                    where k.tenant_id = e.tenant_id and k.entry_id = e.id
+                      and (k.kind = 'conversation'
+                           or (k.kind = 'reply' and exists (
+                                 select 1 from messages m
+                                  where m.tenant_id = k.tenant_id and m.id = k.message_id
+                                    and m.status not in ('failed', 'canceled'))))) as talked,
+           exists (select 1 from appointments a
+                    where a.tenant_id = e.tenant_id
+                      and a.source in ('receptionist', 'person')
+                      and a.status not in ('cancelled', 'proposed')
+                      and a.created_at > e.created_at
+                      and a.starts_at > e.created_at
+                      and (a.contact_id = e.contact_id
+                           or (a.contact_id is null
+                               and ((a.client_phone is not null and a.client_phone = c.phone_e164)
+                                    or (a.client_email is not null and lower(a.client_email) = lower(c.email))))))
+             as booked
+      from form_entries e
+      join contacts c on c.tenant_id = e.tenant_id and c.id = e.contact_id
+      cross join win
+     where e.tenant_id = p_tenant_id
+       and e.form_id is not null and e.state <> 'held' and not e.test
+       and e.created_at > win.since
+  )
+  select jsonb_build_object(
+    'places', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'form_id', x.form_id, 'link_id', x.link_id, 'requests', x.requests, 'talked', x.talked,
+               'visits', x.visits, 'people', x.people, 'new_people', x.new_people))
+        from (select a.form_id, a.link_id, count(*) as requests,
+                     count(distinct a.contact_id) as people,
+                     count(*) filter (where a.talked) as talked,
+                     count(distinct a.contact_id) filter (where a.booked) as visits,
+                     count(distinct a.contact_id) filter (where a.new_person) as new_people
+                from asked a group by a.form_id, a.link_id) x), '[]'::jsonb),
+    'opens', coalesce((
+      select jsonb_agg(jsonb_build_object('link_id', o.link_id, 'opens', o.opens))
+        from (select d.link_id, sum(d.opens) as opens
+                from link_days d cross join win
+               where d.tenant_id = p_tenant_id and d.day >= (win.since at time zone 'utc')::date
+               group by d.link_id) o), '[]'::jsonb));
+$$;
+
+
+--
+-- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) IS 'What a workspace''s hosted forms brought over the last p_days (30; 1 to 366), read under the member''s own row rules (00680): by form and by the link each request came through (link_id null: none), the requests, how many became a conversation (talked), the people who asked (people), those who booked after (visits, by 00678''s rule for a visit that follows) and those new with their request; and each link''s opens. Held entries and tests are in no count.';
+
+
+--
+-- Name: form_turn(uuid, uuid, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_turned integer;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.is_acting_member(p_tenant_id), false) then
+    raise exception 'Not yours to change.' using errcode = '42501';
+  end if;
+  -- Only a form that was published has a state to turn: a draft goes live by form_publish.
+  update public.forms
+     set state = case when coalesce(p_on, false) then 'live' else 'off' end, updated_at = now()
+   where tenant_id = p_tenant_id and id = p_form_id and live_version_id is not null
+     and state = case when coalesce(p_on, false) then 'off' else 'live' end;
+  get diagnostics v_turned = row_count;
+  return v_turned > 0;
+end $$;
+
+
+--
+-- Name: FUNCTION form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) IS 'A member''s door (00680; is_acting_member): a live form turned off (its links land on the business''s page and say it is closed), or one that is off turned on again as it was. Answers whether it turned; a draft never published has nothing to turn.';
 
 
 --
@@ -12605,7 +13221,7 @@ CREATE TABLE public.contacts (
     name_settled_at timestamp with time zone,
     before jsonb,
     CONSTRAINT contacts_acquired_ref_check CHECK (((acquired_ref IS NULL) OR ((acquired_via IS NOT NULL) AND ((char_length(acquired_ref) >= 1) AND (char_length(acquired_ref) <= 200))))),
-    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text, 'website'::text])))),
+    CONSTRAINT contacts_acquired_via_check CHECK (((acquired_via IS NULL) OR (acquired_via = ANY (ARRAY['whatsapp'::text, 'sms'::text, 'email'::text, 'instagram'::text, 'call'::text, 'ad'::text, 'calendar'::text, 'import'::text, 'lead'::text, 'manual'::text, 'website'::text, 'form'::text])))),
     CONSTRAINT contacts_before_check CHECK (((before IS NULL) OR ((jsonb_typeof(before) = 'object'::text) AND ((NOT (before ? 'last_visit'::text)) OR ((before ->> 'last_visit'::text) ~ '^\d{4}-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'birthday'::text)) OR ((before ->> 'birthday'::text) ~ '^(\d{4}|-)-\d{2}-\d{2}$'::text)) AND ((NOT (before ? 'visits'::text)) OR ((jsonb_typeof((before -> 'visits'::text)) = 'number'::text) AND ((((before ->> 'visits'::text))::numeric >= (0)::numeric) AND (((before ->> 'visits'::text))::numeric <= (999999)::numeric)))) AND ((NOT (before ? 'via'::text)) OR ((char_length((before ->> 'via'::text)) >= 1) AND (char_length((before ->> 'via'::text)) <= 40)))))),
     CONSTRAINT contacts_consent_check CHECK ((consent = ANY (ARRAY['unknown'::text, 'opted_in'::text, 'opted_out'::text]))),
     CONSTRAINT contacts_email_check CHECK (((email IS NULL) OR ((email = lower(btrim(email))) AND ((char_length(email) >= 3) AND (char_length(email) <= 254)) AND (email ~ '^[^[:space:]@<>]+@[^[:space:]@<>]+\.[^[:space:]@<>]+$'::text)))),
@@ -20167,6 +20783,70 @@ COMMENT ON FUNCTION public.lines_voice_guard() IS 'Forward moves only on voice_s
 
 
 --
+-- Name: link_code_new(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.link_code_new() RETURNS text
+    LANGUAGE sql
+    SET search_path TO 'public'
+    AS $$
+  select string_agg(substr('abcdefghjkmnpqrstuvwxyz23456789', 1 + (get_byte(r.b, g.i) % 31), 1), '' order by g.i)
+    from (select uuid_send(gen_random_uuid()) as b) r, generate_series(0, 5) as g(i);
+$$;
+
+
+--
+-- Name: FUNCTION link_code_new(); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.link_code_new() IS 'A link''s code (00680): six characters that say nothing, of letters and digits nobody misreads (no i, l, o, 0 or 1).';
+
+
+--
+-- Name: link_open(text, boolean); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.link_open(p_code text, p_count boolean DEFAULT true) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+declare
+  v_link public.links%rowtype;
+  v_out  jsonb;
+begin
+  if nullif(btrim(coalesce(p_code, '')), '') is null then
+    return null;
+  end if;
+  select * into v_link from public.links l where l.code = lower(btrim(p_code));
+  if not found then
+    return null;
+  end if;
+  if v_link.stopped_at is null and coalesce(p_count, true) then
+    insert into public.link_days as d (link_id, tenant_id, day, opens)
+    values (v_link.id, v_link.tenant_id, (now() at time zone 'utc')::date, 1)
+    on conflict (link_id, day) do update set opens = d.opens + 1;
+  end if;
+  v_out := jsonb_build_object('link_id', v_link.id, 'tenant_id', v_link.tenant_id, 'code', v_link.code,
+                              'subject_type', v_link.subject_type, 'subject_id', v_link.subject_id,
+                              'stopped', v_link.stopped_at is not null,
+                              'workspace', (select t.slug from public.tenants t where t.id = v_link.tenant_id));
+  if v_link.subject_type = 'form' then
+    v_out := v_out || coalesce(
+      (select jsonb_build_object('slug', f.slug, 'state', f.state) from public.forms f
+        where f.tenant_id = v_link.tenant_id and f.id = v_link.subject_id), '{}'::jsonb);
+  end if;
+  return v_out;
+end $$;
+
+
+--
+-- Name: FUNCTION link_open(p_code text, p_count boolean); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.link_open(p_code text, p_count boolean) IS 'A link opened by its code (00680): where it lands ({link_id, tenant_id, code, subject_type, subject_id, stopped, workspace, and for a form its slug and state}), and one more open on its day unless it is stopped or the open is not counted (p_count false: a chat app''s preview). Null for a code nobody holds. The service role''s alone.';
+
+
+--
 -- Name: llm_tokens_since(uuid, timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -24671,7 +25351,7 @@ CREATE FUNCTION public.people_list(p_tenant_id uuid, p_contact_id uuid DEFAULT N
     -- Where they came from: how a door added them (their acquired_via, written from the door's contact.added event by
     -- 00307, the first word winning), else how a history moved in began, else their first spoken event.
     case
-      when ch.acquired_via in ('calendar', 'lead', 'import', 'manual', 'website') then ch.acquired_via
+      when ch.acquired_via in ('calendar', 'lead', 'import', 'manual', 'website', 'form') then ch.acquired_via
       when coalesce(ma.has_backfill, false) then case when ma.backfill_first in ('call', 'whatsapp', 'sms', 'email') then ma.backfill_first else 'import' end
       when lk.first_at is not null and (ma.first_at is null or lk.first_at <= ma.first_at) then 'call'
       when ma.first_channel in ('whatsapp', 'sms', 'email', 'instagram') then ma.first_channel
@@ -44420,7 +45100,7 @@ CREATE TABLE public.ai_usage (
     CONSTRAINT ai_usage_output_tokens_check CHECK ((output_tokens >= 0)),
     CONSTRAINT ai_usage_port_check CHECK ((port = ANY (ARRAY['anthropic'::text, 'typesafe'::text, 'google'::text, 'elevenlabs'::text]))),
     CONSTRAINT ai_usage_prompt_hash_check CHECK (((prompt_hash IS NULL) OR (prompt_hash ~ '^[0-9a-f]{16,64}$'::text))),
-    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text]))),
+    CONSTRAINT ai_usage_purpose_check CHECK ((purpose = ANY (ARRAY['receptionist'::text, 'reply_draft'::text, 'ask'::text, 'lead_json'::text, 'template_draft'::text, 'review_reply'::text, 'lead_judge'::text, 'note_suggest'::text, 'reach_out_check'::text, 'reply_read'::text, 'booking_read'::text, 'lead_suggest'::text, 'ask_journal'::text, 'receptionist_review'::text, 'fix_route'::text, 'website_read'::text, 'sender_read'::text, 'file_look'::text, 'preview_starters'::text, 'ad_draft'::text, 'file_words'::text, 'file_hear'::text, 'lead_draft'::text, 'list_draft'::text, 'person_draft'::text, 'sequence_draft'::text, 'yes_check'::text, 'form_draft'::text]))),
     CONSTRAINT ai_usage_shadow_check CHECK (((shadow AND (port <> 'anthropic'::text)) OR ((NOT shadow) AND (question IS NULL) AND (primary_answer IS NULL) AND (shadow_answer IS NULL) AND (shadow_confidence IS NULL) AND (confident IS NULL) AND (agrees IS NULL)))),
     CONSTRAINT ai_usage_shadow_words_check CHECK (((char_length(COALESCE(question, ''::text)) <= 80) AND (char_length(COALESCE(primary_answer, ''::text)) <= 80) AND (char_length(COALESCE(shadow_answer, ''::text)) <= 80) AND ((shadow_confidence IS NULL) OR ((shadow_confidence >= (0)::numeric) AND (shadow_confidence <= (1)::numeric))))),
     CONSTRAINT ai_usage_usd_check CHECK (((usd IS NULL) OR (usd >= (0)::numeric)))
@@ -46098,7 +46778,7 @@ COMMENT ON TABLE public.files_let_go IS 'What a person removed from a business''
 CREATE TABLE public.form_entries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     tenant_id uuid NOT NULL,
-    contact_id uuid NOT NULL,
+    contact_id uuid,
     key_id uuid,
     form text NOT NULL,
     answers jsonb NOT NULL,
@@ -46109,12 +46789,28 @@ CREATE TABLE public.form_entries (
     state text DEFAULT 'accepted'::text NOT NULL,
     told_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    form_id uuid,
+    version_id uuid,
+    link_id uuid,
+    source jsonb,
+    reach jsonb,
+    test boolean DEFAULT false NOT NULL,
+    held_why text,
+    code text,
+    code_used_at timestamp with time zone,
     CONSTRAINT form_entries_answers_check CHECK (((jsonb_typeof(answers) = 'object'::text) AND (octet_length((answers)::text) <= 16000))),
+    CONSTRAINT form_entries_code_check CHECK (((code IS NULL) OR (code ~ '^[A-HJ-NP-Z2-9]{6}$'::text))),
     CONSTRAINT form_entries_effects_check CHECK ((jsonb_typeof(effects) = 'object'::text)),
     CONSTRAINT form_entries_form_check CHECK ((form = ANY (ARRAY['signup'::text, 'request'::text]))),
+    CONSTRAINT form_entries_form_names_version CHECK (((form_id IS NULL) = (version_id IS NULL))),
+    CONSTRAINT form_entries_held_says_why CHECK (((state = 'held'::text) = (held_why IS NOT NULL))),
+    CONSTRAINT form_entries_held_why_check CHECK (((held_why IS NULL) OR (held_why = ANY (ARRAY['hidden_field'::text, 'too_fast'::text, 'too_many'::text, 'member'::text])))),
     CONSTRAINT form_entries_owed_check CHECK ((owed <@ ARRAY['note'::text, 'notice'::text, 'confirm'::text])),
+    CONSTRAINT form_entries_person_unless_held CHECK (((contact_id IS NOT NULL) OR (state = 'held'::text) OR test)),
+    CONSTRAINT form_entries_reach_check CHECK (((reach IS NULL) OR ((jsonb_typeof(reach) = 'object'::text) AND (octet_length((reach)::text) <= 1000)))),
     CONSTRAINT form_entries_ref_check CHECK (((ref IS NULL) OR ((char_length(ref) >= 1) AND (char_length(ref) <= 100)))),
-    CONSTRAINT form_entries_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'processed'::text]))),
+    CONSTRAINT form_entries_source_check CHECK (((source IS NULL) OR ((jsonb_typeof(source) = 'object'::text) AND (octet_length((source)::text) <= 4000)))),
+    CONSTRAINT form_entries_state_check CHECK ((state = ANY (ARRAY['accepted'::text, 'processed'::text, 'held'::text]))),
     CONSTRAINT form_entries_words_check CHECK ((words ~ '^[0-9a-f]{64}$'::text))
 );
 
@@ -46145,6 +46841,88 @@ COMMENT ON COLUMN public.form_entries.effects IS 'Each owed effect''s outcome, b
 --
 
 COMMENT ON COLUMN public.form_entries.told_at IS 'When the owner first had a notice of the entry (its bell row kept). An accepted entry nobody was told of after ten minutes is paged (apps/edge/lib/website/form-watch.ts).';
+
+
+--
+-- Name: COLUMN form_entries.form_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.form_id IS 'The hosted form the entry is of (00680); null for a website''s own form, which has none.';
+
+
+--
+-- Name: COLUMN form_entries.version_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.version_id IS 'The version of the form its visitor saw: the answers are read against it (contracts readFormAnswers).';
+
+
+--
+-- Name: COLUMN form_entries.link_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.link_id IS 'The link the entry came through, where its page was opened by one: which place it was shared.';
+
+
+--
+-- Name: COLUMN form_entries.source; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.source IS 'Where the entry came from, in the one shape a website entry keeps (contracts EntrySource; the Ads tracking plan''s T4): the link''s code, the page, the site it came from and any campaign labels. Never a click id.';
+
+
+--
+-- Name: COLUMN form_entries.reach; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.reach IS 'Who a hosted form''s entry is about, as typed: {name, email, phone}. What a held entry is let through with, what a reply''s address is compared with, and what an erased person''s held entries are found by.';
+
+
+--
+-- Name: COLUMN form_entries.test; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.test IS 'A test its owner sent: it tells nobody, counts nowhere, has no person, and goes after 7 days.';
+
+
+--
+-- Name: COLUMN form_entries.held_why; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.held_why IS 'Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member).';
+
+
+--
+-- Name: COLUMN form_entries.code; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.form_entries.code IS 'The short code the thank-you carries into a chat: six characters, the workspace''s own, good once (code_used_at) and for 30 days.';
+
+
+--
+-- Name: form_entry_links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_entry_links (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    entry_id uuid NOT NULL,
+    kind text NOT NULL,
+    message_id uuid,
+    conversation_id uuid,
+    appointment_id uuid,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT form_entry_links_kind_check CHECK ((kind = ANY (ARRAY['reply'::text, 'conversation'::text, 'visit'::text, 'marked'::text]))),
+    CONSTRAINT form_entry_links_names_one CHECK ((((kind = 'reply'::text) AND (message_id IS NOT NULL) AND (conversation_id IS NULL) AND (appointment_id IS NULL)) OR ((kind = 'conversation'::text) AND (conversation_id IS NOT NULL) AND (appointment_id IS NULL)) OR ((kind = 'visit'::text) AND (appointment_id IS NOT NULL) AND (message_id IS NULL) AND (conversation_id IS NULL)) OR ((kind = 'marked'::text) AND (created_by IS NOT NULL) AND (message_id IS NULL) AND (conversation_id IS NULL) AND (appointment_id IS NULL))))
+);
+
+
+--
+-- Name: TABLE form_entry_links; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_entry_links IS 'What happened to one form entry (00680; the Forms plan, 3.1 and 3.5), each written by the act itself: reply (the message sent from the request), conversation (the conversation that arrived with its code, and the message that carried it), visit (a visit asked for from it), marked (a member''s word that it was answered another way). Answered is read from here and never kept on the entry: a marked link, a conversation link, or a reply whose message did not fail and was not taken back. It names a message, a conversation or a visit, never a person, and goes with its entry.';
 
 
 --
@@ -46179,6 +46957,74 @@ COMMENT ON TABLE public.form_keys IS 'A website''s key for the form door (00675;
 --
 
 COMMENT ON COLUMN public.form_keys.ends_at IS 'From when the key is refused: the moment it was ended, or a day after it was changed. Null: it does not end.';
+
+
+--
+-- Name: form_versions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.form_versions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    form_id uuid NOT NULL,
+    n integer NOT NULL,
+    description jsonb NOT NULL,
+    published_by uuid,
+    published_at timestamp with time zone DEFAULT now() NOT NULL,
+    replaced_at timestamp with time zone,
+    CONSTRAINT form_versions_description_check CHECK (((jsonb_typeof(description) = 'object'::text) AND (octet_length((description)::text) <= 32000))),
+    CONSTRAINT form_versions_n_check CHECK ((n >= 1))
+);
+
+
+--
+-- Name: TABLE form_versions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.form_versions IS 'One published description of a form (00680): numbered from 1, written by form_publish, never changed. The version before the live one is taken for a day after replaced_at, so a page left open is not refused. An entry names the version its visitor saw.';
+
+
+--
+-- Name: forms; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forms (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    slug text NOT NULL,
+    state text DEFAULT 'draft'::text NOT NULL,
+    draft jsonb NOT NULL,
+    live_version_id uuid,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_entry_at timestamp with time zone,
+    CONSTRAINT forms_draft_check CHECK (((jsonb_typeof(draft) = 'object'::text) AND (octet_length((draft)::text) <= 32000))),
+    CONSTRAINT forms_draft_has_no_version CHECK (((state = 'draft'::text) = (live_version_id IS NULL))),
+    CONSTRAINT forms_slug_check CHECK (((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text) AND ((char_length(slug) >= 1) AND (char_length(slug) <= 60)))),
+    CONSTRAINT forms_state_check CHECK ((state = ANY (ARRAY['draft'::text, 'live'::text, 'off'::text])))
+);
+
+
+--
+-- Name: TABLE forms; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forms IS 'A request form a business shares with no website (00680; the Forms plan, F1): its address under the business''s page (slug), whether it is a draft, live or off, its description as it is being changed (draft, contracts FormDescription) and the version that is live. Its name is its heading. Members read; a member who may act writes the draft; form_publish and form_turn alone move state and live_version_id. A draft never published may be deleted; a form that took requests is turned off.';
+
+
+--
+-- Name: COLUMN forms.draft; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.draft IS 'The description as its owner is changing it (contracts FormDescription): equal to the live version''s when nothing waits to be published, and what form_publish makes the next version of.';
+
+
+--
+-- Name: COLUMN forms.last_entry_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forms.last_entry_at IS 'When the form last took a request (form_request_take, form_entry_let_through): a test and a held entry do not move it.';
 
 
 --
@@ -47616,6 +48462,54 @@ COMMENT ON COLUMN public.lines.reg_sole_prop IS 'True when the carrier registrat
 
 
 --
+-- Name: link_days; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.link_days (
+    link_id uuid NOT NULL,
+    tenant_id uuid NOT NULL,
+    day date NOT NULL,
+    opens integer DEFAULT 0 NOT NULL,
+    CONSTRAINT link_days_opens_check CHECK ((opens >= 0))
+);
+
+
+--
+-- Name: TABLE link_days; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.link_days IS 'A link''s opens, counted by day (UTC) and written by link_open alone (00680). An open is a count, never a visitor: no cookie, no address. A chat app''s preview of the link is not counted.';
+
+
+--
+-- Name: links; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.links (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    tenant_id uuid NOT NULL,
+    code text DEFAULT public.link_code_new() NOT NULL,
+    subject_type text NOT NULL,
+    subject_id uuid NOT NULL,
+    place text NOT NULL,
+    printed boolean DEFAULT false NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    stopped_at timestamp with time zone,
+    CONSTRAINT links_code_check CHECK ((code ~ '^[a-hjkmnp-z2-9]{6}$'::text)),
+    CONSTRAINT links_place_check CHECK (((char_length(btrim(place)) >= 1) AND (char_length(btrim(place)) <= 60))),
+    CONSTRAINT links_subject_type_check CHECK ((subject_type = 'form'::text))
+);
+
+
+--
+-- Name: TABLE links; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.links IS 'A short link for one place a thing of the business''s is shared (00680; the content loop PRD''s Appendix A): its code, what it opens (a form, so far), where it is shared in the owner''s words, whether it is the one printed as a code, and when it was stopped. A code says nothing by itself. Members read; a member who may act makes one, renames it and stops it; link_open reads it for a visitor.';
+
+
+--
 -- Name: mailbox_connections; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -48180,7 +49074,7 @@ CREATE TABLE public.notifications (
     mail_due_at timestamp with time zone,
     closed_at timestamp with time zone,
     CONSTRAINT notifications_body_check CHECK ((char_length(body) <= 4000)),
-    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text]))),
+    CONSTRAINT notifications_kind_check CHECK ((kind = ANY (ARRAY['handoff'::text, 'deadman'::text, 'call'::text, 'number'::text, 'sweep'::text, 'job_failed'::text, 'playbook'::text, 'calendar_people'::text, 'alert'::text, 'review'::text, 'billing'::text, 'template_ready'::text, 'template_blocked'::text, 'broadcast_sent'::text, 'broadcast_stopped'::text, 'leads_ready'::text, 'leads_question'::text, 'note_for_you'::text, 'reach_out_replied'::text, 'reach_out_day'::text, 'booking_notice'::text, 'opted_out'::text, 'booking'::text, 'member_joined'::text, 'member_left'::text, 'note_to_keep'::text, 'reply_held'::text, 'ask_cards'::text, 'website_form'::text, 'files_waiting'::text, 'video_ready'::text, 'post_up'::text, 'post_stopped'::text, 'preview_tried'::text, 'ad_account'::text, 'footage'::text, 'footage_in'::text, 'ad_refused'::text, 'ad_unpaid'::text, 'ad_ended'::text, 'ad_spent'::text, 'ad_quiet'::text, 'ad_draft'::text, 'ad_unfinished'::text, 'ad_unconfirmed'::text, 'ad_way_in'::text, 'ads_paused'::text, 'booking_lapsed'::text, 'form_request'::text]))),
     CONSTRAINT notifications_title_check CHECK (((char_length(title) >= 1) AND (char_length(title) <= 200)))
 );
 
@@ -51065,6 +51959,22 @@ ALTER TABLE ONLY public.form_entries
 
 
 --
+-- Name: form_entry_links form_entry_links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_entry_links form_entry_links_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
 -- Name: form_keys form_keys_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -51078,6 +51988,54 @@ ALTER TABLE ONLY public.form_keys
 
 ALTER TABLE ONLY public.form_keys
     ADD CONSTRAINT form_keys_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: form_versions form_versions_n_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_versions
+    ADD CONSTRAINT form_versions_n_key UNIQUE (tenant_id, form_id, n);
+
+
+--
+-- Name: form_versions form_versions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_versions
+    ADD CONSTRAINT form_versions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: form_versions form_versions_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_versions
+    ADD CONSTRAINT form_versions_tenant_id_id_key UNIQUE (tenant_id, id);
+
+
+--
+-- Name: forms forms_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forms forms_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_slug_key UNIQUE (tenant_id, slug);
+
+
+--
+-- Name: forms forms_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -51374,6 +52332,38 @@ ALTER TABLE ONLY public.leads
 
 ALTER TABLE ONLY public.lines
     ADD CONSTRAINT lines_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: link_days link_days_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_days
+    ADD CONSTRAINT link_days_pkey PRIMARY KEY (link_id, day);
+
+
+--
+-- Name: links links_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links
+    ADD CONSTRAINT links_code_key UNIQUE (code);
+
+
+--
+-- Name: links links_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links
+    ADD CONSTRAINT links_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: links links_tenant_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links
+    ADD CONSTRAINT links_tenant_id_id_key UNIQUE (tenant_id, id);
 
 
 --
@@ -53174,6 +54164,13 @@ CREATE INDEX files_superseded ON public.files USING btree (superseded_at) WHERE 
 
 
 --
+-- Name: form_entries_code; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entries_code ON public.form_entries USING btree (tenant_id, code) WHERE (code IS NOT NULL);
+
+
+--
 -- Name: form_entries_contact; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -53181,10 +54178,31 @@ CREATE INDEX form_entries_contact ON public.form_entries USING btree (tenant_id,
 
 
 --
+-- Name: form_entries_form; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_form ON public.form_entries USING btree (tenant_id, form_id, created_at);
+
+
+--
+-- Name: form_entries_held; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_held ON public.form_entries USING btree (tenant_id, created_at) WHERE (state = 'held'::text);
+
+
+--
 -- Name: form_entries_key; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX form_entries_key ON public.form_entries USING btree (tenant_id, key_id);
+
+
+--
+-- Name: form_entries_link; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_link ON public.form_entries USING btree (tenant_id, link_id);
 
 
 --
@@ -53202,6 +54220,20 @@ CREATE UNIQUE INDEX form_entries_ref ON public.form_entries USING btree (tenant_
 
 
 --
+-- Name: form_entries_requests; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_requests ON public.form_entries USING btree (tenant_id, created_at) WHERE ((form_id IS NOT NULL) AND (state <> 'held'::text) AND (NOT test));
+
+
+--
+-- Name: form_entries_tests; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_tests ON public.form_entries USING btree (created_at) WHERE test;
+
+
+--
 -- Name: form_entries_untold; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -53209,10 +54241,59 @@ CREATE INDEX form_entries_untold ON public.form_entries USING btree (created_at)
 
 
 --
+-- Name: form_entries_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entries_version ON public.form_entries USING btree (tenant_id, version_id);
+
+
+--
 -- Name: form_entries_words; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX form_entries_words ON public.form_entries USING btree (tenant_id, words, created_at);
+
+
+--
+-- Name: form_entry_links_appointment; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entry_links_appointment ON public.form_entry_links USING btree (tenant_id, appointment_id);
+
+
+--
+-- Name: form_entry_links_conversation; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entry_links_conversation ON public.form_entry_links USING btree (tenant_id, conversation_id);
+
+
+--
+-- Name: form_entry_links_entry; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entry_links_entry ON public.form_entry_links USING btree (tenant_id, entry_id);
+
+
+--
+-- Name: form_entry_links_marked; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entry_links_marked ON public.form_entry_links USING btree (entry_id) WHERE (kind = 'marked'::text);
+
+
+--
+-- Name: form_entry_links_message; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX form_entry_links_message ON public.form_entry_links USING btree (tenant_id, message_id);
+
+
+--
+-- Name: form_entry_links_taken_over; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX form_entry_links_taken_over ON public.form_entry_links USING btree (entry_id, conversation_id) WHERE (kind = 'conversation'::text);
 
 
 --
@@ -53227,6 +54308,13 @@ CREATE UNIQUE INDEX form_keys_first ON public.form_keys USING btree (tenant_id) 
 --
 
 CREATE UNIQUE INDEX form_keys_hash ON public.form_keys USING btree (hash) WHERE (hash IS NOT NULL);
+
+
+--
+-- Name: forms_live_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forms_live_version ON public.forms USING btree (tenant_id, live_version_id);
 
 
 --
@@ -53647,6 +54735,20 @@ COMMENT ON INDEX public.lines_one_live_per_tenant_idx IS 'One line per workspace
 --
 
 CREATE INDEX lines_tenant_idx ON public.lines USING btree (tenant_id, created_at);
+
+
+--
+-- Name: link_days_workspace; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX link_days_workspace ON public.link_days USING btree (tenant_id, day);
+
+
+--
+-- Name: links_subject; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX links_subject ON public.links USING btree (tenant_id, subject_type, subject_id);
 
 
 --
@@ -55337,6 +56439,13 @@ CREATE TRIGGER contacts_erase_takes_form_entries AFTER UPDATE OF erased_at ON pu
 
 
 --
+-- Name: contacts contacts_erase_takes_held_form_entries; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_erase_takes_held_form_entries AFTER UPDATE OF erased_at ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_held_erase_on_contact();
+
+
+--
 -- Name: contacts contacts_erase_takes_mailbox_senders; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -55362,6 +56471,13 @@ CREATE TRIGGER contacts_erase_takes_signers AFTER UPDATE OF erased_at ON public.
 --
 
 CREATE TRIGGER contacts_erasure_digest_keyed BEFORE INSERT OR UPDATE OF erased_phone_hash, erased_email_hash ON public.contacts FOR EACH ROW WHEN (((COALESCE(new.erased_phone_hash, 'h1:'::text) !~~ 'h1:%'::text) OR (COALESCE(new.erased_email_hash, 'h1:'::text) !~~ 'h1:%'::text))) EXECUTE FUNCTION public.erasure_digest_keyed_on_write();
+
+
+--
+-- Name: contacts contacts_merge_moves_form_entries; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER contacts_merge_moves_form_entries AFTER UPDATE OF merged_into_contact_id ON public.contacts FOR EACH ROW EXECUTE FUNCTION public.form_entries_follow_merge();
 
 
 --
@@ -56303,6 +57419,20 @@ CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.escalations REFERENC
 
 
 --
+-- Name: form_entries workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.form_entries REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: form_entry_links workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_delete AFTER DELETE ON public.form_entry_links REFERENCING OLD TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
 -- Name: google_connections workspace_tell_delete; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -56559,6 +57689,20 @@ CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.escalations REFERENC
 --
 
 CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.files REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: form_entries workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.form_entries REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
+
+
+--
+-- Name: form_entry_links workspace_tell_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_insert AFTER INSERT ON public.form_entry_links REFERENCING NEW TABLE AS changed FOR EACH STATEMENT EXECUTE FUNCTION public.workspace_tell_changes();
 
 
 --
@@ -56846,6 +57990,13 @@ CREATE TRIGGER workspace_tell_update AFTER UPDATE ON public.escalations REFERENC
 --
 
 CREATE TRIGGER workspace_tell_update AFTER UPDATE OF status, name, shows, who_in_it, look_status, look, removed_at, media_status, sound_said, copy_state, copy_why, yes_for, yes_back ON public.files FOR EACH ROW WHEN (((old.status IS DISTINCT FROM new.status) OR (old.name IS DISTINCT FROM new.name) OR (old.shows IS DISTINCT FROM new.shows) OR (old.who_in_it IS DISTINCT FROM new.who_in_it) OR (old.look_status IS DISTINCT FROM new.look_status) OR (old.look IS DISTINCT FROM new.look) OR (old.removed_at IS DISTINCT FROM new.removed_at) OR (old.media_status IS DISTINCT FROM new.media_status) OR (old.sound_said IS DISTINCT FROM new.sound_said) OR (old.copy_state IS DISTINCT FROM new.copy_state) OR (old.copy_why IS DISTINCT FROM new.copy_why) OR (old.yes_for IS DISTINCT FROM new.yes_for) OR (old.yes_back IS DISTINCT FROM new.yes_back))) EXECUTE FUNCTION public.workspace_tell_row_change();
+
+
+--
+-- Name: form_entries workspace_tell_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tell_update AFTER UPDATE OF state, held_why, contact_id ON public.form_entries FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.held_why IS DISTINCT FROM new.held_why) OR (old.contact_id IS DISTINCT FROM new.contact_id))) EXECUTE FUNCTION public.workspace_tell_row_change();
 
 
 --
@@ -57813,11 +58964,27 @@ ALTER TABLE ONLY public.form_entries
 
 
 --
+-- Name: form_entries form_entries_form_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_form_id_same_workspace FOREIGN KEY (tenant_id, form_id) REFERENCES public.forms(tenant_id, id);
+
+
+--
 -- Name: form_entries form_entries_key_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.form_entries
     ADD CONSTRAINT form_entries_key_id_same_workspace FOREIGN KEY (tenant_id, key_id) REFERENCES public.form_keys(tenant_id, id) ON DELETE SET NULL (key_id);
+
+
+--
+-- Name: form_entries form_entries_link_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_link_id_same_workspace FOREIGN KEY (tenant_id, link_id) REFERENCES public.links(tenant_id, id) ON DELETE SET NULL (link_id);
 
 
 --
@@ -57829,11 +58996,91 @@ ALTER TABLE ONLY public.form_entries
 
 
 --
+-- Name: form_entries form_entries_version_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entries
+    ADD CONSTRAINT form_entries_version_id_same_workspace FOREIGN KEY (tenant_id, version_id) REFERENCES public.form_versions(tenant_id, id);
+
+
+--
+-- Name: form_entry_links form_entry_links_appointment_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_appointment_id_same_workspace FOREIGN KEY (tenant_id, appointment_id) REFERENCES public.appointments(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entry_links form_entry_links_conversation_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_conversation_id_same_workspace FOREIGN KEY (tenant_id, conversation_id) REFERENCES public.conversations(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entry_links form_entry_links_entry_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_entry_id_same_workspace FOREIGN KEY (tenant_id, entry_id) REFERENCES public.form_entries(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entry_links form_entry_links_message_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_message_id_same_workspace FOREIGN KEY (tenant_id, message_id) REFERENCES public.messages(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_entry_links form_entry_links_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_entry_links
+    ADD CONSTRAINT form_entry_links_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
 -- Name: form_keys form_keys_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.form_keys
     ADD CONSTRAINT form_keys_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_versions form_versions_form_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_versions
+    ADD CONSTRAINT form_versions_form_id_same_workspace FOREIGN KEY (tenant_id, form_id) REFERENCES public.forms(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: form_versions form_versions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.form_versions
+    ADD CONSTRAINT form_versions_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forms forms_live_version_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_live_version_id_same_workspace FOREIGN KEY (tenant_id, live_version_id) REFERENCES public.form_versions(tenant_id, id);
+
+
+--
+-- Name: forms forms_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forms
+    ADD CONSTRAINT forms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -58154,6 +59401,30 @@ ALTER TABLE ONLY public.leads
 
 ALTER TABLE ONLY public.lines
     ADD CONSTRAINT lines_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: link_days link_days_link_id_same_workspace; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_days
+    ADD CONSTRAINT link_days_link_id_same_workspace FOREIGN KEY (tenant_id, link_id) REFERENCES public.links(tenant_id, id) ON DELETE CASCADE;
+
+
+--
+-- Name: link_days link_days_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.link_days
+    ADD CONSTRAINT link_days_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: links links_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.links
+    ADD CONSTRAINT links_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id) ON DELETE CASCADE;
 
 
 --
@@ -60100,6 +61371,35 @@ CREATE POLICY form_entries_member_select ON public.form_entries FOR SELECT TO au
 
 
 --
+-- Name: form_entry_links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_entry_links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_entry_links form_entry_links_acting_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_entry_links_acting_delete ON public.form_entry_links FOR DELETE TO authenticated USING ((public.is_acting_member(tenant_id) AND (kind = 'marked'::text)));
+
+
+--
+-- Name: form_entry_links form_entry_links_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_entry_links_acting_insert ON public.form_entry_links FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid)) AND (kind = ANY (ARRAY['reply'::text, 'marked'::text]))));
+
+
+--
+-- Name: form_entry_links form_entry_links_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_entry_links_member_select ON public.form_entry_links FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
 -- Name: form_keys; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -60110,6 +61410,57 @@ ALTER TABLE public.form_keys ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY form_keys_member_select ON public.form_keys FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: form_versions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.form_versions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: form_versions form_versions_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY form_versions_member_select ON public.form_versions FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: forms; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forms ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forms forms_acting_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forms_acting_delete ON public.forms FOR DELETE TO authenticated USING ((public.is_acting_member(tenant_id) AND (state = 'draft'::text)));
+
+
+--
+-- Name: forms forms_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forms_acting_insert ON public.forms FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid))));
+
+
+--
+-- Name: forms forms_acting_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forms_acting_update ON public.forms FOR UPDATE TO authenticated USING (public.is_acting_member(tenant_id)) WITH CHECK (public.is_acting_member(tenant_id));
+
+
+--
+-- Name: forms forms_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forms_member_select ON public.forms FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -60429,6 +61780,52 @@ ALTER TABLE public.lines ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY lines_member_select ON public.lines FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: link_days; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.link_days ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: link_days link_days_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY link_days_member_select ON public.link_days FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
+   FROM public.memberships m
+  WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
+
+
+--
+-- Name: links; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.links ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: links links_acting_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY links_acting_insert ON public.links FOR INSERT TO authenticated WITH CHECK ((public.is_acting_member(tenant_id) AND (created_by = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forms f
+  WHERE ((f.tenant_id = links.tenant_id) AND (f.id = links.subject_id))))));
+
+
+--
+-- Name: links links_acting_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY links_acting_update ON public.links FOR UPDATE TO authenticated USING (public.is_acting_member(tenant_id)) WITH CHECK (public.is_acting_member(tenant_id));
+
+
+--
+-- Name: links links_member_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY links_member_select ON public.links FOR SELECT TO authenticated USING ((tenant_id IN ( SELECT m.tenant_id
    FROM public.memberships m
   WHERE (m.user_id = ( SELECT auth.uid() AS uid)))));
 
@@ -63385,11 +64782,75 @@ GRANT ALL ON FUNCTION public.footage_ring(p_tenant_id uuid, p_subject_type text,
 
 
 --
+-- Name: FUNCTION form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_code_link(p_tenant_id uuid, p_code text, p_conversation_id uuid, p_message_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_code_new(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_code_new() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_code_new() TO service_role;
+
+
+--
+-- Name: FUNCTION form_code_person(p_tenant_id uuid, p_code text, p_phone text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_code_person(p_tenant_id uuid, p_code text, p_phone text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_code_person(p_tenant_id uuid, p_code text, p_phone text) TO service_role;
+
+
+--
 -- Name: FUNCTION form_entries_erase_on_contact(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.form_entries_erase_on_contact() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_entries_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entries_follow_merge(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_follow_merge() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_follow_merge() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entries_held_erase_on_contact(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_held_erase_on_contact() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_held_erase_on_contact() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entries_purge(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entries_purge() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entries_purge() TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_hold(p_tenant_id uuid, p_entry_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_hold(p_tenant_id uuid, p_entry_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_entry_let_through(p_tenant_id uuid, p_entry_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_entry_let_through(p_tenant_id uuid, p_entry_id uuid) TO service_role;
 
 
 --
@@ -63433,6 +64894,50 @@ GRANT ALL ON FUNCTION public.form_key_end(p_tenant_id uuid, p_key_id uuid) TO se
 REVOKE ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO authenticated;
 GRANT ALL ON FUNCTION public.form_key_make(p_tenant_id uuid, p_name text, p_hash text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_publish(p_tenant_id uuid, p_form_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_publish(p_tenant_id uuid, p_form_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_request_take(p_tenant_id uuid, p_form_id uuid, p_version_id uuid, p_ref text, p_answers jsonb, p_reach jsonb, p_words text, p_source jsonb, p_link_code text, p_test boolean, p_held_why text) TO service_role;
+
+
+--
+-- Name: FUNCTION form_requests_open(p_tenant_id uuid); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.form_requests_open(p_tenant_id uuid) TO service_role;
+
+
+--
+-- Name: FUNCTION form_results(p_tenant_id uuid, p_days integer); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) TO authenticated;
+GRANT ALL ON FUNCTION public.form_results(p_tenant_id uuid, p_days integer) TO service_role;
+
+
+--
+-- Name: FUNCTION form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) TO authenticated;
+GRANT ALL ON FUNCTION public.form_turn(p_tenant_id uuid, p_form_id uuid, p_on boolean) TO service_role;
 
 
 --
@@ -64678,6 +66183,23 @@ GRANT ALL ON FUNCTION public.lines_sms_guard() TO service_role;
 REVOKE ALL ON FUNCTION public.lines_voice_guard() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.lines_voice_guard() TO authenticated;
 GRANT ALL ON FUNCTION public.lines_voice_guard() TO service_role;
+
+
+--
+-- Name: FUNCTION link_code_new(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.link_code_new() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.link_code_new() TO authenticated;
+GRANT ALL ON FUNCTION public.link_code_new() TO service_role;
+
+
+--
+-- Name: FUNCTION link_open(p_code text, p_count boolean); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.link_open(p_code text, p_count boolean) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.link_open(p_code text, p_count boolean) TO service_role;
 
 
 --
@@ -69521,11 +71043,105 @@ GRANT ALL ON TABLE public.form_entries TO service_role;
 
 
 --
+-- Name: TABLE form_entry_links; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.form_entry_links TO authenticated;
+GRANT ALL ON TABLE public.form_entry_links TO service_role;
+
+
+--
+-- Name: COLUMN form_entry_links.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.form_entry_links TO authenticated;
+
+
+--
+-- Name: COLUMN form_entry_links.entry_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(entry_id) ON TABLE public.form_entry_links TO authenticated;
+
+
+--
+-- Name: COLUMN form_entry_links.kind; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(kind) ON TABLE public.form_entry_links TO authenticated;
+
+
+--
+-- Name: COLUMN form_entry_links.message_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(message_id) ON TABLE public.form_entry_links TO authenticated;
+
+
+--
+-- Name: COLUMN form_entry_links.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.form_entry_links TO authenticated;
+
+
+--
 -- Name: TABLE form_keys; Type: ACL; Schema: public; Owner: -
 --
 
 GRANT SELECT ON TABLE public.form_keys TO authenticated;
 GRANT ALL ON TABLE public.form_keys TO service_role;
+
+
+--
+-- Name: TABLE form_versions; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.form_versions TO authenticated;
+GRANT ALL ON TABLE public.form_versions TO service_role;
+
+
+--
+-- Name: TABLE forms; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT,DELETE ON TABLE public.forms TO authenticated;
+GRANT ALL ON TABLE public.forms TO service_role;
+
+
+--
+-- Name: COLUMN forms.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.forms TO authenticated;
+
+
+--
+-- Name: COLUMN forms.slug; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(slug) ON TABLE public.forms TO authenticated;
+
+
+--
+-- Name: COLUMN forms.draft; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(draft),UPDATE(draft) ON TABLE public.forms TO authenticated;
+
+
+--
+-- Name: COLUMN forms.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.forms TO authenticated;
+
+
+--
+-- Name: COLUMN forms.updated_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(updated_at) ON TABLE public.forms TO authenticated;
 
 
 --
@@ -69953,6 +71569,71 @@ GRANT ALL ON TABLE public.lead_suppressions TO service_role;
 
 GRANT SELECT ON TABLE public.lines TO authenticated;
 GRANT ALL ON TABLE public.lines TO service_role;
+
+
+--
+-- Name: TABLE link_days; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.link_days TO authenticated;
+GRANT ALL ON TABLE public.link_days TO service_role;
+
+
+--
+-- Name: TABLE links; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT SELECT ON TABLE public.links TO authenticated;
+GRANT ALL ON TABLE public.links TO service_role;
+
+
+--
+-- Name: COLUMN links.tenant_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(tenant_id) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.subject_type; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_type) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.subject_id; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(subject_id) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.place; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(place),UPDATE(place) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.printed; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(printed) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.created_by; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT INSERT(created_by) ON TABLE public.links TO authenticated;
+
+
+--
+-- Name: COLUMN links.stopped_at; Type: ACL; Schema: public; Owner: -
+--
+
+GRANT UPDATE(stopped_at) ON TABLE public.links TO authenticated;
 
 
 --

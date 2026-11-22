@@ -45,7 +45,7 @@ what the script writes.
 | [`contact_identities`](#contact_identities) | `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/erasure/legs.ts` | on, 1 policy |
 | [`contact_marks`](#contact_marks) | none | on, 1 policy |
 | [`contact_reads`](#contact_reads) | none | on, 1 policy |
-| [`contacts`](#contacts) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/erased.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/people/pages.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
+| [`contacts`](#contacts) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/email.ts`, `packages/db/src/repositories/people/erased.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/people/pages.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts` | on, 1 policy |
 | [`conversation_channel_state`](#conversation_channel_state) | none | on, 1 policy |
 | [`conversation_drafts`](#conversation_drafts) | `packages/db/src/repositories/ask/reply-drafts.ts` | on, 1 policy |
 | [`conversations`](#conversations) | `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/campaigns/occasions.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/channels/echoes.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/send-door.ts`, `packages/db/src/repositories/conversations/control.ts`, `packages/db/src/repositories/conversations/reads.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/reports/activity.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts` | on, 2 policies |
@@ -61,8 +61,11 @@ what the script writes.
 | [`file_consents`](#file_consents) | none | on, 1 policy |
 | [`files`](#files) | `packages/db/src/repositories/files/captions.ts`, `packages/db/src/repositories/files/copies.ts`, `packages/db/src/repositories/files/files.ts`, `packages/db/src/repositories/files/prints.ts`, `packages/db/src/repositories/files/source-takes.ts` | on, 1 policy |
 | [`files_let_go`](#files_let_go) | `packages/db/src/repositories/files/files.ts` | on, no policy, so only the service role reaches it |
-| [`form_entries`](#form_entries) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
+| [`form_entries`](#form_entries) | `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
+| [`form_entry_links`](#form_entry_links) | `packages/db/src/repositories/forms/requests.ts` | on, 3 policies |
 | [`form_keys`](#form_keys) | `packages/db/src/repositories/people/website-forms.ts` | on, 1 policy |
+| [`form_versions`](#form_versions) | `packages/db/src/repositories/forms/forms.ts` | on, 1 policy |
+| [`forms`](#forms) | `packages/db/src/repositories/forms/forms.ts` | on, 4 policies |
 | [`google_connections`](#google_connections) | `packages/db/src/repositories/google/connection.ts` | on, 1 policy |
 | [`google_listing_days`](#google_listing_days) | `packages/db/src/repositories/google/listing.ts` | on, 1 policy |
 | [`google_listings`](#google_listings) | `packages/db/src/repositories/campaigns/workspace.ts`, `packages/db/src/repositories/google/listing.ts`, `packages/db/src/repositories/imports/business-reads.ts` | on, 1 policy |
@@ -88,6 +91,8 @@ what the script writes.
 | [`lead_suppressions`](#lead_suppressions) | `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/leads/finder.ts` | on, 1 policy |
 | [`leads`](#leads) | `packages/db/src/repositories/calendar/appointments/rows.ts`, `packages/db/src/repositories/campaigns/lead-previews.ts`, `packages/db/src/repositories/campaigns/reach-out/ahead.ts`, `packages/db/src/repositories/campaigns/reach-out/checks.ts`, `packages/db/src/repositories/campaigns/reach-out/drafts.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/reach-out/outreach.ts`, `packages/db/src/repositories/campaigns/reach-out/rewrite.ts`, `packages/db/src/repositories/campaigns/reach-out/sheet.ts`, `packages/db/src/repositories/campaigns/sequences/runs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/leads/workbench.ts`, `packages/db/src/repositories/workspace/export.ts` | on, 1 policy |
 | [`lines`](#lines) | `packages/db/src/repositories/campaigns/channels.ts`, `packages/db/src/repositories/console/support.ts`, `packages/db/src/repositories/lines/lines.ts`, `packages/db/src/repositories/lines/routing.ts`, `packages/db/src/repositories/lines/rows.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/shared/tenant-db.type-test.ts` | on, 1 policy |
+| [`link_days`](#link_days) | none | on, 1 policy |
+| [`links`](#links) | `packages/db/src/repositories/forms/links.ts` | on, 3 policies |
 | [`mailbox_connections`](#mailbox_connections) | `packages/db/src/repositories/email/connections.ts`, `packages/db/src/repositories/email/sync.ts` | on, 1 policy |
 | [`mailbox_left`](#mailbox_left) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
 | [`mailbox_sender_reads`](#mailbox_sender_reads) | `packages/db/src/repositories/email/senders.ts` | on, 1 policy |
@@ -1122,7 +1127,7 @@ Foreign keys:
 
 ### contacts
 
-- Owned by: `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/erased.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/people/pages.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`
+- Owned by: `packages/db/src/repositories/ask/cards.ts`, `packages/db/src/repositories/ask/reply-drafts.ts`, `packages/db/src/repositories/calendar/appointments/visits.ts`, `packages/db/src/repositories/campaigns/broadcast-run.ts`, `packages/db/src/repositories/campaigns/offers-answer.ts`, `packages/db/src/repositories/campaigns/reach-out/emails.ts`, `packages/db/src/repositories/campaigns/signup-confirms.ts`, `packages/db/src/repositories/channels/ingest.ts`, `packages/db/src/repositories/conversations/thread/history.ts`, `packages/db/src/repositories/email/email.ts`, `packages/db/src/repositories/email/senders.ts`, `packages/db/src/repositories/erasure/legs.ts`, `packages/db/src/repositories/events/delivery.ts`, `packages/db/src/repositories/imports/before.ts`, `packages/db/src/repositories/leads/finder.ts`, `packages/db/src/repositories/leads/leads.ts`, `packages/db/src/repositories/notices/notifications/feed.ts`, `packages/db/src/repositories/notices/notifications/kept.ts`, `packages/db/src/repositories/people/email.ts`, `packages/db/src/repositories/people/erased.ts`, `packages/db/src/repositories/people/member-reads.ts`, `packages/db/src/repositories/people/noticed.ts`, `packages/db/src/repositories/people/pages.ts`, `packages/db/src/repositories/people/people.ts`, `packages/db/src/repositories/people/waiting-on-you.ts`, `packages/db/src/repositories/voice/caller.ts`, `packages/db/src/repositories/voice/calls.ts`, `packages/db/src/repositories/workspace/export.ts`, `packages/db/src/repositories/workspace/scopes.ts`, `packages/db/src/repositories/workspace/setup-rows.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1640,7 +1645,7 @@ Foreign keys:
 
 One entry of a website's form (00675; the Forms plan, F0), written with its person and its event in one transaction by form_entry_take: who it is about, the key it came with, the kind of form, the answers as sent, the site's own id for it, a digest of the words, what is owed after it and what each came to (form_entry_settled), how far it got, and when the owner was first told. Never without its person: a person who asked to be forgotten has no entry at all. Goes with its person when they are erased (form_entries_erase_on_contact).
 
-- Owned by: `packages/db/src/repositories/people/website-forms.ts`
+- Owned by: `packages/db/src/repositories/forms/requests.ts`, `packages/db/src/repositories/people/website-forms.ts`, `packages/db/src/repositories/workspace/export.ts`
 - Primary key: `id`
 - Row-level security: on, 1 policy
 
@@ -1648,7 +1653,7 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | --- | --- | --- | --- | --- |
 | `id` | uuid | no | `gen_random_uuid()` |  |
 | `tenant_id` | uuid | no |  |  |
-| `contact_id` | uuid | no |  |  |
+| `contact_id` | uuid | yes |  |  |
 | `key_id` | uuid | yes |  |  |
 | `form` | text | no |  |  |
 | `answers` | jsonb | no |  |  |
@@ -1659,16 +1664,62 @@ One entry of a website's form (00675; the Forms plan, F0), written with its pers
 | `state` | text | no | `'accepted'::text` |  |
 | `told_at` | timestamp with time zone | yes |  | When the owner first had a notice of the entry (its bell row kept). An accepted entry nobody was told of after ten minutes is paged (apps/edge/lib/website/form-watch.ts). |
 | `created_at` | timestamp with time zone | no | `now()` |  |
+| `form_id` | uuid | yes |  | The hosted form the entry is of (00680); null for a website's own form, which has none. |
+| `version_id` | uuid | yes |  | The version of the form its visitor saw: the answers are read against it (contracts readFormAnswers). |
+| `link_id` | uuid | yes |  | The link the entry came through, where its page was opened by one: which place it was shared. |
+| `source` | jsonb | yes |  | Where the entry came from, in the one shape a website entry keeps (contracts EntrySource; the Ads tracking plan's T4): the link's code, the page, the site it came from and any campaign labels. Never a click id. |
+| `reach` | jsonb | yes |  | Who a hosted form's entry is about, as typed: {name, email, phone}. What a held entry is let through with, what a reply's address is compared with, and what an erased person's held entries are found by. |
+| `test` | boolean | no | `false` | A test its owner sent: it tells nobody, counts nowhere, has no person, and goes after 7 days. |
+| `held_why` | text | yes |  | Why the entry is held for a look, with state held: a field people cannot see was filled (hidden_field), filled in faster than a person can (too_fast), too many from one sender or to one form (too_many), or a member said it is not a real request (member). |
+| `code` | text | yes |  | The short code the thank-you carries into a chat: six characters, the workspace's own, good once (code_used_at) and for 30 days. |
+| `code_used_at` | timestamp with time zone | yes |  |  |
 
 Foreign keys:
 
 - `tenant_id`, `contact_id` → [`contacts`](#contacts) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `form_id` → [`forms`](#forms) (`tenant_id`, `id`)
 - `tenant_id`, `key_id` → [`form_keys`](#form_keys) (`tenant_id`, `id`), on delete set null
+- `tenant_id`, `link_id` → [`links`](#links) (`tenant_id`, `id`), on delete set null
 - `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+- `tenant_id`, `version_id` → [`form_versions`](#form_versions) (`tenant_id`, `id`)
 
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `form_entries_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### form_entry_links
+
+What happened to one form entry (00680; the Forms plan, 3.1 and 3.5), each written by the act itself: reply (the message sent from the request), conversation (the conversation that arrived with its code, and the message that carried it), visit (a visit asked for from it), marked (a member's word that it was answered another way). Answered is read from here and never kept on the entry: a marked link, a conversation link, or a reply whose message did not fail and was not taken back. It names a message, a conversation or a visit, never a person, and goes with its entry.
+
+- Owned by: `packages/db/src/repositories/forms/requests.ts`
+- Primary key: `id`
+- Row-level security: on, 3 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `entry_id` | uuid | no |  |  |
+| `kind` | text | no |  |  |
+| `message_id` | uuid | yes |  |  |
+| `conversation_id` | uuid | yes |  |  |
+| `appointment_id` | uuid | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+
+Foreign keys:
+
+- `tenant_id`, `appointment_id` → [`appointments`](#appointments) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `conversation_id` → [`conversations`](#conversations) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `entry_id` → [`form_entries`](#form_entries) (`tenant_id`, `id`), on delete cascade
+- `tenant_id`, `message_id` → [`messages`](#messages) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_entry_links_acting_delete` | delete | authenticated | `(is_acting_member(tenant_id) AND (kind = 'marked'::text))` |  |
+| `form_entry_links_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (kind = ANY (ARRAY['reply'::text, 'marked'::text])))` |
+| `form_entry_links_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### form_keys
 
@@ -1697,6 +1748,67 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `form_keys_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### form_versions
+
+One published description of a form (00680): numbered from 1, written by form_publish, never changed. The version before the live one is taken for a day after replaced_at, so a page left open is not refused. An entry names the version its visitor saw.
+
+- Owned by: `packages/db/src/repositories/forms/forms.ts`
+- Primary key: `id`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `form_id` | uuid | no |  |  |
+| `n` | integer | no |  |  |
+| `description` | jsonb | no |  |  |
+| `published_by` | uuid | yes |  |  |
+| `published_at` | timestamp with time zone | no | `now()` |  |
+| `replaced_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id`, `form_id` → [`forms`](#forms) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `form_versions_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### forms
+
+A request form a business shares with no website (00680; the Forms plan, F1): its address under the business's page (slug), whether it is a draft, live or off, its description as it is being changed (draft, contracts FormDescription) and the version that is live. Its name is its heading. Members read; a member who may act writes the draft; form_publish and form_turn alone move state and live_version_id. A draft never published may be deleted; a form that took requests is turned off.
+
+- Owned by: `packages/db/src/repositories/forms/forms.ts`
+- Primary key: `id`
+- Row-level security: on, 4 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `slug` | text | no |  |  |
+| `state` | text | no | `'draft'::text` |  |
+| `draft` | jsonb | no |  | The description as its owner is changing it (contracts FormDescription): equal to the live version's when nothing waits to be published, and what form_publish makes the next version of. |
+| `live_version_id` | uuid | yes |  |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `updated_at` | timestamp with time zone | no | `now()` |  |
+| `last_entry_at` | timestamp with time zone | yes |  | When the form last took a request (form_request_take, form_entry_let_through): a test and a held entry do not move it. |
+
+Foreign keys:
+
+- `tenant_id`, `live_version_id` → [`form_versions`](#form_versions) (`tenant_id`, `id`)
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `forms_acting_delete` | delete | authenticated | `(is_acting_member(tenant_id) AND (state = 'draft'::text))` |  |
+| `forms_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()))` |
+| `forms_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
+| `forms_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### google_connections
 
@@ -2537,6 +2649,61 @@ Foreign keys:
 | Policy | For | To | Using | With check |
 | --- | --- | --- | --- | --- |
 | `lines_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### link_days
+
+A link's opens, counted by day (UTC) and written by link_open alone (00680). An open is a count, never a visitor: no cookie, no address. A chat app's preview of the link is not counted.
+
+- Owned by: none
+- Primary key: `link_id`, `day`
+- Row-level security: on, 1 policy
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `link_id` | uuid | no |  |  |
+| `tenant_id` | uuid | no |  |  |
+| `day` | date | no |  |  |
+| `opens` | integer | no | `0` |  |
+
+Foreign keys:
+
+- `tenant_id`, `link_id` → [`links`](#links) (`tenant_id`, `id`), on delete cascade
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `link_days_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
+
+### links
+
+A short link for one place a thing of the business's is shared (00680; the content loop PRD's Appendix A): its code, what it opens (a form, so far), where it is shared in the owner's words, whether it is the one printed as a code, and when it was stopped. A code says nothing by itself. Members read; a member who may act makes one, renames it and stops it; link_open reads it for a visitor.
+
+- Owned by: `packages/db/src/repositories/forms/links.ts`
+- Primary key: `id`
+- Row-level security: on, 3 policies
+
+| Column | Type | Null | Default | Note |
+| --- | --- | --- | --- | --- |
+| `id` | uuid | no | `gen_random_uuid()` |  |
+| `tenant_id` | uuid | no |  |  |
+| `code` | text | no | `public.link_code_new()` |  |
+| `subject_type` | text | no |  |  |
+| `subject_id` | uuid | no |  |  |
+| `place` | text | no |  |  |
+| `printed` | boolean | no | `false` |  |
+| `created_by` | uuid | yes |  |  |
+| `created_at` | timestamp with time zone | no | `now()` |  |
+| `stopped_at` | timestamp with time zone | yes |  |  |
+
+Foreign keys:
+
+- `tenant_id` → [`tenants`](#tenants) (`id`), on delete cascade
+
+| Policy | For | To | Using | With check |
+| --- | --- | --- | --- | --- |
+| `links_acting_insert` | insert | authenticated |  | `(is_acting_member(tenant_id) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1 FROM forms f WHERE ((f.tenant_id = links.tenant_id) AND (f.id = links.subject…` |
+| `links_acting_update` | update | authenticated | `is_acting_member(tenant_id)` | `is_acting_member(tenant_id)` |
+| `links_member_select` | select | authenticated | `(tenant_id IN ( SELECT m.tenant_id FROM memberships m WHERE (m.user_id = auth.uid())))` |  |
 
 ### mailbox_connections
 

@@ -81,6 +81,9 @@ export const ROUTES = {
   "GET files/[id]/play": { method: "GET", path: "/api/v1/files/[id]/play" },
   "GET files/[id]/view": { method: "GET", path: "/api/v1/files/[id]/view" },
   "GET files/video/[id]": { method: "GET", path: "/api/v1/files/video/[id]" },
+  "GET forms": { method: "GET", path: "/api/v1/forms" },
+  "GET forms/requests": { method: "GET", path: "/api/v1/forms/requests" },
+  "GET forms/sheet": { method: "GET", path: "/api/v1/forms/sheet" },
   "GET google": { method: "GET", path: "/api/v1/google" },
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
@@ -135,6 +138,7 @@ export const ROUTES = {
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
   "GET reports/campaigns/ledger": { method: "GET", path: "/api/v1/reports/campaigns/ledger" },
+  "GET reports/forms": { method: "GET", path: "/api/v1/reports/forms" },
   "GET reports/headline": { method: "GET", path: "/api/v1/reports/headline" },
   "GET reports/people": { method: "GET", path: "/api/v1/reports/people" },
   "GET reports/reach-outs": { method: "GET", path: "/api/v1/reports/reach-outs" },
@@ -273,6 +277,9 @@ export const ROUTES = {
   "POST files/start": { method: "POST", path: "/api/v1/files/start" },
   "POST files/video": { method: "POST", path: "/api/v1/files/video" },
   "POST files/video/preview": { method: "POST", path: "/api/v1/files/video/preview" },
+  "POST forms": { method: "POST", path: "/api/v1/forms" },
+  "POST forms/links": { method: "POST", path: "/api/v1/forms/links" },
+  "POST forms/requests": { method: "POST", path: "/api/v1/forms/requests" },
   "POST google/link": { method: "POST", path: "/api/v1/google/link" },
   "POST google/locations": { method: "POST", path: "/api/v1/google/locations" },
   "POST google/refresh": { method: "POST", path: "/api/v1/google/refresh" },
@@ -529,6 +536,9 @@ export type Routes = {
   "GET files/[id]/play": typeof import("../../app/api/v1/files/[id]/play/route").GET;
   "GET files/[id]/view": typeof import("../../app/api/v1/files/[id]/view/route").GET;
   "GET files/video/[id]": typeof import("../../app/api/v1/files/video/[id]/route").GET;
+  "GET forms": typeof import("../../app/api/v1/forms/route").GET;
+  "GET forms/requests": typeof import("../../app/api/v1/forms/requests/route").GET;
+  "GET forms/sheet": typeof import("../../app/api/v1/forms/sheet/route").GET;
   "GET google": typeof import("../../app/api/v1/google/route").GET;
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
@@ -583,6 +593,7 @@ export type Routes = {
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
   "GET reports/campaigns/ledger": typeof import("../../app/api/v1/reports/campaigns/ledger/route").GET;
+  "GET reports/forms": typeof import("../../app/api/v1/reports/forms/route").GET;
   "GET reports/headline": typeof import("../../app/api/v1/reports/headline/route").GET;
   "GET reports/people": typeof import("../../app/api/v1/reports/people/route").GET;
   "GET reports/reach-outs": typeof import("../../app/api/v1/reports/reach-outs/route").GET;
@@ -721,6 +732,9 @@ export type Routes = {
   "POST files/start": typeof import("../../app/api/v1/files/start/route").POST;
   "POST files/video": typeof import("../../app/api/v1/files/video/route").POST;
   "POST files/video/preview": typeof import("../../app/api/v1/files/video/preview/route").POST;
+  "POST forms": typeof import("../../app/api/v1/forms/route").POST;
+  "POST forms/links": typeof import("../../app/api/v1/forms/links/route").POST;
+  "POST forms/requests": typeof import("../../app/api/v1/forms/requests/route").POST;
   "POST google/link": typeof import("../../app/api/v1/google/link/route").POST;
   "POST google/locations": typeof import("../../app/api/v1/google/locations/route").POST;
   "POST google/refresh": typeof import("../../app/api/v1/google/refresh/route").POST;

@@ -641,6 +641,8 @@ test("notify mails exactly the kinds contracts lists as emailed, and the page's 
     "broadcast_stopped",
     "call",
     "deadman",
+    // A request through a form the business shares (00680): mailed as the business chooses.
+    "form_request",
     "handoff",
     "job_failed",
     "leads_question",

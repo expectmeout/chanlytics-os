@@ -13,7 +13,7 @@ once per key for a day: the same request sent again is given the first answer an
 another request (another method, path or body), or one that arrives while the first still runs, is refused with
 409 (decision 0035). A write that keeps its own key, or has no workspace to keep one in, says so.
 
-444 handlers in 61 domains.
+451 handlers in 62 domains.
 
 ## activity
 
@@ -1504,6 +1504,119 @@ Body 2:
 | `language` | one of `"en"`, `"es"` | yes |  |
 | `people_agreed` | boolean | yes |  |
 | `caption` | string or null | no |  |
+
+## forms
+
+### `GET /api/v1/forms`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/forms/route.ts`).
+
+### `POST /api/v1/forms`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
+
+One of 4 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"make"` | yes |  |
+| `sentence` | string | yes | at least 2 characters; at most 600 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"save"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `draft` | object | yes |  |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"tell"`, `"question"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `sentence` | string | yes | at least 2 characters; at most 600 characters |
+
+Body 4:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"publish"`, `"turn_on"`, `"turn_off"`, `"delete"`, `"duplicate"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+
+### `POST /api/v1/forms/links`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `form_change` rate; spends nothing.
+
+One of 3 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"make"` | yes |  |
+| `form_id` | string (uuid) | yes |  |
+| `place` | string | yes | at least 1 characters; at most 60 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"rename"` | yes |  |
+| `link_id` | string (uuid) | yes |  |
+| `place` | string | yes | at least 1 characters; at most 60 characters |
+
+Body 3:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"stop"`, `"start"` | yes |  |
+| `link_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/forms/requests`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `id` | string (uuid) | yes |  |
+
+### `POST /api/v1/forms/requests`
+
+Writes; for a member of the workspace the request names, operator or above; counts against the `reply` rate; spends nothing. Keeps its own `Idempotency-Key`.
+
+One of 2 bodies.
+
+Body 1:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | `"reply"` | yes |  |
+| `entry_id` | string (uuid) | yes |  |
+| `wire` | one of `"email"`, `"whatsapp"` | yes |  |
+| `text` | string | yes | at least 1 characters; at most 4000 characters |
+| `subject` | string | no | at least 1 characters; at most 200 characters |
+| `email_to` | string (email) | no | at most 254 characters |
+
+Body 2:
+
+| Body field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `act` | one of `"mark"`, `"unmark"`, `"hold"`, `"let_through"` | yes |  |
+| `entry_id` | string (uuid) | yes |  |
+
+### `GET /api/v1/forms/sheet`
+
+Reads; for a member of the workspace the request names; no rate bucket; spends nothing.
+
+| Query field | Type | Required | Limits |
+| --- | --- | --- | --- |
+| `form` | string (uuid) | yes |  |
 
 ## google
 
@@ -3157,6 +3270,12 @@ Reads; for a member of the workspace the request names; counts against the `aggr
 | `period` | one of `"7d"`, `"30d"`, `"90d"`, `"month"` | no |  |
 | `from` | string | no |  |
 | `to` | string | no |  |
+
+### `GET /api/v1/reports/forms`
+
+Reads; for a member of the workspace the request names; counts against the `aggregate` rate; spends nothing.
+
+Declares no query schema: it takes none beyond the workspace, or reads its own (`apps/dashboard/app/api/v1/reports/forms/route.ts`).
 
 ### `GET /api/v1/reports/headline`
 

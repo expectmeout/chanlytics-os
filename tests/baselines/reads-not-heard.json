@@ -1358,6 +1358,21 @@
           "messages"
         ]
       }
+    },
+    {
+      "kind": "unfed",
+      "why": "The version of a form a request's visitor saw (form_versions) and the place its link was shared (links), read with each request nobody has answered and with each held pile Today says (form_requests_open and the versions of what it lists, 00680). The feed tells neither: a version is written once by form_publish and never changed, so a request heard is read against words that cannot have moved, and a link's place is its owner's own name for it, which a page says by its new name at the next read. Today reads both only for the entries it lists, with the entries it hears (heardWith).",
+      "reads": {
+        "today": [
+          "form_versions",
+          "links"
+        ]
+      },
+      "heardWith": {
+        "today": [
+          "form_entries"
+        ]
+      }
     }
   ]
 }

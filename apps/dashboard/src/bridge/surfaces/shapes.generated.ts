@@ -6,7 +6,7 @@
  * snapshot is the build's alone.
  */
 export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
-  alerts: "8ae98d59432c6173",
+  alerts: "6ce0dd5829dcd4fe",
   ask_memory: "ea7be04b7c170a76",
   ask_morning: "215a503f0d91f14e",
   audiences: "3cf311d9336ac944",
@@ -23,7 +23,7 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   leads: "73c7257f8e35e4ec",
   live: "2c7abb05e8a08f8b",
   partner: "03a3b5059117a7f1",
-  people: "4e9236afb912758c",
+  people: "3f36102a052f2a8a",
   playbooks: "d9cc9bb99af08278",
   reach_outs: "2be2334e55e64b49",
   reply_drafts: "af80977b5881c0c1",
@@ -36,6 +36,6 @@ export const SURFACE_SHAPES: Readonly<Record<string, string | null>> = {
   sequences: "096993fcb9b22d25",
   settings: "db78fffd31a17975",
   setup: "fb2470f3609076cc",
-  today: "c0880f65cb4d6529",
+  today: "e65f6ed7187e3c47",
   today_pins: "d3fd87a670594687",
 };

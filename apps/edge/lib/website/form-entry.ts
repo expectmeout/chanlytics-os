@@ -4,16 +4,26 @@
  * follow it (form-effects.ts), so both read an entry the same way.
  */
 import { createHash } from "node:crypto";
-import { WebsiteFormBody, websiteFormLate, type FormEffect, type WebsiteFormInput } from "@chanlytics/contracts";
+import {
+  sourceFromSeen,
+  WebsiteFormBody,
+  websiteFormLate,
+  type FormEffect,
+  type Source,
+  type WebsiteFormInput,
+} from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db/types";
 
-/** What an entry keeps of the form: everything the visitor sent, never the workspace, its key or the site's own id. */
-const EntryAnswers = WebsiteFormBody.omit({ workspace: true, key: true, entry_id: true });
-export type EntryAnswers = Omit<WebsiteFormInput, "workspace" | "key" | "entry_id">;
+/**
+ * What an entry keeps of the form: everything the visitor sent, never the workspace, its key or the site's own id.
+ * Where they came from is kept beside the answers, in its own shape (entrySourceOf).
+ */
+const EntryAnswers = WebsiteFormBody.omit({ workspace: true, key: true, entry_id: true, source: true });
+export type EntryAnswers = Omit<WebsiteFormInput, "workspace" | "key" | "entry_id" | "source">;
 
 /** The answers an entry keeps (form_entries.answers). */
 export function entryAnswersOf(websiteFormInput: WebsiteFormInput): Json {
-  const { workspace: _workspace, key: _key, entry_id: _entry, ...answers } = websiteFormInput;
+  const { workspace: _workspace, key: _key, entry_id: _entry, source: _source, ...answers } = websiteFormInput;
   return { ...answers };
 }
 
@@ -54,4 +64,16 @@ export function entryWords(
       ]),
     )
     .digest("hex");
+}
+
+/**
+ * Where a website form's visitor came from, in the one shape an entry keeps (the Ads tracking plan's T4): the campaign
+ * labels the site's snippet read off its address, the site they came from, and the page the form is on. Never a click
+ * id. Null where the site sent none of it: a form with none works as before.
+ */
+export function entrySourceOf(websiteFormInput: Pick<WebsiteFormInput, "source" | "page">): Source | null {
+  const sent = websiteFormInput.source;
+  if (!sent) return null;
+  const referrer = typeof sent.referrer === "string" ? sent.referrer : null;
+  return sourceFromSeen({ page: websiteFormInput.page ?? null, referrer, labels: sent });
 }

@@ -18,7 +18,7 @@ import type { TodayLeakVM } from "../leaks";
 export const ASK_FOUND_SHOWN = 3;
 
 /** What a row came from, which says how its act is pressed. */
-export type AskFoundSource = "rule" | "noticed" | "call" | "tried" | "idea";
+export type AskFoundSource = "rule" | "noticed" | "call" | "tried" | "form_held" | "idea";
 
 /** One row of Ask found. */
 export interface AskFoundRowVM {
@@ -76,6 +76,8 @@ export const ASK_FOUND_WORDS = {
   noticed: "AI noticed",
   call: "Worth a listen",
   tried: "Tried their preview",
+  /** A form's entries held for a look that nobody has looked at in three days (00680). */
+  formHeld: "Held for a look",
   approve: "Approve",
   openInAsk: "Continue with AI",
   askWhy: "Ask why",
@@ -164,11 +166,20 @@ const ideaRow = (idea: AskMorningCard): AskFoundRowVM => ({
   ...NAMES_NOBODY,
 });
 
-/** A call worth a listen, or a lead who tried their receptionist: the queue's row, with its one door. */
+/** What a row of the queue is here, and the tag it wears. */
+const queueSourceOf = (kind: TodayQueueRowVM["kind"]): Pick<AskFoundRowVM, "source" | "tag"> => {
+  if (kind === "tried") return { source: "tried", tag: ASK_FOUND_WORDS.tried };
+  if (kind === "form_held") return { source: "form_held", tag: ASK_FOUND_WORDS.formHeld };
+  return { source: "call", tag: ASK_FOUND_WORDS.call };
+};
+
+/**
+ * A call worth a listen, a lead who tried their receptionist, or a form's entries held for a look: the queue's row,
+ * with its one door.
+ */
 const queueRow = (row: TodayQueueRowVM): AskFoundRowVM => ({
   key: `${row.kind}:${row.id}`,
-  source: row.kind === "tried" ? "tried" : "call",
-  tag: row.kind === "tried" ? ASK_FOUND_WORDS.tried : ASK_FOUND_WORDS.call,
+  ...queueSourceOf(row.kind),
   sentence: [row.who, row.sentence].filter(Boolean).join(": "),
   head: row.who || row.sentence,
   sub: row.who ? row.sentence || null : null,

@@ -259,6 +259,7 @@ export const ORIGIN_WORDS = {
   import: (day: string) => `Imported · ${day}`,
   ad: (day: string) => `From an ad · ${day}`,
   website: (day: string) => `From your website · ${day}`,
+  form: (day: string) => `Through a form · ${day}`,
   lead: (day: string) => `Found by your lead search · ${day}`,
   ownList: (day: string) => `From your own list · ${day}`,
   weWroteFirst: (day: string) => `we wrote first ${day}`,

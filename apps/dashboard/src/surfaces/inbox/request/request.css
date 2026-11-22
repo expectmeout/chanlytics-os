@@ -1,0 +1,122 @@
+/* A request opened in the Inbox (pane.tsx): where its parts stand in the conversation's pane. Every control in
+   it is the kit's, and the pane and its head are the conversation's own (inbox.css .ix-thread-pane, .ix-th-head).
+   These rules load with the request's page, so no other page pays for them. */
+.ix-rq-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  overflow-y: auto;
+}
+.ix-rq-said,
+.ix-rq-reply,
+.ix-rq-waits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.ix-rq-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+.ix-rq-lines > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.ix-rq-lines dt {
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.ix-rq-lines dd {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.ix-rq-came,
+.ix-rq-note,
+.ix-rq-road {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.ix-rq-road b {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ix-rq-by {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ix-rq-three {
+  display: inline-flex;
+  flex: none;
+  color: var(--accent);
+}
+/* AI's three at work stand in the line, at its size: Files places them on a tile's corner. */
+.ix-rq-three .files-looking {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 15px;
+  height: 15px;
+}
+.ix-rq-waits strong {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--ink);
+}
+.ix-rq-waits p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+.ix-rq-waits p:empty {
+  display: none;
+}
+.ix-rq-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+.ix-rq-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.ix-rq-pick small {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  opacity: 0.8;
+}
+.ix-rq-quiet {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  padding: 0 var(--space-1);
+}
+@media (max-width: 720px) {
+  .ix-rq-body {
+    padding: var(--space-3) var(--space-4) var(--space-6);
+  }
+}

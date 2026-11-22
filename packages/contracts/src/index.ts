@@ -17,6 +17,7 @@ export * from "./deals";
 export * from "./email";
 export * from "./events";
 export * from "./files";
+export * from "./forms";
 export * from "./google";
 export * from "./imports";
 export * from "./jobs";

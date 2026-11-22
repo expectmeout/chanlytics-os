@@ -17,7 +17,7 @@
  * (campaigns-now.tsx), and the reach-outs, a part that names itself (campaigns-reach-outs.tsx). Over them, which campaign: every
  * one, or one sequence, whose own cards stand in place of all four: a chunk fetched with the lens (campaigns-scope.ts).
  */
-import { useMemo } from "react";
+import { Suspense, lazy, useMemo } from "react";
 import type { CampaignReportVM } from "@chanlytics/contracts";
 import { toCampaignLensVM, type CampaignLensVM } from "@chanlytics/contracts/report-lens";
 import { BarChart, BarList } from "../../kit/charts/bar";
@@ -211,6 +211,12 @@ function windowBody({ vm, days }: ReportsSurface, fold: CampaignLensVM) {
   );
 }
 
+/**
+ * The forms' line (forms-line.tsx), a chunk of its own with its own read: fetched as the Campaigns lens is drawn, so
+ * the Reports page every workspace loads carries none of it.
+ */
+const FormsLine = lazy(() => import("./forms-line").then((m) => ({ default: m.FormsLine })));
+
 /** What the lens draws of its read: nothing while it is out or of another period, the failed reads where it could not be made, else its parts. */
 function shownFold(own: Follower<CampaignsSurface>, fold: CampaignLensVM | null): CampaignLensVM | null {
   if (own.state === "failed") return toCampaignLensVM(UNREAD, 0);
@@ -244,6 +250,10 @@ export function CampaignsLens({
       {campaignsTime(shown)}
       {campaignsStuck(shown)}
       {reachOutsSection(shown)}
+      {/* What the business's forms brought (00680): a part of this report, drawn only where there is a form. */}
+      <Suspense fallback={null}>
+        <FormsLine />
+      </Suspense>
     </>
   );
 }
