@@ -140,7 +140,8 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
   ad_accounts: ["status", "name", "standing", "config", "read_at", "read_error", "withdrawn_at"],
   // What an ad's row draws (00650): never the read's own stamp, which every hour writes. A launch's step and where the
   // ad shows (00666): Setting up turns to In review, or to Couldn't finish, while the page is open. A change of the
-  // owner's on its way (00673): "Changing the total to $90…" turns to the new total once Meta takes it.
+  // owner's on its way (00673): "Changing the total to $90…" turns to the new total once Meta takes it. Why Chanlytics
+  // holds it paused, and what stands in a running ad's way in (00676): "Paused with the stop" and Needs you, as they move.
   ads: [
     "name",
     "intent",
@@ -157,6 +158,8 @@ const NARROWED_UPDATES: Readonly<Record<string, readonly string[] | null>> = {
     "launch",
     "shown_on",
     "change",
+    "paused_by",
+    "way_in",
   ],
   // What a page of photos draws (00551): not the copy Anthropic holds, the bytes or when it was last tried, which an import
   // writes 200 times over. A video's tile draws where it stands and what was heard of it (00556).
