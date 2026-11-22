@@ -65,6 +65,24 @@ export const findThreadForExport = async (db: Db, tenantId: TenantId, conversati
     .eq("tenant_id", tenantId)
     .maybeSingle();
 
+/** A person's newest conversation in the workspace, by its last message; null where they have none. A read that fails throws. */
+export async function findPersonsNewestConversation(
+  db: Db,
+  tenantId: TenantId,
+  contactId: ContactId,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from("conversations")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("contact_id", contactId)
+    .order("last_message_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new DbFailure(error, "person's newest conversation");
+  return data?.id ?? null;
+}
+
 /** One page (`from` to `to`) of the workspace's threads, or one person's, oldest first. */
 export const pageThreadRows = async (
   db: Db,

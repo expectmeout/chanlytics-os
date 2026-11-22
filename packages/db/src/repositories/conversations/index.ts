@@ -40,6 +40,7 @@ export {
   pageConsentChanges,
   pageMessagesOfThreads,
   pageThreadForExport,
+  findPersonsNewestConversation,
   pageThreadRows,
   patchThreadBack,
   queueMemberReply,

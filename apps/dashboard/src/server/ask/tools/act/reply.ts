@@ -72,7 +72,7 @@ async function threadOnCard(toolContext: ToolContext, id: string) {
   return { conv, who: personName };
 }
 
-async function draftReply(
+export async function draftReply(
   toolContext: ToolContext,
   input: { conversation_id: string; text: string; voice: string },
 ): Promise<ProposalOutcome> {
