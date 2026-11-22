@@ -519,5 +519,10 @@
     "kind": "on-open",
     "fresh": "Read as Connections draws its Website forms card, after each press on a key, and when the owner comes back to the tab.",
     "why": "A key's last use moves when the site sends a form, not when anyone here acts, so the card reads it again when the owner looks. The feed does not tell of form_keys or form_entries: no surface holds them yet (00675)."
+  },
+  "apps/dashboard/src/surfaces/today/calm/days.ts GET reports/headline": {
+    "kind": "on-open",
+    "fresh": "Read once where the headline Today holds has too few days (this device picked a shorter period on Reports), kept an hour and shared by the week's card and the usual day.",
+    "why": "The week's card and a day against a usual one say days that are over or nearly so: the last seven, and the same weekday four weeks back. They move slowly, and the usual day is asked for only once the day is done."
   }
 }

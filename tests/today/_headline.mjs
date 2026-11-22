@@ -4,7 +4,20 @@
  * the sums are exactly what is asked for; `before` is the period before's customer messages (null: nothing was lived then, and
  * nothing is compared); `booking` is the calendar's line over the same days (null: none counted).
  */
-import { REPORT_RANGES, headlineOf, toHeadlineVM } from "@chanlytics/contracts";
+import { DAY_MS, REPORT_RANGES, dayInZone, headlineOf, toHeadlineVM } from "@chanlytics/contracts";
+
+/**
+ * The week's card, already answered (Working for you, W9): the rest a member's Got it keeps, by this week's Monday in the
+ * business's zone, until the next. A day with anything answered in its last seven draws that card first while nobody
+ * waits; a test of what stands after it puts this in its morning's `rested`.
+ */
+export function weekSeen(zone = "America/New_York", nowMs = Date.now()) {
+  const day = dayInZone(zone, nowMs);
+  const at = Date.UTC(day.y, day.m - 1, day.d);
+  const back = (new Date(at).getUTCDay() + 6) % 7;
+  const keyOf = (ms) => new Date(ms).toISOString().slice(0, 10);
+  return { [`week:${keyOf(at - back * DAY_MS)}`]: keyOf(at + (7 - back) * DAY_MS) };
+}
 
 const dayKey = (n) => new Date(Date.UTC(2026, 7, 1 + n)).toISOString().slice(0, 10);
 const empty = (day) => ({
