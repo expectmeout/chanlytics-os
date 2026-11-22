@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { observeDb } from "@chanlytics/db/shared";
 import { claimAnthropicProfile } from "@chanlytics/db/ai";
-import { openBookingRequest } from "@chanlytics/db/calendar";
+import { closeLapsedRequest, openBookingRequest } from "@chanlytics/db/calendar";
 import { addReachOutPerson, handRun } from "@chanlytics/db/campaigns";
 import { connectMailbox } from "@chanlytics/db/email";
 import { beginPeopleErasure } from "@chanlytics/db/erasure";
@@ -46,6 +46,20 @@ const CASES = [
         { hold: "opened", appointmentId: "a1" },
       ],
       [{ error: "too_soon" }, { error: "too_soon" }],
+    ],
+  },
+  {
+    door: "booking_request_lapse",
+    call: (db) => closeLapsedRequest(db, { tenantId: "t1", appointmentId: "a1", replyWords: "", told: null }),
+    answers: [
+      [
+        { outcome: "told", message_id: "m1" },
+        { outcome: "told", messageId: "m1" },
+      ],
+      [{ outcome: "reply" }, { outcome: "reply" }],
+      [{ outcome: "closed" }, { outcome: "closed" }],
+      [{ outcome: "answered" }, { outcome: "answered" }],
+      [{ outcome: "early" }, { outcome: "early" }],
     ],
   },
   {

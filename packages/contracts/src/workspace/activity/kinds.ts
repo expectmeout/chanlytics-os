@@ -365,6 +365,8 @@ export const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base:
   ["appointment.booked", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
   ["appointment.moved", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
   ["appointment.cancelled", (p, base) => joinBits(base, [bookingToolName(textAt(p, "tool"))])],
+  // What became of the customer: AI's message to them was queued, or they are a person's to answer (decision 0061, as amended).
+  ["appointment.lapsed", (p, base) => joinBits(base, [p.told === true ? "AI tells them" : "reply to them"])],
   ["playbook.changed", (p, base) => joinBits(base, [textAt(p, "name"), wordsAt(p, "fields")])],
   ["template.submitted", (p, base) => joinBits(base, [textAt(p, "name")])],
   ["template.removed", (p, base) => joinBits(base, [textAt(p, "name")])],

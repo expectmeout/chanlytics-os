@@ -618,7 +618,7 @@
       "sweep_options": {
         "noDbEvent": "deadman_no_db"
       },
-      "verb": "sweepDeadman in apps/edge/lib/receptionist/deadman-sweep.ts",
+      "verb": "runDeadmanTick in apps/edge/lib/receptionist/deadman-sweep.ts",
       "knock": "authorizeCron",
       "knock_in": "sweepDoor in apps/edge/lib/ops/sweep-door.ts"
     },

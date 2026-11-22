@@ -230,7 +230,8 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
 // ok; access taken back by the platform, an account let go, disconnecting one and pausing an ad are warn.
 // 76: an ad paused and a change Meta would not take are warn, an ad turned back on is ok (00652).
 // 80: an ad turned on, the press and the event, and one made at Meta are ok; a launch stopped part way is warn (00666).
-const TONED_KINDS = 81; // an Instagram account disconnected and let go is warn (decision 0143)
+// 82: a time asked for that ran out with no answer is warn (decision 0061, as amended).
+const TONED_KINDS = 82;
 test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
   // A log where every line is the same grey is read rather than scanned, and
   // the line an owner opens it to find is the one that went wrong.

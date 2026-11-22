@@ -25,7 +25,6 @@ const skip =
         : false;
 
 const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
 const TZ = "America/New_York";
 const w = {};
 const users = [];
@@ -156,9 +155,10 @@ test(
       [row.source, row.status, row.service, row.client_name, row.client_phone, row.conversation_id, row.contact_id],
       ["receptionist", "proposed", "Balayage", "Ana Ruiz", "+13055550142", ana.thread, ana.contact],
     );
-    // Three days ahead: a day after it was asked, the sooner of the two.
+    // Three days ahead: 23 hours after it was asked, the sooner of the two (00679: the customer is told when it runs out,
+    // and WhatsApp carries a free reply only within 24 hours of their last message).
     const expires = Date.parse(row.expires_at);
-    assert.ok(Math.abs(expires - (asked + DAY)) < 60_000, "a day after it was asked");
+    assert.ok(Math.abs(expires - (asked + 23 * HOUR)) < 60_000, "23 hours after it was asked");
     const [hold] = await holdsOf(ana.thread);
     assert.deepEqual(
       [hold.state, hold.reason, hold.details],

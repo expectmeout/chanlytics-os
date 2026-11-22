@@ -65,7 +65,7 @@ export interface CalendarBlockVM {
   /** The record's row for the visit and how it stands (CalendarItemDto.visit), or null: what the panel's acts are said on. */
   visit: VisitMark | null;
   /** A time a customer picked by text (decision 0061): the thread Booked it or Can't answers it in, while it is open. */
-  request?: { threadId: string; open: boolean } | null;
+  request?: { threadId: string; open: boolean; lapsed?: boolean } | null;
   /** The lead its person was found as, and its sequence (CalendarItemDto.origin): the sheet's row and its door. */
   origin?: VisitOriginDto | null;
   /** Blocks that overlap in time sit side by side: this block's lane, and how many lanes its cluster needs. */

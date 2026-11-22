@@ -114,6 +114,10 @@ export const JOB_WRITERS = {
     person:
       "Make their preview, pressed again: the door hands back the row still building and asks its build once more",
   },
+  "apps/edge/lib/receptionist/request-clock.ts|booking_lapse": {
+    clock: "deadman",
+    why: "the clock's own work: a request that ran out and is not closed is listed again ten minutes on, and handed over again",
+  },
   "apps/edge/lib/shared/alerts/notify.ts|push_send": {
     lost: "one phone's buzz: the notification stands on the bell and the mail has gone, and the failure is logged",
   },
