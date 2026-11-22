@@ -12,6 +12,7 @@
  */
 import {
   AD_DOORS_COUNTED,
+  adChatsKeptRule,
   adCostRule,
   addressOf,
   adRoute,
@@ -23,7 +24,7 @@ import { AD_WAY_IN_SAID } from "@chanlytics/contracts";
 import type { AdLiveDto, AdsLiveDto } from "@chanlytics/contracts";
 import { aboutMoneyOf, moneyOf, ADS_DEFAULT_CURRENCY } from "../model/money";
 import { dayOfIso, timeOf } from "../model/vm-base";
-import { dayWord } from "../model/words";
+import { dayShort, dayWord, peopleWord } from "../model/words";
 import { changeSentenceOf, endsAlone, type ChangeSentenceVM } from "./change-model";
 import { FIX } from "./change-words";
 import { ADS_MANAGER, AI_LINE, LENS, LIVE, NEEDS_YOU_LINE, SHEET } from "./words";
@@ -412,6 +413,13 @@ export interface SheetVM {
   reason: { label: string; words: string; note: string | null } | null;
   ours: FigureVM[];
   theirs: FigureVM[];
+  /**
+   * Meta's count beside the messages that reached Chanlytics (the tracking plan's T2), under Meta's numbers, and when the
+   * two part what that means for the owner; null under ten of Meta's, or with no day Meta has settled.
+   */
+  chats: { line: string; parted: string | null } | null;
+  /** The people it brought back (T3), on a line of its own under Chanlytics' count; null for nobody. */
+  back: string | null;
   /** Whether its people are counted: the list is drawn only where they are. */
   counted: boolean;
   /** An ad made here: the sentence its owner changes by tapping its words; null for any other, or none to change. */
@@ -506,6 +514,23 @@ function launchReasonOf(ad: AdLiveDto): SheetVM["reason"] {
   return quoted ? { label: SHEET.metasReason, words: quoted, note: SHEET.neverRan } : null;
 }
 
+/**
+ * Meta's count beside the messages from the ad that reached Chanlytics, over the days Meta has settled (contracts
+ * adChatsKeptRule): said from ten of Meta's, and when the two part, that the ad and AI's replies are not affected. Only
+ * for an ad whose people are counted: one that opens a website or Messenger brings nobody who could reach Chanlytics.
+ */
+function chatsLineOf(ad: AdLiveDto): SheetVM["chats"] {
+  if (!counted(ad) || !ad.chats) return null;
+  const rule = adChatsKeptRule(ad.chats);
+  if (!rule.said) return null;
+  const line = SHEET.chatsKept({ meta: ad.chats.meta, kept: ad.chats.kept, through: dayShort(ad.chats.through) });
+  return { line, parted: rule.parted ? SHEET.chatsParted : null };
+}
+
+/** The people an ad brought back, as one line (T3): never added to who came, who booked, or what each booked cost. */
+const backLineOf = (back: { people: number; booked: number } | undefined, from: "this ad" | "an ad"): string | null =>
+  back && back.people > 0 ? SHEET.back({ people: peopleWord(back.people), booked: back.booked, from }) : null;
+
 /** An ad's drawer; null where the page holds no ad of that id. */
 export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): SheetVM | null {
   const ad = adId === null ? undefined : dto.ads.find((one) => one.id === adId);
@@ -545,6 +570,8 @@ export function sheetModel(dto: AdsLiveDto, adId: string | null, said: Said): Sh
         ? []
         : [{ label: ad.opens === "form" ? SHEET.formsLabel : SHEET.chatsLabel, value: String(results) }]),
     ],
+    chats: chatsLineOf(ad),
+    back: counted(ad) ? backLineOf(ad.back, "this ad") : null,
     counted: counted(ad),
     ...sheetChangeOf(ad, dto, said),
     foot: footOf(ad, dto, said, currency),
@@ -572,6 +599,8 @@ interface LensRowVM {
 interface LensVM {
   head: string;
   figures: FigureVM[];
+  /** Everyone an ad brought back, on a line of its own under the figures (T3); null for nobody. */
+  back: string | null;
   rows: LensRowVM[];
   notes: string[];
 }
@@ -614,6 +643,7 @@ export function lensModel(dto: AdsLiveDto, said: Said): LensVM {
       },
       { label: LENS.spent, value: moneyOf(spent, currency) },
     ],
+    back: backLineOf(dto.back, "an ad"),
     rows: [...rows, ...unnamed],
     // The two quiet lines are rows of the table here, so they are not said twice.
     notes: [

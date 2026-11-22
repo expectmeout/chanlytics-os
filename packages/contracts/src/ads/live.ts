@@ -155,6 +155,18 @@ export interface AdLiveDto {
   settling: boolean;
   /** The platform's own counts, labelled as theirs: never added to Chanlytics' people. */
   theirs: { impressions: number; clicks: number; results: number | null };
+  /**
+   * Meta's count beside Chanlytics' (the tracking plan's T2): over the window's days Meta has settled, the chats it says
+   * the ad started and the messages from it that reached Chanlytics, through the last of those days (contracts
+   * adChatsKeptRule reads them). Null for an ad with no day settled, or one whose chat the workspace does not hear;
+   * absent where the read of it failed.
+   */
+  chats?: { meta: number; kept: number; through: string } | null;
+  /**
+   * The people it brought back (T3): already known, who wrote from it in the window, and who of them booked after. A
+   * line of its own: never in `people`, `booked` or the cost of a booked person. Absent where the read of it failed.
+   */
+  back?: { people: number; booked: number };
 }
 
 /** The Ads page's read. */
@@ -187,6 +199,11 @@ export interface AdsLiveDto {
    * quiet line of their own. With `ads` and `unnamed` they are everyone Reports counts under "An ad".
    */
   elsewhere: { people: number; booked: number };
+  /**
+   * Everyone an ad brought back in the window, once a person whatever ads they wrote from, those of an ad Chanlytics
+   * cannot name among them (T3): Reports › Ads says it. Absent where the read of it failed.
+   */
+  back?: { people: number; booked: number };
   /** Whether this member may pause and resume here: the owner, on a connected account whose sign-in may change ads. */
   can_press: boolean;
   /**

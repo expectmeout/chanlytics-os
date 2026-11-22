@@ -15,7 +15,7 @@ import {
   proposalLinkOf,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { HOLD_ACT_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
+import { ADS_ROUTE, HOLD_ACT_WORDS, sinceWords, THREAD_PANE_WORDS } from "@chanlytics/contracts";
 import type { DealVM, PersonNextStepVM, PersonRowVM, VisitLineVM } from "@chanlytics/contracts";
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../kit/icon/icon";
@@ -239,14 +239,15 @@ function dealGroup(thread: Thread, facts: HeaderFacts): MenuItem[] {
 }
 
 /**
- * Where an ad brought them, as a line under the head: a door to the ad (the demo's threads alone carry one; a real thread has
- * none). It stands under the head and beside the person's link, never inside it: a link inside a link is neither valid nor
- * reachable, and the name's link opens the person.
+ * Where an ad brought them, as a line under the head, in the words their page says it (the Ads tracking plan's T1): a
+ * door to the ad where Chanlytics holds it, and to the Ads page, which counts it, for an ad it holds nothing of. It stands
+ * under the head and beside the person's link, never inside it: a link inside a link is neither valid nor reachable, and
+ * the name's link opens the person.
  */
 function fromAdLine(ad: NonNullable<Thread["fromAd"]>) {
   return (
     <div className="ix-th-ad" data-testid="ix-th-ad">
-      <LinkButton size="inherit" className="ix-th-ad-door" {...routeDoor(adRoute(ad.id))}>
+      <LinkButton size="inherit" className="ix-th-ad-door" {...routeDoor(ad.id ? adRoute(ad.id) : ADS_ROUTE)}>
         {fromAdWords(ad.name)} <Icon name="chevron" size={10} />
       </LinkButton>
     </div>

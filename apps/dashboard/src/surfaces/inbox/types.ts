@@ -144,6 +144,8 @@ export interface MsgEntry {
   byYou?: boolean;
   byWords?: string;
   via?: { kind: "broadcast" | "playbook"; name: string };
+  /** Their words that came from an ad: its corner says so (contracts' fromAd on a bubble). */
+  fromAd?: { id: string | null; name: string | null };
   status?: string;
   statusLabel?: string;
   /** Why a failed message did not arrive: one sentence for the owner, under "Didn't send". */
@@ -216,7 +218,6 @@ export type RealThread = Omit<InboxThreadVM, keyof ThreadBase | "state"> &
     contextStrip?: undefined;
     leadId?: undefined;
     hasHumanContact?: undefined;
-    fromAd?: undefined;
   };
 
 /** A thread of the mockup's: what a demo session draws, and the standalone harness's seeds. */
@@ -225,8 +226,8 @@ export interface SeededThread extends ThreadBase {
   state: ThreadState;
   leadId?: string;
   hasHumanContact?: boolean;
-  /** The ad that brought them (a demo's thread alone: the header says it, with a door to the ad). */
-  fromAd?: { id: string; name: string };
+  /** The ad that brought them: the header says it, with a door to the ad (a real thread's is InboxThreadVM's fromAd). */
+  fromAd?: { id: string | null; name: string | null };
   approval?: Approval;
   verdict?: Verdict;
   contextStrip?: ContextFact[];

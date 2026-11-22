@@ -1,5 +1,5 @@
 /** Reports: the receptionist's numbers over a period, the facts the page leads with, and the campaigns. */
-export { AD_SETTLE_DAYS, adCostRule, adDaySettling } from "./ad-cost";
+export { AD_PAGE_DAYS, AD_SETTLE_DAYS, adChatsKeptRule, adCostRule, adDaySettling } from "./ad-cost";
 export type { AdCost } from "./ad-cost";
 export { BOOKED_NEEDS_TODAY, toBookingReportVM } from "./booking-report";
 export type { BookingReportDto, BookingReportVM } from "./booking-report";

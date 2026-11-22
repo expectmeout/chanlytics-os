@@ -9435,6 +9435,10 @@ export type Database = {
         }
         Returns: string
       }
+      ad_chats_kept: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
       ad_credentials_drop: { Args: { p_account_id: string }; Returns: boolean }
       ad_credentials_get: { Args: { p_account_id: string }; Returns: Json }
       ad_credentials_put: {
@@ -9520,6 +9524,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ad_people_back: {
+        Args: { p_days?: number; p_end?: string; p_tenant_id: string }
+        Returns: Json
+      }
       ad_people_in: {
         Args: { p_days: number; p_end: string; p_tenant_id: string }
         Returns: {
@@ -9565,6 +9573,10 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: string
+      }
+      ad_touches_of: {
+        Args: { p_messages: string[]; p_refs: string[]; p_tenant_id: string }
+        Returns: Json
       }
       ad_turn_on: {
         Args: {

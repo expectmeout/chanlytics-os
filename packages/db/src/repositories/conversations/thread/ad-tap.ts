@@ -26,15 +26,9 @@
  * Never fatal: a read that fails costs the ad's words, never the note about the person and never the reply.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  AD_TOLD_MAX,
-  CONVERSATION_GAP_MS,
-  fenced,
-  recordOrNull,
-  type LeadChannel,
-  type TenantId,
-} from "@chanlytics/contracts";
+import { AD_TOLD_MAX, CONVERSATION_GAP_MS, fenced, type LeadChannel, type TenantId } from "@chanlytics/contracts";
 import { readAdNamed, readAdSaid } from "../../ads/entries";
+import { adRefIn } from "../../ads/touches";
 import { dbLogAndGoOn } from "../../../shared/observe";
 import type { Database } from "../../../types";
 
@@ -68,14 +62,6 @@ export interface AdTapTold {
   visual: "image" | "video" | null;
 }
 
-/** The ad's id on a message whose referral is an ad, as the entry's door reads it (00644 ad_entry_keep); else null. */
-function adRefOf(moment: ThreadMoment): string | null {
-  if (!moment.fromCustomer) return null;
-  const referral = recordOrNull(recordOrNull(moment.meta)?.referral);
-  if (referral?.source_type !== "ad" || typeof referral.source_id !== "string") return null;
-  return referral.source_id.trim() || null;
-}
-
 /**
  * The tap of the conversation under way, or null: walking back from the message being answered, the first message an
  * ad's referral rode in on, unless a quiet of a day or more comes first. A message being answered that is not among
@@ -88,7 +74,7 @@ export function tappedMessageOf(moments: readonly ThreadMoment[], answering: str
   let laterMs: number | null = null;
   for (const moment of newestFirst.slice(start)) {
     if (laterMs !== null && laterMs - moment.atMs >= CONVERSATION_GAP_MS) return null;
-    const adRef = adRefOf(moment);
+    const adRef = adRefIn(moment);
     if (adRef) return { messageId: moment.id, adRef };
     laterMs = moment.atMs;
   }

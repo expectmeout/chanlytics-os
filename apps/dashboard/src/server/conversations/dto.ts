@@ -29,7 +29,7 @@ import type { ContactId } from "@chanlytics/contracts";
 const THREAD_COLUMNS =
   "id, state, paused_until, snooze_until, set_aside_at, set_aside_why, assignee_user_id, last_wa_inbound_at:last_inbound_on_whatsapp, last_ig_inbound_at:last_inbound_on_instagram, last_message_at, last_inbound_at";
 const THREAD_PERSON_COLUMNS =
-  "id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, email_suppressed_at, email_suppressed_reason";
+  "id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent, proposal_url, acquired_via, acquired_ref, email_suppressed_at, email_suppressed_reason";
 export const CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts (${THREAD_PERSON_COLUMNS})` as const;
 /** The same, for a list: only the threads whose person passes what the read asks of `contacts` (PostgREST's inner embed). */
 export const LISTED_CONVERSATION_COLUMNS = `${THREAD_COLUMNS}, contacts!inner (${THREAD_PERSON_COLUMNS})` as const;
@@ -67,6 +67,9 @@ interface ConversationRow {
     /** When mail to their address stopped, and why (00126): the reply box says it before anyone writes (contracts emailStoppedWords). */
     email_suppressed_at: string | null;
     email_suppressed_reason: string | null;
+    /** How they first came, and what named it (00306): a thread says the ad (conversations/from-ads.ts). */
+    acquired_via?: string | null;
+    acquired_ref?: string | null;
   } | null;
 }
 

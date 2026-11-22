@@ -18,6 +18,7 @@ import {
   messageRowsOf,
   toConversationDto,
 } from "../conversations/dto";
+import { withAds } from "../conversations/from-ads";
 import { stillListed } from "../people/going";
 import { getSeenOfPeople } from "../people/person-seen";
 import { readerStamp, type Reader, type ReaderContext, type RowRef } from "../shared/reader";
@@ -121,7 +122,7 @@ export const conversations: Reader<
       ids.length ? listLastClosedHolds(supabase, tenantId, ids) : Promise.resolve([]),
     ]);
     const holdOf = new Map(closedHolds.map((h) => [h.conversation_id, h]));
-    const conversations: ConversationDto[] = (convs ?? []).map((item) => {
+    const built: ConversationDto[] = (convs ?? []).map((item) => {
       const dto = toConversationDto(
         item,
         byConv.get(item.id) ?? [],
@@ -142,6 +143,9 @@ export const conversations: Reader<
           }
         : dto;
     });
+    // The ad each person first came from, and the messages that came from one, for every thread at once: none, no read.
+    const people = new Map(convs.map((item) => [item.id, item.contacts]));
+    const conversations = await withAds(rc, built, people);
     return {
       data: { conversations },
       rows: conversations.map((c): RowRef => ({

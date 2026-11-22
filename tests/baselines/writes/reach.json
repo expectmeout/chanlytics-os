@@ -472,7 +472,9 @@
       "missing": {
         "calendar_runs": "calendar",
         "content": "campaigns/content, campaigns/content/library",
+        "conversations": "conversations, inbox",
         "files": "admin/files",
+        "inbox": "inbox",
         "notifications": "every page",
         "partner": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/setup, admin/team, admin/workspace",
         "person": "clients/person",
@@ -1301,10 +1303,13 @@
       "changes": "ad_accounts UPDATE · ad_objects UPDATE · ads UPDATE · file_consents UPDATE · files UPDATE · notifications INSERT UPDATE · posts UPDATE · remediation_actions INSERT UPDATE · remediations INSERT UPDATE · source_items UPDATE",
       "tells": "ad_accounts · ads · files · notifications",
       "missing": {
+        "conversations": "conversations, inbox",
+        "inbox": "inbox",
         "notifications": "every page",
         "person": "clients/person",
         "reports_people": "reports/people",
-        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages"
+        "settings": "admin, admin/activity, admin/autonomy, admin/billing, admin/files, admin/hours, admin/integrations, admin/memory, admin/notifications, admin/outreach, admin/partner, admin/platform, admin/profile, admin/receptionist, admin/team, admin/workspace, campaigns, campaigns/content, campaigns/content/library, campaigns/messages, campaigns/sequences, campaigns/sequences/new, campaigns/sequences/runs, messages",
+        "today": "today"
       }
     },
     "POST files/keep": {

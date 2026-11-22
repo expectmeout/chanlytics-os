@@ -1111,6 +1111,81 @@ COMMENT ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_outc
 
 
 --
+-- Name: ad_chats_kept(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The days the page counts (ads_page_counts' window).
+  with win as (
+    select e.day - (e.days - 1) as from_day, e.day as to_day
+      from (select least(greatest(coalesce(p_days, 30), 1), 90) as days,
+                   least(coalesce(p_end, (now() at time zone t.timezone)::date),
+                         (now() at time zone t.timezone)::date) as day
+              from tenants t
+             where t.id = p_tenant_id) e
+  ),
+  -- Each ad whose chat the workspace hears (a WhatsApp number or an Instagram account of its own), and its days in the
+  -- window that Meta has settled with a count of chats, in its account's zone. An ad that opens Messenger, a website or
+  -- a wire the workspace does not hear is never compared: nothing it brings could reach Chanlytics.
+  settled as (
+    select d.ad_id, d.day, d.platform_results, coalesce(c.timezone, 'UTC') as zone
+      from ad_days d
+      join ads a on a.id = d.ad_id and a.tenant_id = d.tenant_id
+      join ad_accounts c on c.id = a.account_id and c.tenant_id = a.tenant_id
+     cross join win w
+     where d.tenant_id = p_tenant_id
+       and d.day >= w.from_day and d.day <= w.to_day
+       and d.settled and d.platform_results is not null
+       and a.door in ('whatsapp', 'instagram')
+       and exists (select 1 from tenant_channels h
+                    where h.tenant_id = p_tenant_id and h.kind = a.door and h.status = 'active')
+  ),
+  -- The entries kept across the window, a day wider each way: an account's zone is not the workspace's.
+  entries as (
+    select e.platform, e.platform_ad_id, e.created_at
+      from ad_entries e, win w
+     where e.tenant_id = p_tenant_id
+       and e.created_at >= (w.from_day - 1)::timestamp at time zone 'UTC'
+       and e.created_at < (w.to_day + 2)::timestamp at time zone 'UTC'
+  ),
+  -- The ad Chanlytics holds for each platform id, asked once an id: an ad made here is three ads at Meta.
+  held as (
+    select g.platform, g.platform_ad_id, public.ad_held_for(p_tenant_id, g.platform, g.platform_ad_id) as ad_id
+      from (select distinct x.platform, x.platform_ad_id from entries x) g
+  ),
+  kept as (
+    select h.ad_id, (x.created_at at time zone z.zone)::date as day, count(*) as n
+      from entries x
+      join held h on h.platform = x.platform and h.platform_ad_id = x.platform_ad_id
+      join (select distinct s.ad_id, s.zone from settled s) z on z.ad_id = h.ad_id
+     group by h.ad_id, 2
+  ),
+  by_ad as (
+    select s.ad_id, sum(s.platform_results)::bigint as meta, coalesce(sum(k.n), 0)::bigint as kept,
+           max(s.day) as through
+      from settled s
+      left join kept k on k.ad_id = s.ad_id and k.day = s.day
+     group by s.ad_id
+  )
+  select coalesce(jsonb_agg(jsonb_build_object('ad_id', b.ad_id, 'name', a.name, 'meta', b.meta, 'kept', b.kept,
+                                               'through', b.through)
+                            order by b.ad_id), '[]'::jsonb)
+    from by_ad b
+    join ads a on a.id = b.ad_id
+$$;
+
+
+--
+-- Name: FUNCTION ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) IS 'Meta''s count beside Chanlytics'' (the Ads tracking plan''s T2, 00678): for each ad that opens a chat the workspace hears (door whatsapp or instagram, with an active route of that kind), over the window''s days Meta has settled (ad_days.settled, with a count of chats), the chats Meta says it started (meta), the entries Chanlytics kept on those days in the ad''s account zone (kept: new people and known ones alike, each by ad_held_for), and the last of those days (through). Ads with no settled day are left out. The window is ads_page_counts''. Meta counts a chat written within seven days of a tap and Chanlytics an entry when its message arrives, so the two are never equal: contracts adChatsKeptRule says when they have parted. Counts only. SECURITY INVOKER.';
+
+
+--
 -- Name: ad_credentials_drop(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1808,6 +1883,91 @@ COMMENT ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days inte
 
 
 --
+-- Name: ad_people_back(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer DEFAULT 30, p_end date DEFAULT NULL::date) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The window ad_people_in reads: its days in the workspace's own zone.
+  with win as (
+    select ((e.day - (e.days - 1))::timestamp) at time zone e.tz as start_at,
+           ((e.day + 1)::timestamp) at time zone e.tz as stop_at
+      from (select t.timezone as tz,
+                   least(greatest(coalesce(p_days, 30), 1), 90) as days,
+                   least(coalesce(p_end, (now() at time zone t.timezone)::date),
+                         (now() at time zone t.timezone)::date) as day
+              from tenants t
+             where t.id = p_tenant_id) e
+  ),
+  -- Each message from an ad in the window, with its person: alive and not merged away.
+  entries as (
+    select e.platform, e.platform_ad_id, e.created_at, e.new_person, c.id as contact_id, c.phone_e164, c.email
+      from ad_entries e
+      join win w on e.created_at >= w.start_at and e.created_at < w.stop_at
+      join messages m on m.id = e.message_id and m.tenant_id = e.tenant_id
+      join contacts c on c.id = m.contact_id and c.tenant_id = m.tenant_id
+     where e.tenant_id = p_tenant_id
+       and e.kind = 'chat'
+       and c.erased_at is null
+       and c.merged_into_contact_id is null
+  ),
+  held as (
+    select g.platform, g.platform_ad_id, public.ad_held_for(p_tenant_id, g.platform, g.platform_ad_id) as ad_id
+      from (select distinct x.platform, x.platform_ad_id from entries x) g
+  ),
+  -- Each person once an ad: their first message from it in the window. One that made them is that ad's new person
+  -- (ad_people_in counts them), so it brought them, and did not bring them back.
+  firsts as (
+    select distinct on (x.contact_id, h.ad_id)
+           x.contact_id, h.ad_id, x.created_at as first_at, x.new_person, x.phone_e164, x.email
+      from entries x
+      join held h on h.platform = x.platform and h.platform_ad_id = x.platform_ad_id
+     order by x.contact_id, h.ad_id, x.created_at
+  ),
+  back as (
+    select f.contact_id, f.ad_id,
+           exists (select 1
+                     from appointments v
+                    where v.tenant_id = p_tenant_id
+                      and v.source in ('receptionist', 'person')
+                      and v.status not in ('cancelled', 'proposed')
+                      and v.created_at > f.first_at
+                      and v.starts_at > f.first_at
+                      and (v.contact_id = f.contact_id
+                           or (v.contact_id is null
+                               and ((v.client_phone is not null and v.client_phone = f.phone_e164)
+                                    or (v.client_email is not null and lower(v.client_email) = lower(f.email))))))
+             as booked
+      from firsts f
+     where not f.new_person
+  )
+  select jsonb_build_object(
+           'ads', coalesce((select jsonb_agg(jsonb_build_object('ad_id', g.ad_id, 'people', g.people,
+                                                                'booked', g.booked) order by g.ad_id)
+                              from (select b.ad_id, count(*) as people, count(*) filter (where b.booked) as booked
+                                      from back b
+                                     where b.ad_id is not null
+                                     group by b.ad_id) g), '[]'::jsonb),
+           'unnamed', jsonb_build_object(
+                        'people', (select count(*) from back b where b.ad_id is null),
+                        'booked', (select count(*) from back b where b.ad_id is null and b.booked)),
+           'all', jsonb_build_object(
+                    'people', (select count(distinct b.contact_id) from back b),
+                    'booked', (select count(distinct b.contact_id) from back b where b.booked)))
+    from win
+$$;
+
+
+--
+-- Name: FUNCTION ad_people_back(p_tenant_id uuid, p_days integer, p_end date); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) IS 'The people an ad brought back (the Ads tracking plan''s T3 and its call 2, 00678): someone already known who wrote from an ad in the window (ad_people_in''s), alive and not merged away, counted once an ad by their first message from it there, and left out where that message is the one that made them (the ad brought them: ad_people_in counts them). Booked after: a visit of theirs asked for in a chat and confirmed (source receptionist) or added by a member (source person), neither cancelled nor only asked for, whose row was made after that message and which starts after it (the content loop PRD''s A.6); a visit read in from a calendar, a booking email or a tool is never after, its row''s time being only when Chanlytics first saw it. {ads: [{ad_id, people, booked}], unnamed: {people, booked} for ads Chanlytics cannot name, all: {people, booked}, each person once}. Never added to the people an ad brought, nor to the cost of a booked person. Null for a workspace nobody can read. SECURITY INVOKER.';
+
+
+--
 -- Name: ad_people_in(uuid, integer, date); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -2193,6 +2353,52 @@ end $$;
 --
 
 COMMENT ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) IS 'Service-role only: what telling a platform of an owner''s press came to (00652; decision 0050). told: when, and the platform''s word for the ad where it was read back. unknown: sent with no answer; it is never sent again, and the next read says what stands. refused: the platform would not take it; the ad is put back as the platform holds it and an ad.press_refused event says so with the platform''s words. A press made while this one was on its way answers again (kept on its way) or kept (let go: it could not have been made). Answers told, unknown, refused, again, kept or not_found.';
+
+
+--
+-- Name: ad_touches_of(uuid, uuid[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  -- The entries these messages opened (one a message, ad_entries_one_a_message), each named by its ad's reference.
+  with touched as (
+    select e.message_id, e.platform || ':' || e.platform_ad_id as ref
+      from ad_entries e
+     where e.tenant_id = p_tenant_id
+       and e.message_id = any (coalesce(p_messages[1:500], '{}'::uuid[]))
+  ),
+  refs as (
+    select distinct r.ref
+      from (select t.ref from touched t
+            union all
+            select unnest(coalesce(p_refs[1:200], '{}'::text[]))) r
+     where btrim(coalesce(r.ref, '')) <> ''
+  ),
+  -- Each reference once: the ad Chanlytics holds for it, and its name as every page says it.
+  named as (
+    select r.ref,
+           public.ad_held_for(p_tenant_id, x.platform, x.ad) as ad_id,
+           public.ad_named(p_tenant_id, r.ref) ->> 'name' as name
+      from refs r
+     cross join lateral public.ad_ref_parts(r.ref) x
+     where x.platform is not null and x.ad is not null
+  )
+  select jsonb_build_object(
+           'touches', coalesce((select jsonb_agg(jsonb_build_object('message_id', t.message_id, 'ref', t.ref))
+                                  from touched t), '[]'::jsonb),
+           'named', coalesce((select jsonb_agg(jsonb_build_object('ref', n.ref, 'ad_id', n.ad_id, 'name', n.name))
+                                from named n), '[]'::jsonb))
+$$;
+
+
+--
+-- Name: FUNCTION ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]); Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) IS 'The shared record''s reader over ad_entries for a thread (the content loop PRD''s Appendix A.2; the Ads tracking plan''s T1, 00678): of p_messages (500 at most), the entries they opened, each named by its ad''s reference; and for every reference, those and p_refs (200 at most, first touches as contacts.acquired_ref keeps them), the ad Chanlytics holds for it (ad_held_for) and its name (ad_named). {touches: [{message_id, ref}], named: [{ref, ad_id, name}]}. Counts nothing. SECURITY INVOKER: the caller''s RLS decides what is read.';
 
 
 --
@@ -52051,6 +52257,13 @@ CREATE INDEX ad_entries_ad ON public.ad_entries USING btree (tenant_id, platform
 
 
 --
+-- Name: ad_entries_in_time; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX ad_entries_in_time ON public.ad_entries USING btree (tenant_id, created_at);
+
+
+--
 -- Name: ad_entries_one_a_message; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -61321,6 +61534,15 @@ GRANT ALL ON FUNCTION public.ad_change_told(p_tenant_id uuid, p_ad_id uuid, p_ou
 
 
 --
+-- Name: FUNCTION ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_chats_kept(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_credentials_drop(p_account_id uuid); Type: ACL; Schema: public; Owner: -
 --
 
@@ -61439,6 +61661,15 @@ GRANT ALL ON FUNCTION public.ad_people(p_tenant_id uuid, p_ad_id uuid, p_days in
 
 
 --
+-- Name: FUNCTION ad_people_back(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_people_back(p_tenant_id uuid, p_days integer, p_end date) TO service_role;
+
+
+--
 -- Name: FUNCTION ad_people_in(p_tenant_id uuid, p_days integer, p_end date); Type: ACL; Schema: public; Owner: -
 --
 
@@ -61486,6 +61717,15 @@ GRANT ALL ON FUNCTION public.ad_tell_ask(p_tenant_id uuid, p_ad_id uuid) TO serv
 
 REVOKE ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.ad_told(p_tenant_id uuid, p_ad_id uuid, p_asked text, p_outcome text, p_platform_state text, p_said text) TO service_role;
+
+
+--
+-- Name: FUNCTION ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.ad_touches_of(p_tenant_id uuid, p_messages uuid[], p_refs text[]) TO service_role;
 
 
 --

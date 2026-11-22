@@ -24,6 +24,7 @@ import { useSwapMotion } from "../../kit/motion/use-swap-motion";
 import type { ShownRows } from "../../kit/rows/shown-rows";
 import { SubTabs } from "../../kit/sub-tabs/sub-tabs";
 import { ixKeepPlace, ixPlace } from "../place";
+import { ixSays } from "../says";
 import { useNeedsYouParts } from "../../needs-you";
 import { usePageSearch } from "../../kit/head/page-search";
 import type { Flash } from "../../shell-doors";
@@ -196,18 +197,8 @@ export interface ListCtx extends ReturnType<typeof listProps> {
 function visibleRows(p: { query: string; allThreads: Thread[]; threads: Thread[] }): Thread[] {
   const { query, allThreads, threads } = p;
   let visible = query.trim() ? allThreads : threads;
-  if (query.trim()) {
-    const q = query.toLowerCase();
-    visible = visible.filter(
-      (t) =>
-        t.who.toLowerCase().includes(q) ||
-        t.subject.toLowerCase().includes(q) ||
-        t.preview.toLowerCase().includes(q) ||
-        // What they asked, which a row where a person is needed shows in place of the last message.
-        (t.ask && t.ask.text ? t.ask.text.toLowerCase().includes(q) : false) ||
-        t.tags.some((tag) => tag.toLowerCase().includes(q)),
-    );
-  }
+  // Who, why, the last thing said, what they asked, the tags, and "from an ad" (rules.ts ixSays).
+  if (query.trim()) visible = visible.filter((t) => ixSays(t, query));
 
   // Priority-sort: P1 → P2 → P3 within bucket
   const priorityRank = { P1: 0, P2: 1, P3: 2 };

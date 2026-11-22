@@ -110,5 +110,6 @@ export { minorPerUnit } from "./money";
 export { AD_TOLD_MAX } from "./said";
 export type { AdSaid } from "./said";
 export { adAccountStateOf, adStateOf } from "./states";
+export type { Touch } from "./touch";
 export { AD_WAY_IN_SAID, adWayInOf, adWayInRowOf } from "./way-in";
 export type { AdWayIn, AdWayInFacts } from "./way-in";

@@ -26,7 +26,8 @@ import { ADS_MANAGER, SHEET } from "./words";
 
 const META_TAB = { target: "_blank", rel: "noopener noreferrer" } as const;
 
-function Figures({ label, figures, note }: { label: string; figures: FigureVM[]; note?: string }) {
+function Figures(props: { label: string; figures: FigureVM[]; note?: string; after?: ReactNode }) {
+  const { label, figures, note, after } = props;
   if (figures.length === 0) return null;
   return (
     <section className="ads-live-figures" aria-label={label}>
@@ -39,8 +40,29 @@ function Figures({ label, figures, note }: { label: string; figures: FigureVM[];
           </div>
         ))}
       </dl>
+      {after}
       {note ? <p className="ads-conn-says">{note}</p> : null}
     </section>
+  );
+}
+
+/**
+ * Meta's count beside the messages that reached Chanlytics (the tracking plan's T2): a quiet line, and when the two part
+ * a calm box that says what it means: nothing for the owner to do.
+ */
+function ChatsKept({ chats }: { chats: SheetVM["chats"] }) {
+  if (!chats) return null;
+  if (!chats.parted)
+    return (
+      <p className="ads-conn-says" data-testid="ads-live-chats">
+        {chats.line}
+      </p>
+    );
+  return (
+    <div className="ads-conn-need" data-tone="calm" data-testid="ads-live-chats">
+      <b>{chats.line}</b>
+      <span>{chats.parted}</span>
+    </div>
   );
 }
 
@@ -239,8 +261,23 @@ export function AdSheet({ vm, timezone, acts, onClose, onGo }: AdSheetProps) {
               {vm.reason.note ? <span>{vm.reason.note}</span> : null}
             </div>
           ) : null}
-          <Figures label={SHEET.ours} figures={vm.ours} />
-          <Figures label={SHEET.theirs} figures={vm.theirs} note={SHEET.theirsNote} />
+          <Figures
+            label={SHEET.ours}
+            figures={vm.ours}
+            after={
+              vm.back ? (
+                <p className="ads-conn-says" data-testid="ads-live-back">
+                  {vm.back}
+                </p>
+              ) : null
+            }
+          />
+          <Figures
+            label={SHEET.theirs}
+            figures={vm.theirs}
+            note={SHEET.theirsNote}
+            after={<ChatsKept chats={vm.chats} />}
+          />
           {vm.counted ? <People adId={vm.id} timezone={timezone} onGo={onGo} /> : null}
           <Above vm={vm} />
           {vm.ends ? <EndAd name={vm.name} busy={acts.busy || acts.changing} onEnd={() => acts.end(vm.id)} /> : null}

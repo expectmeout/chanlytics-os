@@ -174,6 +174,34 @@ const NEEDS_YOU_LIST_WORDS = [
 /** The tool PR 4.5 gave an action, search: that action's words, fields and example are all that moved in it. */
 const SEARCHED = "inbox";
 /**
+ * 22 Nov 2026 (the Ads tracking plan's T1 and its call 6): inbox's list finds from_ads, the people an ad first brought who
+ * need you, as the Ads page names them, and each row names the ad a person first came from. The one change to its words
+ * and to its filter's values; ask-tools-operator.json says it as sent.
+ */
+const FROM_ADS_LIST_WORDS = [
+  [
+    "snoozed, or recent (all, newest first);",
+    "snoozed, recent (all, newest first), or from_ads (the people an ad first brought who need you now, longest waiting first: the list the Ads page names, for who from my ads is waiting);",
+  ],
+  [
+    "whether the reply window is open, and its last three messages with who wrote them.",
+    "whether the reply window is open, its last three messages with who wrote them, and from_ad, the ad's name, where the person first came from an ad (empty for one Chanlytics can't name yet).",
+  ],
+];
+/** A list's filter as frozen before, with from_ads after the rest. */
+const withFromAdsFilter = (schema) => {
+  const out = structuredClone(schema);
+  out.properties.filter.enum = [...out.properties.filter.enum, "from_ads"];
+  return out;
+};
+/** A frozen inbox, read with from_ads: its words and its filter, and nothing else of it. */
+const withFromAds = (tool) => {
+  const out = structuredClone(tool);
+  for (const [was, now] of FROM_ADS_LIST_WORDS) out.description = out.description.replace(was, now);
+  out.input_schema = withFromAdsFilter(out.input_schema);
+  return out;
+};
+/**
  * The one place an operator's tool names a role: propose_thread_verb says whose a person's treatment is to set -- an
  * owner's, as person_mode's spec needs -- so a role not offered propose_person's mode can say who can (PR 4.7).
  */
@@ -392,7 +420,8 @@ test("the invariant (the operator): calendar, calls, inbox, propose_deal, propos
     for (const examples of [true, false])
       for (const t of toApiTools(role, examples)) {
         if (!UNMOVED.includes(t.name)) continue;
-        const then = examples ? was.get(t.name) : bare(was.get(t.name));
+        const frozen = t.name === SEARCHED ? withFromAds(was.get(t.name)) : was.get(t.name);
+        const then = examples ? frozen : bare(frozen);
         assert.equal(JSON.stringify(undeferred(t)), JSON.stringify(then), `${role} ${t.name}: PR 4.7's bytes`);
       }
     const now = toApiTools(role, true).map((t) => t.name);
@@ -409,7 +438,7 @@ test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less
   const d = DEFS.get(SEARCHED);
   for (const role of ROLES) {
     const t = toApiTools(role, true).find((x) => x.name === SEARCHED);
-    const was = PR_4_3[role].find((x) => x.name === SEARCHED);
+    const was = withFromAds(PR_4_3[role].find((x) => x.name === SEARCHED));
     assert.equal(
       t.description,
       was.description
@@ -499,7 +528,9 @@ test("the rename is a bijection: every old tool is one tool and action of the re
           ? asProposableNow(was.input_schema)
           : old === "propose_policy"
             ? asModeLeftOut(was.input_schema)
-            : was.input_schema,
+            : old === "list_threads"
+              ? withFromAdsFilter(was.input_schema)
+              : was.input_schema,
       ),
       `${old} -> ${to}: the same fields`,
     );

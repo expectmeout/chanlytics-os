@@ -53,6 +53,12 @@ export function AdsLiveLens({ dto, failed }: { dto: AdsLiveDto | null; failed: b
           <Figure key={figure.label} className="rpt-cell" label={figure.label} value={figure.value} />
         ))}
       </dl>
+      {/* Who an ad brought back: a line of its own, never in the figures above (the tracking plan's T3). */}
+      {vm.back ? (
+        <p className="rpt-ads-pane" data-testid="ads-lens-back">
+          {vm.back}
+        </p>
+      ) : null}
       {vm.rows.length > 0 ? (
         <div className="ck-table-wrap">
           <table className="ck-table ads-res-table" data-testid="ads-lens-table">
