@@ -15,13 +15,12 @@
  * asks after the first container again before it makes anything).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend, type PostHeldWhy } from "@chanlytics/contracts";
+import { ON_INSTAGRAM, type PlaceAdapter, type PlacementToSend } from "@chanlytics/contracts";
 import type { MetaPoster } from "@chanlytics/channels/instagram";
 import {
   closePostAttempt,
   findPostForWork,
   markPostUnanswered,
-  mayStillPost,
   movePost,
   openPostAttempt,
   type PostRow,
@@ -31,12 +30,13 @@ import { logAndGoOn } from "@chanlytics/log";
 import { markSpoke, type ClaimedJob, type JobContext } from "@chanlytics/jobs";
 import type { Database } from "@chanlytics/db/types";
 import { logger } from "../shared/log.js";
+import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
 import {
-  approvedBytesOf,
+  HOLDABLE,
+  askAgainWhetherSeen,
   beginSecondAttempt,
   findOnTheAccount,
   findPoster,
-  holdPost,
   instagramKindOf,
   keepPublished,
   placeFor,
@@ -50,10 +50,8 @@ import {
 type Db = SupabaseClient<Database>;
 
 /** The recheck: why the post may not go now, in the owner's words, or the poster it goes through. */
-async function recheck(db: Db, post: PostRow): Promise<{ poster: MetaPoster } | { held: string; why: PostHeldWhy }> {
-  if (!post.approved_by || !(await mayStillPost(db, post.tenant_id, post.approved_by)))
-    return { held: ON_INSTAGRAM.held.approver, why: "approver" };
-  const bytes = await approvedBytesOf(db, post);
+async function recheck(db: Db, post: PostRow): Promise<{ poster: MetaPoster } | SendHold> {
+  const bytes = await readSendRecheck(db, post, { approver: true });
   if ("held" in bytes) return bytes;
   return findPoster(db, post.tenant_id);
 }
@@ -138,7 +136,7 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
   if (post.status !== "preparing" || !post.container_id) return { skipped: post.status };
   instagramKindOf(post);
   const posting = await recheck(db, post);
-  if ("held" in posting) return holdPost(db, post, { words: posting.held, why: posting.why });
+  if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   if (!(await movePost(db, { postId: post.id, from: ["preparing"], to: "publishing" }))) return { skipped: "moved" };
   const place = placeFor(db, post, posting.poster, deps);
   const opened = await openPostAttempt(db, {
@@ -181,6 +179,38 @@ export async function publishPost(db: Db, job: ClaimedJob, deps: PostDeps = {}):
     accountId: posting.poster.accountId,
     seen: sent.seen,
   });
+  // Up, and not read back: asked for again in two minutes, so it says it is on Instagram only once it was seen there.
+  if (!sent.seen) await askAgainWhetherSeen(db, post, attempt);
+}
+
+/**
+ * A post that went up unseen, asked for by its own id (post_reconcile, payload `seen`): seen, it says so from now; not
+ * there, it is left as posted and said in the log (its owner may have deleted it in Instagram); no answer, the job comes
+ * back. Nothing is ever sent from here.
+ */
+async function verifyPublished(db: Db, post: PostRow, deps: PostDeps): Promise<void | { skipped: string }> {
+  if (post.verified_at || !post.external_id) return { skipped: "seen" };
+  const posting = await findPoster(db, post.tenant_id);
+  if ("held" in posting) throw new Error(`post ${post.id}: Instagram cannot be asked (${posting.held})`);
+  const state = await placeFor(db, post, posting.poster, deps).status?.({
+    postId: post.id,
+    kind: instagramKindOf(post),
+    externalId: post.external_id,
+    caption: post.caption,
+    sentAt: post.published_at ?? post.updated_at,
+  });
+  if (!state || state.is === "unknown") throw new Error(`post ${post.id}: Instagram did not say whether it is up`);
+  if (state.is === "not_up") {
+    logger({ tenant_id: post.tenant_id }).warn("post_not_seen", { post_id: post.id });
+    return { skipped: "not_seen" };
+  }
+  await movePost(db, {
+    postId: post.id,
+    from: ["published"],
+    to: "published",
+    patch: { permalink: state.media.permalink, verified_at: new Date().toISOString() },
+  });
+  logger({ tenant_id: post.tenant_id }).info("placement_verified", { post_id: post.id, place: post.place });
 }
 
 /** post_reconcile: what Instagram has, read before anything could be sent again. */
@@ -188,6 +218,7 @@ export async function reconcilePost(db: Db, job: ClaimedJob, deps: PostDeps = {}
   const { postId, attempt } = postJobOf(job);
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
+  if (post.status === "published" && job.payload.seen === "ask") return verifyPublished(db, post, deps);
   if (post.status !== "checking" || !post.container_id) return { skipped: post.status };
   const posting = await findPoster(db, job.tenant_id);
   // Instagram cannot be asked: the job comes back, and past its last try the post says to look at the account.

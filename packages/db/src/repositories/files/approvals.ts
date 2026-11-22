@@ -10,9 +10,11 @@ import {
   ownersFactsOf,
   pieceIntentOf,
   recordOrEmpty,
+  rightsGapOf,
   type AsApproved,
   type PostKind,
   type PostPlace,
+  type RightsGap,
 } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../../types";
@@ -87,35 +89,28 @@ export async function readPostAsApproved(db: Db, postId: string): Promise<AsAppr
   return answer.is === "before" ? { is: "before" } : { is: "changed" };
 }
 
-/** The piece a made file is, newest first (a video's, or a picture's once it was first approved); null for none. */
-export async function findPieceOfFile(db: Db, tenantId: TenantId, fileId: string): Promise<string | null> {
-  const { data, error } = await db
-    .from("pieces")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("file_id", fileId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new DbFailure(error, "piece of file");
-  return data?.id ?? null;
+/**
+ * New words on a made post or video, saved by a member who may approve (00690 piece_words_keep): the piece's next
+ * version, and every placement still waiting for its time goes up with them under a new approval of the same bytes.
+ * Answers how many placements took them.
+ */
+export async function keepPieceWords(
+  db: Db,
+  words: { tenantId: TenantId; fileId: string; caption: string | null },
+): Promise<number> {
+  const { data, error } = await db.rpc("piece_words_keep", {
+    p_tenant_id: words.tenantId,
+    p_file_id: words.fileId,
+    p_caption: words.caption ?? "",
+  });
+  if (error) throw new DbFailure(error, "piece words keep");
+  const followed = recordOrEmpty(data).followed;
+  return typeof followed === "number" ? followed : 0;
 }
 
-/** A new version of a piece: what was approved before it is voided, and its waiting placements held in words. */
-export async function revisePiece(
-  db: Db,
-  change: { tenantId: TenantId; pieceId: string; revision: Json },
-): Promise<{ fate: "revised" | "gone"; revision: number | null; held: number }> {
-  const { data, error } = await db.rpc("piece_revise", {
-    p_tenant_id: change.tenantId,
-    p_piece_id: change.pieceId,
-    p_revision: change.revision,
-  });
-  if (error) throw new DbFailure(error, "piece revise");
-  const answer = recordOrEmpty(data);
-  return {
-    fate: answer.fate === "revised" ? "revised" : "gone",
-    revision: typeof answer.revision === "number" ? answer.revision : null,
-    held: typeof answer.held === "number" ? answer.held : 0,
-  };
+/** Who stands between a file and posting it: a person named in it, or in what it was drawn from, with no yes of their own. */
+export async function readRightsGap(db: Db, tenantId: TenantId, fileId: string): Promise<RightsGap> {
+  const { data, error } = await db.rpc("file_rights_gap", { p_tenant_id: tenantId, p_file_id: fileId, p_use: "post" });
+  if (error) throw new DbFailure(error, "file rights gap");
+  return rightsGapOf(data);
 }

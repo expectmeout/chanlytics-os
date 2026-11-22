@@ -244,3 +244,25 @@ test("a take-down is done only on Meta's own yes; no answer waits; refused goes 
   const noId = await instagramPlace(poster, { fetch: meta({}).fetch }).takeDown({ ...sent, externalId: null });
   assert.equal(noId.outcome, "not_possible");
 });
+
+test("a post whose own id is known is asked for by it: up, gone from the account, or no answer", async () => {
+  const sent = { postId: "p1", kind: "picture", externalId: MEDIA, caption: null, sentAt: SENT_AT };
+  const up = meta({
+    [`GET /${MEDIA}`]: [
+      200,
+      { id: MEDIA, permalink: "https://www.instagram.com/p/abc/", timestamp: "2026-11-22T10:00:00+0000" },
+    ],
+  });
+  const seen = await instagramPlace(poster, { fetch: up.fetch }).status(sent);
+  assert.equal(seen.is, "up");
+  assert.equal(seen.media.permalink, "https://www.instagram.com/p/abc/");
+  assert.deepEqual(
+    up.calls.map((c) => c.route),
+    [`GET /${MEDIA}`],
+    "the account's list is not read",
+  );
+  const gone = meta({ [`GET /${MEDIA}`]: [400, { error: { message: "Object does not exist", code: 100 } }] });
+  assert.equal((await instagramPlace(poster, { fetch: gone.fetch }).status(sent)).is, "not_up");
+  const silent = meta({ [`GET /${MEDIA}`]: "silent" });
+  assert.equal((await instagramPlace(poster, { fetch: silent.fetch }).status(sent)).is, "unknown");
+});

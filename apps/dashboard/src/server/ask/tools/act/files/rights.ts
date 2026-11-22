@@ -119,7 +119,7 @@ export const RIGHTS_ACTIONS = {
     examples: [{ file: "chair-by-the-window", state: "named", people: [{ name: "Paola", label: "client" }] }],
     label: "Saying who is in it",
     words:
-      "Action people takes file, state and people: only as the owner or an operator says, never from a face. The card waits for their press.",
+      "Action people takes file, state and people: only as the person asking says, never from a face. The card waits for their press.",
     build: peopleOutcome,
   }),
   ask: actAction({
@@ -141,8 +141,7 @@ export const RIGHTS_ACTIONS = {
       },
     ],
     label: "Drafting the ask",
-    words:
-      "Action ask takes file, person and text: a reply in their own conversation, which the owner sends with its press.",
+    words: "Action ask takes file, person and text: a reply in that person's own conversation, sent only by its press.",
     build: askOutcome,
   }),
   person_yes: actAction({

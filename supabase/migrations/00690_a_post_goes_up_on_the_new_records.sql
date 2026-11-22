@@ -25,8 +25,9 @@
 --   post_as_approved       Right before a send: whether the placement still stands as approved (its approval stands,
 --                          its hash holds, its words and its shape's bytes are the approved ones), with the path of the
 --                          exact bytes to send. A post approved before this is read as before.
---   piece_revise           A new version of a piece (act/files/piece): the approvals of the versions before it voided
---                          (`changed`), and its placements still waiting held in the words that say so.
+--   piece_words_keep       New words saved on a piece by a member who may approve: its next version, and every
+--                          placement still waiting goes up with them under a new approval of the same bytes (the save
+--                          is the approval of the new words), so an owner's own edit never strands a scheduled post.
 --   post_moved             Re-made: it keeps the place's account, when the place was seen holding the post, and why a
 --                          post was held or let go late.
 --
@@ -36,7 +37,7 @@
 -- Locks: adding columns to `pieces` and `posts` takes each lock for a moment, narrowing two CHECKs reads each table once
 -- under a lock that holds its writers; three seconds each and no more. Re-runnable.
 --
--- Deploy order: this file first, then the code (it calls post_approve and piece_revise). The code before it keeps
+-- Deploy order: this file first, then the code (it calls post_approve and piece_words_keep). The code before it keeps
 -- working beside it: post_begin and post_moved answer as they did.
 
 set local lock_timeout = '3s';
@@ -56,7 +57,7 @@ create unique index if not exists pieces_one_picture on public.pieces (tenant_id
 grant select (revision, intent) on public.pieces to authenticated;
 
 comment on column public.pieces.revision is
-  'The version the piece stands at (00690, piece_revisions.n): 1 as made, one more for each change (piece_revise).';
+  'The version the piece stands at (00690, piece_revisions.n): 1 as made, one more each time its words change (piece_words_keep).';
 comment on column public.pieces.intent is
   'Why it exists (00690; the content loop PRD''s 5.2 and 6.1), written by whoever drafts it where its words lean on something that can change: {goal, opportunity_id, call_to_action, day, offer {says, until}, service}. Null for a piece whose words date nothing. Read again right before every send (reasonStands).';
 comment on column public.pieces.shape is
@@ -98,7 +99,7 @@ grant select on public.piece_revisions to authenticated;
 grant all on public.piece_revisions to service_role;
 
 comment on table public.piece_revisions is
-  'One version of a piece (00690; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_revise write.';
+  'One version of a piece (00690; the content loop PRD''s 5.3): the plan it was drawn by, its words per place, what moved from the version before, who made it and what it cost. Never changed once written. Members read; post_approve and piece_words_keep write.';
 
 /* ----------------------------------------------------------------------------------------- 3. piece_renditions -- */
 
@@ -167,7 +168,7 @@ grant select on public.approvals to authenticated;
 grant all on public.approvals to service_role;
 
 comment on table public.approvals is
-  'What an owner approved, exactly (00690; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_revise write.';
+  'What an owner approved, exactly (00690; the content loop PRD''s 3 and 5.3): a snapshot (the version, each shape by file and checksum, where it goes, when, with which words, and any fact the owner stated), the SHA-256 of its canonical JSON (contracts hashSnapshot), who and when, and when and why it stopped standing. Right before a send the edge builds the placement''s part again from the post and its shape and compares. Members read; post_approve and piece_words_keep write.';
 comment on column public.approvals.snapshot is
   '{revision {piece_id, n}, renditions [{shape, file_id, path, checksum}], placements [{place, kind, at, caption}], uses, spend, facts [{says, until}]} (contracts PieceApprovalSnapshot).';
 
@@ -210,6 +211,9 @@ alter table public.posts add constraint posts_held_shape check (
 
 grant select (piece_id, revision, approval_id, capability_edition, verified_at, good_until, account_id, held_why)
   on public.posts to authenticated;
+-- A post already up on Instagram was read back at its send where it keeps its address: it was seen there.
+update public.posts p set verified_at = coalesce(p.published_at, p.updated_at)
+ where p.place = 'instagram' and p.status = 'published' and p.permalink is not null and p.verified_at is null;
 
 comment on column public.posts.piece_id is 'The piece this placement shows (00690); null for one approved before it, read as before.';
 comment on column public.posts.revision is 'The version of the piece it shows (00690, piece_revisions.n).';
@@ -239,7 +243,8 @@ begin
                             then left(coalesce(v_patch ->> 'held_reason', 'Held.'), 300) end,
          held_why = case when p_to = 'held' or v_late then v_patch ->> 'held_why' end,
          permalink = coalesce(v_patch ->> 'permalink', p.permalink),
-         published_at = case when p_to = 'published' then coalesce((v_patch ->> 'published_at')::timestamptz, now())
+         published_at = case when p_to = 'published'
+                             then coalesce((v_patch ->> 'published_at')::timestamptz, p.published_at, now())
                              else p.published_at end,
          external_id = coalesce(v_patch ->> 'external_id', p.external_id),
          account_id = coalesce(v_patch ->> 'account_id', p.account_id),
@@ -489,7 +494,7 @@ begin
     values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], 'owner', v_actor)
     returning * into v_rev;
   elsif exists (select 1 from jsonb_each_text(v_captions) c
-                 where (v_rev.captions ->> c.key) is distinct from c.value) then
+                 where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
     v_n := v_n + 1;
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
     values (p_tenant_id, v_piece.id, v_n, v_rev.plan, v_rev.captions || v_captions, array['caption'], 'owner', v_actor)
@@ -545,21 +550,30 @@ grant execute on function public.post_approve(uuid, uuid, jsonb) to authenticate
 comment on function public.post_approve(uuid, uuid, jsonb) is
   'A member''s press, with the settings permission (00690; the content loop PRD''s 5.3, 6.2): a made post or video approved for its placements in one transaction. p_approval: {snapshot, intent, renditions [{shape, path, checksum, bytes}], placements [{place, kind, at, caption, good_until, capability_edition}], via, policy_edition}. The piece (a picture''s written the first time), its version (words that differ from it make the next, with no new shapes), its shapes (kept the first time; different bytes at a kept shape are changed), the approval, each placement with its job. Answers {fate: approved, busy (post_id: the one of its kind on its way), gone, not_a_post, wrong_kind, taken_back, late (its reason ends before its time), changed; approval_id, piece_id, revision, posts [{place, kind, post_id}]}.';
 
-/* ------------------------------------------------------------------------------------------ 10. piece_revise -- */
+/* --------------------------------------------------------------------------------------- 10. piece_words_keep -- */
 
-create or replace function public.piece_revise(p_tenant_id uuid, p_piece_id uuid, p_revision jsonb)
+-- New words on a made post or video, saved by a member who may approve: the piece's next version (words alone, so no
+-- shape is drawn again), and every placement of it still waiting for its time goes up with them, as it has since
+-- 12 November 2026. The save is that member's approval of the new words: each such placement gets a new approval of
+-- the same bytes with the new words, so it still stands as approved at its send. One Instagram is already making ready
+-- keeps what it was made with, and a story shows none.
+create or replace function public.piece_words_keep(p_tenant_id uuid, p_file_id uuid, p_caption text)
 returns jsonb
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  v_actor  uuid := auth.uid();
-  v_piece  public.pieces;
-  v_rev    public.piece_revisions;
-  v_n      integer;
-  v_held   integer;
-  v_words  text := 'Changed since you approved it. Look again.';
+  v_actor     uuid := auth.uid();
+  v_words     text := nullif(btrim(p_caption), '');
+  v_piece     public.pieces;
+  v_rev       public.piece_revisions;
+  v_n         integer;
+  v_post      public.posts;
+  v_old       public.approvals;
+  v_snapshot  jsonb;
+  v_approval  uuid;
+  v_followed  integer := 0;
 begin
   if v_actor is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -567,43 +581,56 @@ begin
   if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'settings'), false) then
     raise exception 'Not yours to change.' using errcode = '42501';
   end if;
-  if coalesce(p_revision ->> 'made_by', '') <> all (array['ai', 'owner', 'operator']) then
-    raise exception 'A version says who made it.' using errcode = '22023';
+  select * into v_piece from public.pieces p
+   where p.tenant_id = p_tenant_id and p.file_id = p_file_id order by p.created_at desc limit 1 for update;
+  if found then
+    select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_piece.revision;
+    -- A piece no placement was ever approved of keeps no version yet: its first is written at its first approval.
+    if found and (v_rev.captions ->> 'instagram' is distinct from coalesce(v_words, '')
+                  or v_rev.captions ->> 'google' is distinct from coalesce(v_words, '')) then
+      v_n := v_piece.revision + 1;
+      insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
+      values (p_tenant_id, v_piece.id, v_n, v_rev.plan,
+              jsonb_build_object('instagram', coalesce(v_words, ''), 'google', coalesce(v_words, '')),
+              array['caption'], 'owner', v_actor);
+      update public.pieces p set revision = v_n, updated_at = now() where p.id = v_piece.id;
+    end if;
   end if;
-  select * into v_piece from public.pieces p where p.tenant_id = p_tenant_id and p.id = p_piece_id for update;
-  if not found then
-    return jsonb_build_object('fate', 'gone');
-  end if;
-  select * into v_rev from public.piece_revisions r where r.piece_id = v_piece.id and r.n = v_piece.revision;
-  v_n := v_piece.revision + case when found then 1 else 0 end;
-  insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, cost_cents, created_by)
-  values (p_tenant_id, v_piece.id, v_n,
-          coalesce(p_revision -> 'plan', v_rev.plan, v_piece.plan),
-          coalesce(v_rev.captions, '{}'::jsonb) || coalesce(p_revision -> 'captions', '{}'::jsonb),
-          coalesce((select array_agg(c) from jsonb_array_elements_text(p_revision -> 'changed') c), '{}'::text[]),
-          p_revision ->> 'made_by', greatest(coalesce((p_revision ->> 'cost_cents')::integer, 0), 0), v_actor);
-  update public.pieces p
-     set revision = v_n,
-         intent = case when p_revision ? 'intent' then nullif(p_revision -> 'intent', 'null'::jsonb) else p.intent end,
-         updated_at = now()
-   where p.id = v_piece.id;
-  -- Words alone moved: no shape changed, and each placement's own words are checked again right before its send
-  -- (post_as_approved), so a story, which shows none, is not held for them.
-  if (select coalesce(array_agg(c), '{}') from jsonb_array_elements_text(p_revision -> 'changed') c) <@ array['caption'] then
-    return jsonb_build_object('fate', 'revised', 'revision', v_n, 'held', 0);
-  end if;
-  -- The bytes moved: every approval of a version before it no longer stands, and its placements still waiting are held.
-  update public.approvals a set voided_at = now(), voided_why = 'changed'
-   where a.tenant_id = p_tenant_id and a.subject_type = 'piece_revision' and a.voided_at is null
-     and a.subject_id in (select r.id from public.piece_revisions r where r.piece_id = v_piece.id and r.n < v_n);
-  update public.posts p
-     set status = 'held', held_reason = v_words, held_why = 'changed', updated_at = now()
-   where p.tenant_id = p_tenant_id and p.piece_id = v_piece.id and p.revision < v_n
-     and p.status = any (array['queued', 'preparing']);
-  get diagnostics v_held = row_count;
-  return jsonb_build_object('fate', 'revised', 'revision', v_n, 'held', v_held);
+  for v_post in
+    select * from public.posts p
+     where p.tenant_id = p_tenant_id and p.file_id = p_file_id and p.status = 'queued' and p.kind <> 'story'
+       and p.caption is distinct from v_words
+     for update
+  loop
+    v_approval := v_post.approval_id;
+    select * into v_old from public.approvals a where a.tenant_id = p_tenant_id and a.id = v_post.approval_id;
+    if found and v_old.voided_at is null then
+      -- The same bytes, this placement alone, with the new words and the version they are: a new approval, by this member.
+      v_snapshot := v_old.snapshot
+        || jsonb_build_object(
+             'revision', jsonb_build_object('piece_id', v_post.piece_id, 'n', coalesce(v_n, v_post.revision)),
+             'placements', (select coalesce(jsonb_agg(e || jsonb_build_object('caption', v_words)), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'placements') e
+                             where e ->> 'place' = v_post.place and e ->> 'kind' = v_post.kind),
+             'renditions', (select coalesce(jsonb_agg(e), '[]'::jsonb)
+                              from jsonb_array_elements(v_old.snapshot -> 'renditions') e
+                             where e ->> 'shape' = public.post_shape(v_post.place, v_post.kind)));
+      insert into public.approvals (tenant_id, subject_type, subject_id, snapshot, snapshot_hash, approved_by, policy_edition)
+      values (p_tenant_id, 'piece_revision',
+              coalesce((select r.id from public.piece_revisions r
+                         where r.piece_id = v_post.piece_id and r.n = coalesce(v_n, v_post.revision)), v_old.subject_id),
+              v_snapshot, public.approval_hash(v_snapshot), v_actor, v_old.policy_edition)
+      returning id into v_approval;
+    end if;
+    update public.posts p
+       set caption = v_words, approval_id = v_approval, revision = coalesce(v_n, p.revision),
+           approved_by = v_actor, approved_at = now(), updated_at = now()
+     where p.id = v_post.id;
+    v_followed := v_followed + 1;
+  end loop;
+  return jsonb_build_object('revision', coalesce(v_n, v_piece.revision), 'followed', v_followed);
 end $$;
-revoke all on function public.piece_revise(uuid, uuid, jsonb) from public, anon;
-grant execute on function public.piece_revise(uuid, uuid, jsonb) to authenticated, service_role;
-comment on function public.piece_revise(uuid, uuid, jsonb) is
-  'A member''s door, with the settings permission (00690; the content loop PRD''s 8.1): a new version of a piece, from p_revision {plan, captions, changed, made_by, cost_cents, intent}. Every approval of a version before it is voided (changed), and its placements still waiting (queued, preparing) are held in the words that say so; one already being sent is the send''s own recheck''s. Answers {fate: revised, gone; revision, held}.';
+revoke all on function public.piece_words_keep(uuid, uuid, text) from public, anon;
+grant execute on function public.piece_words_keep(uuid, uuid, text) to authenticated, service_role;
+comment on function public.piece_words_keep(uuid, uuid, text) is
+  'A member''s door, with the settings permission (00690; the content loop PRD''s 8.1): new words on a made post or video. Its piece''s next version (words alone, no shape drawn again; none while no placement of it was ever approved), and every placement still queued for its time, never a story, goes up with them: the save is that member''s approval of the new words, so each gets a new approval of the same bytes with them and still stands as approved at its send. One approved before approvals were kept takes the words as before. Answers {revision, followed}.';

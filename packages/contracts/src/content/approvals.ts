@@ -132,6 +132,8 @@ export const PostAboutSchema = z.object({
   day: DAY.nullish(),
   offer: z.object({ says: z.string().trim().min(1).max(120), until: DAY.nullish() }).nullish(),
   service: z.string().trim().min(1).max(120).nullish(),
+  /** AI's own word that the words date nothing (a standing "Open Thursday to Saturday"). */
+  nothing: z.literal(true).nullish(),
 });
 export type PostAbout = z.infer<typeof PostAboutSchema>;
 
@@ -164,6 +166,17 @@ export function pieceIntentOf(value: unknown): PieceIntent | null {
     offer: says ? { says, until: textOrNull(offer?.until) } : null,
     service: textOrNull(kept.service),
   };
+}
+
+/** Who stands between a file and a use (00691 file_rights_gap): nobody, nobody sure who is in it, or a person by name. */
+export type RightsGap = { is: "ok" } | { is: "unsure" } | { is: "person"; name: string };
+
+/** The gap as the database answers it; anything it cannot read stands in the way as "unsure", never as nobody. */
+export function rightsGapOf(value: unknown): RightsGap {
+  const kept = recordOrEmpty(value);
+  if (kept.is === "ok") return { is: "ok" };
+  const name = textOrNull(kept.name);
+  return kept.is === "person" && name ? { is: "person", name } : { is: "unsure" };
 }
 
 /** The facts an approval kept the owner saying, as the database keeps them. */

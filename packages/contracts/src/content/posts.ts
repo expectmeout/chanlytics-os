@@ -227,8 +227,8 @@ export const ON_INSTAGRAM = {
     /** Its words, its picture or its version moved since the owner approved it (the approval's hash, PRD 5.3). */
     changed: "Changed since you approved it. Look again.",
   },
-  /** Sent, and Instagram has not shown it on the account yet (posts.verified_at): "On Instagram" waits for that. */
-  unverified: "Posted. Checking that it shows on Instagram.",
+  /** Sent, and not yet read back from the account (posts.verified_at): "On Instagram" is said once it was seen there. */
+  unverified: "Posted on Instagram",
   /** Taking a post down, where Instagram itself must be the way (the remediation's needs_person, not_possible). */
   takeDown: {
     byHand: "Instagram didn't let Chanlytics take it down. Delete it in the Instagram app.",
@@ -246,6 +246,15 @@ export const ON_INSTAGRAM = {
     unknown: "Instagram did not say whether this went up. Look at the account before posting it again.",
   },
 } as const;
+
+/**
+ * Where a post stands, in the sheet's words: "Posted on Instagram" for one that went up and was not read back from the
+ * account yet, "On Instagram" once it was seen there (the content loop PRD's 8.2); every other standing as it is.
+ */
+export const postStandsSaid = (post: Pick<PostDto, "status" | "place" | "verified_at">): string =>
+  post.status === "published" && post.place === "instagram" && !post.verified_at
+    ? ON_INSTAGRAM.unverified
+    : ON_INSTAGRAM.status[post.status];
 
 /** Why a caption cannot go to Instagram as written, in words; null when it can. */
 export function postCaptionProblem(caption: string): string | null {

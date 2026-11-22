@@ -167,10 +167,15 @@ begin
   if not exists (select 1 from public.files f where f.tenant_id = p_tenant_id and f.id = p_file_id and f.removed_at is null) then
     return jsonb_build_object('fate', 'gone');
   end if;
-  if p_state = 'named' then
+  if p_state = 'none' then
+    delete from public.file_subjects s where s.tenant_id = p_tenant_id and s.file_id = p_file_id;
+  elsif p_state = 'named' then
     if jsonb_typeof(p_people) is distinct from 'array' or jsonb_array_length(p_people) not between 1 and 20 then
       raise exception 'Name one to twenty people.' using errcode = '22023';
     end if;
+    delete from public.file_subjects s
+     where s.tenant_id = p_tenant_id and s.file_id = p_file_id
+       and lower(s.name) not in (select lower(btrim(e ->> 'name')) from jsonb_array_elements(p_people) e);
     for v_person in select * from jsonb_array_elements(p_people) loop
       insert into public.file_subjects (tenant_id, file_id, contact_id, name, label, how, named_by)
       values (p_tenant_id, p_file_id, nullif(v_person ->> 'contact_id', '')::uuid, btrim(v_person ->> 'name'),
@@ -186,7 +191,7 @@ end $$;
 revoke all on function public.file_subjects_name(uuid, uuid, text, jsonb) from public, anon;
 grant execute on function public.file_subjects_name(uuid, uuid, text, jsonb) to authenticated, service_role;
 comment on function public.file_subjects_name(uuid, uuid, text, jsonb) is
-  'A member''s door, with the add_files permission (00691): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once), none, unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
+  'A member''s door, with the add_files permission (00691): who is in a file, as the owner or an operator says it, never from a face. p_state: named (p_people [{name, label, contact_id, how}], each name once: the whole list, so a person left out is no longer in it, and their yes goes with them), none (nobody: every row goes), unsure. The file''s standing for each use is restated, since a person named without a yes takes the file''s yes for that use away. Answers {fate: kept, gone; added}.';
 
 create or replace function public.subject_yes_record(
   p_tenant_id uuid, p_subject_id uuid, p_uses text[], p_said_in text, p_evidence jsonb
@@ -259,6 +264,63 @@ drop trigger if exists file_subjects_gone on public.file_subjects;
 create trigger file_subjects_gone after delete on public.file_subjects
   for each row execute function public.file_subjects_gone();
 
+/* ------------------------------------------------------------------------------------- 5c. the rights gap -- */
+
+-- Who stands between a file and a use (principle 6: rights are per person, per use): the people named in it, and in
+-- every photo or clip it was drawn from (a made post shows who its photo shows), each of whom needs their own yes that
+-- stands. The one rule the press, the send's check and AI's card all ask.
+create or replace function public.file_rights_gap_of(p_tenant_id uuid, p_file_id uuid, p_use text)
+returns jsonb
+language sql
+stable
+set search_path = public
+as $$
+  with shown as (
+    select f.id, f.subjects_state from public.files f
+     where f.tenant_id = p_tenant_id
+       and (f.id = p_file_id
+            or f.id::text = any (public.file_drawn_from(
+                 (select m.made from public.files m where m.tenant_id = p_tenant_id and m.id = p_file_id))))
+  )
+  select case
+    when exists (select 1 from shown where subjects_state = 'unsure') then jsonb_build_object('is', 'unsure')
+    else coalesce(
+      (select jsonb_build_object('is', 'person', 'name', s.name)
+         from public.file_subjects s
+        where s.tenant_id = p_tenant_id and s.file_id in (select id from shown)
+          and not exists (select 1 from public.file_consents k
+                           where k.tenant_id = s.tenant_id and k.subject_id = s.id and k.use = p_use
+                             and k.taken_back_at is null)
+        order by s.created_at, lower(s.name)
+        limit 1),
+      jsonb_build_object('is', 'ok'))
+  end;
+$$;
+revoke all on function public.file_rights_gap_of(uuid, uuid, text) from public, anon, authenticated;
+comment on function public.file_rights_gap_of(uuid, uuid, text) is
+  'Who stands between a file and a use (00691; the content loop PRD''s principle 6 and 6.1): {is: ok}, {is: unsure} where the owner is not sure who is in it or in what it was drawn from, or {is: person, name}, the first person named in it or in what it was drawn from with no yes of their own for that use that stands. Called by post_approve, post_as_approved and file_rights_gap.';
+
+create or replace function public.file_rights_gap(p_tenant_id uuid, p_file_id uuid, p_use text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode = '28000';
+  end if;
+  if p_tenant_id is null or not coalesce(public.caller_has_permission(p_tenant_id, 'add_files'), false) then
+    raise exception 'Not yours to read.' using errcode = '42501';
+  end if;
+  return public.file_rights_gap_of(p_tenant_id, p_file_id, p_use);
+end $$;
+revoke all on function public.file_rights_gap(uuid, uuid, text) from public, anon;
+grant execute on function public.file_rights_gap(uuid, uuid, text) to authenticated, service_role;
+comment on function public.file_rights_gap(uuid, uuid, text) is
+  'A member''s read, with the add_files permission (00691): who stands between a file and a use, as file_rights_gap_of answers it, for the checks before a press and for AI''s card. Answers {is: ok | unsure | person, name}.';
+
 /* ------------------------------------------------------------------------------- 6. post_as_approved -- */
 
 create or replace function public.post_as_approved(p_post_id uuid)
@@ -274,23 +336,16 @@ declare
   v_placement  jsonb;
   v_rendition  jsonb;
   v_live       public.piece_renditions;
-  v_name       text;
+  v_gap        jsonb;
 begin
   select * into v_post from public.posts p where p.id = p_post_id;
   if not found then
     return jsonb_build_object('is', 'changed');
   end if;
-  -- A person in it with no yes for posts that stands, or people the owner is not sure of (00691): rights, by name.
-  select s.name into v_name from public.file_subjects s
-   where s.tenant_id = v_post.tenant_id and s.file_id = v_post.file_id
-     and not exists (select 1 from public.file_consents k
-                      where k.tenant_id = s.tenant_id and k.subject_id = s.id and k.use = 'post' and k.taken_back_at is null)
-   order by s.created_at limit 1;
-  if v_name is not null then
-    return jsonb_build_object('is', 'rights', 'name', v_name);
-  end if;
-  if exists (select 1 from public.files f where f.id = v_post.file_id and f.subjects_state = 'unsure') then
-    return jsonb_build_object('is', 'rights', 'name', null);
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00691).
+  v_gap := public.file_rights_gap_of(v_post.tenant_id, v_post.file_id, 'post');
+  if v_gap ->> 'is' <> 'ok' then
+    return jsonb_build_object('is', 'rights', 'name', v_gap ->> 'name');
   end if;
   if v_post.approval_id is null then
     return jsonb_build_object('is', 'before');
@@ -322,7 +377,7 @@ end $$;
 revoke all on function public.post_as_approved(uuid) from public, anon, authenticated;
 grant execute on function public.post_as_approved(uuid) to service_role;
 comment on function public.post_as_approved(uuid) is
-  'Right before a send (00690; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it has no yes for posts or the owner is not sure who is (00691), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
+  'Right before a send (00690; the content loop PRD''s 5.3): whether a placement still stands as it was approved. Its approval stands and its snapshot''s hash holds; it names this post''s piece and version; the placement''s words are the post''s; the shape approved is the newest kept at or before that version, same path and checksum. Answers {is: rights, name} where a person in it or in what it was drawn from has no yes for posts, or nobody is sure who is in it (00691), {is: stands, path (the exact bytes to send)}, {is: before} for a post approved before approvals were kept, or {is: changed}. The service role''s.';
 
 /* ------------------------------------------------------------------------------------ 7. post_approve -- */
 
@@ -349,7 +404,7 @@ declare
   v_later      boolean;
   v_posts      jsonb := '[]'::jsonb;
   v_snapshot   jsonb;
-  v_rights     text;
+  v_gap        jsonb;
   v_places     jsonb := coalesce(p_approval -> 'placements', '[]'::jsonb);
 begin
   if v_actor is null then
@@ -380,17 +435,11 @@ begin
                         and s.id::text = any (public.file_drawn_from(v_file.made)))) then
     return jsonb_build_object('fate', 'taken_back', 'posts', '[]'::jsonb);
   end if;
-  -- A person in it with no yes for posts that stands, or nobody sure who is in it (00691): nothing goes, and it says who.
-  if v_file.subjects_state = 'unsure' then
-    return jsonb_build_object('fate', 'rights', 'name', null, 'posts', '[]'::jsonb);
-  end if;
-  select s.name into v_rights from public.file_subjects s
-   where s.tenant_id = p_tenant_id and s.file_id = p_file_id
-     and not exists (select 1 from public.file_consents k
-                      where k.tenant_id = s.tenant_id and k.subject_id = s.id and k.use = 'post' and k.taken_back_at is null)
-   order by s.created_at limit 1;
-  if v_rights is not null then
-    return jsonb_build_object('fate', 'rights', 'name', v_rights, 'posts', '[]'::jsonb);
+  -- A person in it, or in what it was drawn from, with no yes for posts that stands, or nobody sure who is (00691):
+  -- nothing goes, and it says who.
+  v_gap := public.file_rights_gap_of(p_tenant_id, p_file_id, 'post');
+  if v_gap ->> 'is' <> 'ok' then
+    return jsonb_build_object('fate', 'rights', 'name', v_gap ->> 'name', 'posts', '[]'::jsonb);
   end if;
   -- Each placement: a place, a kind the file can go as there, words within the place's own limit, a time within 30 days.
   for v_place in select * from jsonb_array_elements(v_places) loop
@@ -464,7 +513,7 @@ begin
     values (p_tenant_id, v_piece.id, v_n, v_piece.plan, v_captions, array['first'], 'owner', v_actor)
     returning * into v_rev;
   elsif exists (select 1 from jsonb_each_text(v_captions) c
-                 where (v_rev.captions ->> c.key) is distinct from c.value) then
+                 where v_rev.captions ? c.key and (v_rev.captions ->> c.key) <> c.value) then
     v_n := v_n + 1;
     insert into public.piece_revisions (tenant_id, piece_id, n, plan, captions, changed, made_by, created_by)
     values (p_tenant_id, v_piece.id, v_n, v_rev.plan, v_rev.captions || v_captions, array['caption'], 'owner', v_actor)

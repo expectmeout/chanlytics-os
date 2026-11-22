@@ -272,6 +272,9 @@ const READS = [
 const SEARCH = "tool_search_tool_bm25";
 /** The acts an operator may approve (D12): every card family but the lead search, a partner's. */
 const OPERATOR_ACTS = [
+  // Who is in a photo or a video, and the ask to one of them (00691): an operator names who is in the footage they add.
+  // Keeping a yes, or taking one back, stays a partner's: those actions are not offered to an operator.
+  "keep_yes",
   // A yes said to a card already waiting (the answers canvas, D15): the press, by another way.
   "press_card",
   // A new ad drafted in New ad (the Ads plan's 6.3): an operator may draft; Turn on is the owner's, on the page.
@@ -299,8 +302,6 @@ const OPERATOR_ACTS = [
  */
 const PARTNER_ACTS = [
   ...OPERATOR_ACTS,
-  // A yes for a photo or a video, kept or taken back (00665): a partner's, as every change to a file is.
-  "keep_yes",
   "propose_bring_in",
   "propose_lead_search",
   "propose_piece",
@@ -339,8 +340,8 @@ test("each role is offered its tools, sorted by name, the tool search last, the 
   for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 40, `${role}: at most the gateway's forty`);
   assert.deepEqual(
     ROLES.map((role) => toApiTools(role, true).length),
-    [14, 30, 36, 36],
-    "a viewer thirteen reads and the search, an operator sixteen acts more (a new ad among them), a partner and an owner the lead search, a post, a video, putting a post up, bringing in what a link holds and a yes for a file too",
+    [14, 31, 36, 36],
+    "a viewer thirteen reads and the search, an operator seventeen acts more (a new ad and who is in a file among them), a partner and an owner the lead search, a post, a video, putting a post up and bringing in what a link holds too",
   );
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),

@@ -1,7 +1,7 @@
 /**
  * The files domain: `@chanlytics/db/files`. Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs).
  */
-export { APPROVE_FATES, approvePosts, findPieceOfFile, readPostAsApproved, revisePiece } from "./approvals";
+export { APPROVE_FATES, approvePosts, keepPieceWords, readPostAsApproved, readRightsGap } from "./approvals";
 export type { ApproveFate, PostsApproved } from "./approvals";
 export { keepPostCaption, keepVideoCaption } from "./captions";
 export { listFileSubjects, nameFileSubjects, recordSubjectYes } from "./subjects";
@@ -197,6 +197,6 @@ export {
   watchedFolderOf,
 } from "./sources";
 export type { MediaSourceRow, SourceConnectionRow } from "./sources";
-export { followPostCaption, movePostTime } from "./waiting-posts";
+export { movePostTime } from "./waiting-posts";
 export { listFilesDrawnFrom, recordFileYes, takeBackFileYes } from "./yes";
 export type { FileYesKept } from "./yes";

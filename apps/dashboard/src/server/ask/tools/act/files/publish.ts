@@ -22,7 +22,7 @@ import {
   type PostPlace,
   type PostPublish,
 } from "@chanlytics/contracts";
-import { datedPhraseIn, evaluate } from "@chanlytics/core";
+import { wordsNeedAbout } from "@chanlytics/core";
 import { isSendingStopped } from "@chanlytics/db/workspace";
 import { postClaimsProblem } from "@/server/files/post-check";
 import { load } from "../../../../shared/reader";
@@ -30,11 +30,13 @@ import * as readers from "../../../../readers/facts";
 import { filesNamedForAsk } from "../../../../readers/files";
 import { findConnection } from "../../../../connections/google";
 import { readPostCaption } from "../../../../posts/caption";
+import { readPlacementRefusals, type CheckedFile, type PlacementAsked } from "../../../../posts/checks";
 import { readInstagramPostable } from "../../../../posts/instagram";
 import { readFilePosts } from "../../../../posts/record";
 import { defineAct, type ProposalOutcome, type ToolContext } from "../../context/tool-defs";
 import { approvalWords, propose, refuse } from "../../context/context";
 import { filesNamed } from "../../read/files";
+import { quotedInQuestion } from "../remember";
 import { ownersWords } from "./post";
 import { movesOf } from "./publish-move";
 
@@ -60,7 +62,7 @@ const publishInput = z.object({
     .describe("YYYY-MM-DD HH:MM, the business's clock, only a time they named. Left out, now."),
   caption: z.string().max(2200).optional().describe("Only for other words they asked for. Left out, its own."),
   about: PostAboutSchema.optional().describe(
-    "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service. Needed when the words name a day, an offer or a price.",
+    "What the words lean on that can change: the day they are about (YYYY-MM-DD), an offer with its last day, a service; or nothing true where they date nothing. Needed when the words name a day, an offer or a price.",
   ),
   fact: z
     .string()
@@ -174,37 +176,41 @@ function kindRefusal(fileKind: string, places: readonly PostPlace[], as: PostPub
   return null;
 }
 
+/** What the card's checks read: the made file, where it goes, its words, what they are about, and any stated fact. */
+interface CardChecked {
+  file: CheckedFile;
+  placements: PlacementAsked[];
+  words: string;
+  about: PostPublish["about"];
+  facts: PostPublish["facts"];
+}
+
 /**
- * The checks the card is held to when AI proposes it (the PRD's 6.2): AI is not paused, and words that date something say
- * what they are about. The press checks again, and the send right before it goes. Why not, for the model, or null.
+ * The checks the card is held to as AI proposes it (the PRD's 6.2), the ones the press makes again and the send once
+ * more: a person in it has not said yes, AI is paused, its reason does not stand. First the backstop on AI's own draft:
+ * words that plainly name a day, an offer or a price say what they are about. Why not, for the model, or null.
  */
-async function checksRefusal(
-  toolContext: ToolContext,
-  at: { words: string; about: PostPublish["about"] | undefined; facts: PostPublish["facts"] },
-): Promise<string | null> {
-  if (await isSendingStopped(toolContext.ctx.supabase, toolContext.tenantId))
-    return "AI is paused in this workspace, so nothing posts. Say so: Resume in Settings › Autonomy";
-  const intent = intentOfAbout(at.about ?? undefined);
-  const verdict = evaluate({
-    reason: {
-      intent,
-      goodUntil: null,
-      nowMs: Date.now(),
-      zone: toolContext.timezone,
-      notes: [],
-      services: [],
-      facts: at.facts,
-      words: at.words,
-      moment: "propose",
-    },
+async function checksRefusal(toolContext: ToolContext, at: CardChecked): Promise<string | null> {
+  const needs = wordsNeedAbout(at.words, at.about);
+  if (needs?.is === "day")
+    return `the words say "${needs.phrase}": set about.day to the date it means (YYYY-MM-DD), ask them which day, or set about.nothing where the words date nothing`;
+  if (needs?.is === "offer")
+    return `the words name "${needs.phrase}": set about.offer to it with its last day, ask them when it ends, or set about.nothing where it is no offer`;
+  const refused = await readPlacementRefusals(toolContext.ctx.supabase, {
+    tenantId: toolContext.tenantId,
+    zone: toolContext.timezone,
+    file: at.file,
+    placements: at.placements,
+    intent: intentOfAbout(at.about ?? undefined),
+    facts: at.facts,
+    // Each place asked was read as connected above (placeRefusal).
+    connections: { instagram: "yes", google: "yes" },
+    stopped: await isSendingStopped(toolContext.ctx.supabase, toolContext.tenantId),
+    config: () => load(toolContext.rc, readers.config, undefined).then((r) => r.data?.config ?? null),
   });
-  if (verdict.ok) return null;
-  const dated = intent ? null : datedPhraseIn(at.words);
-  if (dated?.is === "day")
-    return `the words say "${dated.phrase}": set about.day to the date it means (YYYY-MM-DD), or ask them which day`;
-  if (dated?.is === "offer")
-    return `the words name "${dated.phrase}": set about.offer to it and its last day, or ask them when it ends`;
-  return verdict.refusals.map((r) => r.words).join(" ");
+  return refused
+    ? `${refused} Say so in a few words with the one thing to do; where a person has not said yes, offer to draft the ask (keep_yes, action ask)`
+    : null;
 }
 
 async function publishOutcome(toolContext: ToolContext, input: PublishInput): Promise<ProposalOutcome> {
@@ -237,10 +243,25 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
   }
   const caption = await captionOf(toolContext, input, { fileId: file.id, places: posting, as });
   if ("refused" in caption) return refuse(caption.refused);
-  const facts = input.fact
-    ? [{ says: input.fact, until: input.about?.day ?? zoneDayKey(Date.now(), toolContext.timezone) }]
-    : [];
-  const checked = await checksRefusal(toolContext, { words: caption.caption, about: input.about, facts });
+  // A fact is theirs only in their own words: AI never states one for them.
+  if (input.fact && !quotedInQuestion(toolContext, input.fact))
+    return refuse("fact must be their own words in this question, copied exactly; ask them if they have not said it");
+  const about = input.about ?? null;
+  const until = about?.day ?? about?.offer?.until ?? zoneDayKey(Date.now(), toolContext.timezone);
+  const facts = input.fact ? [{ says: input.fact, until }] : [];
+  const atIso = when.at === null ? null : new Date(when.at).toISOString();
+  const checked = await checksRefusal(toolContext, {
+    file,
+    placements: posting.map((place) => ({
+      place,
+      kind: place === "instagram" ? as : "picture",
+      caption: caption.caption,
+      when: atIso,
+    })),
+    words: caption.caption,
+    about,
+    facts,
+  });
   if (checked) return refuse(checked);
   const language = toolContext.language === "es" ? "es" : "en";
   const payload: PostPublish = {
@@ -248,12 +269,12 @@ async function publishOutcome(toolContext: ToolContext, input: PublishInput): Pr
     places: posting,
     moves: set.moves,
     as,
-    when: when.at === null ? null : new Date(when.at).toISOString(),
+    when: atIso,
     when_said: when.at === null ? null : whenSaidOf(when.at, toolContext.timezone, language),
     caption: caption.caption,
     caption_new: caption.isNew,
     language,
-    about: input.about ?? null,
+    about,
     facts,
   };
   return propose({ kind: "publish", ...publishCardWords(payload, fileSaidOf(file.name)), payload: { ...payload } });

@@ -114,7 +114,9 @@ function world({
   role = "owner",
   posts = [],
   file = {},
+  rights = { is: "ok" },
 } = {}) {
+  const wordsKept = [];
   seq += 1;
   const tenant = `aaaaaaaa-aaaa-4aaa-8aaa-${String(seq).padStart(12, "0")}`;
   if (on) ON.add(tenant);
@@ -137,6 +139,12 @@ function world({
       },
       {},
       {
+        // Who has not said yes (00691), and the words kept as the piece's next version (00690): asked by every press.
+        file_rights_gap: () => rights,
+        piece_words_keep: (a) => {
+          wordsKept.push(a.p_caption);
+          return { revision: 1, followed: 0 };
+        },
         // 00690's door: the approval and its placement. Kept as the press's own words, so each test reads what was asked.
         post_approve: ({ p_tenant_id, p_file_id, p_approval }) => {
           const [placed] = p_approval.placements;
@@ -252,7 +260,7 @@ function world({
     from: () => ({ download: async () => ({ data: new Blob([`bytes of ${tenant}`]), error: null }) }),
   };
   setServiceClient(service);
-  return { ctx, tenant, begun, pulled, moved, rows, kept, doors };
+  return { ctx, tenant, begun, pulled, moved, rows, kept, doors, wordsKept };
 }
 const send = (w, method, body) =>
   new Request(`http://localhost/api/v1/x?workspace=${w.tenant}`, { method, body: JSON.stringify(body) });
@@ -500,13 +508,15 @@ test("the approval is of the exact bytes: each shape by its path and the full SH
   assert.equal(approval.placements[0].capability_edition, 1);
 });
 
-test("words that name a day need what they are about: refused without, approved with it, its last moment kept", async () => {
+test("an owner's own words are theirs: a day named in them is approved as typed, and AI's card says what it is about", async () => {
+  // Typed and pressed by the owner: never judged by a guess, never a new way to be blocked.
+  const typed = world();
+  await route.POST.run(send(typed, "POST", { as: "picture", caption: "Thursday has 3 open chairs." }), typed.ctx);
+  assert.equal(typed.begun.length, 1);
+  assert.equal(typed.begun[0].approval.intent, null);
+  assert.equal(typed.begun[0].approval.placements[0].good_until, null);
+  // From AI's card, with what the words are about: the piece keeps its reason, and the post its last moment.
   const w = world();
-  await assert.rejects(
-    route.POST.run(send(w, "POST", { as: "picture", caption: "Thursday has 3 open chairs." }), w.ctx),
-    (e) => e.message === CHECK_WORDS.needsDay("Thursday"),
-  );
-  assert.equal(w.begun.length, 0, "nothing is approved");
   await route.POST.run(
     send(w, "POST", { as: "picture", caption: "Thursday has 3 open chairs.", about: { day: "2099-11-26" } }),
     w.ctx,
@@ -518,10 +528,30 @@ test("words that name a day need what they are about: refused without, approved 
     "2099-11-26T23:59:59.999Z",
     "the end of that day, in the workspace's zone",
   );
-  // A weekday said again and again dates nothing.
-  const weekly = world();
-  await route.POST.run(send(weekly, "POST", { as: "picture", caption: "Open late on Fridays." }), weekly.ctx);
-  assert.equal(weekly.begun[0].approval.intent, null);
+  // A day already gone: too late, said before anything is written.
+  const late = world();
+  await assert.rejects(
+    route.POST.run(send(late, "POST", { as: "picture", caption: "Thursday!", about: { day: "2020-01-02" } }), late.ctx),
+    (e) => e.message === CHECK_WORDS.late("Thursday"),
+  );
+  assert.equal(late.begun.length, 0);
+});
+
+test("a person named in it who has not said yes stops the press by name, and nothing is kept or written", async () => {
+  const w = world({ rights: { is: "person", name: "Paola" } });
+  await assert.rejects(
+    route.POST.run(send(w, "POST", { as: "picture", caption: "New words." }), w.ctx),
+    (e) => e.message === "Paola hasn't said yes to being in posts. Ask them, or use another clip.",
+  );
+  assert.equal(w.begun.length, 0, "nothing is approved");
+  assert.deepEqual(w.wordsKept, [], "the words are kept only once the checks have passed");
+  assert.equal(w.kept[0].made.caption, null);
+  // Nobody sure who is in it: the same, in its own words.
+  const unsure = world({ rights: { is: "unsure" } });
+  await assert.rejects(
+    route.POST.run(send(unsure, "POST", { as: "story" }), unsure.ctx),
+    (e) => e.message === CHECK_WORDS.notYetSaid(null),
+  );
 });
 
 test("a made video goes as a reel, from its own file, and a picture never does", async () => {

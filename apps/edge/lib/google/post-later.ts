@@ -42,7 +42,7 @@ import { markSpoke, scheduleJobOnce, type ClaimedJob } from "@chanlytics/jobs";
 import { logger } from "../shared/log.js";
 import { tellPostMoved } from "../files/post-told.js";
 import { googlePlace } from "../content/places/google.js";
-import { letGoLate, readReasonNow } from "../content/reason.js";
+import { holdPlacement, readSendRecheck } from "../content/recheck.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -56,48 +56,6 @@ function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
   const postId = typeof job.payload.post_id === "string" ? job.payload.post_id : "";
   if (!postId) throw new CertainFailure("post_google: no post on the job", GOOGLE_SAYS.notSent);
   return { postId, attempt: job.payload.attempt === "2" ? 2 : 1 };
-}
-
-/** Held at its time, in words and why, with nothing sent: the bell says so, as Instagram's hold does. */
-async function holdForGoogle(
-  db: Db,
-  post: PostRow,
-  hold: { words: string; why: PostHeldWhy },
-  from: "queued" | "publishing" = "queued",
-): Promise<{ skipped: string }> {
-  if (hold.why === "late") return letGoLate(db, post, hold.words);
-  const moved = await movePost(db, {
-    postId: post.id,
-    from: [from],
-    to: "held",
-    patch: { held_reason: hold.words, held_why: hold.why },
-  });
-  logger({ tenant_id: post.tenant_id }).info("post_held", { post_id: post.id, why: hold.why });
-  if (moved) await tellPostMoved(db, post, { is: "held", why: hold.words });
-  return { skipped: "held" };
-}
-
-/**
- * The recheck: why the post may not go now, in the owner's words, or the picture it sends: the approved bytes (00690), or,
- * for a post approved before approvals were kept, the wide picture drawn at the press.
- */
-async function recheck(
-  db: Db,
-  post: PostRow,
-): Promise<{ words: string; why: PostHeldWhy } | { path: string | null; made: unknown }> {
-  if (!post.approved_by || !(await mayStillPost(db, post.tenant_id, post.approved_by)))
-    return { words: ON_INSTAGRAM.held.approver, why: "approver" };
-  const file = await findFileForWork(db, post.tenant_id, post.file_id);
-  if (!file || file.removed_at) return { words: ON_INSTAGRAM.held.removed, why: "removed" };
-  // Stop everything: it stays down, and is its owner's to post again once they resume (as Instagram's recheck has it).
-  if (await isSendingStopped(db, post.tenant_id)) return { words: ON_INSTAGRAM.held.stopped, why: "stopped" };
-  const approved = await readPostAsApproved(db, post.id);
-  if (approved.is === "changed") return { words: ON_INSTAGRAM.held.changed, why: "changed" };
-  if (approved.is === "rights") return { words: CHECK_WORDS.notYetSaid(approved.name), why: "rights" };
-  // The reason, read again (PRD 6.1): its day passed (let go, never sent late), or its offer or service is gone (held).
-  const reason = await readReasonNow(db, post, approved.is === "stands" ? approved : { intent: null, facts: [] });
-  if (reason) return { words: reason.words, why: reason.code };
-  return { path: approved.is === "stands" ? approved.path : null, made: file.made };
 }
 
 /** How long Google is given before a post it was too busy for is asked once more. */
@@ -132,8 +90,8 @@ export async function sendGooglePost(db: Db, job: ClaimedJob): Promise<void | { 
   const post = await findPostForWork(db, job.tenant_id, postId);
   if (!post) return { skipped: "gone" };
   if (post.place !== "google" || post.status !== "queued") return { skipped: post.status };
-  const checked = await recheck(db, post);
-  if ("words" in checked) return holdForGoogle(db, post, checked);
+  const checked = await readSendRecheck(db, post, { approver: true });
+  if ("held" in checked) return holdPlacement(db, post, { ...checked, from: ["queued"] });
   // The approved picture, or the one drawn at the press; Google fetches it as it is asked. One not kept is no post to send.
   const picture = checked.path ?? `${fileFolderOf(post.tenant_id, post.file_id)}/google.jpg`;
   const signed = await filesBucket(db).createSignedUrl(picture, GOOGLE_FETCH_LINK_S);
@@ -168,7 +126,8 @@ export async function sendGooglePost(db: Db, job: ClaimedJob): Promise<void | { 
     const error = { code: null, subcode: null, words };
     await closePostAttempt(db, { attemptId: opened.id, outcome: "refused", httpStatus: null, answer: null, error });
     // Google let go of: nothing was sent, so it waits for the owner, as a recheck's hold does.
-    if (refusal?.connectionLost) return holdForGoogle(db, post, { words, why: "disconnected" }, "publishing");
+    if (refusal?.connectionLost)
+      return holdPlacement(db, post, { held: words, why: "disconnected", from: ["publishing"] });
     await movePost(db, { postId: post.id, from: ["publishing"], to: "failed", patch: { error } });
     throw new CertainFailure(`post_google: Google refused ${post.id}`, words);
   }

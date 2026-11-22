@@ -35,7 +35,6 @@ import type { RouteContext } from "@/server/shared/with-route";
 import { bucket } from "../files/file";
 import { approvePlacements } from "./approve";
 import { getMaterial } from "./material";
-import { keepPostWords } from "./caption";
 import { getPhoto, googlePicturePathOf, postDrawn } from "./make";
 import { readFileRecord } from "./record";
 
@@ -121,9 +120,8 @@ export async function postFileToGoogle(
   // Up already, it is done: a second would be the same post twice on the profile (contracts postPlaceTakenOf). A press sent
   // again finds it so (Ask's card, pressed again after Instagram refused, sends each place's door in its order once more).
   if (google?.posted) return { name: google.posted.name, search_url: google.posted.search_url, state: null };
-  // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
-  await keepPostWords(ctx, member, row, input.summary);
-  // The picture is drawn and kept first: the approval is of its bytes (posts/approve.ts).
+  // The picture is drawn and kept first: the approval is of its bytes, and it keeps the words that go on the piece once
+  // its checks have passed (posts/approve.ts).
   const photoUrl = await pictureForGoogle(ctx, member, row.id, made.plan);
   // Later than soon, it waits for its time on Google (00616's own line); sooner, it goes at the press.
   const later = !!input.when && Date.parse(input.when) - Date.now() > POST_SOON_MS;

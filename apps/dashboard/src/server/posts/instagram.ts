@@ -27,7 +27,6 @@ import type { Member } from "@/server/shared/route";
 import { serviceDb } from "@/server/shared/service-db";
 import type { RouteContext } from "@/server/shared/with-route";
 import { approvePlacements } from "./approve";
-import { keepPostWords } from "./caption";
 
 /**
  * Whether this workspace's Instagram takes a post now; null where the Meta link is not switched on, and nothing is offered.
@@ -78,10 +77,9 @@ export async function postFileToInstagram(
 ): Promise<{ post_id: string; status: "queued" }> {
   const refused = await refusalBefore(member, row);
   if (refused) throw refused;
-  // A story shows no caption, so none is kept for one.
+  // A story shows no caption, so none is kept for one. The words that go are kept on the piece by the approval, once its
+  // checks have passed (posts/approve.ts).
   const caption = input.as === "story" ? null : input.caption?.trim() || null;
-  // The words that go are the piece's own from now on, kept in the same step (posts/caption.ts keepPostWords).
-  if (caption) await keepPostWords(ctx, member, row, caption);
   const approved = await approvePlacements(ctx, member, row, {
     placements: [{ place: "instagram", kind: input.as, caption, when: input.when ?? null }],
     intent: intentOfAbout(input.about),

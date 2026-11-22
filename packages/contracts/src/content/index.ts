@@ -28,6 +28,7 @@ export {
   ownersFactsOf,
   pieceIntentOf,
   renditionShapeOf,
+  rightsGapOf,
 } from "./approvals";
 export type {
   ApprovalVoidWhy,
@@ -38,6 +39,7 @@ export type {
   PostAbout,
   RenditionShape,
   RevisionChange,
+  RightsGap,
   RevisionMadeBy,
   SnapshotPlacement,
   SnapshotRendition,
@@ -168,6 +170,7 @@ export {
   instagramKindsFor,
   postCaptionProblem,
   postPlaceTakenOf,
+  postStandsSaid,
   postStoppedWhyOf,
   postWaitsForItsTime,
 } from "./posts";

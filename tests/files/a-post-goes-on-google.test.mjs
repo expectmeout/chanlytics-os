@@ -172,7 +172,21 @@ function world({
         posts,
       },
       {},
-      { post_approve: doors.approve, post_pull: doors.pull },
+      {
+        post_approve: doors.approve,
+        post_pull: doors.pull,
+        // Who has not said yes (00691), and the words kept as the piece's next version (00690): asked by every press.
+        file_rights_gap: () => ({ is: "ok" }),
+        // As the door has it: every placement still queued, never a story, goes up with the new words.
+        piece_words_keep: ({ p_file_id, p_caption }) => {
+          const words = p_caption.trim() || null;
+          const taking = posts.filter(
+            (p) => p.file_id === p_file_id && p.status === "queued" && p.kind !== "story" && p.caption !== words,
+          );
+          for (const post of taking) post.caption = words;
+          return { revision: 1, followed: taking.length };
+        },
+      },
     ),
     userId: USER,
     email: "ada@example.com",

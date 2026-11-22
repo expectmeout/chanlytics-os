@@ -17,9 +17,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  CHECK_WORDS,
   DAY_MS,
   INSTAGRAM_POST_KINDS,
+  MIN_MS,
   ON_INSTAGRAM,
   SECOND_MS,
   fileMadePathOf,
@@ -33,7 +33,6 @@ import {
   type PlaceAdapter,
   type PlaceRefusal,
   type PlacedMedia,
-  type PostHeldWhy,
   type PostStatus,
   type PreparedState,
 } from "@chanlytics/contracts";
@@ -42,17 +41,14 @@ import { findMetaInstagramRow } from "@chanlytics/db/channels";
 import {
   closePostAttempt,
   filesBucket,
-  findFileForWork,
   findPostForWork,
   listKeptPostIds,
   listPostAttempts,
   movePost,
   openPostAttempt,
   queuePostAgain,
-  readPostAsApproved,
   type PostRow,
 } from "@chanlytics/db/files";
-import { isSendingStopped } from "@chanlytics/db/workspace";
 import type { Database } from "@chanlytics/db/types";
 import { CertainFailure } from "@chanlytics/core";
 import { logAndGoOn } from "@chanlytics/log";
@@ -62,7 +58,7 @@ import { logger } from "../shared/log.js";
 import { readKeptSecret } from "./credentials.js";
 import { tellPostMoved } from "../files/post-told.js";
 import { INSTAGRAM_CALL_MS, instagramPlace, type InstagramPlaceDeps } from "../content/places/instagram.js";
-import { letGoLate, readReasonNow } from "../content/reason.js";
+import { holdPlacement, readSendRecheck, type SendHold } from "../content/recheck.js";
 import type { TenantId } from "@chanlytics/contracts";
 
 type Db = SupabaseClient<Database>;
@@ -86,6 +82,9 @@ const LOOKS: Readonly<Record<InstagramPostKind, { everyMs: number; times: number
 /** The longest one call to Instagram waits (KIND_POLICY longestCallMs is 20 s). */
 export const POST_CALL_MS = INSTAGRAM_CALL_MS;
 
+/** Where a post still stands while nothing was sent: it can be held from here. */
+export const HOLDABLE: readonly PostStatus[] = ["queued", "preparing"];
+
 /** What a post job names: the post, and which of its two attempts this is. */
 export function postJobOf(job: ClaimedJob): { postId: string; attempt: 1 | 2 } {
   const postId = typeof job.payload.post_id === "string" ? job.payload.post_id : "";
@@ -99,10 +98,7 @@ export function instagramKindOf(post: PostRow): InstagramPostKind {
 }
 
 /** Who posts: the workspace's account connected through Meta, its token, and the app's secret; else why it may not now. */
-export async function findPoster(
-  db: Db,
-  tenantId: TenantId,
-): Promise<{ poster: MetaPoster } | { held: string; why: PostHeldWhy }> {
+export async function findPoster(db: Db, tenantId: TenantId): Promise<{ poster: MetaPoster } | SendHold> {
   const appSecret = env.META_APP_SECRET;
   if (!appSecret) throw new Error("post: META_APP_SECRET is not set on this deployment");
   const row = await findMetaInstagramRow(db, tenantId);
@@ -136,25 +132,6 @@ export const refusalKept = (refusal: PlaceRefusal) => ({
   subcode: refusal.subcode,
   words: refusal.words,
 });
-
-/** The post held: the recheck's words and why on it, and nothing sent. */
-export async function holdPost(
-  db: Db,
-  post: PostRow,
-  hold: { words: string; why: PostHeldWhy },
-): Promise<{ skipped: string }> {
-  if (hold.why === "late") return letGoLate(db, post, hold.words);
-  const moved = await movePost(db, {
-    postId: post.id,
-    from: ["queued", "preparing"],
-    to: "held",
-    patch: { held_reason: hold.words, held_why: hold.why },
-  });
-  logger({ tenant_id: post.tenant_id }).info("post_held", { post_id: post.id, why: hold.why });
-  // Held at its time, with no one there to see it: the bell says so (00616).
-  if (moved) await tellPostMoved(db, post, { is: "held", why: hold.words });
-  return { skipped: "held" };
-}
 
 /**
  * The post is up: its id, its address and its time kept where they are known, the account it went to, when it was seen
@@ -207,6 +184,22 @@ export async function findOnTheAccount(
   });
   if (!state || state.is === "unknown") throw new Error(`post ${at.post.id}: the account's posts could not be read`);
   return state.is === "up" ? state.media : null;
+}
+
+/** How long after a post went up unseen Instagram is asked for it again. */
+const SEEN_AGAIN_MS = 2 * MIN_MS;
+
+/**
+ * A post that went up and could not be read back (its address unknown, its being there unseen): asked for again two
+ * minutes on, by its own id (post-send.ts verifyPublished). Until then it says it was posted, not that it is on Instagram.
+ */
+export async function askAgainWhetherSeen(db: Db, post: PostRow, attempt: 1 | 2): Promise<void> {
+  await scheduleJobOnce(db, {
+    tenantId: post.tenant_id,
+    kind: "post_reconcile",
+    dueAt: new Date(Date.now() + SEEN_AGAIN_MS),
+    payload: { post_id: post.id, attempt: String(attempt), seen: "ask" },
+  });
 }
 
 /** What the picture says, for someone who cannot see it: the words drawn on it, in the order they are read. */
@@ -354,27 +347,6 @@ export async function beginSecondAttempt(db: Db, post: PostRow, from: "preparing
     logger({ tenant_id: post.tenant_id }).info("post_tried_again", { post_id: post.id });
 }
 
-/**
- * Why a post may not be made ready or sent now, in words, or the bytes it sends: deleted, everything stopped, or no longer
- * what was approved (00690). Read before Instagram is asked anything, at prepare and again right before the send.
- */
-export async function approvedBytesOf(
-  db: Db,
-  post: PostRow,
-): Promise<{ path: string | null; made: unknown } | { held: string; why: PostHeldWhy }> {
-  const file = await findFileForWork(db, post.tenant_id, post.file_id);
-  if (!file || file.removed_at) return { held: ON_INSTAGRAM.held.removed, why: "removed" };
-  // Stop everything: nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
-  if (await isSendingStopped(db, post.tenant_id)) return { held: ON_INSTAGRAM.held.stopped, why: "stopped" };
-  const approved = await readPostAsApproved(db, post.id);
-  if (approved.is === "changed") return { held: ON_INSTAGRAM.held.changed, why: "changed" };
-  if (approved.is === "rights") return { held: CHECK_WORDS.notYetSaid(approved.name), why: "rights" };
-  // The reason, read again (PRD 6.1): its day passed (let go, never sent late), or its offer or service is gone (held).
-  const reason = await readReasonNow(db, post, approved.is === "stands" ? approved : { intent: null, facts: [] });
-  if (reason) return { held: reason.words, why: reason.code };
-  return { path: approved.is === "stands" ? approved.path : null, made: file.made };
-}
-
 /** post_prepare: the post made ready on Instagram, and its send scheduled for its time. */
 export async function preparePost(
   db: Db,
@@ -387,10 +359,11 @@ export async function preparePost(
   if (!post) return { skipped: "gone" };
   if (post.status !== "queued" && post.status !== "preparing") return { skipped: post.status };
   const kind = instagramKindOf(post);
-  const bytes = await approvedBytesOf(db, post);
-  if ("held" in bytes) return holdPost(db, post, { words: bytes.held, why: bytes.why });
+  // Nothing is made on Instagram for a post that may not go up (the recheck asks again at the send).
+  const bytes = await readSendRecheck(db, post, { approver: false });
+  if ("held" in bytes) return holdPlacement(db, post, { ...bytes, from: HOLDABLE });
   const posting = await findPoster(db, job.tenant_id);
-  if ("held" in posting) return holdPost(db, post, { words: posting.held, why: posting.why });
+  if ("held" in posting) return holdPlacement(db, post, { ...posting, from: HOLDABLE });
   const at: Preparing = {
     post,
     attempt,

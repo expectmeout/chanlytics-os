@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resetBreakers } from "@chanlytics/channels/shared";
-import { CHECK_WORDS, ON_INSTAGRAM } from "@chanlytics/contracts";
+import { CHECK_WORDS, ON_INSTAGRAM, postStandsSaid } from "@chanlytics/contracts";
 import { fakeDb } from "../../_fake-db.mjs";
 
 for (const k of ["RESEND_API_KEY", "SUPABASE_URL", "META_APP_ID"]) delete process.env[k];
@@ -323,4 +323,36 @@ test("a person named in it with no yes for posts holds the post at its send, by 
   assert.equal(w.post().held_reason, CHECK_WORDS.notYetSaid("Paola"));
   assert.equal(w.post().held_reason, "Paola hasn't said yes to being in posts. Ask them, or use another clip.");
   assert.equal(calls.length, 0);
+});
+
+test("a post that went up unseen says only that it was posted, and Instagram is asked for it again by its own id", async () => {
+  meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];
+  const w = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });
+  await postJobs(w.db, quick).publish(job("post_publish"));
+  assert.equal(w.post().status, "published");
+  assert.equal(w.post().verified_at, null);
+  assert.equal(postStandsSaid(w.post()), "Posted on Instagram");
+  const asking = w.tables.jobs.find((j) => j.kind === "post_reconcile");
+  assert.deepEqual(asking?.payload, { post_id: POST, attempt: "1", seen: "ask" }, "asked for again, two minutes on");
+  const again = { id: "job-2", tenant_id: T, kind: "post_reconcile", payload: asking.payload, attempts: 1 };
+  // Still no answer: the job comes back, and nothing is said that is not known.
+  await assert.rejects(postJobs(w.db, quick).reconcile(again), /did not say whether it is up/);
+  assert.equal(w.post().verified_at, null);
+  // Seen: it is on Instagram from now, with its address, and nothing was sent again.
+  meta[`GET /${MEDIA}`] = [
+    200,
+    { id: MEDIA, permalink: "https://www.instagram.com/p/seen/", timestamp: new Date().toISOString() },
+  ];
+  await postJobs(w.db, quick).reconcile(again);
+  assert.ok(w.post().verified_at);
+  assert.equal(w.post().permalink, "https://www.instagram.com/p/seen/");
+  assert.equal(postStandsSaid(w.post()), "On Instagram");
+  assert.equal(calls.filter((c) => c.route === `POST /${ACCOUNT}/media_publish`).length, 1, "one send, ever");
+  // Gone from the account (its owner deleted it there): left as posted, never called seen.
+  meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];
+  const gone = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });
+  await postJobs(gone.db, quick).publish(job("post_publish"));
+  meta[`GET /${MEDIA}`] = [400, { error: { message: "Object does not exist", code: 100, error_subcode: 33 } }];
+  assert.deepEqual(await postJobs(gone.db, quick).reconcile(again), { skipped: "not_seen" });
+  assert.equal(gone.post().verified_at, null);
 });

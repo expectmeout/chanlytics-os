@@ -1,22 +1,12 @@
 /**
- * The seven checks, each alone with its words, and `evaluate` composing them (the content loop PRD's 6.1, 6.3, 15.1;
- * packages/core/src/content/policy). A piece whose words name a day and that carries no intent cannot be approved; a
- * weekday said again and again dates nothing; a reason that passed offers three ways on and never "post anyway".
+ * The seven checks, each asked through `evaluate` with its words, and all of them at once (the content loop PRD's 6.1,
+ * 6.3, 15.1; packages/core/src/content/policy). A check is a help, never a new way to be blocked: none of them judges an
+ * owner's own typed words by a guess. AI's own card is the one held to say what its words are about (`wordsNeedAbout`),
+ * and it can say they date nothing. A reason that no longer stands offers three ways on and never "post anyway".
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  automationAllows,
-  budgetAllows,
-  datedPhraseIn,
-  evaluate,
-  evaluateClaimPolicy,
-  mayAct,
-  placeAllows,
-  reasonStands,
-  rightsFor,
-  verdictWords,
-} from "@chanlytics/core";
+import { evaluate, verdictWords, wordsNeedAbout } from "@chanlytics/core";
 import { CHECK_WORDS, ON_INSTAGRAM, goodUntilOf } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
@@ -30,16 +20,16 @@ const intent = (part) => ({
   service: null,
   ...part,
 });
-const asked = (part) => ({
+const reason = (part) => ({
   intent: null,
   goodUntil: null,
+  atMs: NOW,
   nowMs: NOW,
   zone: ZONE,
-  notes: [],
+  says: [],
   services: [],
   facts: [],
-  words: "",
-  moment: "approve",
+  moment: "before",
   ...part,
 });
 const place = (part) => ({
@@ -51,106 +41,143 @@ const place = (part) => ({
   video: null,
   ...part,
 });
+/** The one refusal a set of facts comes to, or null. */
+const refused = (facts) => {
+  const verdict = evaluate(facts);
+  if (verdict.ok) return null;
+  assert.equal(verdict.refusals.length, 1, "one refusal");
+  return verdict.refusals[0];
+};
+const OK = { is: "ok" };
 
 test("authorization: whoever acts may still act for the business", () => {
-  assert.equal(mayAct({ may: true, approving: true }), null);
-  assert.equal(mayAct({ may: false, approving: true }).words, CHECK_WORDS.mayNot);
-  assert.equal(mayAct({ may: false, approving: false }).code, "approver");
+  assert.equal(refused({ authorization: { may: true, approving: true } }), null);
+  assert.equal(refused({ authorization: { may: false, approving: true } }).words, CHECK_WORDS.mayNot);
+  assert.deepEqual(refused({ authorization: { may: false, approving: false } }), {
+    check: "authorization",
+    code: "approver",
+    words: ON_INSTAGRAM.held.approver,
+  });
 });
 
-test("rights: a yes for posts taken back stops every new use", () => {
-  assert.equal(rightsFor({ takenBack: false }), null);
-  assert.deepEqual(rightsFor({ takenBack: true }), { check: "rights", code: "rights", words: CHECK_WORDS.takenBack });
+test("rights are per person: a yes taken back, a person who has not said yes by name, and nobody sure who is in it", () => {
+  assert.equal(refused({ rights: { takenBack: false, gap: OK } }), null);
+  assert.equal(refused({ rights: { takenBack: true, gap: OK } }).words, CHECK_WORDS.takenBack);
+  const paola = refused({ rights: { takenBack: false, gap: { is: "person", name: "Paola" } } });
+  assert.deepEqual(paola, {
+    check: "rights",
+    code: "rights",
+    words: "Paola hasn't said yes to being in posts. Ask them, or use another clip.",
+  });
+  assert.equal(refused({ rights: { takenBack: false, gap: { is: "unsure" } } }).words, CHECK_WORDS.notYetSaid(null));
 });
 
 test("claims: AI's words are held to the owner's; the owner's own words are theirs", () => {
-  assert.equal(evaluateClaimPolicy({ aiWrote: true, problem: null }), null);
-  assert.equal(evaluateClaimPolicy({ aiWrote: false, problem: "“20% off” isn't one of your offers." }), null);
-  assert.match(evaluateClaimPolicy({ aiWrote: true, problem: "“20% off” isn't one of your offers." }).words, /20% off/);
+  assert.equal(refused({ claims: { aiWrote: true, problem: null } }), null);
+  assert.equal(refused({ claims: { aiWrote: false, problem: "“20% off” isn't one of your offers." } }), null);
+  assert.match(refused({ claims: { aiWrote: true, problem: "“20% off” isn't one of your offers." } }).words, /20% off/);
 });
 
 test("publishing: the place takes the kind, the connection allows it, the words and the video fit", () => {
-  assert.equal(placeAllows(place({})), null);
-  assert.equal(placeAllows(place({ kind: "reel" })).words, ON_INSTAGRAM.wrongKind, "a picture is no reel");
-  assert.equal(placeAllows(place({ kind: "picture", fileKind: "video" })).words, ON_INSTAGRAM.wrongKind);
-  assert.equal(
-    placeAllows(place({ kind: "reel", fileKind: "video", video: { mime: "video/mp4", bytes: 1e6, ms: 13_000 } })),
-    null,
-  );
-  assert.equal(
-    placeAllows(place({ kind: "reel", fileKind: "video", video: { mime: "video/mp4", bytes: 1e6, ms: 2_000 } })).words,
-    CHECK_WORDS.video,
-  );
-  assert.equal(
-    placeAllows(place({ kind: "reel", fileKind: "video", video: { mime: "video/webm", bytes: 1e6, ms: 13_000 } }))
-      .words,
-    CHECK_WORDS.video,
-  );
-  assert.equal(placeAllows(place({ place: "google", kind: "picture", fileKind: "video" })).check, "publishing");
-  assert.equal(placeAllows(place({ connection: "not_connected" })).code, "disconnected");
-  assert.equal(placeAllows(place({ connection: "line_off" })).words, CHECK_WORDS.lineOff);
-  assert.equal(
-    placeAllows(place({ place: "google", caption: "x".repeat(1501) })).words,
-    CHECK_WORDS.tooLong("google", 1500),
-  );
-  assert.match(placeAllows(place({ caption: "#a ".repeat(31) })).words, /30 hashtags/);
+  const says = (part) => refused({ publishing: place(part) });
+  assert.equal(says({}), null);
+  assert.equal(says({ kind: "reel" }).words, ON_INSTAGRAM.wrongKind, "a picture is no reel");
+  assert.equal(says({ kind: "picture", fileKind: "video" }).words, ON_INSTAGRAM.wrongKind);
+  const video = (v) =>
+    says({ kind: "reel", fileKind: "video", video: { mime: "video/mp4", bytes: 1e6, ms: 13_000, ...v } });
+  assert.equal(video({}), null);
+  assert.equal(video({ ms: 2_000 }).words, CHECK_WORDS.video);
+  assert.equal(video({ mime: "video/webm" }).words, CHECK_WORDS.video);
+  assert.equal(video({ bytes: 400 * 1024 * 1024 }).words, CHECK_WORDS.video);
+  assert.equal(says({ place: "google", kind: "picture", fileKind: "video" }).check, "publishing");
+  assert.equal(says({ connection: "not_connected" }).code, "disconnected");
+  assert.equal(says({ connection: "line_off" }).words, CHECK_WORDS.lineOff);
+  assert.equal(says({ place: "google", caption: "x".repeat(1501) }).words, CHECK_WORDS.tooLong("google", 1500));
+  assert.match(says({ caption: "#a ".repeat(31) }).words, /30 hashtags/);
 });
 
 test("money and automation: within the limit; nothing goes while AI is paused, and AI never posts alone", () => {
-  assert.equal(budgetAllows({ costCents: 0, leftCents: 0, limitCents: 4000 }), null);
-  assert.equal(budgetAllows({ costCents: 500, leftCents: 100, limitCents: 4000 }).words, CHECK_WORDS.money(40));
-  assert.equal(budgetAllows({ costCents: 500, leftCents: null, limitCents: null }), null);
-  assert.equal(automationAllows({ stopped: true, pressedBy: "owner" }).words, CHECK_WORDS.stopped);
-  assert.equal(automationAllows({ stopped: false, pressedBy: "ai" }).words, CHECK_WORDS.aiAlone);
-  assert.equal(automationAllows({ stopped: false, pressedBy: "owner" }), null);
+  assert.equal(refused({ money: { costCents: 0, leftCents: 0, limitCents: 4000 } }), null);
+  assert.equal(refused({ money: { costCents: 500, leftCents: 100, limitCents: 4000 } }).words, CHECK_WORDS.money(40));
+  assert.equal(refused({ money: { costCents: 500, leftCents: null, limitCents: null } }), null);
+  assert.equal(refused({ automation: { stopped: true, pressedBy: "owner" } }).words, CHECK_WORDS.stopped);
+  assert.equal(refused({ automation: { stopped: false, pressedBy: "ai" } }).words, CHECK_WORDS.aiAlone);
+  assert.equal(refused({ automation: { stopped: false, pressedBy: "owner" } }), null);
 });
 
-test("words that date something need an intent before they are approved; a standing weekday dates nothing", () => {
-  assert.deepEqual(datedPhraseIn("Thursday has 3 open chairs"), { is: "day", phrase: "Thursday" });
-  assert.deepEqual(datedPhraseIn("Book today, we have room"), { is: "day", phrase: "today" });
-  assert.equal(datedPhraseIn("Open late on Fridays")?.is, undefined);
-  assert.equal(datedPhraseIn("Every message answered, every booking in one place"), null);
-  assert.equal(datedPhraseIn("20% off every colour")?.is, "offer");
-  assert.equal(datedPhraseIn("Abierto hasta tarde todos los viernes"), null);
-  const refused = reasonStands(asked({ words: "Thursday has 3 open chairs" }));
-  assert.equal(refused.words, CHECK_WORDS.needsDay("Thursday"));
-  assert.equal(refused.code, "reason_passed");
-  // With the intent that names its day, it passes; after approval the intent the approval kept is what is read.
-  assert.equal(
-    reasonStands(asked({ words: "Thursday has 3 open chairs", intent: intent({ day: "2026-11-26" }) })),
-    null,
-  );
-  assert.equal(reasonStands(asked({ words: "Thursday has 3 open chairs", moment: "send" })), null);
+test("AI's own card says what its words are about, or that they date nothing; nothing plain found asks nothing", () => {
+  assert.deepEqual(wordsNeedAbout("Thursday has 3 open chairs", null), { is: "day", phrase: "Thursday" });
+  assert.deepEqual(wordsNeedAbout("Book today, we have room", null), { is: "day", phrase: "today" });
+  assert.equal(wordsNeedAbout("20% off every colour", null)?.is, "offer");
+  assert.equal(wordsNeedAbout("Cuts from $45", null)?.is, "offer");
+  assert.equal(wordsNeedAbout("Every message answered, every booking in one place", null), null);
+  // Words a pattern would misread stay free: no generic "off", "deal" or "special".
+  assert.equal(wordsNeedAbout("A well deserved day off, and a great deal of care", null), null);
+  // The card says what they are about, or that they date nothing: nothing more is asked.
+  assert.equal(wordsNeedAbout("Thursday has 3 open chairs", { day: "2026-11-26" }), null);
+  assert.equal(wordsNeedAbout("Open Thursday to Saturday", { nothing: true }), null);
+  assert.equal(wordsNeedAbout("20% off every colour", { offer: { says: "20% off", until: "2026-11-30" } }), null);
 });
 
-test("the reason: a passed day is late; an ended offer and a service gone each offer three ways on, never post anyway", () => {
+test("an owner's own words are never judged by a guess: with no intent, the reason asks nothing", () => {
+  assert.equal(refused({ reason: reason({}) }), null);
+  assert.equal(refused({ reason: reason({ moment: "send" }) }), null);
+});
+
+test("the reason: too late, an offer or a service the business does not say, each with the three ways on at a send", () => {
   const thursday = intent({ day: "2026-11-19" });
-  const late = reasonStands(asked({ intent: thursday, goodUntil: goodUntilOf(thursday, ZONE), moment: "send" }));
-  assert.equal(late.code, "late");
-  assert.equal(late.words, CHECK_WORDS.late("Thursday"));
+  const late = refused({
+    reason: reason({ intent: thursday, goodUntil: goodUntilOf(thursday, ZONE), moment: "send" }),
+  });
+  assert.deepEqual(late, { check: "reason", code: "late", words: "Too late to post. Thursday has passed." });
+  // Set for a time after its day: said before anything is approved.
+  const friday = intent({ day: "2026-11-27" });
+  const after = refused({
+    reason: reason({ intent: friday, goodUntil: goodUntilOf(friday, ZONE), atMs: Date.parse("2026-11-29T15:00:00Z") }),
+  });
+  assert.equal(after.words, CHECK_WORDS.afterItsDay);
   const offer = intent({ offer: { says: "20% off", until: null } });
-  const ended = reasonStands(asked({ intent: offer, moment: "send" }));
+  // Before it is approved, it is a claim the business does not make (PRD 6.3); at the send, it ended since.
+  assert.equal(
+    refused({ reason: reason({ intent: offer }) }).words,
+    "“20% off” isn't one of your offers. Add it, or change the words.",
+  );
+  const ended = refused({ reason: reason({ intent: offer, moment: "send" }) });
   assert.equal(ended.words, CHECK_WORDS.offerEnded("20% off"));
   assert.match(ended.words, /Leave it out, change the words, or tell AI/);
   assert.doesNotMatch(ended.words, /anyway/i);
   assert.equal(
-    reasonStands(asked({ intent: offer, notes: ["Winter deal 20% off every colour"], moment: "send" })),
+    refused({ reason: reason({ intent: offer, says: ["Winter deal 20% off every colour"], moment: "send" }) }),
     null,
   );
-  // A last day passed ends it, whatever the note still says.
+  // A last day passed ends it, whatever the business still says.
+  const lapsed = intent({ offer: { says: "20% off", until: "2026-11-20" } });
   assert.equal(
-    reasonStands(asked({ intent: intent({ offer: { says: "20% off", until: "2026-11-20" } }), notes: ["20% off"] }))
-      .code,
+    refused({ reason: reason({ intent: lapsed, says: ["20% off"], moment: "send" }) }).code,
     "reason_passed",
   );
   // The owner's own word, kept until its day ends, stands for it.
+  const said = [{ says: "20% off still runs", until: "2026-11-24" }];
+  assert.equal(refused({ reason: reason({ intent: offer, facts: said, moment: "send" }) }), null);
   assert.equal(
-    reasonStands(asked({ intent: offer, facts: [{ says: "20% off still runs", until: "2026-11-24" }] })),
+    refused({ reason: reason({ intent: offer, facts: [{ ...said[0], until: "2026-11-23" }], moment: "send" }) }).code,
+    "reason_passed",
+  );
+  // A price the business states for a service is something it says.
+  assert.equal(
+    refused({ reason: reason({ intent: intent({ offer: { says: "$45", until: null } }), says: ["Cut from $45"] }) }),
     null,
   );
   const service = intent({ service: "Balayage" });
-  assert.equal(reasonStands(asked({ intent: service, services: ["balayage", "Cut"] })), null);
-  assert.equal(reasonStands(asked({ intent: service, services: ["Cut"] })).words, CHECK_WORDS.serviceGone("Balayage"));
+  assert.equal(refused({ reason: reason({ intent: service, services: ["balayage", "Cut"] }) }), null);
+  assert.equal(
+    refused({ reason: reason({ intent: service, services: ["Cut"] }) }).words,
+    CHECK_WORDS.notAService("Balayage"),
+  );
+  assert.equal(
+    refused({ reason: reason({ intent: service, services: ["Cut"], moment: "send" }) }).words,
+    CHECK_WORDS.serviceGone("Balayage"),
+  );
 });
 
 test("good_until is the end of the day the words are about, or of the offer's last day, whichever comes first", () => {
@@ -167,10 +194,10 @@ test("evaluate asks every check its facts reach and answers every refusal at onc
   assert.deepEqual(evaluate({}), { ok: true });
   const verdict = evaluate({
     authorization: { may: true, approving: true },
-    rights: { takenBack: true },
+    rights: { takenBack: false, gap: { is: "person", name: "Paola" } },
     publishing: place({ connection: "not_connected" }),
     automation: { stopped: true, pressedBy: "owner" },
-    reason: asked({ words: "Thursday has 3 open chairs" }),
+    reason: reason({ intent: intent({ service: "Balayage" }) }),
   });
   assert.equal(verdict.ok, false);
   assert.deepEqual(
@@ -180,10 +207,10 @@ test("evaluate asks every check its facts reach and answers every refusal at onc
   assert.equal(
     verdictWords(verdict),
     [
-      CHECK_WORDS.takenBack,
+      CHECK_WORDS.notYetSaid("Paola"),
       CHECK_WORDS.notConnected("instagram"),
       CHECK_WORDS.stopped,
-      CHECK_WORDS.needsDay("Thursday"),
+      CHECK_WORDS.notAService("Balayage"),
     ].join(" "),
   );
 });

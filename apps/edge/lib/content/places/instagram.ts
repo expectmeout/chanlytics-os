@@ -96,8 +96,6 @@ function stateOf(answer: InstagramAnswer, kind: InstagramPostKind): PreparedStat
   return { is: "in_progress", kept };
 }
 
-const instagramKind = (kind: PostKind): InstagramPostKind => kind;
-
 /** Instagram's adapter, over the account the Meta link connected and its token. */
 export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}): PlaceAdapter {
   const call = (request: Parameters<typeof callInstagram>[0]) =>
@@ -111,7 +109,7 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
         const refusal = { words: ON_INSTAGRAM.refused.limit, code: null, subcode: 2207042, busy: false };
         return { is: "refused", refusal, kept: { status: null, json: null } };
       }
-      const fields = metaContainerFields(instagramKind(post.kind), post.mediaUrl, {
+      const fields = metaContainerFields(post.kind, post.mediaUrl, {
         caption: post.caption,
         says: post.says,
       });
@@ -123,7 +121,7 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
     },
 
     async preparedState(ref, kind) {
-      return stateOf(await call(metaContainerStatusRequest(poster, ref)), instagramKind(kind));
+      return stateOf(await call(metaContainerStatusRequest(poster, ref)), kind);
     },
 
     async publish(post, ref) {
@@ -140,7 +138,15 @@ export function instagramPlace(poster: MetaPoster, deps: InstagramPlaceDeps = {}
     },
 
     async status(post) {
-      const listed = await call(metaNewestMediaRequest(poster, instagramKind(post.kind)));
+      // Its own id is known: asked for by it. A read Instagram refuses is a post it no longer has.
+      if (post.externalId) {
+        const read = await call(metaMediaReadRequest(poster, post.externalId));
+        const media = read.outcome === "ok" ? parseMetaMedia(read.json) : null;
+        if (media) return { is: "up", media: placedOf(media), kept: keptOf(read) };
+        return { is: read.outcome === "refused" ? "not_up" : "unknown", kept: keptOf(read) };
+      }
+      // Not known yet (a send whose answer never came): looked for on the account by its time and its words.
+      const listed = await call(metaNewestMediaRequest(poster, post.kind));
       if (listed.outcome !== "ok") return { is: "unknown", kept: keptOf(listed) };
       const newest = parseMetaMediaList(listed.json);
       const kept = deps.keptElsewhere ? await deps.keptElsewhere(newest.map((m) => m.id)) : [];

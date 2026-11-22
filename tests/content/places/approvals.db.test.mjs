@@ -4,8 +4,8 @@
  * approval with its placements and their jobs in one transaction; a viewer may not; another workspace sees nothing of it.
  * Right before a send the placement stands as approved, with the path of the approved bytes; a caption changed after
  * approval, or a snapshot changed in place, is changed. A shape kept with other bytes is changed and writes nothing; a
- * time past its reason's last moment is late. A new version that moves the bytes voids what came before and holds what
- * waits; one that moves only words holds nothing.
+ * time past its reason's last moment is late. New words saved by a member who may approve are the piece's next version,
+ * and a post still waiting goes up with them under a new approval of the same bytes: the save is the approval.
  *
  * Runs against the local stack `supabase start` builds, never production: it makes workspaces, users and rows.
  */
@@ -226,38 +226,43 @@ test(
 );
 
 test(
-  "a version that moves the bytes voids what came before and holds what waits; words alone hold nothing",
+  "the owner saves new words: the waiting post goes up with them under a new approval of the same bytes; a viewer may not",
   { skip },
   async () => {
     const fileId = await madeFile();
     const answer = ok(await approve("owner", fileId, pictureApproval(fileId)), "the press");
-    const words = ok(
-      await as.owner.client.rpc("piece_revise", {
+    const postId = answer.posts[0].post_id;
+    const refused = await as.viewer.client.rpc("piece_words_keep", {
+      p_tenant_id: A,
+      p_file_id: fileId,
+      p_caption: "x",
+    });
+    assert.match(refused.error?.message ?? "", /Not yours to change/);
+    const kept = ok(
+      await as.owner.client.rpc("piece_words_keep", {
         p_tenant_id: A,
-        p_piece_id: answer.piece_id,
-        p_revision: { captions: { instagram: "Other words" }, changed: ["caption"], made_by: "owner" },
+        p_file_id: fileId,
+        p_caption: "  Open late, every Friday.  ",
       }),
-      "words",
+      "words kept",
     );
-    assert.deepEqual(words, { fate: "revised", revision: 2, held: 0 });
-    const trim = ok(
-      await as.owner.client.rpc("piece_revise", {
+    assert.deepEqual(kept, { revision: 2, followed: 1 });
+    const post = ok(await db.from("posts").select("caption, revision, approval_id").eq("id", postId).single(), "post");
+    assert.equal(post.caption, "Open late, every Friday.");
+    assert.equal(post.revision, 2);
+    assert.notEqual(post.approval_id, answer.approval_id, "a new approval, by the member who saved the words");
+    assert.equal((await asApproved(postId)).is, "stands", "an owner's own edit never strands a scheduled post");
+    // The same words again change nothing; a change nobody pressed (the row itself) is still caught at the send.
+    const again = ok(
+      await as.owner.client.rpc("piece_words_keep", {
         p_tenant_id: A,
-        p_piece_id: answer.piece_id,
-        p_revision: { plan: { cut: 1 }, changed: ["trim"], made_by: "ai" },
+        p_file_id: fileId,
+        p_caption: "Open late, every Friday.",
       }),
-      "trim",
+      "again",
     );
-    assert.deepEqual(trim, { fate: "revised", revision: 3, held: 1 });
-    const post = ok(
-      await db.from("posts").select("status, held_why").eq("id", answer.posts[0].post_id).single(),
-      "post",
-    );
-    assert.deepEqual(post, { status: "held", held_why: "changed" });
-    const approval = ok(
-      await db.from("approvals").select("voided_why").eq("id", answer.approval_id).single(),
-      "approval",
-    );
-    assert.equal(approval.voided_why, "changed");
+    assert.deepEqual(again, { revision: 2, followed: 0 });
+    ok(await db.from("posts").update({ caption: "Edited in the table" }).eq("id", postId), "tampered");
+    assert.equal((await asApproved(postId)).is, "changed");
   },
 );

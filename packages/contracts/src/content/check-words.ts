@@ -37,8 +37,9 @@ export const CHECK_WORDS = {
   money: (limitDollars: number) => `This would pass your $${limitDollars} limit. Raise it, or leave one out.`,
   stopped: "AI is paused. Resume to post.",
   aiAlone: "AI asks first before it posts. Approve it to post.",
-  needsDay: (phrase: string) => `This says ${quoteOf(phrase)}. Tell AI which day it's about.`,
-  needsOffer: (phrase: string) => `This names ${quoteOf(phrase)}. Tell AI which offer it is and when it ends.`,
+  /** Before it is approved: what the words lean on is not something the business says of itself (PRD 6.3, Claim). */
+  notAnOffer: (offer: string) => `${quoteOf(offer)} isn't one of your offers. Add it, or change the words.`,
+  notAService: (service: string) => `${quoteOf(service)} isn't one of your services. Add it, or change the words.`,
   late: (day: string) => `Too late to post. ${day} has passed.`,
   afterItsDay: "This would go after its day has passed. Pick an earlier time.",
   offerEnded: (offer: string) =>

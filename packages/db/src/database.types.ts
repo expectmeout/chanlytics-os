@@ -10717,6 +10717,14 @@ export type Database = {
         Args: { p_id: string; p_tenant_id: string }
         Returns: undefined
       }
+      file_rights_gap: {
+        Args: { p_file_id: string; p_tenant_id: string; p_use: string }
+        Returns: Json
+      }
+      file_rights_gap_of: {
+        Args: { p_file_id: string; p_tenant_id: string; p_use: string }
+        Returns: Json
+      }
       file_road_is_owners: { Args: { p_source: string }; Returns: boolean }
       file_road_is_watched: { Args: { p_source: string }; Returns: boolean }
       file_search_words: {
@@ -12531,10 +12539,6 @@ export type Database = {
         Args: { p_actor: string; p_file_id: string; p_tenant_id: string }
         Returns: string
       }
-      piece_revise: {
-        Args: { p_piece_id: string; p_revision: Json; p_tenant_id: string }
-        Returns: Json
-      }
       piece_sent: { Args: { p_piece_id: string }; Returns: boolean }
       piece_stage: {
         Args: { p_piece_id: string; p_stage: string }
@@ -12543,6 +12547,10 @@ export type Database = {
       piece_step: {
         Args: { p_machine: Json; p_piece_id: string }
         Returns: boolean
+      }
+      piece_words_keep: {
+        Args: { p_caption: string; p_file_id: string; p_tenant_id: string }
+        Returns: Json
       }
       platform_admin_add: {
         Args: { p_email: string; p_role?: string }
