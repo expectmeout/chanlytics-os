@@ -337,13 +337,13 @@ test("a person named in it with no yes for posts holds the post at its send, by 
   assert.equal(calls.length, 0);
 });
 
-test("a post that went up unseen says only that it was posted, and Instagram is asked for it again by its own id", async () => {
+test("a post that went up unseen is still posting, never on Instagram, and Instagram is asked for it again by its own id", async () => {
   meta[`GET /${MEDIA}`] = [500, { error: { code: 2 } }];
   const w = world({ status: "preparing", asApproved: stands(`${T}/${FILE}/original.jpg`) });
   await postJobs(w.db, quick).publish(job("post_publish"));
   assert.equal(w.post().status, "published");
   assert.equal(w.post().verified_at, null);
-  assert.equal(postStandsSaid(w.post()), "Posted on Instagram");
+  assert.equal(postStandsSaid(w.post()), "Posting on Instagram");
   const asking = w.tables.jobs.find((j) => j.kind === "post_reconcile");
   assert.deepEqual(asking?.payload, { post_id: POST, attempt: "seen", seen: "ask" }, "asked for again, two minutes on");
   const again = { id: "job-2", tenant_id: T, kind: "post_reconcile", payload: asking.payload, attempts: 1 };

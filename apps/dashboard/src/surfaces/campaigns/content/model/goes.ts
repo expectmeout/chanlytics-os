@@ -7,6 +7,7 @@
  */
 import {
   DAY_MS,
+  MIN_MS,
   ON_INSTAGRAM,
   POST_PLACE_SAID,
   POST_PULLABLE,
@@ -172,15 +173,27 @@ function comingDownSaid(post: PostDto, known: GoesKnown): Said | null {
   });
 }
 
+/**
+ * How long a post Instagram took may still be on its way to being seen on the account: the account is asked two minutes
+ * after the send (00690 post_moved), and again a few times where it gives no answer.
+ */
+const POST_SEEN_WAIT_MS = 10 * MIN_MS;
+
 /** A post that is up: seen there, sent and not yet seen, or a story that ended by itself. */
 function upSaid(post: PostDto, known: GoesKnown): Said {
   const at = post.published_at ? known.when(post.published_at) : null;
   const ended = post.kind === "story" && !!post.published_at && known.nowMs - Date.parse(post.published_at) > DAY_MS;
   if (ended) return lineSaysOf(GOES_WORDS.storyEnded(post.place, at), "gone");
   const see: GoesAct[] = post.permalink ? [{ is: "see", href: post.permalink }] : [];
-  // Instagram's is said to be on the account only once the account was read holding it (PRD 8.2).
-  if (post.place === "instagram" && !post.verified_at)
-    return lineSaysOf(ON_INSTAGRAM.unverified, "live", { acts: see });
+  // Instagram's is said to be on the account only once the account was read holding it, and until then it is still
+  // posting: no word between the two (PRD 8.2 as the canvas's call 7 took it). Past the time that read takes, nobody
+  // can say it went up, and the line says so in the words a send with no answer always had.
+  if (post.place === "instagram" && !post.verified_at) {
+    const sentMs = post.published_at ? Date.parse(post.published_at) : known.nowMs;
+    return known.nowMs - sentMs < POST_SEEN_WAIT_MS
+      ? lineSaysOf(GOES_WORDS.posting(post.place), "live", { moving: true })
+      : lineSaysOf(ON_INSTAGRAM.refused.unknown, "you", { acts: see });
+  }
   return lineSaysOf(GOES_WORDS.up(post.place, at), "ok", { acts: see });
 }
 

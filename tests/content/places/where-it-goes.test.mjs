@@ -74,9 +74,18 @@ test("up is said only once the account was seen holding it, and a story says whe
   assert.equal(seen.said, "On Instagram · @17:00");
   assert.equal(seen.tone, "ok");
   assert.deepEqual(seen.acts, [{ is: "see", href: "https://www.instagram.com/reel/abc/" }]);
-  const unseen = one(post({ verified_at: null }));
-  assert.equal(unseen.said, ON_INSTAGRAM.unverified);
-  assert.notEqual(unseen.tone, "ok", "sent is not yet up");
+  // Instagram took it a minute ago and the account has not been read holding it: still posting, no word between.
+  const unseen = one(post({ verified_at: null, published_at: ago(MIN) }));
+  assert.equal(unseen.said, "Posting to Instagram");
+  assert.deepEqual(
+    [unseen.tone, unseen.moving, unseen.acts],
+    ["live", true, []],
+    "sent is not yet up, and has no door",
+  );
+  // Past the time that read takes, nobody can say it went up: said so, and the owner looks before posting it again.
+  const never = one(post({ verified_at: null, published_at: ago(HOUR) }));
+  assert.equal(never.said, ON_INSTAGRAM.refused.unknown);
+  assert.deepEqual([never.tone, never.moving], ["you", false]);
   const google = one(post({ place: "google", kind: "picture", verified_at: null }));
   assert.equal(google.said, "On Google · @17:00");
   const story = one(post({ kind: "story", published_at: ago(26 * HOUR) }));
