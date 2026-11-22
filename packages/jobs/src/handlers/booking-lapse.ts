@@ -58,6 +58,8 @@ function requestLapsePortsOf(
         optedOut: thread.optedOut,
         forMessageId: thread.forMessageId,
         theirWords: thread.theirWords,
+        // The message they asked in was written before its request; one written after it is them writing again.
+        wroteAgain: !!thread.theirAt && Date.parse(thread.theirAt) > Date.parse(since),
         personSpoke,
         liveHold: !!control && now() < Date.parse(control.until),
       };
