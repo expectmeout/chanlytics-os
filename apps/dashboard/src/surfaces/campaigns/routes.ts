@@ -15,10 +15,12 @@ import {
   CAMPAIGN_ROOMS,
   CONTENT_ROUTE,
   CONTENT_WORDS,
+  FORMS_ROUTE,
   RUN_UNNAMED_WORDS,
   SEQUENCES_ROUTE,
   isAdsParam,
   isContentParam,
+  isFormsParam,
   parseAds,
   parseSequencesRoute,
   routeOfPath,
@@ -36,6 +38,9 @@ import { rememberedRun } from "./broadcasts/run-names";
 /** A crumb: its words, and where it goes. */
 type Crumb = string | { label: string; to: string };
 
+/** The Forms view's word on the strip and in its crumb. */
+const FORMS_TAB = "Forms";
+
 /** Campaigns, the first crumb of every address under it: the way back to Sequences' list, Campaigns' first view. */
 const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
 
@@ -45,7 +50,7 @@ const CAMPAIGNS: Crumb = { label: CAMPAIGN_ROOMS.home, to: SEQUENCES_ROUTE };
  * for the business (decision 0125, every workspace's), and, where it is drawn, what you pay to show people who don't have
  * your number.
  */
-function campaignsViews(picked: "sequences" | "content" | "ads"): SurfaceViews {
+function campaignsViews(picked: "sequences" | "content" | "ads" | "forms"): SurfaceViews {
   const ads = adsShown() ? [{ id: "ads", label: ADS_WORDS.adsTab, to: ADS_ROUTE, testid: "campaigns-view-ads" }] : [];
   return {
     name: "campaigns",
@@ -56,6 +61,8 @@ function campaignsViews(picked: "sequences" | "content" | "ads"): SurfaceViews {
       { id: "sequences", label: CAMPAIGN_ROOMS.sequences, to: SEQUENCES_ROUTE, testid: "campaigns-view-sequences" },
       { id: "content", label: CONTENT_WORDS.tab, to: CONTENT_ROUTE, testid: "campaigns-view-content" },
       ...ads,
+      // Forms, the last of Campaigns' views (00680): what a business asks people for, with no website.
+      { id: "forms", label: FORMS_TAB, to: FORMS_ROUTE, testid: "campaigns-view-forms" },
     ],
   };
 }
@@ -142,6 +149,19 @@ function contentChrome(): { crumbs: Crumb[]; mount: string; act: null; views: Su
 }
 
 /**
+ * Forms' crumbs: Campaigns, then Forms. Campaigns' one mount, as Content's and Ads', so a switch to it is no new page.
+ */
+function formsChrome(): { crumbs: Crumb[]; mount: string; act: null; views: SurfaceViews; pane: true } {
+  return {
+    crumbs: [CAMPAIGNS, FORMS_TAB],
+    mount: "campaigns",
+    act: null,
+    views: campaignsViews("forms"),
+    pane: true,
+  };
+}
+
+/**
  * Campaigns' crumbs: the Ads view's for `campaigns/ads…` where it is drawn (ads/shown.ts), the Content view's for
  * `campaigns/content`, and Sequences' for every other address, the sheets Campaigns opens over it among them, and
  * Messages' old addresses, which land on it (contracts retiredRouteOf). Every address is one mount, the page's own.
@@ -155,6 +175,7 @@ export function campaignsChrome({ param }: { param: string | null }): {
 } {
   if (adsShown() && param && isAdsParam(param)) return adsChrome(param);
   if (isContentParam(param)) return contentChrome();
+  if (isFormsParam(param)) return formsChrome();
   return sequencesChrome();
 }
 

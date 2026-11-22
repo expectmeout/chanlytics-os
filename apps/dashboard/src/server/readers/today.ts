@@ -6,6 +6,8 @@ import {
   type EscalationDto,
   type LeadSearchDto,
   type MetricsSummaryDto,
+  type FormHeldDto,
+  type FormOpenRequestDto,
   type PreviewTriedDto,
   type TodayAiReadDto,
   type TodayPeopleDto,
@@ -27,6 +29,7 @@ import { conversations } from "./conversations";
 import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
+import { formRequestsOpen } from "./forms";
 import { previewsTried } from "./leads";
 import * as facts from "./facts";
 import { people, peopleCount } from "./people";
@@ -51,6 +54,10 @@ interface TodayRead {
   going: GoingRunRow[] | null;
   /** The leads who tried their own receptionist lately (decision 0079); null where the read failed. */
   previewsTried: PreviewTriedDto[] | null;
+  /** The requests sent through a form that nobody has answered (00680); null where the read failed. */
+  formRequests: FormOpenRequestDto[] | null;
+  /** Each form's entries held for a look that nobody has looked at in three days (the same read); null: not read. */
+  formHeld: FormHeldDto[] | null;
   /** What Today says of AI beside the day (Working for you, W1 to W3): each part null where its read failed. */
   ai: TodayAiReadDto;
 }
@@ -109,14 +116,14 @@ export async function findDoneToday(rc: ReaderContext): Promise<number | null> {
  * runs waiting for approval, read at once; then, only where an open hold's thread is outside the hundred, those threads
  * by their ids (findHeldThreadsBeyond, the Inbox's own read, which the turn cache shares). Every part but the first three is
  * additive, as on the page: a failed read is null, logged under the page's own event, and the rest stands (a hold whose
- * thread was not read counts as waiting). The brief is then said with the runs and the held threads beside it
+ * thread was not read counts as waiting). The requests sent through a form that nobody has answered ride the same way. The brief is then said with the runs and the held threads beside it
  * (toTodayVM's `beside`), so Ask's Today counts what the badge counts (the wiring's second audit, S7-1 and S7-7). What the
  * page alone says beside the day (done today, the workspace's word) GET today's route reads.
  */
 export const today: Reader<undefined, TodayRead> = {
   name: "today",
   async read(rc) {
-    const [m, c, e, k, s, r, g, t] = await Promise.all([
+    const [m, c, e, k, s, r, g, t, f] = await Promise.all([
       load(rc, metrics, { days: 1 }),
       load(rc, conversations, { ids: null }),
       load(rc, escalations, { state: "open" }),
@@ -140,6 +147,10 @@ export const today: Reader<undefined, TodayRead> = {
         log.error("today_previews_fetch_failed", { error: err });
         return null;
       }),
+      load(rc, formRequestsOpen, undefined).catch((err: unknown) => {
+        log.error("today_form_requests_fetch_failed", { error: err });
+        return null;
+      }),
     ]);
     const [held, ai] = await Promise.all([
       findHeldThreadsBeyond(rc, c.data.conversations, e.data.escalations),
@@ -157,6 +168,8 @@ export const today: Reader<undefined, TodayRead> = {
         heldThreads: held.threads,
         going: g ? g.data.runs : null,
         previewsTried: t ? t.data.previews : null,
+        formRequests: f ? f.data.requests : null,
+        formHeld: f ? f.data.held : null,
         ai,
       },
       rows: [...c.rows, ...(k?.rows ?? []), ...(r?.rows ?? []), ...(g?.rows ?? [])],

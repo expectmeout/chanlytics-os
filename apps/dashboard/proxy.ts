@@ -104,7 +104,7 @@ const PUBLIC_PATHS = new Set([
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/preview/", "/api/v1/previews/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/", "/c/", "/l/", "/preview/", "/api/v1/previews/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

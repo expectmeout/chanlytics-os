@@ -233,6 +233,7 @@ One name for one thing, in every tree: a folder directly under a package's `src`
 | `export`           | The workspace's own records, for its owner                                    |
 | `facts`            | What the receptionist has learned and suggests keeping                        |
 | `files`            | Pictures, videos and documents a workspace keeps                              |
+| `forms`            | A request form a business shares, and each entry it takes                     |
 | `google`           | Google: the business profile, reviews and sign-in                             |
 | `imports`          | Bringing in history from where it was                                         |
 | `inbound`          | A customer's message on its way to an answer                                  |

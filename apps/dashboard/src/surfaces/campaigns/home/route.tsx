@@ -26,10 +26,12 @@ import { usePathname } from "next/navigation";
 import {
   ADS_ROUTE,
   CONTENT_ROUTE,
+  FORMS_ROUTE,
   LIFECYCLE_WORDS,
   SEQUENCES_ROUTE,
   isAdsParam,
   isContentParam,
+  isFormsParam,
   messageOfRoute,
   retiredRouteOf,
   routeOfPath,
@@ -53,6 +55,8 @@ const AdsPage = lazy(adsCode);
 // The Content view's code, a chunk of its own, fetched where Content is drawn: once the frame is idle on another view, or at its press.
 const contentCode = () => import("../content/page").then((m) => ({ default: m.ContentPage }));
 const ContentPage = lazy(contentCode);
+// The Forms view's code, a chunk of its own, fetched the first time Forms is shown (00680).
+const FormsPage = lazy(() => import("../forms/page").then((m) => ({ default: m.FormsPage })));
 // Content readied ahead (content/warm.ts): its page read in, and its first screen's pictures asked for, from the page's chunk.
 const contentWarm = () => import("../content/warm").then((m) => m.warmContent());
 
@@ -80,8 +84,8 @@ function ViewReading({ view }: { view: CmView }) {
 }
 
 /** Campaigns' kept views, in the strip's order: Ads only where it is drawn (ads/shown.ts). */
-type View = "sequences" | "content" | "ads";
-const VIEW_ORDER: readonly View[] = ["sequences", "content", "ads"];
+type View = "sequences" | "content" | "ads" | "forms";
+const VIEW_ORDER: readonly View[] = ["sequences", "content", "ads", "forms"];
 /** The deck's one seat for Campaigns' views. */
 const VIEW_SEAT = "campaigns-view";
 
@@ -104,6 +108,9 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
   // Content keeps the piece left open, and the view of Made, as Sequences keeps its record.
   const contentAt = useRef(CONTENT_ROUTE);
   if (view === "content") contentAt.current = route;
+  // Forms keeps the form left open, and the part of its sheet.
+  const formsAt = useRef(FORMS_ROUTE);
+  if (view === "forms") formsAt.current = route;
   const before = useRef<View | null>(null);
   const was = before.current;
   useEffect(() => {
@@ -118,6 +125,7 @@ function useKeptViews(view: View, route: string, ahead: { others: boolean; conte
     sequencesAt: sequencesAt.current,
     adsAt: adsAt.current,
     contentAt: contentAt.current,
+    formsAt: formsAt.current,
     viewOf,
   };
 }
@@ -189,6 +197,7 @@ function useViewsAhead(view: View, adsShown: boolean): { others: boolean; conten
 function viewOf(param: string | null, adsShown: boolean): View {
   if (param && isAdsParam(param) && adsShown) return "ads";
   if (isContentParam(param)) return "content";
+  if (isFormsParam(param)) return "forms";
   // Messages folded into Campaigns (Campaigns, one tab, 17 Nov 2026): its addresses are Sequences', a message's opening
   // the message over the list (useMessageOpensOverTheList).
   return "sequences";
@@ -263,6 +272,14 @@ export function CampaignsRoute() {
         <Activity mode={view === "ads" ? "visible" : "hidden"}>
           <Suspense fallback={<ViewReading view={kept.viewOf("ads")} />}>
             <AdsPage param={kept.adsAt.split("/")[1] || "ads"} view={kept.viewOf("ads")} />
+          </Suspense>
+        </Activity>
+      ) : null}
+      {/* Forms, a view kept beside the others on the same mount (00680): drawn from the first time it is shown. */}
+      {kept.drawn.has("forms") ? (
+        <Activity mode={view === "forms" ? "visible" : "hidden"}>
+          <Suspense fallback={<ViewReading view={kept.viewOf("forms")} />}>
+            <FormsPage route={kept.formsAt} view={kept.viewOf("forms")} />
           </Suspense>
         </Activity>
       ) : null}

@@ -24,6 +24,7 @@ import { isVideoFile, serverPictureIn, takeAway, tryAgain, tryAll, type SendingP
 import type { TileShape } from "../campaigns/content/model/tiles";
 import { copyRowLineOf, leavesOn, rowReasonOf } from "./footage/copy-words";
 import { heldFootage } from "./footage/use-footage";
+import { AskLooking } from "./looking";
 
 /** A photo's small picture on the grid. */
 export const smallPictureOf = (id: string): string => `${fileViewOf(id)}?w=480`;
@@ -110,26 +111,6 @@ function Picture({
       onLoad={() => setArrived(true)}
       onError={() => setBroken(true)}
     />
-  );
-}
-
-/** Ask's three, while it looks at this photo. A tile that had them keeps them drawn as it finishes, so they fade, and one that never did draws nothing. */
-export function AskLooking({ looking, coming = false }: { looking: boolean; coming?: boolean }) {
-  const [drawn, setDrawn] = useState(looking);
-  if (looking && !drawn) setDrawn(true);
-  if (!drawn) return null;
-  return (
-    <span
-      className="files-looking"
-      data-on={looking || undefined}
-      data-coming={coming || undefined}
-      aria-hidden="true"
-      data-testid="fl-looking"
-    >
-      <span />
-      <span />
-      <span />
-    </span>
   );
 }
 

@@ -47,6 +47,8 @@ export {
   messageVerdict,
 } from "./customer-message/rubric";
 export type { MessageJudgeAnswer, MessageVerdict, RubricId } from "./customer-message/rubric";
+export { FORM_CRAFT_JSON_SCHEMA, formBriefText, FormCraftAnswerSchema, formFromAnswer, formSlugOf } from "./form/brief";
+export type { FormBrief, FormCraftAnswer, FormFromAnswer, FormJob } from "./form/brief";
 export type { JudgeAnswer, RubricCriterion, RubricVerdict } from "./judge";
 export { craftSystem, guideBlock, SKILL_CRAFT_MAX_TOKENS, SKILL_CRAFT_PURPOSES, SKILL_GUIDE_MAX } from "./skill";
 export type { AskSkill, SkillCraftPurpose, SkillExample, SkillSection } from "./skill";

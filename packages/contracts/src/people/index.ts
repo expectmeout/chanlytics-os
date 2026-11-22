@@ -11,6 +11,8 @@ export {
   withVisitsOf,
 } from "./audience-pool";
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
+export { formRequestNote, formRequestNotice } from "./doors/form-request";
+export type { RequestNoticed } from "./doors/form-request";
 export {
   ConsentAnswerBody,
   ConsentManyBody,

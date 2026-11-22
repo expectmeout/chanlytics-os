@@ -42,6 +42,7 @@ export interface ExportSectionPages {
   reviews: ExportPage;
   leads: ExportPage;
   reach_out_replies: ExportPage;
+  form_entries: ExportPage;
 }
 
 async function sectionRows(
@@ -69,6 +70,10 @@ const HOLD_COLUMNS =
 const RULE_COLUMNS = "id, class, mode, subject_type, subject_id, limits, updated_at";
 const LEAD_COLUMNS =
   "id, business_name, category, street, city, region, postal_code, country, neighborhood, phone_e164, email, website_host, instagram_url, facebook_url, linkedin_url, tiktok_url, maps_url, rating, reviews, about, price, stage, closed_reason, last_outcome, last_note, contacted_at, booked_at, converted_at, contact_id, found_at";
+// What someone sent through a form (00675, 00680): which form, their answers as sent, how they could be reached and
+// how they came. Never the form's key, the page's own id or the steps that told the owner.
+const FORM_ENTRY_COLUMNS =
+  "id, contact_id, form, form_id, version_id, link_id, answers, reach, source, state, held_why, created_at";
 const REPLY_COLUMNS =
   "message_id, conversation_id, contact_id, lead_id, intent, claim, summary, named_day, refer_to, until_at, draft, draft_state, signer_name, signer_title, read_at, undone_at";
 
@@ -158,7 +163,10 @@ function recordSections(
 function sendSections(
   db: Db,
   tenantId: TenantId,
-): Pick<ExportSectionPages, "sends" | "templates" | "holds" | "rules" | "reviews" | "leads" | "reach_out_replies"> {
+): Pick<
+  ExportSectionPages,
+  "sends" | "templates" | "holds" | "rules" | "reviews" | "leads" | "reach_out_replies" | "form_entries"
+> {
   return {
     // Each run of a campaign and each one-off send: who it was for, when it went and how many it reached.
     sends: (offset, limit) =>
@@ -242,6 +250,18 @@ function sendSections(
           .order("message_id", { ascending: true })
           .range(offset, last(offset, limit)),
       ),
+    // What people sent through a form, the business's own or its website's: an owner's own test is no one's record.
+    form_entries: (offset, limit) =>
+      sectionRows(
+        db
+          .from("form_entries")
+          .select(FORM_ENTRY_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .eq("test", false)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, last(offset, limit)),
+      ),
   };
 }
 
@@ -266,6 +286,7 @@ export type PersonExportPages = Pick<
   | "rules"
   | "leads"
   | "reach_out_replies"
+  | "form_entries"
 >;
 
 /** A read answered once and kept for the pages after it: the few ids a person's sections are filtered by. */
@@ -364,7 +385,7 @@ function personSendSections(
   db: Db,
   tenantId: TenantId,
   contactId: ContactId,
-): Pick<PersonExportPages, "sends" | "holds" | "rules" | "leads" | "reach_out_replies"> {
+): Pick<PersonExportPages, "sends" | "holds" | "rules" | "leads" | "reach_out_replies" | "form_entries"> {
   // Their threads, read once: a hold is a thread's.
   const theirThreads = keptRead(() =>
     columnIds(db.from("conversations").select("id").eq("tenant_id", tenantId).eq("contact_id", contactId), "id"),
@@ -447,6 +468,19 @@ function personSendSections(
           .eq("contact_id", contactId)
           .order("read_at", { ascending: true })
           .order("message_id", { ascending: true })
+          .range(offset, last(offset, limit)),
+      ),
+    // What they sent through a form: an entry held with no person yet is nobody's until it is let through.
+    form_entries: (offset, limit) =>
+      sectionRows(
+        db
+          .from("form_entries")
+          .select(FORM_ENTRY_COLUMNS)
+          .eq("tenant_id", tenantId)
+          .eq("contact_id", contactId)
+          .eq("test", false)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
           .range(offset, last(offset, limit)),
       ),
   };

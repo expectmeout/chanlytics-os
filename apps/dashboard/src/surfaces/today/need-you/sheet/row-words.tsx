@@ -32,6 +32,7 @@ const VIA_GLYPH: Record<TodayQueueRowVM["channel"], string> = {
   "Next step": "check",
   Calendar: "calendar",
   Google: "star",
+  Form: "list",
 };
 
 /**

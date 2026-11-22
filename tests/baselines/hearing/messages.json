@@ -111,6 +111,11 @@
     "tenants UPDATE": "sequences workspace · 2 routes",
     "ad_accounts INSERT": "settings · 4 routes",
     "ad_accounts UPDATE": "settings · 4 routes",
-    "ad_accounts DELETE": "settings · 4 routes"
+    "ad_accounts DELETE": "settings · 4 routes",
+    "form_entries INSERT": "today · 1 route",
+    "form_entries UPDATE": "today · 1 route",
+    "form_entries DELETE": "today · 1 route",
+    "form_entry_links INSERT": "today · 1 route",
+    "form_entry_links DELETE": "today · 1 route"
   }
 }

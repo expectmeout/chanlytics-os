@@ -18,12 +18,12 @@ nothing calls is neither named below with why nor dropped.
 
 | Kind | Functions | Run as their owner |
 | --- | --- | --- |
-| door | 197 | 197 |
-| reader | 92 | 0 |
-| the server's | 424 | 356 |
+| door | 199 | 199 |
+| reader | 95 | 0 |
+| the server's | 432 | 363 |
 | computed column | 3 | 0 |
-| trigger | 116 | 85 |
-| all | 832 | 638 |
+| trigger | 118 | 87 |
+| all | 847 | 649 |
 
 ## Called by nothing
 
@@ -281,12 +281,25 @@ being read is dropped by a migration.
 | `footage_hearers` | the server's | the server | SQL `footage_ring` | Who hears that a watched folder or its account needs someone (00657): |
 | `footage_quoted` | the server's | the server | SQL `files_ring_footage_in`, `media_sources_ring` and 1 more | A watched folder's name as the bell says it (00657): |
 | `footage_ring` | the server's | the server | SQL `media_sources_ring`, `source_connections_ring` and 1 more | One bell row of kind footage for each member who hears a watched folder (footage_hearers, 00657), unless the same one is still open for them: |
+| `form_code_link` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | After a message that carries a request's code is kept (00680): |
+| `form_code_new` | the server's | the server | SQL `form_request_take` | A request's code (00680): |
+| `form_code_person` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | Before a message that carries a request's code is kept (00680): |
 | `form_entries_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_form_entries on contacts` | When a person is erased, their website form entries go with them (00675, decision 0036). |
+| `form_entries_follow_merge` | trigger | the server | trigger `contacts_merge_moves_form_entries on contacts` | When two records of one person are combined, the form entries of the one merged away go to the one kept (00680, decision 0028): |
+| `form_entries_held_erase_on_contact` | trigger | the server | trigger `contacts_erase_takes_held_form_entries on contacts` | When a person is erased, the held form entries typed with their address or their number go too (00680, decision 0036): |
+| `form_entries_purge` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry nobody let through goes after 30 days, and a test after 7 (00680; |
+| `form_entry_hold` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A request a member says is not a real one, held (00680): |
+| `form_entry_let_through` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | A held form entry let through (00680): |
 | `form_entry_settled` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | One effect of a website form entry settled (00675): |
 | `form_entry_take` | the server's | the server | code `packages/db/src/repositories/people/website-forms.ts` | The website form door's one write (00675; |
 | `form_key_change` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
 | `form_key_end` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675): |
 | `form_key_make` | door | a signed-in person, the server | code `packages/db/src/repositories/people/website-forms.ts` | An owner's or a partner's door (00675; |
+| `form_publish` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
+| `form_request_take` | the server's | the server | code `packages/db/src/repositories/forms/requests.ts` | The hosted form door's one write (00680; |
+| `form_requests_open` | reader | a signed-in person, the server | code `apps/dashboard/src/server/readers/forms.ts`, `packages/db/src/repositories/forms/requests.ts` | The requests of a workspace's hosted forms nobody has answered (00680; |
+| `form_results` | reader | a signed-in person, the server | code `packages/db/src/repositories/forms/requests.ts` | What a workspace's hosted forms brought over the last p_days (30; |
+| `form_turn` | door | a signed-in person, the server | code `packages/db/src/repositories/forms/forms.ts` | A member's door (00680; |
 | `found_read_spend` | the server's | the server | code `packages/db/src/repositories/imports/found-reads.ts` | A found read's pace and budget, spent or refused (00643, the footage sources plan's D21): |
 | `freed_time_taken` | reader | a signed-in person, the server | SQL `run_counts`, `sequence_history` | How many people a batch sent to took the time it offered (decision 0082): |
 | `get_channel_credentials` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`, `packages/db/src/repositories/channels/routing.ts` |  |
@@ -309,7 +322,7 @@ being read is dropped by a migration.
 | `ingest_inbound` | the server's | the server | code `packages/channels/src/whatsapp/first-touch.ts`, `packages/core/src/inbound/order.ts` and 1 more |  |
 | `instagram_account_connect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts` | Service-role only: an Instagram account connected to a workspace in one write (00677, decision 0143). |
 | `instagram_account_disconnect` | the server's | the server | code `packages/db/src/repositories/channels/instagram.ts`; SQL `instagram_account_connect` | Service-role only: a workspace's Instagram account disconnected and let go (00677, decision 0143). |
-| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 74 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 17 more | True when the caller may COMMIT changes in this tenant: |
+| `is_acting_member` | reader | a signed-in person, the server | SQL `ad_draft_keep`, `ad_draft_writing` and 76 more; in `rule ask_actions_acting_insert on ask_actions`, `rule ask_actions_own_update on ask_actions` and 24 more | True when the caller may COMMIT changes in this tenant: |
 | `is_platform_admin` | door | a signed-in person, the server | SQL `partner_payout_mark`, `partner_second_factor_reset` and 6 more | Whether the calling session is Chanlytics staff and showed its second factor (00467, decision 0066: |
 | `is_workspace_owner` | reader | a signed-in person, the server | SQL `partner_invite`, `partner_invite_accept` and 3 more; in `rule partner_invitations_read on partner_invitations`, `rule partner_tenants_owner_or_partner_select on partner_tenants` | True when the caller owns this tenant. |
 | `job_dedupe_key_of` | the server's | the server | SQL `jobs_take_their_kind` | The once-only key a job of this kind and payload carries (job_kinds.once_parts, 00526), or null when it carries none. |
@@ -427,6 +440,8 @@ being read is dropped by a migration.
 | `line_forwarding_test` | door | a signed-in person, the server | code `packages/db/src/repositories/lines/forwarding.ts` | Keep my number: open a 30-minute test window. |
 | `lines_sms_guard` | trigger | a signed-in person, the server | trigger `lines_sms_guard on lines` | sms_state moves as the hourly sync and the refile doors move it, in both directions among needs_record, registering, approved, active, rejected and failed. |
 | `lines_voice_guard` | trigger | a signed-in person, the server | trigger `lines_voice_guard on lines` | Forward moves only on voice_state: |
+| `link_code_new` | reader | a signed-in person, the server | in `CREATE TABLE public.links` | A link's code (00680): |
+| `link_open` | the server's | the server | code `packages/db/src/repositories/forms/links.ts` | A link opened by its code (00680): |
 | `llm_tokens_since` | the server's | the server | code `packages/db/src/repositories/ai/usage.ts` | The workspace's receptionist tokens (input and output of every usage.llm_tokens event; |
 | `lookup_user_for_invite` | the server's | the server | code `packages/db/src/repositories/workspace/team.ts` | The user id behind an email, or null. |
 | `mailbox_capacity` | the server's | the server | code `packages/db/src/repositories/campaigns/reach-out/email-day.ts`; SQL `outreach_mailbox_facts`, `sequence_claim_from` | A connected mailbox's day (00424): |
@@ -696,7 +711,7 @@ being read is dropped by a migration.
 | `report_series` | reader | a signed-in person, the server | code `apps/dashboard/app/api/v1/reports/headline/route.ts`, `apps/dashboard/src/server/readers/report.ts` and 4 more; SQL `metrics_summary`, `receptionist_series` | Reports: the receptionist's numbers day by day over p_days and the same number of days before them (customer messages, who answered and how fast, calls, the people who needed a person, new people), wi |
 | `request_id_of_caller` | reader | a signed-in person, the server | SQL `finish_broadcast`; in `CREATE TABLE public.events`, `CREATE TABLE public.events_default` | The request the calling statement serves (00277): |
 | `request_sweep` | the server's | the server | code `packages/db/src/repositories/email/reconcile.ts`; SQL `ads_sweep_ask`, `ask_for_tick` and 20 more | Asks the edge for one sweep and records the pg_net request id in public.sweep_status, so sweep_health() can judge it. |
-| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 7 more | The one door a person is resolved by (decision 0034): |
+| `resolve_person` | the server's | the server | code `packages/db/src/repositories/people/people.ts`; SQL `add_person`, `create_person` and 10 more | The one door a person is resolved by (decision 0034): |
 | `resume_email_offers` | the server's | the server | nothing at run time | The back office's: turns a workspace's offers by email back on, once its list is fixed, stamps offers_resumed_at (the gates are then judged over the offers sent after it), writes a mailbox.offers_resu |
 | `reviews_ledger` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts` | Reports › Reviews: the profile's reviews from the period before's first day (each on its day in the workspace's zone, with whether it has a reply, how long the reply took, and who wrote it: |
 | `run_counts` | reader | a signed-in person, the server | code `packages/db/src/repositories/reports/series.ts`; SQL `playbook_totals` | Each named run's people by state (queued, sent, skipped, failed), its receipts (delivered; |
@@ -877,5 +892,5 @@ being read is dropped by a migration.
 | `workspace_notices_since` | reader | a signed-in person, the server | code `packages/db/src/realtime.ts` | Decision 0019 step 4 (00508): |
 | `workspace_partner` | door | a signed-in person, the server | code `packages/db/src/repositories/partners/handover.ts` | The owner's view of the workspace's partner (0018): |
 | `workspace_tell_at_commit` | trigger | the server | trigger `workspace_notices_told_at_commit on workspace_notices_pending` | Decision 0019 (00507): |
-| `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on ad_accounts`, `workspace_tell_delete on ads` and 103 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
-| `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on ad_accounts`, `workspace_tell_update on ads` and 11 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |
+| `workspace_tell_changes` | trigger | the server | trigger `workspace_tell_delete on ad_accounts`, `workspace_tell_delete on ads` and 107 more | Decision 0019: a notice on the private topic workspace:<tenant_id>:changes for each workspace a statement on a watched table changed, naming the table, the operation, where a trigger names a column it |
+| `workspace_tell_row_change` | trigger | the server | trigger `workspace_tell_update on ad_accounts`, `workspace_tell_update on ads` and 12 more | Decision 0047: the notice of workspace_tell_changes, for an UPDATE a row trigger has narrowed to the columns a page draws (AFTER UPDATE OF them, WHEN one is distinct): |

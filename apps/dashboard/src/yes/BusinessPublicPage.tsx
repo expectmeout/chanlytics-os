@@ -6,7 +6,14 @@ import type { BusinessPageVM } from "@chanlytics/contracts";
  * While the workspace is paused the page still says who the business is, for the carriers' re-vet, says it is not taking
  * sign-ups, and no longer that it answers its customers (X4-1).
  */
-export function BusinessPublicPage({ vm }: { vm: BusinessPageVM }) {
+export function BusinessPublicPage({
+  vm,
+  forms = [],
+}: {
+  vm: BusinessPageVM;
+  /** The forms the business has live, each at its own address under this page (00680). */
+  forms?: ReadonlyArray<{ href: string; heading: string }>;
+}) {
   return (
     <main className="legal biz-public">
       <h1>{vm.title}</h1>
@@ -49,6 +56,20 @@ export function BusinessPublicPage({ vm }: { vm: BusinessPageVM }) {
               <li key={s.name}>
                 {s.name}
                 {s.detail ? <span className="legal-meta"> — {s.detail}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/* What a visitor can ask the business for, with no account and no app: each of its live forms (00680). */}
+      {forms.length > 0 && (
+        <>
+          <h2>Send a request</h2>
+          <ul data-testid="bp-forms">
+            {forms.map((form) => (
+              <li key={form.href}>
+                <a href={form.href}>{form.heading}</a>
               </li>
             ))}
           </ul>

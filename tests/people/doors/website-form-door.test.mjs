@@ -24,7 +24,9 @@ process.env.SUPABASE_URL = "https://db.example.supabase.co";
 const { setPg } = await import(at("apps/edge/lib/shared/pg.ts"));
 const { POST } = await import(at("apps/edge/api/website-form.ts"));
 const { runFormEffect } = await import(at("apps/edge/lib/website/form-effects.ts"));
-const { watchFormEntries } = await import(at("apps/edge/lib/website/form-watch.ts"));
+const { watchForms } = await import(at("apps/edge/lib/website/form-watch.ts"));
+/** How many entries nobody was told of, as the health sweep's watch counts them. */
+const watchFormEntries = async (db, nowMs) => (await watchForms(db, nowMs)).form_entries_untold;
 const { websiteFormNote, websiteFormPerson } = await import("@chanlytics/contracts");
 const realFetch = globalThis.fetch;
 after(() => {
@@ -667,4 +669,44 @@ test("the limits: three asks to one inbox in ninety days, fifty a day, and none 
   await postAndSettle(SIGNUP);
   assert.equal(asks().length, 3);
   assert.match(w.notifications[0].body, /did not arrive/);
+});
+
+/* ------------------------------------------------- where a visitor came from (the Ads tracking plan's T4) -- */
+
+test("a form posted with where its visitor came from keeps it in the one shape, beside its answers; one with none is as before", async () => {
+  const from = {
+    utm_source: "google",
+    utm_campaign: "spring-offer",
+    utm_term: "<b>odd</b>",
+    gclid: "Cj0KCQiA-click-id",
+    referrer: "https://www.google.com/search?q=harbor+classes",
+  };
+  assert.deepEqual(await postAndSettle({ ...REQUEST, page: "classes", source: from }), [200, { ok: true, kept: true }]);
+  assert.deepEqual(w.entries[0].source, {
+    page: "classes",
+    site: "google.com",
+    labels: { utm_source: "google", utm_campaign: "spring-offer" },
+  });
+  assert.equal("source" in w.entries[0].answers, false, "kept once, in its own shape");
+  assert.equal(JSON.stringify(w.entries[0]).includes("click-id"), false, "never a click id");
+  assert.deepEqual(
+    [w.notifications.length, w.suggested.length],
+    [1, 1],
+    "a label with odd characters costs the form nothing",
+  );
+  assert.match(
+    w.suggested[0].p_body,
+    /\. From Google \(spring-offer\)\./,
+    "and the note on the person's page says who sent them",
+  );
+
+  assert.deepEqual(await postAndSettle({ ...REQUEST, entry_id: "no-source" }), [200, { ok: true, kept: true }]);
+  assert.equal(w.entries[1].source, null);
+  assert.equal(w.suggested[1].p_body.includes("From "), false, "a form that said nothing of it is noted as before");
+});
+
+test("where they came from failing to be kept is never the reason a form is not answered", async () => {
+  w.faults["form_entries.update"] = { message: "the table is not answering", code: "57014" };
+  assert.deepEqual(await post({ ...REQUEST, source: { utm_source: "google" } }), [200, { ok: true, kept: true }]);
+  assert.equal(w.entries.length, 1);
 });

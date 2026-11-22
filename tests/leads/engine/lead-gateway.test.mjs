@@ -51,6 +51,7 @@ test("the purposes, and every one may name an output format: the lead purposes a
       "yes_check",
       "message_draft",
       "ad_draft",
+      "form_draft",
     ],
   );
   const draft = validateGatewayRequest({ ...base, output_config: { effort: "low", format } }, "lead_draft");

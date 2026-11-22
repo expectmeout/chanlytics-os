@@ -9,6 +9,7 @@ import type { ConversationDto } from "../conversations/thread-dto";
 import type { GoogleReviewDto } from "../google/listing";
 import type { AppointmentWord } from "../journey/appointment-word";
 import type { LeadSearchDto } from "../leads/leads";
+import type { FormHeldDto, FormOpenRequestDto } from "../forms/dtos";
 import type { PreviewTriedDto } from "../previews/tried";
 import type { VisitWord } from "../shared/enums";
 import type { WaitingRun } from "../waits/waits";
@@ -107,7 +108,13 @@ export interface TodayQueueRowVM {
     // A lead who tried their own receptionist (decision 0079): the team's to-do, a business and no person waiting.
     | "tried"
     // A Google review to answer: To do's row, in the walk as a step is, with nobody waiting (reviewRowOf).
-    | "review";
+    | "review"
+    // A request someone sent through a form that nobody has answered (00680): a person waiting on a reply, opened
+    // where it is answered, in the Inbox.
+    | "form"
+    // A form's entries held for a look that nobody has looked at in three days (00680): nobody waiting, one door, the
+    // form's held pile.
+    | "form_held";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
@@ -125,7 +132,18 @@ export interface TodayQueueRowVM {
    *  not have held an email even if the code had tried to put one there.
    *  "Leads" is a search waiting on its owner (spec G6), the one row that is not a person. "Next step" is a step due: no
    *  wire at all, the kind of row. "Calendar" is a visit to mark, which the Calendar holds. */
-  channel: "WhatsApp" | "Phone" | "Text" | "Email" | "Instagram" | "Leads" | "Next step" | "Calendar" | "Google";
+  channel:
+    | "WhatsApp"
+    | "Phone"
+    | "Text"
+    | "Email"
+    | "Instagram"
+    | "Leads"
+    | "Next step"
+    | "Calendar"
+    | "Google"
+    // A request sent through a form: no wire yet, the kind of row, with the form's heading after it (`via`).
+    | "Form";
   /** What it came through, after the wire: a reply's reach-out (00426: "Email, Early gyms"), so it is never read alone. */
   via?: string | null;
   /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35"; empty on a step, whose day is the first word of its state line. */
@@ -444,6 +462,10 @@ export interface TodayReadDto {
   held_threads: ConversationDto[] | null;
   /** The lead previews a lead tried (readers/leads.ts previewsTried). */
   previews_tried: PreviewTriedDto[] | null;
+  /** The requests sent through a form that nobody has answered (readers/forms.ts formRequestsOpen); absent before 00680. */
+  form_requests?: FormOpenRequestDto[] | null;
+  /** Each form's entries held for a look that nobody has looked at in three days (the same reader); absent before 00680. */
+  form_held?: FormHeldDto[] | null;
   /** How many things the members dealt with since the business's midnight, by Need you's door. */
   done_today: number | null;
   /** What the workspace calls an appointment. Absent from a server from before (either deploy order). */

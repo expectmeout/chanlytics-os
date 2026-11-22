@@ -102,6 +102,8 @@ function cameFromSaid(key: PersonCameFrom, count: number): string | null {
       return "came from your website";
     case "ad":
       return "came from an ad";
+    case "form":
+      return "came through a form";
     default:
       return null;
   }
