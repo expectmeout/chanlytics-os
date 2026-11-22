@@ -450,6 +450,11 @@ this month"; `propose_deal` gains the field; Reports' deals section counts renew
 
 ### W9 · Events out to other tools (decision 14; sketch only)
 
+> **Replaced on 22 November 2026 by decision 0144**
+> (`docs/decisions/0144-an-event-reaches-another-tool-as-one-more-subscriber.md`): events go out as one
+> more subscriber of the relay (decision 0032), with no sweep, no watermark and no job kind of its own. The sketch
+> below is kept as it was written.
+
 `webhook_subscriptions (tenant_id, url, secret_ref → Vault, kinds text[], active, last_delivered_at, last_error)`; a sweep
 reads `events` past each subscription's watermark and enqueues a **new job kind** `webhook_deliver` (internal, in
 `RETRY_WAITS_MS`, never `SPEAKS_TO_A_PERSON`), signed HMAC over the raw body; a Connections row "Send what happens to your
@@ -726,7 +731,7 @@ How to read the tables. Status is one of BUILT, PARTIAL, NOT BUILT, SUPERSEDED (
 | W9 `webhook_subscriptions` table with a Vault secret | NOT BUILT | No such table. Nearby, built: `event_subscriptions`, `event_outbox`, `event_deliveries`, `relay_events` (00334, decision 0032, #1447), for internal subscribers |
 | W9 a sweep and a new job kind `webhook_deliver`, HMAC-signed | NOT BUILT | `JOB_KINDS` has eleven kinds, none for a webhook; the closest is `event_deliver` (internal, 00334, #1447). No signing code |
 | W9 a Connections row "Send what happens to your tools"; owner routes | NOT BUILT | No route or row. Decision 0032 says the first real subscriber "is Phase 2's" |
-| W9 its own decision note, against the commit where W8 lands | NOT BUILT | No note. `docs/decisions` runs 0001 to 0036 (0025 and 0037 are absent); 0031 and 0032 are the framework, not this |
+| W9 its own decision note, against the commit where W8 lands | WRITTEN, 22 Nov 2026 | Decision 0144, written against `7afb306c81` and not where W8 lands, since W8 is not built. It replaces this sketch: no sweep, no watermark, no `webhook_deliver` kind. Nothing of it is built |
 
 ### The 15 decisions in section 7
 
@@ -745,7 +750,7 @@ How to read the tables. Status is one of BUILT, PARTIAL, NOT BUILT, SUPERSEDED (
 | 11 | `renews_at` on a deal, a Renewing view | Open | No `renews_at`; decision 0005 (a payment writes won) is still "decided, not built" |
 | 12 | Sequences as chained playbooks (`after_step`), after Part 2 | Answered and built | Reach out spec decision 1; 00183 and 00184 (#1102, #1112, 26 September 2026), after Part 2 (00174 to 00181). The sequence engine and "never" options were not taken |
 | 13 | Refactors precede features on the same files (W1 before W3 to W7) | Overtaken | Not followed as written. Reach out Parts 3 to 7 (26 to 29 September) landed on the Leads files (#1168 edits `leads-peek.jsx` on 27 September) alongside #1161's moves and while they were still JSX; the People family was then rewritten as TSX under decision 0015 (#1351, #1354, #1373). W3, W5, W6 and W7 are not started, so the order question did not recur |
-| 14 | Events out as its own decision note after W8 | Open | No note and no W8. The internal events framework (0031, 0032, 0033, 00333 to 00337, 6 October 2026) is built or begun and does not cover webhooks out |
+| 14 | Events out as its own decision note after W8 | Decided, 22 Nov 2026 | Decision 0144, not built. The internal events framework (0031, 0032, 0033) is what it rides on, and W9's sketch is replaced by it |
 | 15 | The order in section 4 | Overtaken | The Reach out spec "re-sequences steps 2 to 11". Actual order: Part 0 (#999, #1005, 24 September), W0 (#1018, #1020, 25 September), Reach out Parts 2 to 7 (#1024 to #1325, 25 to 29 September), code-health and shell exit (#1161, 27 September; 0015 to 4 October), campaigns Part 1 (#1374, 3 October), then decisions 0028 to 0036 (5 to 6 October). Of the PRD's 15 steps, 1, 2, 3, 5, 11 and 12 are done (3 and 11 in other shapes), 4 and 14 are partial, and 6 to 10, 13 and 15 have not run |
 
 ### Method and limits
