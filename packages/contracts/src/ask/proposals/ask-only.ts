@@ -11,7 +11,7 @@
 import { adDraftSpec } from "../../ads/draft-card";
 import { fileYesSpec } from "../../content/post-spec";
 import { filePeopleSpec, personYesSpec } from "../../content/placements/rights-spec";
-import { takeDownSpec } from "../../content/placements/take-down";
+import { takeDownSpec } from "../../content/placements/take-down-spec";
 import { broadcastSpec, fixSpec, messageSpec, playbookChannelsSpec, playbookSpec } from "./campaigns";
 import { messageAwaySpec, messageDeleteSpec, messageRenameSpec, messageWordsSpec } from "./messages";
 import { followUpSpec } from "./follow-up";

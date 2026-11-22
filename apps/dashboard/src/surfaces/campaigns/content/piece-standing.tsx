@@ -18,7 +18,7 @@ import {
   type PostDto,
   type PostPlace,
 } from "@chanlytics/contracts";
-import { goesLinesOf, goesPillOf, type GoesAct, type GoesLine } from "./model/goes";
+import { goesLinesOf, goesPillOf, takeDownOffered, type GoesAct, type GoesLine } from "./model/goes";
 import { askAbout, canDo } from "../../frame-verbs";
 import { keepPersonAnswer, markDeletedByHand, sayWhoIsIn, type PersonAnswer } from "@/bridge/verbs/pieces";
 import type { PieceStanding } from "./model/standing";
@@ -27,7 +27,7 @@ import { AskPerson } from "./viewer/ask-person";
 import { viewerClockOf } from "./viewer/clock";
 import type { GoesPresses } from "./viewer/goes";
 import type { PersonSaid, WhoPresses } from "./viewer/people";
-import { TakeDownAsk, takeDownOffered } from "./viewer/take-down";
+import { TakeDownAsk } from "./viewer/take-down";
 
 type PieceDrafts = ReturnType<typeof usePieceDrafts>;
 

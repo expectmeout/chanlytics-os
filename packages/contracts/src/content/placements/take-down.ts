@@ -4,9 +4,7 @@
  * confirming are two times, kept apart, and a post is taken down only once its place said so. Never an Undo: a post
  * taken down is posted again as a new post.
  */
-import { asText, type ProposalSpecAboveOperator } from "../../ask/proposals/spec";
 import { DAY_MS } from "../../shared/time";
-import { contentRouteOf } from "../address";
 import { POST_PLACE_SAID, type PostDto, type PostKind, type PostPlace } from "../posts";
 import type { RemediationAct, RemediationOutcome, RemediationTarget } from "./sets";
 
@@ -174,16 +172,3 @@ export function takeDownWillOf(posts: readonly DownPost[], can: PlaceTakesDown, 
       return [{ key: post.id, glyph, name: placementSaid(post.place, post.kind), will }];
     });
 }
-
-/** AI's card to take a piece down (the PRD's 12.1 act/take_down): the same press as the sheet's, and its receipt. */
-export const takeDownSpec: ProposalSpecAboveOperator = {
-  needs: "partner",
-  doing: "take a post down",
-  gate: "settings",
-  commit: ({ payload }) => ({ route: "DELETE files/[id]/posts", params: { id: asText(payload.file_id) } }),
-  receipt: () => "Asked. Each place says here when it's gone.",
-  open: ({ payload }) => {
-    const id = asText(payload.file_id);
-    return id ? contentRouteOf({ list: "made", view: "all", open: id }) : null;
-  },
-};

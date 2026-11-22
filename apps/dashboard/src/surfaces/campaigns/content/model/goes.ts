@@ -320,3 +320,7 @@ export function goesPillOf(lines: readonly GoesLine[]): { said: string; tone: Go
   const timed = lead.tone === "" ? lines.filter((line) => line.tone === "").length : same;
   return { said: GOES_WORDS.pill.places(lead.said, timed), tone: lead.tone, moving: lead.moving };
 }
+
+/** Whether a piece has anything a take-down would reach: a post up, or on its way up. */
+export const takeDownOffered = (posts: readonly Pick<PostDto, "status">[]): boolean =>
+  posts.some((post) => ["published", "publishing", "checking"].includes(post.status));

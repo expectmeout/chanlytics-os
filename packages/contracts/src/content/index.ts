@@ -178,7 +178,6 @@ export {
   TAKE_DOWN_BELL,
   TAKE_DOWN_UNCONFIRMED_MS,
   TAKE_DOWN_WORDS,
-  takeDownSpec,
   takeDownWillOf,
 } from "./placements/take-down";
 export type {
@@ -188,6 +187,7 @@ export type {
   TakeDownSettled,
   TakeDownWill,
 } from "./placements/take-down";
+export { takeDownSpec } from "./placements/take-down-spec";
 export { fileYesSpec } from "./post-spec";
 export {
   HAND_LINK_MAX,

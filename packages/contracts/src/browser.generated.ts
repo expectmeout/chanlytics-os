@@ -280,7 +280,8 @@ export { PERSON_ASK_WORDS, personSaidOf, personStandsOf, personToAskOf, PIECE_PE
 export { capabilityStands, PLACE_CAPABILITIES, placeDeletes, placeTakes } from "./content/placements/places";
 export { filePeopleSpec, personYesSpec } from "./content/placements/rights-spec";
 export { APPROVAL_SUBJECTS, APPROVAL_VOID_WHYS, REMEDIATION_ACTS, REMEDIATION_OUTCOMES, REMEDIATION_TARGETS, RENDITION_SHAPES, REVISION_MADE_BY, SUBJECT_HOWS, SUBJECT_LABELS, SUBJECTS_STATES } from "./content/placements/sets";
-export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_DOWN_UNCONFIRMED_MS, TAKE_DOWN_WORDS, takeDownSpec, takeDownWillOf } from "./content/placements/take-down";
+export { placementSaid, postCameDownAt, postComingDownOf, TAKE_DOWN_BELL, TAKE_DOWN_UNCONFIRMED_MS, TAKE_DOWN_WORDS, takeDownWillOf } from "./content/placements/take-down";
+export { takeDownSpec } from "./content/placements/take-down-spec";
 export { fileYesSpec } from "./content/post-spec";
 export { HAND_LINK_MAX, INSTAGRAM_POST_KINDS, instagramKindsFor, ON_INSTAGRAM, POST_AHEAD_DAYS_MAX, POST_CAPTION_MAX, POST_HELD_WHYS, POST_KINDS, POST_ON_ITS_WAY, POST_PLACE_SAID, POST_PLACES, POST_PULLABLE, POST_SOON_MS, POST_STATUSES, POST_VIAS, postCaptionProblem, postPlaceTakenOf, postStandsSaid, postStoppedWhyOf, postWaitsForItsTime } from "./content/posts";
 export { postCaptionOf, postPublishOf, publishCardWords, publishSpec } from "./content/publish";

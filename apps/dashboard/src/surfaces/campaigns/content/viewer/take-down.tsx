@@ -22,10 +22,6 @@ import { takeDownPiece } from "@/bridge/verbs/pieces";
 
 const WILL_GLYPH = { reel: "instagram", story: "instagram", post: "instagram", google: "place", ad: "bolt" } as const;
 
-/** Whether a piece has anything a take-down would reach: a post up, on its way, or still waiting. */
-export const takeDownOffered = (posts: readonly Pick<PostDto, "status">[]): boolean =>
-  posts.some((p) => ["published", "publishing", "checking"].includes(p.status));
-
 /** The places it comes off, for the card's sentence: where a post is up. */
 const upAt = (posts: readonly PostDto[]): PostPlace[] => [
   ...new Set(posts.filter((p) => p.status === "published").map((p) => p.place)),
