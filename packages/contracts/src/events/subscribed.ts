@@ -18,6 +18,8 @@ export const SUBSCRIBED_EVENTS = {
   }),
   // The message that carried the link is the event's subject; nothing it carries is read (decision 0119).
   "booking_link.sent": z.looseObject({}),
+  // The deal marked won is the event's subject, and its row is read as it stands: nothing the event carries is read.
+  "deal.won": z.looseObject({}),
   "contact.consent_changed": z.looseObject({
     consent: z.string(),
     source: z.string().nullable().optional(),

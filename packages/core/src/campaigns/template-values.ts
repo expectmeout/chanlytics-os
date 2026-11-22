@@ -13,7 +13,8 @@ import type { TemplateValuesPorts } from "./ports";
 export const TEMPLATE_VALUE_WORDS = {
   noBookingLink:
     "This message takes the booking link, and none is on file. Add it in Settings › Hours & booking first.",
-  noReviewLink: "Connect your Google listing so the review link can be filled.",
+  noReviewLink:
+    "This message takes the review link, and none is on file. Add yours in Settings › Details, or connect your Google listing.",
 } as const;
 
 /**
@@ -38,8 +39,8 @@ export async function readCampaignMessage(
 /**
  * The message and the values as its channels will accept them: what a broadcast and a playbook both name, judged once.
  * As many values as the message takes (contracts' one count, whichever version carries it); each typed text once or a
- * value the job fills per person; a booking-link slot needs a link on file, and a review-link slot the link the Google
- * listing keeps. Every refusal is a sentence for the person composing.
+ * value the job fills per person; a booking-link slot needs a link on file, and a review-link slot the owner's own
+ * review link or the one the Google listing keeps. Every refusal is a sentence for the person composing.
  */
 export async function getTemplateValues(
   ports: TemplateValuesPorts,
@@ -117,8 +118,9 @@ export async function refuseWithoutBookingLink(
 }
 
 /**
- * A review-link slot needs the link the workspace's Google listing keeps (a bound Business Profile's, 00415): refused
- * in words where there is none, and the link read only where a slot asks for it, as the booking link is.
+ * A review-link slot needs the workspace's review link: the owner's own, else the one its Google listing keeps (a bound
+ * Business Profile's, 00415; db reviewLinkOf). Refused in words where there is none, and the link read only where a slot
+ * asks for it, as the booking link is.
  */
 export async function refuseWithoutReviewLink(
   ports: Pick<TemplateValuesPorts, "reviewLink">,

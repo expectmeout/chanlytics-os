@@ -1,6 +1,14 @@
 /** Broadcast: stops. */
 
-import { addressOf, finishedRunHeldWhy, type JobNews, jittered, MIN_MS, wireFailure } from "@chanlytics/contracts";
+import {
+  addressOf,
+  dealIdsOf,
+  finishedRunHeldWhy,
+  type JobNews,
+  jittered,
+  MIN_MS,
+  wireFailure,
+} from "@chanlytics/contracts";
 import { errField, logger, logAndGoOn } from "@chanlytics/log";
 import type { Delivered } from "../../deliver/deliver";
 import type { BroadcastChannel as Channel } from "../broadcast-channels";
@@ -115,22 +123,36 @@ export async function readPeople(
   ports: BroadcastBatchPorts,
   broadcast: BroadcastRow,
   batch: readonly RecipientRow[],
-): Promise<Pick<Work, "people" | "priors" | "appointments" | "feed"> & { unreadable: boolean }> {
+): Promise<Pick<Work, "people" | "priors" | "appointments" | "deals" | "feed"> & { unreadable: boolean }> {
   const ids = batch.map((r) => r.contact_id);
-  if (ids.length === 0)
-    return { people: new Map(), priors: new Map(), appointments: new Map(), feed: null, unreadable: false };
+  const none = { people: new Map(), priors: new Map(), appointments: new Map(), deals: new Map(), feed: null };
+  if (ids.length === 0) return { ...none, unreadable: false };
   try {
-    const [people, priors, appointments, feed] = await Promise.all([
+    const [people, priors, appointments, deals, feed] = await Promise.all([
       ports.contacts(ids),
       ports.alreadySent(broadcast.id, ids),
       getAppointments(ports, broadcast, batch),
+      getDealStages(ports, batch),
       getFeed(ports, broadcast, batch),
     ]);
-    return { people, priors, appointments, feed, unreadable: false };
+    return { people, priors, appointments, deals, feed, unreadable: false };
   } catch (e) {
     broadcastLog.error("broadcast_batch_unreadable", { broadcast_id: broadcast.id, error: errField(e) });
-    return { people: new Map(), priors: new Map(), appointments: new Map(), feed: null, unreadable: true };
+    return { ...none, unreadable: true };
   }
+}
+
+/**
+ * The stage of each deal a row of the batch was made for (a thank-you for a deal marked won), one read for the batch and
+ * none where no row names a deal. A read that fails throws, and the batch waits with everyone still queued (readPeople):
+ * a thank-you never goes for a deal whose standing could not be read. A runtime that keeps no deals answers none.
+ */
+async function getDealStages(
+  ports: BroadcastBatchPorts,
+  batch: readonly RecipientRow[],
+): Promise<ReadonlyMap<string, string>> {
+  const ids = dealIdsOf(batch);
+  return ids.length > 0 && ports.dealStages ? ports.dealStages(ids) : new Map<string, string>();
 }
 
 /** Where a person is reached on their channel, or why not: a number for WhatsApp and a text, an address for an email. */

@@ -91,6 +91,15 @@ export const BOOKING_CHOICE_WORDS = {
       says: "It asks what they want and when, and the conversation waits for you in the Inbox.",
     },
   },
+  /**
+   * What booking with a link costs in results (22 Nov 2026; the journeys map, suggestion 3). The booking is made on the
+   * business's own page, and a visit read from the calendar does not say when it was booked. So a new person from an ad
+   * still counts as booked (a visit of theirs that starts after they first wrote), and nothing can be counted for a person
+   * the business already knew, or put down to a post or a link. Said once, where the owner chooses: under the link's own
+   * answer in the row's menu, whichever answer stands (a phone draws no hint under a row that has its fact).
+   */
+  linkCosts:
+    "Only a new person from an ad counts as booked. For someone you knew, a post or a link, nobody can tell when they booked.",
   needs: {
     link: "Add your booking link first.",
     confirm: "Needs your calendar link, to know what's open.",

@@ -48,13 +48,13 @@ export function approvalEndsWithSendingHours(trigger: string | null | undefined)
  * sending hours, after which it reaches nobody (visit_ask), a freed time's with the time it offers (freed_ask, 0082: `at`
  * says the time where the caller has it), any other's with its day (batch_ask). An occasion's (decision 0119) by what
  * it is about: two hours before a visit, until that visit begins (soon_ask); after a visit marked missed, with the day's
- * sending hours, since its words name the day (visit_ask); after the booking link, it has no day to pass (occasion_ask).
- * The ready notice and Today's row (contracts todayRunWords) both say it from here.
+ * sending hours, since its words name the day (visit_ask); after the booking link, or a deal marked won, it has no day
+ * to pass (occasion_ask). The ready notice and Today's row (contracts todayRunWords) both say it from here.
  */
 export function batchWaitWords(trigger: string | null | undefined, at?: string | null): string {
   if (triggerOf(trigger ?? "")?.kind === "freed") return waitEndsWords("freed_ask", at);
   if (trigger === "visit_soon") return waitEndsWords("soon_ask", at ?? "the appointment begins");
-  if (trigger === "asked_no_booking") return waitEndsWords("occasion_ask");
+  if (trigger === "asked_no_booking" || trigger === "deal_won") return waitEndsWords("occasion_ask");
   return approvalEndsWithSendingHours(trigger)
     ? waitEndsWords("visit_ask", SENDING_HOURS_WORDS.end)
     : waitEndsWords("batch_ask");
@@ -289,8 +289,11 @@ export function winBackWords(word: AppointmentWord): { quiet_30: string; lapsed:
  * campaign, which asks for the calendar only here and says why a moment of it is refused.
  */
 export function momentReadsCalendar(target: { id: string; kind: string }): boolean {
-  // An occasion's moments too (decision 0119): a visit in two hours and one missed are read off the record, and whether
-  // someone booked since they asked is known only where bookings are.
+  // A deal marked won is read off the deal, never the calendar (22 Nov 2026): a business that sells by proposal has
+  // deals and no visits, and the moment is for it.
+  if (target.id === "deal_won") return false;
+  // An occasion's other moments too (decision 0119): a visit in two hours and one missed are read off the record, and
+  // whether someone booked since they asked is known only where bookings are.
   return isWinBack(target.id) || target.kind === "visit" || target.kind === "freed" || target.kind === "occasion";
 }
 

@@ -74,15 +74,20 @@ export {
   ASK_REST_DAYS,
   askFollowUpAt,
   askOccasion,
+  dealIdsOf,
+  dealStillWon,
   missedFollowUpAt,
   missedOccasion,
   OCCASION_LATE_MS,
   occasionAppointment,
+  occasionDeal,
   occasionEventOf,
   occasionGone,
   visitOccasion,
   visitOccasionsOf,
   visitSoonAt,
+  wonOccasion,
+  wonThanksAt,
 } from "./occasions";
 export type { OccasionEnrolment, OccasionEvent, OccasionFacts, OccasionGone, OccasionOutcome } from "./occasions";
 export { PLAYBOOK_PATCH_KEYS, PLAYBOOK_PATCH_WORDS } from "./patch";

@@ -411,4 +411,4 @@ export {
 } from "./templates/whatsapp";
 export { followUpTouchesSince, getRecentTouches, listTouchesSince, touchIndex } from "./touches";
 export type { Touch, TouchIndex } from "./touches";
-export { isWorkspacePaused, reviewLinkOf } from "./workspace";
+export { findReviewLink, isWorkspacePaused, reviewLinkOf } from "./workspace";

@@ -39855,7 +39855,7 @@ CREATE FUNCTION public.sequence_steps_due(p_kind text, p_at timestamp with time 
    where s.state = 'running' and s.kind = p_kind
      -- A freed time's step runs when an appointment frees a time (decision 0082, 00498), never by the hour; nor does a
      -- step an occasion starts (0119), which runs for each person at their own time.
-     and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking')
+     and s.trigger not in ('slot_opened', 'visit_soon', 'visit_missed', 'asked_no_booking', 'deal_won')
      and (s.kind = 'reach_out' or (r.state = 'running' and q.state = 'on'))
      and t.status <> 'paused'
      and t.sending_stopped_at is null
@@ -48117,7 +48117,7 @@ CASE
     WHEN (hand IS NULL) THEN ((template_id IS NOT NULL) AND (template_name IS NOT NULL) AND (template_language IS NOT NULL))
     ELSE COALESCE(((trigger = 'after_step'::text) AND (template_id IS NULL) AND (template_name IS NULL) AND (template_language IS NULL) AND (jsonb_typeof(hand) = 'object'::text) AND ((hand ->> 'kind'::text) = ANY (ARRAY['call'::text, 'note'::text])) AND (jsonb_typeof((hand -> 'words'::text)) = 'string'::text) AND ((char_length(btrim((hand ->> 'words'::text))) >= 1) AND (char_length(btrim((hand ->> 'words'::text))) <= 280)) AND (((hand - 'kind'::text) - 'words'::text) = '{}'::jsonb)), false)
 END),
-    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text, 'visit_soon'::text, 'visit_missed'::text, 'asked_no_booking'::text])))
+    CONSTRAINT sequence_steps_trigger_check CHECK ((trigger = ANY (ARRAY['quiet_30'::text, 'new_week'::text, 'phoned_only'::text, 'everyone_monthly'::text, 'visit_tomorrow'::text, 'visited'::text, 'lapsed'::text, 'saved_list'::text, 'proposal_waiting'::text, 'lead_first'::text, 'after_step'::text, 'slot_opened'::text, 'visit_soon'::text, 'visit_missed'::text, 'asked_no_booking'::text, 'deal_won'::text])))
 );
 
 

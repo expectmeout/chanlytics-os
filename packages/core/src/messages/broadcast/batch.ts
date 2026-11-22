@@ -7,6 +7,7 @@ import {
   BROADCAST_THROTTLE_WAITS_MS,
   OUTCOME_UNKNOWN,
   audienceTrigger,
+  dealStillWon,
   firstNameOf,
   isOfferByEmail,
   isReachOutRun,
@@ -93,7 +94,11 @@ async function sendOne(work: Work, recipient: RecipientRow): Promise<Verdict> {
   // message for a time that no longer stands. The record is asked, and the calendar feed beside it (S1-05), which is newer
   // than the record by up to the hourly sweep; a feed that could not be read leaves a reminder for a calendar event queued
   // for the next batch, never sent on a guess (broadcast-feed.ts).
-  const rowHeld = rowHold(recipient, () => visitStands(work, recipient));
+  // A thank-you for a deal marked won asks the deal once more the same way (contracts dealStillWon).
+  const rowHeld = rowHold(recipient, {
+    visitStands: () => visitStands(work, recipient),
+    dealWon: () => dealStillWon(work.deals, rowFacts(recipient)),
+  });
   if (rowHeld) return skip(rowHeld);
   // WhatsApp does not approve the message's WhatsApp version, and its people wait for nothing more (whatsapp-wait.ts: while
   // they wait, a batch does not read them): that holds the people who go by WhatsApp, and by no other channel, who stay
@@ -266,7 +271,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const offers = isOfferByEmail({ channel: "email", purpose, proactive: true, about: messageAboutOfTrigger(trigger) });
   const head = await offersAtTheHead(ports, { b: broadcast, cmd, batch, offers });
   if (head === "wait" || head === "stopped") return;
-  const { people, priors, appointments, feed, unreadable } = await readPeople(ports, broadcast, batch);
+  const { people, priors, appointments, deals, feed, unreadable } = await readPeople(ports, broadcast, batch);
   const work: Work = {
     ports,
     cmd,
@@ -283,6 +288,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     people,
     priors,
     appointments,
+    deals,
     feed,
     month: {},
     offersClosed: head === "closed",

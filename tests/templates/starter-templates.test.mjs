@@ -53,6 +53,9 @@ const OFFERED = [
   "missed_visit",
   "booking_follow_up",
   "proposal_follow_up",
+  // The day after a deal is marked won (22 Nov 2026): the thank-you, and the one that asks for a review.
+  "new_client_thanks",
+  "new_client_review",
   "time_freed",
   "quick_note",
   "call_text",
@@ -62,7 +65,7 @@ const RETIRED = ["winback_offer", "welcome_new", "save_our_number", "monthly_off
 /** A workspace's shape as the set is offered by it: deals on, and its Google listing keeping a review link. */
 const ALL = { reviewLink: true };
 
-test("twelve starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
+test("fourteen starters are offered in the library's order, six are retired and still found by name; each in English and Spanish", () => {
   assert.deepEqual(
     startersOffered(ALL).map((s) => s.key),
     OFFERED,
@@ -172,9 +175,11 @@ test("every email and text version passes its channel's check with no warnings, 
       "missed_visit",
       "booking_follow_up",
       "proposal_follow_up",
+      "new_client_thanks",
+      "new_client_review",
       "time_freed",
     ],
-    "the eight about a person's own appointment, proposal or ask go by every channel",
+    "the ten about a person's own appointment, proposal, deal or ask go by every channel",
   );
 });
 
@@ -922,13 +927,21 @@ test("the review ask: a utility message about the appointment they just had, its
   assert.ok(starterPreview(s, "en_US", "Harbor Studio").includes("[Review link]"));
 });
 
-test("the review ask is offered only where the workspace's Google listing keeps a review link, which its slot is filled from; the rest of the set either way", () => {
+test("a review ask is offered only where the workspace has a review link (the owner's own, else its Google listing's), which its slot is filled from; the rest of the set either way", () => {
   const withLink = startersOffered({ reviewLink: true }).map((s) => s.key);
   const without = startersOffered({ reviewLink: false }).map((s) => s.key);
-  assert.ok(withLink.includes("after_visit_review"), "offered with a link");
+  // Two ask for a review: after a kept appointment, and after a deal is marked won (22 Nov 2026).
+  const asks = ["after_visit_review", "new_client_review"];
+  for (const key of asks) assert.ok(withLink.includes(key), `${key}: offered with a link`);
+  assert.deepEqual(
+    STARTER_TEMPLATES.filter((s) => s.texts.en_US.slots.some((x) => x.kind === "review_link")).map((s) => s.key),
+    asks,
+    "the two whose message takes the link, and no other",
+  );
   assert.deepEqual(
     without,
-    withLink.filter((k) => k !== "after_visit_review"),
-    "without one, the set less the review ask",
+    withLink.filter((k) => !asks.includes(k)),
+    "without one, the set less the two review asks",
   );
+  assert.ok(without.includes("new_client_thanks"), "the thank-you that asks nothing is offered either way");
 });

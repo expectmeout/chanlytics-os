@@ -1241,6 +1241,16 @@ function againstOffered(got, frozen) {
   );
   for (const t of g.triggers) {
     const was = w.triggers.find((x) => x.trigger === t.trigger);
+    // A moment offered since 7405e34b, with no calendar (a deal marked won, 22 Nov 2026): an occasion's, so it counts
+    // nobody ahead of time and says so by its mark.
+    if (!was) {
+      assert.deepEqual(
+        [t.trigger, t.each_at_their_own_time, "said_yes_now" in t || "can_be_sent_now" in t],
+        ["deal_won", true, false],
+        "the one moment offered since, counted for nobody",
+      );
+      continue;
+    }
     assert.deepEqual(
       [t.said_yes_now, t.can_be_sent_now, t.counted_per_list],
       [was.said_yes_now, was.can_be_sent_now, was.counted_per_list],
@@ -1287,13 +1297,16 @@ function withHowItAnswers(frozen) {
  * it runs' words, Never gone (a sequence is paused on its page) and a batch of new words waiting first. Each playbook says
  * its own mode; this world has none. Nothing else moved.
  */
-/** The moments' note as it reads since an occasion's moments are among them (10 Nov 2026): what their mark means. */
+/**
+ * The moments' note as it reads since an occasion's moments are among them (10 Nov 2026): what their mark means. A deal
+ * marked won is one of them since 22 Nov 2026.
+ */
 function withOccasionsNote(frozen) {
   const said = JSON.parse(frozen);
   if (typeof said.note !== "string") return frozen;
   const before = "A null count means the page could not count it just now. ";
   const marks =
-    "each_at_their_own_time marks a moment that names nobody ahead of time (two hours before a meeting, a meeting marked missed, the booking link sent and nothing booked): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. ";
+    "each_at_their_own_time marks a moment that names nobody ahead of time (two hours before a meeting, a meeting marked missed, the booking link sent and nothing booked, someone marked as a client): each person comes to it when that happens to them and its message goes then, so it has no count, and that is no fault. ";
   return JSON.stringify({ ...said, note: said.note.replace(before, before + marks) });
 }
 

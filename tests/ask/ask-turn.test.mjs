@@ -6453,7 +6453,8 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
   const offered = (read) => read.triggers.map((x) => x.trigger);
   // No calendar: no appointment moment either (D44, 9 Oct 2026), since without one its run reads nothing. And the
   // proposal follow-up's moment, every workspace's (0008, amended 18 Oct 2026). A calendar frees times too (0082).
-  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting"];
+  // And a deal marked won (22 Nov 2026): read off the deal, so it is offered with or without a calendar.
+  const SILENCE = ["quiet_30", "everyone_monthly", "saved_list", "proposal_waiting", "deal_won"];
   // And starts a sequence for one person at a time of their own (decision 0119; Ask proposes them since 10 Nov 2026).
   const OCCASIONS = ["visit_soon", "visit_missed", "asked_no_booking"];
   const VISITS = [
@@ -6461,9 +6462,11 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     "visit_tomorrow",
     "visited",
     "lapsed",
-    ...SILENCE.slice(2),
+    "saved_list",
+    "proposal_waiting",
     "slot_opened",
     ...OCCASIONS,
+    "deal_won",
   ];
   const feed = (status) => async () => new Response(status === 200 ? ICS : "down", { status });
   const fetchWas = globalThis.fetch;
@@ -6482,11 +6485,11 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
     forgetFeeds();
     const withCalendar = await listed(connected());
     assert.deepEqual(offered(withCalendar), VISITS, "a calendar: Win-back goes by visits");
-    // An occasion's three, each with its starter and no count: nobody is named by one ahead of time, and the read says
+    // An occasion's four, each with its starter and no count: nobody is named by one ahead of time, and the read says
     // so by its mark, never by a count of nobody.
     assert.deepEqual(
       withCalendar.triggers
-        .filter((x) => OCCASIONS.includes(x.trigger))
+        .filter((x) => [...OCCASIONS, "deal_won"].includes(x.trigger))
         .map((x) => [
           x.trigger,
           x.starter_template,
@@ -6497,12 +6500,15 @@ test("the assistant offers the moments a new playbook may start from (2 Oct 2026
         ["visit_soon", "Two-hour reminder", true, false],
         ["visit_missed", "Missed appointment", true, false],
         ["asked_no_booking", "Booking follow-up", true, false],
+        ["deal_won", "Thank you, new client", true, false],
       ],
     );
     assert.match(withCalendar.note, /each_at_their_own_time marks a moment that names nobody ahead of time/);
-    assert.ok(
-      none.triggers.every((x) => !("each_at_their_own_time" in x)),
-      "and with no calendar none of the three is offered",
+    assert.match(withCalendar.note, /someone marked as a client\)/);
+    assert.deepEqual(
+      none.triggers.filter((x) => "each_at_their_own_time" in x).map((x) => x.trigger),
+      ["deal_won"],
+      "and with no calendar none of the three about a visit or a booking is offered: the deal's alone",
     );
     // One on file whose feed cannot be read just now is still connected: the offer does not swap back to silence.
     globalThis.fetch = feed(500);
@@ -6815,8 +6821,14 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
     await load(readerContext(ctxFor(t, doors), { tenantId: A, role: "owner" }, NOW), playbooksReader, undefined)
   ).data;
   const chip = (key) => ({ said_yes_now: page.pools[key].saidYes, can_be_sent_now: page.pools[key].candidates });
-  for (const x of read.triggers.filter((y) => !y.counted_per_list))
+  // A moment that names nobody ahead of time (a deal marked won, offered here with no calendar) has no chip to say.
+  for (const x of read.triggers.filter((y) => !y.counted_per_list && !y.each_at_their_own_time))
     assert.deepEqual({ said_yes_now: x.said_yes_now, can_be_sent_now: x.can_be_sent_now }, chip(x.trigger), x.trigger);
+  assert.deepEqual(
+    read.triggers.filter((y) => y.each_at_their_own_time).map((y) => [y.trigger, page.pools[y.trigger]]),
+    [["deal_won", null]],
+    "and the page counts nobody for it either",
+  );
   const monthly = read.triggers.find((x) => x.trigger === "everyone_monthly");
   assert.deepEqual(
     [monthly.said_yes_now, monthly.can_be_sent_now],
@@ -6885,9 +6897,10 @@ test("campaigns.playbooks says the Playbooks page's numbers (ledger #10): every 
       "its list could not be read just now",
     ],
   );
+  // A moment that names nobody ahead of time (a deal marked won) has no count to lose.
   assert.ok(
     blind.triggers
-      .filter((x) => !x.counted_per_list)
+      .filter((x) => !x.counted_per_list && !x.each_at_their_own_time)
       .every((x) => x.said_yes_now === null && x.can_be_sent_now === null),
   );
   assert.ok(!/Settings/.test(JSON.stringify(blind.playbooks)), "REGRESSION: a failed read was told to fix Settings");

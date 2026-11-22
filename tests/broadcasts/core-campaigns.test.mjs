@@ -2165,10 +2165,14 @@ test("a booking-link slot needs a link on file, by one rule a message's values a
   assert.equal(asked, 0, "no slot for it, no read");
 });
 
-test("a review-link slot needs the link the workspace's Google listing keeps: refused in TEMPLATE_VALUE_WORDS' words when the port answers none, filled with it when it answers one, and read only where a slot asks for it", async () => {
+test("a review-link slot needs the workspace's review link (the owner's own, else its Google listing's): refused in TEMPLATE_VALUE_WORDS' words when the port answers none, filled with it when it answers one, and read only where a slot asks for it", async () => {
   const { getTemplateValues, TEMPLATE_VALUE_WORDS } = await importSrc("packages/core/src/campaigns/template-values.ts");
   const { resolveParams } = await importSrc("packages/contracts/src/campaigns/templates/params.ts");
-  assert.equal(TEMPLATE_VALUE_WORDS.noReviewLink, "Connect your Google listing so the review link can be filled.");
+  // The two ways to have one, as the booking link's refusal names its one.
+  assert.equal(
+    TEMPLATE_VALUE_WORDS.noReviewLink,
+    "This message takes the review link, and none is on file. Add yours in Settings › Details, or connect your Google listing.",
+  );
   const link = "https://example.com/review/harbor-studio";
   let asked = 0;
   const f = (reviewLink) =>

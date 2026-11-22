@@ -281,6 +281,8 @@ function occasionLine(trigger: string, one: string, at: string): [does: string, 
     return [`Offers another time to anyone whose ${one} you mark missed`, "a few minutes after"];
   if (trigger === "asked_no_booking")
     return ["Follows up with anyone sent your booking link who has not booked", `the next day at ${at}`];
+  // A deal marked won (22 Nov 2026): the next day at the campaign's hour (contracts wonThanksAt).
+  if (trigger === "deal_won") return ["Thanks everyone you mark as a client", `the next day at ${at}`];
   // A freed time goes when a cancellation frees it, never at the hour (decision 0082): it said "Fill a cancellation to 0
   // people, daily at 10:00 AM" on Ruben's set-up card (14 Nov 2026).
   if (trigger === "slot_opened")
@@ -374,6 +376,7 @@ export function nobodyNamedWords(trigger: string, word: AppointmentWord, list: s
     case "visit_soon":
     case "visit_missed":
     case "asked_no_booking":
+    case "deal_won":
       return capitalize(occasionWords(trigger, word).who);
     default:
       return "Nobody to send to yet";

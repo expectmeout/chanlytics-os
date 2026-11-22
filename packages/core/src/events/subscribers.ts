@@ -46,11 +46,12 @@
  *                     visit_tomorrow for that one person at the time the one rule gives it (contracts lateReminderAt,
  *                     decision 0118). The door asks first whether this visit was reminded, so a second run makes nothing
  *                     new. Each booking says what came of it in one log line.
- *   occasion_enrol    an appointment's change (appointment.changed) or the booking link sent (booking_link.sent) is
- *                     handed to the edge's door, which enrols the person in each sequence that starts on it, at a time
- *                     of their own (decision 0119, contracts occasions.ts): two hours before a visit, after a visit
- *                     marked missed, the day after an ask. A row is kept once per sequence, person and occasion, so a
- *                     second run enrols nobody twice. Nothing is sent here: the sequences' clock runs each at its time.
+ *   occasion_enrol    an appointment's change (appointment.changed), the booking link sent (booking_link.sent) or a deal
+ *                     marked won (deal.won) is handed to the edge's door, which enrols the person in each sequence that
+ *                     starts on it, at a time of their own (decision 0119, contracts occasions.ts): two hours before a
+ *                     visit, after a visit marked missed, the day after an ask, the day after a deal is won. A row is
+ *                     kept once per sequence, person and occasion, so a second run enrols nobody twice. Nothing is sent
+ *                     here: the sequences' clock runs each at its time.
  *   visit_arrival     a booking that arrived (appointment.changed, by the rule visit_notice tells it by: contracts
  *                     bookingArriving) is stamped on its visit with the event's own moment (decision 0141, 00647), so a
  *                     day's bookings are counted from the record and never from a second copy of the rule. The later

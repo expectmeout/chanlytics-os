@@ -968,8 +968,10 @@ their cards say so.
 
 **The review ask, and a twin at Approve** (12 October 2026, decision 0055): the day after an appointment has a second
 starter, `after_visit_review`, filed utility as How did it go is (about the appointment they had, with no offer), its
-third value the review link the Google listing keeps (`google_listings.new_review_uri`, 00415, S-16). It is offered
-only where the listing keeps one, and a `review_link` slot is filled from nothing else; How did it go stays the
+third value the business's review link: its owner's own where they gave one on Settings › Details (`brain.review_link`,
+22 November 2026), else the one the Google listing keeps (`google_listings.new_review_uri`, 00415, S-16; contracts
+`reviewLinkFrom`, db `reviewLinkOf`). It is offered only where there is one, and a `review_link` slot is filled from
+nothing else; How did it go stays the
 moment's own message. And a card of Ask's that starts a campaign meets the running-twin rule again at its Approve
 (`POST playbooks` with `x-via: ask`: 409 in the owner's words, contracts `twinRunsWords`), so a plan's card pressed
 again after its key's day starts no second campaign. The composer's own start does not meet it.
